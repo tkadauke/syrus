@@ -73,10 +73,10 @@ The classifier currently emits these families:
 - `job_workflow_state_drift`
 - `job_without_active_workflow`
 - `unambiguous_job_state_drift`
-- `completed_infrastructure_job` — closes a completed `main_grader` or
-  `agent_insight` Job left open (e.g. stuck at `implemented`) despite its
-  anchor Workflow having already finished; these kinds never open a PR or
-  need operator review
+- `completed_infrastructure_job` — closes a completed `main_grader`,
+  `agent_insight`, or preflight-passed `main_branch_repair` Job left open
+  (e.g. stuck at `implemented`) despite its anchor Workflow having already
+  finished; these paths never open a PR or need operator review
 - `dependency_stack_start_block`
 - `stale_dependency_start_block`
 - `main_health_start_block`

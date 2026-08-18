@@ -2754,6 +2754,43 @@ RSpec.describe WorkEngine::Reconciler do
     expect(insight_job.closure_reason).to eq("agent_insight")
   end
 
+  it "closes a stranded main branch repair job whose preflight already passed" do
+    repair_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_number: nil,
+      issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+      state: "implemented",
+      pr_number: nil,
+      external_pr_number: nil
+    )
+    Workflow.create!(
+      job: repair_job,
+      trigger_kind: "main_branch_repair",
+      state: "succeeded",
+      artifacts: { "preflight_passed" => true },
+      finished_at: Time.current
+    )
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :completed_infrastructure_job)).to have_attributes(
+      severity: "info",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "close_completed_infrastructure_job"
+    )
+    expect(plan(result, :close_completed_infrastructure_job)).to have_attributes(
+      auto_executable: true,
+      target_type: "Job",
+      target_id: repair_job.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("closed completed direct Job ##{repair_job.id}")
+    expect(repair_job.reload).to be_closed
+    expect(repair_job.closure_reason).to eq("preflight_passed")
+  end
+
   # A failed SolidQueue job keeps finished_at NULL forever, so the
   # unfinished-RunJob query accumulates every RunJob that ever failed. On
   # production that was 1,775 rows -- 1,751 of them permanently dead, oldest a

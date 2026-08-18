@@ -982,19 +982,16 @@ module WorkEngine
       }
     end
 
-    # main_grader and agent_insight Jobs are internal-tooling health
-    # checks: no PR, no operator review. They're meant to close as soon
-    # as their one Workflow finishes (via Job#mark_infrastructure_job_closed
-    # or the agent_insight chain's own auto_close step), but a hook
-    # exception or a generic, kind-unaware repair path (e.g. the plain
-    # queued/succeeded or running/succeeded ReconcileJobStatesJob::Plan
-    # cases) can still strand one open. This is the safety net.
+    # Internal anchor Jobs that do not require operator review can be stranded
+    # open when a lifecycle hook is skipped or raises after their Workflow is
+    # already terminal. This is the safety net.
     def classify_completed_infrastructure_jobs
       jobs.filter_map do |job|
-        next unless job.infrastructure_job?
         next if job.closed?
 
         latest_workflow = job.latest_workflow
+        closure_reason = completed_internal_job_closure_reason(job, latest_workflow)
+        next unless closure_reason
         next unless job.implemented? || ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
 
         issue(
@@ -1008,11 +1005,23 @@ module WorkEngine
             job_state: job.state,
             latest_workflow_id: latest_workflow&.id,
             latest_workflow_state: latest_workflow&.state,
-            closure_reason: job.kind
+            closure_reason: closure_reason
           },
           explanation: "#{job.kind.humanize} Job ##{job.id} is complete and can be closed."
         )
       end
+    end
+
+    def completed_internal_job_closure_reason(job, latest_workflow)
+      return job.kind if job.infrastructure_job?
+
+      return unless job.main_branch_repair?
+      return unless latest_workflow&.trigger_kind == "main_branch_repair"
+      return unless latest_workflow.succeeded?
+      return unless latest_workflow.artifact("preflight_passed")
+      return if job.pr_number.present? || job.external_pr_number.present?
+
+      "preflight_passed"
     end
 
     def classify_start_blocks

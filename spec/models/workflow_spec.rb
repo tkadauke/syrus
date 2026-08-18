@@ -122,7 +122,8 @@ RSpec.describe Workflow do
 
   describe "#infrastructure_workflow?" do
     it "treats speculative validation workflows as infrastructure" do
-      expect(described_class::INFRASTRUCTURE_TRIGGER_KINDS).to include("landing_validation", "merge_train_validation")
+      expect(described_class::INFRASTRUCTURE_TRIGGER_KINDS).to include("main_branch_repair", "landing_validation", "merge_train_validation")
+      expect(build_wf(trigger_kind: "main_branch_repair")).to be_infrastructure_workflow
       expect(build_wf(trigger_kind: "merge_train_validation")).to be_infrastructure_workflow
     end
   end

@@ -111,6 +111,16 @@ RSpec.describe Workflows::MainBranchRepair do
         expect(job.reload.closure_reason).to eq("preflight_passed")
       end
 
+      it "honors a preflight artifact written by a different workflow instance" do
+        stale_workflow = Workflow.find(workflow.id)
+        stale_workflow.artifacts = {}
+
+        described_class.after_success(stale_workflow)
+
+        expect(job.reload).to be_closed
+        expect(job.closure_reason).to eq("preflight_passed")
+      end
+
       it "calls MainHealthChangedService when grader health transitions to healthy" do
         expect(MainHealthChangedService).to receive(:on_health_change!).with(kind_of(Repository))
 

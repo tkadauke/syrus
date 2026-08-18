@@ -899,14 +899,33 @@ module WorkEngine
         def perform
           job = target_job
           return skipped("Job no longer exists") unless job
-          return skipped("Job is not an infrastructure job") unless job.infrastructure_job?
+          closure_reason = completed_internal_closure_reason(job)
+          return skipped("Job is not a completed internal job") unless closure_reason
           return skipped("Job is already closed") if job.closed?
           return skipped("Job cannot close") unless job.may_close?
 
           StateTransition.with_source("reconciler") do
-            job.close_with_reason!(job.kind)
+            job.close_with_reason!(closure_reason)
           end
           success("closed completed #{job.kind} Job ##{job.id}")
+        end
+
+        private
+
+        def completed_internal_closure_reason(job)
+          return job.kind if job.infrastructure_job?
+
+          expected_reason = plan.preconditions["closure_reason"].to_s
+          return unless expected_reason == "preflight_passed"
+          return unless job.main_branch_repair?
+
+          latest_workflow = job.latest_workflow
+          return unless latest_workflow&.trigger_kind == "main_branch_repair"
+          return unless latest_workflow.succeeded?
+          return unless latest_workflow.artifact("preflight_passed")
+          return if job.pr_number.present? || job.external_pr_number.present?
+
+          expected_reason
         end
       end
     end

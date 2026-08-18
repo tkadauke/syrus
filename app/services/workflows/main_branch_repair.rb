@@ -43,7 +43,8 @@ module Workflows
     # to healthy, notify MainHealthChangedService of the transition so landing
     # can resume, and close the anchor job.
     def self.after_success(workflow)
-      return unless workflow.artifact("preflight_passed")
+      artifacts = workflow.class.where(id: workflow.id).pick(:artifacts) || workflow.artifacts || {}
+      return unless artifacts["preflight_passed"]
 
       repository = workflow.job.repository
       previous_health = repository.main_health
@@ -71,7 +72,7 @@ module Workflows
 
     private_class_method def self.close_anchor_job!(workflow)
       StateTransition.with_source("system") do
-        job = workflow.job
+        job = workflow.job.reload
         job.close_with_reason!("preflight_passed") if job.may_close?
       end
     end

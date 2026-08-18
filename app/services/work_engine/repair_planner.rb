@@ -882,7 +882,7 @@ module WorkEngine
           automatic_plan(
             "close_completed_infrastructure_job",
             primary_job,
-            "Completed infrastructure Jobs (main_grader, agent_insight) are internal-tooling runs with no PR or operator review, and can be closed once their latest Workflow is terminal or the Job is implemented.",
+            "Completed internal Jobs (main_grader, agent_insight, or a preflight-passed main branch repair) have no PR or operator review left, and can be closed once their latest Workflow is terminal or the Job is implemented.",
             execution_steps: [ "Job#close_with_reason!" ],
             preconditions: {
               job_kind: issue.evidence["job_kind"],
