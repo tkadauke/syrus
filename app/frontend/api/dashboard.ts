@@ -144,6 +144,7 @@ export type DashboardJobItem = {
   latest_workflow_trigger_kind: string | null
   pr_url: string | null
   latest_workflow_state: string
+  latest_workflow_started_at?: string | null
   latest_deployment_stage?: DashboardDeploymentStage | null
   landing_queue_position: number | null
   landing_queue_blocked_reason: BlockedReason | string | null

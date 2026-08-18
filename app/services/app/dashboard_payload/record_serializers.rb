@@ -50,6 +50,7 @@ module App
           latest_workflow_trigger_kind: latest_workflow_trigger_kind_for(job),
           pr_url: job.pr_number.present? ? App::Presentation.job_pr_url(job) : App::Presentation.external_pr_url(job),
           latest_workflow_state: App::Presentation.workflow_dashboard_state(latest_workflow_state_for(job), latest_workflow_trigger_kind_for(job)),
+          latest_workflow_started_at: latest_workflow_started_at_for(job)&.iso8601,
           landing_queue_position: landing_queue_position_for(job),
           landing_queue_blocked_reason: landing_queue_blocked_reason_for(job),
           landing_queue_wait_reason: landing_queue_wait_reason_for(job),

@@ -650,7 +650,7 @@ module App
         .pluck(:id)
       selected_ids.empty? ? {} : Workflow
         .where(id: selected_ids)
-        .select(:id, :job_id, :state, :trigger_kind, :created_at, :finished_at, :failure_count, :failure_reason, :artifacts, :cleaned_up_at)
+        .select(:id, :job_id, :state, :trigger_kind, :created_at, :started_at, :finished_at, :failure_count, :failure_reason, :artifacts, :cleaned_up_at)
         .index_by(&:job_id)
     end
 
@@ -753,6 +753,10 @@ module App
 
     def latest_workflow_trigger_kind_for(job)
       latest_workflow_for(job)&.trigger_kind
+    end
+
+    def latest_workflow_started_at_for(job)
+      latest_workflow_for(job)&.started_at
     end
 
     def job_apparently_paused?(job)
