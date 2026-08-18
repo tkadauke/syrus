@@ -28,6 +28,44 @@ RSpec.describe IndexOperationalLogEventsJob do
     expect(OperationalLogIndex.search(query: "batched", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to include(event.id)
   end
 
+  it "indexes the whole batch inside a single outer transaction, rolling back all events if one fails" do
+    prepare_search_tables
+    event_one = OperationalLogEvent.create!(
+      occurred_at: Time.current,
+      level: "info",
+      role: "web",
+      hostname: "host-a",
+      source: "spec",
+      message: "first event in batch",
+      context: {}
+    )
+    event_two = OperationalLogEvent.create!(
+      occurred_at: Time.current,
+      level: "info",
+      role: "web",
+      hostname: "host-a",
+      source: "spec",
+      message: "second event in batch",
+      context: {}
+    )
+
+    insert_count = 0
+    allow(OperationalLogIndex.connection).to receive(:exec_insert).and_wrap_original do |original, *args|
+      insert_count += 1
+      raise ActiveRecord::StatementInvalid, "boom" if insert_count == 2
+
+      original.call(*args)
+    end
+
+    expect {
+      described_class.perform_now([ event_one.id, event_two.id ])
+    }.to raise_error(ActiveRecord::StatementInvalid)
+
+    expect(
+      OperationalLogIndex.search(query: "first", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }
+    ).not_to include(event_one.id)
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS operational_log_fts")
     SearchRecord.connection.execute(<<~SQL)
