@@ -13,7 +13,9 @@ module Steps
       before_count = review_iterations.size
       log("invoking agent for visual_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
 
-      run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_visual_review])
+      run_agent(prompt: run.prompt,
+                required_mcp_tools: %w[submit_visual_review],
+                disallowed_tools: REVIEW_COLLIDING_TOOLS)
       discard_reviewer_workspace_changes
 
       workflow.reload

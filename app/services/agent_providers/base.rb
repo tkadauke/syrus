@@ -69,7 +69,7 @@ module AgentProviders
       self.class.provider
     end
 
-    def run(prompt:, log_sink:, max_turns: nil, required_mcp_tools: nil)
+    def run(prompt:, log_sink:, max_turns: nil, required_mcp_tools: nil, disallowed_tools: nil)
       invoke(
         workspace_path: workspace.path,
         prompt: prompt,
@@ -78,7 +78,8 @@ module AgentProviders
         max_turns: max_turns || default_max_turns,
         mcp: true,
         resume_session_id: parent_session_id,
-        required_mcp_tools: required_mcp_tools
+        required_mcp_tools: required_mcp_tools,
+        disallowed_tools: disallowed_tools
       )
     end
 
@@ -126,7 +127,7 @@ module AgentProviders
 
     attr_reader :workspace, :parent_session_id, :workflow, :job
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil)
       raise NotImplementedError, "#{self.class.name} must implement #invoke"
     end
 

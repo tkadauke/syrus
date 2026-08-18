@@ -60,7 +60,7 @@ module AgentProviders
       )
     end
 
-    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil)
+    def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil)
       on_session_id = ->(sid) { @run.update_columns(live_session_id: sid) rescue nil }
       if mcp
         with_mcp_config do |mcp_config_path|
@@ -72,6 +72,7 @@ module AgentProviders
                         mcp_config: mcp_config_path,
                         resume_session_id: resume_session_id,
                         required_mcp_tools: required_mcp_tools,
+                        disallowed_tools: disallowed_tools,
                         on_session_id: on_session_id)
         end
       else
@@ -83,6 +84,7 @@ module AgentProviders
                       mcp_config: nil,
                       resume_session_id: resume_session_id,
                       required_mcp_tools: required_mcp_tools,
+                      disallowed_tools: disallowed_tools,
                       on_session_id: on_session_id)
       end
     end
@@ -99,7 +101,7 @@ module AgentProviders
       ).run
     end
 
-    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, on_session_id: ->(_) {})
+    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil, on_session_id: ->(_) {})
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -111,6 +113,7 @@ module AgentProviders
         mcp_config: mcp_config,
         resume_session_id: resume_session_id,
         required_mcp_tools: required_mcp_tools,
+        disallowed_tools: disallowed_tools,
         on_session_id: on_session_id
       ).run
     end

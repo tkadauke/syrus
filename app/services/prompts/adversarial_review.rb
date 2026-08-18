@@ -110,6 +110,8 @@ module Prompts
         - verdict: "needs_work" when implementation changes are needed, otherwise "approved".
 
         The verdict is recorded for future workflow control but is not acted on yet.
+
+        Do not call `ReportFindings` or any other generic findings-reporting tool — this step is only complete once `submit_adversarial_review` has been called.
       TEXT
     end
   end

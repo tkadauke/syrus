@@ -64,10 +64,11 @@ RSpec.describe Steps::AdversarialReview do
 
   it "calls run_agent without using the change-step commit path" do
     expect(handler).not_to receive(:perform_agentic_change_step)
-    expect(handler).to receive(:run_agent) do |prompt: nil, required_mcp_tools: nil, **|
+    expect(handler).to receive(:run_agent) do |prompt: nil, required_mcp_tools: nil, disallowed_tools: nil, **|
       expect(prompt).to include("submit_adversarial_review")
       expect(prompt).to include("diff --git a/app.rb b/app.rb")
       expect(required_mcp_tools).to eq(%w[submit_adversarial_review])
+      expect(disallowed_tools).to eq(%w[ReportFindings])
       workflow.set_artifact!("adversarial_review_iterations", [
         { "iteration" => review_step.iteration, "critique" => "Looks sound.", "verdict" => "approved" }
       ])

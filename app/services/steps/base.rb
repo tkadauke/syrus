@@ -28,6 +28,14 @@ module Steps
     DEFAULT_AGENT_RESUME = Object.new.freeze
     DISABLE_AGENT_RESUME = "__syrus_disable_agent_resume__".freeze
 
+    # Claude Code's built-in generic tools that read like a plausible
+    # findings-reporting destination but are NOT the step-required MCP tool.
+    # Reviewer steps (adversarial_review, visual_review) read as generic
+    # code-review tasks, so the model can pattern-match to one of these
+    # instead of the named submit_* MCP tool — see JOB-3273. Passed as
+    # disallowed_tools so the CLI itself refuses to expose them.
+    REVIEW_COLLIDING_TOOLS = %w[ReportFindings].freeze
+
     # Shared buffering thresholds — used by buffered_log_sink (agent
     # output) and by Prepare#stream_buffered (shell command output).
     LOG_FLUSH_BYTES    = 16 * 1024
@@ -183,7 +191,7 @@ module Steps
     # one is available. Streams transcript chunks into JobLog,
     # captures the new session transcript on success, raises StepFailed
     # on any of the non-success outcomes.
-    def run_agent(prompt:, max_turns: nil, resume_session_id: DEFAULT_AGENT_RESUME, required_mcp_tools: nil)
+    def run_agent(prompt:, max_turns: nil, resume_session_id: DEFAULT_AGENT_RESUME, required_mcp_tools: nil, disallowed_tools: nil)
       prompt = AgentEnvironmentSnapshot.new(run: run, workspace_path: workspace.path).apply_to(prompt)
       prompt = JobAttachmentContext.new(job: job, workspace_path: workspace.path).apply_to(prompt)
       adapter = resume_session_id.equal?(DEFAULT_AGENT_RESUME) ? agent_adapter : agent_adapter_for(resume_session_id)
@@ -193,7 +201,8 @@ module Steps
           prompt: prompt,
           log_sink: sink,
           max_turns: max_turns,
-          required_mcp_tools: required_mcp_tools
+          required_mcp_tools: required_mcp_tools,
+          disallowed_tools: disallowed_tools
         )
       ensure
         flush.call
