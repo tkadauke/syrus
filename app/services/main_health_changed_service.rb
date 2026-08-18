@@ -72,7 +72,8 @@ class MainHealthChangedService
     resume_landing!
     start_blocked_queued_workflows!
     retried_count = retry_held_jobs!
-    emit_recovery_notification!(retried_count)
+    rebased_count = rebase_failing_ci_jobs!
+    emit_recovery_notification!(retried_count, rebased_count)
   end
 
   def ensure_repair_job!(force: false)
@@ -250,6 +251,36 @@ class MainHealthChangedService
       .workflows
       .where("id > ?", workflow.id)
       .exists?
+  end
+
+  # PRs left with pr_checks_state == "failing" while main was broken never
+  # got a fresh CI run pointed at the healthy base — GitHub doesn't silently
+  # re-run stale check results just because the base branch moved. A cheap
+  # mechanical rebase (auto_rebase escalates to an agent only on real
+  # conflict) gives GitHub a new SHA to check; the next poll only fires
+  # ci_failure if the PR's own diff is genuinely still broken. Deliberately
+  # queries live pr_checks_state instead of a persisted "deferred" marker so
+  # it sweeps up every red-CI Job regardless of which guard skipped its
+  # repair (the main-health ci_failure gate, the pre-existing cap, or a race
+  # window), with no bookkeeping to fall out of sync.
+  def rebase_failing_ci_jobs!
+    rebased = 0
+
+    @repository.jobs.open_threads.where(pr_checks_state: "failing").find_each do |job|
+      break if rebased >= MAX_RECOVERY_RETRIES
+      next if job.branch_name.blank?
+      next if RebaseWorkflowSelector.active_for_stack?(job)
+      next if RebaseWorkflowSelector.active_merge_train_for_stack?(job)
+
+      workflow = RebaseWorkflowSelector.instantiate(
+        job: job,
+        artifacts: { "repair_reason" => "main branch recovered; PR checks were failing against the broken base" }
+      )
+      StepDispatcher.start_workflow(workflow)
+      rebased += 1
+    end
+
+    rebased
   end
 
   def spawn_fix_job!
@@ -469,7 +500,7 @@ class MainHealthChangedService
     )
   end
 
-  def emit_recovery_notification!(retried_count)
+  def emit_recovery_notification!(retried_count, rebased_count = 0)
     user = @repository.user
     return unless user
 
@@ -477,6 +508,10 @@ class MainHealthChangedService
     if retried_count > 0
       noun = retried_count == 1 ? "job" : "jobs"
       body += " #{retried_count} #{noun} queued for auto-retry."
+    end
+    if rebased_count > 0
+      noun = rebased_count == 1 ? "PR" : "PRs"
+      body += " #{rebased_count} #{noun} rebased for a fresh CI run."
     end
 
     NotificationService.create_for(
