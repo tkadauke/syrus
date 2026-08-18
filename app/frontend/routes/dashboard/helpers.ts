@@ -20,10 +20,6 @@ export function compactText(value: string) {
 
 export { formatCurrency } from "../../lib/format"
 
-export function pluralize(count: number, singular: string) {
-  return count === 1 ? singular : `${singular}s`
-}
-
 export function dashboardLink(path: string, params: Record<string, string | number | null | undefined>) {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {

@@ -68,6 +68,28 @@ RSpec.describe App::DashboardPayload do
     end
   end
 
+  describe "latest_workflow_started_at on job items" do
+    it "exposes the started_at of the job's latest workflow, not the job's own started_at" do
+      job = Factories.job_record(user: user, repository: repo, started_at: Time.zone.parse("2026-07-31T10:00:00Z"))
+      Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: Time.zone.parse("2026-07-31T11:30:00Z"))
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:latest_workflow_started_at]).to eq("2026-07-31T11:30:00Z")
+    end
+
+    it "is nil when the latest workflow has not started yet" do
+      job = Factories.job_record(user: user, repository: repo)
+      Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:latest_workflow_started_at]).to be_nil
+    end
+  end
+
   describe "default inbox view" do
     # Builtins are seeded by the service on each call, but we need them available
     # for assertions before the second call, so ensure them explicitly.

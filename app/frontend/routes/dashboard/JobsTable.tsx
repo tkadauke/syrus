@@ -2,7 +2,7 @@ import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLin
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
-import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, pluralize, withRoutePrefix } from "./helpers"
+import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
@@ -572,7 +572,6 @@ function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attributio
 
 function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false }: { job: DashboardJobItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string; topSeparator?: boolean }) {
   const { t } = useT("dashboard")
-  const approvalLabel = job.approved_at ? t("approved") : t("not_approved")
 
   return (
     <article aria-label={job.title} className={[
@@ -591,9 +590,9 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
-          {job.kind !== "issue" ? <span className="text-xs text-gray-500 dark:text-gray-400">{humanizeOption(job.kind)}</span> : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
@@ -604,10 +603,8 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
-          <span>{approvalLabel}</span>
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
-          <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
-          <span><RelativeTimestamp value={job.started_at || job.created_at} /></span>
+          <span><RelativeTimestamp value={job.latest_workflow_started_at || job.started_at || job.created_at} /></span>
           {job.state === "queued" && job.start_blocked_reason ? (
             <StartBlockedReasonPill count={job.start_blocked_count} details={job.start_blocked_details} nextCheckAt={job.start_blocked_next_check_at} reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
           ) : null}
