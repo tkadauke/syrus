@@ -346,8 +346,8 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
       <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[62%_38%]">
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
+        <div className="min-w-0 space-y-4">
           <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_issue")}</h2>
             {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>}
@@ -371,7 +371,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
           <AttachmentPreview attachments={payload.attachments} />
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <PreviewPanel
             canStart={payload.actions.can_start_preview}
             initialPreview={payload.preview}

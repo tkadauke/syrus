@@ -775,6 +775,29 @@ describe("JobDetailView", () => {
     expect(within(panel as HTMLElement).getByText("Render markdown")).toBeInTheDocument()
   })
 
+  it("constrains the Summary tab grid columns so a wide code block scrolls instead of widening the page", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        issue_body: "```json\n{ \"line\": \"this line is intentionally very long to exceed the column width\" }\n```"
+      }
+    }))
+
+    const panel = screen.getByRole("heading", { name: "Issue" }).closest("section")
+    expect(panel).not.toBeNull()
+
+    const grid = (panel as HTMLElement).closest(".grid") as HTMLElement | null
+    expect(grid).not.toBeNull()
+    expect(grid).toHaveClass("grid-cols-1")
+
+    const column = (panel as HTMLElement).parentElement
+    expect(column).not.toBeNull()
+    expect(column).toHaveClass("min-w-0")
+
+    const codeBlock = within(panel as HTMLElement).getByText(/intentionally very long/).closest("pre")
+    expect(codeBlock?.parentElement).toHaveClass("overflow-x-auto")
+  })
+
   it("hides workflow terminal actions when the feature flag is disabled", () => {
     renderJobDetail(jobPayload({
       workflows: [ workflow({ id: 4, slug: "WF-4" }) ],
