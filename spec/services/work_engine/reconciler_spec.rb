@@ -1157,6 +1157,91 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.evidence).to include("detached_worker_evidence" => false)
   end
 
+  it "still reaps a stale running Run left behind under an already-cancelled Workflow" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(
+      state: "running",
+      started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+      last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    )
+    step.update_columns(state: "cancelled", started_at: run.started_at, finished_at: run.started_at)
+    workflow.update_columns(state: "cancelled", started_at: run.started_at, finished_at: run.started_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    # Default (no explicit run_id/workflow_id) scan scope — the same path every
+    # automatic reconciler entry point (ReapStaleRunsJob, LandingQueueProcessor,
+    # etc.) uses. Before the fix, scoped_workflows dropped this cancelled
+    # Workflow entirely, so the stale Run was never visible here.
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(issue.affected_ids[:run_ids]).to eq([ run.id ])
+
+    executed = reconcile_and_execute(job_id: job.id)
+    repair_plan = plan(executed, :mark_worker_died)
+
+    expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
+    expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+  end
+
+  it "still reaps a stale running Run left behind under an already-succeeded Workflow" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(
+      state: "running",
+      started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+      last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    )
+    step.update_columns(state: "succeeded", started_at: run.started_at, finished_at: run.started_at)
+    workflow.update_columns(state: "succeeded", started_at: run.started_at, finished_at: run.started_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(issue.affected_ids[:run_ids]).to eq([ run.id ])
+
+    executed = reconcile_and_execute(job_id: job.id)
+    repair_plan = plan(executed, :mark_worker_died)
+
+    expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
+    expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+  end
+
+  it "still classifies a stale running Run under a normal active Workflow through the default job-scoped scan" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(
+      state: "running",
+      started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+      last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    )
+    step.update_columns(state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died"
+    )
+    expect(issue.affected_ids[:run_ids]).to eq([ run.id ])
+  end
+
   it "plans session resume after a stale running agent Run loses its worker" do
     agent_step = workflow.steps.find_by!(kind: "implement")
     agent_run = agent_step.runs.create!(
