@@ -17,6 +17,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `artifact_renderer`
 - `grader_augmentor`
 - `callbacks`
+- `prepare_detector`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -316,6 +317,59 @@ Syrus::PluginRegistry.register(
   provides: { grader_augmentor: MyPlugin::GraderAugmentor }
 )
 ```
+
+## `prepare_detector`
+
+Tells `RepoPrepPlan` which shell commands to run in a freshly-cloned
+workspace before handing off to the agent, based on signals in the repo
+(lockfiles, config files, etc). This is the auto-detect fallback used when a
+repository has no `.syrus.yml` `prepare:` list.
+
+Include `Syrus::Plugin::PrepareDetector` and implement the class methods:
+
+| Method | Signature | Description |
+|---|---|---|
+| `detect?` | `(repo_path) → bool` | True if this plugin's ecosystem is present in the repo |
+| `prepare_commands` | `(repo_path) → Array<String>` | Commands to run |
+
+`RepoPrepPlan` queries every enabled `:prepare_detector` plugin whose
+`detect?` matches and **concatenates** their `prepare_commands` — the union
+is across plugins/ecosystems, not within one. A plugin fronting more than one
+package manager for the same ecosystem (e.g. both `yarn.lock` and
+`package-lock.json` present) must still pick exactly one command internally;
+returning more than one command per package manager it fronts is a plugin
+bug, not something `RepoPrepPlan` dedupes.
+
+```ruby
+class MyPlugin::PrepareDetector
+  include Syrus::Plugin::PrepareDetector
+
+  def self.detect?(repo_path)
+    File.exist?(File.join(repo_path, "requirements.txt"))
+  end
+
+  def self.prepare_commands(repo_path)
+    [ "pip install -r requirements.txt" ]
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  prepare_priority: 100,
+  provides: { prepare_detector: MyPlugin::PrepareDetector }
+)
+```
+
+`prepare_priority` (an `Integer`, default `100`, lower runs/orders first) is a
+general manifest field that controls the order commands from different
+plugins are concatenated in. Plugins that don't set it keep their
+registration order relative to each other.
+
+Until the `ruby` and `javascript` plugins register their own
+`:prepare_detector` providers, `RepoPrepPlan::AUTO_DETECT` still contains a
+hardcoded Ruby (`Gemfile`) and Node (`yarn.lock`/`pnpm-lock.yaml`/
+`package-lock.json`/`package.json`) fallback, unioned the same way alongside
+any plugin-contributed commands.
 
 ## Plugin install and uninstall
 
