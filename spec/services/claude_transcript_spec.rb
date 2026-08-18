@@ -66,6 +66,46 @@ RSpec.describe ClaudeTranscript do
       expect(events[3].data[:name]).to eq("Bash")
     end
 
+    it "tags assistant/tool_use events from a sidechain (subagent) line with sidechain + parent_tool_use_id" do
+      input = jsonl(
+        { "type" => "assistant", "isSidechain" => true, "parentToolUseId" => "toolu_agent1",
+          "message" => { "content" => [
+            { "type" => "text", "text" => "Looking around…" },
+            { "type" => "tool_use", "name" => "Read", "input" => { "file_path" => "/foo" }, "id" => "sub1" }
+          ] } }
+      )
+      events = described_class.new(input).events.to_a
+      expect(events.map(&:kind)).to eq([ :assistant_text, :tool_use ])
+      events.each do |event|
+        expect(event.data[:sidechain]).to be true
+        expect(event.data[:parent_tool_use_id]).to eq("toolu_agent1")
+      end
+    end
+
+    it "tags user_prompt/tool_result events from a sidechain line with sidechain + parent_tool_use_id" do
+      input = jsonl(
+        { "type" => "user", "isSidechain" => true, "parentToolUseId" => "toolu_agent1",
+          "message" => { "content" => [
+            { "type" => "tool_result", "tool_use_id" => "sub1", "content" => "ok" }
+          ] } }
+      )
+      events = described_class.new(input).events.to_a
+      expect(events.first.kind).to eq(:tool_result)
+      expect(events.first.data[:sidechain]).to be true
+      expect(events.first.data[:parent_tool_use_id]).to eq("toolu_agent1")
+    end
+
+    it "marks non-sidechain (top-level) events as sidechain: false with no parent_tool_use_id" do
+      input = jsonl(
+        { "type" => "assistant", "message" => { "content" => [
+          { "type" => "text", "text" => "Top-level text" }
+        ] } }
+      )
+      events = described_class.new(input).events.to_a
+      expect(events.first.data[:sidechain]).to be false
+      expect(events.first.data[:parent_tool_use_id]).to be_nil
+    end
+
     it "extracts a result event with turns + cost + exit reason" do
       input = jsonl(
         { "type" => "result", "subtype" => "success", "num_turns" => 12,
