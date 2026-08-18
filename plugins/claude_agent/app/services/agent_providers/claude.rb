@@ -99,6 +99,8 @@ module AgentProviders
         timeout: timeout,
         max_turns: max_turns
       ).run
+    ensure
+      ClaudeUsageProbe.refresh_for(user: user) if user.claude_oauth_token.present?
     end
 
     def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil, on_session_id: ->(_) {})
@@ -116,6 +118,8 @@ module AgentProviders
         disallowed_tools: disallowed_tools,
         on_session_id: on_session_id
       ).run
+    ensure
+      ClaudeUsageProbe.refresh_for(user: job.user) if job.user.claude_oauth_token.present?
     end
 
     # Per-Run mcp.json tempfile so claude knows how to reach our
