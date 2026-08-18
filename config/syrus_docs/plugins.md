@@ -365,11 +365,12 @@ general manifest field that controls the order commands from different
 plugins are concatenated in. Plugins that don't set it keep their
 registration order relative to each other.
 
-Until the `ruby` and `javascript` plugins register their own
-`:prepare_detector` providers, `RepoPrepPlan::AUTO_DETECT` still contains a
-hardcoded Ruby (`Gemfile`) and Node (`yarn.lock`/`pnpm-lock.yaml`/
-`package-lock.json`/`package.json`) fallback, unioned the same way alongside
-any plugin-contributed commands.
+The `ruby` plugin registers a `:prepare_detector` for `Gemfile` →
+`bundle install` at `prepare_priority: 10`. Until the `ruby` and
+`javascript` plugins are enabled by default, `RepoPrepPlan::AUTO_DETECT`
+still contains a hardcoded Ruby (`Gemfile`) and Node
+(`yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`/`package.json`) fallback,
+unioned the same way alongside any plugin-contributed commands.
 
 ## Plugin install and uninstall
 
@@ -437,11 +438,15 @@ Bundled plugins:
   diagnostics such as Admin → Performance and the `read_performance_diagnostics`
   / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
   agents or operators should inspect Syrus's own production behavior.
+- `ruby` — default-enabled. Provides Ruby-generic extension points usable by
+  any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
+  alike), not just Rails: `:grader_augmentor` (appends structured RSpec JSON
+  failure details to the grade log when an rspec grader fails),
+  `:coverage_analyzer` (SimpleCov's `.resultset.json`), and `:prepare_detector`
+  (`Gemfile` → `bundle install`, `prepare_priority: 10`).
 - `syrus_rails` — installed but disabled by default. Provides Rails-specific
   extension points: `:preview_provider` (starts a Rails server for preview
-  hosting), `:mcp_tool_set`, `:test_result_parser` (RSpec output),
-  `:coverage_analyzer` (SimpleCov), and `:grader_augmentor` (appends structured
-  RSpec JSON failure details to the grade log when an rspec grader fails). Enable
+  hosting), `:mcp_tool_set`, and `:test_result_parser` (RSpec output). Enable
   by calling `SyrusRails.register!` from an initializer.
 - `browser` — default-enabled. Provides `:mcp_tool_set`
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools

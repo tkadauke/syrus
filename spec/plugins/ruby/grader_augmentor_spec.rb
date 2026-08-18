@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe SyrusRails::GraderAugmentor do
+RSpec.describe Ruby::GraderAugmentor do
   let(:workspace_path) { Pathname.new(Dir.mktmpdir("syrus-augmentor")) }
 
   after { FileUtils.rm_rf(workspace_path) }

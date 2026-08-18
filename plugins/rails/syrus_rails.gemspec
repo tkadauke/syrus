@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.authors = ["Syrus"]
   spec.summary = "Ruby on Rails intelligence plugin for Syrus"
   spec.description = "Provides Rails-specific capabilities to Syrus: " \
-    "preview server config, RSpec output parsing, SimpleCov analysis, and agent prompt injection."
+    "preview server config, RSpec output parsing, and agent prompt injection."
   spec.homepage = "https://github.com/tkadauke/syrus"
 
   spec.files         = Dir["lib/**/*.rb"]

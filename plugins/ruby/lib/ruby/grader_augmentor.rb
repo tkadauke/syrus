@@ -1,4 +1,4 @@
-module SyrusRails
+module Ruby
   # Augments grader failure logs with structured details from RSpec's JSON
   # formatter output. When a grader command that invokes RSpec fails, the
   # plain-text transcript may be truncated before the summary prints. This

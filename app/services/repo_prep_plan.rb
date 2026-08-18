@@ -29,8 +29,11 @@ class RepoPrepPlan
   # groups still union across ecosystems.
   #
   # TEMPORARY: these entries are removed once the `ruby` and `javascript`
-  # plugins register their own :prepare_detector providers for the same
-  # signals (EPIC-242).
+  # plugins are enabled by default and register their own :prepare_detector
+  # providers for the same signals (EPIC-242). The `ruby` plugin already
+  # registers an equivalent Gemfile → bundle install :prepare_detector
+  # (see plugins/ruby/lib/ruby/prepare_detector.rb); this hardcoded entry
+  # stays as the fallback for installs where that plugin is disabled.
   AUTO_DETECT = [
     [
       [ "Gemfile", "bundle install" ]
