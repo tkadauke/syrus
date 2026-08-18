@@ -47,8 +47,13 @@ module Skills
   # on-disk checkout — currently only Steps::RunSkill passes one, once
   # the Workflow's shared workspace is set up. Every other caller
   # (picker, chat slash command, ScheduledTask fire) omits it and gets
-  # each skill's generic, repo-agnostic instructions.
-  def self.for(repository:, name:, user: nil, client: nil, workspace_path: nil)
+  # each skill's generic, repo-agnostic instructions. `args` (the
+  # submitted skill_args) is forwarded the same way, for a skill whose
+  # instructions depend on data the agent sandbox itself has no way to
+  # fetch (see Skills::ExplainFailingCi) — also currently only supplied
+  # by Steps::RunSkill. `repository` is always forwarded (it's already a
+  # required argument here) so such a skill can scope any lookups to it.
+  def self.for(repository:, name:, user: nil, client: nil, workspace_path: nil, args: {})
     raise ArgumentError, "repository is required" if repository.nil?
 
     name = name.to_s.strip
@@ -56,7 +61,7 @@ module Skills
     raise ArgumentError, "invalid skill name=#{name.inspect}" unless name.match?(NAME_PATTERN)
 
     resolve_repo_local(repository: repository, user: user, client: client, name: name) ||
-      resolve_built_in(name: name, workspace_path: workspace_path)
+      resolve_built_in(name: name, workspace_path: workspace_path, args: args, repository: repository)
   end
 
   # Lists every skill available to `repository` — the built-in registry
@@ -137,9 +142,14 @@ module Skills
   end
   private_class_method :resolved_github_client
 
-  def self.resolve_built_in(name:, workspace_path: nil)
+  def self.resolve_built_in(name:, workspace_path: nil, args: {}, repository: nil)
     klass = Registry.class_for(name)
-    Resolution.new(source: :built_in, path: nil, klass: klass, definition: klass.definition(workspace_path: workspace_path))
+    Resolution.new(
+      source: :built_in,
+      path: nil,
+      klass: klass,
+      definition: klass.definition(workspace_path: workspace_path, args: args, repository: repository)
+    )
   end
   private_class_method :resolve_built_in
 

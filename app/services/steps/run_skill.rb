@@ -48,7 +48,13 @@ module Steps
     end
 
     def resolve_skill!
-      Skills.for(repository: repository, name: skill_name, user: job.user, workspace_path: workspace.path.to_s)
+      Skills.for(
+        repository: repository,
+        name: skill_name,
+        user: job.user,
+        workspace_path: workspace.path.to_s,
+        args: skill_args
+      )
     rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
       raise StepFailed, "could not resolve skill #{skill_name.inspect}: #{e.class}: #{e.message}"
     end
