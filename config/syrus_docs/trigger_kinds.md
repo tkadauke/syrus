@@ -70,6 +70,16 @@ CI-only checks in explicit `.syrus.yml` graders with `phases: [ci]` so the
 agent can verify that the GitHub CI failure is actually fixed. If graders fail,
 their output feeds the next `analyze_and_fix` iteration.
 
+`PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
+spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's
+main branch is known-broken (`repository.landing_paused? && repository.main_health_broken?`,
+the same condition `StepDispatcher` already uses to hold workflow starts). This
+avoids blaming the Job's own diff for a red check caused by a broken base
+revision. `main_branch_repair` Jobs are exempt from this guard the same way
+they're exempt from the `ci_failure` cap, since a repair job must keep
+absorbing CI feedback until main is actually fixed. See `main_branch_repair`
+below for what happens to PRs deferred this way once main recovers.
+
 ## retry
 
 **When it fires:** Operator triggers a retry of a failed Job from the UI or admin API.
@@ -225,6 +235,31 @@ handoff succeeds.
 The workflow runs a preflight grader check before invoking the agent. If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates `grader_health` to healthy, calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
 
 If any required preflight grader fails, the chain continues normally to the implement step. The agent fixes the broken code, graders validate the fix, and a PR is opened. `PollPullRequestJob` calls `MainHealthChangedService.repair_landed!` when the PR merges.
+
+**Recovery sweep:** `MainHealthChangedService#recovered!` runs whenever main
+health returns to healthy (either via `repair_landed!` above or an independent
+health poll), and — after resuming landing and retrying held Jobs — sweeps the
+repository's open Jobs where `pr_checks_state == "failing"` (kept fresh on
+every PR poll, so no extra GitHub calls are needed to find candidates). For
+each one without an already-active rebase or merge train
+(`RebaseWorkflowSelector.active_for_stack?` / `active_merge_train_for_stack?`),
+it dispatches a mechanical `rebase` workflow the same way the admin
+"force rebase" repair action does. This exists because GitHub does not
+silently re-run stale failed check results just because the base branch
+changed — without an explicit nudge, PRs left on the broken base would sit red
+until something else touched them. Since `rebase`'s `auto_rebase` step tries a
+plain `git rebase` first and only escalates to an agent on a real conflict,
+the common case is a cheap clean force-push that gives GitHub a fresh SHA to
+check against the now-healthy base; the next poll only fires `ci_failure` if
+the PR's own diff is genuinely still broken. The fan-out is capped at
+`MainHealthChangedService::MAX_RECOVERY_RETRIES` (10, shared with the held-Job
+retry sweep) so a big outage's recovery doesn't dogpile the `merges` queue.
+There is deliberately no persistent "deferred because main was broken"
+marker — querying live `pr_checks_state` at recovery time sweeps up every
+red-CI Job regardless of which guard skipped its repair (the `ci_failure`
+main-health gate above, the pre-existing `ci_failure` cap, or a race-window
+miss), with no bookkeeping to fall out of sync. The recovery notification
+includes the rebased-PR count alongside the retried-Job count.
 
 ## main_grader
 
