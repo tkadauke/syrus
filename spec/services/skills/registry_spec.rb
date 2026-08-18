@@ -25,6 +25,10 @@ RSpec.describe Skills::Registry do
     it "includes the coverage-gap-report built-in skill" do
       expect(described_class.values).to include("coverage-gap-report")
     end
+
+    it "includes the dead-code-sweep built-in skill" do
+      expect(described_class.values).to include("dead-code-sweep")
+    end
   end
 
   describe ".fetch" do
