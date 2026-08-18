@@ -45,7 +45,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
       get "/api/v1/app/repositories/#{repository.id}/skills"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["skills"].map { |s| s["name"] }).to eq([ "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "investigate", "license-audit", "onboard-to-syrus" ])
+      expect(parse_body["skills"].map { |s| s["name"] }).to eq([ "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "investigate", "license-audit", "onboard-to-syrus", "security-review" ])
       investigate = parse_body["skills"].find { |s| s["name"] == "investigate" }
       expect(investigate["source"]).to eq("built_in")
       expect(investigate["shadows_built_in"]).to eq(false)
