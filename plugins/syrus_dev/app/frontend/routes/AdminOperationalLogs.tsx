@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { type FormEvent, type ReactNode, useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminOperationalLogs, type OperationalLogRevisionScope, type OperationalLogRow, type OperationalLogsPayload } from "../api/adminOperationalLogs"
+import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, formatEventDate, shortRevision } from "@app/components/AdminEventLogPanel"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -28,12 +28,8 @@ export function AdminOperationalLogs() {
   }
 
   return (
-    <main aria-label={t("operational_logs.aria")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("operational_logs.heading")}</h1>
-        </div>
+    <AdminEventPageShell
+      actions={
         <button
           className="inline-flex w-fit items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
           disabled={logs.isFetching}
@@ -42,14 +38,17 @@ export function AdminOperationalLogs() {
         >
           {logs.isFetching ? t("operational_logs.refreshing") : t("operational_logs.refresh")}
         </button>
-      </header>
-
+      }
+      ariaLabel={t("operational_logs.aria")}
+      eyebrow={t("section_label")}
+      title={t("operational_logs.heading")}
+    >
       <OperationalLogFilters search={search} onNavigate={navigateSearch} />
 
-      {logs.isPending ? <PanelMessage>{t("operational_logs.loading")}</PanelMessage> : null}
-      {logs.isError ? <PanelMessage tone="error">{errorMessage(logs.error, t("operational_logs.error_load"))}</PanelMessage> : null}
+      {logs.isPending ? <AdminEventPanelMessage>{t("operational_logs.loading")}</AdminEventPanelMessage> : null}
+      {logs.isError ? <AdminEventPanelMessage tone="error">{errorMessage(logs.error, t("operational_logs.error_load"))}</AdminEventPanelMessage> : null}
       {logs.isSuccess ? <OperationalLogsView payload={logs.data} search={search} onNavigate={navigateSearch} /> : null}
-    </main>
+    </AdminEventPageShell>
   )
 }
 
@@ -57,87 +56,22 @@ export default AdminOperationalLogs
 
 function OperationalLogFilters({ onNavigate, search }: { onNavigate: (params: URLSearchParams) => void; search: string }) {
   const { t } = useT("admin")
-  const params = useMemo(() => new URLSearchParams(search), [search])
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const next = new URLSearchParams()
-    setParam(next, "query", form.get("query"))
-    setParam(next, "since", form.get("since"))
-    setParam(next, "until", form.get("until"))
-    setParam(next, "level", form.get("level"))
-    setParam(next, "role", form.get("role"))
-    setParam(next, "hostname", form.get("hostname"))
-    setParam(next, "revision_scope", form.get("revision_scope"))
-    setParam(next, "per_page", form.get("per_page") || params.get("per_page") || "50")
-    onNavigate(next)
-  }
-
-  function clear() {
-    onNavigate(new URLSearchParams())
-  }
-
-  return (
-    <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <label className="space-y-1 md:col-span-2">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.query")}</span>
-          <input className={inputClass()} defaultValue={params.get("query") || ""} name="query" placeholder={t("operational_logs.query_placeholder")} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.since")}</span>
-          <input className={inputClass()} defaultValue={params.get("since") || "1h"} name="since" placeholder="1h" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.until")}</span>
-          <input className={inputClass()} defaultValue={params.get("until") || ""} name="until" placeholder={t("operational_logs.until_placeholder")} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.level")}</span>
-          <select className={inputClass()} defaultValue={params.get("level") || ""} name="level">
-            {levels.map((level) => <option key={level || "all"} value={level}>{level ? level.toUpperCase() : t("operational_logs.all_levels")}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.role")}</span>
-          <select className={inputClass()} defaultValue={params.get("role") || ""} name="role">
-            {roles.map((role) => <option key={role || "all"} value={role}>{role || t("operational_logs.all_roles")}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.hostname")}</span>
-          <input className={inputClass()} defaultValue={params.get("hostname") || ""} name="hostname" placeholder="worker-0" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.revision_scope")}</span>
-          <select className={inputClass()} defaultValue={params.get("revision_scope") || "current"} name="revision_scope">
-            {revisionScopes.map((scope) => <option key={scope} value={scope}>{t(`operational_logs.revision_${scope}`)}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("operational_logs.per_page")}</span>
-          <select className={inputClass()} defaultValue={params.get("per_page") || "50"} name="per_page">
-            {[25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
-        <div className="flex items-end gap-2">
-          <button className="inline-flex items-center justify-center rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200" type="submit">
-            {t("operational_logs.search")}
-          </button>
-          <button className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={clear} type="button">
-            {t("operational_logs.clear")}
-          </button>
-        </div>
-      </div>
-    </form>
-  )
+  return <AdminEventFilterBar clearLabel={t("operational_logs.clear")} fields={[
+    { name: "query", label: t("operational_logs.query"), placeholder: t("operational_logs.query_placeholder") },
+    { name: "since", label: t("operational_logs.since"), defaultValue: "1h", placeholder: "1h" },
+    { name: "until", label: t("operational_logs.until"), placeholder: t("operational_logs.until_placeholder") },
+    { name: "level", label: t("operational_logs.level"), options: levels.map((level) => ({ value: level, label: level ? level.toUpperCase() : t("operational_logs.all_levels") })) },
+    { name: "role", label: t("operational_logs.role"), options: roles.map((role) => ({ value: role, label: role || t("operational_logs.all_roles") })) },
+    { name: "hostname", label: t("operational_logs.hostname"), placeholder: "worker-0" },
+    { name: "revision_scope", label: t("operational_logs.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`operational_logs.revision_${scope}`) })) },
+    { name: "per_page", label: t("operational_logs.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }
+  ]} search={search} searchLabel={t("operational_logs.search")} onNavigate={onNavigate} />
 }
 
 function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: OperationalLogsPayload; search: string }) {
   const { t } = useT("admin")
   if (!payload.enabled) {
-    return <PanelMessage tone="warn">{payload.error?.message || t("operational_logs.disabled")}</PanelMessage>
+    return <AdminEventPanelMessage tone="warn">{payload.error?.message || t("operational_logs.disabled")}</AdminEventPanelMessage>
   }
 
   return (
@@ -146,63 +80,71 @@ function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (par
         <span>{t("operational_logs.showing", { count: payload.logs.length, page: payload.pagination.page })}</span>
         <span>{t("operational_logs.retention", { hours: Math.round(payload.retention_seconds / 3600), revision: payload.revision_scope === "all" ? t("operational_logs.all_revisions") : shortRevision(payload.current_revision) })}</span>
       </div>
-      {payload.logs.length > 0 ? <OperationalLogsTable revisionScope={payload.revision_scope} rows={payload.logs} /> : <PanelMessage>{t("operational_logs.empty")}</PanelMessage>}
-      <Pagination pagination={payload.pagination} search={search} onNavigate={onNavigate} />
+      {payload.logs.length > 0 ? <OperationalLogsTable revisionScope={payload.revision_scope} rows={payload.logs} /> : <AdminEventPanelMessage>{t("operational_logs.empty")}</AdminEventPanelMessage>}
+      <AdminEventPagination
+        label={t("operational_logs.page", { page: payload.pagination.page })}
+        nextLabel={t("operational_logs.next")}
+        previousLabel={t("operational_logs.previous")}
+        pagination={payload.pagination}
+        search={search}
+        onNavigate={onNavigate}
+      />
     </section>
   )
 }
 
 function OperationalLogsTable({ revisionScope, rows }: { revisionScope: OperationalLogRevisionScope; rows: OperationalLogRow[] }) {
   const { t } = useT("admin")
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <th className="w-36 px-4 py-2">{t("operational_logs.col_time")}</th>
-            <th className="w-20 px-4 py-2">{t("operational_logs.col_level")}</th>
-            <th className="w-40 px-4 py-2">{t("operational_logs.col_process")}</th>
-            <th className="w-40 px-4 py-2">{t("operational_logs.col_refs")}</th>
-            <th className="px-4 py-2">{t("operational_logs.col_message")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300">{formatDate(row.occurred_at)}</td>
-              <td className="px-4 py-3 align-top"><LevelBadge level={row.level} /></td>
-              <td className="px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200">
-                <div className="font-medium">{row.role} · {row.hostname}{row.pid ? ` · pid ${row.pid}` : ""}</div>
-                {revisionScope === "all" ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{shortRevision(row.app_revision)}</div> : null}
-              </td>
-              <td className="px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300">{refsText(row)}</td>
-              <td className="px-4 py-3 align-top">
-                <div className="overflow-hidden break-words font-mono text-xs leading-5 text-gray-900 dark:text-gray-100">{row.message}</div>
-                {row.context && Object.keys(row.context).length > 0 ? <div className="mt-2 overflow-hidden break-words font-mono text-xs leading-5 text-gray-500 dark:text-gray-400">{compactContext(row.context, row.message)}</div> : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
+  const columns: Array<AdminEventLogTableColumn<OperationalLogRow>> = [
+    {
+      className: "w-36 whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      headerClassName: "w-36 px-4 py-2",
+      header: t("operational_logs.col_time"),
+      key: "time",
+      render: (row) => formatEventDate(row.occurred_at)
+    },
+    {
+      className: "w-20 px-4 py-3 align-top",
+      headerClassName: "w-20 px-4 py-2",
+      header: t("operational_logs.col_level"),
+      key: "level",
+      render: (row) => <LevelBadge level={row.level} />
+    },
+    {
+      className: "w-40 px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200",
+      headerClassName: "w-40 px-4 py-2",
+      header: t("operational_logs.col_process"),
+      key: "process",
+      render: (row) => (
+        <>
+          <div className="font-medium">{row.role} · {row.hostname}{row.pid ? ` · pid ${row.pid}` : ""}</div>
+          {revisionScope === "all" ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{shortRevision(row.app_revision)}</div> : null}
+        </>
+      )
+    },
+    {
+      className: "w-40 px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      headerClassName: "w-40 px-4 py-2",
+      header: t("operational_logs.col_refs"),
+      key: "refs",
+      render: (row) => refsText(row)
+    },
+    {
+      className: "px-4 py-3 align-top",
+      headerClassName: "px-4 py-2",
+      header: t("operational_logs.col_message"),
+      key: "message",
+      render: (row) => (
+        <>
+          <div className="overflow-hidden break-words font-mono text-xs leading-5 text-gray-900 dark:text-gray-100">{row.message}</div>
+          {row.context && Object.keys(row.context).length > 0 ? <div className="mt-2 overflow-hidden break-words font-mono text-xs leading-5 text-gray-500 dark:text-gray-400">{compactContext(row.context, row.message)}</div> : null}
+        </>
+      )
+    }
+  ]
 
-function Pagination({ onNavigate, pagination, search }: { onNavigate: (params: URLSearchParams) => void; pagination: OperationalLogsPayload["pagination"]; search: string }) {
-  const { t } = useT("admin")
-  function go(page: number | null | undefined) {
-    if (!page) return
-    const params = new URLSearchParams(search)
-    params.set("page", String(page))
-    onNavigate(params)
-  }
-
   return (
-    <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm dark:border-gray-700">
-      <button className={pageButtonClass()} disabled={!pagination.has_previous_page} onClick={() => go(pagination.previous_page)} type="button">{t("operational_logs.previous")}</button>
-      <span className="text-gray-600 dark:text-gray-300">{t("operational_logs.page", { page: pagination.page })}</span>
-      <button className={pageButtonClass()} disabled={!pagination.has_next_page} onClick={() => go(pagination.next_page)} type="button">{t("operational_logs.next")}</button>
-    </div>
+    <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={rows} />
   )
 }
 
@@ -215,36 +157,9 @@ function LevelBadge({ level }: { level: string }) {
   return <span className={`inline-flex rounded border px-2 py-0.5 font-mono text-xs font-medium uppercase ${tone}`}>{level}</span>
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
-  const toneClass = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
-    : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  return <div className={`rounded border p-4 text-sm ${toneClass}`}>{children}</div>
-}
-
-function setParam(params: URLSearchParams, key: string, value: FormDataEntryValue | null) {
-  const text = String(value || "").trim()
-  if (text) params.set(key, text)
-}
-
 function normalizedSearch(search: string) {
   if (search) return search
   return "?since=1h&revision_scope=current&per_page=50"
-}
-
-function inputClass() {
-  return "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
-}
-
-function pageButtonClass() {
-  return "inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-"
-  return new Date(value).toLocaleString()
 }
 
 function refsText(row: OperationalLogRow) {
@@ -262,9 +177,4 @@ function compactContext(context: Record<string, string>, message?: string) {
     .filter(([key, value]) => key !== "job_class" && value !== message)
     .map(([key, value]) => `${key}=${value}`)
     .join(" ")
-}
-
-function shortRevision(value: string | null | undefined) {
-  if (!value) return "-"
-  return value.length > 12 ? value.slice(0, 12) : value
 }

@@ -17,6 +17,10 @@ describe("AdminOperationalLogs", () => {
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/operational_logs?since=1h&revision_scope=current&per_page=50", expect.objectContaining({
       credentials: "same-origin"
     }))
+    expect(screen.getByRole("button", { name: "Since is 1h" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Revision is Current SHA" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Per page is 50" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
 
     const table = await screen.findByRole("table")
     expect(within(table).getByText("error")).toBeInTheDocument()
@@ -33,21 +37,18 @@ describe("AdminOperationalLogs", () => {
     })))
   })
 
-  it("submits bounded search filters", async () => {
+  it("applies search filters from the URL", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload({ logs: [] })))
 
-    renderRoute(<AdminOperationalLogs />)
+    renderRoute(
+      <AdminOperationalLogs />,
+      "/app-shell/admin/operational_logs?query=migration&since=2h&until=2026-08-05T10%3A00%3A00Z&level=error&role=worker&hostname=worker-a&revision_scope=all&per_page=100"
+    )
 
     await screen.findByRole("heading", { name: "Operational Logs" })
-    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "migration" } })
-    fireEvent.change(screen.getByLabelText("Since"), { target: { value: "2h" } })
-    fireEvent.change(screen.getByLabelText("Until"), { target: { value: "2026-08-05T10:00:00Z" } })
-    fireEvent.change(screen.getByLabelText("Level"), { target: { value: "error" } })
-    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "worker" } })
-    fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "worker-a" } })
-    fireEvent.change(screen.getByLabelText("Revision"), { target: { value: "all" } })
-    fireEvent.change(screen.getByLabelText("Per page"), { target: { value: "100" } })
-    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+    expect(screen.getByRole("button", { name: "Search is migration" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Level is ERROR" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Role is worker" })).toBeInTheDocument()
 
     await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/operational_logs?query=migration&since=2h&until=2026-08-05T10%3A00%3A00Z&level=error&role=worker&hostname=worker-a&revision_scope=all&per_page=100", expect.objectContaining({
       credentials: "same-origin"
@@ -115,10 +116,10 @@ describe("AdminOperationalLogs", () => {
   })
 })
 
-function renderRoute(children: ReactNode) {
+function renderRoute(children: ReactNode, initialEntry = "/app-shell/admin/operational_logs") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/admin/operational_logs"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/app-shell/admin/operational_logs" element={children} />
         </Routes>
