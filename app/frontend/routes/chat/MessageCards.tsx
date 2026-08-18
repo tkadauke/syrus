@@ -410,6 +410,13 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
             <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
             {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
             {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
+            {open && call.nested && call.nested.length > 0 ? (
+              <div className="mt-2 space-y-1">
+                {call.nested.map((nestedGroup) => (
+                  <ToolGroup item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

@@ -254,6 +254,8 @@ export type ChatMessageItem = {
   proposal?: ChatProposal | null
   pending_action?: ChatPendingActionInline | null
   sender_user?: { id: number; name: string } | null
+  sidechain?: boolean
+  parent_tool_use_id?: string | null
 }
 
 export type ChatPendingActionInline = {
@@ -276,17 +278,22 @@ export type ChatRenderMessageItem = ChatMessageItem & {
   system?: ChatSystemMessage
 }
 
+export type ChatToolGroupCall = {
+  message_id: number
+  detail: string
+  progress_label: string
+  result_body: string
+  result_error: boolean
+  result_summary: string
+  // Nested subagent tool-call groups spawned by this call (e.g. an Agent/Task
+  // invocation whose own Read/Bash/Grep calls interleave with its result).
+  nested?: ChatToolGroupItem[]
+}
+
 export type ChatToolGroupItem = {
   type: "tool_group"
   tool: string
-  calls: Array<{
-    message_id: number
-    detail: string
-    progress_label: string
-    result_body: string
-    result_error: boolean
-    result_summary: string
-  }>
+  calls: ChatToolGroupCall[]
 }
 
 export type ChatRenderItem = ChatRenderMessageItem | ChatToolGroupItem
