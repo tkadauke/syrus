@@ -1541,6 +1541,40 @@ describe("chat pending proposal jump banner", () => {
     expect(screen.queryByText("1 pending proposal")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Jump ↑" })).not.toBeInTheDocument()
   })
+
+  it("clears the banner immediately after confirming a proposal, without waiting for a full refetch", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          message: "Proposal confirmed. JOB-99 was created.",
+          proposal: proposal({ proposed: false, resolved: true, state: "confirmed", state_label: "Confirmed" }),
+          messages: [],
+          pending_proposal_count: 0
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      }, { pending_proposal_count: 1 })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("1 pending proposal")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("1 pending proposal")).not.toBeInTheDocument()
+    })
+
+    const chatPayloadFetches = fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/chats/8")
+    expect(chatPayloadFetches.length).toBe(1)
+  })
 })
 
 describe("chat proposal cards", () => {
