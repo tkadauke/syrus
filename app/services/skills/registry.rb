@@ -25,7 +25,8 @@ module Skills
       Entry.new(name: "explain-failing-ci", klass: "ExplainFailingCi"),
       Entry.new(name: "coverage-gap-report", klass: "CoverageGapReport"),
       Entry.new(name: "dead-code-sweep", klass: "DeadCodeSweep"),
-      Entry.new(name: "license-audit", klass: "LicenseAudit")
+      Entry.new(name: "license-audit", klass: "LicenseAudit"),
+      Entry.new(name: "security-review", klass: "SecurityReview")
     ].freeze
 
     BY_NAME = ENTRIES.index_by(&:name).freeze
