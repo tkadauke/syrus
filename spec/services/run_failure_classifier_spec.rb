@@ -389,4 +389,37 @@ RSpec.describe RunFailureClassifier do
 
     expect(classification.classification).to eq("application_error")
   end
+
+  it "classifies a missing submit_adversarial_review tool call as retryable" do
+    run.step.update!(kind: "adversarial_review")
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_adversarial_review")
+
+    result = classification
+
+    expect(result.classification).to eq("missing_required_tool_call")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "classifies a missing submit_visual_review tool call as retryable" do
+    run.step.update!(kind: "visual_review")
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_visual_review")
+
+    result = classification
+
+    expect(result.classification).to eq("missing_required_tool_call")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "does not classify the same message shape on an unrelated step kind as missing_required_tool_call" do
+    run.step.update!(kind: "implement")
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_summary")
+
+    result = classification
+
+    expect(result.classification).not_to eq("missing_required_tool_call")
+    expect(result.classification).to eq("application_error")
+  end
 end

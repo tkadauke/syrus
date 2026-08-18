@@ -2512,6 +2512,26 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :operator_review_nonretryable_failure).auto_executable).to eq(false)
   end
 
+  it "does not keep alarming on a nonretryable failure once a newer workflow has superseded it" do
+    run.update_columns(state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_conflict",
+      retryable: false,
+      confidence: 0.9,
+      reason: "manual conflict resolution required",
+      classified_at: Time.current
+    )
+    newer = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: workflow.agent_provider)
+    newer.update!(state: "succeeded")
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :nonretryable_semantic_git_failure)).to be_nil
+    expect(plan(result, :operator_review_nonretryable_failure)).to be_nil
+  end
+
   it "escalates non-idempotent publication step failures" do
     step.update_columns(kind: "pr_open", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current)

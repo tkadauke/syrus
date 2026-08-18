@@ -1222,6 +1222,7 @@ module WorkEngine
     def classify_nonretryable_failures
       runs.select(&:failed?).filter_map do |run|
         next if run.job&.closed?
+        next unless latest_workflow_run?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)

@@ -39,6 +39,8 @@ class RunFailureClassifier
       result("mcp_sidecar_failure", 0.75, true, "The agent sidecar failed or disconnected.")
     when grader_failure?
       result("grader_failure", 0.90, false, "A configured grader command failed.")
+    when missing_required_tool_call?
+      result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
     when process_died?
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when agent_resume_unavailable?
@@ -116,6 +118,12 @@ class RunFailureClassifier
     %w[grader preflight_grader grader_collect preflight_grader_collect].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
       text_match?(/grader .*failed|required graders failed/i)
+  end
+
+  def missing_required_tool_call?
+    %w[adversarial_review visual_review].include?(run.step&.kind.to_s) &&
+      diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
+      text_match?(/agent didn't call/i)
   end
 
   def branch_diverged?
