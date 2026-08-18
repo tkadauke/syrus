@@ -155,12 +155,13 @@ export function ChatRoute() {
       return { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
     },
     enabled: id.length > 0,
+    refetchInterval: 30_000,
     placeholderData: (previousData, previousQuery) => (
       previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
     )
   })
 
-  useChatControlsRefetchOnReconnect(id, chat.data?.turn_in_flight ?? false)
+  useChatControlsRefetchOnReconnect(id)
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
 

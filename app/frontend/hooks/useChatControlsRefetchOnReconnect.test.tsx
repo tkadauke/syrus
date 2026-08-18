@@ -5,20 +5,18 @@ import { describe, expect, it, vi } from "vitest"
 import { ConnectionContext } from "../lib/connectionContext"
 import { useChatControlsRefetchOnReconnect } from "./useChatControlsRefetchOnReconnect"
 
-function Probe({ chatId, turnInFlight }: { chatId: string; turnInFlight: boolean }) {
-  useChatControlsRefetchOnReconnect(chatId, turnInFlight)
+function Probe({ chatId }: { chatId: string }) {
+  useChatControlsRefetchOnReconnect(chatId)
   return null
 }
 
 function renderWithReconnectControl({
   queryClient,
   chatId,
-  turnInFlight,
   initialReconnectAt = null
 }: {
   queryClient: QueryClient
   chatId: string
-  turnInFlight: boolean
   initialReconnectAt?: number | null
 }) {
   let setReconnectAt: (at: number | null) => void = () => {}
@@ -29,7 +27,7 @@ function renderWithReconnectControl({
     return (
       <QueryClientProvider client={queryClient}>
         <ConnectionContext.Provider value={{ reconnectAt }}>
-          <Probe chatId={chatId} turnInFlight={turnInFlight} />
+          <Probe chatId={chatId} />
         </ConnectionContext.Provider>
       </QueryClientProvider>
     )
@@ -43,29 +41,18 @@ function renderWithReconnectControl({
 }
 
 describe("useChatControlsRefetchOnReconnect", () => {
-  it("refetches the chat query on reconnect when turn_in_flight is true", async () => {
+  it("refetches the chat query on reconnect", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
 
-    const { simulateReconnect } = renderWithReconnectControl({ queryClient, chatId: "42", turnInFlight: true })
+    const { simulateReconnect } = renderWithReconnectControl({ queryClient, chatId: "42" })
 
     await simulateReconnect(1000)
 
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["chats", "42"] })
   })
 
-  it("does not refetch on reconnect when turn_in_flight is false", async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
-
-    const { simulateReconnect } = renderWithReconnectControl({ queryClient, chatId: "42", turnInFlight: false })
-
-    await simulateReconnect(1000)
-
-    expect(refetch).not.toHaveBeenCalled()
-  })
-
-  it("does not refetch on initial mount when turn_in_flight is true and reconnectAt is already set", async () => {
+  it("does not refetch on initial mount when reconnectAt is already set", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
 
@@ -73,7 +60,6 @@ describe("useChatControlsRefetchOnReconnect", () => {
     const { simulateReconnect } = renderWithReconnectControl({
       queryClient,
       chatId: "42",
-      turnInFlight: true,
       initialReconnectAt: 500
     })
 
@@ -85,11 +71,11 @@ describe("useChatControlsRefetchOnReconnect", () => {
     expect(refetch).toHaveBeenCalledWith({ queryKey: ["chats", "42"] })
   })
 
-  it("refetches on each new reconnect when turn_in_flight is true", async () => {
+  it("refetches on each new reconnect", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const refetch = vi.spyOn(queryClient, "refetchQueries").mockResolvedValue(undefined as never)
 
-    const { simulateReconnect } = renderWithReconnectControl({ queryClient, chatId: "42", turnInFlight: true })
+    const { simulateReconnect } = renderWithReconnectControl({ queryClient, chatId: "42" })
 
     await simulateReconnect(1000)
     expect(refetch).toHaveBeenCalledTimes(1)

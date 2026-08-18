@@ -275,8 +275,6 @@ describe("chat message tail refetch", () => {
       if (path === "/api/v1/app/chats/8") {
         chatGetCount += 1
         const messages = chatGetCount === 1 ? [olderMessage, newerMessage] : [newerMessage]
-        // turn_in_flight stays true while a multi-step "plan" turn is in progress — the
-        // exact window in which useChatControlsRefetchOnReconnect reacts to a reconnect.
         return Promise.resolve(jsonResponse(chatPayload({ messages }, { turn_in_flight: true })))
       }
 
@@ -306,7 +304,7 @@ describe("chat message tail refetch", () => {
 
     // Simulate the Action Cable ConnectionMonitor reopening a stale connection after the
     // tab was backgrounded (e.g. by the OS screenshot tool) — exactly what drives
-    // useChatControlsRefetchOnReconnect's real refetchQueries call while turn_in_flight.
+    // useChatControlsRefetchOnReconnect's real refetchQueries call on reconnect.
     await act(async () => {
       rerender(<Harness reconnectAt={1000} />)
     })
@@ -314,6 +312,48 @@ describe("chat message tail refetch", () => {
     await waitFor(() => expect(chatGetCount).toBe(2))
     expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
     expect(screen.getByText("What did the aqueduct plan say?")).toBeInTheDocument()
+  })
+
+  it("polls the chat query every 30 seconds as a fallback for a silently dead websocket", async () => {
+    vi.useFakeTimers()
+
+    try {
+      let chatGetCount = 0
+      vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const path = String(input)
+        if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+          return Promise.resolve(new Response(null, { status: 204 }))
+        }
+        if (path === "/api/v1/app/chats/8") {
+          chatGetCount += 1
+        }
+
+        return Promise.resolve(jsonResponse(chatPayload()))
+      })
+
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <Routes>
+              <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(chatGetCount).toBe(1)
+
+      // No Action Cable reconnect event fires (the connection is a zombie, not properly
+      // closed) — only the 30s refetchInterval backstop should recover the chat state.
+      await act(async () => { await vi.advanceTimersByTimeAsync(29_999) })
+      expect(chatGetCount).toBe(1)
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      expect(chatGetCount).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
