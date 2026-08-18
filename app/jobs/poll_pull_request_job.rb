@@ -400,6 +400,7 @@ class PollPullRequestJob < ApplicationJob
     detail = @client.check_runs_detail_for(@slug, head_sha)
     cache_pr_checks_state(head_sha, detail)
     return if ci_infrastructure_failure_only?(head_sha, detail)
+    return if main_health_broken?
 
     if no_effective_ci_repair?(head_sha, detail)
       record_no_effective_ci_repair!(head_sha, detail)
@@ -455,6 +456,18 @@ class PollPullRequestJob < ApplicationJob
   def ci_infrastructure_check?(check)
     value = check[:failure_kind] || check["failure_kind"]
     value.to_s == "ci_infrastructure"
+  end
+
+  # Mirrors StepDispatcher.main_health_blocking?: don't blame the Job's own
+  # diff for a red check when the repository's base revision is already
+  # known-broken. Repair jobs must keep absorbing CI feedback until main is
+  # fixed, same exemption ci_failure_cap_reached? already grants them.
+  def main_health_broken?
+    return false if @job.main_branch_repair?
+    return false unless @job.repository.landing_paused? && @job.repository.main_health_broken?
+
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while main branch is broken")
+    true
   end
 
   # Octokit error messages are shaped:

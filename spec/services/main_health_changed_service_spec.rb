@@ -919,6 +919,119 @@ RSpec.describe MainHealthChangedService do
       end
     end
 
+    context "rebasing PRs left with failing CI" do
+      it "dispatches a mechanical rebase for an open Job with pr_checks_state == failing" do
+        failing_job = Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-failing",
+          pr_number: 5,
+          pr_checks_state: "failing"
+        )
+
+        rebase_workflow = instance_double(Workflow)
+        allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(rebase_workflow)
+        allow(StepDispatcher).to receive(:start_workflow)
+
+        described_class.recovered!(repository)
+
+        expect(RebaseWorkflowSelector).to have_received(:instantiate).with(
+          job: failing_job,
+          artifacts: hash_including("repair_reason")
+        )
+        expect(StepDispatcher).to have_received(:start_workflow).with(rebase_workflow)
+      end
+
+      it "does not rebase Jobs whose pr_checks_state is not failing" do
+        Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-passing",
+          pr_number: 6,
+          pr_checks_state: "passing"
+        )
+
+        expect(RebaseWorkflowSelector).not_to receive(:instantiate)
+        described_class.recovered!(repository)
+      end
+
+      it "does not rebase closed Jobs" do
+        Factories.job_record(
+          repository: repository,
+          state: "closed",
+          branch_name: "syrus/issue-closed",
+          pr_number: 8,
+          pr_checks_state: "failing"
+        )
+
+        expect(RebaseWorkflowSelector).not_to receive(:instantiate)
+        described_class.recovered!(repository)
+      end
+
+      it "skips a Job that already has an active rebase" do
+        Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-active-rebase",
+          pr_number: 9,
+          pr_checks_state: "failing"
+        )
+        allow(RebaseWorkflowSelector).to receive(:active_for_stack?).and_return(true)
+
+        expect(RebaseWorkflowSelector).not_to receive(:instantiate)
+        described_class.recovered!(repository)
+      end
+
+      it "skips a Job that already has an active merge train" do
+        Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-active-train",
+          pr_number: 10,
+          pr_checks_state: "failing"
+        )
+        allow(RebaseWorkflowSelector).to receive(:active_merge_train_for_stack?).and_return(true)
+
+        expect(RebaseWorkflowSelector).not_to receive(:instantiate)
+        described_class.recovered!(repository)
+      end
+
+      it "caps the fan-out at MAX_RECOVERY_RETRIES" do
+        (MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times do |i|
+          Factories.job_record(
+            repository: repository,
+            state: "implemented",
+            branch_name: "syrus/issue-failing-#{i}",
+            pr_number: 100 + i,
+            pr_checks_state: "failing"
+          )
+        end
+
+        allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
+        allow(StepDispatcher).to receive(:start_workflow)
+
+        described_class.recovered!(repository)
+
+        expect(RebaseWorkflowSelector).to have_received(:instantiate).exactly(MainHealthChangedService::MAX_RECOVERY_RETRIES).times
+      end
+
+      it "includes the rebased count in the recovery notification body" do
+        Factories.job_record(
+          repository: repository,
+          state: "implemented",
+          branch_name: "syrus/issue-failing",
+          pr_number: 5,
+          pr_checks_state: "failing"
+        )
+        allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
+        allow(StepDispatcher).to receive(:start_workflow)
+
+        described_class.recovered!(repository)
+
+        expect(Notification.last.body).to include("1 PR rebased")
+      end
+    end
+
     context "recovery notification" do
       it "emits a main_recovered notification" do
         expect {
