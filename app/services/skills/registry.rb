@@ -18,7 +18,8 @@ module Skills
     end
 
     ENTRIES = [
-      Entry.new(name: "investigate", klass: "Investigate")
+      Entry.new(name: "investigate", klass: "Investigate"),
+      Entry.new(name: "onboard-to-syrus", klass: "OnboardToSyrus")
     ].freeze
 
     BY_NAME = ENTRIES.index_by(&:name).freeze
