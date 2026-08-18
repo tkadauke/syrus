@@ -151,6 +151,21 @@ RSpec.describe SmartFolder do
     expect(described_class).to have_received(:reconcile_builtin_set!).twice
   end
 
+  it "builds the reconciliation cache key from a stable content digest, not Ruby's process-random Object#hash" do
+    # Object#hash (what Array/Hash#hash delegate to) is reseeded per Ruby
+    # process/boot, so two pods computing the "same" cache key for
+    # identical definitions would diverge and never share the cached
+    # reconciliation through Rails.cache. The key must be derived from a
+    # stable content digest instead so separate processes agree on it.
+    cache_store = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache_store)
+
+    described_class.ensure_builtin_set!("job", described_class::JOB_BUILTINS)
+
+    expected_key = "smart_folder/builtins_reconciled/job/#{Digest::SHA256.hexdigest(described_class::JOB_BUILTINS.to_json)}"
+    expect(cache_store.exist?(expected_key)).to be(true)
+  end
+
   it "sweeps retired built-ins on next ensure_builtins!" do
     described_class.create!(name: "Ghost", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
     described_class.create!(name: "Ghost", subject_type: "epic", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)

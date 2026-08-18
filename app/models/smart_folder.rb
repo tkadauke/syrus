@@ -1,3 +1,5 @@
+require "digest"
+
 class SmartFolder < ApplicationRecord
   # `visibility` controls where each built-in renders in the sidebar:
   #   :always       — pinned to the top of the sidebar regardless of count.
@@ -213,14 +215,19 @@ class SmartFolder < ApplicationRecord
   # built-in definitions only ever change on deploy. Re-running the full
   # select/assign/save/destroy_all sweep on every request was showing up
   # as one of the hottest SQL fingerprints in performance diagnostics.
-  # Cache "already reconciled" per subject; the cache key folds in a hash
-  # of the definitions so a deploy that changes them busts the cache
-  # immediately instead of waiting out the TTL.
+  # Cache "already reconciled" per subject; the cache key folds in a
+  # content digest of the definitions so a deploy that changes them busts
+  # the cache immediately instead of waiting out the TTL. Uses a content
+  # digest rather than Ruby's Object#hash: Object#hash is seeded per
+  # process, so two pods (or two restarts of the same pod) would compute
+  # different keys for identical definitions and never share the cached
+  # reconciliation through Rails.cache (solid_cache, shared across pods
+  # in production).
   BUILTIN_RECONCILE_CACHE_TTL = 10.minutes
 
   def self.ensure_builtin_set!(subject, definitions)
     subject = subject.to_s
-    cache_key = [ "smart_folder/builtins_reconciled", subject, definitions.hash ].join("/")
+    cache_key = [ "smart_folder/builtins_reconciled", subject, Digest::SHA256.hexdigest(definitions.to_json) ].join("/")
 
     Rails.cache.fetch(cache_key, expires_in: BUILTIN_RECONCILE_CACHE_TTL) do
       reconcile_builtin_set!(subject, definitions)
