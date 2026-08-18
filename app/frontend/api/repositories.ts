@@ -852,10 +852,6 @@ export function fetchLinearTeams(apiKey: string) {
   return getJson<LinearTeamsPayload>(`/api/v1/app/linear/teams?${params}`)
 }
 
-export function pollRepository(id: number) {
-  return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/poll`)
-}
-
 export function syncFork(id: number) {
   return postJson<{ message?: string }>(`/api/v1/app/repositories/${id}/sync_fork`)
 }

@@ -10,7 +10,6 @@ import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEm
 import {
   archiveRepository,
   fetchRepositories,
-  pollRepository,
   type RepositoriesPayload,
   type RepositoryRow,
   unarchiveRepository
@@ -18,10 +17,11 @@ import {
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { useConfirm } from "../hooks/useConfirm"
+import { buttonClass } from "./repositoryDetail/shared"
 
 type RepositoryAction = {
   id: number
-  kind: "poll" | "archive" | "unarchive"
+  kind: "archive" | "unarchive"
 }
 
 export function RepositoriesIndex() {
@@ -55,7 +55,6 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const command = useMutation({
     mutationFn: (action: RepositoryAction) => {
-      if (action.kind === "poll") return pollRepository(action.id)
       if (action.kind === "archive") return archiveRepository(action.id)
       return unarchiveRepository(action.id)
     },
@@ -149,7 +148,7 @@ function RepositoryTable({
           <th className="hidden px-4 py-2 sm:table-cell">
             {t('repositories.col_last_poll')}
           </th>
-          <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
+          <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -182,19 +181,11 @@ function RepositoryTable({
             <td className="hidden px-4 py-3 text-sm sm:table-cell">
               <LastPoll repository={repository} />
             </td>
-            <td className="px-4 py-3 text-right">
-              <div className="flex flex-col items-end gap-1 sm:flex-row sm:justify-end sm:gap-3">
+            <td className="hidden px-4 py-3 text-right sm:table-cell">
+              <div className="flex items-center justify-end gap-2">
+                <Link className={buttonClass("gray")} to={withRoutePrefix(repository.edit_repository_path, prefix)}>{t('repositories.edit')}</Link>
                 <button
-                  className="text-blue-600 dark:text-blue-400 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
-                  disabled={disabled}
-                  onClick={() => onAction({ id: repository.id, kind: "poll" })}
-                  type="button"
-                >
-                  {t('repositories.poll_now')}
-                </button>
-                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.edit_repository_path, prefix)}>{t('repositories.edit')}</Link>
-                <button
-                  className="text-amber-700 dark:text-amber-300 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
+                  className={buttonClass("amber")}
                   disabled={disabled}
                   onClick={() => onAction({ id: repository.id, kind: "archive" }, repository)}
                   type="button"
