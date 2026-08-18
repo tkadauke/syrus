@@ -143,7 +143,7 @@ module Api
             return
           end
           unless workflow.retry_available?
-            render_error("validation_failed", "Workspace already cleaned up - use Start over.", status: :unprocessable_content)
+            render_error("validation_failed", RetryFailedStepEnqueuer::WORKSPACE_CLEANED_UP_MESSAGE, status: :unprocessable_content)
             return
           end
 

@@ -577,7 +577,11 @@ module App
         can_retry_from_failed_step: retry_actions[:failed_step].present?,
         retry_failed_step_action: retry_actions[:failed_step],
         retry_implementation_action: retry_actions[:implementation],
-        can_restart: !@job.any_active_run? && !@job.cron? && !@job.no_change_needed?,
+        can_restart: !@job.any_active_run? && !@job.cron? && !@job.no_change_needed? &&
+          (
+            (@job.closed? && @job.infrastructure?) ||
+            (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)
+          ),
         can_cancel: @job.open?,
         can_approve: @job.can_add_job_approval?(@user) && !simple_epic_child?,
         can_unapprove: @job.may_unapprove?,
