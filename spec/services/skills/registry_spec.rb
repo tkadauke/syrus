@@ -45,6 +45,10 @@ RSpec.describe Skills::Registry do
     it "includes the init-docs built-in skill" do
       expect(described_class.values).to include("init-docs")
     end
+
+    it "includes the changelog-generate built-in skill" do
+      expect(described_class.values).to include("changelog-generate")
+    end
   end
 
   describe ".fetch" do
