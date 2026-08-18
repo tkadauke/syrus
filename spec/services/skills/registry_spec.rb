@@ -14,6 +14,10 @@ RSpec.describe Skills::Registry do
       expect(described_class.values).to include("debug")
     end
 
+    it "includes the rebase-conflict-resolver built-in skill" do
+      expect(described_class.values).to include("rebase-conflict-resolver")
+    end
+
     it "includes the dependency-audit built-in skill" do
       expect(described_class.values).to include("dependency-audit")
     end
