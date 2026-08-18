@@ -8842,13 +8842,8 @@ describe("App", () => {
     })
   })
 
-  it("renders repositories and polls one from the app API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/repositories/3/poll" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify(repositoriesPayload({ message: "Polling acme/widgets now." })), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
+  it("renders repositories with proper action buttons and no Poll now action", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() => {
       return Promise.resolve(new Response(JSON.stringify(repositoriesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
@@ -8867,19 +8862,14 @@ describe("App", () => {
     expect(screen.getByText("old/repo")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Add" })).toHaveAttribute("href", "/app-shell/repositories/new")
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
-    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/repositories/3/edit")
-    fireEvent.click(screen.getByRole("button", { name: "Poll now" }))
+    expect(screen.queryByRole("button", { name: "Poll now" })).not.toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repositories/3/poll",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "same-origin"
-        })
-      )
-    })
-    expect(await screen.findByText("Polling acme/widgets now.")).toBeInTheDocument()
+    const editLink = screen.getByRole("link", { name: "Edit" })
+    expect(editLink).toHaveAttribute("href", "/app-shell/repositories/3/edit")
+    expect(editLink.className).toContain("bg-gray-100")
+
+    const archiveButton = screen.getByRole("button", { name: "Archive" })
+    expect(archiveButton.className).toContain("bg-amber-600")
   })
 
   it("points an empty repositories index to the setup next action", async () => {
