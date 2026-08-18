@@ -269,6 +269,7 @@ module WorkEngine
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       else
         Workflow.where(job_id: jobs.map(&:id)).where(state: %w[ queued running failed ])
+          .or(Workflow.where(id: terminal_workflows_with_active_runs.select(:id)))
       end
     end
 
@@ -279,6 +280,17 @@ module WorkEngine
         step_ids = Step.where(workflow_id: workflows.map(&:id)).select(:id)
         Run.where(step_id: step_ids).where(state: %w[ queued running failed ])
       end
+    end
+
+    # A Workflow can reach a terminal state (cancelled/succeeded) while a child
+    # Run is left behind in queued/running — e.g. Workflow#cancel's
+    # cancel_active_descendants! callback racing a Run that was already mid-flight.
+    # Drive this off active Runs (a small set) rather than scanning every terminal
+    # Workflow, so an orphaned Run is never permanently invisible to the default
+    # reconciler scan just because its parent Workflow already finished.
+    def terminal_workflows_with_active_runs
+      Workflow.where(state: %w[ cancelled succeeded ])
+              .where(id: Step.where(id: Run.where(state: %w[ queued running ]).select(:step_id)).select(:workflow_id))
     end
 
     def classify_queued_runs
