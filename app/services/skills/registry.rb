@@ -23,7 +23,8 @@ module Skills
       Entry.new(name: "debug", klass: "Debug"),
       Entry.new(name: "dependency-audit", klass: "DependencyAudit"),
       Entry.new(name: "explain-failing-ci", klass: "ExplainFailingCi"),
-      Entry.new(name: "coverage-gap-report", klass: "CoverageGapReport")
+      Entry.new(name: "coverage-gap-report", klass: "CoverageGapReport"),
+      Entry.new(name: "dead-code-sweep", klass: "DeadCodeSweep")
     ].freeze
 
     BY_NAME = ENTRIES.index_by(&:name).freeze
