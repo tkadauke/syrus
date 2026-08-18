@@ -191,14 +191,14 @@ class McpToolPolicy
   end
 
   def chat_base_tools
-    Mcp::Sidecar::CHAT_ESSENTIAL_TOOLS +
-      Mcp::Sidecar::CHAT_DEFERRED_TOOLS
+    Mcp::Sidecar.chat_essential_tools +
+      Mcp::Sidecar.chat_deferred_tools
   end
 
   def apply_admin_filter(tools)
     return tools if @context.user.admin?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_ADMIN_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar.chat_admin_tools.include?(tool) }
   end
 
   def apply_agent_insights_filter(tools)
@@ -210,19 +210,19 @@ class McpToolPolicy
   def apply_walkthrough_filter(tools)
     return tools if Feature.video_walkthroughs_enabled?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar.chat_walkthrough_tools.include?(tool) }
   end
 
   def apply_coding_filter(tools)
     return tools if @context.role == AgentRole::CHAT_CODING && Feature.coding_mode_enabled?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_CODING_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar.chat_coding_tools.include?(tool) }
   end
 
   def apply_local_mode_filter(tools)
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar.chat_local_mode_tools.include?(tool) }
   end
 
   def apply_supervisor_filter(tools)

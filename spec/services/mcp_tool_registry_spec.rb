@@ -33,6 +33,34 @@ RSpec.describe McpToolRegistry do
     end
   end
 
+  describe "surface isolation" do
+    it "resolves workflow-surface tools without building the (much larger) chat tool registry" do
+      described_class.instance_variable_set(:@chat_entries, nil)
+      described_class.instance_variable_set(:@entries, nil)
+      expect(described_class).not_to receive(:build_chat_entries)
+
+      described_class.tools(surface: :workflow)
+    end
+
+    it "resolves agent_insight-surface tools without building the chat tool registry" do
+      described_class.instance_variable_set(:@chat_entries, nil)
+      described_class.instance_variable_set(:@entries, nil)
+      expect(described_class).not_to receive(:build_chat_entries)
+
+      described_class.tools(surface: :agent_insight)
+    end
+
+    it "resolves chat-surface tools without building the workflow or agent_insight tool registries" do
+      described_class.instance_variable_set(:@workflow_entries, nil)
+      described_class.instance_variable_set(:@agent_insight_entries, nil)
+      described_class.instance_variable_set(:@entries, nil)
+      expect(described_class).not_to receive(:build_workflow_entries)
+      expect(described_class).not_to receive(:build_agent_insight_entries)
+
+      described_class.tools(surface: :chat, tier: :essential)
+    end
+  end
+
   describe ".tools_for_context" do
     it "keeps the planner chat tool set unchanged" do
       session = chat_session

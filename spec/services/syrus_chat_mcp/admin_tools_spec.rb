@@ -58,7 +58,7 @@ RSpec.describe "Mcp::Tools admin tools" do
   def server_for(chat_session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: Mcp::Sidecar::CHAT_ADMIN_TOOLS,
+      tools: Mcp::Sidecar.chat_admin_tools,
       server_context: { chat_session: chat_session }
     )
   end

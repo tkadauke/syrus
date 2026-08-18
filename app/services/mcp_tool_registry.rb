@@ -34,8 +34,24 @@ class McpToolRegistry
   end
 
   class << self
+    # Each surface is memoized independently so booting a workflow or
+    # agent_insight sidecar never has to require the 80+ chat tool classes
+    # (and vice versa). `entries` (all surfaces) is only built when a caller
+    # genuinely needs a cross-surface view.
     def entries
-      @entries ||= build_entries.freeze
+      @entries ||= (chat_entries + workflow_entries + agent_insight_entries).freeze
+    end
+
+    def chat_entries
+      @chat_entries ||= build_chat_entries.freeze
+    end
+
+    def workflow_entries
+      @workflow_entries ||= build_workflow_entries.freeze
+    end
+
+    def agent_insight_entries
+      @agent_insight_entries ||= build_agent_insight_entries.freeze
     end
 
     def tools(surface: nil, tier: nil)
@@ -58,8 +74,10 @@ class McpToolRegistry
       entries.find { |entry| entry.tool == tool }
     end
 
+    # Capabilities are only ever declared on workflow entries, so this never
+    # needs to touch (and eagerly build) chat_entries or agent_insight_entries.
     def capability_permitted?(context, capability)
-      entries.any? do |entry|
+      workflow_entries.any? do |entry|
         entry.capability == capability.to_sym &&
           allowed_entry?(entry, context)
       end
@@ -68,9 +86,18 @@ class McpToolRegistry
     private
 
     def matching_entries(surface:, tier:)
-      entries.select do |entry|
+      scoped_entries(surface).select do |entry|
         (surface.nil? || entry.surface == surface.to_sym) &&
           (tier.nil? || entry.tier == tier.to_sym)
+      end
+    end
+
+    def scoped_entries(surface)
+      case surface&.to_sym
+      when :chat then chat_entries
+      when :workflow then workflow_entries
+      when :agent_insight then agent_insight_entries
+      else entries
       end
     end
 
@@ -94,15 +121,7 @@ class McpToolRegistry
       end
     end
 
-    def build_entries
-      [
-        *chat_entries,
-        *workflow_entries,
-        *agent_insight_entries
-      ]
-    end
-
-    def chat_entries
+    def build_chat_entries
       [
         chat(Mcp::Tools::AttachRepositoryTool, mutation: true),
         chat(Mcp::Tools::ProposeEpicTool, mutation: true),
@@ -269,7 +288,7 @@ class McpToolRegistry
       ]
     end
 
-    def workflow_entries
+    def build_workflow_entries
       workflow_roles = AgentRole::WORKFLOW_ROLES
       summary_roles = [
         AgentRole::WORKFLOW_IMPLEMENT,
@@ -321,7 +340,7 @@ class McpToolRegistry
       ]
     end
 
-    def agent_insight_entries
+    def build_agent_insight_entries
       [
         entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight),
         entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight),

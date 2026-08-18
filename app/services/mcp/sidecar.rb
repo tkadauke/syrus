@@ -6,12 +6,35 @@ module Mcp
     CHAT_DEFERRED_SERVER = "syrus-chat-deferred-sidecar"
     WORKFLOW_SERVER = "syrus-mcp-sidecar"
 
-    CHAT_ESSENTIAL_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :essential).freeze
-    CHAT_DEFERRED_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :deferred).freeze
-    CHAT_ADMIN_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.admin_only }.map(&:tool).freeze
-    CHAT_WALKTHROUGH_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.feature_flag == :video_walkthroughs }.map(&:tool).freeze
-    CHAT_CODING_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_CODING) }.map(&:tool).freeze
-    CHAT_LOCAL_MODE_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_LOCAL) }.map(&:tool).freeze
+    # Lazily memoized (not class-load-time constants): referencing Mcp::Sidecar
+    # to call .workflow(run_id:) or .chat(...) triggers Zeitwerk autoload of
+    # this whole class body, so an eager `X = McpToolRegistry...` assignment
+    # here would force-build the chat tool registry (80+ classes) even for a
+    # workflow/agent_insight-only sidecar boot that never touches these. See
+    # McpToolRegistry.chat_entries.
+    def self.chat_essential_tools
+      @chat_essential_tools ||= McpToolRegistry.tools(surface: :chat, tier: :essential).freeze
+    end
+
+    def self.chat_deferred_tools
+      @chat_deferred_tools ||= McpToolRegistry.tools(surface: :chat, tier: :deferred).freeze
+    end
+
+    def self.chat_admin_tools
+      @chat_admin_tools ||= McpToolRegistry.chat_entries.select(&:admin_only).map(&:tool).freeze
+    end
+
+    def self.chat_walkthrough_tools
+      @chat_walkthrough_tools ||= McpToolRegistry.chat_entries.select { |entry| entry.feature_flag == :video_walkthroughs }.map(&:tool).freeze
+    end
+
+    def self.chat_coding_tools
+      @chat_coding_tools ||= McpToolRegistry.chat_entries.select { |entry| entry.required_roles.include?(AgentRole::CHAT_CODING) }.map(&:tool).freeze
+    end
+
+    def self.chat_local_mode_tools
+      @chat_local_mode_tools ||= McpToolRegistry.chat_entries.select { |entry| entry.required_roles.include?(AgentRole::CHAT_LOCAL) }.map(&:tool).freeze
+    end
 
     def self.chat(session_id:, current_message_id: nil, tier: :essential, server_name: nil)
       tier = tier.to_sym

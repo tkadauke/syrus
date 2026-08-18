@@ -276,7 +276,7 @@ RSpec.describe Mcp::Sidecar do
     end
 
     it "registers search_syrus_docs in DEFERRED_TOOLS" do
-      expect(Mcp::Sidecar::CHAT_DEFERRED_TOOLS).to include(Mcp::Tools::SearchSyrusDocsTool)
+      expect(Mcp::Sidecar.chat_deferred_tools).to include(Mcp::Tools::SearchSyrusDocsTool)
       expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("search_syrus_docs")
     end
 

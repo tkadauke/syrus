@@ -87,7 +87,7 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
   end
 
   it "is exposed through the deferred sidecar" do
-    expect(Mcp::Sidecar::CHAT_DEFERRED_TOOLS).to include(described_class)
+    expect(Mcp::Sidecar.chat_deferred_tools).to include(described_class)
     expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("explain_stuck_job")
   end
 end

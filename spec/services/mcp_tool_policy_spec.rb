@@ -267,7 +267,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_ADMIN_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_admin_tools).to be_empty
     end
 
     it "includes admin tools for admin users" do
@@ -276,7 +276,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(admin_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar.chat_admin_tools)
     end
 
     it "includes insight read tools when agent_insights is enabled" do
@@ -301,14 +301,14 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_CODING_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_coding_tools).to be_empty
     end
 
     it "excludes local mode tools" do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_local_mode_tools).to be_empty
     end
 
     it "excludes walkthrough tools when the feature is disabled" do
@@ -318,7 +318,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_walkthrough_tools).to be_empty
     end
 
     it "includes walkthrough tools when the feature is enabled" do
@@ -328,7 +328,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS).to eq(Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS)
+      expect(tools & Mcp::Sidecar.chat_walkthrough_tools).to eq(Mcp::Sidecar.chat_walkthrough_tools)
     end
   end
 
@@ -339,7 +339,7 @@ RSpec.describe McpToolPolicy do
       tools = described_class.for(context_for(admin_session))
 
       expect(McpToolContext.from_chat_session(admin_session).role).to eq(AgentRole::CHAT_ADMIN)
-      expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar.chat_admin_tools)
     end
 
     it "excludes repository attachment and work-creation tools for supervisor chats" do
@@ -378,7 +378,7 @@ RSpec.describe McpToolPolicy do
       tools = described_class.for(context_for(supervisor_session))
 
       expect(McpToolContext.from_chat_session(supervisor_session).role).to eq(AgentRole::CHAT_ADMIN)
-      expect(tools & Mcp::Sidecar::CHAT_ADMIN_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_admin_tools).to be_empty
     end
   end
 
@@ -393,7 +393,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(coding_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(*Mcp::Sidecar::CHAT_CODING_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar.chat_coding_tools)
     end
 
     it "excludes coding tools when feature is disabled" do
@@ -402,7 +402,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(coding_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_CODING_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_coding_tools).to be_empty
     end
   end
 
@@ -417,7 +417,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(local_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(*Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar.chat_local_mode_tools)
     end
 
     it "excludes local mode tools when feature is disabled" do
@@ -426,7 +426,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(local_session)
       tools = described_class.for(context)
 
-      expect(tools & Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar.chat_local_mode_tools).to be_empty
     end
   end
 
