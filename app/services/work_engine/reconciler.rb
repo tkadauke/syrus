@@ -302,6 +302,7 @@ module WorkEngine
 
         sqs = solid_queue_jobs_for_run(run)
         workflow = run.workflow
+        next unless workflow&.queued? || workflow&.running?
         next if stale_auto_retry_attempt_for(workflow)
         next if pending_auto_retry_attempt?(workflow)
 

@@ -2678,6 +2678,7 @@ RSpec.describe WorkEngine::Reconciler do
     result = reconcile_and_execute(workflow_id: workflow.id)
     issue = kind(result, :cleanup_blocked_by_active_descendants)
 
+    expect(kind(result, :queued_run_without_queue_claim)).to be_nil
     expect(issue).to have_attributes(
       safe_to_auto_repair: true,
       recommended_repair_action: "cancel_terminal_workflow_active_descendants"
