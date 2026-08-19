@@ -6,6 +6,8 @@ module SyrusDiscord
         display_name:    "Discord",
         version:         SyrusDiscord::VERSION,
         description:     "Links Discord accounts and delivers/receives chat messages over a Gateway DM listener.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: false,
         disableable:     true,
         category:        "platform_delivery",

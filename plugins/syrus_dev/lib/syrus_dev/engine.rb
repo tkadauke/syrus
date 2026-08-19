@@ -9,6 +9,8 @@ module SyrusDev
         disableable:     true,
         category:        "dev",
         description:     "Syrus development diagnostics and internal tooling.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         frontend: {
           routes: {
             "syrus_dev/AdminPerformance" => "app/frontend/routes/AdminPerformance.tsx",

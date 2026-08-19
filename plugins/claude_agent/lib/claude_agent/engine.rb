@@ -8,6 +8,8 @@ module SyrusClaudeAgent
         display_name:    "Claude Agent",
         version:         SyrusClaudeAgent::VERSION,
         description:     "Runs workflow and chat turns through Claude.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
         category:        "agent_provider",

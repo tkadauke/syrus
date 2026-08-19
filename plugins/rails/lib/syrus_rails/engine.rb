@@ -19,6 +19,7 @@ module SyrusRails
         version:     SyrusRails::VERSION,
         description: "Ruby on Rails intelligence",
         homepage:    "https://github.com/tkadauke/syrus",
+        author:      "Thomas Kadauke",
         provides: {
           mcp_tool_set:       SyrusRails::McpToolSet,
           artifact_renderer:  [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],

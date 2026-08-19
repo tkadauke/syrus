@@ -8,6 +8,8 @@ module SyrusCodexAgent
         display_name:    "Codex Agent",
         version:         SyrusCodexAgent::VERSION,
         description:     "Runs workflow and chat turns through Codex.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
         category:        "agent_provider",

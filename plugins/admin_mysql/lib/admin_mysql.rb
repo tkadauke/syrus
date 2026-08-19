@@ -14,6 +14,8 @@ module AdminMysql
       disableable:     true,
       category:        "observability",
       description:     "Live MySQL diagnostics for production operators.",
+      homepage:        "https://github.com/tkadauke/syrus",
+      author:          "Thomas Kadauke",
       frontend: {
         routes: {
           "admin_mysql/AdminMysql" => "app/frontend/routes/AdminMysql.tsx"

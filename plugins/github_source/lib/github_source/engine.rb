@@ -6,6 +6,8 @@ module SyrusGithubSource
         display_name:    "GitHub Source",
         version:         SyrusGithubSource::VERSION,
         description:     "Ingests GitHub issues and provides GitHub PR operations.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     false,
         category:        "input_source",

@@ -16,6 +16,7 @@ module SyrusBrowser
                           "127.0.0.1/loopback URLs — the browser can only drive a step's own " \
                           "in-step preview, never an arbitrary network destination.",
         homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
         category:        "mcp_tool_set",

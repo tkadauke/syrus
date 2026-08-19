@@ -6,6 +6,8 @@ module Tailscale
         display_name:    "Tailscale",
         version:         Tailscale::VERSION,
         description:     "Exposes Syrus on your Tailscale network for access from laptops and mobile.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: false,
         disableable:     true,
         category:        "connectivity",

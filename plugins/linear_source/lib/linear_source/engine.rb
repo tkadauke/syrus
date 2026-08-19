@@ -6,6 +6,8 @@ module SyrusLinearSource
         display_name:    "Linear Source",
         version:         SyrusLinearSource::VERSION,
         description:     "Ingests Linear issues as Syrus jobs and epics.",
+        homepage:        "https://github.com/tkadauke/syrus",
+        author:          "Thomas Kadauke",
         default_enabled: false,
         disableable:     true,
         category:        "input_source",
