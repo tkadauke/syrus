@@ -73,19 +73,23 @@ module Api
               skip_prepare: skip_prepare,
               kind: job.kind,
               agent_provider: job.workflow_agent_provider,
-              job_provider_setting: job.job_provider_setting
+              job_provider_setting: job.job_provider_setting,
+              epic: job.epic
             }
 
             if job.direct?
               attrs.merge!(
                 issue_title: job.issue_title,
-                issue_body: job.issue_body,
-                epic: job.epic
+                issue_body: job.issue_body
               )
             end
 
             new_job = Current.user.jobs.create!(attrs)
             new_job.advance_after_triage! if new_job.may_advance_after_triage?
+
+            job.dependent_links.find_each do |dependency|
+              dependency.update!(depends_on_job_id: new_job.id)
+            end
 
             broadcast_job_change(job.reload, [ "state" ])
             broadcast_job_change(new_job.reload, [ "created" ])

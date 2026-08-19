@@ -16538,7 +16538,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       can_run_visual_review: false,
       can_retry: true,
       can_retry_from_failed_step: false,
-      can_restart: true,
+      can_restart: false,
       can_cancel: true,
       can_approve: true,
       can_unapprove: false,

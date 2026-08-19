@@ -158,6 +158,34 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(new_job.issue_number).to be_nil
   end
 
+  it "preserves epic membership when restarting an issue-kind job that belongs to an epic" do
+    epic = Factories.epic(user: user, repository: repo)
+    job.update!(epic: epic)
+    job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+
+    expect {
+      post app_job_path(job, "restart"), as: :json
+    }.to change(Job, :count).by(1)
+
+    new_job = Job.where(repository_id: repo.id, issue_number: 42).order(:created_at).last
+    expect(response).to have_http_status(:created)
+    expect(new_job.epic_id).to eq(epic.id)
+  end
+
+  it "rewires dependent job dependencies to point at the replacement job when restarted" do
+    dependent = Factories.job(repository: repo, issue_number: 43)
+    dependency = dependent.dependencies.create!(depends_on_job: job, source: "manual")
+    job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+
+    expect {
+      post app_job_path(job, "restart"), as: :json
+    }.to change(Job, :count).by(1)
+
+    new_job = Job.where(repository_id: repo.id, issue_number: 42).order(:created_at).last
+    expect(response).to have_http_status(:created)
+    expect(dependency.reload.depends_on_job_id).to eq(new_job.id)
+  end
+
   it "rolls back the original job close when replacement creation fails" do
     # Corrupt the kind via update_columns (bypasses validations) so the replacement
     # job creation fails with RecordInvalid, exercising the transaction rollback path.

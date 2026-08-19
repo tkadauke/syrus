@@ -1004,10 +1004,29 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#actions_json can_restart" do
-    it "is true for an issue job with no active runs" do
+    def create_failed_workflow(job, trigger_kind:, failed_step_kind:)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: trigger_kind,
+        agent_provider: job.agent_provider,
+        state: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      workflow.steps.create!(
+        kind: failed_step_kind,
+        position: 1,
+        state: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      workflow
+    end
+
+    it "is false for a queued issue job with no active runs (not yet a last resort)" do
       job = Factories.job_record(repository: repo, issue_number: 5)
 
-      expect(payload_for(job).dig(:actions, :can_restart)).to be(true)
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
     end
 
     it "is false for a cron job even with no active runs" do
@@ -1026,15 +1045,74 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
     end
 
-    it "is true for a direct job with no active runs" do
+    it "is false for a direct job with no active runs (not yet a last resort)" do
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil,
                                  issue_title: "Fix it")
 
-      expect(payload_for(job).dig(:actions, :can_restart)).to be(true)
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
     end
 
     it "is false for a no_change_needed job" do
       job = Factories.job_record(user: user, repository: repo, state: "no_change_needed")
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+
+    it "is true for a failed job with a non-retryable failed step and a reclaimed workspace" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow = create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "pr_open")
+      workflow.update_columns(cleaned_up_at: Time.current)
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(true)
+    end
+
+    it "is false for a failed job with an available implementation retry" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "implement")
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+
+    it "is false for a failed job with an available failed-step retry" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "pr_open")
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+
+    it "is false for a failed landing attempt with a landing_failure_reason even when no retry action is available" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed",
+                                 landing_failure_reason: "merge train record not found")
+      workflow = create_failed_workflow(job, trigger_kind: "merge_train", failed_step_kind: "merge_train_build")
+      workflow.update_columns(cleaned_up_at: Time.current)
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+
+    it "is false for an in-progress landing failure where Reapprove/Retry-failed-step still applies" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented",
+                                 landing_failure_reason: "auto_merge: required grader failed")
+      create_failed_workflow(job, trigger_kind: "auto_merge", failed_step_kind: "auto_merge")
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+
+    it "is true for a closed infrastructure (main_grader) job" do
+      infra_job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "main_grader",
+        issue_title: "main_grader:abc123"
+      )
+      Workflow.create!(job: infra_job, trigger_kind: "main_grader", user: user, state: "succeeded")
+      infra_job.update_columns(state: "closed", finished_at: Time.current, closure_reason: "pr_merged")
+
+      expect(payload_for(infra_job).dig(:actions, :can_restart)).to be(true)
+    end
+
+    it "is false for a closed non-infrastructure job (Reopen is available instead)" do
+      job = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
 
       expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
     end

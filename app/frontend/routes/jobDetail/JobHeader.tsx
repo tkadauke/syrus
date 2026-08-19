@@ -211,6 +211,11 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("restart")
   } else if (jobState === "no_change_needed") {
     add("cancel")
+  } else if (availableKeys.has("restart")) {
+    // Closed infrastructure Jobs (main_grader/agent_insight) have no Reopen
+    // path, so Start Over is their only recovery action once can_restart is
+    // true outside the "failed" branches above.
+    add("restart")
   } else if (availableKeys.has("reopen")) {
     add("reopen")
   } else if (availableKeys.has("retry_failed_step")) {

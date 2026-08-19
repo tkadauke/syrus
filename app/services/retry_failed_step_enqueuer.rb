@@ -1,4 +1,8 @@
 class RetryFailedStepEnqueuer
+  # Genuine last-resort case: the workflow workspace is gone, so there is no
+  # in-place recovery left and Start Over really is the only path forward.
+  WORKSPACE_CLEANED_UP_MESSAGE = "Workspace already cleaned up - use Start over.".freeze
+
   Result = Data.define(:run, :workflow, :step, :error) do
     def success? = run.present?
   end
@@ -18,7 +22,7 @@ class RetryFailedStepEnqueuer
 
   def call
     return failure("Workflow is not in a failed state.") unless workflow.failed?
-    return failure("Workspace already cleaned up - use Start over.") unless workflow.retry_available?
+    return failure(WORKSPACE_CLEANED_UP_MESSAGE) unless workflow.retry_available?
 
     failed_step = self.class.failed_step_for(workflow)
     return failure("No failed step to retry.") unless failed_step
@@ -75,7 +79,7 @@ class RetryFailedStepEnqueuer
   def rebuild_merge_train
     train_id = workflow.artifact("merge_train_id")
     train = MergeTrain.find_by(id: train_id)
-    return failure("Merge train not found; use Start over.") unless train
+    return failure("Merge train record not found - contact an admin or operator to rebuild the merge train.") unless train
 
     rebuild = EpicLandingRetrier.rebuild_merge_train!(train.epic, source_train: train)
     rebuilt_workflow = rebuild.workflow

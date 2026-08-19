@@ -212,7 +212,7 @@ en:
 
     admin_workflows:
       not_failed: "%{slug} is `%{state}`, not `failed`."
-      workspace_cleaned_up: "Workspace already cleaned up; use Start over."
+      workspace_cleaned_up: "Workspace already cleaned up - use Start over."
       no_failed_step: "No failed step found on %{slug}."
 
     admin_transcripts:
