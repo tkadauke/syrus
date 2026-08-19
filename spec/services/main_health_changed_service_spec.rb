@@ -121,6 +121,22 @@ RSpec.describe MainHealthChangedService do
         )
       end
 
+      it "keeps landing unpaused and creates a high-priority repair Job under isolate-unrelated-failures policy" do
+        AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.to change { repository.jobs.where(kind: "direct").count }.by(1)
+
+        fix_job = repository.jobs.where(kind: "direct").last
+        expect(repository.reload.landing_paused).to be(false)
+        expect(fix_job).to have_attributes(
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          priority: "high",
+          state: "queued"
+        )
+      end
+
       it "does not leave a triaging repair Job behind when workflow dispatch fails" do
         allow(StepDispatcher).to receive(:start_workflow).and_raise(RuntimeError, "dispatch interrupted")
 
@@ -486,6 +502,24 @@ RSpec.describe MainHealthChangedService do
           state: "queued",
           priority: "urgent"
         )
+      end
+
+      it "does not immediately replace a closed repair Job under isolate-unrelated-failures policy" do
+        AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+        failed_repair = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "operator cancelled repair",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "high",
+          state: "failed"
+        )
+
+        expect {
+          failed_repair.update!(state: "closed", closure_reason: "operator_cancelled")
+        }.not_to change { repository.jobs.where(kind: "direct").count }
       end
 
       it "marks main healthy instead of spawning a replacement when a repair Job lands" do

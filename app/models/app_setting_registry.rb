@@ -286,6 +286,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :main_branch_breakage_policy,
+      type: :string,
+      default: "strict",
+      min: nil,
+      max: nil,
+      category: "Workflow behavior",
+      operational_meaning: "Main-branch breakage policy: 'strict' pauses unrelated work when main is broken; 'isolate_unrelated_failures' keeps work moving and lets grader_collect pass failures proven to be inherited from broken main.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
       key: :workflow_admission_control_changed_at,
       type: :datetime,
       default: nil,

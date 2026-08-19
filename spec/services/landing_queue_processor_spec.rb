@@ -408,6 +408,17 @@ RSpec.describe LandingQueueProcessor do
     expect(entry.blocked_reason).to eq({ key: "landing_paused_main_broken" })
   end
 
+  it "does not block approved Jobs for broken main under isolate-unrelated-failures policy" do
+    AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    repository.update!(ci_health: "broken", landing_paused: true)
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(job)
+    expect(job.reload).to be_landing
+  end
+
   it "does not block approved Jobs solely because main health is inconclusive" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     repository.update!(ci_health: "not_configured", grader_health: "inconclusive", landing_paused: true)

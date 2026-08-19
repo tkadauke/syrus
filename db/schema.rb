@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_110839) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_122000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -66,6 +66,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_110839) do
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
     t.integer "grade_max_iterations", default: 5, null: false
+    t.string "main_branch_breakage_policy", default: "strict", null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 0, null: false
     t.integer "max_job_failures", default: 3, null: false

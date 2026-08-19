@@ -38,6 +38,23 @@ module Steps
         return
       end
 
+      inherited_main_failure = MainBranchFailureClassifier.call(
+        workflow: workflow,
+        failed_grader_steps: failed_required
+      )
+      if inherited_main_failure.inherited?
+        workflow.set_artifact!("inherited_main_branch_grader_failure", {
+          "failed_names" => inherited_main_failure.inherited_names,
+          "evidence" => inherited_main_failure.evidence,
+          "classified_at" => Time.current.iso8601
+        })
+        log(
+          "[grader_collect] required grader failures match broken-main evidence; " \
+          "treating as inherited: #{inherited_main_failure.inherited_names.join(', ')}"
+        )
+        return
+      end
+
       failed_names = failed_required.map { |g| g.details["name"] }.join(", ")
       log("[grader_collect] required graders failed: #{failed_names}")
       raise Base::StepFailed, "required graders failed: #{failed_names}"

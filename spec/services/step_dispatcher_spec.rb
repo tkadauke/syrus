@@ -1897,6 +1897,15 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
     }.to change { s1.runs.count }.by(1)
   end
 
+  it "starts the workflow under isolate-unrelated-failures main breakage policy" do
+    AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+    break_main!
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
   it "starts the workflow when landing is paused and main_health is inconclusive" do
     job_model.repository.update!(ci_health: "not_configured", grader_health: "inconclusive", landing_paused: true)
 

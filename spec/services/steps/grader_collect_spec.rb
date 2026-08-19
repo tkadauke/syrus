@@ -118,6 +118,63 @@ RSpec.describe Steps::GraderCollect do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
   end
 
+  it "passes required grader failures that match broken-main grader evidence in isolate mode" do
+    AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "rspec" ]
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    artifact = workflow.reload.artifact("inherited_main_branch_grader_failure")
+    expect(artifact).to include(
+      "failed_names" => [ "rspec" ],
+      "evidence" => include("sha" => "main123", "failed_names" => [ "rspec" ])
+    )
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("treating as inherited: rspec")
+  end
+
+  it "does not pass new grader failures that are absent from broken-main evidence" do
+    AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "eslint" ]
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+  end
+
+  it "does not pass inherited-looking grader failures in strict mode" do
+    job.repository.update!(ci_health: "healthy", grader_health: "broken", last_health_checked_sha: "main123")
+    MainBranchHealthCheck.record_grader_workflow(
+      repository: job.repository,
+      sha: "main123",
+      grader_health: "broken",
+      grader_failed_names: [ "rspec" ]
+    )
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+  end
+
   it "records a reusable validation artifact when required graders pass" do
     handler.call
 

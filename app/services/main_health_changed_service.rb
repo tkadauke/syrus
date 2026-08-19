@@ -6,6 +6,7 @@ class MainHealthChangedService
   FIX_MAIN_TITLE = Job::MAIN_BRANCH_REPAIR_TITLE
   MAX_RECOVERY_RETRIES = 10
   MAX_OPEN_FAILED_FIX_JOBS = 3
+  REPAIR_CANCELLATION_COOLDOWN = 30.minutes
   MAX_SUMMARY_ATTACHMENT_BYTES = 256.kilobytes
   MAX_CI_ATTACHMENT_BYTES = 4.megabytes
   MAX_GRADER_ATTACHMENT_BYTES = 12.megabytes
@@ -47,7 +48,11 @@ class MainHealthChangedService
     )
 
     if @repository.main_health_broken?
-      pause_landing!
+      if AppSetting.strict_main_branch_breakage_policy?
+        pause_landing!
+      else
+        resume_landing!
+      end
       stamp_active_workflows!
       ensure_repair_job!
       emit_notification!
@@ -75,6 +80,7 @@ class MainHealthChangedService
     return unless @repository.main_branch_repair_enabled?
     return unless @repository.main_health_broken?
     return if blocking_fix_job
+    return if !force && suppressed_by_recent_closed_repair?
 
     # The stale-SHA guard keeps AUTOMATIC repairs from firing on a health signal
     # for a commit main has already moved past. An explicit operator repair
@@ -256,12 +262,26 @@ class MainHealthChangedService
         issue_title: FIX_MAIN_TITLE,
         issue_body: fix_job_prompt,
         agent_provider: @repository.effective_agent_provider,
-        priority: "urgent"
+        priority: repair_job_priority
       )
       attach_repair_context!(job)
       job.advance_after_triage! if job.may_advance_after_triage?
       job
     end
+  end
+
+  def repair_job_priority
+    AppSetting.strict_main_branch_breakage_policy? ? "urgent" : "high"
+  end
+
+  def suppressed_by_recent_closed_repair?
+    return false if AppSetting.strict_main_branch_breakage_policy?
+
+    repair_jobs
+      .where(state: "closed")
+      .where.not(closure_reason: %w[pr_merged external_pr_merged])
+      .where(updated_at: REPAIR_CANCELLATION_COOLDOWN.ago..)
+      .exists?
   end
 
   def repair_jobs

@@ -222,6 +222,7 @@ class StepDispatcher
 
     repository = workflow.job.repository
     return false unless repository.main_branch_health_enabled?
+    return false unless AppSetting.strict_main_branch_breakage_policy?
 
     repository.landing_paused? && repository.main_health_broken?
   end

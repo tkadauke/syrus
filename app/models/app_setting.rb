@@ -8,6 +8,7 @@ class AppSetting < ApplicationRecord
 
   MODES = %w[advanced simple].freeze
   WORKFLOW_ADMISSION_POLICIES = %w[whole_workflow phase_aware].freeze
+  MAIN_BRANCH_BREAKAGE_POLICIES = %w[strict isolate_unrelated_failures].freeze
 
   AppSettingRegistry.definitions.each do |definition|
     next unless definition.numericality_options
@@ -20,6 +21,7 @@ class AppSetting < ApplicationRecord
   }
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
+  validates :main_branch_breakage_policy, inclusion: { in: MAIN_BRANCH_BREAKAGE_POLICIES }
   validates :mode, inclusion: { in: MODES }
 
   belongs_to :workflow_admission_control_changed_by_user, class_name: "User", optional: true
@@ -100,6 +102,18 @@ class AppSetting < ApplicationRecord
 
   def self.workflow_admission_phase_aware?
     workflow_admission_policy == "phase_aware"
+  end
+
+  def self.main_branch_breakage_policy
+    current.main_branch_breakage_policy.presence_in(MAIN_BRANCH_BREAKAGE_POLICIES) || "strict"
+  end
+
+  def self.strict_main_branch_breakage_policy?
+    main_branch_breakage_policy == "strict"
+  end
+
+  def self.isolate_unrelated_main_branch_failures?
+    main_branch_breakage_policy == "isolate_unrelated_failures"
   end
 
   def self.max_job_failures
