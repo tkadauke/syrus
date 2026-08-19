@@ -133,7 +133,6 @@ module App
         ::App::RetryState.for(@job, latest_run: latest_run_for_retry_state, any_active_run: any_active_run)
       end
       approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json }
-      worker_health_correlation = PerformanceLogging.phase("job_detail.job.worker_health_correlation", job_id: @job.id) { worker_health_job_correlation_json }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { @job.workflows.size }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.size }
@@ -207,7 +206,6 @@ module App
         epic_id: @job.epic_id,
         total_cost_usd: @job.display_total_cost_usd&.to_f,
         billed_runs_count: @job.billed_runs_count,
-        worker_health_correlation: worker_health_correlation,
         source_chat: source_chat,
         workflows_count: workflows_count,
         runs_count: runs_count,
@@ -230,10 +228,6 @@ module App
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
-    end
-
-    def worker_health_job_correlation_json
-      WorkerHealthRunCorrelation.for_job(@job)
     end
 
     def latest_run_for_retry_state

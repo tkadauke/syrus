@@ -100,7 +100,6 @@ export type JobRecord = {
   scheduled_task?: JobScheduledTask | null
   total_cost_usd: number | null
   billed_runs_count: number
-  worker_health_correlation?: JobWorkerHealthCorrelation | null
   source_chat: JobSourceChat | null
   workflows_count: number
   runs_count: number
@@ -222,15 +221,6 @@ export type JobCommandSpan = {
     level: "unknown" | "ok" | "warning" | "critical"
     reasons: string[]
   }
-}
-
-export type JobWorkerHealthCorrelation = {
-  retained_since: string
-  runs_analyzed: number
-  pressure_run_count: number
-  latest_pressure_runs: RunWorkerHealthCorrelation[]
-  missing_sample_run_count: number
-  generated_at: string
 }
 
 export type JobOwnerUser = {
