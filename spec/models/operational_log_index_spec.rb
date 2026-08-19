@@ -32,6 +32,29 @@ RSpec.describe OperationalLogIndex do
     expect(described_class.search(since: 3.hours.ago).map { |row| row[:operational_log_event_id] }).to eq([ newer.id, older.id ])
   end
 
+  it "memoizes table availability instead of re-querying sqlite_master on every call" do
+    described_class.reset_availability_cache!
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql].to_s if payload[:sql].to_s.include?("sqlite_master")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      3.times { described_class.available? }
+    end
+
+    expect(queries.size).to eq(1)
+  end
+
+  it "recomputes availability after an explicit cache reset" do
+    expect(described_class.available?).to be(true)
+
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS operational_log_fts")
+    described_class.reset_availability_cache!
+
+    expect(described_class.available?).to be(false)
+  end
+
   it "filters by upper time bound, app revision, limit, and offset" do
     old_revision = event(message: "old revision", occurred_at: 40.minutes.ago, app_revision: "old-sha")
     older = event(message: "older current", occurred_at: 30.minutes.ago, app_revision: "current-sha")

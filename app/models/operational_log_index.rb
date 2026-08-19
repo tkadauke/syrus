@@ -132,10 +132,19 @@ class OperationalLogIndex < SearchRecord
       rows.map(&:symbolize_keys)
     end
 
+    # Table existence only changes via syrus:prepare_search (a separate
+    # boot-time process, or an explicit reset in this process's tests/console),
+    # so memoize it instead of round-tripping to sqlite_master on every search.
     def available?
-      connection.select_value("SELECT name FROM sqlite_master WHERE name = 'operational_log_fts'").present?
+      return @available if defined?(@available)
+
+      @available = connection.select_value("SELECT name FROM sqlite_master WHERE name = 'operational_log_fts'").present?
     rescue ActiveRecord::StatementInvalid, SQLite3::SQLException
       false
+    end
+
+    def reset_availability_cache!
+      remove_instance_variable(:@available) if defined?(@available)
     end
 
     # Repopulates the FTS table from the primary-DB events after a schema

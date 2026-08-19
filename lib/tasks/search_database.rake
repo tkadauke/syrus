@@ -109,6 +109,13 @@ module SyrusSearchDatabaseTasks
     "browser_error_fts" => -> { BrowserErrorIndex.rebuild! }
   }.freeze
 
+  # Deferred (not resolved until called) like REBUILD_HOOKS above -- this
+  # file loads before Rails autoloading is ready to resolve app constants.
+  AVAILABILITY_CACHES = {
+    "operational_log_fts" => -> { OperationalLogIndex.reset_availability_cache! },
+    "browser_error_fts" => -> { BrowserErrorIndex.reset_availability_cache! }
+  }.freeze
+
   module_function
 
   def prepare!
@@ -124,6 +131,7 @@ module SyrusSearchDatabaseTasks
       end
 
       SearchRecord.connection.execute(sql)
+      AVAILABILITY_CACHES[table_name]&.call
     end
   end
 
@@ -176,6 +184,7 @@ module SyrusSearchDatabaseTasks
       SearchRecord.connection.execute(sql)
     end
 
+    AVAILABILITY_CACHES[table_name]&.call
     REBUILD_HOOKS[table_name]&.call
   end
 end
