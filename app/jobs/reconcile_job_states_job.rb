@@ -27,6 +27,8 @@ class ReconcileJobStatesJob < ApplicationJob
 
       case [ job.state, latest_wf.state ]
       when [ "failed", "succeeded" ]
+        return nil if latest_workflow_missing_pr_publication?(job, latest_wf)
+
         # Workflow recovered (e.g. via Retry-from-failed-step or
         # follow-up workflow), but Job.state was left at :failed
         # because propagate_succeed_to_job was called when the Job
@@ -92,6 +94,12 @@ class ReconcileJobStatesJob < ApplicationJob
                   steps: %i[ start_running! ])
 
       when [ "running", "succeeded" ]
+        if latest_workflow_missing_pr_publication?(job, latest_wf)
+          return new(job, target_state: "failed",
+                    reason: "latest workflow :succeeded without publishing a tracked PR",
+                    steps: %i[ mark_failed! ])
+        end
+
         # Workflow finished but propagate_succeed_to_job didn't lift
         # the Job to :implemented (e.g. the catch-all's
         # may_mark_implemented? guard raced with another transition).
@@ -131,6 +139,8 @@ class ReconcileJobStatesJob < ApplicationJob
                   steps: %i[ mark_failed! ])
 
       when [ "queued", "succeeded" ]
+        return nil if latest_workflow_missing_pr_publication?(job, latest_wf)
+
         # Should rarely happen — implies an old workflow finished
         # but the Job got bounced back to :queued without a new
         # workflow being instantiated. Treat the workflow's success
@@ -174,6 +184,17 @@ class ReconcileJobStatesJob < ApplicationJob
       return false unless job.pr_checks_state == "passing"
 
       successful_publication_for_branch?(job, latest_wf)
+    end
+
+    def self.latest_workflow_missing_pr_publication?(job, latest_wf)
+      return false unless latest_wf
+      return false unless latest_wf.steps.where(kind: "pr_open").exists?
+      return false if latest_wf.steps.where(kind: "pr_open", state: "succeeded").exists?
+      return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
+      return false if job.infrastructure_job?
+      return false if latest_wf.trigger_kind == "main_branch_repair" && latest_wf.artifact("preflight_passed")
+
+      true
     end
 
     def self.failed_landing_start_blocker_with_ready_pr?(job, latest_wf)

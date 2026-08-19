@@ -1054,6 +1054,11 @@ class StepDispatcher
 
   def finish_workflow!
     return if @workflow.live_descendants?
+
+    if @workflow.pr_publication_missing_after_success?
+      return hard_fail_workflow!("pr_publication_missing_after_success")
+    end
+
     return unless @workflow.may_succeed?
 
     @workflow.succeed!

@@ -847,6 +847,46 @@ RSpec.describe WorkEngine::Reconciler do
     expect(orphaned.reload).to be_failed
   end
 
+  it "does not promote a failed Job back to implemented when the succeeded Workflow never published a PR" do
+    orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "failed")
+    orphaned_workflow = Workflow.create!(
+      job: orphaned,
+      trigger_kind: "initial",
+      state: "succeeded",
+      started_at: 10.minutes.ago,
+      finished_at: 5.minutes.ago
+    )
+    orphaned_workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+    orphaned_workflow.steps.create!(kind: "pr_open", position: 1, state: "cancelled")
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :unambiguous_job_state_drift)).to be_nil
+    expect(plan(result, :reconcile_job_state)).to be_nil
+    expect(orphaned.reload).to be_failed
+  end
+
+  it "fails a running Job whose succeeded Workflow never published a PR" do
+    orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "running")
+    orphaned_workflow = Workflow.create!(
+      job: orphaned,
+      trigger_kind: "initial",
+      state: "succeeded",
+      started_at: 10.minutes.ago,
+      finished_at: 5.minutes.ago
+    )
+    orphaned_workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+    orphaned_workflow.steps.create!(kind: "pr_open", position: 1, state: "cancelled")
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :unambiguous_job_state_drift)).to have_attributes(
+      recommended_repair_action: "reconcile_job_state"
+    )
+    expect(plan(result, :reconcile_job_state)).to have_attributes(target_id: orphaned.id)
+    expect(orphaned.reload).to be_failed
+  end
+
   it "fails an approved Job with no tracked PR so it cannot block the landing queue" do
     orphaned = Factories.job_record(
       user: job.user,
@@ -2659,7 +2699,7 @@ RSpec.describe WorkEngine::Reconciler do
     run.update_columns(state: "succeeded", finished_at: Time.current)
     step.update_columns(state: "succeeded", finished_at: Time.current)
     workflow.update_columns(state: "succeeded", finished_at: Time.current)
-    job.update_columns(state: "running")
+    job.update_columns(state: "running", pr_number: 123, branch_name: "syrus/issue-42-#{job.id}")
 
     result = reconcile_and_execute(job_id: job.id)
 

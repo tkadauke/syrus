@@ -662,18 +662,21 @@ RSpec.describe StepDispatcher do
       expect(s2.runs.count).to eq(0)
     end
 
-    it "transitions the Workflow to succeeded when no runnable step remains" do
+    it "fails a PR-producing Workflow when no runnable step remains but no PR was published" do
       workflow.start!; workflow.save!
       Step.suppress_cancel_cascade do
         s2.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
         s3.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
       end
       described_class.advance_from(s1)
-      expect(workflow.reload).to be_succeeded
+      expect(workflow.reload).to be_failed
+      expect(workflow.failure_reason).to eq("pr_publication_missing_after_success")
+      expect(workflow.artifact("failure_reason")).to eq("pr_publication_missing_after_success")
     end
 
     it "transitions the Workflow to succeeded after the last step in the chain" do
       workflow.start!; workflow.save!
+      s3.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
       described_class.advance_from(s3)  # last step — no next
       expect(workflow.reload).to be_succeeded
     end
