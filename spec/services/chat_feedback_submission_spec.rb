@@ -71,4 +71,48 @@ RSpec.describe ChatFeedbackSubmission do
 
     described_class.call(job: job, feedback: "One more thing.", allowed_states: %w[implemented approved])
   end
+
+  describe "media" do
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    def whiteboard_snapshot
+      WhiteboardSnapshot.create!(
+        chat_session: chat_session,
+        name: "My snapshot",
+        scene_json: { "elements" => [ { "id" => "abc" } ], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 1
+      )
+    end
+
+    it "attaches referenced media to the job before dispatching the workflow" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented")
+      snapshot = whiteboard_snapshot
+
+      result = described_class.call(
+        job: job, feedback: "See the attached whiteboard.", allowed_states: %w[implemented approved],
+        chat_session: chat_session, media: [ "snapshot:#{snapshot.id}" ]
+      )
+
+      expect(result).to be_success
+      expect(job.job_attachments.count).to eq(1)
+      expect(job.job_attachments.first).to have_attributes(kind: "pending_snapshot", source_url: "snapshot:#{snapshot.id}")
+    end
+
+    it "does nothing when media is blank" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+      expect(ChatMediaAttacher).not_to receive(:new)
+
+      described_class.call(job: job, feedback: "One more thing.", allowed_states: %w[implemented approved], chat_session: chat_session, media: [])
+    end
+
+    it "does nothing when chat_session is not provided" do
+      job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+      expect(ChatMediaAttacher).not_to receive(:new)
+
+      described_class.call(job: job, feedback: "One more thing.", allowed_states: %w[implemented approved], media: [ "snapshot:1" ])
+    end
+  end
 end

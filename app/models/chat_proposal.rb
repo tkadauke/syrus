@@ -1,7 +1,7 @@
 require "set"
 
 class ChatProposal < ApplicationRecord
-  MEDIA_ID_FORMAT = /\A(snapshot|chat_image):\d+\z/
+  MEDIA_ID_FORMAT = ChatMediaRef::FORMAT
 
   STATE_ALIASES = {
     "pending" => "proposed",

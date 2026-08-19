@@ -535,6 +535,10 @@ top-level Job summary, test plan, and managed PR title/body separately from the
 follow-up commit message. If the Job is still queued or running, Syrus stores
 the feedback as a waiting pending action and promotes it for operator
 confirmation when the Job reaches review.
+Chat feedback can include a whiteboard snapshot or pasted screenshot alongside
+the written description — useful for pointing at a visible bug rather than
+describing it in prose. The attached media becomes a Job attachment the
+implementing agent sees automatically on the very next feedback round.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.

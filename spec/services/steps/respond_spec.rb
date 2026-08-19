@@ -194,6 +194,45 @@ RSpec.describe Steps::Respond do
     expect(run.reload.prompt).to eq("pre-set prompt content")
   end
 
+  it "surfaces a Job attachment created via chat feedback media in the prompt sent to the agent" do
+    chat_workflow = Workflows::ChatFeedback.instantiate(
+      job: job,
+      artifacts: { "chat_feedback" => "See the attached screenshot for the misaligned button." }
+    )
+    chat_step = chat_workflow.steps.find_by(kind: "respond")
+    chat_run = chat_step.runs.create!(job: job, trigger_kind: chat_workflow.trigger_kind, agent_provider: chat_workflow.agent_provider)
+    chat_handler = described_class.new(chat_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(chat_handler).to receive(:workspace).and_return(fake_ws)
+    allow(chat_handler).to receive(:commit_agent_changes)
+    allow(chat_handler).to receive(:assert_branch_history_intact!)
+    allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:head_sha).and_return("abc999")
+
+    upload = job.job_attachments.build(kind: "file", title: "Broken button", source_url: "chat_image:1")
+    upload.file.attach(io: StringIO.new("pixels"), filename: "broken-button.png", content_type: "image/png")
+    upload.save!
+
+    fake_result = AgentInvocation::Result.new(
+      turns: 1, exit_status: 0, timed_out: false, is_error: false,
+      outcome: "success", final_text: "done", session_id: nil
+    )
+    fake_adapter = instance_double(AgentProviders::Base)
+    received_prompt = nil
+    allow(chat_handler).to receive(:agent_adapter).and_return(fake_adapter)
+    allow(fake_adapter).to receive(:run) do |prompt:, **|
+      received_prompt = prompt
+      fake_result
+    end
+    allow(fake_adapter).to receive(:record_result!).and_return(fake_result)
+
+    chat_handler.call
+
+    expect(received_prompt).to include("# Job Attachments")
+    expect(received_prompt).to include("broken-button.png")
+  end
+
   it "builds a chat feedback prompt from the workflow artifact" do
     chat_workflow = Workflows::ChatFeedback.instantiate(job: job, artifacts: { "chat_feedback" => "Please simplify the UI copy." })
     chat_step = chat_workflow.steps.find_by(kind: "respond")

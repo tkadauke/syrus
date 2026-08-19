@@ -195,6 +195,32 @@ click-to-navigate behavior. `ChatMessagePin` broadcasts `upsert_pin`/
 `remove_pin` app events (`changed: ["pins"]`) so the bar, panel, and toggle
 stay live for every participant.
 
+## Media attachments
+
+`propose_job`, `propose_epic_with_jobs`, and `submit_chat_feedback` all accept
+an optional `media` array of refs in the form `snapshot:ID` (a whiteboard
+snapshot saved via `save_canvas`) or `chat_image:ID` (a pasted/attached chat
+image). `list_chat_media` lists the refs currently available in the session.
+The `ChatMediaRef` format is shared across proposal and feedback validation so
+a malformed or out-of-session ref is rejected consistently.
+
+Resolution and attachment (`ChatMediaAttacher`) is shared too: a `snapshot:ID`
+ref resolves against `chat_session.whiteboard_snapshots` and becomes a
+`pending_snapshot` `Document`; a `chat_image:ID` ref resolves against
+`chat_session.attached_repository_documents` and becomes a `file` `Document`
+re-associated with the same uploaded blob. Both attach to `job.job_attachments`.
+A ref that no longer resolves (the snapshot or image was deleted after the
+proposal/feedback was created) is skipped rather than failing the whole
+request.
+
+Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
+feedback rounds that each attach media can eventually hit the cap. Refs that
+would exceed it are skipped (existing attachments are never evicted) and the
+skip is logged; the request itself still succeeds. Once attached, no further
+plumbing is needed to reach the agent — `JobAttachmentContext` re-reads
+`job.job_attachments` on every agentic step (including the `respond` step
+`chat_feedback` workflows run) and downloads/lists them in the prompt.
+
 ## Proposal dependencies
 
 Chat proposal cards can declare dependency edges to existing Jobs/Epics or to
