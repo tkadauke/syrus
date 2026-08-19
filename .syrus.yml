@@ -211,6 +211,7 @@ grade:
       old 15-minute budget as the suite has grown, leaving no room for
       `tsc --noEmit` even running concurrently; bumped for headroom.
     run: bin/test-react
+    junit_output: .syrus/grade-output/react-tests-junit.xml
     timeout_minutes: 20
 
   - name: website-build
