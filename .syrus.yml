@@ -206,7 +206,17 @@ grade:
     # 8 processes burn 455 CPU-seconds against 352 at 4. On an idle
     # many-core laptop 8 still wins on wall clock, which is why
     # bin/rspec-fast keeps that default for local runs.
-    timeout_minutes: 30
+    #
+    # 30 assumed 4-way parallelism alone gives enough margin, but that
+    # ignores host contention: with up to three Runs sharing one 4-core
+    # pod (see the nproc note above), this grader's 4 rspec-fast workers
+    # can end up fighting other Runs' workers for the same cores. Observed
+    # in production: 3 of 4 workers finished in 21-24 minutes while the
+    # 4th was still running at the 30-minute mark (2725/2901/2573 examples
+    # each, evenly split -- not a hang, just contention-driven skew), so
+    # the whole grader exit-124'd with 0 actual failures. Bumped for
+    # headroom, same reasoning as the 30->75 serial bump this replaced.
+    timeout_minutes: 45
 
   - name: rspec-ci
     description: |
