@@ -79,6 +79,25 @@ RSpec.describe TestCaseSearchIndex do
     expect(described_class.search("RemovedTestName", user_id: user.id)).to be_empty
   end
 
+  it "upserts many test cases in one transaction" do
+    first = TestCase.create!(test_run: test_run, repository: repo, name: "BulkOne passes", suite_name: "Suite", status: "passed")
+    second = TestCase.create!(test_run: test_run, repository: repo, name: "BulkTwo passes", suite_name: "Suite", status: "passed")
+
+    described_class.upsert_many([ first, second ])
+
+    expect(described_class.search("BulkOne OR BulkTwo", user_id: user.id).map { |row| row[:test_case_id] }).to contain_exactly(first.id, second.id)
+  end
+
+  it "deletes many stale test case rows" do
+    first = TestCase.create!(test_run: test_run, repository: repo, name: "DeleteManyOne passes", suite_name: "Suite", status: "passed")
+    second = TestCase.create!(test_run: test_run, repository: repo, name: "DeleteManyTwo passes", suite_name: "Suite", status: "passed")
+    described_class.upsert_many([ first, second ])
+
+    described_class.delete_many([ first.id, second.id ])
+
+    expect(described_class.search("DeleteMany", user_id: user.id)).to be_empty
+  end
+
   it "scopes results to the requested user" do
     own_test = TestCase.create!(
       test_run: test_run,

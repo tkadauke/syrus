@@ -9,8 +9,16 @@ class TestRunIngester
   end
 
   def ingest!
+    test_run = nil
+    stale_test_case_ids = []
+
     TestRun.transaction do
-      TestRun.where(run: @run, grader_name: @grader_name).destroy_all
+      previous_test_runs = TestRun.where(run: @run, grader_name: @grader_name)
+      stale_test_case_ids = TestCase.where(test_run_id: previous_test_runs.select(:id)).pluck(:id)
+
+      previous_test_run_ids = previous_test_runs.pluck(:id)
+      TestCase.where(test_run_id: previous_test_run_ids).delete_all if previous_test_run_ids.present?
+      previous_test_runs.delete_all
 
       test_run = TestRun.create!(
         run: @run,
@@ -24,10 +32,25 @@ class TestRunIngester
         duration_ms: @parsed_run.duration_ms
       )
 
-      @parsed_run.cases.each do |c|
-        TestCase.create!(
-          test_run: test_run,
-          repository: @repository,
+      insert_test_cases(test_run)
+
+      test_run
+    end
+
+    TestCaseSearchIndex.delete_many(stale_test_case_ids)
+    IndexTestRunSearchJob.perform_later(test_run.id) if test_run
+    test_run
+  end
+
+  private
+
+  def insert_test_cases(test_run)
+    now = Time.current
+    @parsed_run.cases.each_slice(500) do |slice|
+      rows = slice.map do |c|
+        {
+          test_run_id: test_run.id,
+          repository_id: @repository.id,
           name: c.name,
           suite_name: c.suite_name,
           file_path: c.file_path,
@@ -35,11 +58,13 @@ class TestRunIngester
           duration_ms: c.duration_ms,
           output: c.output,
           failure_message: c.failure_message,
-          failure_backtrace: c.failure_backtrace
-        )
+          failure_backtrace: c.failure_backtrace,
+          created_at: now,
+          updated_at: now
+        }
       end
 
-      test_run
+      TestCase.insert_all!(rows) if rows.present?
     end
   end
 end

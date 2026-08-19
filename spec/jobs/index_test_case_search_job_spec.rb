@@ -62,6 +62,22 @@ RSpec.describe IndexTestCaseSearchJob do
     }.to change { indexed_test_case_ids }.from([ 123 ]).to([])
   end
 
+  it "remains available for ad hoc test case updates" do
+    test_case = TestCase.create!(
+      test_run: test_run,
+      repository: repo,
+      name: "Ad hoc updated test",
+      suite_name: "Suite",
+      status: "passed"
+    )
+
+    described_class.perform_now(test_case.id)
+    test_case.update!(name: "Ad hoc renamed test")
+    described_class.perform_now(test_case.id)
+
+    expect(TestCaseSearchIndex.search("renamed", user_id: user.id).map { |row| row[:test_case_id] }).to eq([ test_case.id ])
+  end
+
   def indexed_test_case_ids
     SearchRecord.connection.select_values("SELECT test_case_id FROM test_case_fts ORDER BY test_case_id").map(&:to_i)
   end

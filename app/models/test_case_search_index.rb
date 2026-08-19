@@ -35,12 +35,39 @@ class TestCaseSearchIndex < SearchRecord
       end
     end
 
+    def upsert_many(test_cases)
+      test_cases = Array(test_cases)
+      return if test_cases.empty?
+
+      connection.transaction do
+        delete_many(test_cases.map(&:id))
+
+        test_cases.each do |test_case|
+          insert(test_case)
+        end
+      end
+    end
+
     def delete(test_case_id)
       connection.exec_delete(
         "DELETE FROM test_case_fts WHERE test_case_id = ?",
         "TestCaseSearchIndex Delete",
         [ bind(test_case_id) ]
       )
+    end
+
+    def delete_many(test_case_ids)
+      ids = Array(test_case_ids).filter_map { |id| Integer(id, exception: false) }.uniq
+      return if ids.empty?
+
+      ids.each_slice(500) do |slice|
+        placeholders = ([ "?" ] * slice.size).join(", ")
+        connection.exec_delete(
+          "DELETE FROM test_case_fts WHERE test_case_id IN (#{placeholders})",
+          "TestCaseSearchIndex Delete Many",
+          slice.map { |id| bind(id) }
+        )
+      end
     end
 
     def search(query, user_id:, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 16)
@@ -74,6 +101,37 @@ class TestCaseSearchIndex < SearchRecord
       )
 
       rows.map(&:symbolize_keys)
+    end
+
+    private
+
+    def insert(test_case)
+      connection.exec_insert(
+        <<~SQL.squish,
+          INSERT INTO test_case_fts (
+            name,
+            suite_name,
+            file_path,
+            test_case_id,
+            user_id,
+            repository_id,
+            status,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        SQL
+        "TestCaseSearchIndex Insert",
+        [
+          bind(test_case.name.to_s),
+          bind(test_case.suite_name.to_s),
+          bind(test_case.file_path.to_s),
+          bind(test_case.id),
+          bind(test_case.repository.user_id),
+          bind(test_case.repository_id),
+          bind(test_case.status),
+          bind(test_case.created_at&.iso8601)
+        ]
+      )
     end
   end
 end

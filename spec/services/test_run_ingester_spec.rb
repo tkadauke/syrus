@@ -39,6 +39,11 @@ RSpec.describe TestRunIngester do
 
   subject(:ingester) { described_class.new(run: run, grader_name: "rspec", parsed_run: parsed_run) }
 
+  before do
+    allow(AppEvents).to receive(:broadcast)
+    prepare_search_tables
+  end
+
   it "creates a TestRun with correct counts and duration" do
     expect { ingester.ingest! }.to change(TestRun, :count).by(1)
 
@@ -61,6 +66,16 @@ RSpec.describe TestRunIngester do
     expect(tr.test_cases.passed.count).to eq(2)
     expect(tr.test_cases.failed.count).to eq(1)
     expect(tr.test_cases.find_by!(name: "fail_0").failure_message).to eq("assertion 0")
+  end
+
+  it "enqueues one batch search indexing job instead of one job per test case" do
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+
+    ingester.ingest!
+
+    jobs = ActiveJob::Base.queue_adapter.enqueued_jobs
+    expect(jobs.count { |job| job[:job] == IndexTestRunSearchJob }).to eq(1)
+    expect(jobs.none? { |job| job[:job] == IndexTestCaseSearchJob }).to be(true)
   end
 
   it "links test cases to the repository" do
@@ -101,6 +116,21 @@ RSpec.describe TestRunIngester do
     expect(TestCase.count).to eq(1)
   end
 
+  it "batch-deletes stale search rows when replacing a TestRun" do
+    ingester.ingest!
+    old_cases = TestRun.find_by!(run: run, grader_name: "rspec").test_cases.to_a
+    TestCaseSearchIndex.upsert_many(old_cases)
+
+    second = described_class.new(
+      run: run,
+      grader_name: "rspec",
+      parsed_run: parsed_run(passed: 1, failed: 0, skipped: 0, error: 0)
+    )
+    second.ingest!
+
+    expect(TestCaseSearchIndex.search("fail_0", user_id: repo.user_id)).to be_empty
+  end
+
   it "allows different grader names for the same run" do
     ingester.ingest!
 
@@ -113,5 +143,23 @@ RSpec.describe TestRunIngester do
 
     expect(TestRun.where(run: run).count).to eq(2)
     expect(TestRun.where(run: run, grader_name: "react-tests").sole.passed_count).to eq(5)
+  end
+
+  def prepare_search_tables
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_case_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE test_case_fts
+      USING fts5(
+        name,
+        suite_name,
+        file_path,
+        test_case_id UNINDEXED,
+        user_id UNINDEXED,
+        repository_id UNINDEXED,
+        status UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
   end
 end
