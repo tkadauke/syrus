@@ -54,6 +54,10 @@ RSpec.describe Steps::Summarize, :ci_only do
     `git -C #{@ws_path} log -1 --format='%B'`.strip
   end
 
+  def head_sha
+    `git -C #{@ws_path} rev-parse HEAD`.strip
+  end
+
   describe "coding handoff workflows" do
     let(:workflow) do
       Workflow.create!(
@@ -243,6 +247,29 @@ RSpec.describe Steps::Summarize, :ci_only do
       stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
       handler.call
       expect(commit_message).to start_with("Add greeting helper")
+    end
+
+    it "refuses to rewrite a different commit than the successful implement run recorded" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      implement_run = Run.create!(
+        job: job,
+        step: implement_step,
+        trigger_kind: "initial",
+        state: "succeeded",
+        head_sha: implement_sha
+      )
+
+      File.write(@ws_path.join("wrong_head.rb"), "class WrongHead; end\n")
+      sh("git -C #{@ws_path} add wrong_head.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Different workspace HEAD'")
+      stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
+
+      expect {
+        handler.call
+      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not match implement run HEAD #{implement_run.head_sha}/)
+      expect(workflow.reload.artifact("pr_title")).to be_nil
+      expect(commit_message).to eq("Different workspace HEAD")
     end
 
     it "fails if the summarize agent changes workspace contents before submitting metadata" do

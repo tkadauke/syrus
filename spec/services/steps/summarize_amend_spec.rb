@@ -49,6 +49,10 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
     `git -C #{@ws_path} log -1 --format='%B'`.strip
   end
 
+  def head_sha
+    `git -C #{@ws_path} rev-parse HEAD`.strip
+  end
+
   describe "skipping agent when upstream step already submitted summary" do
     let(:respond_step) do
       Step.create!(workflow: workflow, kind: "respond", position: 0, next_step_id: step.id)
@@ -149,6 +153,29 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       stub_agent(title: "Address review feedback: tighten docstring", body: "Tightened the docs.")
       handler.call
       expect(commit_message).to start_with("Address review feedback: tighten docstring")
+    end
+
+    it "refuses to rewrite a different commit than the upstream run recorded" do
+      respond_step = Step.create!(workflow: workflow, kind: "respond", position: 0, next_step_id: step.id)
+      upstream_sha = head_sha
+      upstream_run = Run.create!(
+        job: job,
+        step: respond_step,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        head_sha: upstream_sha
+      )
+
+      File.write(@ws_path.join("wrong_head.rb"), "class WrongHead; end\n")
+      sh("git -C #{@ws_path} add wrong_head.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Different workspace HEAD'")
+      stub_agent(title: "Address review feedback: tighten docstring", body: "Tightened the docs.")
+
+      expect {
+        handler.call
+      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not match upstream run HEAD #{upstream_run.head_sha}/)
+      expect(workflow.reload.artifact("amend_commit_subject")).to be_nil
+      expect(commit_message).to eq("Different workspace HEAD")
     end
 
     it "fails if the summarize_amend agent changes workspace contents before submitting metadata" do

@@ -18,6 +18,7 @@ module Steps
 
       if (upstream_run = upstream_run_with_summary)
         log("upstream step already called submit_summary — skipping agent call")
+        assert_workspace_matches_upstream_head!
         promote_artifacts!(from: upstream_run)
         rewrite_amend_commit_message!
         return
@@ -34,6 +35,7 @@ module Steps
       )
 
       assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize_amend")
+      assert_workspace_matches_upstream_head!
       promote_artifacts!
       rewrite_amend_commit_message!
     end
@@ -41,11 +43,14 @@ module Steps
     private
 
     def upstream_run_with_summary
+      upstream_agentic_run.then { |r| r if r&.agent_pr_title.present? }
+    end
+
+    def upstream_agentic_run
       workflow.steps.where(kind: %w[respond analyze_and_fix manual_agentic_run])
         .order(:position)
         .flat_map { |step| step.runs.select(&:succeeded?) }
         .max_by(&:created_at)
-        .then { |r| r if r&.agent_pr_title.present? }
     end
 
     def promote_artifacts!(from: nil)
@@ -82,6 +87,18 @@ module Steps
         "commit", "--amend", "--allow-empty", "-m", message,
         chdir: workspace.path.to_s
       )
+    end
+
+    def assert_workspace_matches_upstream_head!
+      expected_sha = upstream_agentic_run&.head_sha.to_s.strip
+      return if expected_sha.blank?
+
+      actual_sha = head_sha
+      return if actual_sha == expected_sha
+
+      raise StepFailed,
+            "summarize_amend refused to rewrite commit message because workspace HEAD #{actual_sha} " \
+            "does not match upstream run HEAD #{expected_sha}"
     end
   end
 end

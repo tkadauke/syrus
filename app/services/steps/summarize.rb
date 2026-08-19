@@ -30,6 +30,7 @@ module Steps
 
       if (impl_run = implement_run_with_summary)
         log("implement step already called submit_summary — skipping agent call")
+        assert_workspace_matches_successful_implement_head!
         promote_artifacts!(from: impl_run)
         rewrite_implement_commit_message!
         return
@@ -61,6 +62,7 @@ module Steps
       end
 
       assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize")
+      assert_workspace_matches_successful_implement_head!
       promote_artifacts!
       rewrite_implement_commit_message!
     end
@@ -178,6 +180,18 @@ module Steps
       end
       parts << body
       parts.join("\n")
+    end
+
+    def assert_workspace_matches_successful_implement_head!
+      expected_sha = successful_implement_run&.head_sha.to_s.strip
+      return if expected_sha.blank?
+
+      actual_sha = head_sha
+      return if actual_sha == expected_sha
+
+      raise StepFailed,
+            "summarize refused to rewrite commit message because workspace HEAD #{actual_sha} " \
+            "does not match implement run HEAD #{expected_sha}"
     end
   end
 end
