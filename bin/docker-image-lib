@@ -217,6 +217,58 @@ syrus_docker_buildx_image() {
   docker buildx build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" --build-arg "SYRUS_VERSION=$syrus_version" --build-arg "SYRUS_BUILT_AT=$syrus_built_at" "$@"
 }
 
+syrus_docker_post_build_prune_enabled() {
+  case "${SYRUS_DOCKER_POST_BUILD_PRUNE:-1}" in
+    0|false|FALSE|no|NO|off|OFF) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+syrus_docker_prune_build_cache_since() {
+  local started_at="${1:?usage: syrus_docker_prune_build_cache_since STARTED_AT_EPOCH}"
+  local now elapsed keep_grace until_duration min_free_space
+
+  syrus_docker_post_build_prune_enabled || return 0
+
+  now="$(date +%s)"
+  elapsed=$((now - started_at))
+  keep_grace="${SYRUS_DOCKER_POST_BUILD_PRUNE_GRACE_SECONDS:-300}"
+  until_duration="$((elapsed + keep_grace))s"
+  min_free_space="${SYRUS_DOCKER_POST_BUILD_MIN_FREE_SPACE:-20gb}"
+
+  echo "→ docker cache prune: removing BuildKit records unused before this deploy (target free space ${min_free_space})"
+  docker builder prune -f \
+    --filter "until=${until_duration}" \
+    --min-free-space "${min_free_space}" >/dev/null || true
+}
+
+syrus_docker_prune_old_repo_tags() {
+  local current_tag="${1:?usage: syrus_docker_prune_old_repo_tags CURRENT_TAG REPO...}"
+  shift
+  local repo tag
+  local -a stale_tags
+
+  syrus_docker_post_build_prune_enabled || return 0
+
+  stale_tags=()
+  for repo in "$@"; do
+    while IFS= read -r tag; do
+      case "$tag" in
+        ""|*":<none>"|"$repo:$current_tag"|"$repo:latest") ;;
+        "$repo:"*) stale_tags+=("$tag") ;;
+      esac
+    done < <(docker image ls "$repo" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null || true)
+  done
+
+  if [ "${#stale_tags[@]}" -eq 0 ]; then
+    echo "→ docker image prune: no stale Syrus image tags"
+    return 0
+  fi
+
+  echo "→ docker image prune: removing ${#stale_tags[@]} stale Syrus image tag(s)"
+  docker image rm "${stale_tags[@]}" >/dev/null || true
+}
+
 # Whether the whisper.cpp build+model download should be skipped for the
 # LOCAL dev loop (bin/build-local-image, bin/compose-up — the only two
 # callers of syrus_build_local_base_image). Defaults to skipping: compiling
