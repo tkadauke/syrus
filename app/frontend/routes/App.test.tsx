@@ -3986,8 +3986,8 @@ describe("App", () => {
       expect(within(row).getByText("acme/widgets")).toBeInTheDocument()
       expect(within(row).getByRole("link", { name: "#12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
       expect(within(row).getByRole("link", { name: "PR #34" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/34")
-      expect(within(row).getByText("Not approved")).toBeInTheDocument()
-      expect(within(row).getByText("1 workflow")).toBeInTheDocument()
+      expect(within(row).queryByText("Not approved")).not.toBeInTheDocument()
+      expect(within(row).queryByText(/workflow/)).not.toBeInTheDocument()
       expect(screen.queryByRole("table")).not.toBeInTheDocument()
     } finally {
       restoreMedia()
