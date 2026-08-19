@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_122000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1975,9 +1975,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_122000) do
     t.string "suite_name", null: false
     t.bigint "test_run_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["repository_id", "suite_name", "name"], name: "idx_test_cases_repo_suite_name"
+    t.index ["repository_id", "suite_name", "name", "created_at"], name: "idx_test_cases_repo_case_created"
     t.index ["repository_id"], name: "index_test_cases_on_repository_id"
-    t.index ["test_run_id", "status"], name: "idx_test_cases_run_status"
+    t.index ["test_run_id", "status", "suite_name", "name"], name: "idx_test_cases_run_status_case"
     t.index ["test_run_id"], name: "index_test_cases_on_test_run_id"
   end
 
