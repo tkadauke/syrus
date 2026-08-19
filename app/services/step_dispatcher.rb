@@ -196,6 +196,7 @@ class StepDispatcher
   # The fix-main direct job must also be exempt: it IS the recovery agent.
   MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase main_grader ].freeze
   URGENT_EXEMPT_TRIGGERS = %w[ main_grader ].freeze
+  URGENT_BLOCKING_STATES = %w[ needs_triage triaging blocked_by_epic queued running implemented approved landing coding ].freeze
   MAIN_HEALTH_BLOCK_REASON = "main_branch_broken"
   URGENT_BLOCK_REASON = "urgent_job_active"
   DEPENDENCY_FAILED_BLOCK_REASON = "dependency_failed"
@@ -235,7 +236,7 @@ class StepDispatcher
 
     workflow.job.repository.jobs
       .where(priority: "urgent")
-      .where.not(state: "closed")
+      .where(state: URGENT_BLOCKING_STATES)
       .exists?
   end
 

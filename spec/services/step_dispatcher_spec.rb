@@ -1815,6 +1815,24 @@ RSpec.describe StepDispatcher, "urgent_blocking gate" do
     }.to change { s1.runs.count }.by(1)
   end
 
+  it "starts the workflow when the formerly urgent job has failed" do
+    create_urgent_job!(state: "failed")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "starts the workflow when the formerly urgent job produced no changes" do
+    create_urgent_job!(state: "no_change_needed")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
   it "clears the urgent_job_active block reason when no longer blocked" do
     create_urgent_job!(state: "closed")
     workflow.update!(artifacts: { "start_blocked_reason" => "urgent_job_active" })
