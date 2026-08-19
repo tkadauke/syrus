@@ -182,6 +182,8 @@ module WorkEngine
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
       issues.concat(classify_queued_jobs_cancelled_without_active_workflow)
       issues.concat(classify_approved_jobs_with_landing_start_blockers)
+      issues.concat(classify_approved_jobs_missing_pr)
+      issues.concat(classify_implemented_jobs_missing_pr)
       issues.concat(classify_unambiguous_job_state_drift)
       issues.concat(classify_completed_infrastructure_jobs)
       issues.concat(classify_start_blocks)
@@ -956,6 +958,72 @@ module WorkEngine
             active_repository_landing_job_id: Job.landing.where(repository_id: job.repository_id).where.not(id: job.id).order(:id).pick(:id)
           },
           explanation: "Approved Job ##{job.id} has a transient landing-start blocker; it should re-enter the landing queue instead of requiring an immediate manual dispatch."
+        )
+      end
+    end
+
+    def classify_approved_jobs_missing_pr
+      jobs.filter_map do |job|
+        next unless job.approved?
+        next if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
+        next if job.infrastructure_job?
+        next if job.main_branch_repair?
+        next if job.workflows.active.exists?
+        next if job.any_active_run?
+
+        issue(
+          kind: :approved_job_missing_pr,
+          severity: :critical,
+          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ].compact),
+          safe_to_auto_repair: job.may_force_fail?,
+          recommended_repair_action: "fail_approved_job_missing_pr",
+          evidence: {
+            job_state: job.state,
+            latest_workflow_id: job.latest_workflow&.id,
+            latest_workflow_state: job.latest_workflow&.state,
+            latest_workflow_trigger_kind: job.latest_workflow&.trigger_kind,
+            pr_number: job.pr_number,
+            external_pr_number: job.external_pr_number,
+            fork_review_pr_number: job.fork_review_pr_number,
+            landing_queue: landing_queue_evidence(job)
+          },
+          explanation: "Approved Job ##{job.id} has no tracked PR, so it cannot land and can block the landing queue."
+        )
+      end
+    end
+
+    def classify_implemented_jobs_missing_pr
+      jobs.filter_map do |job|
+        next unless job.implemented?
+        next if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
+        next if job.infrastructure_job?
+        next if job.main_branch_repair?
+
+        latest_workflow = job.latest_workflow
+        next unless latest_workflow
+        next unless ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
+        next unless latest_workflow.steps.where(kind: "pr_open").exists?
+        next if latest_workflow.steps.where(kind: "pr_open", state: "succeeded").exists?
+        next if job.workflows.active.exists?
+        next if job.any_active_run?
+
+        issue(
+          kind: :implemented_job_missing_pr,
+          severity: :critical,
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow.id ]),
+          safe_to_auto_repair: job.may_force_fail?,
+          recommended_repair_action: "fail_implemented_job_missing_pr",
+          evidence: {
+            job_state: job.state,
+            latest_workflow_id: latest_workflow.id,
+            latest_workflow_state: latest_workflow.state,
+            latest_workflow_trigger_kind: latest_workflow.trigger_kind,
+            pr_open_steps: latest_workflow.steps.where(kind: "pr_open").pluck(:id, :state),
+            pr_number: job.pr_number,
+            external_pr_number: job.external_pr_number,
+            fork_review_pr_number: job.fork_review_pr_number
+          },
+          explanation: "Job ##{job.id} is implemented, but its PR-producing Workflow did not publish a tracked PR."
         )
       end
     end

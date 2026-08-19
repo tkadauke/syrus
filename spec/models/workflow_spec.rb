@@ -693,6 +693,16 @@ RSpec.describe Workflow do
         .to change { job.reload.state }.from("running").to("implemented")
     end
 
+    it "marks the Job failed when a PR-producing workflow succeeds without publishing a PR" do
+      job.update!(state: "running", pr_number: nil, external_pr_number: nil, fork_review_pr_number: nil)
+      wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+      wf.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+      wf.steps.create!(kind: "pr_open", position: 1, state: "cancelled")
+
+      expect { wf.succeed!; wf.save! }
+        .to change { job.reload.state }.from("running").to("failed")
+    end
+
     it "does not transition Job on workflow.succeed! when Job has already moved past :running (auto-approval path)" do
       # Steps::PrOpen + AutoApprovalRule already advanced the Job
       # to :approved before the workflow succeeds. workflow.succeed

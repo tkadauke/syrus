@@ -892,6 +892,39 @@ module WorkEngine
         end
       end
 
+      class ImplementedJobMissingPr < Base
+        def plan
+          automatic_plan(
+            "fail_implemented_job_missing_pr",
+            primary_job,
+            "The Job is marked implemented but has no tracked PR or fork-review PR, so it is not actually reviewable; fail it so the operator can retry publication.",
+            execution_steps: [ "Job#force_fail!" ],
+            preconditions: {
+              job_state: "implemented",
+              latest_workflow_state: issue.evidence["latest_workflow_state"],
+              latest_workflow_has_pr_open: true,
+              tracked_pr_present: false
+            }
+          )
+        end
+      end
+
+      class ApprovedJobMissingPr < Base
+        def plan
+          automatic_plan(
+            "fail_approved_job_missing_pr",
+            primary_job,
+            "The Job is approved but has no tracked PR or fork-review PR, so it cannot land; fail it so it stops blocking the landing queue and can be retried.",
+            execution_steps: [ "Job#force_fail!" ],
+            preconditions: {
+              job_state: "approved",
+              tracked_pr_present: false,
+              active_work: false
+            }
+          )
+        end
+      end
+
       class CompletedInfrastructureJob < Base
         def plan
           automatic_plan(

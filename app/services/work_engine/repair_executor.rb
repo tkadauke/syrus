@@ -805,6 +805,46 @@ module WorkEngine
         end
       end
 
+      class FailImplementedJobMissingPr < Base
+        def perform
+          job = target_job
+          return skipped("Job no longer exists") unless job
+          return skipped("Job is #{job.state}, not implemented") unless job.implemented?
+          return skipped("Job already has a tracked PR") if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
+          return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
+
+          latest_workflow = job.latest_workflow
+          return skipped("Latest Workflow is not terminal") unless latest_workflow && %w[succeeded failed cancelled].include?(latest_workflow.state)
+          return skipped("Latest Workflow did not include pr_open") unless latest_workflow.steps.where(kind: "pr_open").exists?
+          return skipped("Latest Workflow has a succeeded pr_open Step") if latest_workflow.steps.where(kind: "pr_open", state: "succeeded").exists?
+          return skipped("Job cannot transition to failed") unless job.may_force_fail?
+
+          StateTransition.with_source("reconciler") do
+            job.force_fail!
+            job.save!
+          end
+          success("marked Job ##{job.id} failed because it was implemented without a tracked PR")
+        end
+      end
+
+      class FailApprovedJobMissingPr < Base
+        def perform
+          job = target_job
+          return skipped("Job no longer exists") unless job
+          return skipped("Job is #{job.state}, not approved") unless job.approved?
+          return skipped("Job already has a tracked PR") if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
+          return skipped("Job is internal infrastructure") if job.infrastructure_job? || job.main_branch_repair?
+          return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
+          return skipped("Job cannot transition to failed") unless job.may_force_fail?
+
+          StateTransition.with_source("reconciler") do
+            job.force_fail!
+            job.save!
+          end
+          success("marked Job ##{job.id} failed because it was approved without a tracked PR")
+        end
+      end
+
       class RetryJobAfterEpicWorkflowConflict < Base
         def perform
           job = target_job

@@ -823,6 +823,92 @@ RSpec.describe WorkEngine::Reconciler do
     expect(job.reload.state).to eq("implemented")
   end
 
+  it "fails an implemented Job whose PR-producing workflow never published a tracked PR" do
+    orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
+    orphaned_workflow = Workflow.create!(
+      job: orphaned,
+      trigger_kind: "initial",
+      state: "succeeded",
+      started_at: 10.minutes.ago,
+      finished_at: 5.minutes.ago
+    )
+    orphaned_workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+    orphaned_workflow.steps.create!(kind: "pr_open", position: 1, state: "cancelled")
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :implemented_job_missing_pr)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_implemented_job_missing_pr"
+    )
+    expect(plan(result, :fail_implemented_job_missing_pr)).to have_attributes(target_id: orphaned.id)
+    expect(result.repair_executions.map(&:message)).to include("marked Job ##{orphaned.id} failed because it was implemented without a tracked PR")
+    expect(orphaned.reload).to be_failed
+  end
+
+  it "fails an approved Job with no tracked PR so it cannot block the landing queue" do
+    orphaned = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "approved",
+      approved_at: 1.minute.ago,
+      approved_via: "operator"
+    )
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :approved_job_missing_pr)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_approved_job_missing_pr"
+    )
+    expect(plan(result, :fail_approved_job_missing_pr)).to have_attributes(target_id: orphaned.id)
+    expect(result.repair_executions.map(&:message)).to include("marked Job ##{orphaned.id} failed because it was approved without a tracked PR")
+    expect(orphaned.reload).to be_failed
+  end
+
+  it "does not fail an implemented fork-review Job with a staging PR" do
+    fork_review = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "implemented",
+      fork_review_pr_number: 17
+    )
+    fork_workflow = Workflow.create!(
+      job: fork_review,
+      trigger_kind: "initial",
+      state: "succeeded",
+      started_at: 10.minutes.ago,
+      finished_at: 5.minutes.ago
+    )
+    fork_workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+    fork_workflow.steps.create!(kind: "pr_open", position: 1, state: "succeeded")
+
+    result = reconcile_and_execute(job_id: fork_review.id)
+
+    expect(kind(result, :implemented_job_missing_pr)).to be_nil
+    expect(plan(result, :fail_implemented_job_missing_pr)).to be_nil
+    expect(fork_review.reload).to be_implemented
+  end
+
+  it "does not fail an approved fork-review Job with a staging PR" do
+    fork_review = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "approved",
+      approved_at: 1.minute.ago,
+      approved_via: "operator",
+      fork_review_pr_number: 17
+    )
+
+    result = reconcile_and_execute(job_id: fork_review.id)
+
+    expect(kind(result, :approved_job_missing_pr)).to be_nil
+    expect(plan(result, :fail_approved_job_missing_pr)).to be_nil
+    expect(fork_review.reload).to be_approved
+  end
+
   it "reconciles a queued Job whose latest Workflow is already running" do
     workflow.update!(state: "running", started_at: 5.minutes.ago)
     step.update_columns(state: "running", started_at: 5.minutes.ago)

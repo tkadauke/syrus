@@ -395,11 +395,29 @@ class Workflow < ApplicationRecord
         job.save!
       end
 
+      if pr_publication_missing_after_success?
+        if job.may_mark_failed?
+          job.mark_failed!
+          job.save!
+        end
+        return
+      end
+
       return unless job.may_mark_implemented?
 
       job.mark_implemented!
       job.save!
     end
+  end
+
+  def pr_publication_missing_after_success?
+    return false unless steps.where(kind: "pr_open").exists?
+    return false if steps.where(kind: "pr_open", state: "succeeded").exists?
+    return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
+    return false if job.infrastructure_job?
+    return false if trigger_kind == "main_branch_repair" && artifact("preflight_passed")
+
+    true
   end
 
   # Workflow#reopen drives :failed → :running for "Retry from failed
