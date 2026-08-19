@@ -35,4 +35,27 @@ RSpec.describe WorkflowActivity do
     expect(WorkflowActivityEvent.where(workflow_id: workflow.id).pluck(:event_type)).to include("workflow_created", "workflow_started", "run_started", "run_finished")
     expect(WorkflowActivityEvent.find_by!(event_type: "run_finished", run_id: run.id).duration_ms).to be >= 0
   end
+
+  it "records workflow transition reasons on activity events" do
+    job = Factories.job_record(state: "queued")
+    workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "codex")
+
+    described_class.synchronously do
+      workflow.start!
+      workflow.save!
+      workflow.failure_reason = "pr_publication_missing_after_success"
+      workflow.fail!
+      workflow.save!
+    end
+
+    event = WorkflowActivityEvent.find_by!(event_type: "workflow_finished", workflow_id: workflow.id)
+    expect(event).to have_attributes(
+      severity: "error",
+      reason_key: "pr_publication_missing_after_success"
+    )
+    expect(event.metadata).to include(
+      "failure_reason" => "pr_publication_missing_after_success",
+      "reason_key" => "pr_publication_missing_after_success"
+    )
+  end
 end

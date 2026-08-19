@@ -269,7 +269,16 @@ class ReconcileJobStatesJob < ApplicationJob
         # observed, the plan is stale.
         return if job.state != @from_state
 
-        StateTransition.with_source("reconciler") do
+        StateTransition.with_source(
+          "reconciler",
+          reason: "reconcile_job_state",
+          metadata: {
+            "repair_action" => "reconcile_job_state",
+            "repair_reason" => reason,
+            "target_state" => target_state,
+            "from_state" => from_state
+          }
+        ) do
           @steps.each do |event|
             guard = "may_#{event.to_s.chomp('!')}?"
             break unless job.public_send(guard)

@@ -36,6 +36,17 @@ RSpec.describe StateTransition do
       expect(described_class.current_source).to eq("aasm")
     end
 
+    it "sets thread-local reason context for the duration of the block" do
+      described_class.with_source("reconciler", reason: "implemented_job_missing_pr", metadata: { "repair_action" => "fail_implemented_job_missing_pr" }) do
+        expect(described_class.current_source).to eq("reconciler")
+        expect(described_class.current_reason_key).to eq("implemented_job_missing_pr")
+        expect(described_class.current_reason_metadata).to include("repair_action" => "fail_implemented_job_missing_pr")
+      end
+
+      expect(described_class.current_reason_key).to be_nil
+      expect(described_class.current_reason_metadata).to eq({})
+    end
+
     it "restores the prior source even when the block raises" do
       described_class.with_source("operator") do
         expect {
@@ -83,6 +94,39 @@ RSpec.describe StateTransition do
       end
 
       expect(described_class.for_subject(job).recent.first.source).to eq("propagate")
+    end
+
+    it "records explicit transition reasons in metadata" do
+      job.workflows.destroy_all
+      job.runs.destroy_all
+      job.update!(state: "queued")
+
+      described_class.with_source("reconciler", reason: "reconcile_job_state", metadata: { "target_state" => "running" }) do
+        job.start_running!
+        job.save!
+      end
+
+      transition = described_class.for_subject(job).recent.first
+      expect(transition.source).to eq("reconciler")
+      expect(transition.metadata).to include(
+        "reason_key" => "reconcile_job_state",
+        "target_state" => "running"
+      )
+    end
+
+    it "infers transition reasons from model state when no explicit reason is provided" do
+      job.workflows.destroy_all
+      job.runs.destroy_all
+      job.update!(state: "running", closure_reason: "no_changes")
+
+      job.close!
+      job.save!
+
+      transition = described_class.for_subject(job).recent.first
+      expect(transition.metadata).to include(
+        "reason_key" => "no_changes",
+        "closure_reason" => "no_changes"
+      )
     end
 
     it "cross-links to the in-flight Run when one is set on the thread" do

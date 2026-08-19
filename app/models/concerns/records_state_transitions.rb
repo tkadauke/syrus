@@ -28,6 +28,10 @@ module RecordsStateTransitions
     to   = machine.to_state.to_s
     return if from == to
 
+    reason_key = StateTransition.reason_key_for(self)
+    metadata = StateTransition.transition_metadata_for(self)
+    metadata["reason_key"] = reason_key if reason_key.present?
+
     StateTransition.create!(
       subject: self,
       from_state: from,
@@ -36,7 +40,7 @@ module RecordsStateTransitions
       source: StateTransition.current_source,
       user_id: StateTransition.current_user&.id,
       run_id: StateTransition.current_run_id,
-      metadata: {}
+      metadata: metadata
     )
   rescue StandardError => e
     # An audit-write failure must not roll back the state machine.

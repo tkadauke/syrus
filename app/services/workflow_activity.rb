@@ -66,14 +66,18 @@ class WorkflowActivity
 
     from_state, to_state = workflow.saved_change_to_state
     event_type = workflow.terminal? ? "workflow_finished" : "workflow_started"
+    reason_key = StateTransition.reason_key_for(workflow)
     record!(
       event_type: event_type,
       source: "workflow",
       workflow: workflow,
       severity: workflow.failed? ? "error" : "info",
+      reason_key: reason_key,
       duration_ms: duration_between(workflow.started_at, workflow.finished_at),
       message: "#{workflow.slug} #{from_state} -> #{to_state}.",
-      metadata: workflow_metadata(workflow).merge(from_state: from_state, to_state: to_state)
+      metadata: workflow_metadata(workflow)
+        .merge(from_state: from_state, to_state: to_state)
+        .merge(StateTransition.transition_metadata_for(workflow))
     )
   end
 
@@ -82,17 +86,19 @@ class WorkflowActivity
 
     from_state, to_state = run.saved_change_to_state
     terminal = run.terminal?
+    reason_key = StateTransition.reason_key_for(run)
     record!(
       event_type: terminal ? "run_finished" : "run_started",
       source: "run",
       run: run,
       severity: run.failed? ? "error" : "info",
+      reason_key: reason_key,
       duration_ms: duration_between(run.started_at, run.finished_at),
       message: "Run ##{run.id} #{from_state} -> #{to_state}.",
       metadata: {
         from_state: from_state,
         to_state: to_state
-      }.compact
+      }.merge(StateTransition.transition_metadata_for(run)).compact
     )
   end
 

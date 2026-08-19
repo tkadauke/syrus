@@ -179,6 +179,19 @@ module WorkEngine
           end
         end
 
+        def with_transition_reason(&block)
+          StateTransition.with_source(
+            "reconciler",
+            reason: plan.action,
+            metadata: {
+              "repair_action" => plan.action,
+              "repair_reason" => plan.reason,
+              "issue_kind" => plan.issue_kind
+            }.compact,
+            &block
+          )
+        end
+
         def schedule_auto_retry!(retry_kind:, source_run: nil, workflow: nil, job: nil, respect_provider_circuit: true)
           source_run ||= target_run
           workflow ||= source_run&.workflow || target_workflow
@@ -228,7 +241,7 @@ module WorkEngine
           return skipped("Run is #{run.state}, not running") unless run.running?
           return skipped("Run cannot transition to failed") unless run.may_fail?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             run.agent_outcome = AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
             run.fail!
             run.save!
@@ -286,7 +299,7 @@ module WorkEngine
             diagnostic.error_message = "required graders failed: cached grader conclusion failed"
           end
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             run.agent_outcome = "grader_failure"
             run.fail!
             run.save!
@@ -406,7 +419,7 @@ module WorkEngine
           reason = "workflow admission budget" if reason == StepDispatcher::ADMISSION_BLOCK_REASON
           reason = "landing start blocked: #{reason}" unless LandingQueueReentry.landing_start_blocker?(reason)
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             StepDispatcher.fail_unstartable_landing_workflow!(workflow, reason)
           end
 
@@ -426,7 +439,7 @@ module WorkEngine
           return skipped("Workflow is missing its auto-retry attempt") unless attempt
           return skipped("Source workflow is not superseded") unless source_superseded?(workflow.job, attempt.workflow)
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             workflow.artifacts = (workflow.artifacts || {}).merge(
               "retry_cancelled_reason" => "stale_auto_retry",
               "retry_cancelled_at" => Time.current.iso8601
@@ -471,7 +484,7 @@ module WorkEngine
           outcome = orphaned_workflow_outcome(workflow)
           return skipped("No terminal outcome could be inferred") unless outcome
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             if outcome == :succeeded
               return skipped("Workflow cannot transition to succeeded") unless workflow.may_succeed?
 
@@ -512,7 +525,7 @@ module WorkEngine
           return skipped("Workflow has no failed Step") unless failed_step
           return skipped("Workflow cannot transition to failed") unless workflow.may_fail?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             workflow.fail!
             workflow.save!
           end
@@ -534,7 +547,7 @@ module WorkEngine
           run = latest_terminal_run(step_runs)
           return skipped("Step has no terminal Run") unless run
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             case run.state
             when "succeeded"
               return skipped("Step cannot transition to succeeded") unless step.may_succeed?
@@ -572,7 +585,7 @@ module WorkEngine
           return skipped("Job is not closed") unless workflow.job&.closed?
           return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             workflow.artifacts = (workflow.artifacts || {}).merge(
               "cancelled_reason" => "job_closed",
               "cancelled_by_reconciler_at" => Time.current.iso8601
@@ -592,7 +605,7 @@ module WorkEngine
           return skipped("Workflow is #{workflow.state}, not terminal") unless workflow.terminal?
           return skipped("Workflow has no active descendants") unless workflow.active_descendants?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             workflow.cancel_active_descendants!
           end
 
@@ -620,7 +633,7 @@ module WorkEngine
           return skipped("Keeper Workflow ##{keeper.id} belongs to a different Job") unless keeper.job_id == workflow.job_id
           return skipped("Workflow ##{workflow.id} is not older than keeper Workflow ##{keeper.id}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             workflow.artifacts = (workflow.artifacts || {}).merge(
               "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
               "cancelled_by_reconciler_at" => Time.current.iso8601,
@@ -649,7 +662,7 @@ module WorkEngine
           keeper = Workflow.find_by(id: keeper_id)
           return skipped("Keeper Workflow ##{keeper_id} is no longer active") unless keeper&.queued? || keeper&.running?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             workflow.artifacts = (workflow.artifacts || {}).merge(
               "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
               "cancelled_by_reconciler_at" => Time.current.iso8601,
@@ -675,7 +688,7 @@ module WorkEngine
           return skipped("Job has active workflow") if job.workflows.active.exists?
           return skipped("Job cannot transition to approved") unless job.may_defer_landing?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             job.defer_landing!
             job.save!
           end
@@ -819,7 +832,7 @@ module WorkEngine
           return skipped("Latest Workflow has a succeeded pr_open Step") if latest_workflow.steps.where(kind: "pr_open", state: "succeeded").exists?
           return skipped("Job cannot transition to failed") unless job.may_force_fail?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             job.force_fail!
             job.save!
           end
@@ -837,7 +850,7 @@ module WorkEngine
           return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
           return skipped("Job cannot transition to failed") unless job.may_force_fail?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             job.force_fail!
             job.save!
           end
@@ -972,7 +985,7 @@ module WorkEngine
           return skipped("Job is already closed") if job.closed?
           return skipped("Job cannot close") unless job.may_close?
 
-          StateTransition.with_source("reconciler") do
+          with_transition_reason do
             job.close_with_reason!(closure_reason)
           end
           success("closed completed #{job.kind} Job ##{job.id}")
