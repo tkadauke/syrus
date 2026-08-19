@@ -168,7 +168,8 @@ module Steps
               "required" => grader.required,
               "timeout_minutes" => grader.timeout_minutes,
               "when_files_changed" => grader.when_files_changed,
-              "junit_output" => grader.junit_output
+              "junit_output" => grader.junit_output,
+              "failure_semantics" => grader.failure_semantics
             }
           )
         end

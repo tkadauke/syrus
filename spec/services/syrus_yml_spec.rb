@@ -29,8 +29,8 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failure_semantics: nil),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failure_semantics: nil)
     ])
   end
 
@@ -45,7 +45,7 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failure_semantics: nil)
     ])
   end
 
@@ -338,6 +338,28 @@ RSpec.describe SyrusYml do
     YAML
 
     expect(config.grade.steps.first.junit_output).to be_nil
+  end
+
+  it "parses failure_semantics when present" do
+    config = parse(<<~YAML)
+      grade:
+        - name: boot
+          run: bin/check-eager-load
+          failure_semantics: absolute
+    YAML
+
+    expect(config.grade.steps.first.failure_semantics).to eq("absolute")
+  end
+
+  it "rejects invalid failure_semantics" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            failure_semantics: sometimes
+      YAML
+    }.to raise_error(described_class::ParseError, /failure_semantics: must be one of/)
   end
 
   it "clamps timeout_minutes above the hard ceiling with a warning" do

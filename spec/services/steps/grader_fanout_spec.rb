@@ -362,6 +362,34 @@ RSpec.describe Steps::GraderFanout do
     expect(grader_step.details["junit_output"]).to be_nil
   end
 
+  it "stores explicit failure_semantics in the materialized Step details" do
+    write_config(<<~YAML)
+      grade:
+        - name: eager-load
+          run: bin/check-eager-load
+          failure_semantics: absolute
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by(kind: "grader")
+    expect(grader_step.details["failure_semantics"]).to eq("absolute")
+  end
+
+  it "infers test_cases failure_semantics when junit_output is configured" do
+    write_config(<<~YAML)
+      grade:
+        - name: react-tests
+          run: bin/test-react
+          junit_output: .syrus/grade-output/react-tests-junit.xml
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by(kind: "grader")
+    expect(grader_step.details["failure_semantics"]).to eq("test_cases")
+  end
+
   it "passes through when all graders have no when_files_changed and changed_files is empty" do
     write_config(<<~YAML)
       grade:

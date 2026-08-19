@@ -21,7 +21,9 @@ class RepoGradePlan
   # parallel command while `run:` stayed serial, which meant the first grader
   # pass of every workflow — the common case — ran single-threaded. A
   # `.syrus.yml` that still declares `fast:` falls back here to `run:`.
-  Grader = Data.define(:name, :command, :ci_command, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :metadata) do
+  FAILURE_SEMANTICS = SyrusYml::GRADE_FAILURE_SEMANTICS
+
+  Grader = Data.define(:name, :command, :ci_command, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failure_semantics, :metadata) do
     def command_for(variant:)
       variant.to_sym == :ci ? ci_command.presence || command : command
     end
@@ -67,8 +69,18 @@ class RepoGradePlan
       timeout_minutes: step.timeout_minutes,
       when_files_changed: step.when_files_changed,
       junit_output: step.junit_output,
+      failure_semantics: step.failure_semantics.presence || inferred_failure_semantics(step),
       metadata: {}
     )
+  end
+
+  def inferred_failure_semantics(step)
+    return "test_cases" if step.junit_output.present?
+
+    text = [ step.name, step.run, step.ci ].compact.join(" ")
+    return "absolute" if text.match?(/\b(eager[-_]?load|production[-_ ]?build[-_ ]?boot|check[-_]?production[-_]?build[-_]?boot|db:(?:migrate|prepare|schema)|migration)\b/i)
+
+    "binary_contextual"
   end
 
   def empty_result(source:, note:)

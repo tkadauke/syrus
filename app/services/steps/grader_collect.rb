@@ -46,6 +46,7 @@ module Steps
         workflow.set_artifact!("inherited_main_branch_grader_failure", {
           "failed_names" => inherited_main_failure.inherited_names,
           "evidence" => inherited_main_failure.evidence,
+          "classifications" => inherited_main_failure.classifications,
           "classified_at" => Time.current.iso8601
         })
         log(

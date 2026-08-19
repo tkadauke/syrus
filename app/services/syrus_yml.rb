@@ -18,6 +18,7 @@ class SyrusYml
   MAX_VISUAL_REVIEW_ROUNDS = 10
   DEFAULT_VISUAL_REVIEW_ROUNDS = 1
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
+  GRADE_FAILURE_SEMANTICS = %w[absolute binary_contextual test_cases].freeze
 
   COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
   COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
@@ -38,7 +39,7 @@ class SyrusYml
   # isolated :ci_only pass. Repos whose .syrus.yml still carries `fast:`
   # must keep parsing across the deploy window, so the key is tolerated here
   # and simply falls back to `run:`. Remove after two deploys.
-  GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
+  GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failure_semantics)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -286,8 +287,17 @@ class SyrusYml
       required: raw.key?("required") ? ActiveModel::Type::Boolean.new.cast(raw["required"]) : true,
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
       when_files_changed: when_files_changed,
-      junit_output: raw["junit_output"]&.to_s&.strip&.presence
+      junit_output: raw["junit_output"]&.to_s&.strip&.presence,
+      failure_semantics: parse_grade_failure_semantics(raw["failure_semantics"], name)
     )
+  end
+
+  def parse_grade_failure_semantics(raw, name)
+    value = raw.to_s.strip.presence
+    return nil if value.blank?
+    return value if value.in?(GRADE_FAILURE_SEMANTICS)
+
+    raise ParseError, "grade step #{name.inspect} failure_semantics: must be one of #{GRADE_FAILURE_SEMANTICS.join(', ')}"
   end
 
   def parse_timeout_minutes(raw, name)
