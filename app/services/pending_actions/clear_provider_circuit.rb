@@ -3,6 +3,7 @@ module PendingActions
     action_key "clear_provider_circuit"
 
     def execute
+      progress!("Clearing provider circuit for #{payload.fetch("provider")}...")
       ProviderCircuitClearance.call(
         provider: payload.fetch("provider"),
         target_user: User.find(payload.fetch("user_id")),
@@ -12,6 +13,10 @@ module PendingActions
         reason: reason,
         user: user
       )
+    end
+
+    def execution_label
+      "Clearing provider circuit..."
     end
 
     def validate_payload(errors)

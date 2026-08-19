@@ -16,6 +16,7 @@ module PendingActions
         raise ArgumentError, "A merge train is already active for this stack — wait for it to finish."
       end
 
+      progress!("Creating forced rebase workflow for #{job.slug}...")
       workflow = RebaseWorkflowSelector.instantiate(
         job: job,
         artifacts: {
@@ -24,9 +25,15 @@ module PendingActions
           "bypass_front_of_queue" => bypass_front_of_queue?
         }
       )
+      progress!("Starting #{workflow.slug}...")
       StepDispatcher.start_workflow(workflow)
+      progress!("Recording repair audit...")
       audit!(job, workflow)
       workflow
+    end
+
+    def execution_label
+      "Starting forced rebase..."
     end
 
     def validate_payload(errors)

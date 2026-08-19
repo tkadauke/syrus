@@ -261,9 +261,12 @@ export type ChatMessageItem = {
 export type ChatPendingActionInline = {
   id: number
   action: string | null
-  state: string
+  state: ChatPendingActionState
   label: string
   detail: string | null
+  execution_status?: string | null
+  execution_step?: string | null
+  execution_error?: string | null
   reason?: string | null
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
@@ -317,9 +320,12 @@ export type ChatPendingAction = {
   id: number
   label: string
   detail: string | null
-  state: "queued" | "pending" | "confirmed" | "rejected" | "cancelled"
+  state: ChatPendingActionState
   action: string | null
   action_type: string | null
+  execution_status?: string | null
+  execution_step?: string | null
+  execution_error?: string | null
   reason?: string | null
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
@@ -330,6 +336,8 @@ export type ChatPendingAction = {
   app_reject_path: string
   app_cancel_path: string
 }
+
+export type ChatPendingActionState = "queued" | "pending" | "confirming" | "confirmed" | "rejected" | "cancelled" | "failed"
 
 export type ChatAgentQuestion = {
   id: number

@@ -6,5 +6,9 @@ module PendingActions
       Admin::Console::Payload.new(actor: user).pause_runs(source: "chat_mcp")
       nil
     end
+
+    def execution_label
+      "Pausing run dispatch..."
+    end
   end
 end

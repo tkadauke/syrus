@@ -8,7 +8,9 @@ module PendingActions
       raise ArgumentError, "Admin access required." unless user.admin?
 
       job = repair_action_job
+      progress!("Validating branch divergence for #{job.slug}...")
       divergence_workflow(job)
+      progress!("Creating retry workflow from current PR branch...")
       result = ::ManualAgenticRun::Enqueuer.call(
         job: job,
         base: "current_pr_branch",
@@ -16,8 +18,13 @@ module PendingActions
         reason: reason,
         push: true
       )
+      progress!("Recording repair audit...")
       audit!(result.run, result.workflow)
       result.workflow
+    end
+
+    def execution_label
+      "Starting retry from current PR branch..."
     end
 
     def validate_payload(errors)

@@ -6,5 +6,9 @@ module PendingActions
       user.update!(landing_paused: true)
       nil
     end
+
+    def execution_label
+      "Pausing landing queue..."
+    end
   end
 end

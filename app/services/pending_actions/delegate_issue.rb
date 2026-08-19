@@ -7,8 +7,13 @@ module PendingActions
       issue_number = Integer(payload.fetch("issue_number"), exception: false)
       raise ArgumentError, "issue_number is required" unless issue_number&.positive?
 
+      progress!("Adding #{repo.trigger_label} to #{repo.slug}##{issue_number}...")
       GithubClient.for(repository: repo, user: user).add_label_to_issue(repo.slug, issue_number, repo.trigger_label)
       nil
+    end
+
+    def execution_label
+      "Delegating GitHub issue..."
     end
 
     def validate_payload(errors)

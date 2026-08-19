@@ -8,8 +8,13 @@ module PendingActions
       job = Job.find(payload.fetch("job_id"))
       raise ArgumentError, "#{job.slug} is #{job.state} and cannot be force-failed." unless job.may_force_fail?
 
+      progress!("Marking #{job.slug} failed...")
       job.force_fail!
       job
+    end
+
+    def execution_label
+      "Force-failing job..."
     end
 
     def validate_payload(errors)

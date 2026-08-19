@@ -31,20 +31,26 @@ class LandingQueueRecheck
     end
   end
 
-  def self.call(job)
-    new(job).call
+  def self.call(job, &progress)
+    new(job, progress: progress).call
   end
 
-  def initialize(job)
+  def initialize(job, progress: nil)
     @job = job
     @warnings = []
+    @progress = progress
   end
 
   def call
+    progress("Refreshing pull request state...")
     pr = refresh_pr_state
+    progress("Refreshing PR checks...")
     checks_refreshed = refresh_checks(pr)
+    progress("Computing commits behind base...")
     commits_behind_refreshed = refresh_commits_behind(pr)
+    progress("Refreshing landing queue snapshot...")
     entry = LandingQueueProcessor.refresh_snapshot!(queue_scope).find { |candidate| candidate.job_id == @job.id }
+    progress("Waking landing processor...")
     LandingQueueProcessorJob.perform_later
 
     Result.new(
@@ -58,6 +64,10 @@ class LandingQueueRecheck
   end
 
   private
+
+  def progress(message)
+    @progress&.call(message)
+  end
 
   def refresh_pr_state
     pr_number = @job.pr_number || @job.external_pr_number

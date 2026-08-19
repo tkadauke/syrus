@@ -6,9 +6,14 @@ module PendingActions
       job = action_user_job
       raise ArgumentError, "Job isn't closed." unless job.may_reopen?
 
+      progress!("Reopening #{job.slug}...")
       job.reopen!
       job.save!
       job
+    end
+
+    def execution_label
+      "Reopening job..."
     end
 
     def validate_payload(errors)

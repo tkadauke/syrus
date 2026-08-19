@@ -279,7 +279,7 @@ module ChatSerialization
     ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
     chat_session.association(:pending_actions).reset
 
-    chat_session.pending_actions.includes(:tool_call_message, :message).where(state: %w[queued pending]).order(:created_at, :id).map do |action|
+    chat_session.pending_actions.includes(:tool_call_message, :message).where(state: %w[queued pending confirming confirmed failed]).order(:created_at, :id).select(&:visible_in_chat_payload?).map do |action|
       {
         id: action.id,
         label: pending_action_label(action),
@@ -287,6 +287,9 @@ module ChatSerialization
         state: action.state,
         action: action.action,
         action_type: action.action_type,
+        execution_status: action.execution_status,
+        execution_step: action.execution_step,
+        execution_error: action.execution_error,
         chat_message_id: action.anchor_message&.id,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",

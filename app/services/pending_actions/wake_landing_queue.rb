@@ -5,8 +5,13 @@ module PendingActions
     def execute
       raise ArgumentError, "Admin access required." unless user.admin?
 
+      progress!("Queueing landing processor wakeup...")
       LandingQueueProcessorJob.perform_later
       nil
+    end
+
+    def execution_label
+      "Waking landing queue..."
     end
 
     def validate_payload(errors)

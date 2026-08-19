@@ -6,12 +6,19 @@ module PendingActions
       raise ArgumentError, "Admin access required." unless user.admin?
 
       job = repair_action_job
+      progress!("Cancelling stale active work for #{job.slug}...")
       cancelled = cancel_work!(job)
       if payload.fetch("reconcile", true)
+        progress!("Reconciling #{job.slug} after cancellation...")
         WorkEngine::Reconciler.call(source: "operator:cancel_stale_work", job_id: job.id, execute_repairs: true)
       end
+      progress!("Recording repair audit...")
       audit!(job, cancelled)
       job.reload
+    end
+
+    def execution_label
+      "Cancelling stale work..."
     end
 
     def validate_payload(errors)

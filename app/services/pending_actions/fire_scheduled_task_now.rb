@@ -6,8 +6,13 @@ module PendingActions
       task = action_scheduled_task
       raise ArgumentError, "Task isn't fireable in its current state." if task.archived? || task.fired?
 
+      progress!("Firing scheduled task #{task.id}...")
       result = ScheduledTaskFire.new(task).call
       result.fired? ? result.job : nil
+    end
+
+    def execution_label
+      "Firing scheduled task..."
     end
 
     def validate_payload(errors)

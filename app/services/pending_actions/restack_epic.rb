@@ -6,10 +6,12 @@ module PendingActions
       raise ArgumentError, "Admin access required." unless user.admin?
 
       epic = repair_action_epic
+      progress!("Computing restack plan for #{epic.slug}...")
       plan = EpicRestackPlan.new(epic)
       actions = plan.actions
       raise ArgumentError, "No open child PR branches need restacking." if actions.empty?
 
+      progress!("Checking for active epic-wide workflows...")
       active_job = actions.map { |entry| Job.find(entry.fetch("job_id")) }.find do |job|
         RebaseWorkflowSelector.active_for_stack?(job)
       end
@@ -23,6 +25,7 @@ module PendingActions
         raise ArgumentError, "A merge train is already active for this stack — wait for it to finish."
       end
 
+      progress!("Updating stack dependencies...")
       ApplicationRecord.transaction do
         actions.each do |entry|
           job = Job.find(entry.fetch("job_id"))
@@ -31,6 +34,7 @@ module PendingActions
         end
       end
 
+      progress!("Creating rebase workflow(s)...")
       workflows = root_jobs(actions).map do |root|
         workflow = RebaseWorkflowSelector.instantiate(
           job: root,
@@ -41,11 +45,17 @@ module PendingActions
           },
           base_branch: root.effective_base_branch
         )
+        progress!("Starting #{workflow.slug}...")
         StepDispatcher.start_workflow(workflow)
         workflow
       end
+      progress!("Recording repair audit...")
       audit!(epic, workflows, actions)
       workflows.first
+    end
+
+    def execution_label
+      "Restacking epic branches..."
     end
 
     def validate_payload(errors)

@@ -7,11 +7,17 @@ module PendingActions
 
       job = repair_action_job
       workflow = divergence_workflow(job)
+      progress!("Adopting current PR head for #{workflow.slug}...")
       result = BranchDivergenceRecovery.adopt_current_pr_head!(workflow: workflow, user: user)
       raise ArgumentError, result.error unless result.success?
 
+      progress!("Recording repair audit...")
       audit!(job, workflow)
       workflow
+    end
+
+    def execution_label
+      "Adopting current PR head..."
     end
 
     def validate_payload(errors)

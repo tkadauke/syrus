@@ -6,9 +6,13 @@ module PendingActions
       raise ArgumentError, "Admin access required." unless user.admin?
 
       job = repair_action_job
-      result = LandingQueueRecheck.call(job)
+      result = LandingQueueRecheck.call(job) { |message| progress!(message) }
       audit!(job, result)
       nil
+    end
+
+    def execution_label
+      "Refreshing landing state..."
     end
 
     def validate_payload(errors)

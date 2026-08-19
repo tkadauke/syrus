@@ -8,9 +8,15 @@ module PendingActions
     action_key "submit_coding_changes"
 
     def execute
+      progress!("Verifying repository access...")
       user.repositories.active.find(payload.fetch("repository_id"))
+      progress!("Queueing coding handoff capture...")
       CodingHandoffConfirmJob.perform_later(action.id)
       nil
+    end
+
+    def execution_label
+      "Queueing coding handoff capture..."
     end
 
     def validate_payload(errors)

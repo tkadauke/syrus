@@ -4,10 +4,15 @@ module PendingActions
 
     def execute
       job = action_job
+      progress!("Creating retry workflow for #{job.slug}...")
       result = RetryWorkflowEnqueuer.call(job: job)
       raise ArgumentError, result.error unless result.success?
 
       nil
+    end
+
+    def execution_label
+      "Creating retry workflow..."
     end
 
     def validate_payload(errors)

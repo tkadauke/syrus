@@ -8,8 +8,13 @@ module PendingActions
         raise ArgumentError, "Can only check feedback on open Jobs that have a PR."
       end
 
+      progress!("Queueing PR feedback poll for #{job.slug}...")
       PollPullRequestJob.perform_later(job.id, manual: true)
       nil
+    end
+
+    def execution_label
+      "Queueing PR feedback poll..."
     end
 
     def validate_payload(errors)

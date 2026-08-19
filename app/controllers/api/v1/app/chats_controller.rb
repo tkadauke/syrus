@@ -766,7 +766,7 @@ module Api
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
 
-          if pending_action.confirm!(user: Current.user)
+          if pending_action.enqueue_confirmation!(user: Current.user)
             render json: chat_payload(chat_session.reload, message: pending_action_confirmed_notice(pending_action))
           else
             render_error("validation_failed", "Pending action is no longer active.", status: :unprocessable_content)

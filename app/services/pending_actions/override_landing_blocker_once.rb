@@ -7,6 +7,7 @@ module PendingActions
 
       job = repair_action_job
       blocker_key = payload.fetch("blocker_key").to_s
+      progress!("Refreshing landing blocker for #{job.slug}...")
       refreshed_key = current_blocker_key(job)
       unless refreshed_key == blocker_key
         raise ArgumentError, "Current blocker is #{refreshed_key.presence || 'none'}, not #{blocker_key}."
@@ -25,9 +26,15 @@ module PendingActions
         landing_blocker_override_requested_by_user_id: user.id,
         landing_blocker_override_used_at: nil
       )
+      progress!("Queueing landing processor wakeup...")
       LandingQueueProcessorJob.perform_later
+      progress!("Recording repair audit...")
       audit!(job, blocker_key)
       nil
+    end
+
+    def execution_label
+      "Granting landing blocker override..."
     end
 
     def validate_payload(errors)

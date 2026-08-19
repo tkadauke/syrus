@@ -9,12 +9,19 @@ module PendingActions
       workflow = divergence_workflow(job)
       raise ArgumentError, "destructive confirmation is required" unless destructive_confirmation_valid?
 
+      progress!("Marking #{workflow.slug} for PR branch replacement...")
       result = BranchDivergenceRecovery.mark_force_push_pending!(workflow: workflow, user: user)
       raise ArgumentError, result.error unless result.success?
 
+      progress!("Queueing branch recovery job...")
       BranchDivergenceRecoveryJob.perform_later(workflow.id, user.id)
+      progress!("Recording repair audit...")
       audit!(job, workflow)
       workflow
+    end
+
+    def execution_label
+      "Queueing PR branch replacement..."
     end
 
     def validate_payload(errors)

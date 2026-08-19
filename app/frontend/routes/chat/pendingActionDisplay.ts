@@ -8,6 +8,7 @@ export function pendingActionTerminalLabel(state: ChatPendingAction["state"] | C
   if (state === "confirmed") return "Confirmed"
   if (state === "rejected") return "Rejected"
   if (state === "cancelled") return "Cancelled"
+  if (state === "failed") return "Failed"
   return null
 }
 

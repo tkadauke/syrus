@@ -439,10 +439,22 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
   const rejectLabel = actionKey === "schedule_recurring" ? "Cancel" : "Decline"
   const isQueued = pendingAction.state === "queued"
   const isPending = pendingAction.state === "pending"
+  const isConfirming = pendingAction.state === "confirming"
+  const isExecuting = isConfirming || pendingAction.execution_status === "queued" || pendingAction.execution_status === "running"
   const rejectPath = pendingAction.app_reject_path
   const chatMessageId = "chat_message_id" in pendingAction ? pendingAction.chat_message_id : null
   const resourceTitle = pendingActionResourceTitle(pendingAction)
   const resourceUrl = pendingActionResourceUrl(pendingAction)
+
+  useEffect(() => {
+    if (pendingAction.state !== "confirmed") return
+
+    const timeout = window.setTimeout(() => {
+      void queryClient.invalidateQueries({ queryKey })
+    }, 1000)
+
+    return () => window.clearTimeout(timeout)
+  }, [pendingAction.state, queryClient, queryKey])
 
   return (
     <ConfirmationCard
@@ -451,7 +463,10 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         <>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{pendingActionBadgeLabel(pendingAction)}</span>
-            <span className={`rounded px-2 py-0.5 text-xs font-medium ${isPending ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}</span>
+            <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+              {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
+              {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
+            </span>
           </div>
           {chatMessageId && onSelectMessage ? (
             <h3 className="mt-2 text-base font-semibold">
@@ -472,7 +487,7 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         </>
       }
       body={
-        resourceTitle || pendingAction.detail ? (
+        resourceTitle || pendingAction.detail || pendingAction.execution_step || pendingAction.execution_error ? (
           <>
             {resourceTitle && resourceUrl ? (
               <a className="inline-block break-words text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" href={resourceUrl}>{resourceTitle}</a>
@@ -480,13 +495,20 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
               <p className="break-words text-sm font-medium text-gray-700 dark:text-gray-300">{resourceTitle}</p>
             ) : null}
             {pendingAction.detail ? <PendingActionDetail detail={pendingAction.detail} /> : null}
+            {pendingAction.execution_step ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{pendingAction.execution_step}</p> : null}
+            {pendingAction.execution_error ? <p className="mt-2 break-words text-xs text-red-700 dark:text-red-300">{pendingAction.execution_error}</p> : null}
           </>
         ) : null
       }
       footer={
         terminalLabel ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
-            <span className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+            <span className={`rounded px-2 py-0.5 font-medium ${pendingAction.state === "confirmed" ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-200" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{terminalLabel}</span>
+          </div>
+        ) : isConfirming ? (
+          <div className="flex items-center gap-2 border-t border-gray-100 pt-3 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+            <span>{pendingAction.execution_step || "Working..."}</span>
           </div>
         ) : isPending ? (
           <div className="flex flex-wrap gap-2">

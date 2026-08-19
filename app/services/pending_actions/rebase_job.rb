@@ -14,9 +14,15 @@ module PendingActions
         raise ArgumentError, "A merge train is already active for this stack — wait for it to finish."
       end
 
+      progress!("Creating rebase workflow for #{job.slug}...")
       workflow = RebaseWorkflowSelector.instantiate(job: job)
+      progress!("Starting #{workflow.slug}...")
       StepDispatcher.start_workflow(workflow)
       nil
+    end
+
+    def execution_label
+      "Starting rebase workflow..."
     end
 
     def validate_payload(errors)

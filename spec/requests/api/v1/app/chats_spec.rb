@@ -4112,7 +4112,12 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     post "/api/v1/app/chats/#{chat.id}/pending_actions/#{confirm_action.id}/confirm"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Pending action confirmed.")
+    expect(parse_body["message"]).to eq("Pending action queued.")
+    expect(confirm_action.reload).to be_confirming
+    expect(confirm_action.execution_step).to eq("Waiting for background worker...")
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
     expect(confirm_action.reload).to be_confirmed
     expect(job_to_cancel.reload).to be_closed
 
@@ -4175,12 +4180,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.to have_enqueued_job(RunJob)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Pending action confirmed.")
+    expect(parse_body["message"]).to eq("Pending action queued.")
+    expect(action.reload).to be_confirming
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
     expect(action.reload).to be_confirmed
     expect(job.workflows.where(trigger_kind: "retry").count).to eq(1)
+    expect(RunJob).to have_been_enqueued
   end
 
   it "returns not found when confirming supervisor retry_job pending actions for inaccessible Jobs" do
@@ -4198,11 +4208,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.not_to have_enqueued_job(RunJob)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
 
-    expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "code")).to eq("not_found")
-    expect(action.reload).to be_pending
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action queued.")
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
+    expect(action.reload).to be_failed
+    expect(action.execution_error).to include("ActiveRecord::RecordNotFound")
+    expect(RunJob).not_to have_been_enqueued
   end
 
   it "returns not found when confirming supervisor retry_job pending actions for missing Jobs" do
@@ -4217,11 +4232,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.not_to have_enqueued_job(RunJob)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
 
-    expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "code")).to eq("not_found")
-    expect(action.reload).to be_pending
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action queued.")
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
+    expect(action.reload).to be_failed
+    expect(action.execution_error).to include("ActiveRecord::RecordNotFound")
+    expect(RunJob).not_to have_been_enqueued
   end
 
   it "confirms chat feedback pending actions through the app API" do
@@ -4242,12 +4262,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.to have_enqueued_job(RunJob)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action queued.")
+    expect(action.reload).to be_confirming
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
 
     workflow = action.reload.result
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Feedback submitted. Workflow ##{workflow.id} has been queued.")
     expect(action).to be_confirmed
     expect(workflow).to have_attributes(trigger_kind: "chat_feedback")
     expect(workflow.artifact("chat_feedback")).to eq("Please tighten this implementation.")
@@ -4264,11 +4288,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.to have_enqueued_job(PollRebaseJob).with(job.id, bypass_cache: true)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to eq("Pending action confirmed.")
+    expect(parse_body["message"]).to eq("Pending action queued.")
+    expect(action.reload).to be_confirming
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
     expect(action.reload).to be_confirmed
+    expect(PollRebaseJob).to have_been_enqueued.with(job.id, bypass_cache: true)
   end
 
   it "returns a validation error when confirming check_job_mergeability for a job without a PR" do
@@ -4282,11 +4311,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.not_to have_enqueued_job(PollRebaseJob)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("No PR on this Job to check.")
-    expect(action.reload).to be_pending
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action queued.")
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
+    expect(action.reload).to be_failed
+    expect(action.execution_error).to include("No PR on this Job to check.")
+    expect(PollRebaseJob).not_to have_been_enqueued
   end
 
   it "returns a validation error when confirming check_job_mergeability for an inaccessible job" do
@@ -4302,11 +4336,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
-    }.not_to have_enqueued_job(PollRebaseJob)
+    }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(action.id)
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Job is not accessible.")
-    expect(action.reload).to be_pending
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action queued.")
+
+    perform_enqueued_jobs(only: ChatPendingActionConfirmationJob)
+
+    expect(action.reload).to be_failed
+    expect(action.execution_error).to include("Job is not accessible.")
+    expect(PollRebaseJob).not_to have_been_enqueued
   end
 
   it "does not confirm pending actions from another chat through the app API" do

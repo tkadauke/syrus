@@ -7,6 +7,10 @@ module PendingActions
       nil
     end
 
+    def execution_label
+      "Unpausing user scheduling..."
+    end
+
     def validate_payload(errors)
       errors.add(:payload, "user_id is required") unless payload["user_id"].present?
     end

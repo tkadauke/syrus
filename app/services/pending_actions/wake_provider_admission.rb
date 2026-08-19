@@ -5,11 +5,16 @@ module PendingActions
     def execute
       raise ArgumentError, "Admin access required." unless user.admin?
 
+      progress!("Waking provider admission for #{payload.fetch("provider")}...")
       ProviderAdmissionWakeup.call(
         provider: payload.fetch("provider"),
         user: payload["user_id"].present? ? User.find(payload["user_id"]) : nil
       )
       nil
+    end
+
+    def execution_label
+      "Waking provider admission..."
     end
 
     def validate_payload(errors)

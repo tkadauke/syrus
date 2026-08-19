@@ -4,8 +4,13 @@ module PendingActions
 
     def execute
       process = SpawnedProcess.find(payload.fetch("process_id"))
+      progress!("Requesting kill for process ##{process.id}...")
       process.request_kill!(user: user) if process.running?
       nil
+    end
+
+    def execution_label
+      "Requesting process kill..."
     end
 
     def validate_payload(errors)

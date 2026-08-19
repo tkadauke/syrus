@@ -4,6 +4,7 @@ module PendingActions
 
     def execute
       job = action_job
+      progress!("Creating feedback workflow for #{job.slug}...")
       result = ChatFeedbackSubmission.call(
         job: job,
         feedback: payload.fetch("feedback"),
@@ -12,6 +13,10 @@ module PendingActions
       raise ArgumentError, result.error unless result.success?
 
       result.workflow
+    end
+
+    def execution_label
+      "Submitting chat feedback..."
     end
 
     def validate_payload(errors)

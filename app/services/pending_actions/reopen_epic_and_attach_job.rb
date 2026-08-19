@@ -7,10 +7,15 @@ module PendingActions
       epic = epic_scope.where(user: user).find(payload.fetch("epic_id"))
       job = action_job
 
+      progress!("Attaching #{job.slug} to #{epic.slug}...")
       epic.in_progress! if epic.done?
       job.update!(epic: epic, pending_epic_reference: {})
       job.advance_after_triage! if job.may_advance_after_triage?
       job
+    end
+
+    def execution_label
+      "Reopening epic and attaching job..."
     end
 
     def validate_payload(errors)

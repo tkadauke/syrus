@@ -14237,6 +14237,33 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
   })
 
+  it("renders confirming and failed pending actions with execution details", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        ...chatPayload({
+          pendingActions: [
+            pendingAction({ id: 7, label: "Cancel JOB-44", state: "confirming", executionStatus: "running", executionStep: "Cancelling workflow..." }),
+            pendingAction({ id: 8, label: "Retry JOB-45", state: "failed", executionStatus: "failed", executionStep: "Failed.", executionError: "ArgumentError: Job is not accessible." })
+          ]
+        })
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Working...")).toBeInTheDocument()
+    expect(screen.getAllByText("Cancelling workflow...").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Failed").length).toBeGreaterThan(0)
+    expect(screen.getByText("ArgumentError: Job is not accessible.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
+  })
+
   it("renders pending actions after their linked message in the stream", async () => {
     const userMessage = {
       type: "message",
@@ -16843,6 +16870,9 @@ function pendingAction(overrides: {
   confirmPath?: string
   cancelPath?: string
   chatMessageId?: number | null
+  executionStatus?: string | null
+  executionStep?: string | null
+  executionError?: string | null
 } = {}) {
   const id = overrides.id ?? 7
   return {
@@ -16853,6 +16883,9 @@ function pendingAction(overrides: {
     action: overrides.action ?? "cancel_job",
     action_type: overrides.actionType ?? null,
     chat_message_id: overrides.chatMessageId,
+    execution_status: overrides.executionStatus ?? null,
+    execution_step: overrides.executionStep ?? null,
+    execution_error: overrides.executionError ?? null,
     app_confirm_path: overrides.confirmPath ?? `/api/v1/app/chats/8/pending_actions/${id}/confirm`,
     app_reject_path: `/api/v1/app/chats/8/pending_actions/${id}/reject`,
     app_cancel_path: overrides.cancelPath ?? `/api/v1/app/chats/8/pending_actions/${id}`

@@ -5,6 +5,7 @@ module PendingActions
     def execute
       raise ArgumentError, "Admin access required." unless user.admin?
 
+      progress!("Creating CI repair rerun...")
       result = CiRepair::ManualRerun.call(
         job: repair_action_job,
         reason: reason,
@@ -13,8 +14,13 @@ module PendingActions
         override_repeated_sha: payload["override_repeated_sha"] == true,
         agent_provider: payload["agent_provider"]
       )
+      progress!("Recording repair audit...")
       audit!(result)
       result.workflow
+    end
+
+    def execution_label
+      "Starting CI repair rerun..."
     end
 
     def validate_payload(errors)

@@ -9,10 +9,15 @@ module PendingActions
       job = action_user_job
       raise ArgumentError, "job is not in coding state" unless job.coding?
 
+      progress!("Starting coding handoff for #{job.slug}...")
       workflow = job.start_coding_handoff!
       raise ArgumentError, "could not start coding handoff" unless workflow
 
       workflow
+    end
+
+    def execution_label
+      "Starting coding handoff..."
     end
 
     def validate_payload(errors)

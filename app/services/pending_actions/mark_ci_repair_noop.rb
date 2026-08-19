@@ -9,6 +9,7 @@ module PendingActions
       workflow = job.workflows.find(payload.fetch("workflow_id"))
       raise ArgumentError, "Workflow is not a ci_failure repair." unless workflow.trigger_kind == "ci_failure"
 
+      progress!("Marking #{workflow.slug} as CI repair no-op...")
       marker = {
         "reason" => reason,
         "marked_at" => Time.current.iso8601,
@@ -18,8 +19,13 @@ module PendingActions
       }.compact
       workflow.set_artifact!("ci_repair_noop", marker)
       job.update!(landing_failure_reason: landing_failure_reason(job, workflow))
+      progress!("Recording repair audit...")
       audit!(workflow)
       nil
+    end
+
+    def execution_label
+      "Marking CI repair no-op..."
     end
 
     def validate_payload(errors)

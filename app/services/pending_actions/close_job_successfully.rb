@@ -9,9 +9,15 @@ module PendingActions
       raise ArgumentError, "#{job.slug} is already closed." if job.closed?
       raise ArgumentError, "#{job.slug} cannot be closed from #{job.state}." unless job.may_close?
 
+      progress!("Closing #{job.slug} as #{reason}...")
       github_result = close_job_and_pull_request(job, reason)
+      progress!("Recording closure result...")
       action.update_column(:payload, payload.merge("github_result" => github_result))
       job
+    end
+
+    def execution_label
+      "Closing job successfully..."
     end
 
     def validate_payload(errors)
@@ -43,11 +49,13 @@ module PendingActions
       github_result = github_closure_result(job)
 
       ApplicationRecord.transaction do
+        progress!("Cancelling active workflows and runs...")
         cancel_active_execution!(job)
         job.update!(grace_period_expires_at: nil)
         job.close_with_reason!(reason)
       end
 
+      progress!("Closing tracked pull request if needed...")
       close_pull_request_if_present(job, github_result)
       github_result
     end

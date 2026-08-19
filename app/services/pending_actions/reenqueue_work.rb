@@ -6,9 +6,15 @@ module PendingActions
       raise ArgumentError, "Admin access required." unless user.admin?
 
       job = repair_action_job
+      progress!("Finding queued work for #{job.slug}...")
       record = reenqueue!(job)
+      progress!("Recording repair audit...")
       audit!(job, record)
       record
+    end
+
+    def execution_label
+      "Re-enqueueing work..."
     end
 
     def validate_payload(errors)
@@ -54,6 +60,7 @@ module PendingActions
       raise ArgumentError, "Run ##{run.id} is #{run.state}, not queued." unless run.queued?
       raise ArgumentError, "Workflow is not active for Run ##{run.id}." unless run.workflow&.queued? || run.workflow&.running?
 
+      progress!("Re-enqueueing Run ##{run.id}...")
       run.reenqueue!
       run
     end

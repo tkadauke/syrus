@@ -5,6 +5,7 @@ module PendingActions
     def execute
       raise ArgumentError, "Admin access required." unless user.admin?
 
+      progress!("Creating manual agentic workflow...")
       result = ::ManualAgenticRun::Enqueuer.call(
         job: repair_action_job,
         base: payload.fetch("base"),
@@ -14,6 +15,10 @@ module PendingActions
         failed_workflow_id: payload["failed_workflow_id"]
       )
       result.workflow
+    end
+
+    def execution_label
+      "Starting manual agentic run..."
     end
 
     def validate_payload(errors)

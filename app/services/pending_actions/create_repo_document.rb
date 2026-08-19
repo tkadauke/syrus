@@ -4,6 +4,7 @@ module PendingActions
 
     def execute
       repo = action_user_repository
+      progress!("Creating repository document in #{repo.slug}...")
       document = repo.repository_documents.new(
         user: user,
         kind: "file",
@@ -16,6 +17,10 @@ module PendingActions
       )
       document.save!
       document
+    end
+
+    def execution_label
+      "Creating repository document..."
     end
 
     def validate_payload(errors)

@@ -6,5 +6,9 @@ module PendingActions
       Admin::Console::Payload.new(actor: user).pause_polling(source: "chat_mcp")
       nil
     end
+
+    def execution_label
+      "Pausing polling..."
+    end
   end
 end

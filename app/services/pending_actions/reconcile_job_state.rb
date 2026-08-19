@@ -14,7 +14,12 @@ module PendingActions
 
       job = repair_action_job
       mode = payload.fetch("mode").to_s
+      progress!("Reconciling #{job.slug} with mode #{mode}...")
       JobStateRepair.reconcile!(job: job, mode: mode, reason: reason).job
+    end
+
+    def execution_label
+      "Reconciling job state..."
     end
 
     def validate_payload(errors)

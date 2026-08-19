@@ -6,5 +6,9 @@ module PendingActions
       Admin::Console::Payload.new(actor: user).unpause_runs(source: "chat_mcp")
       nil
     end
+
+    def execution_label
+      "Unpausing run dispatch..."
+    end
   end
 end

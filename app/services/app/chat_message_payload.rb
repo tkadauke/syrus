@@ -109,6 +109,9 @@ module App
         state: action.state,
         label: pending_action_label(action),
         detail: pending_action_detail(action),
+        execution_status: action.execution_status,
+        execution_step: action.execution_step,
+        execution_error: action.execution_error,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
       }

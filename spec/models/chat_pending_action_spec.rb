@@ -64,12 +64,12 @@ RSpec.describe ChatPendingAction do
       resource: "chat",
       id: chat_session.id,
       changed: [ "pending_action_updated" ],
-      payload: {
+      payload: hash_including(
         action: "pending_action_updated",
         pending_action_id: action.id,
         chat_message_id: message.id,
         state: "rejected"
-      }
+      )
     )
 
     action.reject!
@@ -90,12 +90,12 @@ RSpec.describe ChatPendingAction do
       resource: "chat",
       id: chat_session.id,
       changed: [ "pending_action_updated" ],
-      payload: {
+      payload: hash_including(
         action: "pending_action_updated",
         pending_action_id: action.id,
         chat_message_id: nil,
         state: "pending"
-      }
+      )
     )
 
     expect(action.promote!).to be true
@@ -126,8 +126,8 @@ RSpec.describe ChatPendingAction do
   end
 
   it "keeps existing state enum values valid when adding queued" do
-    expect(described_class.states.keys).to eq(%w[queued pending confirmed rejected cancelled])
-    %w[pending confirmed rejected cancelled].each do |state|
+    expect(described_class.states.keys).to eq(%w[queued pending confirming confirmed rejected cancelled failed])
+    %w[pending confirming confirmed rejected cancelled failed].each do |state|
       action = chat_session.pending_actions.build(
         action: "pause_landing_queue",
         state: state,
@@ -358,12 +358,12 @@ RSpec.describe ChatPendingAction do
       resource: "chat",
       id: chat_session.id,
       changed: [ "pending_action_updated" ],
-      payload: {
+      payload: hash_including(
         action: "pending_action_updated",
         pending_action_id: action.id,
         chat_message_id: nil,
         state: "confirmed"
-      }
+      )
     )
 
     action.confirm!

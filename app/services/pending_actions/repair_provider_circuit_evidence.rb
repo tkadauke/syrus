@@ -3,6 +3,7 @@ module PendingActions
     action_key "repair_provider_circuit_evidence"
 
     def execute
+      progress!("Repairing provider circuit evidence...")
       ProviderCircuitEvidenceRepair.call(
         evidence_type: payload.fetch("evidence_type"),
         evidence_id: payload.fetch("evidence_id"),
@@ -10,6 +11,10 @@ module PendingActions
         reason: reason,
         user: user
       )
+    end
+
+    def execution_label
+      "Repairing provider circuit evidence..."
     end
 
     def validate_payload(errors)

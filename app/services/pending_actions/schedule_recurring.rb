@@ -3,6 +3,7 @@ module PendingActions
     action_key "schedule_recurring"
 
     def execute
+      progress!("Creating scheduled task...")
       ScheduledTask.create!(
         user: user,
         repository: repository,
@@ -14,6 +15,10 @@ module PendingActions
         schedule_timezone: payload["schedule_timezone"],
         prompt: payload.fetch("prompt")
       )
+    end
+
+    def execution_label
+      "Creating scheduled task..."
     end
 
     def validate_payload(errors)

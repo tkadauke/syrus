@@ -10,10 +10,15 @@ module PendingActions
         raise ArgumentError, "Step '#{step_slug}' is not the retryable failed step on #{workflow.slug}."
       end
 
+      progress!("Retrying #{step_slug} in #{workflow.slug}...")
       result = RetryFailedStepEnqueuer.call(workflow: workflow)
       raise ArgumentError, result.error unless result.success?
 
       result.run
+    end
+
+    def execution_label
+      "Retrying failed step..."
     end
 
     def validate_payload(errors)

@@ -10,8 +10,13 @@ module PendingActions
         raise ArgumentError, "No PR on this Job to check."
       end
 
+      progress!("Queueing mergeability check for #{job.slug}...")
       PollRebaseJob.enqueue_manual_check(job.id)
       nil
+    end
+
+    def execution_label
+      "Queueing mergeability check..."
     end
 
     def validate_payload(errors)

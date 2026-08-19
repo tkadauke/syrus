@@ -65,8 +65,9 @@ class ChatPendingAction < ApplicationRecord
     pause_landing_queue
     resume_landing_queue
   ].freeze
-  STATES = %w[ queued pending confirmed rejected cancelled ].freeze
+  STATES = %w[ queued pending confirming confirmed rejected cancelled failed ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
+  CONFIRMED_VISIBLE_FOR = 1.second
 
   attribute :payload, :json, default: -> { {} }
   attribute :before_snapshot, :json, default: -> { {} }
@@ -96,37 +97,107 @@ class ChatPendingAction < ApplicationRecord
   validate :repository_matches_chat_session
   validate :user_matches_chat_session
 
-  # Returns true on successful confirmation, false when the action is
-  # no longer pending. The thing that was created (if any) is available
-  # as `action.result` after this returns — callers should consult that
-  # rather than the boolean to drive UI messaging.
   def confirm!(user: nil)
+    return false unless start_confirmation!(
+      user: user,
+      status: "running",
+      step: "Starting pending action..."
+    )
+
+    execute_confirmation!(raise_on_error: true)
+  end
+
+  def enqueue_confirmation!(user: nil)
+    return false unless start_confirmation!(
+      user: user,
+      status: "queued",
+      step: "Waiting for background worker..."
+    )
+
+    ChatPendingActionConfirmationJob.perform_later(id)
+    true
+  end
+
+  def start_confirmation!(user: nil, status:, step:)
     raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
 
     with_lock do
       return false unless pending?
 
-      ApplicationRecord.transaction do
-        raise ActiveRecord::RecordInvalid, self unless valid?
-
-        command = PendingActions.for(action_key).new(self)
-        repair_targets = command.repair_snapshot_targets
-        self.before_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
-        # `record` is an AR record to stash on `action.result` (polymorphic),
-        # or nil when the command is purely a mutation of existing state.
-        # Anything else would blow up the polymorphic assignment (which
-        # calls AR methods like `has_query_constraints?` on the assigned
-        # object).
-        record = command.execute
-        self.after_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
-        record_repair_admin_action!(record) if command.repair_action?
-        updates = { state: "confirmed", confirmed_at: Time.current }
-        updates[:result] = record if record
-        update!(updates)
-      end
-
+      raise ActiveRecord::RecordInvalid, self unless valid?
+      update!(
+        state: "confirming",
+        execution_status: status,
+        execution_step: step,
+        execution_error: nil,
+        execution_started_at: nil,
+        execution_finished_at: nil
+      )
       true
     end
+  end
+
+  def execute_confirmation!(raise_on_error: false)
+    should_execute = with_lock do
+      return false unless confirming?
+
+      update_confirmation_progress!("running", "Starting pending action...")
+      true
+    end
+    return false unless should_execute
+
+    raise ActiveRecord::RecordInvalid, self unless valid?
+
+    command = PendingActions.for(action_key).new(self)
+    repair_targets = command.repair_snapshot_targets
+    if command.repair_action?
+      update_confirmation_progress!("running", "Capturing before snapshot...")
+      update!(before_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
+    end
+
+    update_confirmation_progress!("running", command.execution_label)
+    record = command.execute
+
+    if command.repair_action?
+      update_confirmation_progress!("running", "Capturing after snapshot...")
+      update!(after_snapshot: PendingActions::RepairAuditSnapshot.capture(repair_targets))
+    end
+
+    record_repair_admin_action!(record) if command.repair_action?
+    updates = {
+      state: "confirmed",
+      confirmed_at: Time.current,
+      execution_status: "done",
+      execution_step: "Done.",
+      execution_error: nil,
+      execution_finished_at: Time.current
+    }
+    updates[:result] = record if record
+    update!(updates)
+    true
+  rescue StandardError => e
+    fail_confirmation!(e)
+    raise if raise_on_error
+
+    false
+  end
+
+  def update_confirmation_progress!(status, step)
+    update!(
+      execution_status: status,
+      execution_step: step,
+      execution_started_at: execution_started_at || Time.current
+    )
+  end
+
+  def fail_confirmation!(error)
+    update!(
+      state: "failed",
+      execution_status: "failed",
+      execution_step: "Failed.",
+      execution_error: "#{error.class}: #{error.message}",
+      execution_finished_at: Time.current
+    )
   end
 
   def reject!
@@ -139,9 +210,17 @@ class ChatPendingAction < ApplicationRecord
 
   def cancel!(user: nil)
     raise ActiveRecord::RecordNotFound, "pending action belongs to another user" if user && self.user != user
-    return false unless pending? || queued?
+    return false unless pending? || queued? || failed?
 
     update!(state: "cancelled", cancelled_at: Time.current)
+  end
+
+  def visible_in_chat_payload?
+    queued? || pending? || confirming? || failed? || recently_confirmed?
+  end
+
+  def recently_confirmed?
+    confirmed? && confirmed_at.present? && confirmed_at >= CONFIRMED_VISIBLE_FOR.ago
   end
 
   def promote!
@@ -353,7 +432,9 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def broadcastable_state_change?
-    saved_change_to_state? && state.in?(%w[confirmed rejected cancelled])
+    return true if saved_change_to_state? && state.in?(%w[confirming confirmed rejected cancelled failed])
+
+    saved_change_to_execution_status? || saved_change_to_execution_step? || saved_change_to_execution_error?
   end
 
   def broadcast_pending_action_created
@@ -375,7 +456,10 @@ class ChatPendingAction < ApplicationRecord
         action: "pending_action_updated",
         pending_action_id: id,
         chat_message_id: anchor_message&.id,
-        state: state
+        state: state,
+        execution_status: execution_status,
+        execution_step: execution_step,
+        execution_error: execution_error
       }
     )
   end

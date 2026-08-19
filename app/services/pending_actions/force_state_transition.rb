@@ -6,7 +6,12 @@ module PendingActions
       raise ArgumentError, "Admin access required." unless user.admin?
 
       job = repair_action_job
+      progress!("Forcing #{payload.fetch("event")} on #{job.slug}...")
       JobStateRepair.force_transition!(job: job, event: payload.fetch("event"), reason: reason).job
+    end
+
+    def execution_label
+      "Forcing job state transition..."
     end
 
     def validate_payload(errors)

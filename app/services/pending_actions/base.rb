@@ -27,6 +27,10 @@ module PendingActions
       "id: #{@action.id}"
     end
 
+    def execution_label
+      "Running #{self.class.action_key.to_s.humanize(capitalize: false)}..."
+    end
+
     def repair_action?
       false
     end
@@ -95,6 +99,10 @@ module PendingActions
     def document_filename(title)
       basename = title.to_s.parameterize.presence || "document"
       "#{basename.first(80)}.md"
+    end
+
+    def progress!(message)
+      @action.update_confirmation_progress!("running", message)
     end
   end
 end

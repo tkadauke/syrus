@@ -19,6 +19,8 @@ module ChatPendingActions
   end
 
   def pending_action_confirmed_notice(action)
+    return "Pending action queued." if action.confirming?
+
     record = action.result
     case record
     when Workflow
