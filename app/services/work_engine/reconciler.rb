@@ -582,9 +582,10 @@ module WorkEngine
               evidence: workflow_evidence(workflow).merge(
                 first_step_id: workflow.first_step&.id,
                 start_blocked_reason: workflow.artifact("start_blocked_reason"),
-                unsatisfied_dependencies: []
+                execution_dependencies_satisfied: workflow.job.dependencies_satisfied_for_execution?,
+                unsatisfied_dependencies: workflow.job.unsatisfied_dependencies.map(&:id)
               ),
-              explanation: "Workflow ##{workflow.id} has a stale dependency start block, but current dependency resolution is satisfied."
+              explanation: "Workflow ##{workflow.id} has a stale dependency start block, but current dependencies are ready for execution."
             )
           end
 
@@ -884,7 +885,7 @@ module WorkEngine
         next unless latest&.cancelled?
         next unless cancelled_workflow_reason(latest) == EpicWorkflowLock::BLOCK_REASON
         next if active_epic_wide_workflow_for_job?(job)
-        next if job.unsatisfied_dependencies.any?
+        next unless job.dependencies_satisfied_for_execution?
 
         issue(
           kind: :queued_job_after_epic_workflow_conflict,
@@ -1745,7 +1746,7 @@ module WorkEngine
     def stale_dependency_start_block?(workflow)
       workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON &&
         !start_blocked_check_due?(workflow) &&
-        workflow.job.unsatisfied_dependencies.empty?
+        workflow.job.dependencies_satisfied_for_execution?
     end
 
     def dependency_block_reason?(reason)
@@ -1887,7 +1888,7 @@ module WorkEngine
       return false if cancelled_workflow_reason(workflow) == EpicWorkflowLock::BLOCK_REASON
       return false if deliberate_cancelled_workflow?(workflow)
       return false if active_epic_wide_workflow_for_job?(job)
-      return false if job.unsatisfied_dependencies.any?
+      return false unless job.dependencies_satisfied_for_execution?
 
       true
     end

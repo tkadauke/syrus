@@ -457,6 +457,7 @@ RSpec.describe WorkEngine::Reconciler do
 
   it "retries a queued Job whose latest workflow was cancelled by a cleared Epic-wide workflow conflict" do
     epic = Factories.epic(user: job.user, repository: job.repository)
+    epic.update!(state: "in_progress")
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 205, agent_provider: "claude")
     child.update!(epic: epic)
     cancelled = child.latest_workflow
@@ -501,9 +502,21 @@ RSpec.describe WorkEngine::Reconciler do
 
   it "restarts queued chat feedback after a cleared Epic-wide workflow conflict" do
     epic = Factories.epic(user: job.user, repository: job.repository)
+    epic.update!(state: "in_progress")
+    parent = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 205,
+      state: "implemented",
+      epic: epic,
+      branch_name: "syrus/direct-parent",
+      pr_number: 905
+    )
+    parent.runs.create!(trigger_kind: "initial", agent_provider: parent.agent_provider, head_sha: "parent-head")
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
-    child.update!(epic: epic)
+    child.update!(epic: epic, parent_job: parent)
     child.dependencies.delete_all
+    JobDependency.create!(job: child, depends_on_job: parent, source: "manual", satisfaction_mode: "success")
     child.latest_workflow.update_columns(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
     child.latest_workflow.steps.update_all(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
     child.latest_workflow.runs.update_all(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
@@ -1822,6 +1835,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue.safe_to_auto_repair).to eq(true)
     expect(issue.recommended_repair_action).to eq("clear_stale_start_block_and_start_workflow")
+    expect(issue.evidence.fetch("execution_dependencies_satisfied")).to eq(true)
     expect(issue.evidence.fetch("unsatisfied_dependencies")).to eq([])
     expect(kind(result, :dependency_stack_start_block)).to be_nil
     expect(kind(result, :queued_workflow_without_first_run)).to be_nil

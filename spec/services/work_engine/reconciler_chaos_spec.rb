@@ -752,6 +752,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     def queued_job_after_epic_workflow_conflict
       job, workflow, step, run = graph
       epic = Factories.epic(user: shared_user, repository: shared_repository)
+      epic.update!(state: "in_progress")
       job.update!(epic: epic)
       workflow.update!(
         artifacts: {

@@ -388,7 +388,7 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
           return skipped("Workflow is not dependency-blocked") unless workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON
-          return skipped("Dependencies are still unsatisfied") if workflow.job.unsatisfied_dependencies.any?
+          return skipped("Dependencies are still not ready for execution") unless workflow.job.dependencies_satisfied_for_execution?
 
           StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
           run = StepDispatcher.start_workflow(workflow.reload)
@@ -890,7 +890,7 @@ module WorkEngine
           return skipped("Latest Workflow is not cancelled") unless latest&.cancelled?
           return skipped("Latest Workflow was not cancelled by an Epic-wide workflow lock") unless latest.artifact("cancelled_reason") == EpicWorkflowLock::BLOCK_REASON
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
-          return skipped("Dependencies are still unsatisfied") if job.unsatisfied_dependencies.any?
+          return skipped("Dependencies are still not ready for execution") unless job.dependencies_satisfied_for_execution?
 
           result = retry_cancelled_workflow(job, latest, retry_reason: "epic_workflow_conflict_recovered")
           return skipped(result.error) unless result.success?
@@ -946,7 +946,7 @@ module WorkEngine
           return skipped("Latest Workflow was cancelled by an Epic-wide workflow lock") if cancelled_workflow_reason(latest) == EpicWorkflowLock::BLOCK_REASON
           return skipped("Latest Workflow cancellation appears deliberate") if deliberate_cancelled_workflow?(latest)
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
-          return skipped("Dependencies are still unsatisfied") if job.unsatisfied_dependencies.any?
+          return skipped("Dependencies are still not ready for execution") unless job.dependencies_satisfied_for_execution?
 
           result = retry_cancelled_workflow(job, latest, retry_reason: "cancelled_workflow_recovered")
           return skipped(result.error) unless result.success?
