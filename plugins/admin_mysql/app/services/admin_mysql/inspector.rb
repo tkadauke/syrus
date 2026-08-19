@@ -80,10 +80,7 @@ module AdminMysql
     rescue StandardError => e
       {
         available: false,
-        error: {
-          class: e.class.name,
-          message: e.message
-        }
+        error: error_payload(e)
       }
     end
 
@@ -253,8 +250,35 @@ module AdminMysql
     end
 
     def slow_log_rows(limit:)
-      return { available: false, rows: [], error: { message: "slow_query_log is off" } } unless variables["slow_query_log"].to_s.upcase == "ON"
-      return { available: false, rows: [], error: { message: "log_output does not include TABLE" } } unless variables["log_output"].to_s.upcase.include?("TABLE")
+      unless variables["slow_query_log"].to_s.upcase == "ON"
+        return {
+          available: false,
+          rows: [],
+          error: {
+            message: "slow_query_log is off",
+            hint: "Enable MySQL slow query logging to collect live slow-log rows.",
+            setup_sql: [
+              "SET GLOBAL slow_query_log = 'ON';",
+              "SET GLOBAL long_query_time = 1;"
+            ]
+          }
+        }
+      end
+
+      unless variables["log_output"].to_s.upcase.include?("TABLE")
+        return {
+          available: false,
+          rows: [],
+          error: {
+            message: "log_output does not include TABLE",
+            hint: "Syrus can only read slow-log rows through mysql.slow_log. Add TABLE to log_output, then grant read access.",
+            setup_sql: [
+              "SET GLOBAL log_output = 'TABLE';",
+              "GRANT SELECT ON mysql.slow_log TO CURRENT_USER;"
+            ]
+          }
+        }
+      end
 
       safe_section do
         rows = select_all(<<~SQL.squish)
@@ -300,6 +324,26 @@ module AdminMysql
 
     def float(value)
       Float(value, exception: false)
+    end
+
+    def error_payload(error)
+      message = error.message.to_s
+      payload = {
+        class: error.class.name,
+        message: message
+      }
+
+      if message.include?("command denied") && (message.include?("performance_schema") || message.include?("events_statements_summary_by_digest"))
+        payload[:message] = "The Syrus MySQL user cannot read Performance Schema statement digests."
+        payload[:hint] = "Grant SELECT on performance_schema.events_statements_summary_by_digest to show aggregate statement timing."
+        payload[:setup_sql] = [ "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO CURRENT_USER;" ]
+      elsif message.include?("command denied") && (message.include?("mysql.slow_log") || message.include?("slow_log"))
+        payload[:message] = "The Syrus MySQL user cannot read mysql.slow_log."
+        payload[:hint] = "Grant SELECT on mysql.slow_log to show table-backed slow query log rows."
+        payload[:setup_sql] = [ "GRANT SELECT ON mysql.slow_log TO CURRENT_USER;" ]
+      end
+
+      payload
     end
   end
 end

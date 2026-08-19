@@ -170,7 +170,10 @@ function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
         <p className="text-xs text-gray-500 dark:text-gray-400">Performance Schema summary ordered by total time.</p>
       </div>
       {!payload.statement_digests.available ? (
-        <Panel>{payload.statement_digests.error?.message || "Performance Schema statement digests are unavailable."}</Panel>
+        <UnavailablePanel
+          fallback="Performance Schema statement digests are unavailable."
+          error={payload.statement_digests.error}
+        />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
@@ -209,7 +212,7 @@ function SlowLogPanel({ payload }: { payload: MysqlSnapshot }) {
         </p>
       </div>
       {!payload.slow_log.available ? (
-        <Panel>{payload.slow_log.error?.message || "Slow log rows are unavailable."}</Panel>
+        <UnavailablePanel fallback="Slow log rows are unavailable." error={payload.slow_log.error} />
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
@@ -235,6 +238,24 @@ function SlowLogPanel({ payload }: { payload: MysqlSnapshot }) {
         </div>
       )}
     </section>
+  )
+}
+
+function UnavailablePanel({ error, fallback }: { error?: { message: string; hint?: string; setup_sql?: string[] }; fallback: string }) {
+  return (
+    <div className="space-y-3 p-4">
+      <Panel>
+        <div className="space-y-2">
+          <p className="font-medium text-gray-900 dark:text-gray-100">{error?.message || fallback}</p>
+          {error?.hint ? <p>{error.hint}</p> : null}
+          {error?.setup_sql?.length ? (
+            <pre className="overflow-x-auto rounded bg-gray-100 p-3 font-mono text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-100">
+              {error.setup_sql.join("\n")}
+            </pre>
+          ) : null}
+        </div>
+      </Panel>
+    </div>
   )
 }
 

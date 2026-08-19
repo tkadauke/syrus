@@ -52,6 +52,8 @@ export type MysqlUnavailableSection = {
   error?: {
     class?: string
     message: string
+    hint?: string
+    setup_sql?: string[]
   }
 }
 
@@ -75,6 +77,8 @@ export type MysqlSnapshot = {
     error?: {
       class?: string
       message: string
+      hint?: string
+      setup_sql?: string[]
     }
   }
 }
