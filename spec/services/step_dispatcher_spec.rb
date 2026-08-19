@@ -663,7 +663,7 @@ RSpec.describe StepDispatcher do
         described_class.advance_from(s2)
       }.to change { s3.runs.count }.by(1)
 
-      expect(review_plan.reload).to be_succeeded
+      expect(review_plan.reload).to be_skipped
       expect(review_plan.runs.count).to eq(0)
       expect(review_plan.details).to include(
         "skipped" => true,
