@@ -24,6 +24,7 @@ class LandingQueueProcessor
   # this only warms up the next couple so they're ready when they
   # advance. See PollMergeStateJob#dispatch_rebase.
   REBASE_PREFETCH_DEPTH = 3
+  URGENT_ACTIVE_STATES = %w[ needs_triage triaging blocked_by_epic queued running implemented approved landing coding ].freeze
 
   Entry = Struct.new(:job, :position, :blocked_reason, :waiting_for, :waiting_for_jobs, :landing_unit_key, :blocker_jobs, :dependency_edges, keyword_init: true) do
     def eligible?
@@ -756,7 +757,7 @@ class LandingQueueProcessor
   def unrelated_urgent_job_active_for_repository?(job)
     job.repository.jobs
        .where(priority: "urgent")
-       .where.not(state: Job::TERMINAL_STATES)
+       .where(state: URGENT_ACTIVE_STATES)
        .where.not(id: job.id)
        .any? { |urgent_job| !landing_queue_prerequisite_ids(urgent_job).include?(job.id) }
   end

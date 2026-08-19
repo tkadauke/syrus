@@ -1067,6 +1067,21 @@ RSpec.describe LandingQueueProcessor do
       expect(entry.blocked_reason).to be_blank
     end
 
+    it "does not block a non-urgent job when an urgent job has already failed" do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 1,
+        priority: "urgent",
+        state: "failed"
+      )
+      non_urgent = queue_job(issue_number: 2, approved_at: 4.minutes.ago)
+
+      entry = described_class.entries(Job.where(id: non_urgent.id)).first
+
+      expect(entry.blocked_reason).to be_blank
+    end
+
     it "does not block an urgent job even when another urgent job is open" do
       urgent = queue_job(issue_number: 1, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "urgent") }
       queue_job(issue_number: 2, approved_at: 2.minutes.ago).tap { |j| j.update!(priority: "urgent") }
