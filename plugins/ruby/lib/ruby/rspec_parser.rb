@@ -1,4 +1,4 @@
-module SyrusRails
+module Ruby
   # Parses RSpec's default progress or documentation formatter output into a
   # JunitXmlParser::ParsedRun-shaped value object (per the
   # Syrus::Plugin::TestResultParser contract). Use this for projects that

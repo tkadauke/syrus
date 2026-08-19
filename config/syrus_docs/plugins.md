@@ -60,11 +60,19 @@ other plugin names it needs to function:
 
 ```ruby
 Syrus::PluginRegistry.register(
-  name: "rails", version: "1.0.0",
+  name: "syrus-rails", version: "1.0.0",
   depends_on: [ "ruby" ],
   provides: { preview_provider: SyrusRails::PreviewProvider }
 )
 ```
+
+This is a real relationship, not just an illustrative example: the bundled
+`syrus_rails` gem (`plugins/rails`, registered manifest name `"syrus-rails"`)
+declares `depends_on: [ "ruby" ]` because its Rails-specific tooling assumes
+the Ruby-generic RSpec/SimpleCov/Gemfile support the `ruby` plugin provides.
+Enabling `syrus-rails` cascades to enable `ruby`; disabling `ruby` while
+`syrus-rails` is enabled surfaces the confirmation/cascade-disable path
+described below.
 
 Dependency names are validated once boot settles, from the same
 `Rails.application.config.after_initialize` block that calls
@@ -442,11 +450,17 @@ Bundled plugins:
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
   alike), not just Rails: `:grader_augmentor` (appends structured RSpec JSON
   failure details to the grade log when an rspec grader fails),
-  `:coverage_analyzer` (SimpleCov's `.resultset.json`), and `:prepare_detector`
-  (`Gemfile` → `bundle install`, `prepare_priority: 10`).
-- `syrus_rails` — installed but disabled by default. Provides Rails-specific
-  extension points: `:preview_provider` (starts a Rails server for preview
-  hosting), `:mcp_tool_set`, and `:test_result_parser` (RSpec output). Enable
+  `:test_result_parser` (`Ruby::RspecParser` — parses RSpec's plain
+  progress/documentation output), `:coverage_analyzer` (SimpleCov's
+  `.resultset.json`), and `:prepare_detector` (`Gemfile` → `bundle install`,
+  `prepare_priority: 10`).
+- `syrus_rails` (registered manifest name `syrus-rails`) — installed but
+  disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
+  builds on the Ruby-generic support the `ruby` plugin provides; enabling
+  `syrus_rails` cascades to enable `ruby`. Provides only genuinely
+  Rails-framework-specific extension points: `:preview_provider` (starts a
+  Rails server for preview hosting), `:mcp_tool_set`, `:artifact_renderer`
+  (schema ERD and migration diff renderers), and `:prompt_injector`. Enable
   by calling `SyrusRails.register!` from an initializer.
 - `browser` — default-enabled. Provides `:mcp_tool_set`
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools

@@ -1,14 +1,25 @@
 # syrus_rails
 
-`syrus_rails` is a Syrus plugin gem that bundles Rails-specific capabilities into a single `PluginRegistry.register` call. It lives at `plugins/rails/` inside the Syrus repository and is the primary integration point for Ruby on Rails repositories.
+`syrus_rails` is a Syrus plugin gem that bundles Rails-*framework*-specific capabilities into a single `PluginRegistry.register` call (registered manifest name `syrus-rails`). It lives at `plugins/rails/` inside the Syrus repository and is the primary integration point for Ruby on Rails repositories.
+
+Ruby-generic capabilities that aren't specific to Rails — RSpec grader
+failure detail, RSpec output parsing, SimpleCov coverage analysis, and
+Gemfile prepare detection — live in the separate `ruby` plugin
+(`plugins/ruby/`) instead, so non-Rails Ruby projects (gems, Sinatra apps,
+plain scripts) can use them too. `syrus_rails` declares
+`depends_on: [ "ruby" ]`: enabling `syrus_rails` in Admin → Plugins cascades
+to enable `ruby`, and disabling `ruby` while `syrus_rails` is enabled
+surfaces a confirm-and-cascade-disable prompt. See
+`config/syrus_docs/plugins.md` for the general `depends_on` mechanism.
 
 ## What it provides
 
 | Extension point | What it does |
 |---|---|
 | `:preview_provider` | Configures the Syrus preview host to run `bin/rails server`, seed via `db:create db:migrate db:seed`, health-check `/up`, and tail `log/development.log` |
-
-Additional extension points (MCP tool set, artifact renderer, test result parser, coverage analyzer, prompt injector) will be added in follow-on Jobs within the same epic.
+| `:mcp_tool_set` | Rails schema/migration/route introspection tools for workflow agents |
+| `:artifact_renderer` | `SchemaErdRenderer` and `MigrationDiffRenderer`, mapping `submit_artifact` payload types to reviewer-facing ERD/migration-diff views |
+| `:prompt_injector` | Adds Rails-specific guidance (schema/migration awareness) to the implementing agent's system prompt |
 
 ## Auto-detection
 
