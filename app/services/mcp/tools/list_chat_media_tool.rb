@@ -4,7 +4,7 @@ module Mcp::Tools
   class ListChatMediaTool < MCP::Tool
     tool_name "list_chat_media"
 
-    description "List media available in this chat session that can be attached to a Job proposal. Returns whiteboard snapshots (use save_canvas to create one) and chat image attachments. Pass the returned IDs to propose_job in the media array."
+    description "List media available in this chat session that can be attached to a Job proposal or to chat feedback on an existing Job. Returns whiteboard snapshots (use save_canvas to create one) and chat image attachments. Pass the returned IDs to propose_job's or submit_chat_feedback's media array."
 
     input_schema(properties: {})
 

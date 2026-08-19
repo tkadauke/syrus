@@ -45,7 +45,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     expect(body[:message]).to eq("Chat feedback requires operator confirmation.")
     expect(pending_action).to be_pending
     expect(pending_action).to have_attributes(action: "submit_chat_feedback", requested_by: "agent")
-    expect(pending_action.payload).to eq("job_id" => job.id, "feedback" => "Please tighten the retry explanation.")
+    expect(pending_action.payload).to eq("job_id" => job.id, "feedback" => "Please tighten the retry explanation.", "media" => [])
     expect(job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
   end
 
@@ -106,7 +106,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     expect(body[:message]).to include("Feedback queued")
     expect(pending_action).to be_queued
     expect(pending_action).to have_attributes(action: "submit_chat_feedback", requested_by: "agent")
-    expect(pending_action.payload).to eq("job_id" => job.id, "feedback" => "Please tighten the retry explanation.")
+    expect(pending_action.payload).to eq("job_id" => job.id, "feedback" => "Please tighten the retry explanation.", "media" => [])
     expect(job.workflows.where(trigger_kind: "chat_feedback")).to be_empty
   end
 
@@ -137,7 +137,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Adjust this." })
+    expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Adjust this.", "media" => [] })
   end
 
   it "rejects jobs in a non-actionable state" do
@@ -187,6 +187,71 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
 
     expect(response.dig(:result, :isError)).to be_falsey
     pending_action = admin_session.pending_actions.find(payload(response)[:pending_confirmation_id])
-    expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Fix this." })
+    expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Fix this.", "media" => [] })
+  end
+
+  describe "media" do
+    def whiteboard_snapshot
+      WhiteboardSnapshot.create!(
+        chat_session: chat_session,
+        name: "My snapshot",
+        scene_json: { "elements" => [ { "id" => "abc" } ], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 1
+      )
+    end
+
+    it "accepts a snapshot:ID media ref and threads it through the pending action payload" do
+      job = Factories.job_record(repository: repository, state: "implemented")
+      snapshot = whiteboard_snapshot
+
+      response = call_tool(job_id: job.id, feedback: "See the attached whiteboard.", media: [ "snapshot:#{snapshot.id}" ])
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(pending_action.payload).to eq(
+        "job_id" => job.id,
+        "feedback" => "See the attached whiteboard.",
+        "media" => [ "snapshot:#{snapshot.id}" ]
+      )
+    end
+
+    it "attaches the referenced media to the Job once the pending action is confirmed" do
+      job = Factories.job_record(repository: repository, state: "implemented")
+      snapshot = whiteboard_snapshot
+      response = call_tool(job_id: job.id, feedback: "See the attached whiteboard.", media: [ "snapshot:#{snapshot.id}" ])
+      pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+      pending_action.confirm!(user: user)
+
+      expect(job.job_attachments.count).to eq(1)
+      expect(job.job_attachments.first).to have_attributes(kind: "pending_snapshot", source_url: "snapshot:#{snapshot.id}")
+    end
+
+    it "rejects a media ref with an invalid format" do
+      job = Factories.job_record(repository: repository, state: "implemented")
+
+      response = call_tool(job_id: job.id, feedback: "Adjust this.", media: [ "bogus-ref" ])
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(response.dig(:result, :content, 0, :text)).to include("media contains invalid entry 'bogus-ref'")
+    end
+
+    it "rejects a media ref that does not belong to this chat session" do
+      job = Factories.job_record(repository: repository, state: "implemented")
+      other_session = ChatSession.create!(user: Factories.user)
+      foreign_snapshot = WhiteboardSnapshot.create!(
+        chat_session: other_session,
+        name: "Not mine",
+        scene_json: { "elements" => [], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 0
+      )
+
+      response = call_tool(job_id: job.id, feedback: "Adjust this.", media: [ "snapshot:#{foreign_snapshot.id}" ])
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(response.dig(:result, :content, 0, :text)).to include("does not belong to this chat session")
+    end
   end
 end

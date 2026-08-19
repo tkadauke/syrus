@@ -5,7 +5,7 @@ class ChatFeedbackSubmission
     def success? = error.blank?
   end
 
-  def self.call(job:, feedback:, allowed_states:, extra_artifacts: {})
+  def self.call(job:, feedback:, allowed_states:, extra_artifacts: {}, chat_session: nil, media: [])
     feedback = feedback.to_s.strip
     return Result.new(workflow: nil, error: "Feedback body can't be blank.") if feedback.blank?
 
@@ -17,6 +17,8 @@ class ChatFeedbackSubmission
     if job.workflows.where(trigger_kind: "chat_feedback", state: ACTIVE_STATES).exists?
       return Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
     end
+
+    attach_media!(job: job, chat_session: chat_session, media: media)
 
     iteration = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
     base_artifacts = {
@@ -36,4 +38,11 @@ class ChatFeedbackSubmission
 
     Result.new(workflow: workflow, error: nil)
   end
+
+  def self.attach_media!(job:, chat_session:, media:)
+    return if media.blank? || chat_session.nil?
+
+    ChatMediaAttacher.new(chat_session: chat_session, job: job).attach!(media)
+  end
+  private_class_method :attach_media!
 end

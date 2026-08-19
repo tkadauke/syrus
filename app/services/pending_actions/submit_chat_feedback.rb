@@ -8,7 +8,9 @@ module PendingActions
       result = ChatFeedbackSubmission.call(
         job: job,
         feedback: payload.fetch("feedback"),
-        allowed_states: %w[implemented approved]
+        allowed_states: %w[implemented approved],
+        chat_session: chat_session,
+        media: Array(payload["media"])
       )
       raise ArgumentError, result.error unless result.success?
 
