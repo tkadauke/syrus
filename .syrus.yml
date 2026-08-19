@@ -159,7 +159,6 @@ grade:
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
-    failure_semantics: absolute
     timeout_minutes: 3
 
   - name: production-build-boot
@@ -170,7 +169,6 @@ grade:
       application tables; if an initializer performs DB work at build time,
       this grader fails before the production image build does.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
-    failure_semantics: absolute
     timeout_minutes: 3
 
   - name: rspec
@@ -194,7 +192,7 @@ grade:
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-fast
     ci: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-ci
     junit_output: .syrus/grade-output/rspec-junit.xml
-    failure_semantics: test_cases
+    failures: allow_inherited
     # Processes default to 4, matching the worker pods' visible CPU count
     # (`nproc` is 4 and JOB_CONCURRENCY lets three Runs share a pod). Each
     # process pays its own Rails boot and its own test database, so more of
@@ -215,7 +213,7 @@ grade:
       `tsc --noEmit` even running concurrently; bumped for headroom.
     run: bin/test-react
     junit_output: .syrus/grade-output/react-tests-junit.xml
-    failure_semantics: test_cases
+    failures: allow_inherited
     timeout_minutes: 20
 
   - name: website-build
@@ -225,7 +223,7 @@ grade:
       export/type validation, and release-download page regressions
       before `.github/workflows/deploy-website.yml` fails after merge.
     run: npm --prefix website ci && npm --prefix website run sync-release && npm --prefix website run build
-    failure_semantics: binary_contextual
+    failures: allow_inherited
     required: true
     timeout_minutes: 10
 

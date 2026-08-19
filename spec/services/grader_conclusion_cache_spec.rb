@@ -11,7 +11,7 @@ RSpec.describe GraderConclusionCache do
       timeout_minutes: timeout_minutes,
       when_files_changed: when_files_changed,
       junit_output: nil,
-      failure_semantics: "binary_contextual",
+      failures: "strict",
       metadata: {}
     )
   end

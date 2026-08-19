@@ -33,10 +33,13 @@ Graders are shell commands Syrus runs to validate the agent's work. All graders 
 ```yaml
 grade:
   max_iterations: 5
+  failures: strict
   steps:
     - name: rspec
       run: COVERAGE=false bin/rspec-fast
       ci: COVERAGE=false bin/rspec-ci
+      junit_output: .syrus/grade-output/rspec-junit.xml
+      failures: allow_inherited
       description: Run the Ruby test suite
       required: true
       timeout_minutes: 15
@@ -71,6 +74,8 @@ grade:
 | `required` | no | `true` | Non-required failures warn but don't block |
 | `timeout_minutes` | no | 15 | Clamped to 90 max |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
+| `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
+| `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 
 ### fast (removed)
 
@@ -94,6 +99,33 @@ grade:
 ```
 
 Use CI-only specs for checks that are too slow, too environmental, or too broad for the normal Syrus grader loop but still important in GitHub Actions. They should run during `ci_failure` workflows so the agent can verify that a CI failure is actually fixed. Main-grader workflows also use `ci` when present so main-branch health reflects the GitHub CI suite. Normal implementation, feedback, and landing workflows should use `run` or `fast`, not the CI-only command.
+
+### failures
+
+`failures` controls whether a required grader may pass when Syrus can prove the
+same failure is inherited from the base revision. It can be set at `grade:`
+level as the default for all steps, and overridden per step:
+
+```yaml
+grade:
+  failures: strict
+  steps:
+    - name: rspec
+      run: bin/rspec-fast
+      junit_output: .syrus/grade-output/rspec-junit.xml
+      failures: allow_inherited
+    - name: eager-load
+      run: bin/check-eager-load
+      failures: strict
+```
+
+`strict` is the default and means any required failure blocks the workflow.
+`allow_inherited` lets Syrus compare the candidate failure with known failed
+base-revision evidence. If both sides have ingested test cases, Syrus compares
+the exact failed test identities and blocks newly introduced failed tests. If
+structured test cases are unavailable, Syrus falls back to a normalized output
+fingerprint comparison. Use `strict` for catastrophic or invariant checks where
+a failure should never be ignored, such as eager-load or production boot checks.
 
 ### Recommended test setup
 

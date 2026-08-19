@@ -362,21 +362,22 @@ RSpec.describe Steps::GraderFanout do
     expect(grader_step.details["junit_output"]).to be_nil
   end
 
-  it "stores explicit failure_semantics in the materialized Step details" do
+  it "stores explicit failures policy in the materialized Step details" do
     write_config(<<~YAML)
       grade:
-        - name: eager-load
-          run: bin/check-eager-load
-          failure_semantics: absolute
+        failures: allow_inherited
+        steps:
+          - name: tests
+            run: bin/rspec
     YAML
 
     handler.call
 
     grader_step = workflow.steps.find_by(kind: "grader")
-    expect(grader_step.details["failure_semantics"]).to eq("absolute")
+    expect(grader_step.details["failures"]).to eq("allow_inherited")
   end
 
-  it "infers test_cases failure_semantics when junit_output is configured" do
+  it "stores strict failures policy by default" do
     write_config(<<~YAML)
       grade:
         - name: react-tests
@@ -387,7 +388,7 @@ RSpec.describe Steps::GraderFanout do
     handler.call
 
     grader_step = workflow.steps.find_by(kind: "grader")
-    expect(grader_step.details["failure_semantics"]).to eq("test_cases")
+    expect(grader_step.details["failures"]).to eq("strict")
   end
 
   it "passes through when all graders have no when_files_changed and changed_files is empty" do

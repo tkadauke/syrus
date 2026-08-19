@@ -18,7 +18,8 @@ class SyrusYml
   MAX_VISUAL_REVIEW_ROUNDS = 10
   DEFAULT_VISUAL_REVIEW_ROUNDS = 1
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
-  GRADE_FAILURE_SEMANTICS = %w[absolute binary_contextual test_cases].freeze
+  GRADE_FAILURE_POLICIES = %w[strict allow_inherited].freeze
+  DEFAULT_GRADE_FAILURE_POLICY = "strict".freeze
 
   COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
   COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
@@ -33,13 +34,13 @@ class SyrusYml
 
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
-  GradeConfig = Data.define(:max_iterations, :steps)
+  GradeConfig = Data.define(:max_iterations, :failures, :steps)
   # `fast` is accepted but no longer used. Syrus dropped the three-way
   # run/fast/ci split; `run:` is the parallel command now and `ci:` adds the
   # isolated :ci_only pass. Repos whose .syrus.yml still carries `fast:`
   # must keep parsing across the deploy window, so the key is tolerated here
   # and simply falls back to `run:`. Remove after two deploys.
-  GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failure_semantics)
+  GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -237,28 +238,31 @@ class SyrusYml
     when Array
       GradeConfig.new(
         max_iterations: AppSetting.grade_max_iterations,
+        failures: DEFAULT_GRADE_FAILURE_POLICY,
         steps: parse_grade_steps(raw)
       )
     when Hash
+      failures = parse_grade_failure_policy(raw.fetch("failures", DEFAULT_GRADE_FAILURE_POLICY), "grade.failures")
       GradeConfig.new(
         max_iterations: parse_max_iterations(raw.fetch("max_iterations", AppSetting.grade_max_iterations)),
-        steps: parse_grade_steps(raw["steps"])
+        failures: failures,
+        steps: parse_grade_steps(raw["steps"], default_failures: failures)
       )
     else
       raise ParseError, "grade: must be a mapping or an array of steps"
     end
   end
 
-  def parse_grade_steps(raw)
+  def parse_grade_steps(raw, default_failures: DEFAULT_GRADE_FAILURE_POLICY)
     raise ParseError, "grade.steps: must be an array" unless raw.is_a?(Array)
 
     seen = Set.new
     raw.each_with_index.map do |step, index|
-      parse_grade_step(step, index, seen)
+      parse_grade_step(step, index, seen, default_failures: default_failures)
     end
   end
 
-  def parse_grade_step(raw, index, seen)
+  def parse_grade_step(raw, index, seen, default_failures:)
     label = "grade.steps[#{index}]"
     raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
 
@@ -288,16 +292,16 @@ class SyrusYml
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
       when_files_changed: when_files_changed,
       junit_output: raw["junit_output"]&.to_s&.strip&.presence,
-      failure_semantics: parse_grade_failure_semantics(raw["failure_semantics"], name)
+      failures: parse_grade_failure_policy(raw.fetch("failures", default_failures), "grade step #{name.inspect} failures")
     )
   end
 
-  def parse_grade_failure_semantics(raw, name)
+  def parse_grade_failure_policy(raw, label)
     value = raw.to_s.strip.presence
-    return nil if value.blank?
-    return value if value.in?(GRADE_FAILURE_SEMANTICS)
+    return DEFAULT_GRADE_FAILURE_POLICY if value.blank?
+    return value if value.in?(GRADE_FAILURE_POLICIES)
 
-    raise ParseError, "grade step #{name.inspect} failure_semantics: must be one of #{GRADE_FAILURE_SEMANTICS.join(', ')}"
+    raise ParseError, "#{label}: must be one of #{GRADE_FAILURE_POLICIES.join(', ')}"
   end
 
   def parse_timeout_minutes(raw, name)

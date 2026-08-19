@@ -1,9 +1,7 @@
 require "digest"
 
 class MainBranchFailureClassifier
-  ABSOLUTE = "absolute".freeze
-  BINARY_CONTEXTUAL = "binary_contextual".freeze
-  TEST_CASES = "test_cases".freeze
+  ALLOW_INHERITED = "allow_inherited".freeze
   FAILURE_STATUSES = %w[failed error].freeze
 
   Result = Data.define(:inherited, :evidence, :inherited_names, :new_names, :classifications) do
@@ -21,7 +19,6 @@ class MainBranchFailureClassifier
   end
 
   def call
-    return no_match unless AppSetting.isolate_unrelated_main_branch_failures?
     return no_match if @failed_grader_steps.empty?
     return no_match if infrastructure_workflow?
     return no_match unless @repository.main_branch_health_enabled?
@@ -93,40 +90,35 @@ class MainBranchFailureClassifier
   def classify_step(grader_step, evidence)
     details = grader_step.details.to_h
     name = details["name"].to_s
-    semantics = failure_semantics(details)
+    failures = failure_policy(details)
 
     base_conclusion = latest_base_conclusion(name, evidence.fetch("sha"))
     base_failed = evidence.fetch("failed_names").include?(name) && base_conclusion&.status == "failed"
 
     result = {
       "name" => name,
-      "failure_semantics" => semantics,
+      "failures" => failures,
       "inherited" => false,
       "reason" => "no_matching_base_failure",
       "base_grader_conclusion_id" => base_conclusion&.id,
       "candidate_step_id" => grader_step.id
     }.compact
 
-    return result.merge("reason" => "absolute_failure") if semantics == ABSOLUTE
+    return result.merge("reason" => "strict_failure_policy") unless failures == ALLOW_INHERITED
     return result unless base_failed
 
-    case semantics
-    when TEST_CASES
+    if test_case_evidence_present?(grader_step, base_conclusion, name)
       classify_test_cases(result, grader_step, base_conclusion)
     else
       classify_binary_contextual(result, details, base_conclusion)
     end
   end
 
-  def failure_semantics(details)
-    value = details["failure_semantics"].to_s.presence
-    return value if value.in?(SyrusYml::GRADE_FAILURE_SEMANTICS)
-    return TEST_CASES if details["junit_output"].present?
+  def failure_policy(details)
+    value = details["failures"].to_s.presence
+    return value if value.in?(SyrusYml::GRADE_FAILURE_POLICIES)
 
-    text = [ details["name"], details["command"], details["ci_command"] ].compact.join(" ")
-    return ABSOLUTE if text.match?(/\b(eager[-_]?load|production[-_ ]?build[-_ ]?boot|check[-_]?production[-_]?build[-_]?boot|db:(?:migrate|prepare|schema)|migration)\b/i)
-
-    BINARY_CONTEXTUAL
+    SyrusYml::DEFAULT_GRADE_FAILURE_POLICY
   end
 
   def latest_base_conclusion(grader_name, base_sha)
@@ -153,6 +145,21 @@ class MainBranchFailureClassifier
       "base_failed_case_count" => base_failures.size,
       "introduced_failed_cases" => introduced.first(20)
     )
+  end
+
+  def test_case_evidence_present?(candidate_step, base_conclusion, grader_name)
+    candidate_run = candidate_step.runs.order(:created_at).last
+    test_case_count_for_run(candidate_run, grader_name).positive? ||
+      test_case_count_for_run(base_conclusion&.run, grader_name).positive?
+  end
+
+  def test_case_count_for_run(run, grader_name)
+    return 0 unless run
+
+    TestCase
+      .joins(:test_run)
+      .where(test_runs: { run_id: run.id, grader_name: grader_name })
+      .count
   end
 
   def failed_test_identities_for_run(run, grader_name)
