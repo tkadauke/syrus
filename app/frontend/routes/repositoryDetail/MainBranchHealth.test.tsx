@@ -212,6 +212,36 @@ describe("MainBranchHealthSection resume landing", () => {
   })
 })
 
+describe("MainBranchHealthSection blocking repair job", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
+  it("renders the blocking job slug as a copyable button", () => {
+    const history = buildHistory()
+    history.main_branch_repair = {
+      enabled: true,
+      failed_open_jobs_count: 0,
+      max_open_failed_jobs: 3,
+      blocked_reason: "active",
+      can_request: false,
+      can_spawn: false,
+      blocking_job: { id: 3403, slug: "JOB-3403", state: "running", title: "Fix broken main branch", job_path: "/jobs/3403" },
+      failed_jobs: []
+    }
+    renderSection(history)
+
+    expect(screen.getByText(/Auto-fix is waiting for active repair job/)).toBeInTheDocument()
+    const copyButton = screen.getByRole("button", { name: "Copy JOB-3403 to clipboard" })
+    expect(copyButton).toBeInTheDocument()
+
+    fireEvent.click(copyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-3403")
+  })
+})
+
 describe("MainBranchHealthSection health history", () => {
   it("renders localized source badges for history rows", () => {
     const { container } = renderSection(buildHistory([

@@ -1,8 +1,10 @@
 import { appendSearch, buttonClass, PanelMessage, StatusPill, type RepositoryDetailQueryKey } from "./shared"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
+import { CopyableSlug } from "../../components/CopyableSlug"
 import { withRoutePrefix } from "../../lib/routing"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
+import { Trans } from "react-i18next"
 import { useT } from "../../hooks/useT"
 import { resumeRepositoryLanding, runMainBranchGraders, repairMainBranch, checkCiNow, type RepositoryDetailPayload, type RepositoryHealthCheckRecord, type RepositoryHealthHistory } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
@@ -138,10 +140,11 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           </div>
         ) : history.main_branch_repair.blocking_job ? (
           <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-300">
-            {t(
-              history.main_branch_repair.blocked_reason === "active" ? "repository.health_repair_active" : history.main_branch_repair.blocked_reason === "landing" ? "repository.health_repair_landing" : "repository.health_repair_waiting",
-              { slug: history.main_branch_repair.blocking_job.slug }
-            )}{" "}
+            <Trans
+              components={{ slug: <CopyableSlug slug={history.main_branch_repair.blocking_job.slug} /> }}
+              i18nKey={history.main_branch_repair.blocked_reason === "active" ? "repository.health_repair_active" : history.main_branch_repair.blocked_reason === "landing" ? "repository.health_repair_landing" : "repository.health_repair_waiting"}
+              t={t}
+            />{" "}
             <a className="font-medium text-blue-600 dark:text-blue-400 hover:underline" href={history.main_branch_repair.blocking_job.job_path}>
               {history.main_branch_repair.blocking_job.title}
             </a>
