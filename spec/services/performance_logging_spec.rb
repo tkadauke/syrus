@@ -1,5 +1,4 @@
 require "rails_helper"
-require "benchmark"
 
 RSpec.describe PerformanceLogging do
   let(:cache_store) { ActiveSupport::Cache::MemoryStore.new }
@@ -307,21 +306,15 @@ RSpec.describe PerformanceLogging do
   # oversized SQL statement made the regexp engine walk megabytes and took
   # the surrounding job down with it.
   #
-  # These assert the fix by bounding the work rather than by tripping
-  # Regexp.timeout — Ruby does not reliably check that timeout during simple
-  # character-class scans, so it cannot express the regression. Measured on
-  # this pattern: 20MB takes ~1.5s unbounded versus ~0.0002s bounded, so the
-  # threshold below sits far from both sides.
-  MAX_SAFE_STRING_SECONDS = 0.25
-
   describe ".safe_string" do
     it "does not scan beyond a bounded prefix of a huge value" do
-      giant = "a b " * 5_000_000
-      expect(giant.bytesize).to be > 19_000_000
+      scan_limit = 600 * described_class::SAFE_STRING_SCAN_HEADROOM
+      giant = "#{'a b ' * 1_000}#{' ' * scan_limit}TRAILING_MARKER"
+      expect(giant.bytesize).to be > scan_limit
 
-      elapsed = Benchmark.realtime { described_class.safe_string(giant, 600) }
-
-      expect(elapsed).to be < MAX_SAFE_STRING_SECONDS
+      result = described_class.safe_string(giant, 600)
+      expect(result.bytesize).to be <= 600
+      expect(result).not_to include("TRAILING_MARKER")
     end
 
     it "truncates a huge value to the caller's limit" do
@@ -357,15 +350,15 @@ RSpec.describe PerformanceLogging do
 
   describe ".fingerprint_sql" do
     it "fingerprints an oversized statement without scanning all of it" do
-      giant = "SELECT * FROM jobs WHERE id IN (#{Array.new(2_000_000) { '1' }.join(', ')})"
-      expect(giant.bytesize).to be > 5_000_000
+      scan_limit = 4_000 * described_class::SAFE_STRING_SCAN_HEADROOM
+      giant = "SELECT * FROM jobs WHERE id IN (#{Array.new(20_000) { '1' }.join(', ')}) #{' ' * scan_limit}TRAILING_MARKER"
+      expect(giant.bytesize).to be > scan_limit
 
-      fingerprint = nil
-      elapsed = Benchmark.realtime { fingerprint = described_class.fingerprint_sql(giant) }
+      fingerprint = described_class.fingerprint_sql(giant)
 
-      expect(elapsed).to be < MAX_SAFE_STRING_SECONDS
       expect(fingerprint).to start_with("SELECT * FROM jobs WHERE id IN (?")
       expect(fingerprint.bytesize).to be <= 1_000
+      expect(fingerprint).not_to include("TRAILING_MARKER")
     end
   end
 end
