@@ -132,6 +132,27 @@ module WorkEngine
           end
         end
 
+        def retry_cancelled_workflow(job, latest, retry_reason:)
+          artifacts = latest.artifacts.to_h.deep_dup.merge(
+            "retry_reason" => retry_reason,
+            "cancelled_workflow_id" => latest.id,
+            "cancelled_trigger_kind" => latest.trigger_kind
+          )
+
+          if Workflow::TriggerKind.feedback_kind_for(latest.trigger_kind)
+            workflow = Workflow::TriggerKind.template_for(latest.trigger_kind).instantiate(job: job, artifacts: artifacts)
+            StepDispatcher.start_workflow(workflow)
+            RetryWorkflowEnqueuer::Result.new(workflow: workflow, error: nil, circuit: nil)
+          else
+            RetryWorkflowEnqueuer.call(
+              job: job,
+              artifacts: artifacts,
+              provider_validation: :none,
+              automatic: true
+            )
+          end
+        end
+
         def target_step
           @target_step ||= if plan.target_type == "Step"
             Step.includes(:workflow, :runs, :previous_step).find_by(id: plan.target_id)
@@ -871,19 +892,10 @@ module WorkEngine
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
           return skipped("Dependencies are still unsatisfied") if job.unsatisfied_dependencies.any?
 
-          result = RetryWorkflowEnqueuer.call(
-            job: job,
-            artifacts: {
-              "retry_reason" => "epic_workflow_conflict_recovered",
-              "cancelled_workflow_id" => latest.id,
-              "cancelled_trigger_kind" => latest.trigger_kind
-            },
-            provider_validation: :none,
-            automatic: true
-          )
+          result = retry_cancelled_workflow(job, latest, retry_reason: "epic_workflow_conflict_recovered")
           return skipped(result.error) unless result.success?
 
-          success("started retry Workflow ##{result.workflow.id} for Job ##{job.id} after Epic-wide workflow conflict cleared")
+          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for Job ##{job.id} after Epic-wide workflow conflict cleared")
         end
 
         private
@@ -908,6 +920,7 @@ module WorkEngine
           resume
           pr_comment
           chat_feedback
+          external_pr_feedback
           ci_failure
           coding_handoff
           local_mode_handoff
@@ -935,19 +948,10 @@ module WorkEngine
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
           return skipped("Dependencies are still unsatisfied") if job.unsatisfied_dependencies.any?
 
-          result = RetryWorkflowEnqueuer.call(
-            job: job,
-            artifacts: {
-              "retry_reason" => "cancelled_workflow_recovered",
-              "cancelled_workflow_id" => latest.id,
-              "cancelled_trigger_kind" => latest.trigger_kind
-            },
-            provider_validation: :none,
-            automatic: true
-          )
+          result = retry_cancelled_workflow(job, latest, retry_reason: "cancelled_workflow_recovered")
           return skipped(result.error) unless result.success?
 
-          success("started retry Workflow ##{result.workflow.id} for Job ##{job.id} after cancelled Workflow ##{latest.id}")
+          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for Job ##{job.id} after cancelled Workflow ##{latest.id}")
         end
 
         private

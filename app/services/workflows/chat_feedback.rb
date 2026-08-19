@@ -26,7 +26,7 @@ module Workflows
     end
 
     def self.after_cancel(workflow)
-      mark_source_comments_failed(workflow)
+      mark_source_comments_cancelled(workflow)
     end
   end
 end

@@ -1184,6 +1184,17 @@ RSpec.describe Workflow do
       expect(comment.handling_failure_reason).to eq("rate_limit")
       expect(comment.actioned_at).to be_nil
     end
+
+    it "leaves source comments active when feedback is cancelled by an Epic-wide workflow lock" do
+      wf.update!(artifacts: wf.artifacts.merge("cancelled_reason" => EpicWorkflowLock::BLOCK_REASON))
+
+      Workflows::PrFeedback.after_cancel(wf)
+
+      comment.reload
+      expect(comment.handling_state).to eq("active")
+      expect(comment.handling_failure_reason).to be_nil
+      expect(comment.actioned_at).to be_nil
+    end
   end
 
   describe "coverage hit map blob helpers" do

@@ -13,7 +13,18 @@ module Workflows
       end
     end
 
+    def mark_source_comments_cancelled(workflow)
+      return if recoverable_cancellation?(workflow)
+
+      mark_source_comments_failed(workflow)
+    end
+
     private
+
+    def recoverable_cancellation?(workflow)
+      workflow.artifact("start_cancelled_reason") == EpicWorkflowLock::BLOCK_REASON ||
+        workflow.artifact("cancelled_reason") == EpicWorkflowLock::BLOCK_REASON
+    end
 
     def source_comments(workflow)
       ids = source_comment_ids(workflow)

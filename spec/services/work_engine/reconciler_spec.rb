@@ -499,6 +499,53 @@ RSpec.describe WorkEngine::Reconciler do
     expect(retry_workflow.state).to be_in(%w[queued running])
   end
 
+  it "restarts queued chat feedback after a cleared Epic-wide workflow conflict" do
+    epic = Factories.epic(user: job.user, repository: job.repository)
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
+    child.update!(epic: epic)
+    child.dependencies.delete_all
+    child.latest_workflow.update_columns(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
+    child.latest_workflow.steps.update_all(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
+    child.latest_workflow.runs.update_all(state: "succeeded", started_at: 1.hour.ago, finished_at: 50.minutes.ago)
+
+    cancelled = Workflows::ChatFeedback.instantiate(
+      job: child,
+      artifacts: {
+        "chat_feedback" => "Please address the dock layout feedback.",
+        "feedback_source" => { "chat_session_id" => 136 },
+        "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
+        "cancelled_details" => {
+          "keeper_workflow_id" => 123_456,
+          "keeper_trigger_kind" => "stack_rebase"
+        }
+      }
+    )
+    first_step = cancelled.first_step
+    cancelled.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    first_step.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    child.update_columns(state: "queued")
+
+    retry_count = child.workflows.where(trigger_kind: "retry").count
+    expect {
+      result = reconcile_and_execute(job_id: child.id)
+
+      expect(kind(result, :queued_job_after_epic_workflow_conflict)).to have_attributes(
+        recommended_repair_action: "retry_job_after_epic_workflow_conflict",
+        safe_to_auto_repair: true
+      )
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started chat_feedback Workflow #\d+ for Job ##{child.id}/))
+    }.to change { child.workflows.where(trigger_kind: "chat_feedback").count }.by(1)
+
+    expect(child.workflows.where(trigger_kind: "retry").count).to eq(retry_count)
+    retry_workflow = child.reload.latest_workflow
+    expect(retry_workflow.trigger_kind).to eq("chat_feedback")
+    expect(retry_workflow.artifact("chat_feedback")).to eq("Please address the dock layout feedback.")
+    expect(retry_workflow.artifact("retry_reason")).to eq("epic_workflow_conflict_recovered")
+    expect(retry_workflow.artifact("cancelled_workflow_id")).to eq(cancelled.id)
+    expect(retry_workflow.artifact("cancelled_trigger_kind")).to eq("chat_feedback")
+    expect(retry_workflow.state).to be_in(%w[queued running])
+  end
+
   it "retries a queued Job whose latest implementation workflow was cancelled without active replacement work" do
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
     cancelled = child.latest_workflow
