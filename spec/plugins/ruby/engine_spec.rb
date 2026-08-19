@@ -16,13 +16,15 @@ RSpec.describe Ruby::Engine do
         Syrus::PluginRegistry.register(
           name:             "ruby",
           version:          Ruby::VERSION,
-          description:      "Ruby-generic intelligence: RSpec grader detail, SimpleCov analysis, Gemfile prepare detection",
+          description:      "Ruby-generic intelligence: RSpec grader detail, RSpec output parsing, " \
+                             "SimpleCov analysis, Gemfile prepare detection",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
-            coverage_analyzer: Ruby::SimpleCovAnalyzer,
-            grader_augmentor:  Ruby::GraderAugmentor,
-            prepare_detector:  Ruby::PrepareDetector
+            coverage_analyzer:  Ruby::SimpleCovAnalyzer,
+            grader_augmentor:   Ruby::GraderAugmentor,
+            prepare_detector:   Ruby::PrepareDetector,
+            test_result_parser: Ruby::RspecParser
           }
         )
       end
@@ -41,11 +43,12 @@ RSpec.describe Ruby::Engine do
       expect(registration.prepare_priority).to eq(10)
     end
 
-    it "provides all 3 extension point keys" do
+    it "provides all 4 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
-        :prepare_detector
+        :prepare_detector,
+        :test_result_parser
       )
     end
 
@@ -59,6 +62,10 @@ RSpec.describe Ruby::Engine do
 
     it "registers PrepareDetector as the :prepare_detector" do
       expect(registration.provides[:prepare_detector]).to eq(Ruby::PrepareDetector)
+    end
+
+    it "registers RspecParser as the :test_result_parser" do
+      expect(registration.provides[:test_result_parser]).to eq(Ruby::RspecParser)
     end
   end
 

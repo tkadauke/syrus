@@ -54,7 +54,7 @@ A parser's `call` must return an object duck-typed to
 where each element of `cases` responds to `name`, `suite_name`, `file_path`,
 `status`, `duration_ms`, `output`, `failure_message`, `failure_backtrace`.
 See `lib/syrus/plugin/test_result_parser.rb` for the full contract and
-`plugins/rails/lib/syrus_rails/rspec_parser.rb` (`SyrusRails::RspecParser`)
+`plugins/ruby/lib/ruby/rspec_parser.rb` (`Ruby::RspecParser`)
 for a reference implementation.
 
 `format_hint` is currently always `nil` for `test_result_parser` calls — it
@@ -63,14 +63,14 @@ a `format:` value from `.syrus.yml` through), but `ingest_test_output!` doesn't
 read a format hint from the grader config today. Parsers must decide
 `can_parse?` from the file's content or extension alone.
 
-### Why this repo's own rspec grader uses JUnit XML, not `SyrusRails::RspecParser`'s native format
+### Why this repo's own rspec grader uses JUnit XML, not `Ruby::RspecParser`'s native format
 
-`SyrusRails::RspecParser` can parse RSpec's plain progress/documentation
+`Ruby::RspecParser` can parse RSpec's plain progress/documentation
 output directly — no `rspec_junit_formatter` gem required — by content-sniffing
 for an `N examples, N failures` summary line. That's the right choice for a
 repo that hasn't configured a JUnit formatter. But RSpec's default output only
 lists *failing* examples individually (passing/pending examples aren't named
-in the text); `SyrusRails::RspecParser` therefore only ever creates `TestCase`
+in the text); `Ruby::RspecParser` therefore only ever creates `TestCase`
 rows with `status: "failed"`. Since `TestCase.top_flaky_tests` (and
 `TestCase.flakiness_score`) require a test to have **both** a passed and a
 failed row within the lookback window to count as flaky, the native-text route
@@ -86,7 +86,7 @@ bin/rspec spec plugins --format progress --require rspec_junit_formatter --forma
 ```
 
 Because JUnit XML enumerates every example (passed, failed, and skipped),
-`JunitXmlParser` (the core fallback — `SyrusRails::RspecParser.can_parse?`
+`JunitXmlParser` (the core fallback — `Ruby::RspecParser.can_parse?`
 declines XML content, since it doesn't match the progress-format summary
 line) creates one `TestCase` row per example per grader Run, giving
 `TestCase.top_flaky_tests` real signal.
@@ -140,7 +140,7 @@ results without an N+1.
 1. Confirm the test runner can produce results in a format a registered
    `test_result_parser` understands — JUnit XML for the bundled core parser,
    or RSpec's native progress/documentation output for
-   `SyrusRails::RspecParser` (accepting that the native route can't detect
+   `Ruby::RspecParser` (accepting that the native route can't detect
    flakiness, per above).
 2. Add whatever formatter/gem/flag the test runner needs to write that file
    (e.g. `rspec_junit_formatter`, `pytest --junitxml=...`, `jest --reporters

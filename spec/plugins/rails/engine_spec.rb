@@ -17,12 +17,12 @@ RSpec.describe SyrusRails::Engine do
           version:     SyrusRails::VERSION,
           description: "Ruby on Rails intelligence",
           homepage:    "https://github.com/tkadauke/syrus",
+          depends_on:  [ "ruby" ],
           provides: {
-            mcp_tool_set:       SyrusRails::McpToolSet,
-            artifact_renderer:  [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
-            test_result_parser: SyrusRails::RspecParser,
-            prompt_injector:    SyrusRails::PromptContext,
-            preview_provider:   SyrusRails::PreviewProvider
+            mcp_tool_set:      SyrusRails::McpToolSet,
+            artifact_renderer: [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
+            prompt_injector:   SyrusRails::PromptContext,
+            preview_provider:  SyrusRails::PreviewProvider
           }
         )
       end
@@ -41,23 +41,22 @@ RSpec.describe SyrusRails::Engine do
       expect(registration.description).to eq("Ruby on Rails intelligence")
     end
 
-    it "provides all 5 extension point keys" do
+    it "provides all 4 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :mcp_tool_set,
         :artifact_renderer,
-        :test_result_parser,
         :prompt_injector,
         :preview_provider
       )
     end
 
-    it "registers RspecParser as the :test_result_parser" do
-      expect(registration.provides[:test_result_parser]).to eq(SyrusRails::RspecParser)
-    end
-
     it "registers both artifact renderers as an array under :artifact_renderer" do
       renderers = Array(registration.provides[:artifact_renderer])
       expect(renderers).to include(SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer)
+    end
+
+    it "declares a dependency on the ruby plugin" do
+      expect(registration.depends_on).to eq([ "ruby" ])
     end
   end
 end

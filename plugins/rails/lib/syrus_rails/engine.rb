@@ -8,7 +8,6 @@ module SyrusRails
       SyrusRails::McpToolSet.include(Syrus::Plugin::McpToolSet)
       SyrusRails::SchemaErdRenderer.include(Syrus::Plugin::ArtifactRenderer)
       SyrusRails::MigrationDiffRenderer.include(Syrus::Plugin::ArtifactRenderer)
-      SyrusRails::RspecParser.include(Syrus::Plugin::TestResultParser)
       SyrusRails::PromptContext.include(Syrus::Plugin::PromptInjector)
       SyrusRails::PreviewProvider.include(Syrus::Plugin::PreviewProvider)
 
@@ -18,12 +17,12 @@ module SyrusRails
         description: "Ruby on Rails intelligence",
         homepage:    "https://github.com/tkadauke/syrus",
         author:      "Thomas Kadauke",
+        depends_on:  [ "ruby" ],
         provides: {
-          mcp_tool_set:       SyrusRails::McpToolSet,
-          artifact_renderer:  [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
-          test_result_parser: SyrusRails::RspecParser,
-          prompt_injector:    SyrusRails::PromptContext,
-          preview_provider:   SyrusRails::PreviewProvider
+          mcp_tool_set:      SyrusRails::McpToolSet,
+          artifact_renderer: [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
+          prompt_injector:   SyrusRails::PromptContext,
+          preview_provider:  SyrusRails::PreviewProvider
         }
       )
     end

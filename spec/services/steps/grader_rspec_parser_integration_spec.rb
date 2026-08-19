@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-# End-to-end coverage for SyrusRails::RspecParser against real RSpec output
+# End-to-end coverage for Ruby::RspecParser against real RSpec output
 # fixtures, running through the same path a live grader Step uses:
 # Steps::Grader#ingest_test_output! -> TestRunIngester. Unlike
 # spec/services/steps/grader_test_result_parser_spec.rb (which stubs the
@@ -14,11 +14,11 @@ RSpec.describe "Steps::Grader real RSpec output ingestion" do
   let(:fixtures_path) { Rails.root.join("spec/fixtures/rspec") }
 
   before do
-    unless Syrus::PluginRegistry.registered_names.include?("syrus-rails")
+    unless Syrus::PluginRegistry.registered_names.include?("ruby")
       Syrus::PluginRegistry.register(
-        name:    "syrus-rails",
-        version: SyrusRails::VERSION,
-        provides: { test_result_parser: SyrusRails::RspecParser }
+        name:    "ruby",
+        version: Ruby::VERSION,
+        provides: { test_result_parser: Ruby::RspecParser }
       )
     end
   end
