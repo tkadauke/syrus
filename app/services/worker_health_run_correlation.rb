@@ -26,12 +26,23 @@ class WorkerHealthRunCorrelation
                 :last_heartbeat_at,
                 :agent_turns
               )
-              .includes(:step, :spawned_processes, :command_spans, step: :workflow)
+              .includes(:run_resource_summary)
               .reorder(created_at: :desc, id: :desc)
               .limit(run_limit)
               .to_a
-    samples_by_hostname = preload_samples_by_hostname(runs, now: now)
-    summaries = runs.map { |run| new(run: run, sample_limit: 0, now: now, samples_by_hostname: samples_by_hostname).as_json(compact: true) }
+    live_runs = runs.reject { |run| summarized_run?(run) }
+    ActiveRecord::Associations::Preloader.new(
+      records: live_runs,
+      associations: [ :spawned_processes, :command_spans, { step: :workflow } ]
+    ).call if live_runs.any?
+    samples_by_hostname = preload_samples_by_hostname(live_runs, now: now)
+    summaries = runs.map do |run|
+      if summarized_run?(run)
+        summary_as_json(run, run.run_resource_summary, now: now)
+      else
+        new(run: run, sample_limit: 0, now: now, samples_by_hostname: samples_by_hostname).as_json(compact: true)
+      end
+    end
     pressured = summaries.select { |summary| %w[warning critical].include?(summary.dig(:pressure, :level)) }
 
     {
@@ -43,6 +54,78 @@ class WorkerHealthRunCorrelation
       generated_at: now.iso8601
     }
   end
+
+  def self.summarized_run?(run)
+    run.finished_at.present? &&
+      run.run_resource_summary.present? &&
+      run.run_resource_summary.summary_version == RunResourceSummary::SUMMARY_VERSION
+  end
+  private_class_method :summarized_run?
+
+  def self.summary_as_json(run, summary, now:)
+    retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
+    range_start = summary.started_at || run.started_at || run.created_at
+    range_finish = summary.finished_at || run.finished_at || now
+    effective_since = range_start ? [ range_start, retained_since ].max : nil
+    hostname = summary.hostname.presence
+
+    {
+      run_id: run.id,
+      job_id: run.job_id,
+      workflow_id: summary.workflow_id,
+      step_id: summary.step_id || run.step_id,
+      step_kind: summary.step_kind,
+      run_state: run.state,
+      hostnames: hostname ? [ hostname ] : [],
+      primary_hostname: hostname,
+      range: {
+        started_at: range_start&.iso8601,
+        finished_at: range_finish&.iso8601,
+        effective_since: effective_since&.iso8601,
+        effective_until: range_finish&.iso8601,
+        duration_seconds: summary.duration_seconds,
+        still_running: false,
+        retained_since: retained_since.iso8601,
+        start_fallback: run.started_at.blank? ? "created_at" : nil
+      }.compact,
+      sample_count: summary.host_sample_count,
+      samples_missing: summary.host_sample_count.to_i.zero?,
+      retention_limited: summary.retention_limited,
+      summary: summary_metrics(summary),
+      pressure: {
+        level: summary.host_pressure_level,
+        reasons: summary.host_pressure_reasons || []
+      },
+      processes: [],
+      command_spans: []
+    }
+  end
+  private_class_method :summary_as_json
+
+  def self.summary_metrics(summary)
+    {
+      first_observed_at: nil,
+      last_observed_at: nil,
+      warning_count: summary.host_pressure_level == "warning" ? 1 : 0,
+      critical_count: summary.host_pressure_level == "critical" ? 1 : 0,
+      cpu_used_percent: metric(summary.host_usage_avg_cpu_used_percent, summary.host_usage_max_cpu_used_percent),
+      memory_used_percent: metric(summary.host_usage_avg_memory_used_percent, summary.host_usage_max_memory_used_percent),
+      data_root_used_percent: metric(nil, summary.host_usage_max_data_root_used_percent),
+      cpu_pressure_some: metric(summary.host_pressure_avg_cpu_some_percent, summary.host_pressure_max_cpu_some_percent),
+      io_pressure_some: metric(summary.host_pressure_avg_io_some_percent, summary.host_pressure_max_io_some_percent)
+    }.compact
+  end
+  private_class_method :summary_metrics
+
+  def self.metric(avg, max)
+    return nil if avg.nil? && max.nil?
+
+    {
+      avg: avg || max,
+      max: max || avg
+    }
+  end
+  private_class_method :metric
 
   def self.preload_samples_by_hostname(runs, now:)
     retained_since = now - WorkerHostHealthSample::RETAIN_AFTER

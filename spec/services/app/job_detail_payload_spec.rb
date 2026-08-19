@@ -134,6 +134,69 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :worker_health_correlation, :runs_analyzed)).to eq(3)
     end
 
+    it "uses retained run resource summaries for completed runs without rescanning host samples" do
+      now = Time.zone.parse("2026-08-16T18:00:00Z")
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(
+        job: job,
+        user: user,
+        trigger_kind: "initial",
+        state: "succeeded",
+        worker_hostname: "worker-a"
+      )
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "succeeded")
+      run = Run.create!(
+        job: job,
+        user: user,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded",
+        started_at: now - 10.minutes,
+        finished_at: now - 5.minutes
+      )
+      RunResourceSummary.create!(
+        run: run,
+        job: job,
+        workflow: workflow,
+        step: step,
+        repository: repo,
+        user: user,
+        agent_provider: "claude",
+        trigger_kind: "initial",
+        step_kind: "grader",
+        hostname: "worker-a",
+        started_at: run.started_at,
+        finished_at: run.finished_at,
+        duration_seconds: 300.0,
+        host_sample_count: 5,
+        host_sample_confidence: "sufficient",
+        host_pressure_avg_cpu_some_percent: 20.0,
+        host_pressure_max_cpu_some_percent: 55.0,
+        host_pressure_level: "critical",
+        host_pressure_reasons: [ "CPU pressure 55.0% >= 50%" ],
+        process_attribution_method: "none",
+        process_attribution_version: 1,
+        process_attribution_confidence: "unknown",
+        summary_version: RunResourceSummary::SUMMARY_VERSION
+      )
+
+      queries = travel_to(now) { capture_sql { payload_for(job) } }
+
+      expect(queries.grep(/FROM [`"]?worker_host_health_samples[`"]?/i)).to be_empty
+      expect(queries.grep(/FROM [`"]?steps[`"]? WHERE [`"]?steps[`"]?\.[`"]?id[`"]? IN/i)).to be_empty
+      expect(payload_for(job).dig(:job, :worker_health_correlation)).to include(
+        runs_analyzed: 1,
+        pressure_run_count: 1,
+        missing_sample_run_count: 0
+      )
+      expect(payload_for(job).dig(:job, :worker_health_correlation, :latest_pressure_runs).first).to include(
+        run_id: run.id,
+        step_kind: "grader",
+        primary_hostname: "worker-a"
+      )
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
