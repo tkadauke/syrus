@@ -5,6 +5,28 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
 
+  before do
+    prepare_search_tables
+  end
+
+  def prepare_search_tables
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_case_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE test_case_fts
+      USING fts5(
+        name,
+        suite_name,
+        file_path,
+        test_case_id UNINDEXED,
+        user_id UNINDEXED,
+        repository_id UNINDEXED,
+        status UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
+  end
+
   def make_step(junit_output: nil)
     Step.create!(
       workflow: workflow,
