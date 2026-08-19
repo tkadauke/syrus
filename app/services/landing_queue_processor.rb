@@ -104,6 +104,7 @@ class LandingQueueProcessor
 
   def try_land!(job)
     release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
+    release_urgent_blocked_landing_slots_for_urgent_job!(job) if job.priority == "urgent"
     return if landing_in_progress_for_repository?(job.repository_id)
 
     # When merge-trains are on, an Epic child lands only as part of its
@@ -130,6 +131,7 @@ class LandingQueueProcessor
 
     queue_entries = refresh_snapshot!(Job.landing_queue)
     released_slots = release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
+    released_slots.concat(release_urgent_blocked_landing_slots_for_urgent_jobs!(queue_entries))
     queue_entries = refresh_snapshot!(Job.landing_queue) if released_slots.any?
     occupied_repo_ids = Set.new(Job.landing.pluck(:repository_id))
 
@@ -515,15 +517,53 @@ class LandingQueueProcessor
   def release_main_health_blocked_landing_slots_for_repair!(repair_job)
     return [] unless repair_job&.approved?
 
+    release_blocked_landing_slots!(
+      repository_id: repair_job.repository_id,
+      except_job_id: repair_job.id,
+      start_blocked_reason: StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+      failure_reason: "landing start blocked: #{StepDispatcher::MAIN_HEALTH_BLOCK_REASON}",
+      details: {
+        "preempted_by_job_id" => repair_job.id,
+        "preempted_by_job_slug" => repair_job.slug
+      },
+      audit_reason: "so #{repair_job.slug} can repair broken main"
+    )
+  end
+
+  def release_urgent_blocked_landing_slots_for_urgent_jobs!(queue_entries)
+    queue_entries
+      .select(&:eligible?)
+      .map(&:job)
+      .select { |job| job.priority == "urgent" }
+      .flat_map { |job| release_urgent_blocked_landing_slots_for_urgent_job!(job) }
+  end
+
+  def release_urgent_blocked_landing_slots_for_urgent_job!(urgent_job)
+    return [] unless urgent_job&.approved?
+
+    release_blocked_landing_slots!(
+      repository_id: urgent_job.repository_id,
+      except_job_id: urgent_job.id,
+      start_blocked_reason: StepDispatcher::URGENT_BLOCK_REASON,
+      failure_reason: "landing start blocked: #{StepDispatcher::URGENT_BLOCK_REASON}",
+      details: {
+        "preempted_by_job_id" => urgent_job.id,
+        "preempted_by_job_slug" => urgent_job.slug
+      },
+      audit_reason: "so urgent #{urgent_job.slug} can land first"
+    )
+  end
+
+  def release_blocked_landing_slots!(repository_id:, except_job_id:, start_blocked_reason:, failure_reason:, details:, audit_reason:)
     released = []
-    active_main_health_blocked_landing_workflows(repair_job.repository_id, except_job_id: repair_job.id).each do |workflow|
+    active_blocked_landing_workflows(repository_id, except_job_id: except_job_id, start_blocked_reason: start_blocked_reason).each do |workflow|
       Job.transaction do
         workflow.lock!
         blocked_job = workflow.job
         blocked_job.lock!
         next unless workflow.queued?
         next unless workflow.landing_workflow?
-        next unless workflow.artifact("start_blocked_reason") == StepDispatcher::MAIN_HEALTH_BLOCK_REASON
+        next unless workflow.artifact("start_blocked_reason") == start_blocked_reason
         next if workflow.first_step&.runs&.exists?
         next unless blocked_job.landing?
         next unless blocked_job.may_defer_landing?
@@ -531,18 +571,15 @@ class LandingQueueProcessor
         StateTransition.with_source("system") do
           StepDispatcher.fail_unstartable_landing_workflow!(
             workflow,
-            "landing start blocked: #{StepDispatcher::MAIN_HEALTH_BLOCK_REASON}",
-            details: {
-              "preempted_by_job_id" => repair_job.id,
-              "preempted_by_job_slug" => repair_job.slug
-            }
+            failure_reason,
+            details: details
           )
           blocked_job.defer_landing!
           blocked_job.save!
         end
         audit(
           blocked_job,
-          "landing_queue: deferred #{workflow.trigger_kind} #{workflow.slug} so #{repair_job.slug} can repair broken main"
+          "landing_queue: deferred #{workflow.trigger_kind} #{workflow.slug} #{audit_reason}"
         )
         released << workflow
       end
@@ -550,14 +587,14 @@ class LandingQueueProcessor
     released
   end
 
-  def active_main_health_blocked_landing_workflows(repository_id, except_job_id:)
+  def active_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
     Workflow.active
       .joins(:job)
       .where(trigger_kind: Workflow::LANDING_TRIGGER_KINDS)
       .where(jobs: { repository_id: repository_id, state: "landing" })
       .where.not(jobs: { id: except_job_id })
       .reorder(:id)
-      .select { |workflow| workflow.artifact("start_blocked_reason") == StepDispatcher::MAIN_HEALTH_BLOCK_REASON }
+      .select { |workflow| workflow.artifact("start_blocked_reason") == start_blocked_reason }
   end
 
   def active_landing_workflow_for_job?(job)
