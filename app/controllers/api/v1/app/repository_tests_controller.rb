@@ -4,13 +4,15 @@ module Api
       class RepositoryTestsController < BaseController
         include RepositoryTabsSerialization
 
-        DEFAULT_LIMIT = 50
+        DEFAULT_INTERESTING_LIMIT = TestIdentity::INTERESTING_LIMIT
+        DEFAULT_SEARCH_LIMIT = 50
         MAX_LIMIT = 100
 
         def index
           repository = find_repository
           query = params[:query].to_s.strip
-          limit = params.fetch(:limit, DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
+          default_limit = query.present? ? DEFAULT_SEARCH_LIMIT : DEFAULT_INTERESTING_LIMIT
+          limit = params.fetch(:limit, default_limit).to_i.clamp(1, MAX_LIMIT)
           tests = TestIdentity.interesting_for_repository(repository, query: query.presence, limit: limit)
 
           render json: {
@@ -70,7 +72,8 @@ module Api
             failed_count: stats[:failed_count],
             passed_count: stats[:passed_count],
             failure_rate: stats[:failure_rate].round(4),
-            avg_duration_ms: stats[:avg_duration_ms]
+            avg_duration_ms: stats[:avg_duration_ms],
+            interesting_reasons: test_identity.interesting_reasons(stats: stats)
           }
         end
 

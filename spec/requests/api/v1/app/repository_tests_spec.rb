@@ -51,16 +51,24 @@ RSpec.describe "App API repository tests", type: :request do
   end
 
   describe "GET /api/v1/app/repositories/:repository_id/tests" do
-    it "returns recent failing tests by default" do
+    it "returns interesting failing, flaky, and slow tests by default" do
       failing = make_identity(name: "fails recently")
-      passing = make_identity(name: "passes recently")
-      make_case(identity: failing, status: "failed")
-      make_case(identity: passing, status: "passed")
+      flaky = make_identity(name: "flakes recently")
+      slow = make_identity(name: "runs slowly")
+      passing = make_identity(name: "passes quickly")
+      make_case(identity: failing, status: "failed", created_at: 3.minutes.ago)
+      make_case(identity: flaky, status: "failed", created_at: 2.minutes.ago)
+      make_case(identity: flaky, status: "passed", created_at: 1.minute.ago)
+      make_case(identity: slow, status: "passed", duration_ms: 4_500)
+      make_case(identity: passing, status: "passed", duration_ms: 50)
 
       get "/api/v1/app/repositories/#{repo.id}/tests"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.fetch("tests").map { |test| test.fetch("name") }).to eq([ "fails recently" ])
+      tests_by_name = parse_body.fetch("tests").index_by { |test| test.fetch("name") }
+      expect(tests_by_name.keys).to contain_exactly("flakes recently", "fails recently", "runs slowly")
+      expect(tests_by_name.fetch("flakes recently").fetch("interesting_reasons")).to include("failing", "flaky")
+      expect(tests_by_name.fetch("runs slowly").fetch("interesting_reasons")).to include("slow")
     end
 
     it "searches durable tests by name" do

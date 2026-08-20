@@ -5,6 +5,7 @@ class TestIdentity < ApplicationRecord
   RECENT_FAILURE_WINDOW = 14.days
   HISTORY_LIMIT = 100
   LIST_LOOKBACK = 20
+  INTERESTING_LIMIT = 10
 
   belongs_to :repository
   has_many :test_cases, dependent: :nullify
@@ -81,7 +82,7 @@ class TestIdentity < ApplicationRecord
     where(id: ids).find_each(&:refresh_summary!)
   end
 
-  def self.interesting_for_repository(repository, query: nil, limit: 50)
+  def self.interesting_for_repository(repository, query: nil, limit: INTERESTING_LIMIT)
     ensure_for_repository!(repository) if repository.test_identities.none? && TestCase.where(repository_id: repository.id).exists?
 
     scope = repository.test_identities
@@ -90,7 +91,18 @@ class TestIdentity < ApplicationRecord
       return scope.order(last_seen_at: :desc, id: :desc).limit(limit)
     end
 
-    recent_failed_ids = TestCase
+    interesting_ids = []
+    append_interesting_ids(interesting_ids, recent_failure_ids(repository, limit: limit))
+    append_interesting_ids(interesting_ids, flaky_ids(repository, limit: limit))
+    append_interesting_ids(interesting_ids, slow_ids(repository, limit: limit))
+    interesting_ids = interesting_ids.first(limit)
+
+    identities_by_id = scope.where(id: interesting_ids).index_by(&:id)
+    interesting_ids.filter_map { |id| identities_by_id[id] }
+  end
+
+  def self.recent_failure_ids(repository, limit:)
+    TestCase
       .where(repository_id: repository.id, status: %w[failed error])
       .where("created_at >= ?", RECENT_FAILURE_WINDOW.ago)
       .where.not(test_identity_id: nil)
@@ -98,9 +110,38 @@ class TestIdentity < ApplicationRecord
       .order(Arel.sql("MAX(created_at) DESC"))
       .limit(limit)
       .pluck(:test_identity_id)
+  end
 
-    identities_by_id = scope.where(id: recent_failed_ids).index_by(&:id)
-    recent_failed_ids.filter_map { |id| identities_by_id[id] }
+  def self.flaky_ids(repository, limit:)
+    failed_count_sql = "SUM(CASE WHEN status IN ('failed', 'error') THEN 1 ELSE 0 END)"
+    passed_count_sql = "SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END)"
+
+    TestCase
+      .where(repository_id: repository.id)
+      .where("created_at >= ?", RECENT_FAILURE_WINDOW.ago)
+      .where.not(test_identity_id: nil)
+      .group(:test_identity_id)
+      .having("#{failed_count_sql} > 0 AND #{passed_count_sql} > 0")
+      .order(Arel.sql("#{failed_count_sql} DESC, MAX(created_at) DESC"))
+      .limit(limit)
+      .pluck(:test_identity_id)
+  end
+
+  def self.slow_ids(repository, limit:)
+    TestCase
+      .where(repository_id: repository.id)
+      .where.not(test_identity_id: nil, duration_ms: nil)
+      .where("duration_ms >= ?", 1_000)
+      .group(:test_identity_id)
+      .order(Arel.sql("AVG(duration_ms) DESC, MAX(created_at) DESC"))
+      .limit(limit)
+      .pluck(:test_identity_id)
+  end
+
+  def self.append_interesting_ids(target, ids)
+    ids.each do |id|
+      target << id unless target.include?(id)
+    end
   end
 
   def recent_stats(lookback: LIST_LOOKBACK)
@@ -117,6 +158,14 @@ class TestIdentity < ApplicationRecord
       failure_rate: total.positive? ? (failed.to_f / total) : 0.0,
       avg_duration_ms: durations.any? ? (durations.sum.to_f / durations.size).round : nil
     }
+  end
+
+  def interesting_reasons(stats: recent_stats)
+    reasons = []
+    reasons << "failing" if last_status.in?(%w[failed error]) || stats[:failed_count].positive?
+    reasons << "flaky" if stats[:failed_count].positive? && stats[:passed_count].positive?
+    reasons << "slow" if stats[:avg_duration_ms].to_i >= 1_000 || last_duration_ms.to_i >= 1_000
+    reasons
   end
 
   def refresh_summary!

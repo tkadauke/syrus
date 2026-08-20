@@ -3,17 +3,19 @@ import { RepositoryTabs } from "../../components/RepositoryTabs"
 import { withRoutePrefix } from "../../lib/routing"
 import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "react-router-dom"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { PanelMessage } from "./shared"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
   const [query, setQuery] = useState("")
+  const debouncedQuery = useDebouncedValue(query, 250)
   const navigate = useNavigate()
   const tests = useQuery({
-    queryKey: ["repositories", repositoryId, "tests", query],
-    queryFn: () => fetchRepositoryTests(repositoryId, query)
+    queryKey: ["repositories", repositoryId, "tests", debouncedQuery],
+    queryFn: () => fetchRepositoryTests(repositoryId, debouncedQuery),
+    placeholderData: keepPreviousData
   })
   const testDetail = useQuery({
     queryKey: ["repositories", repositoryId, "tests", selectedTestId],
@@ -27,7 +29,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
     return <PanelMessage>Loading tests...</PanelMessage>
   }
 
-  if (tests.isError) {
+  if (tests.isError && !tests.data) {
     return <PanelMessage tone="error">{errorMessage(tests.error, "Unable to load tests.")}</PanelMessage>
   }
 
@@ -68,21 +70,26 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
         {selectedTestId ? (
           <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} prefix={prefix} />
         ) : (
-          <TestList payload={tests.data} prefix={prefix} />
+          <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} />
         )}
       </section>
     </>
   )
 }
 
-function TestList({ payload, prefix }: { payload?: RepositoryTestsPayload; prefix: string }) {
+function TestList({ error, isError, isFetching, payload, prefix, query }: { error: unknown; isError: boolean; isFetching: boolean; payload?: RepositoryTestsPayload; prefix: string; query: string }) {
   if (!payload) return null
   if (payload.tests.length === 0) {
-    return <PanelMessage>No recent failing tests found. Search by name to inspect older tests.</PanelMessage>
+    return <PanelMessage>{query ? "No tests match this search." : "No test history yet. Search by name once tests have been ingested."}</PanelMessage>
   }
 
   return (
     <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <span>{query ? "Search results" : "Interesting tests"}</span>
+        {isFetching ? <span>Updating results...</span> : null}
+        {isError ? <span className="text-red-600 dark:text-red-300">{errorMessage(error, "Unable to refresh results.")}</span> : null}
+      </div>
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
@@ -100,6 +107,11 @@ function TestList({ payload, prefix }: { payload?: RepositoryTestsPayload; prefi
                 <Link className="font-medium text-blue-700 hover:underline dark:text-blue-300" to={withRoutePrefix(`/repositories/${payload.repository.id}?tab=tests&test_id=${test.id}`, prefix)}>
                   {test.name}
                 </Link>
+                {test.interesting_reasons.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {test.interesting_reasons.map((reason) => <ReasonBadge key={reason} reason={reason} />)}
+                  </div>
+                ) : null}
                 {test.file_path ? <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{test.file_path}</div> : null}
               </td>
               <td className="hidden max-w-xs truncate px-4 py-3 text-gray-500 dark:text-gray-400 md:table-cell" title={test.suite_name}>{test.suite_name}</td>
@@ -116,6 +128,16 @@ function TestList({ payload, prefix }: { payload?: RepositoryTestsPayload; prefi
       </table>
     </div>
   )
+}
+
+function ReasonBadge({ reason }: { reason: string }) {
+  const classes = reason === "failing"
+    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+    : reason === "flaky"
+      ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
+      : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
+
+  return <span className={`inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium ${classes}`}>{reason}</span>
 }
 
 function TestDetailPanel({ detail, error, isError, isPending, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; prefix: string }) {
@@ -227,4 +249,15 @@ function formatDuration(value: number | null | undefined) {
   if (value == null) return "—"
   if (value < 1000) return `${value}ms`
   return `${(value / 1000).toFixed(2)}s`
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedValue(value), delayMs)
+    return () => window.clearTimeout(timeout)
+  }, [delayMs, value])
+
+  return debouncedValue
 }

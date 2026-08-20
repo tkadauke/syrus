@@ -723,6 +723,7 @@ export type RepositoryTestIdentity = {
   passed_count: number
   failure_rate: number
   avg_duration_ms: number | null
+  interesting_reasons: string[]
 }
 
 export type RepositoryTestHistoryItem = {
