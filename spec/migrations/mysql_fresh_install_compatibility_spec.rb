@@ -60,4 +60,25 @@ RSpec.describe "MySQL fresh install compatibility", :ci_only do
 
     expect(offenders).to be_empty
   end
+
+  it "does not enforce database-level foreign keys" do
+    initializer = Rails.root.join("config/initializers/foreign_keys.rb").read
+    schema = Rails.root.join("db/schema.rb").read
+
+    expect(initializer).to include("def add_foreign_key(*)")
+    expect(initializer).to include("ActiveRecord::ConnectionAdapters::SchemaStatements.prepend")
+    expect(schema).not_to include("add_foreign_key")
+  end
+
+  it "does not add new foreign key declarations after the no-FK policy migration" do
+    offenders = migration_sources.filter_map do |filename, source|
+      next if filename < "20260820010000"
+
+      if source.match?(/add_foreign_key|foreign_key:\s*(true|\{)/)
+        filename
+      end
+    end
+
+    expect(offenders).to be_empty
+  end
 end
