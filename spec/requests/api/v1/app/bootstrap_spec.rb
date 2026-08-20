@@ -128,6 +128,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "chat_context_compaction" => false,
       "chat_speech_to_text" => false,
       "coding_mode" => false,
+      "epicless_job_bundling" => false,
       "landing_validation_prefetch" => false,
       "local_mode" => false,
       "operational_log_indexing" => false,
