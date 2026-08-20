@@ -565,6 +565,18 @@ RSpec.describe Run do
       expect(step.runs.where(state: "queued").count).to eq(0)
     end
 
+    it "does not in-place retry fanout steps that dynamically insert downstream steps" do
+      fanout_step = Step.create!(workflow: workflow, kind: "grader_fanout", position: 1, state: "running")
+      run = fanout_step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.agent_outcome = "worker_died"
+
+      run.fail!
+      run.save!
+
+      expect(fanout_step.reload).to be_failed
+      expect(fanout_step.runs.where(state: "queued").count).to eq(0)
+    end
+
     it "does not retry failed grader commands just because process cleanup looks stopped" do
       run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
       run.create_run_diagnostic!(

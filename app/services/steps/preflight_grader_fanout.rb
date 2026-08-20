@@ -27,6 +27,11 @@ module Steps
         return
       end
 
+      if materialized_grader_steps.exists?
+        log("[preflight_grader_fanout] grader steps already materialized; reusing existing step chain")
+        return
+      end
+
       materialize_grader_steps!(plan.graders)
       log("[preflight_grader_fanout] materialized #{plan.graders.size} grader step(s)")
     end
@@ -70,6 +75,12 @@ module Steps
         ([ step ] + new_steps).each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
         new_steps.last.update!(next_step_id: continuation&.id)
       end
+    end
+
+    def materialized_grader_steps
+      workflow.steps
+        .where(kind: "preflight_grader", iteration: step.iteration)
+        .where("position > ?", step.position)
     end
   end
 end

@@ -109,6 +109,25 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(grader_idx).to be < collect_idx
   end
 
+  it "does not materialize a duplicate preflight grader batch when fanout is retried after inserting steps" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: lint
+          run: bin/rubocop
+    YAML
+
+    handler.call
+    first_batch_ids = workflow.steps.where(kind: "preflight_grader").order(:position).pluck(:id)
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position)
+    expect(grader_steps.pluck(:id)).to eq(first_batch_ids)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
+  end
+
   it "snapshots grader definition onto the step details" do
     write_grade_config(<<~YAML)
       grade:

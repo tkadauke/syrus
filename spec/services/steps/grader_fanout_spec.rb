@@ -298,6 +298,25 @@ RSpec.describe Steps::GraderFanout do
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
   end
 
+  it "does not materialize a duplicate grader batch when fanout is retried after inserting steps" do
+    write_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+        - name: react-tests
+          run: bin/test-react
+    YAML
+
+    handler.call
+    first_batch_ids = workflow.steps.where(kind: "grader").order(:position).pluck(:id)
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "grader").order(:position)
+    expect(grader_steps.pluck(:id)).to eq(first_batch_ids)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec react-tests])
+  end
+
   it "skips graders whose when_files_changed patterns do not match any changed files" do
     write_config(<<~YAML)
       grade:
