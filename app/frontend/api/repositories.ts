@@ -768,11 +768,19 @@ export type RepositoryTestsPayload = {
   tests: RepositoryTestIdentity[]
 }
 
+export type RepositoryTestHistoryPagination = {
+  page: number
+  per_page: number
+  total: number
+  total_pages: number
+}
+
 export type RepositoryTestDetailPayload = {
   repository: RepositoryTestsPayload["repository"]
   tabs: RepositoryTab[]
   test: RepositoryTestIdentity
   history: RepositoryTestHistoryItem[]
+  pagination: RepositoryTestHistoryPagination
   duration_points: RepositoryTestDurationPoint[]
 }
 
@@ -783,8 +791,11 @@ export function fetchRepositoryTests(repositoryId: string | number, query = "") 
   return getJson<RepositoryTestsPayload>(`/api/v1/app/repositories/${repositoryId}/tests${suffix}`)
 }
 
-export function fetchRepositoryTestDetail(repositoryId: string | number, testId: string | number) {
-  return getJson<RepositoryTestDetailPayload>(`/api/v1/app/repositories/${repositoryId}/tests/${testId}`)
+export function fetchRepositoryTestDetail(repositoryId: string | number, testId: string | number, page = 1) {
+  const params = new URLSearchParams()
+  if (page > 1) params.set("page", String(page))
+  const suffix = params.toString() ? `?${params}` : ""
+  return getJson<RepositoryTestDetailPayload>(`/api/v1/app/repositories/${repositoryId}/tests/${testId}${suffix}`)
 }
 
 export function updateRepository(id: number, values: RepositoryInput) {

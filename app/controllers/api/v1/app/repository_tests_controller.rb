@@ -3,10 +3,12 @@ module Api
     module App
       class RepositoryTestsController < BaseController
         include RepositoryTabsSerialization
+        include Paginatable
 
         DEFAULT_INTERESTING_LIMIT = TestIdentity::INTERESTING_LIMIT
         DEFAULT_SEARCH_LIMIT = 50
         MAX_LIMIT = 100
+        PER_PAGE = 20
 
         def index
           repository = find_repository
@@ -27,17 +29,33 @@ module Api
         def show
           repository = find_repository
           test_identity = repository.test_identities.find(params[:id])
-          cases = test_identity.test_cases
+
+          page = page_param
+          per_page = per_page_param
+          total_count = test_identity.test_cases.count
+
+          history_cases = test_identity.test_cases
             .includes(test_run: { run: :job })
-            .order(created_at: :desc)
+            .order(created_at: :desc, id: :desc)
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+
+          duration_cases = test_identity.test_cases
+            .order(created_at: :desc, id: :desc)
             .limit(TestIdentity::HISTORY_LIMIT)
 
           render json: {
             repository: repository_json(repository),
             tabs: repository_tabs_json(repository),
             test: test_identity_json(test_identity),
-            history: cases.map { |test_case| test_case_json(test_case) }.compact.reverse,
-            duration_points: cases.filter_map { |test_case| duration_point_json(test_case) }.reverse
+            history: history_cases.map { |test_case| test_case_json(test_case) }.compact,
+            pagination: {
+              page: page,
+              per_page: per_page,
+              total: total_count,
+              total_pages: (total_count.to_f / per_page).ceil
+            },
+            duration_points: duration_cases.filter_map { |test_case| duration_point_json(test_case) }.reverse
           }
         end
 

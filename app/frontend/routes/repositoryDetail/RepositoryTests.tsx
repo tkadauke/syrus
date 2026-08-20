@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { RepositoryTabs } from "../../components/RepositoryTabs"
 import { withRoutePrefix } from "../../lib/routing"
-import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../../api/repositories"
+import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useNavigate } from "react-router-dom"
@@ -11,16 +11,23 @@ import { PanelMessage } from "./shared"
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
   const [query, setQuery] = useState("")
   const debouncedQuery = useDebouncedValue(query, 250)
+  const [historyPage, setHistoryPage] = useState(1)
   const navigate = useNavigate()
   const tests = useQuery({
     queryKey: ["repositories", repositoryId, "tests", debouncedQuery],
     queryFn: () => fetchRepositoryTests(repositoryId, debouncedQuery),
     placeholderData: keepPreviousData
   })
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [selectedTestId])
+
   const testDetail = useQuery({
-    queryKey: ["repositories", repositoryId, "tests", selectedTestId],
-    queryFn: () => fetchRepositoryTestDetail(repositoryId, selectedTestId!),
-    enabled: !!selectedTestId
+    queryKey: ["repositories", repositoryId, "tests", selectedTestId, historyPage],
+    queryFn: () => fetchRepositoryTestDetail(repositoryId, selectedTestId!, historyPage),
+    enabled: !!selectedTestId,
+    placeholderData: keepPreviousData
   })
 
   const shell = testDetail.data || tests.data
@@ -68,7 +75,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
         </div>
 
         {selectedTestId ? (
-          <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} prefix={prefix} />
+          <TestDetailPanel detail={testDetail.data} error={testDetail.error} isError={testDetail.isError} isPending={testDetail.isPending} onPageChange={setHistoryPage} prefix={prefix} />
         ) : (
           <TestList error={tests.error} isError={tests.isError} isFetching={tests.isFetching} payload={tests.data} prefix={prefix} query={debouncedQuery} />
         )}
@@ -140,7 +147,7 @@ function ReasonBadge({ reason }: { reason: string }) {
   return <span className={`inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium ${classes}`}>{reason}</span>
 }
 
-function TestDetailPanel({ detail, error, isError, isPending, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; prefix: string }) {
+function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string }) {
   if (isPending) return <PanelMessage>Loading test history...</PanelMessage>
   if (isError) return <PanelMessage tone="error">{errorMessage(error, "Unable to load test history.")}</PanelMessage>
   if (!detail) return null
@@ -174,7 +181,29 @@ function TestDetailPanel({ detail, error, isError, isPending, prefix }: { detail
             {detail.history.map((item) => <HistoryRow item={item} key={item.id} prefix={prefix} />)}
           </tbody>
         </table>
+        <HistoryPagination onPageChange={onPageChange} pagination={detail.pagination} />
       </section>
+    </div>
+  )
+}
+
+function HistoryPagination({ onPageChange, pagination }: { onPageChange: (page: number) => void; pagination: RepositoryTestHistoryPagination }) {
+  if (pagination.total_pages <= 1) return null
+
+  const firstItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.per_page + 1
+  const lastItem = Math.min(pagination.page * pagination.per_page, pagination.total)
+
+  return (
+    <div className="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+      <span>Showing {firstItem}–{lastItem} of {pagination.total}</span>
+      <div className="flex gap-2">
+        {pagination.page > 1 ? (
+          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page - 1)} type="button">Previous</button>
+        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>}
+        {pagination.page < pagination.total_pages ? (
+          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => onPageChange(pagination.page + 1)} type="button">Next</button>
+        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>}
+      </div>
     </div>
   )
 }
