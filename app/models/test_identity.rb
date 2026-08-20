@@ -40,7 +40,17 @@ class TestIdentity < ApplicationRecord
 
     return {} if attrs_by_fingerprint.empty?
 
-    upsert_all(attrs_by_fingerprint.values, unique_by: "idx_test_identities_repo_fingerprint")
+    existing = where(repository_id: repository.id, fingerprint: attrs_by_fingerprint.keys).index_by(&:fingerprint)
+    missing_attrs = attrs_by_fingerprint.except(*existing.keys).values
+
+    if missing_attrs.any?
+      begin
+        insert_all(missing_attrs)
+      rescue ActiveRecord::RecordNotUnique
+        # Another worker may have created the durable identity concurrently.
+      end
+    end
+
     where(repository_id: repository.id, fingerprint: attrs_by_fingerprint.keys).index_by(&:fingerprint)
   end
 
