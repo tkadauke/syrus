@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/admin/activity", type: :request do
+  around do |example|
+    Dir.mktmpdir("syrus-workflow-activity-spool") do |dir|
+      previous = ENV["SYRUS_OBSERVABILITY_SPOOL_ROOT"]
+      ENV["SYRUS_OBSERVABILITY_SPOOL_ROOT"] = dir
+      Observability::EventSink.clear!(kind: :workflow_activity)
+      example.run
+      Observability::EventSink.clear!(kind: :workflow_activity)
+    ensure
+      ENV["SYRUS_OBSERVABILITY_SPOOL_ROOT"] = previous
+    end
+  end
+
   let(:admin) { Factories.user }
   let(:admin_token) { admin.generate_api_token! }
 
