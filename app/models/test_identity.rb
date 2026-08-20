@@ -102,40 +102,31 @@ class TestIdentity < ApplicationRecord
   end
 
   def self.recent_failure_ids(repository, limit:)
-    TestCase
-      .where(repository_id: repository.id, status: %w[failed error])
-      .where("created_at >= ?", RECENT_FAILURE_WINDOW.ago)
-      .where.not(test_identity_id: nil)
-      .group(:test_identity_id)
-      .order(Arel.sql("MAX(created_at) DESC"))
+    repository.test_identities
+      .where.not(last_failed_at: nil)
+      .where("last_failed_at >= ?", RECENT_FAILURE_WINDOW.ago)
+      .order(last_failed_at: :desc, id: :desc)
       .limit(limit)
-      .pluck(:test_identity_id)
+      .pluck(:id)
   end
 
   def self.flaky_ids(repository, limit:)
-    failed_count_sql = "SUM(CASE WHEN status IN ('failed', 'error') THEN 1 ELSE 0 END)"
-    passed_count_sql = "SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END)"
-
-    TestCase
-      .where(repository_id: repository.id)
-      .where("created_at >= ?", RECENT_FAILURE_WINDOW.ago)
-      .where.not(test_identity_id: nil)
-      .group(:test_identity_id)
-      .having("#{failed_count_sql} > 0 AND #{passed_count_sql} > 0")
-      .order(Arel.sql("#{failed_count_sql} DESC, MAX(created_at) DESC"))
+    repository.test_identities
+      .where.not(last_failed_at: nil)
+      .where.not(last_passed_at: nil)
+      .where("last_failed_at >= ? OR last_passed_at >= ?", RECENT_FAILURE_WINDOW.ago, RECENT_FAILURE_WINDOW.ago)
+      .order(last_failed_at: :desc, last_passed_at: :desc, id: :desc)
       .limit(limit)
-      .pluck(:test_identity_id)
+      .pluck(:id)
   end
 
   def self.slow_ids(repository, limit:)
-    TestCase
-      .where(repository_id: repository.id)
-      .where.not(test_identity_id: nil, duration_ms: nil)
-      .where("duration_ms >= ?", 1_000)
-      .group(:test_identity_id)
-      .order(Arel.sql("AVG(duration_ms) DESC, MAX(created_at) DESC"))
+    repository.test_identities
+      .where.not(last_duration_ms: nil)
+      .where("last_duration_ms >= ?", 1_000)
+      .order(last_duration_ms: :desc, last_seen_at: :desc, id: :desc)
       .limit(limit)
-      .pluck(:test_identity_id)
+      .pluck(:id)
   end
 
   def self.append_interesting_ids(target, ids)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_093000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_20_095500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2000,6 +2000,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_093000) do
     t.string "suite_name", null: false
     t.datetime "updated_at", null: false
     t.index ["repository_id", "fingerprint"], name: "idx_test_identities_repo_fingerprint", unique: true
+    t.index ["repository_id", "last_duration_ms", "last_seen_at", "id"], name: "idx_test_identities_repo_last_duration"
+    t.index ["repository_id", "last_failed_at", "id"], name: "idx_test_identities_repo_last_failed"
+    t.index ["repository_id", "last_passed_at", "id"], name: "idx_test_identities_repo_last_passed"
     t.index ["repository_id"], name: "index_test_identities_on_repository_id"
   end
 
