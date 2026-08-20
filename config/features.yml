@@ -90,3 +90,10 @@ features:
     description: "Enables the visual_review step: an independent agent drives a headless browser against the worker's own in-step preview to catch visible defects and capture screenshot artifacts before graders run. A repository's .syrus.yml can override this instance-wide default per repo."
     description_i18n_key: "features.slugs.visual_review.description"
     default: false
+  - slug: epicless_job_bundling
+    category: "Labs"
+    name: "Epicless Job bundling"
+    name_i18n_key: "features.slugs.epicless_job_bundling.name"
+    description: "Enables landing multiple approved epicless Jobs together as one atomic bundle, the same way an Epic's children land together via the merge train. Experimental."
+    description_i18n_key: "features.slugs.epicless_job_bundling.description"
+    default: false

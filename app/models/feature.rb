@@ -98,6 +98,10 @@ class Feature < ApplicationRecord
     enabled?(:visual_review)
   end
 
+  def self.epicless_job_bundling_enabled?
+    enabled?(:epicless_job_bundling)
+  end
+
   private
 
   def clear_request_enabled_cache
