@@ -5,6 +5,54 @@ RSpec.describe Skills::Registry do
     it "includes the seed built-in skill" do
       expect(described_class.values).to include("investigate")
     end
+
+    it "includes the onboard-to-syrus built-in skill" do
+      expect(described_class.values).to include("onboard-to-syrus")
+    end
+
+    it "includes the debug built-in skill" do
+      expect(described_class.values).to include("debug")
+    end
+
+    it "includes the rebase-conflict-resolver built-in skill" do
+      expect(described_class.values).to include("rebase-conflict-resolver")
+    end
+
+    it "includes the dependency-audit built-in skill" do
+      expect(described_class.values).to include("dependency-audit")
+    end
+
+    it "includes the explain-failing-ci built-in skill" do
+      expect(described_class.values).to include("explain-failing-ci")
+    end
+
+    it "includes the coverage-gap-report built-in skill" do
+      expect(described_class.values).to include("coverage-gap-report")
+    end
+
+    it "includes the dead-code-sweep built-in skill" do
+      expect(described_class.values).to include("dead-code-sweep")
+    end
+
+    it "includes the license-audit built-in skill" do
+      expect(described_class.values).to include("license-audit")
+    end
+
+    it "includes the security-review built-in skill" do
+      expect(described_class.values).to include("security-review")
+    end
+
+    it "includes the add-ci-workflow built-in skill" do
+      expect(described_class.values).to include("add-ci-workflow")
+    end
+
+    it "includes the init-docs built-in skill" do
+      expect(described_class.values).to include("init-docs")
+    end
+
+    it "includes the changelog-generate built-in skill" do
+      expect(described_class.values).to include("changelog-generate")
+    end
   end
 
   describe ".fetch" do

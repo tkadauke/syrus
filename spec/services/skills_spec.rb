@@ -123,7 +123,7 @@ RSpec.describe Skills do
 
       resolutions = described_class.all_for(repository: repository, client: client)
 
-      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
       expect(resolutions.first.source).to eq(:built_in)
     end
 
@@ -139,7 +139,7 @@ RSpec.describe Skills do
       resolutions = described_class.all_for(repository: repository, client: client)
 
       by_name = resolutions.index_by { |r| r.definition.name }
-      expect(by_name.keys.sort).to eq([ "audit", "investigate" ])
+      expect(by_name.keys.sort).to eq([ "add-ci-workflow", "audit", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
       expect(by_name["audit"].source).to eq(:repo_override)
       expect(by_name["audit"].path).to eq(".syrus/skills/audit/SKILL.md")
       expect(by_name["investigate"].source).to eq(:built_in)
@@ -155,9 +155,10 @@ RSpec.describe Skills do
 
       resolutions = described_class.all_for(repository: repository, client: client)
 
-      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
-      expect(resolutions.first.source).to eq(:repo_override)
-      expect(resolutions.first.definition.description).to eq("Repo override of investigate.")
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
+      investigate = resolutions.find { |r| r.definition.name == "investigate" }
+      expect(investigate.source).to eq(:repo_override)
+      expect(investigate.definition.description).to eq("Repo override of investigate.")
     end
 
     it "omits a repo-local skill whose SKILL.md fails to parse instead of raising" do
@@ -171,7 +172,7 @@ RSpec.describe Skills do
 
       resolutions = described_class.all_for(repository: repository, client: client)
 
-      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
     end
 
     it "skips the repo-local tree lookup entirely when credentials are unavailable" do
@@ -180,7 +181,7 @@ RSpec.describe Skills do
 
       resolutions = described_class.all_for(repository: repository, user: user)
 
-      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
     end
   end
 end

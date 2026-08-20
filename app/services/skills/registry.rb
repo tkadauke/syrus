@@ -18,7 +18,19 @@ module Skills
     end
 
     ENTRIES = [
-      Entry.new(name: "investigate", klass: "Investigate")
+      Entry.new(name: "investigate", klass: "Investigate"),
+      Entry.new(name: "onboard-to-syrus", klass: "OnboardToSyrus"),
+      Entry.new(name: "debug", klass: "Debug"),
+      Entry.new(name: "rebase-conflict-resolver", klass: "RebaseConflictResolver"),
+      Entry.new(name: "dependency-audit", klass: "DependencyAudit"),
+      Entry.new(name: "explain-failing-ci", klass: "ExplainFailingCi"),
+      Entry.new(name: "coverage-gap-report", klass: "CoverageGapReport"),
+      Entry.new(name: "dead-code-sweep", klass: "DeadCodeSweep"),
+      Entry.new(name: "license-audit", klass: "LicenseAudit"),
+      Entry.new(name: "security-review", klass: "SecurityReview"),
+      Entry.new(name: "add-ci-workflow", klass: "AddCiWorkflow"),
+      Entry.new(name: "init-docs", klass: "InitDocs"),
+      Entry.new(name: "changelog-generate", klass: "ChangelogGenerate")
     ].freeze
 
     BY_NAME = ENTRIES.index_by(&:name).freeze
@@ -39,8 +51,8 @@ module Skills
       fetch(name).klass_const
     end
 
-    def definition_for(name)
-      class_for(name).definition
+    def definition_for(name, workspace_path: nil, args: {}, repository: nil)
+      class_for(name).definition(workspace_path: workspace_path, args: args, repository: repository)
     end
   end
 end
