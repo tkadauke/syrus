@@ -1219,7 +1219,7 @@ module WorkEngine
     end
 
     def classify_rate_limits
-      ProviderCircuitBreaker.open_circuits(now: now).map do |decision|
+      ProviderCircuitBreaker.open_circuits(now: now, include_logs: false).map do |decision|
         issue(
           kind: :rate_limit,
           severity: decision.usage_limit? ? :error : :warning,
@@ -1502,7 +1502,7 @@ module WorkEngine
         },
         instance_version_ids: PerformanceLogging.phase("work_engine.reconciler.snapshot_instance_versions") { InstanceVersion.fresh.pluck(:id) },
         main_health: PerformanceLogging.phase("work_engine.reconciler.snapshot_main_health") { repositories.index_with(&:main_health).transform_keys(&:slug) },
-        rate_limits: PerformanceLogging.phase("work_engine.reconciler.snapshot_rate_limits") { ProviderCircuitBreaker.open_circuits(now: now) },
+        rate_limits: PerformanceLogging.phase("work_engine.reconciler.snapshot_rate_limits") { ProviderCircuitBreaker.open_circuits(now: now, include_logs: false) },
         workspaces: PerformanceLogging.phase("work_engine.reconciler.snapshot_workspaces") {
           workflows.to_h { |workflow| [ workflow.id, workspace_snapshot_for(workflow) ] }
         }
