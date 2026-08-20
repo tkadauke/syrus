@@ -221,6 +221,41 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
   end
 
+  it "skips an obsolete queued Run on a terminal Step instead of re-enqueueing it" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "succeeded", started_at: 6.minutes.ago, finished_at: 5.minutes.ago)
+    stale = step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago
+    )
+    workflow.update_columns(state: "running", started_at: 6.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 6.minutes.ago, finished_at: 5.minutes.ago)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    issue = kind(result, :active_run_on_terminal_step)
+    expect(issue).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "skip_obsolete_run"
+    )
+    expect(issue.affected_ids[:run_ids]).to eq([ stale.id ])
+    expect(kind(result, :queued_run_without_queue_claim)).to be_nil
+    expect(plan(result, :skip_obsolete_run)).to have_attributes(
+      auto_executable: true,
+      target_type: "Run",
+      target_id: stale.id
+    )
+    expect(plan(result, :reenqueue_run)).to be_nil
+    expect(stale.reload).to be_skipped
+    expect(step.reload).to be_succeeded
+  end
+
   it "does not plan reenqueue_run for a queued Run while an auto-retry attempt is already pending for the workflow" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)

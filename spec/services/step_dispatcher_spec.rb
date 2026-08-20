@@ -36,6 +36,30 @@ RSpec.describe StepDispatcher do
       }.not_to change { Run.count }
     end
 
+    it "does not create a duplicate Run when the step already has an active Run" do
+      existing = s1.runs.create!(
+        job: job,
+        user: job.user,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider
+      )
+
+      expect {
+        result = described_class.create_run_and_enqueue(s1, workflow)
+        expect(result).to be_nil
+      }.not_to change { s1.runs.count }
+      expect(existing.reload).to be_queued
+    end
+
+    it "does not create an obsolete Run on a terminal Step" do
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        result = described_class.create_run_and_enqueue(s1, workflow)
+        expect(result).to be_nil
+      }.not_to change { s1.runs.count }
+    end
+
     it "holds ordinary Epic child workflows while an Epic-wide workflow is active" do
       epic = Factories.epic(user: job.user, repository: job.repository)
       keeper_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 101)

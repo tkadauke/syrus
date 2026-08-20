@@ -172,6 +172,7 @@ module WorkEngine
       issues.concat(classify_closed_jobs_with_active_workflows)
       issues.concat(classify_superseded_active_workflows)
       issues.concat(classify_terminal_workflows_with_active_descendants)
+      issues.concat(classify_active_runs_on_terminal_steps)
       issues.concat(classify_queued_runs)
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
@@ -304,6 +305,7 @@ module WorkEngine
 
       runs.select(&:queued?).filter_map do |run|
         next if run.job&.closed?
+        next if run.step&.terminal?
         next unless older_than?(run.created_at, ORPHAN_RUN_GRACE_PERIOD)
 
         sqs = solid_queue_jobs_for_run(run)
@@ -362,6 +364,26 @@ module WorkEngine
             explanation: "Run ##{run.id} is still queued behind a stale or unreachable SolidQueue claim."
           )
         end
+      end
+    end
+
+    def classify_active_runs_on_terminal_steps
+      runs.select { |run| run.queued? || run.running? }.filter_map do |run|
+        step = run.step
+        next unless step&.terminal?
+
+        issue(
+          kind: :active_run_on_terminal_step,
+          severity: :warning,
+          affected_ids: ids_for(run),
+          safe_to_auto_repair: run.may_skip?,
+          recommended_repair_action: "skip_obsolete_run",
+          evidence: run_evidence(run).merge(
+            step_state: step.state,
+            step_finished_at: step.finished_at&.iso8601
+          ),
+          explanation: "Run ##{run.id} is #{run.state} on terminal Step ##{step.id}; it is obsolete and should not be re-enqueued."
+        )
       end
     end
 
@@ -425,6 +447,7 @@ module WorkEngine
     def classify_running_runs
       runs.select(&:running?).filter_map do |run|
         next if run.job&.closed?
+        next if run.step&.terminal?
         next unless older_than?(run.started_at, ORPHAN_RUN_GRACE_PERIOD)
 
         sq = solid_queue_for_run(run)

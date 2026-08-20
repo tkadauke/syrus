@@ -76,6 +76,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       topology_queued_without_queue_claim
       topology_queued_failed_solid_queue_execution
       topology_queued_dead_resume_queue
+      topology_active_run_on_terminal_step
       topology_closed_job_with_active_workflow
       topology_queued_step_without_run_after_succeeded_step
       topology_running_step_with_failed_terminal_run
@@ -416,6 +417,18 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       )
     end
 
+    def topology_active_run_on_terminal_step(workflow, step)
+      run = active_run_on_terminal_step!(workflow, step)
+      expectation(
+        "topology active run on terminal step",
+        target: { workflow_id: workflow.id },
+        expected_issue: :active_run_on_terminal_step,
+        expected_action: :skip_obsolete_run,
+        required_plans: [ [ :skip_obsolete_run, run ] ],
+        forbidden_actions: %i[reenqueue_run mark_worker_died mark_worker_died_and_retry_failed_step]
+      )
+    end
+
     def topology_stale_running_run_without_worker_evidence(workflow, step)
       run = running_run_on_step!(workflow, step, heartbeat_age: stale_heartbeat_age)
       expectation(
@@ -538,6 +551,41 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         last_heartbeat_at: heartbeat_age.ago
       )
       trace << "run=#{run.id}:topology_running step=#{step.kind} heartbeat_age=#{heartbeat_age.inspect}"
+      run
+    end
+
+    def active_run_on_terminal_step!(workflow, step)
+      age = old_active_age
+      terminal_state = %w[succeeded failed skipped].sample(random: random)
+      active_state = %w[queued running].sample(random: random)
+      Run.where(step_id: step.id).delete_all
+      workflow.update_columns(state: "running", started_at: age.ago)
+      step.update_columns(state: terminal_state, started_at: age.ago, finished_at: (age - 1.minute).ago, updated_at: (age - 1.minute).ago)
+      step.runs.create!(
+        job: workflow.job,
+        user: workflow.job.user,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider,
+        state: "succeeded",
+        iteration: step.iteration,
+        started_at: age.ago,
+        finished_at: (age - 1.minute).ago,
+        created_at: age.ago,
+        updated_at: (age - 1.minute).ago
+      )
+      run = step.runs.create!(
+        job: workflow.job,
+        user: workflow.job.user,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider,
+        state: active_state,
+        iteration: step.iteration,
+        started_at: active_state == "running" ? (age - 30.seconds).ago : nil,
+        last_heartbeat_at: active_state == "running" ? (age - 30.seconds).ago : nil,
+        created_at: age.ago,
+        updated_at: age.ago
+      )
+      trace << "run=#{run.id}:active_on_terminal_step active=#{active_state} step=#{step.kind}:#{terminal_state} age=#{age.inspect}"
       run
     end
 

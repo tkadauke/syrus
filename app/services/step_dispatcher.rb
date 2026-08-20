@@ -421,22 +421,30 @@ class StepDispatcher
   # explicitly. trigger_kind is denormalized from Workflow until
   # commit 9's cleanup migration drops Run.trigger_kind entirely.
   def self.create_run_and_enqueue(step, workflow, parent_session_id: nil, prompt: nil, check_phase_admission: true)
-    if check_phase_admission && provider_availability_deferred?(step, workflow)
-      return nil
-    end
+    step.with_lock do
+      workflow.reload
+      step.reload
 
-    if check_phase_admission && phase_admission_deferred?(step, workflow)
-      return nil
-    end
+      return nil if step.terminal?
+      return nil if step.runs.active.exists?
 
-    step.runs.create!(
-      job: workflow.job,
-      trigger_kind: workflow.trigger_kind,
-      agent_provider: workflow.agent_provider,
-      iteration: step.iteration,
-      parent_session_id: parent_session_id,
-      prompt: prompt
-    )
+      if check_phase_admission && provider_availability_deferred?(step, workflow)
+        return nil
+      end
+
+      if check_phase_admission && phase_admission_deferred?(step, workflow)
+        return nil
+      end
+
+      step.runs.create!(
+        job: workflow.job,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider,
+        iteration: step.iteration,
+        parent_session_id: parent_session_id,
+        prompt: prompt
+      )
+    end
   end
 
   def self.provider_availability_deferred?(step, workflow)

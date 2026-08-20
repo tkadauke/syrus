@@ -669,6 +669,31 @@ RSpec.describe LandingQueueProcessor do
     expect(ready.reload).to be_approved
   end
 
+  it "keeps an active landing Job numbered ahead of approved Jobs while its start blocker retries" do
+    landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+    retry_at = 5.minutes.from_now
+    landing.start_landing!
+    landing.save!
+    Workflow.create!(
+      job: landing,
+      trigger_kind: "auto_merge",
+      state: "running",
+      artifacts: {
+        "start_blocked_reason" => "landing start blocked: workflow admission budget",
+        "start_blocked_next_check_at" => retry_at.iso8601
+      }
+    )
+
+    described_class.refresh_snapshot!(Job.where(id: [ landing.id, ready.id ]))
+
+    expect(landing.reload.landing_queue_position).to eq(1)
+    expect(landing.landing_queue_blocked_reason).to eq(
+      { "key" => "landing_start_blocked_retrying", "params" => { "retry_at" => retry_at.iso8601 } }
+    )
+    expect(ready.reload.landing_queue_position).to eq(2)
+  end
+
   describe "priority ordering" do
     it "lands an urgent approved Job ahead of older medium and low Jobs" do
       low = queue_job(issue_number: 1, approved_at: 10.minutes.ago).tap { |j| j.update!(priority: "low") }

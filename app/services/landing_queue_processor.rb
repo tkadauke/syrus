@@ -221,7 +221,7 @@ class LandingQueueProcessor
 
     queue_entries.each do |entry|
       cached_ids << entry.job_id
-      position = if entry.eligible?
+      position = if entry.eligible? || entry.job.landing?
         eligible_position += 1
       end
       before_snapshot = landing_queue_snapshot_for(entry.job)

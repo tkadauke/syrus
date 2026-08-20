@@ -316,6 +316,22 @@ module WorkEngine
         end
       end
 
+      class ActiveRunOnTerminalStep < Base
+        def plan
+          automatic_plan(
+            "skip_obsolete_run",
+            primary_run,
+            "The Step is already terminal, so the active Run is obsolete and should be skipped instead of re-enqueued.",
+            execution_steps: [ "Run#skip!" ],
+            preconditions: {
+              run_state: %w[queued running],
+              step_state: issue.evidence["step_state"],
+              step_terminal: true
+            }
+          )
+        end
+      end
+
       class QueuedGraderCollectCachedFailure < Base
         def plan
           automatic_plan(

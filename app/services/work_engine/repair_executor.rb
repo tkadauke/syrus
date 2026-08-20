@@ -302,6 +302,25 @@ module WorkEngine
         end
       end
 
+      class SkipObsoleteRun < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not active") unless run.queued? || run.running?
+
+          step = run.step
+          return skipped("Run has no Step") unless step
+          return skipped("Step is #{step.state}, not terminal") unless step.terminal?
+          return skipped("Run cannot transition to skipped") unless run.may_skip?
+
+          with_transition_reason do
+            run.skip!
+            run.save!
+          end
+          success("skipped obsolete Run ##{run.id} on terminal Step ##{step.id}")
+        end
+      end
+
       class MarkCachedGraderCollectFailed < Base
         def perform
           run = target_run
