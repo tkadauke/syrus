@@ -58,7 +58,7 @@ module AgentProviders
     end
 
     def self.provider
-      name.demodulize.underscore
+      name.to_s.demodulize.underscore.presence || "unknown"
     end
 
     def self.provider_key

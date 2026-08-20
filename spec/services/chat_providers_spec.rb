@@ -1,6 +1,14 @@
 require "rails_helper"
 
 RSpec.describe ChatProviders do
+  describe ChatProviders::Base do
+    it "does not crash when an anonymous provider class uses the fallback key" do
+      provider_class = Class.new(described_class)
+
+      expect(provider_class.provider).to eq("unknown")
+    end
+  end
+
   it "resolves configured chat provider adapters" do
     expect(described_class.for("claude")).to eq(ChatProviders::Claude)
     expect(described_class.for("codex")).to eq(ChatProviders::Codex)

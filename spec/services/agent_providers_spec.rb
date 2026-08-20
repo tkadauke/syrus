@@ -1,6 +1,15 @@
 require "rails_helper"
 
 RSpec.describe AgentProviders do
+  describe AgentProviders::Base do
+    it "does not crash when an anonymous provider class uses the fallback key" do
+      provider_class = Class.new(described_class)
+
+      expect(provider_class.provider).to eq("unknown")
+      expect(provider_class.provider_key).to eq("unknown")
+    end
+  end
+
   describe ".for" do
     it "returns the registered provider adapter class" do
       expect(described_class.for("claude")).to eq(AgentProviders::Claude)
