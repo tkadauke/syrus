@@ -162,7 +162,9 @@ module WorkEngine
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
       @workflows = scoped_workflows.includes(:job, :steps).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
-      @steps = Step.where(id: @workflows.flat_map { |workflow| workflow.steps.map(&:id) } + @runs.filter_map(&:step_id)).to_a
+      workflow_steps = @workflows.flat_map(&:steps)
+      missing_run_step_ids = @runs.filter_map(&:step_id) - workflow_steps.map(&:id)
+      @steps = workflow_steps + (missing_run_step_ids.empty? ? [] : Step.where(id: missing_run_step_ids).to_a)
       @solid_queue = capture_solid_queue
 
       issues = []
@@ -271,8 +273,10 @@ module WorkEngine
       elsif run_id.present?
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       else
-        Workflow.where(job_id: jobs.map(&:id)).where(state: %w[ queued running failed ])
-          .or(Workflow.where(id: terminal_workflows_with_active_descendants.select(:id)))
+        active_ids = Workflow.where(job_id: jobs.map(&:id), state: %w[ queued running failed ]).pluck(:id)
+        terminal_descendant_ids = terminal_workflows_with_active_descendants.pluck(:id)
+
+        Workflow.where(id: active_ids + terminal_descendant_ids)
       end
     end
 
@@ -280,7 +284,7 @@ module WorkEngine
       if run_id.present?
         Run.where(id: run_id)
       else
-        step_ids = Step.where(workflow_id: workflows.map(&:id)).select(:id)
+        step_ids = workflows.flat_map { |workflow| workflow.steps.map(&:id) }
         Run.where(step_id: step_ids).where(state: %w[ queued running failed ])
       end
     end
