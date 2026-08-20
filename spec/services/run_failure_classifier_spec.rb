@@ -305,6 +305,23 @@ RSpec.describe RunFailureClassifier do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies rspec checkout lock contention as retryable infrastructure contention" do
+    run.step.update!(kind: "grader")
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "grader rspec failed (exit 1)")
+    JobLog.append!(
+      run: run,
+      chunk: "Another bin/rspec-fast run is already active in this checkout; refusing to share SQLite test databases.",
+      kind: "grade_log"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("database_lock")
+    expect(result.retryable).to eq(true)
+    expect(result.reason).to include("another test run")
+  end
+
   it "classifies ActiveRecord connection exhaustion as retryable database contention" do
     run.update!(state: "failed")
     diagnostic(
