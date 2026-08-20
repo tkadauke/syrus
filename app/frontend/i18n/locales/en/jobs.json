@@ -96,8 +96,6 @@
   "section_no_dependencies": "No dependencies.",
   "artifact_erd_primary_key": "PK",
   "artifact_erd_foreign_keys": "Foreign keys",
-  "artifact_migration_before": "Before",
-  "artifact_migration_after": "After",
   "artifact_diff_before": "Before",
   "artifact_diff_after": "After",
   "artifact_image_alt": "Screenshot",
