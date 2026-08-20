@@ -107,5 +107,25 @@ RSpec.describe TestIdentity do
       expect(identities.first.last_failed_at).to be_present
       expect(identities.first.last_passed_at).to be_present
     end
+
+    it "updates identity summaries in bulk" do
+      identities = 4.times.map { |index| create_identity!("case #{index}") }
+      identities.each do |identity|
+        create_test_case!(identity, status: "passed", created_at: 1.minute.ago)
+      end
+
+      test_identity_updates = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        test_identity_updates << sql if sql.match?(/\AUPDATE [`"]?test_identities[`"]?/i)
+      end
+
+      described_class.refresh_many!(identities.map(&:id))
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+
+      expect(test_identity_updates.size).to eq(1)
+      expect(identities.map { |identity| identity.reload.last_status }).to all(eq("passed"))
+    end
   end
 end

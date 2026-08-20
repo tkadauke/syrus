@@ -82,21 +82,24 @@ class TestIdentity < ApplicationRecord
     latest_by_identity_id = latest_cases_for(ids).index_by(&:test_identity_id)
     failed_at_by_identity_id = latest_status_at_for(ids, %w[failed error])
     passed_at_by_identity_id = latest_status_at_for(ids, "passed")
+    now = Time.current
 
+    updates = {}
     where(id: ids).find_each do |identity|
       latest = latest_by_identity_id[identity.id]
       next unless latest
 
-      identity.update_columns(
+      updates[identity.id] = {
         last_status: latest.status,
         last_seen_at: latest.created_at,
         last_failed_at: failed_at_by_identity_id[identity.id],
         last_passed_at: passed_at_by_identity_id[identity.id],
         last_duration_ms: latest.duration_ms,
         file_path: identity.file_path.presence || latest.file_path,
-        updated_at: Time.current
-      )
+        updated_at: now
+      }
     end
+    bulk_update_summary_columns!(updates)
   end
 
   def self.latest_cases_for(ids)
@@ -127,6 +130,39 @@ class TestIdentity < ApplicationRecord
       .where(test_identity_id: ids, status: statuses)
       .group(:test_identity_id)
       .maximum(:created_at)
+  end
+
+  def self.bulk_update_summary_columns!(updates)
+    return if updates.empty?
+
+    columns = %i[
+      last_status
+      last_seen_at
+      last_failed_at
+      last_passed_at
+      last_duration_ms
+      file_path
+      updated_at
+    ]
+    connection = self.connection
+
+    updates.each_slice(200) do |slice|
+      ids = slice.map { |id, _attrs| id.to_i }
+      assignments = columns.map do |column|
+        quoted_column = connection.quote_column_name(column)
+        cases = slice.map do |id, attrs|
+          "WHEN #{id.to_i} THEN #{connection.quote(attrs.fetch(column))}"
+        end.join(" ")
+
+        "#{quoted_column} = CASE #{connection.quote_column_name(:id)} #{cases} ELSE #{quoted_column} END"
+      end
+
+      connection.update(<<~SQL.squish)
+        UPDATE #{quoted_table_name}
+        SET #{assignments.join(", ")}
+        WHERE #{connection.quote_column_name(:id)} IN (#{ids.join(", ")})
+      SQL
+    end
   end
 
   def self.interesting_for_repository(repository, query: nil, limit: INTERESTING_LIMIT)
