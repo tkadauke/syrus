@@ -3,9 +3,9 @@ module Steps
   # MainBranchRepair workflow. Two outcomes:
   #
   # - All required preflight graders passed: sets the "preflight_passed"
-  #   workflow artifact, cancels all downstream steps (implement, the grade
+  #   workflow artifact, skips all downstream steps (implement, the grade
   #   loop, summarize, etc.), and returns. The dispatcher then walks past the
-  #   cancelled steps and marks the workflow succeeded.
+  #   skipped steps and marks the workflow succeeded.
   #   Workflows::MainBranchRepair#after_success detects the artifact and
   #   marks the repository healthy without the agent ever running.
   #

@@ -1146,15 +1146,19 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     failed.current_run.update!(state: "failed", finished_at: Time.current)
     5.times do |index|
       job = Factories.job(repository: repository, issue_number: index + 100, agent_provider: "codex")
-      Run.create!(
+      # Transition queued -> failed via #update! (like the real fail!
+      # path) rather than creating the Run pre-failed, so the model's
+      # after_update_commit callbacks fire and refresh the provider
+      # circuit's process-level read cache the way production traffic
+      # would — a Run created already-terminal never fires them.
+      run = Run.create!(
         job: job,
         step: job.latest_workflow.first_step,
         trigger_kind: "initial",
-        state: "failed",
-        agent_provider: "codex",
-        agent_outcome: "provider_transient",
-        finished_at: 1.minute.ago
+        state: "queued",
+        agent_provider: "codex"
       )
+      run.update!(state: "failed", agent_outcome: "provider_transient", finished_at: 1.minute.ago)
     end
     ProviderCircuitBreaker.clear_read_cache!
 
