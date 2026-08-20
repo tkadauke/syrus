@@ -283,7 +283,7 @@ class WorkerHealthRunCorrelation
 
   def samples
     @samples ||= begin
-      if hostnames.empty? || effective_since.blank? || range_finish.blank?
+      if hostnames.empty? || effective_since.blank? || range_finish.blank? || effective_since > range_finish
         []
       elsif samples_by_hostname
         hostnames.flat_map { |hostname| samples_by_hostname.fetch(hostname, []) }
@@ -428,7 +428,7 @@ class WorkerHealthRunCorrelation
       return @samples_override unless @samples_override.nil?
 
       @samples ||= begin
-        if span.hostname.blank? || effective_since.blank? || range_finish.blank?
+        if span.hostname.blank? || effective_since.blank? || range_finish.blank? || effective_since > range_finish
           []
         elsif samples_by_hostname
           samples_by_hostname.fetch(span.hostname, [])

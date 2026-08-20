@@ -209,6 +209,49 @@ RSpec.describe WorkerHealthRunCorrelation do
     expect(payload.dig(:pressure, :reasons)).to include("run started before retained worker health history")
   end
 
+  it "does not query host samples for an impossible retained Run window" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step, started_at: now - 9.days, finished_at: now - 8.days)
+
+    expect(WorkerHostHealthSample).not_to receive(:where)
+
+    payload = described_class.for_run(run, now: now)
+
+    expect(payload[:sample_count]).to eq(0)
+    expect(payload[:samples_missing]).to be(true)
+    expect(payload.dig(:pressure, :reasons)).to include("run started before retained worker health history")
+  end
+
+  it "does not query host samples for an impossible retained command-span window" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step, started_at: now - 9.days, finished_at: now - 8.days)
+    span = CommandSpan.create!(
+      job: job,
+      workflow: wf,
+      step: step,
+      run: run,
+      sequence: 1,
+      name: "rspec",
+      command_excerpt: "bin/rspec",
+      hostname: "worker-a",
+      started_at: now - 9.days,
+      finished_at: now - 8.days,
+      duration_ms: 60_000,
+      outcome: "succeeded",
+      exit_status: 0
+    )
+
+    expect(WorkerHostHealthSample).not_to receive(:where)
+
+    payload = described_class.for_span(span, now: now)
+
+    expect(payload[:sample_count]).to eq(0)
+    expect(payload[:samples_missing]).to be(true)
+    expect(payload[:retention_limited]).to be(true)
+  end
+
   describe ".for_job" do
     it "returns compact pressure counts across recent job runs" do
       wf = workflow
