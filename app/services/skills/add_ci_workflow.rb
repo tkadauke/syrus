@@ -1,8 +1,8 @@
 module Skills
   # Built-in skill (EPIC-234): bootstraps a GitHub Actions CI workflow
   # wired to the exact command set this repo already grades with — pulled
-  # from `.syrus.yml`'s `grade` section (preferring each grader's `ci:`
-  # variant, per RepoGradePlan::Grader#command_for), or
+  # from `.syrus.yml`'s `grade` section (preferring each step's `ci:`
+  # variant, via RepoGradePlan's legacy `-ci` grader expansion), or
   # `onboard-to-syrus`'s auto-detected equivalent (RepoGradeSignals) when
   # no grade section is configured yet. CI and Syrus's own grading must
   # read from the same command set instead of drifting into two
@@ -76,11 +76,19 @@ module Skills
     # section, `ci:` variant preferred over `run:`); fall back to the
     # same auto-detected candidates onboard-to-syrus would propose for a
     # repo with no `grade` section configured yet.
+    #
+    # RepoGradePlan expands a step with both `run:` and `ci:` into two
+    # Grader rows (the base grader plus a `<name>-ci` legacy-ci grader
+    # tagged via `metadata["legacy_source_grader"]`) rather than exposing
+    # a per-variant accessor — group back to the original step name and
+    # prefer its `-ci` row when present.
     def resolved_commands
       grade_plan = RepoGradePlan.for(@workspace_path)
       if grade_plan.graders.any?
-        return grade_plan.graders.map do |grader|
-          { name: grader.name, command: grader.command_for(variant: :ci), source: ".syrus.yml (grade section)" }
+        by_step_name = grade_plan.graders.group_by { |grader| grader.metadata["legacy_source_grader"] || grader.name }
+        return by_step_name.map do |step_name, graders|
+          preferred = graders.find { |grader| grader.metadata["legacy_ci_command"] } || graders.first
+          { name: step_name, command: preferred.command, source: ".syrus.yml (grade section)" }
         end
       end
 
@@ -186,8 +194,8 @@ module Skills
         1. If `.syrus.yml` has a `grade` section configured, use its
            steps — for each one, prefer the `ci:` command when present,
            otherwise fall back to `run:`. This is the same preference
-           Syrus's own grading uses (`RepoGradePlan::Grader#command_for`)
-           so CI runs the identical isolated-serial variant Syrus's own
+           Syrus's own grading uses (RepoGradePlan's `ci:` grader
+           expansion) so CI runs the identical isolated-serial variant Syrus's own
            `ci_failure` and main-branch graders use.
         2. If there is no `grade` section configured yet, fall back to
            the same auto-detected candidates `onboard-to-syrus` would
