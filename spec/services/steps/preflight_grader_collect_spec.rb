@@ -66,13 +66,13 @@ RSpec.describe Steps::PreflightGraderCollect do
       expect(workflow.reload.artifact("preflight_passed")).to be true
     end
 
-    it "cancels all downstream steps" do
+    it "skips all downstream steps" do
       downstream = create_downstream_steps
 
       handler.call
 
-      cancelled_kinds = downstream.map { |s| s.reload.state }
-      expect(cancelled_kinds).to all(eq("cancelled"))
+      skipped_kinds = downstream.map { |s| s.reload.state }
+      expect(skipped_kinds).to all(eq("skipped"))
     end
 
     it "does not raise StepFailed" do
@@ -129,12 +129,12 @@ RSpec.describe Steps::PreflightGraderCollect do
       expect(workflow.reload.artifact("preflight_passed")).to be true
     end
 
-    it "cancels downstream steps" do
+    it "skips downstream steps" do
       downstream = create_downstream_steps
 
       handler.call
 
-      expect(downstream.map { |s| s.reload.state }).to all(eq("cancelled"))
+      expect(downstream.map { |s| s.reload.state }).to all(eq("skipped"))
     end
   end
 
