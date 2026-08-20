@@ -120,14 +120,20 @@ queue and may produce wasted work when the front unit fails.
 
 Groundwork flag for landing multiple approved epicless Jobs together as one
 atomic bundle, the same way an Epic's children already land together via the
-merge train (`MergeTrain`/`MergeTrainMember`). Currently this flag gates no
-queue or dispatcher behavior — `MergeTrain.epic_id` is nullable and a
-`priority` column exists so a train row can be either epic-backed
-(`epic_id` present, `priority` nil) or bundle-backed (`epic_id` nil,
-`priority` present), enforced by a model validation, but nothing yet
-constructs bundle-backed trains. Existing Epic merge trains are unaffected.
-Toggling this flag currently has no observable effect until the bundling
-assembly/build/land behavior lands in a follow-up change.
+merge train (`MergeTrain`/`MergeTrainMember`). `MergeTrain.epic_id` is
+nullable and a `priority` column exists so a train row can be either
+epic-backed (`epic_id` present, `priority` nil) or bundle-backed (`epic_id`
+nil, `priority` present), enforced by a model validation. `JobBundleAssembler`
+(candidate selection: same repository, epicless, approved, own-PR, grouped
+into same-priority tiers, minimum 2 members, capped at
+`AppSetting.merge_train_max_size` without splitting a real `JobDependency`
+edge across bundles) and `JobBundleDispatcher` (transactional
+`MergeTrain`/`MergeTrainMember` creation, member locking, and dispatch of the
+existing `merge_train` Workflow chain — mirrors `MergeTrainDispatcher`) exist
+but nothing calls them yet. `LandingQueueProcessor` does not invoke either
+service, so this flag still gates no observable queue or dispatcher behavior
+until that wiring lands in a follow-up change. Existing Epic merge trains are
+unaffected either way.
 
 ## performance_logging
 
