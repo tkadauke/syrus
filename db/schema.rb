@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_213000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_20_235500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1385,7 +1385,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_213000) do
     t.string "sql_fingerprint", limit: 1000
     t.string "trace_id", limit: 100
     t.datetime "updated_at", null: false
-    t.index ["app_revision", "occurred_at"], name: "idx_perf_events_revision_occurred"
+    t.index ["app_revision", "occurred_at", "id"], name: "idx_perf_events_revision_occurred_id"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
     t.index ["occurred_at"], name: "idx_perf_events_occurred_at"
   end

@@ -8,46 +8,14 @@ class OperationalLogIndex < SearchRecord
     def upsert(event)
       connection.transaction do
         delete(event.id)
-        connection.exec_insert(
-          <<~SQL.squish,
-            INSERT INTO operational_log_fts (
-              message,
-              context_text,
-              context_json,
-              operational_log_event_id,
-              occurred_at,
-              level,
-              role,
-              hostname,
-              app_revision,
-              pid,
-              source,
-              job_id,
-              workflow_id,
-              run_id,
-              request_id
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          SQL
-          "OperationalLogIndex Upsert",
-          [
-            bind(event.message),
-            bind(context_text(event.context)),
-            bind(event.context.to_json),
-            bind(event.id),
-            bind(event.occurred_at&.iso8601(6)),
-            bind(event.level),
-            bind(event.role),
-            bind(event.hostname),
-            bind(event.app_revision),
-            bind(event.pid),
-            bind(event.source),
-            bind(event.job_id),
-            bind(event.workflow_id),
-            bind(event.run_id),
-            bind(event.request_id)
-          ]
-        )
+        insert(event)
+      end
+    end
+
+    def upsert_many(events, delete_ids:)
+      connection.transaction do
+        delete_many(delete_ids)
+        events.each { |event| insert(event) }
       end
     end
 
@@ -57,6 +25,19 @@ class OperationalLogIndex < SearchRecord
         "OperationalLogIndex Delete",
         [ bind(event_id) ]
       )
+    end
+
+    def delete_many(event_ids)
+      Array(event_ids).filter_map { |id| Integer(id, exception: false) }.uniq.each_slice(500) do |ids|
+        next if ids.empty?
+
+        placeholders = ([ "?" ] * ids.size).join(", ")
+        connection.exec_delete(
+          "DELETE FROM operational_log_fts WHERE operational_log_event_id IN (#{placeholders})",
+          "OperationalLogIndex Delete Many",
+          ids.map { |id| bind(id) }
+        )
+      end
     end
 
     def prune_before(cutoff)
@@ -157,6 +138,49 @@ class OperationalLogIndex < SearchRecord
     end
 
     private
+
+    def insert(event)
+      connection.exec_insert(
+        <<~SQL.squish,
+          INSERT INTO operational_log_fts (
+            message,
+            context_text,
+            context_json,
+            operational_log_event_id,
+            occurred_at,
+            level,
+            role,
+            hostname,
+            app_revision,
+            pid,
+            source,
+            job_id,
+            workflow_id,
+            run_id,
+            request_id
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        SQL
+        "OperationalLogIndex Upsert",
+        [
+          bind(event.message),
+          bind(context_text(event.context)),
+          bind(event.context.to_json),
+          bind(event.id),
+          bind(event.occurred_at&.iso8601(6)),
+          bind(event.level),
+          bind(event.role),
+          bind(event.hostname),
+          bind(event.app_revision),
+          bind(event.pid),
+          bind(event.source),
+          bind(event.job_id),
+          bind(event.workflow_id),
+          bind(event.run_id),
+          bind(event.request_id)
+        ]
+      )
+    end
 
     def fallback_search(query:, since:, until_time:, level:, role:, hostname:, app_revision:, limit:, offset:)
       scope = OperationalLogEvent.where(occurred_at: since..)

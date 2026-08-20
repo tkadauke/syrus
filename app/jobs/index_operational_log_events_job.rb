@@ -9,12 +9,10 @@ class IndexOperationalLogEventsJob < ApplicationJob
 
     OperationalLogging.suppress do
       events_by_id = OperationalLogEvent.where(id: ids).index_by(&:id)
-      OperationalLogIndex.connection.transaction do
-        ids.each do |id|
-          event = events_by_id[id]
-          event ? OperationalLogIndex.upsert(event) : OperationalLogIndex.delete(id)
-        end
-      end
+      OperationalLogIndex.upsert_many(
+        ids.filter_map { |id| events_by_id[id] },
+        delete_ids: ids
+      )
     end
   end
 end
