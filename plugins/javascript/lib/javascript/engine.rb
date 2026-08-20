@@ -3,18 +3,20 @@ require "rails"
 module JavaScript
   class Engine < ::Rails::Engine
     config.after_initialize do
-      # Wire up the interface module now that Zeitwerk is active and all
+      # Wire up the interface modules now that Zeitwerk is active and all
       # Syrus::Plugin::* constants are autoloadable from the main app's lib/.
       JavaScript::PrepareDetector.include(Syrus::Plugin::PrepareDetector)
+      JavaScript::PreviewProvider.include(Syrus::Plugin::PreviewProvider)
 
       Syrus::PluginRegistry.register(
         name:             "javascript",
         version:          JavaScript::VERSION,
-        description:      "Node/JS (and TS) prepare detection: yarn/pnpm/npm lockfile priority",
+        description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 20,
         provides: {
-          prepare_detector: JavaScript::PrepareDetector
+          prepare_detector: JavaScript::PrepareDetector,
+          preview_provider: JavaScript::PreviewProvider
         }
       )
     end
