@@ -9,12 +9,27 @@ module Skills
   #
   # The instructions embed two Syrus-native detection tables so the
   # agent's own scan can't drift from what Syrus already knows:
-  # RepoPrepPlan::AUTO_DETECT for the `prepare:` section (reused
-  # verbatim, per the issue's "don't reimplement lockfile detection"),
+  # PREPARE_SIGNALS for the `prepare:` section (mirrors the bundled
+  # `ruby` and `javascript` :prepare_detector plugins' own priority
+  # order — RepoPrepPlan itself now delegates auto-detection to
+  # registered plugins rather than a static table, so this skill keeps
+  # its own copy instead of introspecting plugin internals; same
+  # pattern as Skills::DependencyAudit's ECOSYSTEMS),
   # and RepoGradeSignals::RULE_DESCRIPTIONS for the `grade:` section
   # (a sibling detector built for this skill, directly unit-tested
   # against fixture repos — see spec/services/repo_grade_signals_spec.rb).
   class OnboardToSyrus < Base
+    # Mirrors the bundled `ruby` (Gemfile → bundle install) and
+    # `javascript` (yarn.lock → pnpm-lock.yaml → package-lock.json →
+    # package.json, in that priority order) :prepare_detector plugins.
+    PREPARE_SIGNALS = [
+      [ "Gemfile",            "bundle install" ],
+      [ "yarn.lock",          "yarn install --frozen-lockfile" ],
+      [ "pnpm-lock.yaml",     "pnpm install --frozen-lockfile" ],
+      [ "package-lock.json",  "npm ci" ],
+      [ "package.json",       "npm install" ]
+    ].freeze
+
     def self.skill_name
       "onboard-to-syrus"
     end
@@ -133,8 +148,8 @@ module Skills
         ## Step 2 — prepare: (dependency install)
 
         Detect the package manager from these signal files, in this exact
-        priority order — stop at the first match. This mirrors Syrus's own
-        auto-detect table (`RepoPrepPlan::AUTO_DETECT`) so the config you
+        priority order — stop at the first match. This mirrors the bundled
+        `ruby` and `javascript` prepare-detector plugins so the config you
         write agrees with what Syrus would already guess on its own:
 
         #{prepare_detection_table}
@@ -206,7 +221,7 @@ module Skills
     end
 
     def prepare_detection_table
-      RepoPrepPlan::AUTO_DETECT.flatten(1).map { |file, command| "- `#{file}` → `#{command}`" }.join("\n")
+      PREPARE_SIGNALS.map { |file, command| "- `#{file}` → `#{command}`" }.join("\n")
     end
 
     def grade_detection_table
