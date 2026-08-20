@@ -370,6 +370,15 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
         </div>
 
         <div className="space-y-4">
+          <PreviewPanel
+            canStart={payload.actions.can_start_preview}
+            initialPreview={payload.preview}
+            jobId={payload.job.id}
+            previewPath={payload.paths.app_preview_path}
+            previewLogsPath={payload.paths.app_preview_logs_path}
+            queryKey={queryKey}
+          />
+
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_details")}</h2>
             {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
@@ -392,14 +401,6 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </section>
 
-          <PreviewPanel
-            canStart={payload.actions.can_start_preview}
-            initialPreview={payload.preview}
-            jobId={payload.job.id}
-            previewPath={payload.paths.app_preview_path}
-            previewLogsPath={payload.paths.app_preview_logs_path}
-            queryKey={queryKey}
-          />
           <ApprovalStatusPanel payload={payload} />
           <DependenciesPanel command={command} payload={payload} />
         </div>
