@@ -22,6 +22,7 @@ export type DashboardHealthBlockedRepository = {
   ci_health: string
   grader_health: string
   landing_paused: boolean
+  main_branch_repair_blocks_work: boolean
   repository_path: string
   repair_path: string
   main_branch_repair: DashboardMainBranchRepairStatus

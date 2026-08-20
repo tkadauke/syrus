@@ -438,7 +438,7 @@ describe("JobDetailView", () => {
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
         review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
-        main_health: "broken", landing_paused: true
+        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
 
@@ -452,7 +452,7 @@ describe("JobDetailView", () => {
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
         review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
-        main_health: "broken", landing_paused: true
+        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
 
@@ -466,7 +466,21 @@ describe("JobDetailView", () => {
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
         review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
-        main_health: "inconclusive", landing_paused: true
+        main_health: "inconclusive", landing_paused: true, main_branch_repair_blocks_work: true
+      }
+    }))
+
+    expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
+  })
+
+  it("does not show the waiting banner when main branch repair does not block work", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "queued", main_branch_repair: false },
+      repository: {
+        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false
       }
     }))
 
@@ -1642,7 +1656,8 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       feedback_policy: "confirm",
       repository_path: "/repositories/2",
       main_health: "unknown",
-      landing_paused: false
+      landing_paused: false,
+      main_branch_repair_blocks_work: true
     },
     epic: null,
     origin_chat: null,

@@ -212,6 +212,18 @@ describe("MainBranchHealthSection resume landing", () => {
 
     expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
   })
+
+  it("does not offer resume when main branch repair is configured not to block work", () => {
+    const history = buildHistory()
+    history.main_branch_repair_blocks_work = false
+    const payload = buildPayload()
+    payload.repository.main_branch_repair_blocks_work = false
+
+    renderSection(history, payload)
+
+    expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Work is paused because main branch health is not green.")).not.toBeInTheDocument()
+  })
 })
 
 describe("MainBranchHealthSection blocking repair job", () => {

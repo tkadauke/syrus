@@ -15,6 +15,7 @@ export type JobRepository = {
   feedback_policy: "auto" | "confirm"
   main_health: string
   landing_paused: boolean
+  main_branch_repair_blocks_work: boolean
   repository_path: string
 }
 

@@ -26,6 +26,7 @@ function makeRepo(overrides: Partial<DashboardHealthBlockedRepository> = {}): Da
     ci_health: "inconclusive",
     grader_health: "unknown",
     landing_paused: false,
+    main_branch_repair_blocks_work: true,
     repository_path: "/repos/1",
     repair_path: "/api/v1/app/repositories/1/repair_main_branch",
     main_branch_repair: defaultRepairStatus,
@@ -101,5 +102,20 @@ describe("RepositoryHealthBanners", () => {
   it("renders nothing when the repository list is empty", () => {
     const { container } = renderBanners([])
     expect(container.firstChild).toBeNull()
+  })
+
+  it("does not say queued jobs are held when main repair is configured not to block work", () => {
+    renderBanners([
+      makeRepo({
+        main_health: "broken",
+        ci_health: "broken",
+        landing_paused: true,
+        main_branch_repair_blocks_work: false
+      })
+    ])
+
+    expect(screen.getByText("tkadauke/my-repo", { exact: false })).toBeInTheDocument()
+    expect(screen.getByText(/Main branch is broken\.$/)).toBeInTheDocument()
+    expect(screen.queryByText(/queued jobs are held/)).not.toBeInTheDocument()
   })
 })

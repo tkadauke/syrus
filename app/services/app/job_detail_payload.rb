@@ -251,6 +251,7 @@ module App
         credential_mode: repository.credential_mode,
         main_health: repository.main_health,
         landing_paused: repository.landing_paused?,
+        main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
         repository_path: repository_path(repository)
       }
     end

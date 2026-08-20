@@ -333,7 +333,7 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
                 <span className="font-mono font-medium">{repo.slug}</span>
                 {" — "}{t(repo.main_health === "inconclusive"
                   ? "main_health_inconclusive_banner_not_held"
-                  : (repo.landing_paused ? "broken_main_banner" : "broken_main_banner_not_held")
+                  : (repo.landing_paused && repo.main_branch_repair_blocks_work ? "broken_main_banner" : "broken_main_banner_not_held")
                 )}
               </span>
               {repair ? (
