@@ -182,7 +182,13 @@ cleanup_rollout_controls() {
   fi
 }
 
+abort_rollout() {
+  echo "✗ deploy interrupted; cleaning up rollout controls" >&2
+  exit 130
+}
+
 trap cleanup_rollout_controls EXIT
+trap abort_rollout INT TERM
 
 rollout() {
   local label="$1" kubeconfig="$2" namespace="$3"
@@ -319,10 +325,17 @@ wait_for_rollout_target() {
 
   while true; do
     status_log="$(mktemp)"
-    if KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$target" --timeout="${poll_seconds}s" >"$status_log" 2>&1; then
+    local status
+    KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$target" --timeout="${poll_seconds}s" >"$status_log" 2>&1
+    status=$?
+    if [ "$status" -eq 0 ]; then
       cat "$status_log"
       rm -f "$status_log"
       return 0
+    fi
+    if [ "$status" -ge 128 ]; then
+      rm -f "$status_log"
+      exit "$status"
     fi
     if [ "$ROLLOUT_VERBOSE_DIAGNOSTICS" = true ]; then
       cat "$status_log" >&2
