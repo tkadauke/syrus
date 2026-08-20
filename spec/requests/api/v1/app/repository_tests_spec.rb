@@ -82,7 +82,7 @@ RSpec.describe "App API repository tests", type: :request do
   end
 
   describe "GET /api/v1/app/repositories/:repository_id/tests/:id" do
-    it "returns history with run links and duration points" do
+    it "returns history newest first with run links, duration points, and pagination metadata" do
       identity = make_identity(name: "tracks history", suite_name: "HistorySpec")
       failed = make_case(identity: identity, status: "failed", duration_ms: 250, created_at: 2.minutes.ago)
       passed = make_case(identity: identity, status: "passed", duration_ms: 100, created_at: 1.minute.ago)
@@ -92,9 +92,30 @@ RSpec.describe "App API repository tests", type: :request do
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body.dig("test", "name")).to eq("tracks history")
-      expect(body.fetch("history").map { |row| row.fetch("id") }).to eq([ failed.id, passed.id ])
+      expect(body.fetch("history").map { |row| row.fetch("id") }).to eq([ passed.id, failed.id ])
       expect(body.fetch("history").last.dig("run", "path")).to include("#run-")
       expect(body.fetch("duration_points").map { |row| row.fetch("duration_ms") }).to eq([ 250, 100 ])
+      expect(body.fetch("pagination")).to eq(
+        "page" => 1, "per_page" => Api::V1::App::RepositoryTestsController::PER_PAGE, "total" => 2, "total_pages" => 1
+      )
+    end
+
+    it "paginates history across pages" do
+      identity = make_identity(name: "paginated history", suite_name: "HistorySpec")
+      cases = (1..25).map { |i| make_case(identity: identity, status: "passed", created_at: i.minutes.ago) }
+
+      get "/api/v1/app/repositories/#{repo.id}/tests/#{identity.id}", params: { page: 1, per_page: 10 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.fetch("history").map { |row| row.fetch("id") }).to eq(cases.first(10).map(&:id))
+      expect(body.fetch("pagination")).to eq("page" => 1, "per_page" => 10, "total" => 25, "total_pages" => 3)
+
+      get "/api/v1/app/repositories/#{repo.id}/tests/#{identity.id}", params: { page: 3, per_page: 10 }
+
+      body = parse_body
+      expect(body.fetch("history").map { |row| row.fetch("id") }).to eq(cases[20..24].map(&:id))
+      expect(body.fetch("pagination")).to eq("page" => 3, "per_page" => 10, "total" => 25, "total_pages" => 3)
     end
   end
 end
