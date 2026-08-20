@@ -2428,6 +2428,7 @@ RSpec.describe WorkEngine::Reconciler do
 
   it "classifies resumable agent sessions present and missing" do
     agent_step = workflow.steps.find_by!(kind: "implement")
+    agent_step.update_columns(state: "failed", finished_at: Time.current)
     present = agent_step.runs.create!(
       job: job,
       trigger_kind: workflow.trigger_kind,
@@ -2437,7 +2438,8 @@ RSpec.describe WorkEngine::Reconciler do
       finished_at: Time.current
     )
     ProviderSession.create!(resumable: present, provider: "claude", session_id: "session-1", transcript_jsonl: "{}\n")
-    missing = agent_step.runs.create!(
+    missing_step = workflow.steps.create!(kind: "respond", position: agent_step.position + 1, state: "failed", finished_at: Time.current)
+    missing = missing_step.runs.create!(
       job: job,
       trigger_kind: workflow.trigger_kind,
       agent_provider: "claude",
@@ -2456,6 +2458,36 @@ RSpec.describe WorkEngine::Reconciler do
     expect(missing_issue.affected_ids[:run_ids]).to include(missing.id)
     expect(missing_issue.safe_to_auto_repair).to eq(false)
     expect(plan(result, :resume_failed_step)).to have_attributes(auto_executable: true, target_id: present.id)
+  end
+
+  it "ignores stale failed resumable runs after a newer run owns the step" do
+    agent_step = workflow.steps.find_by!(kind: "implement")
+    failed = agent_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: "claude",
+      state: "failed",
+      agent_outcome: "worker_died",
+      created_at: 10.minutes.ago,
+      finished_at: 9.minutes.ago
+    )
+    ProviderSession.create!(resumable: failed, provider: "claude", session_id: "session-stale", transcript_jsonl: "{}\n")
+    agent_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: "claude",
+      state: "queued",
+      created_at: 1.minute.ago
+    )
+    agent_step.update_columns(state: "queued", finished_at: nil)
+    workflow.update_columns(state: "running", finished_at: nil)
+
+    result = reconcile(run_id: failed.id)
+
+    expect(kind(result, :resumable_agent_session_present)).to be_nil
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(plan(result, :resume_failed_step)).to be_nil
+    expect(plan(result, :retry_failed_step)).to be_nil
   end
 
   it "ignores generic failed-run repairs on superseded non-latest workflows" do

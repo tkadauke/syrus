@@ -37,7 +37,7 @@ RSpec.describe Steps::Summarize, :ci_only do
     sh(git_env, "git -C #{@ws_path} add feature.rb")
     sh(git_env, "git -C #{@ws_path} commit -q -m 'Syrus implement step (will be rewritten by summarize)'")
 
-    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path,
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "main",
                               branch_name: "syrus/issue-42-#{job.id}")
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
@@ -151,6 +151,7 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(handler).to receive(:run_agent).with(
         prompt: kind_of(String),
         max_turns: described_class::SUMMARIZE_TURN_BUDGET,
+        resume_session_id: nil,
         required_mcp_tools: %w[submit_summary]
       ) do
         run.update!(
@@ -163,7 +164,7 @@ RSpec.describe Steps::Summarize, :ci_only do
       handler.call
     end
 
-    it "retries summarize without --resume when the resumed prompt is too large" do
+    it "uses fresh bounded context instead of resuming the implementation session" do
       implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
       implement_run = Run.create!(
         job: job,
@@ -174,17 +175,11 @@ RSpec.describe Steps::Summarize, :ci_only do
       )
       ProviderSession.create!(resumable: implement_run, session_id: "S-implement", transcript_jsonl: "{}\n")
 
-      calls = []
-      allow(handler).to receive(:run_agent) do |prompt:, **kwargs|
-        calls << { prompt: prompt, kwargs: kwargs }
-        if calls.size == 1
-          JobLog.append!(run: run, chunk: "Claude API error: Prompt is too long", kind: "system")
-          raise Steps::Base::StepFailed, "agent reported api_error"
-        end
-
+      expect(handler).to receive(:run_agent) do |prompt:, **kwargs|
         expect(kwargs[:resume_session_id]).to be_nil
-        expect(prompt).to include("original agent session was too large to resume")
-        expect(prompt).to include("def greet = 'hi'")
+        expect(prompt).to include("bounded metadata-only context")
+        expect(prompt).to include("feature.rb")
+        expect(prompt).not_to include("def greet = 'hi'")
         run.update!(
           agent_pr_title: "Add greeting helper",
           agent_pr_body: "Summarized from the bounded implementation diff.",
@@ -194,53 +189,7 @@ RSpec.describe Steps::Summarize, :ci_only do
 
       handler.call
 
-      expect(calls.size).to eq(2)
-      expect(calls.map { |call| call[:kwargs][:max_turns] }).to eq([
-        described_class::SUMMARIZE_TURN_BUDGET,
-        described_class::SUMMARIZE_TURN_BUDGET
-      ])
       expect(workflow.reload.artifact("pr_title")).to eq("Add greeting helper")
-      expect(run.job_logs.pluck(:chunk).join("\n")).to include("retrying summary without --resume")
-    end
-
-    it "retries summarize without --resume when Codex resume rollout is unavailable" do
-      workflow.update!(agent_provider: "codex")
-      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
-      implement_run = Run.create!(
-        job: job,
-        step: implement_step,
-        trigger_kind: "initial",
-        state: "succeeded",
-        agent_diff: "diff --git a/feature.rb b/feature.rb\n+def greet = 'hi'\n"
-      )
-      ProviderSession.create!(resumable: implement_run, session_id: "019f-missing", provider: "codex")
-
-      calls = []
-      allow(handler).to receive(:run_agent) do |prompt:, **kwargs|
-        calls << { prompt: prompt, kwargs: kwargs }
-        if calls.size == 1
-          JobLog.append!(
-            run: run,
-            chunk: "[codex resume] resume for session 019f-missing did not complete successfully: thread/resume failed: no rollout found for thread id 019f-missing",
-            kind: "system"
-          )
-          raise Steps::Base::StepFailed, "agent exited 1"
-        end
-
-        expect(kwargs[:resume_session_id]).to be_nil
-        expect(prompt).to include("original agent session was too large to resume")
-        run.update!(
-          agent_pr_title: "Add greeting helper",
-          agent_pr_body: "Summarized from fallback.",
-          agent_summary: "Added a greeting helper."
-        )
-      end
-
-      handler.call
-
-      expect(calls.size).to eq(2)
-      expect(workflow.reload.artifact("pr_title")).to eq("Add greeting helper")
-      expect(run.job_logs.pluck(:chunk).join("\n")).to include("Codex resume state was unavailable")
     end
 
     it "amends the placeholder commit subject to the agent-authored pr_title" do
@@ -349,7 +298,7 @@ RSpec.describe Steps::Summarize, :ci_only do
 
       cron_handler = described_class.new(cron_run)
       allow(cron_handler).to receive(:workspace).and_return(
-        instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, branch_name: "syrus/scheduled-1-2")
+        instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "main", branch_name: "syrus/scheduled-1-2")
       )
       allow(cron_handler).to receive(:run_agent) do
         cron_run.update!(agent_pr_title: "Sweep dead code", agent_pr_body: "Removed unused methods.")

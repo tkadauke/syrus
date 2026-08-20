@@ -1,10 +1,10 @@
 module Steps
-  # Second step of Initial / Retry / Skill workflows. Short claude call
-  # (--resumed against the upstream agentic step's session) whose only
-  # job is to call `submit_summary` via the MCP sidecar. The
-  # MCP tool writes pr_title / pr_body / summary onto the Run;
-  # this handler then promotes them onto Workflow.artifacts so
-  # downstream steps (and future workflow rounds) can read them.
+  # Metadata-only step for Initial / Retry / Skill workflows. It asks the
+  # configured agent to call `submit_summary` from fresh bounded job context
+  # instead of resuming the upstream coding session, so a stale or long
+  # implementation transcript cannot continue writing code during summarize.
+  # The MCP tool writes pr_title / pr_body / summary onto the Run; this handler
+  # then promotes them onto Workflow.artifacts so downstream steps can read them.
   #
   # Also rewrites the upstream step's placeholder commit message
   # to use the agent-authored pr_title — keeping the GH commit
@@ -37,29 +37,16 @@ module Steps
       end
       raise StepFailed, "#{workflow.slug} has no completed implement run to summarize" if missing_required_implement_run?
 
-      run.update!(prompt: Prompts::Summarize.new.to_s) if run.prompt.blank?
+      run.update!(prompt: fallback_prompt)
       git_state_before_agent = capture_workspace_git_state
 
-      log("invoking agent for summarize step (#{workflow.slug}, --resume from implement)")
-
-      begin
-        run_agent(
-          prompt: run.prompt,
-          max_turns: SUMMARIZE_TURN_BUDGET,
-          required_mcp_tools: %w[submit_summary]
-        )
-      rescue StepFailed => e
-        raise unless resume_fallback_failure?(e)
-
-        log("#{resume_fallback_reason(e)}; retrying summary without --resume")
-        run.update!(agent_pr_title: nil, agent_pr_body: nil, agent_summary: nil)
-        run_agent(
-          prompt: fallback_prompt,
-          max_turns: SUMMARIZE_TURN_BUDGET,
-          resume_session_id: nil,
-          required_mcp_tools: %w[submit_summary]
-        )
-      end
+      log("invoking agent for summarize step (#{workflow.slug}, fresh metadata-only context)")
+      run_agent(
+        prompt: run.prompt,
+        max_turns: SUMMARIZE_TURN_BUDGET,
+        resume_session_id: nil,
+        required_mcp_tools: %w[submit_summary]
+      )
 
       assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize")
       assert_workspace_matches_successful_implement_head!
@@ -78,16 +65,6 @@ module Steps
       impl_run if impl_run&.agent_pr_title.present?
     end
 
-    def parent_session_id
-      return nil if agent_resume_disabled?
-
-      explicit_parent_session_id || implement_session_id || super
-    end
-
-    def implement_session_id
-      successful_implement_run&.provider_session&.session_id
-    end
-
     def successful_implement_run
       workflow.steps.where(kind: UPSTREAM_AGENT_STEP_KINDS)
         .order(:position)
@@ -97,27 +74,6 @@ module Steps
 
     def missing_required_implement_run?
       workflow.steps.exists?(kind: UPSTREAM_AGENT_STEP_KINDS) && successful_implement_run.blank?
-    end
-
-    def resume_fallback_failure?(error)
-      prompt_too_long_failure?(error) || codex_resume_unavailable_failure?
-    end
-
-    def resume_fallback_reason(error)
-      return "summarize resume prompt was too large" if prompt_too_long_failure?(error)
-      return "summarize Codex resume state was unavailable" if codex_resume_unavailable_failure?
-
-      "summarize resume failed"
-    end
-
-    def prompt_too_long_failure?(error)
-      return true if error.message.match?(/prompt is too long/i)
-
-      run.job_logs
-        .order(sequence: :desc)
-        .limit(25)
-        .pluck(:chunk)
-        .any? { |chunk| chunk.to_s.match?(/prompt is too long/i) }
     end
 
     def fallback_prompt

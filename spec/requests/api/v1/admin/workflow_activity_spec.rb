@@ -14,6 +14,7 @@ RSpec.describe "API: /api/v1/admin/activity", type: :request do
 
   it "returns workflow activity to admin API clients" do
     job = Factories.job_record(user: admin, state: "queued")
+    WorkflowActivityEvent.delete_all
     WorkflowActivity.synchronously do
       WorkflowActivity.record!(
         event_type: "workflow_created",

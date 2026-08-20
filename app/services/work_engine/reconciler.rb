@@ -1287,6 +1287,7 @@ module WorkEngine
       runs.select { |run| run.failed? && run.step&.agentic? }.filter_map do |run|
         next if run.job&.closed?
         next unless latest_workflow_run?(run)
+        next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
 
         retryable_worker_failure = run.agent_outcome == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ||
