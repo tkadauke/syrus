@@ -468,7 +468,14 @@ Bundled plugins:
   and `package.json` don't distinguish JS from TS. Internally picks exactly one
   package-manager command in priority order: `yarn.lock` →
   `pnpm-lock.yaml` → `package-lock.json` → `package.json`
-  (`prepare_priority: 20`).
+  (`prepare_priority: 20`). Also provides `:preview_provider`: detects a
+  `package.json` whose `scripts` object has a `dev` or `start` key, and
+  starts the preview via `PORT=<port> npm run <script>` (preferring `dev`
+  over `start`). `setup_commands` reuses the same lockfile priority table as
+  `:prepare_detector` instead of re-implementing package-manager detection.
+  `seed_command` is `nil` (no cross-ecosystem JS seeding convention) and
+  `health_check_path` stays at the interface default `/` (a soft guess —
+  JS has no Rails-style built-in health endpoint).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,

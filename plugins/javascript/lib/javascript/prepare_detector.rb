@@ -26,5 +26,16 @@ module JavaScript
       PRIORITY.find { |file, _command| path.join(file).exist? }
     end
     private_class_method :matching_entry
+
+    # Same PRIORITY table, rendered as a runtime shell if/elif chain so
+    # callers without a materialized repo_path (e.g. :preview_provider's
+    # setup_commands) can reuse the exact same detection logic instead of
+    # re-implementing it against a Ruby-time file check.
+    def self.shell_install_command
+      clauses = PRIORITY.each_with_index.map do |(file, command), index|
+        "#{index.zero? ? "if" : "elif"} [ -f #{file} ]; then #{command};"
+      end
+      "#{clauses.join(' ')} fi"
+    end
   end
 end
