@@ -35,4 +35,47 @@ RSpec.describe MergeTrain do
     expect(AppSetting.merge_train_enabled?).to be(false)
     expect(AppSetting.merge_train_max_size).to eq(20)
   end
+
+  describe "epic-backed vs. bundle-backed validation" do
+    it "is valid when epic-backed (epic present, priority nil)" do
+      t = MergeTrain.new(epic: epic, repository: repository, base_branch: "master")
+
+      expect(t).to be_valid
+    end
+
+    it "is valid when bundle-backed (epic nil, priority present)" do
+      t = MergeTrain.new(epic: nil, repository: repository, base_branch: "master", priority: "urgent")
+
+      expect(t).to be_valid
+    end
+
+    it "is invalid when both epic and priority are present" do
+      t = MergeTrain.new(epic: epic, repository: repository, base_branch: "master", priority: "urgent")
+
+      expect(t).not_to be_valid
+      expect(t.errors[:base]).to include("must not be both epic-backed and bundle-backed")
+    end
+
+    it "is invalid when neither epic nor priority is present" do
+      t = MergeTrain.new(epic: nil, repository: repository, base_branch: "master")
+
+      expect(t).not_to be_valid
+      expect(t.errors[:base]).to include("must be either epic-backed (epic present) or bundle-backed (priority present)")
+    end
+
+    it "accepts every Job priority value for bundle-backed trains" do
+      Job::PRIORITIES.each do |priority|
+        t = MergeTrain.new(epic: nil, repository: repository, base_branch: "master", priority: priority)
+
+        expect(t).to be_valid
+      end
+    end
+
+    it "rejects a priority value outside Job::PRIORITIES" do
+      t = MergeTrain.new(epic: nil, repository: repository, base_branch: "master", priority: "whenever")
+
+      expect(t).not_to be_valid
+      expect(t.errors[:priority]).to include("is not included in the list")
+    end
+  end
 end

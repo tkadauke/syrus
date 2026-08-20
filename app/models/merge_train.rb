@@ -5,7 +5,7 @@ class MergeTrain < ApplicationRecord
   STATES = %w[ building grading landing succeeded failed cancelled ].freeze
   TERMINAL_STATES = %w[ succeeded failed cancelled ].freeze
 
-  belongs_to :epic
+  belongs_to :epic, optional: true
   belongs_to :repository
   has_many :members, -> { order(:position) }, class_name: "MergeTrainMember", dependent: :destroy, inverse_of: :merge_train
 
@@ -13,6 +13,8 @@ class MergeTrain < ApplicationRecord
 
   validates :base_branch, presence: true
   validates :state, inclusion: { in: STATES }
+  validates :priority, inclusion: { in: Job::PRIORITIES }, allow_nil: true
+  validate :epic_or_priority_but_not_both
 
   scope :active, -> { where.not(state: TERMINAL_STATES) }
 
@@ -22,5 +24,18 @@ class MergeTrain < ApplicationRecord
 
   def terminal?
     TERMINAL_STATES.include?(state)
+  end
+
+  private
+
+  def epic_or_priority_but_not_both
+    epic_backed = epic_id.present?
+    bundle_backed = priority.present?
+
+    if epic_backed && bundle_backed
+      errors.add(:base, "must not be both epic-backed and bundle-backed")
+    elsif !epic_backed && !bundle_backed
+      errors.add(:base, "must be either epic-backed (epic present) or bundle-backed (priority present)")
+    end
   end
 end
