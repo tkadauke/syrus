@@ -31,6 +31,7 @@ class Repository < ApplicationRecord
   attribute :landing_paused, :boolean, default: false
   attribute :main_branch_health_enabled, :boolean, default: true
   attribute :main_branch_repair_enabled, :boolean, default: true
+  attribute :main_branch_repair_blocks_work, :boolean, default: true
   attribute :main_branch_repair_auto_approve, :boolean, default: false
   # When on, a scheduled job keeps this fork's default branch in sync with
   # its in-instance upstream (via GitHub's merge-upstream API) so main-branch

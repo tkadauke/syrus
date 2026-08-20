@@ -440,6 +440,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             setRepairTouched(true)
             setValues({ ...values, main_branch_repair_enabled: checked })
           }} value={values.main_branch_repair_enabled} />
+          <Checkbox label={t('repository_form.check_main_repair_blocks_work')} onChange={(checked) => setValues({ ...values, main_branch_repair_blocks_work: checked })} value={values.main_branch_repair_blocks_work} />
           <Checkbox label={t('repository_form.check_repair_auto_approve')} onChange={(checked) => setValues({ ...values, main_branch_repair_auto_approve: checked })} value={values.main_branch_repair_auto_approve} />
           <Checkbox
             label={t('repository_form.check_timeout_failures')}
@@ -683,6 +684,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
     main_branch_health_enabled: payload.repository.main_branch_health_enabled,
     main_branch_repair_enabled: payload.repository.main_branch_repair_enabled,
+    main_branch_repair_blocks_work: payload.repository.main_branch_repair_blocks_work,
     main_branch_repair_auto_approve: payload.repository.main_branch_repair_auto_approve,
     treat_grader_timeouts_as_failures: payload.repository.treat_grader_timeouts_as_failures,
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,

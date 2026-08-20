@@ -55,6 +55,7 @@ export type RepositoryFormRecord = {
   trust_clean_rebase_grade: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
+  main_branch_repair_blocks_work: boolean
   main_branch_repair_auto_approve: boolean
   treat_grader_timeouts_as_failures: boolean
   fork_syncable: boolean
@@ -118,6 +119,7 @@ export type RepositoryInput = {
   trust_clean_rebase_grade: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
+  main_branch_repair_blocks_work: boolean
   main_branch_repair_auto_approve: boolean
   treat_grader_timeouts_as_failures: boolean
   fork_auto_sync_enabled: boolean
@@ -273,6 +275,7 @@ export type RepositoryDetailRecord = {
   landing_paused: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
+  main_branch_repair_blocks_work: boolean
   main_branch_repair_auto_approve: boolean
   treat_grader_timeouts_as_failures: boolean
   last_health_checked_sha: string | null
@@ -298,6 +301,7 @@ export type RepositoryHealthHistory = {
   landing_paused: boolean
   main_branch_health_enabled: boolean
   main_branch_repair_enabled: boolean
+  main_branch_repair_blocks_work: boolean
   main_branch_repair_auto_approve: boolean
   treat_grader_timeouts_as_failures: boolean
   last_health_checked_sha: string | null

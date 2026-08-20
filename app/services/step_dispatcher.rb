@@ -235,9 +235,18 @@ class StepDispatcher
     return false if URGENT_EXEMPT_TRIGGERS.include?(workflow.trigger_kind)
     return false if workflow.job.priority == "urgent"
 
-    workflow.job.repository.jobs
+    repository = Repository.find(workflow.job.repository_id)
+    blocking_jobs = repository.jobs
       .where(priority: "urgent")
       .where(state: URGENT_BLOCKING_STATES)
+
+    unless repository.main_branch_repair_blocks_work?
+      blocking_jobs = blocking_jobs
+        .where(system_kind: nil)
+        .or(blocking_jobs.where.not(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR))
+    end
+
+    blocking_jobs
       .exists?
   end
 

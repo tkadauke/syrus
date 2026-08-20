@@ -39,6 +39,7 @@ function repositoryDetailPayload() {
       landing_paused: false,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
+      main_branch_repair_blocks_work: true,
       main_branch_repair_auto_approve: false,
       treat_grader_timeouts_as_failures: false,
       last_health_checked_sha: null

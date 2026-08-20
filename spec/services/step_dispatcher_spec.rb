@@ -1772,6 +1772,18 @@ RSpec.describe StepDispatcher, "urgent_blocking gate" do
     )
   end
 
+  def create_urgent_main_branch_repair_job!(state: "queued")
+    Factories.job_record(
+      user: job_model.user,
+      repository: job_model.repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_number: nil,
+      priority: "urgent",
+      state: state
+    )
+  end
+
   it "does not block when no urgent jobs exist in the repository" do
     expect {
       described_class.start_workflow(workflow)
@@ -1784,6 +1796,35 @@ RSpec.describe StepDispatcher, "urgent_blocking gate" do
       described_class.start_workflow(workflow)
     }.not_to change { Run.count }
     expect(workflow.reload).to be_queued
+  end
+
+  it "blocks non-urgent workflows on urgent main branch repair jobs by default" do
+    create_urgent_main_branch_repair_job!
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { Run.count }
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("urgent_job_active")
+  end
+
+  it "does not block non-urgent workflows on urgent main branch repair jobs when disabled for the repository" do
+    job_model.repository.update!(main_branch_repair_blocks_work: false)
+    create_urgent_main_branch_repair_job!
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "still blocks non-urgent workflows on ordinary urgent jobs when main branch repair blocking is disabled" do
+    job_model.repository.update!(main_branch_repair_blocks_work: false)
+    create_urgent_job!
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { Run.count }
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("urgent_job_active")
   end
 
   it "records urgent_job_active as the block reason" do

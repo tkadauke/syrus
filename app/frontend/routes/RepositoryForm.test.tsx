@@ -24,6 +24,7 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       trust_clean_rebase_grade: false,
       main_branch_health_enabled: false,
       main_branch_repair_enabled: false,
+      main_branch_repair_blocks_work: true,
       main_branch_repair_auto_approve: false,
       treat_grader_timeouts_as_failures: true,
       fork_syncable: false,
