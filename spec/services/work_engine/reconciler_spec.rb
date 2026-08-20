@@ -2708,7 +2708,7 @@ RSpec.describe WorkEngine::Reconciler do
       job_count: 3,
       signature: "timeout"
     )
-    allow(ProviderCircuitBreaker).to receive(:call).with("claude", now: kind_of(Time)).and_return(decision)
+    allow(ProviderCircuitBreaker).to receive(:call).with("claude", now: kind_of(Time), include_logs: false).and_return(decision)
     allow(ProviderCircuitBreaker).to receive(:open_circuits).and_return([ decision ])
 
     result = nil

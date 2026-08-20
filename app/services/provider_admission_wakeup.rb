@@ -27,7 +27,9 @@ class ProviderAdmissionWakeup
   end
 
   def call
-    return Result.new(provider: provider, workflow_ids: [], auto_retry_attempt_ids: []) if ProviderCircuitBreaker.call(provider).open?
+    if ProviderCircuitBreaker.call(provider, include_logs: false).open?
+      return Result.new(provider: provider, workflow_ids: [], auto_retry_attempt_ids: [])
+    end
 
     workflow_ids = wake_workflows
     auto_retry_attempt_ids = wake_auto_retries

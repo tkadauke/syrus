@@ -111,7 +111,7 @@ class SmartRetryEnqueuer
   end
 
   def provider_circuit
-    @provider_circuit ||= ProviderCircuitBreaker.call(effective_agent_provider)
+    @provider_circuit ||= ProviderCircuitBreaker.call(effective_agent_provider, include_logs: false)
   end
 
   def provider_circuit_skip

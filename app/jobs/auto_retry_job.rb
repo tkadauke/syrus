@@ -37,7 +37,7 @@ class AutoRetryJob < ApplicationJob
   private
 
   def reschedule_if_provider_blocked(attempt)
-    circuit = ProviderCircuitBreaker.call(attempt.agent_provider)
+    circuit = ProviderCircuitBreaker.call(attempt.agent_provider, include_logs: false)
     return false unless circuit.open?
 
     reschedule_for_circuit(attempt, circuit)

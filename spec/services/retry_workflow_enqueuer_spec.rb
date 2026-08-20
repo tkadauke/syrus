@@ -281,7 +281,18 @@ RSpec.describe RetryWorkflowEnqueuer do
 
   it "suppresses automatic retries while the provider circuit is open" do
     finish_current_run!(state: "failed")
-    5.times { |index| record_provider_transient_failure!(issue_number: index + 100) }
+    decision = ProviderCircuitBreaker::Decision.new(
+      provider: job.workflow_agent_provider,
+      open: true,
+      reason: "provider transient failures",
+      retry_after: 10.minutes.from_now,
+      failure_count: 5,
+      job_count: 3,
+      signature: "timeout"
+    )
+    allow(ProviderCircuitBreaker).to receive(:call)
+      .with(job.workflow_agent_provider, include_logs: false)
+      .and_return(decision)
 
     expect {
       result = described_class.call(job: job, automatic: true)
