@@ -63,6 +63,29 @@ RSpec.describe RepoPrepPlan do
   end
 
   describe "auto-detect" do
+    # RepoPrepPlan no longer hardcodes Ruby/Node signals — it delegates
+    # entirely to registered :prepare_detector plugins. Register the real
+    # bundled `ruby` and `javascript` plugins (mirroring their engine.rb
+    # manifests) so these specs exercise the actual production wiring
+    # instead of a RepoPrepPlan-local fixture.
+    before do
+      unless Syrus::PluginRegistry.registered_names.include?("ruby")
+        Syrus::PluginRegistry.register(
+          name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+          provides: { prepare_detector: Ruby::PrepareDetector }
+        )
+      end
+
+      unless Syrus::PluginRegistry.registered_names.include?("javascript")
+        Syrus::PluginRegistry.register(
+          name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+          provides: { prepare_detector: JavaScript::PrepareDetector }
+        )
+      end
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
     it "Gemfile → bundle install" do
       write("Gemfile", "")
       result = described_class.for(@dir)
@@ -102,8 +125,8 @@ RSpec.describe RepoPrepPlan do
       write("yarn.lock", "")
       result = described_class.for(@dir)
       expect(result.commands).to eq([ "bundle install", "yarn install --frozen-lockfile" ])
-      expect(result.source).to include("Gemfile")
-      expect(result.source).to include("yarn.lock")
+      expect(result.source).to include("Ruby::PrepareDetector")
+      expect(result.source).to include("JavaScript::PrepareDetector")
     end
 
     it "no recognized signals → empty + diagnostic" do
@@ -171,15 +194,6 @@ RSpec.describe RepoPrepPlan do
 
       result = described_class.for(@dir)
       expect(result.commands).to be_empty
-    end
-
-    it "still unions with the legacy Ruby/Node fallback" do
-      register_detector(plugin_name: "test_python", file: "requirements.txt", command: "pip install -r requirements.txt")
-      write("requirements.txt", "")
-      write("Gemfile", "")
-
-      result = described_class.for(@dir)
-      expect(result.commands).to contain_exactly("pip install -r requirements.txt", "bundle install")
     end
   end
 end
