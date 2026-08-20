@@ -135,6 +135,8 @@ RSpec.describe MainHealthChangedService do
           priority: "high",
           state: "queued"
         )
+        run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |job| job[:job] == RunJob }
+        expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["high"])
       end
 
       it "does not leave a triaging repair Job behind when workflow dispatch fails" do
