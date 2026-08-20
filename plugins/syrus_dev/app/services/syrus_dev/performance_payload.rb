@@ -106,10 +106,9 @@ module SyrusDev
       PerformanceLogEvent
         .where(occurred_at: PerformanceLogEvent::RETENTION.ago..)
         .where.not(app_revision: [ nil, "", current_revision ])
-        .group(:app_revision)
-        .maximum(:occurred_at)
-        .max_by { |_revision, occurred_at| occurred_at }
-        &.first
+        .reorder(occurred_at: :desc, id: :desc)
+        .limit(1)
+        .pick(:app_revision)
     end
 
     def events_for_revision(raw_events, revision)

@@ -6,7 +6,7 @@ require "tmpdir"
 
 class ChatEventEvaluator
   DECISIONS = %w[no_op respond act].freeze
-  MAX_MESSAGES = 10_000
+  MAX_MESSAGES = 500
   MAX_TRANSCRIPT_BYTES = 1.megabyte
   DEFAULT_TIMEOUT = 5.minutes
   DEFAULT_MAX_TURNS = 4
@@ -77,10 +77,8 @@ class ChatEventEvaluator
 
   def clone_context
     source_count = @chat_session.messages.count
-    relation = @chat_session.messages.order(:id)
-    relation = relation.last(MAX_MESSAGES) if source_count > MAX_MESSAGES
-    records = Array(relation)
-    message_cap = source_count > MAX_MESSAGES
+    records = source_count > MAX_MESSAGES ? latest_messages(MAX_MESSAGES) : messages_scope.order(:id).to_a
+    message_cap = source_count > records.size
     snapshots = snapshot_messages(records)
     bytes = transcript_bytes(snapshots)
     byte_cap = false
@@ -103,6 +101,24 @@ class ChatEventEvaluator
   end
 
   private
+
+  def latest_messages(limit)
+    ids = messages_scope.reselect(:id).order(id: :desc).limit(limit).pluck(:id)
+    return [] if ids.empty?
+
+    messages_scope.where(id: ids).order(:id).to_a
+  end
+
+  def messages_scope
+    scope = ChatMessage.where(chat_session_id: @chat_session.id)
+    return scope unless mysql_adapter?
+
+    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (index_chat_messages_on_session_id_and_id)"))
+  end
+
+  def mysql_adapter?
+    ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
+  end
 
   def snapshot_messages(records)
     records.map do |message|

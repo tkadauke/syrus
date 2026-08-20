@@ -18,15 +18,16 @@ module AdminMysql
       limit = clamp_limit(limit)
 
       PerformanceLogging.suppress do
+        processes = process_list(limit: limit)
         {
           available: true,
           generated_at: Time.current.iso8601,
           adapter: connection.adapter_name,
           database: connection.current_database,
-          connection_summary: connection_summary,
+          connection_summary: connection_summary(processes: processes),
           variables: variables,
           status: status,
-          process_list: process_list(limit: limit),
+          process_list: processes,
           statement_digests: statement_digests(limit: [ limit, 25 ].min),
           slow_log: slow_log(limit: [ limit, 25 ].min)
         }
@@ -84,7 +85,7 @@ module AdminMysql
       }
     end
 
-    def connection_summary
+    def connection_summary(processes:)
       status_values = status_hash(%w[
         Threads_connected
         Threads_running
@@ -97,7 +98,7 @@ module AdminMysql
         wait_timeout
         interactive_timeout
       ])
-      sleeping = process_count_by_command["Sleep"].to_i
+      sleeping = processes.count { |process| process[:command].to_s.casecmp?("sleep") }
 
       {
         threads_connected: integer(status_values["Threads_connected"]),
@@ -110,11 +111,6 @@ module AdminMysql
         wait_timeout: integer(variable_values["wait_timeout"]),
         interactive_timeout: integer(variable_values["interactive_timeout"])
       }
-    end
-
-    def process_count_by_command
-      select_all("SELECT COMMAND, COUNT(*) AS count FROM information_schema.PROCESSLIST GROUP BY COMMAND")
-        .to_h { |row| [ row.fetch("COMMAND").to_s, row.fetch("count").to_i ] }
     end
 
     def variables
@@ -174,28 +170,22 @@ module AdminMysql
     end
 
     def process_list(limit:)
-      rows = select_all(<<~SQL.squish)
-        SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, LEFT(INFO, 1000) AS INFO
-        FROM information_schema.PROCESSLIST
-        ORDER BY
-          CASE WHEN COMMAND = 'Sleep' THEN 1 ELSE 0 END ASC,
-          TIME DESC,
-          ID ASC
-        LIMIT #{limit}
-      SQL
+      rows = select_all("SHOW FULL PROCESSLIST")
 
-      rows.map do |row|
-        {
-          id: row["ID"].to_i,
-          user: row["USER"],
-          host: row["HOST"],
-          database: row["DB"],
-          command: row["COMMAND"],
-          time_seconds: row["TIME"].to_i,
-          state: row["STATE"],
-          info: row["INFO"]
-        }
-      end
+      rows.sort_by { |row| [ row["Command"].to_s.casecmp?("Sleep") ? 1 : 0, -row["Time"].to_i, row["Id"].to_i ] }
+        .first(limit)
+        .map do |row|
+          {
+            id: row["Id"].to_i,
+            user: row["User"],
+            host: row["Host"],
+            database: row["db"],
+            command: row["Command"],
+            time_seconds: row["Time"].to_i,
+            state: row["State"],
+            info: row["Info"].to_s.safe_byteslice(0, 1000).presence
+          }
+        end
     end
 
     def statement_digests(limit:)
