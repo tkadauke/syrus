@@ -212,6 +212,36 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
+  it("invalidates chat details for oversized chat message payloads while updating turn state", () => {
+    vi.useFakeTimers()
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([
+      message(1, "user", "old")
+    ]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "invalidate_messages",
+        turn_in_flight: false,
+        agent_busy: true,
+        stop_requested_at: "2026-05-30T12:00:00Z",
+        queued_messages: []
+      }
+    })
+
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.turn_in_flight).toBe(false)
+    expect(updated?.agent_busy).toBe(true)
+    expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+
+    vi.runOnlyPendingTimers()
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
   it("invalidates chat queries instead of crashing when cached chat messages are malformed", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()

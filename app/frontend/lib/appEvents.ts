@@ -360,6 +360,26 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const invalidateMessages = chatInvalidateMessagesPayload(event.payload)
+  if (invalidateMessages) {
+    updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: invalidateMessages.turn_in_flight, agent_busy: invalidateMessages.agent_busy })
+    queryClient.setQueriesData<ChatPayload>(
+      { queryKey: ["chats", String(event.id)] },
+      (current) => current ? {
+        ...current,
+        turn_in_flight: invalidateMessages.turn_in_flight ?? current.turn_in_flight,
+        agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
+        queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
+        chat: {
+          ...current.chat,
+          stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat.stop_requested_at
+        }
+      } : current
+    )
+    scheduleChatDetailInvalidation(queryClient, ["chats", String(event.id)])
+    return true
+  }
+
   const controls = chatControlsPayload(event.payload)
   if (controls) {
     let patched = false
@@ -531,6 +551,14 @@ type ChatControlsPayload = {
   scratchpad_items_count?: number
 }
 
+type ChatInvalidateMessagesPayload = {
+  action: "invalidate_messages"
+  turn_in_flight?: boolean
+  agent_busy?: boolean
+  stop_requested_at?: string | null
+  queued_messages?: ChatQueuedMessage[]
+}
+
 type ChatHeaderPayload = {
   action: "update_header"
   chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "system_kind" | "pinned_context" | "chat_provider" | "effective_chat_provider" | "effective_chat_provider_label" | "provider_availability" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
@@ -615,6 +643,21 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
     scratchpad_items_count: Array.isArray((candidate as { scratchpad_items?: unknown }).scratchpad_items)
       ? ((candidate as { scratchpad_items: unknown[] }).scratchpad_items).length
       : undefined
+  }
+}
+
+function chatInvalidateMessagesPayload(payload: unknown): ChatInvalidateMessagesPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatInvalidateMessagesPayload>
+  if (candidate.action !== "invalidate_messages") return null
+
+  return {
+    action: "invalidate_messages",
+    turn_in_flight: typeof candidate.turn_in_flight === "boolean" ? candidate.turn_in_flight : undefined,
+    agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined,
+    queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
 }
 

@@ -3,6 +3,7 @@ class ChatMessage < ApplicationRecord
 
   ROLES = %w[ user assistant tool_use tool_result system ].freeze
   SPA_EVENT_TAIL_SIZE = 24
+  SPA_EVENT_MAX_INLINE_BYTES = 128.kilobytes
   PREVIEW_TEXT_MAX_BYTES = 500
 
   belongs_to :chat_session
@@ -88,20 +89,36 @@ class ChatMessage < ApplicationRecord
                .to_a
                .reverse
 
-    event_args = {
-      type: "updated",
-      resource: "chat",
-      id: chat_session_id,
-      changed: [ "messages" ],
-      payload: {
+    messages_payload = ::App::ChatMessagePayload.messages(tail, repository: chat.repository)
+    inline_payload = ActiveSupport::JSON.encode(messages_payload).bytesize <= SPA_EVENT_MAX_INLINE_BYTES
+
+    payload = if inline_payload
+      {
         action: "replace_tail",
         replace_from_id: tail.first&.id,
-        messages: ::App::ChatMessagePayload.messages(tail, repository: chat.repository),
+        messages: messages_payload,
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: chat.agent_busy?,
         stop_requested_at: chat.stop_requested_at&.iso8601,
         queued_messages: chat.queued_messages_payload
       }
+    else
+      {
+        action: "invalidate_messages",
+        turn_in_flight: chat.turn_in_flight?,
+        agent_busy: chat.agent_busy?,
+        stop_requested_at: chat.stop_requested_at&.iso8601,
+        queued_messages: chat.queued_messages_payload,
+        reason: "tail_payload_too_large"
+      }
+    end
+
+    event_args = {
+      type: "updated",
+      resource: "chat",
+      id: chat_session_id,
+      changed: [ "messages" ],
+      payload: payload
     }
 
     chat.send(:broadcast_to_participants, **event_args)
