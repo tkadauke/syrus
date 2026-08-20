@@ -22,7 +22,20 @@ RSpec.describe Steps::Prepare do
     # handler's `workspace.path` returns our tmpdir.
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
+
+    # RepoPrepPlan's Gemfile auto-detect signal now comes entirely from the
+    # `ruby` plugin's :prepare_detector (no more RepoPrepPlan::AUTO_DETECT
+    # fallback). Register the real bundled plugin, mirroring its engine.rb
+    # manifest, so Gemfile-based specs below exercise production wiring.
+    unless Syrus::PluginRegistry.registered_names.include?("ruby")
+      Syrus::PluginRegistry.register(
+        name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+        provides: { prepare_detector: Ruby::PrepareDetector }
+      )
+    end
   end
+
+  after { Syrus::PluginRegistry.reset! }
 
   it "no-ops cleanly when there are no commands to run" do
     # Empty workspace → auto-detect finds nothing → empty plan
@@ -68,7 +81,7 @@ RSpec.describe Steps::Prepare do
     handler.call
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("source: auto-detect (Gemfile)")
+    expect(chunks).to include("source: auto-detect (Ruby::PrepareDetector)")
     expect(chunks).to include("[stub-ran] bundle install")
   end
 
@@ -171,7 +184,7 @@ RSpec.describe Steps::Prepare do
     expect(step.reload.details["prepare_failure"]).to eq(failure)
 
     chunks = run.reload.job_logs.pluck(:chunk).join("\n")
-    expect(chunks).to include("source: auto-detect (Gemfile)")
+    expect(chunks).to include("source: auto-detect (Ruby::PrepareDetector)")
     expect(chunks).to include("WARNING (guessed command, non-fatal)")
     expect(chunks).to include("handing off to the agent without it")
     # The success line must NOT print — setup did not complete.

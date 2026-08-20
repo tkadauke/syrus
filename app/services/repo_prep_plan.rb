@@ -10,41 +10,16 @@ require "yaml"
 #         - npm install
 #      `prepare: []` or `prepare: false` opts out entirely.
 #   2. Auto-detect via registered `:prepare_detector` plugins
-#      (Syrus::PluginRegistry), unioned with the legacy hardcoded
-#      Ruby/Node fallback below. Every matching detector/group
-#      contributes commands — a Rails+React repo gets both
-#      `bundle install` and `npm ci`, not just the first hit.
+#      (Syrus::PluginRegistry). Every matching detector contributes
+#      commands — a Rails+React repo gets both `bundle install` (from
+#      the `ruby` plugin) and `npm ci` (from the `javascript` plugin),
+#      not just the first hit.
 #
 # Returns an Array of String commands (possibly empty). Pure;
 # no side effects. The Steps::Prepare handler is what actually
 # runs them.
 class RepoPrepPlan
   CONFIG_FILE = ".syrus.yml".freeze
-
-  # Legacy fallback auto-detect groups, used for signals not yet covered by a
-  # registered :prepare_detector plugin. Each inner group is a
-  # package-manager priority list for ONE ecosystem — only the first
-  # matching file within a group contributes a command, mirroring how a
-  # single plugin picks exactly one package manager internally. Different
-  # groups still union across ecosystems.
-  #
-  # TEMPORARY: these entries are removed once the `ruby` and `javascript`
-  # plugins are enabled by default and register their own :prepare_detector
-  # providers for the same signals (EPIC-242). The `ruby` plugin already
-  # registers an equivalent Gemfile → bundle install :prepare_detector
-  # (see plugins/ruby/lib/ruby/prepare_detector.rb); this hardcoded entry
-  # stays as the fallback for installs where that plugin is disabled.
-  AUTO_DETECT = [
-    [
-      [ "Gemfile", "bundle install" ]
-    ],
-    [
-      [ "yarn.lock",         "yarn install --frozen-lockfile" ],
-      [ "pnpm-lock.yaml",    "pnpm install --frozen-lockfile" ],
-      [ "package-lock.json", "npm ci" ],
-      [ "package.json",      "npm install" ]
-    ]
-  ].freeze
 
   Result = Data.define(:commands, :source, :note) do
     # Auto-detected plans are a *guess* — Syrus inferred the command
@@ -102,9 +77,7 @@ class RepoPrepPlan
   end
 
   def from_auto_detect
-    plugin_matches = plugin_detector_matches
-    legacy_matches = legacy_auto_detect_matches
-    matches = plugin_matches + legacy_matches
+    matches = plugin_detector_matches
 
     if matches.empty?
       Result.new(commands: [], source: "auto-detect", note: "no recognized signals — skipping")
@@ -125,16 +98,6 @@ class RepoPrepPlan
       next if commands.empty?
 
       [ detector.name, commands ]
-    end
-  end
-
-  # [file, [command]] pairs for the first matching file in each legacy group.
-  def legacy_auto_detect_matches
-    AUTO_DETECT.filter_map do |group|
-      file, command = group.find { |f, _cmd| @path.join(f).exist? }
-      next unless file
-
-      [ file, [ command ] ]
     end
   end
 end
