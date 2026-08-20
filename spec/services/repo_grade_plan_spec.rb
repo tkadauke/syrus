@@ -23,15 +23,13 @@ RSpec.describe RepoGradePlan do
 
       result = described_class.for(@dir)
 
-      expect(result.graders.map(&:name)).to eq(%w[tests audit])
-      expect(result.graders.map(&:command)).to eq([ "bin/rspec", "bin/bundler-audit" ])
+      expect(result.graders.map(&:name)).to eq(%w[tests tests-ci audit])
+      expect(result.graders.map(&:command)).to eq([ "bin/rspec", "RUN_CI_ONLY_SPECS=true bin/rspec", "bin/bundler-audit" ])
       # `fast:` is still parsed for the deprecation window but no longer
-      # reaches the Grader; a config declaring it falls back to `run:`.
-      expect(result.graders.map { |g| g.command_for(variant: :fast) })
-        .to eq([ "bin/rspec", "bin/bundler-audit" ])
-      expect(result.graders.map(&:ci_command)).to eq([ "RUN_CI_ONLY_SPECS=true bin/rspec", nil ])
-      expect(result.graders.map(&:required)).to eq([ true, false ])
-      expect(result.graders.map(&:timeout_minutes)).to eq([ 15, 5 ])
+      # drives runtime selection; a config declaring it still falls back to `run:`.
+      expect(result.graders.map(&:phases)).to eq([ %w[review landing], %w[ci], %w[review landing ci] ])
+      expect(result.graders.map(&:required)).to eq([ true, true, false ])
+      expect(result.graders.map(&:timeout_minutes)).to eq([ 15, 15, 5 ])
     end
 
     it "coerces string boolean values the same way SyrusYml does" do
@@ -65,6 +63,25 @@ RSpec.describe RepoGradePlan do
 
       no_desc = graders.find { |g| g.name == "no-desc" }
       expect(no_desc.description).to be_nil
+    end
+
+    it "parses phase-specific graders" do
+      write(".syrus.yml", <<~YAML)
+        grade:
+          - name: smoke
+            run: bin/smoke
+            phases: review
+          - name: rspec
+            run: bin/rspec
+            phases: [landing]
+      YAML
+
+      result = described_class.for(@dir)
+
+      expect(result.graders.map { |grader| [ grader.name, grader.phases ] }).to eq([
+        [ "smoke", %w[review] ],
+        [ "rspec", %w[landing] ]
+      ])
     end
 
     it "parses shorthand array form and caps timeouts" do

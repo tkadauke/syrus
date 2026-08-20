@@ -68,8 +68,9 @@ grade:
 |---|---|---|---|
 | `name` | yes | — | Alphanumeric + hyphens; must be unique |
 | `run` | yes | — | Shell command |
-| `fast` | no | — | Alternate shell command for pass/fail-only validation contexts |
-| `ci` | no | — | Alternate shell command for `ci_failure` workflows |
+| `phases` | no | `review`, `landing`, `ci` | Phase or phases where this grader runs |
+| `fast` | no | — | Legacy key; parsed but ignored |
+| `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
 | `timeout_minutes` | no | 15 | Clamped to 90 max |
@@ -87,18 +88,45 @@ loading, but it selects nothing — a grader declaring `fast` runs `run`.
 
 For Ruby projects, prefer putting formatter, coverage, parallelization, and CI-only filtering policy in a wrapper script such as `bin/rspec-fast`. Grader infrastructure should run the configured command as-is instead of appending RSpec-specific flags.
 
-### ci
+### phases
 
-`ci` is an optional alternate command for `ci_failure` and `main_grader` workflows. Use it when the CI-only checks are too expensive for normal Syrus grading, but must run when Syrus is specifically repairing a failed CI check or judging main-branch health. If `ci` is absent, Syrus falls back to `run`.
+`phases` declares where a grader runs:
+
+- `review` — implementation/feedback validation before operator approval.
+- `landing` — final landing validation after approval.
+- `ci` — CI-failure repair and main-branch health grading.
+
+Use cheap structural checks in `review`. Put expensive full-suite checks in
+`landing` so Syrus does not spend minutes grading work before a human review.
+Put CI-only checks in a separate `ci` phase grader.
 
 ```yaml
 grade:
+  - name: eager-load
+    run: bin/check-eager-load
+    phases: [review, landing, ci]
+
   - name: rspec
     run: COVERAGE=false bin/rspec-fast
-    ci: COVERAGE=false bin/rspec-ci
+    phases: [landing]
+
+  - name: rspec-ci
+    run: COVERAGE=false bin/rspec-ci
+    phases: [ci]
 ```
 
-Use CI-only specs for checks that are too slow, too environmental, or too broad for the normal Syrus grader loop but still important in GitHub Actions. They should run during `ci_failure` workflows so the agent can verify that a CI failure is actually fixed. Main-grader workflows also use `ci` when present so main-branch health reflects the GitHub CI suite. Normal implementation, feedback, and landing workflows should use `run` or `fast`, not the CI-only command.
+Use CI-only specs for checks that are too slow, too environmental, or too broad
+for the normal Syrus grader loop but still important in GitHub Actions. They
+should run during `ci_failure` workflows so the agent can verify that a CI
+failure is actually fixed. Main-grader workflows also use the `ci` phase so
+main-branch health reflects the GitHub CI suite.
+
+### ci (legacy)
+
+`ci` is still parsed for older configs. It expands into a separate
+`<name>-ci` grader whose only phase is `ci`, and the original `run` grader is
+removed from the `ci` phase. New configs should declare an explicit `*-ci`
+grader with `phases: [ci]` instead.
 
 ### failures
 

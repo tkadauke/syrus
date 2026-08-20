@@ -146,19 +146,16 @@ Non-agentic. Runs a single grader command (e.g., `bin/rspec`). Required graders 
 
 Syrus does not mutate grader commands for specific test frameworks. If a command needs multiple formatters, coverage toggles, parallelization, or CI-only filtering, put that policy in `.syrus.yml` or a repository wrapper script such as `bin/rspec-fast`.
 
-Graders declare two commands. `run:` is used everywhere except the two CI
-contexts below, so it should be the fast, parallel command; `ci:` is an
-optional alternate for the contexts that must also cover CI-only checks.
+Graders declare a single command and optional `phases:`. Syrus chooses the
+phase from workflow context and runs only graders whose `phases` include it:
+`review` before operator approval, `landing` after approval, and `ci` for
+`ci_failure` plus `main_grader` workflows. Put cheap smoke/structural checks in
+`review`, full suites in `landing`, and CI-only checks in explicit `ci` phase
+graders.
 
-When a grader defines a `.syrus.yml` `ci:` command, Syrus uses it in
-`ci_failure` workflows so CI-only checks can run when the workflow is
-specifically repairing a failed CI signal, and in `main_grader` workflows,
-because main-branch health should match the checks that can fail in GitHub CI.
-If `ci:` is absent, both fall back to `run:`.
-
-Speculative `landing_validation` workflows use `run:` like any other
-validation. Their `when_files_changed` selection is computed against the
-predicted post-merge base, not the current `origin/main`.
+Speculative `landing_validation` workflows use the `landing` phase. Their
+`when_files_changed` selection is computed against the predicted post-merge
+base, not the current `origin/main`.
 
 An earlier `fast:` command selected a parallel variant for landing trigger
 kinds and for grade-loop iterations after the first, back when `run:` was
@@ -167,6 +164,10 @@ ran single-threaded, and thirteen trigger kinds were in neither list and never
 reached the fast path at all. `run:` is the parallel command now, so `fast:` is
 gone: it is still parsed so existing configs keep loading, but it selects
 nothing and falls back to `run:`.
+
+An older `ci:` alternate command is still parsed for compatibility. It expands
+into a separate `<name>-ci` grader whose only phase is `ci`; new configs should
+spell that out directly.
 
 `grader` Runs also persist bounded command spans for top-level phases inside
 composite commands. The splitter recognizes conservative top-level `&&`, `||`,

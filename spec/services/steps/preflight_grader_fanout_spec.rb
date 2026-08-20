@@ -143,7 +143,7 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     details = workflow.steps.find_by!(kind: "preflight_grader").details
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["standard_command"]).to eq("bin/rspec")
+    expect(details["phase"]).to eq("landing")
     expect(details).not_to have_key("fast_command")
     expect(details).not_to have_key("fast_variant")
   end

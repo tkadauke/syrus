@@ -1156,6 +1156,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
         finished_at: 1.minute.ago
       )
     end
+    ProviderCircuitBreaker.clear_read_cache!
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"

@@ -101,6 +101,7 @@ grade:
       via `bin/rails generate migration <Name>` so the timestamp is
       fresh at file-creation time.
     run: bin/check-migration-collisions
+    phases: [review, landing, ci]
     timeout_minutes: 1
 
   - name: migration-lint
@@ -112,6 +113,7 @@ grade:
       partial migrations; without guards the retry crashes with
       "Duplicate column" or "table already exists."
     run: bin/check-migrations
+    phases: [review, landing, ci]
     timeout_minutes: 1
 
   - name: migration-baselines
@@ -122,6 +124,7 @@ grade:
       reordered migrations that are invisible on a fully migrated dev
       database but crash deploys when an environment is still behind.
     run: bin/check-primary-migration-baselines
+    phases: [landing, ci]
     timeout_minutes: 10
 
   - name: thread-budget
@@ -132,6 +135,7 @@ grade:
       RAILS_MAX_THREADS / config/database.yml's pool, or trim the
       queue's thread count.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && bin/check-thread-budget
+    phases: [review, landing, ci]
     # Landing dispatches graders in parallel; this one starts with the same
     # `bundle check` as eager-load/production-build-boot, so it needs the
     # same 3-minute headroom under contention instead of the tighter 1-minute
@@ -146,6 +150,7 @@ grade:
       payload, so feature rollout code must stay aligned with the YAML
       declaration.
     run: bin/check_feature_slugs
+    phases: [review, landing, ci]
     required: true
     timeout_minutes: 1
 
@@ -159,6 +164,7 @@ grade:
       the same constant with different superclasses — check umbrella
       files vs per-class siblings.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-eager-load
+    phases: [review, landing, ci]
     timeout_minutes: 3
 
   - name: production-build-boot
@@ -169,6 +175,7 @@ grade:
       application tables; if an initializer performs DB work at build time,
       this grader fails before the production image build does.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/check-production-build-boot
+    phases: [review, landing, ci]
     timeout_minutes: 3
 
   - name: rspec
@@ -179,9 +186,8 @@ grade:
       the suite green and add coverage to any under-tested area
       they touch. `bin/rspec-fast` prepares the test databases
       itself, so schema changes in the same workflow are picked up
-      before spec collection. `ci:` swaps in bin/rspec-ci, which adds
-      the isolated serial :ci_only pass on top of the same parallel
-      run; it is used for ci_failure and main-branch graders.
+      before spec collection. This grader runs during landing, after
+      the operator has approved the PR.
     # RspecJunitFormatter (not SyrusRails::RspecParser's native progress-text
     # parsing) is used deliberately: the native parser only enumerates
     # *failing* examples, so a test can never show up with both a passed and
@@ -190,7 +196,7 @@ grade:
     # bin/rspec-fast merges its per-worker JUnit XML into this single path so
     # ingestion works under parallelism.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-fast
-    ci: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-ci
+    phases: [landing]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited
     # Processes default to 4, matching the worker pods' visible CPU count
@@ -200,6 +206,17 @@ grade:
     # 8 processes burn 455 CPU-seconds against 352 at 4. On an idle
     # many-core laptop 8 still wins on wall clock, which is why
     # bin/rspec-fast keeps that default for local runs.
+    timeout_minutes: 30
+
+  - name: rspec-ci
+    description: |
+      Full GitHub Actions-equivalent RSpec suite, including specs tagged
+      :ci_only. This runs only when Syrus is fixing a CI failure or judging
+      main-branch health, not during ordinary review or landing.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-4}" bin/rspec-ci
+    phases: [ci]
+    junit_output: .syrus/grade-output/rspec-junit.xml
+    failures: allow_inherited
     timeout_minutes: 30
 
   - name: react-tests
@@ -212,6 +229,7 @@ grade:
       old 15-minute budget as the suite has grown, leaving no room for
       `tsc --noEmit` even running concurrently; bumped for headroom.
     run: bin/test-react
+    phases: [landing, ci]
     junit_output: .syrus/grade-output/react-tests-junit.xml
     failures: allow_inherited
     timeout_minutes: 20
@@ -223,6 +241,7 @@ grade:
       export/type validation, and release-download page regressions
       before `.github/workflows/deploy-website.yml` fails after merge.
     run: npm --prefix website ci && npm --prefix website run sync-release && npm --prefix website run build
+    phases: [landing, ci]
     failures: allow_inherited
     required: true
     timeout_minutes: 10

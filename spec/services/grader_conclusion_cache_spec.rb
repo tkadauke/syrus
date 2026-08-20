@@ -5,7 +5,7 @@ RSpec.describe GraderConclusionCache do
     RepoGradePlan::Grader.new(
       name: name,
       command: command,
-      ci_command: nil,
+      phases: %w[review landing ci],
       description: nil,
       required: required,
       timeout_minutes: timeout_minutes,

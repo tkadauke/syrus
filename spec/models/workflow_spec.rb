@@ -74,7 +74,7 @@ RSpec.describe Workflow do
 
     it "keeps retry runs on the workflow pinned provider" do
       workflow = described_class.create!(job: job, trigger_kind: "initial", agent_provider: "claude")
-      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "failed")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "queued")
       job.update!(job_provider_setting: "codex")
 
       run = StepDispatcher.create_run_and_enqueue(step, workflow)

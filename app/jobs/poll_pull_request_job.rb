@@ -408,6 +408,7 @@ class PollPullRequestJob < ApplicationJob
 
     return if @job.last_ci_handled_sha == head_sha   # already reacted to this commit
     return if landing_workflow_active?
+    return if ci_repair_deferred_until_approval?
     return if ci_failure_cap_reached?
     return if pending_ci_failure_run?
     return if provider_circuit_open?("ci_failure")
@@ -492,6 +493,14 @@ class PollPullRequestJob < ApplicationJob
     return false unless @job.landing?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while landing is active")
+    true
+  end
+
+  def ci_repair_deferred_until_approval?
+    return false if @job.main_branch_repair?
+    return false if @job.approved?
+
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure deferred until job is approved")
     true
   end
 

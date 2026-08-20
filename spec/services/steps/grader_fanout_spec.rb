@@ -97,53 +97,64 @@ RSpec.describe Steps::GraderFanout do
     expect(grader_steps.first.details["name"]).to eq("rspec")
   end
 
-  # One command for everyday grading. `fast:` used to win here for landing
-  # trigger kinds and on retries while `run:` stayed serial; `run:` is the
-  # parallel command now, so every non-CI context uses it.
-  it "uses the run command on the first implementation validation pass" do
+  it "uses review-phase graders on the first implementation validation pass" do
     write_config(<<~YAML)
       grade:
+        - name: smoke
+          run: bin/smoke
+          phases: [review]
         - name: rspec
           run: bin/rspec
+          phases: [landing]
     YAML
 
     handler.call
 
     details = workflow.steps.find_by!(kind: "grader").details
-    expect(details["command"]).to eq("bin/rspec")
-    expect(details["standard_command"]).to eq("bin/rspec")
-    expect(details["command_variant"]).to eq("normal")
-    expect(details["ci_variant"]).to be false
+    expect(details["name"]).to eq("smoke")
+    expect(details["command"]).to eq("bin/smoke")
+    expect(details["phase"]).to eq("review")
+    expect(details["configured_phases"]).to eq([ "review" ])
   end
 
-  it "uses the same run command for landing validations" do
+  it "uses landing-phase graders for landing validations" do
     workflow.update!(trigger_kind: "auto_merge")
     write_config(<<~YAML)
       grade:
+        - name: smoke
+          run: bin/smoke
+          phases: [review]
         - name: rspec
           run: bin/rspec
+          phases: [landing]
     YAML
 
     handler.call
 
     details = workflow.steps.find_by!(kind: "grader").details
+    expect(details["name"]).to eq("rspec")
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["command_variant"]).to eq("normal")
+    expect(details["phase"]).to eq("landing")
   end
 
-  it "uses the same run command for speculative landing validations" do
+  it "uses landing-phase graders for speculative landing validations" do
     workflow.update!(trigger_kind: "landing_validation")
     write_config(<<~YAML)
       grade:
+        - name: smoke
+          run: bin/smoke
+          phases: [review]
         - name: rspec
           run: bin/rspec
+          phases: [landing]
     YAML
 
     handler.call
 
     details = workflow.steps.find_by!(kind: "grader").details
+    expect(details["name"]).to eq("rspec")
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["command_variant"]).to eq("normal")
+    expect(details["phase"]).to eq("landing")
   end
 
   it "computes changed files from the predicted base for speculative landing validations" do
@@ -166,26 +177,27 @@ RSpec.describe Steps::GraderFanout do
     expect(workflow.steps.where(kind: "grader").count).to eq(1)
   end
 
-  it "uses the CI grader command for CI failure validations" do
+  it "uses explicit CI-phase graders for CI failure validations" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
       grade:
         - name: rspec
           run: bin/rspec
-          ci: RUN_CI_ONLY_SPECS=true bin/rspec
+          phases: [landing]
+        - name: rspec-ci
+          run: RUN_CI_ONLY_SPECS=true bin/rspec
+          phases: [ci]
     YAML
 
     handler.call
 
     details = workflow.steps.find_by!(kind: "grader").details
+    expect(details["name"]).to eq("rspec-ci")
     expect(details["command"]).to eq("RUN_CI_ONLY_SPECS=true bin/rspec")
-    expect(details["standard_command"]).to eq("bin/rspec")
-    expect(details["ci_command"]).to eq("RUN_CI_ONLY_SPECS=true bin/rspec")
-    expect(details["command_variant"]).to eq("ci")
-    expect(details["ci_variant"]).to be true
+    expect(details["phase"]).to eq("ci")
   end
 
-  it "uses the CI grader command for main branch grader validations when configured" do
+  it "expands a legacy ci command into a CI-phase grader" do
     workflow.update!(trigger_kind: "main_grader")
     write_config(<<~YAML)
       grade:
@@ -197,12 +209,14 @@ RSpec.describe Steps::GraderFanout do
     handler.call
 
     details = workflow.steps.find_by!(kind: "grader").details
+    expect(details["name"]).to eq("rspec-ci")
     expect(details["command"]).to eq("bin/rspec-ci")
-    expect(details["command_variant"]).to eq("ci")
-    expect(details["ci_variant"]).to be true
+    expect(details["phase"]).to eq("ci")
+    expect(details["legacy_ci_command"]).to be true
+    expect(details["legacy_source_grader"]).to eq("rspec")
   end
 
-  it "falls back to the run command for main branch graders when no CI command is configured" do
+  it "uses all-phase graders for main branch graders when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "main_grader")
     write_config(<<~YAML)
       grade:
@@ -214,11 +228,10 @@ RSpec.describe Steps::GraderFanout do
 
     details = workflow.steps.find_by!(kind: "grader").details
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["command_variant"]).to eq("ci")
-    expect(details["ci_variant"]).to be false
+    expect(details["phase"]).to eq("ci")
   end
 
-  it "falls back to the run command in CI failure contexts when no CI command is configured" do
+  it "uses all-phase graders in CI failure contexts when no CI-specific grader is configured" do
     workflow.update!(trigger_kind: "ci_failure")
     write_config(<<~YAML)
       grade:
@@ -230,8 +243,7 @@ RSpec.describe Steps::GraderFanout do
 
     details = workflow.steps.find_by!(kind: "grader").details
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["command_variant"]).to eq("ci")
-    expect(details["ci_variant"]).to be false
+    expect(details["phase"]).to eq("ci")
   end
 
   # Repos mid-upgrade may still declare `fast:`. It is parsed so the config

@@ -91,14 +91,12 @@ declines XML content, since it doesn't match the progress-format summary
 line) creates one `TestCase` row per example per grader Run, giving
 `TestCase.top_flaky_tests` real signal.
 
-**Caveat — only the serial `run:` variant is wired up.** `.syrus.yml` grader
-entries can declare `fast:`/`ci:` command variants selected by
-`LandingGraderPlan` based on trigger kind and iteration (see
-`app/services/landing_grader_plan.rb`); this repo's `fast:` (`bin/rspec-fast`)
-and `ci:` (`bin/rspec-ci`) commands fan the suite out across `parallel_tests`
-workers and don't currently produce one combined results file at the
-`junit_output` path. When one of those variants runs, ingestion is skipped
-(logged, non-fatal) rather than failing the grader.
+`junit_output` is attached to the grader entry that produced it, independent of
+phase. If a repository has separate landing and CI commands (for example
+`rspec` and `rspec-ci`), both entries should declare their own `junit_output`
+path so Syrus can ingest the results from either phase. Wrapper scripts that
+fan out across `parallel_tests` workers should merge their per-worker XML files
+before exiting.
 
 ## Flakiness scoring
 
@@ -147,6 +145,6 @@ results without an N+1.
 2. Add whatever formatter/gem/flag the test runner needs to write that file
    (e.g. `rspec_junit_formatter`, `pytest --junitxml=...`, `jest --reporters
    default jest-junit`).
-3. Set `junit_output: <path>` on the corresponding `.syrus.yml` grader entry.
-4. If the grader has `fast:`/`ci:` variants, either wire the same output flag
-   into each variant, or accept that ingestion is skipped when they run.
+3. Set `junit_output: <path>` on every `.syrus.yml` grader entry that should
+   ingest results. If the landing and CI phases use separate graders, both
+   entries need their own `junit_output`.

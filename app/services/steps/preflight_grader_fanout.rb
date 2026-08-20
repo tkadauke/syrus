@@ -56,9 +56,10 @@ module Steps
             details: {
               "name" => grader.name,
               "command" => grader.command,
-            "standard_command" => grader.metadata["standard_command"],
-            "ci_command" => grader.metadata["ci_command"],
-            "command_variant" => grader.metadata["command_variant"],
+              "phase" => grader.metadata["phase"],
+              "configured_phases" => grader.metadata["configured_phases"],
+              "legacy_ci_command" => grader.metadata["legacy_ci_command"],
+              "legacy_source_grader" => grader.metadata["legacy_source_grader"],
               "description" => grader.description,
               "required" => grader.required,
               "timeout_minutes" => grader.timeout_minutes

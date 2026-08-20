@@ -56,10 +56,10 @@ Structurally identical to `pr_comment` but triggered from the chat interface rat
 **Step chain:** `prepare → retry_until(analyze_and_fix, graders) → summarize_amend → try(push)`
 
 The agent inspects the failing checks and fixes the root cause, then Syrus runs
-the repository's configured graders before pushing the fix. Graders use each
-grader's `.syrus.yml` `ci:` command when present so CI-only checks run during
-CI-failure repair; without `ci:`, the normal `run:` command is used. If graders
-fail, their output feeds the next `analyze_and_fix` iteration.
+the repository's configured `ci` phase graders before pushing the fix. Put
+CI-only checks in explicit `.syrus.yml` graders with `phases: [ci]` so the
+agent can verify that the GitHub CI failure is actually fixed. If graders fail,
+their output feeds the next `analyze_and_fix` iteration.
 
 ## retry
 

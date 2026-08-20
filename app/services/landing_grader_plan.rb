@@ -1,16 +1,14 @@
-# Chooses which command each grader runs. There are two: `run:` (the everyday
-# command, already parallel) and `ci:` (the same parallel run plus the isolated
-# serial :ci_only pass). `ci:` is used for ci_failure workflows and main-branch
-# graders, which are the two contexts that must also cover :ci_only specs.
-#
-# There used to be a third, `fast:`, selected for landing trigger kinds and for
-# repeat grade-loop iterations. It existed because `run:` was serial, so the
-# first pass of every workflow — the common case — ran single-threaded while
-# only retries got parallelism. `run:` is parallel now, so the distinction only
-# created drift: thirteen trigger kinds were in neither list and never reached
-# the fast path at all.
+# Selects graders by phase. The command is part of the grader entry itself;
+# workflow context only decides which configured phase is active.
 class LandingGraderPlan
   CI_TRIGGER_KINDS = %w[ ci_failure main_grader ].freeze
+  LANDING_TRIGGER_KINDS = %w[
+    auto_merge
+    merge_train
+    landing_validation
+    merge_train_validation
+    external_pr_merge
+  ].freeze
 
   def self.effective(plan, trigger_kind:, iteration:)
     new(plan, trigger_kind: trigger_kind, iteration: iteration).effective
@@ -20,8 +18,8 @@ class LandingGraderPlan
     new(plan, trigger_kind: "auto_merge", iteration: 1).effective
   end
 
-  def self.variant_for(trigger_kind:, iteration:)
-    new(nil, trigger_kind: trigger_kind, iteration: iteration).variant
+  def self.phase_for(trigger_kind:, iteration:)
+    new(nil, trigger_kind: trigger_kind, iteration: iteration).phase
   end
 
   def initialize(plan, trigger_kind:, iteration:)
@@ -31,24 +29,24 @@ class LandingGraderPlan
   end
 
   def effective
-    variant = self.variant
+    phase = self.phase
     plan.with(
-      graders: plan.graders.map do |grader|
-        command = grader.command_for(variant: variant)
+      graders: plan.graders.select { |grader| grader.phases.include?(phase.to_s) }.map do |grader|
         metadata = {
-          "standard_command" => grader.command,
-          "ci_command" => grader.ci_command,
-          "command_variant" => variant.to_s,
-          "ci_variant" => variant == :ci && grader.ci_command.present?
+          "phase" => phase.to_s,
+          "configured_phases" => grader.phases
         }.compact
 
-        grader.with(command: command, metadata: metadata)
+        grader.with(metadata: grader.metadata.merge(metadata))
       end
     )
   end
 
-  def variant
-    CI_TRIGGER_KINDS.include?(trigger_kind) ? :ci : :normal
+  def phase
+    return :ci if CI_TRIGGER_KINDS.include?(trigger_kind)
+    return :landing if LANDING_TRIGGER_KINDS.include?(trigger_kind)
+
+    :review
   end
 
   private

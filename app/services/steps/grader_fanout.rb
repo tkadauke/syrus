@@ -29,7 +29,7 @@ module Steps
         log("[grader_fanout] no graders configured — collect Step will pass through")
         return
       end
-      log("[grader_fanout] using #{grader_command_variant} grader variants where configured") unless normal_grader_context?
+      log("[grader_fanout] using #{grader_phase} grader phase") unless review_grader_context?
 
       # Skip graders whose when_files_changed globs don't match this PR's diff.
       files = changed_files
@@ -160,10 +160,10 @@ module Steps
             details: {
               "name" => grader.name,
               "command" => grader.command,
-              "standard_command" => grader.metadata["standard_command"],
-              "ci_command" => grader.metadata["ci_command"],
-              "command_variant" => grader.metadata["command_variant"],
-              "ci_variant" => grader.metadata["ci_variant"],
+              "phase" => grader.metadata["phase"],
+              "configured_phases" => grader.metadata["configured_phases"],
+              "legacy_ci_command" => grader.metadata["legacy_ci_command"],
+              "legacy_source_grader" => grader.metadata["legacy_source_grader"],
               "description" => grader.description,
               "required" => grader.required,
               "timeout_minutes" => grader.timeout_minutes,
@@ -185,12 +185,12 @@ module Steps
       LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
 
-    def normal_grader_context?
-      grader_command_variant == :normal
+    def review_grader_context?
+      grader_phase == :review
     end
 
-    def grader_command_variant
-      LandingGraderPlan.variant_for(trigger_kind: workflow.trigger_kind, iteration: run.iteration)
+    def grader_phase
+      LandingGraderPlan.phase_for(trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
 
   end

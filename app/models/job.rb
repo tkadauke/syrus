@@ -602,6 +602,7 @@ class Job < ApplicationRecord
   after_update_commit :start_dependent_jobs_after_successful_close, if: :saved_change_to_successful_closed_dependency?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
+  after_update_commit :poll_pr_checks_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
   after_update_commit :enqueue_search_index_after_update
   after_update_commit :broadcast_app_job_updated
@@ -1040,6 +1041,12 @@ class Job < ApplicationRecord
       workflow.cancel! if workflow.may_cancel?
       workflow.save!
     end
+  end
+
+  def poll_pr_checks_after_approval
+    return if pr_number.blank?
+
+    PollPullRequestJob.perform_later(id)
   end
 
   def promote_queued_chat_pending_actions

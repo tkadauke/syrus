@@ -679,6 +679,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
       stub_reviews([])
       stub_issue_comments([])
       stub_review_comments([])
+      job.update!(state: "implemented")
+      job.approve!(via: "operator")
     end
 
     it "instantiates a CiFailure workflow with failed_checks + head_sha as artifacts" do
@@ -746,6 +748,21 @@ RSpec.describe PollPullRequestJob, :ci_only do
           html_url: "u", output: { summary: nil } }
       ])
       expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+    end
+
+    it "defers CI repair for unapproved jobs while still caching check state" do
+      job.unapprove!
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      job.reload
+      expect(job.pr_checks_sha).to eq(sha)
+      expect(job.pr_checks_state).to eq("failing")
+      expect(job.last_ci_handled_sha).to be_nil
     end
 
     it "does not start a CI repair workflow for GitHub Actions setup outages" do

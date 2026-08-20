@@ -20,6 +20,8 @@ class SyrusYml
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
   GRADE_FAILURE_POLICIES = %w[strict allow_inherited].freeze
   DEFAULT_GRADE_FAILURE_POLICY = "strict".freeze
+  GRADE_PHASES = %w[review landing ci].freeze
+  DEFAULT_GRADE_PHASES = GRADE_PHASES.freeze
 
   COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
   COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
@@ -35,12 +37,11 @@ class SyrusYml
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
-  # `fast` is accepted but no longer used. Syrus dropped the three-way
-  # run/fast/ci split; `run:` is the parallel command now and `ci:` adds the
-  # isolated :ci_only pass. Repos whose .syrus.yml still carries `fast:`
-  # must keep parsing across the deploy window, so the key is tolerated here
-  # and simply falls back to `run:`. Remove after two deploys.
-  GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures)
+  # `fast` and `ci` are accepted for compatibility but no longer drive
+  # command selection. Runtime grading selects configured grader entries by
+  # `phases`; RepoGradePlan expands legacy `ci:` into a synthetic `*-ci`
+  # grader in the `ci` phase.
+  GradeStep = Data.define(:name, :run, :fast, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -276,6 +277,7 @@ class SyrusYml
     raise ParseError, "#{label}.run: is required" if run.empty?
     fast = raw["fast"].to_s.strip.presence # deprecated, ignored — see GradeStep
     ci = raw["ci"].to_s.strip.presence
+    phases = parse_grade_phases(raw["phases"], "#{label}.phases")
 
     when_files_changed = raw["when_files_changed"]
     if !when_files_changed.nil?
@@ -288,6 +290,7 @@ class SyrusYml
       run: run,
       fast: fast,
       ci: ci,
+      phases: phases,
       description: raw["description"].to_s.strip.presence,
       required: raw.key?("required") ? ActiveModel::Type::Boolean.new.cast(raw["required"]) : true,
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
@@ -303,6 +306,24 @@ class SyrusYml
     return value if value.in?(GRADE_FAILURE_POLICIES)
 
     raise ParseError, "#{label}: must be one of #{GRADE_FAILURE_POLICIES.join(', ')}"
+  end
+
+  def parse_grade_phases(raw, label)
+    phases =
+      case raw
+      when nil then DEFAULT_GRADE_PHASES
+      when String then [ raw ]
+      when Array then raw
+      else raise ParseError, "#{label}: must be a phase string or an array of phase strings"
+      end
+
+    phases = phases.map { |phase| phase.to_s.strip }.reject(&:empty?).uniq
+    raise ParseError, "#{label}: must not be empty" if phases.empty?
+
+    invalid = phases - GRADE_PHASES
+    raise ParseError, "#{label}: must contain only #{GRADE_PHASES.join(', ')}" if invalid.any?
+
+    phases
   end
 
   def parse_timeout_minutes(raw, name)

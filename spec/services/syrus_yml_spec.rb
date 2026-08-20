@@ -30,8 +30,8 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict"),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict")
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict"),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", fast: nil, ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict")
     ])
   end
 
@@ -47,7 +47,7 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict")
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict")
     ])
   end
 
@@ -286,6 +286,32 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.steps.first.run).to eq("bin/rspec")
     expect(config.grade.steps.first.ci).to eq("RUN_CI_ONLY_SPECS=true bin/rspec")
+  end
+
+  it "parses grader phases" do
+    config = parse(<<~YAML)
+      grade:
+        - name: smoke
+          run: bin/smoke
+          phases: review
+        - name: rspec
+          run: bin/rspec
+          phases: [landing, ci]
+    YAML
+
+    expect(config.grade.steps.first.phases).to eq(%w[review])
+    expect(config.grade.steps.second.phases).to eq(%w[landing ci])
+  end
+
+  it "rejects unknown grader phases" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: tests
+            run: bin/rspec
+            phases: [review, production]
+      YAML
+    }.to raise_error(described_class::ParseError, /phases: must contain only review, landing, ci/)
   end
 
   it "returns nil for when_files_changed when the key is absent" do
