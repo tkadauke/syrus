@@ -10,11 +10,11 @@ class TestRunIngester
 
   def ingest!
     test_run = nil
-    stale_test_case_ids = []
+    touched_test_identity_ids = []
 
     TestRun.transaction do
       previous_test_runs = TestRun.where(run: @run, grader_name: @grader_name)
-      stale_test_case_ids = TestCase.where(test_run_id: previous_test_runs.select(:id)).pluck(:id)
+      touched_test_identity_ids.concat(TestCase.where(test_run_id: previous_test_runs.select(:id)).where.not(test_identity_id: nil).distinct.pluck(:test_identity_id))
 
       previous_test_run_ids = previous_test_runs.pluck(:id)
       TestCase.where(test_run_id: previous_test_run_ids).delete_all if previous_test_run_ids.present?
@@ -32,13 +32,14 @@ class TestRunIngester
         duration_ms: @parsed_run.duration_ms
       )
 
-      insert_test_cases(test_run)
+      touched_test_identity_ids.concat(insert_test_cases(test_run))
 
       test_run
     end
 
-    TestCaseSearchIndex.delete_many(stale_test_case_ids)
-    IndexTestRunSearchJob.perform_later(test_run.id) if test_run
+    touched_test_identity_ids.uniq!
+    TestIdentity.refresh_many!(touched_test_identity_ids)
+    TestIdentitySearchIndex.upsert_many(TestIdentity.includes(:repository).where(id: touched_test_identity_ids))
     test_run
   end
 
@@ -46,11 +47,19 @@ class TestRunIngester
 
   def insert_test_cases(test_run)
     now = Time.current
+    touched_identity_ids = []
+
     @parsed_run.cases.each_slice(500) do |slice|
+      identities = TestIdentity.ensure_for_cases!(repository: @repository, cases: slice)
       rows = slice.map do |c|
+        fingerprint = TestIdentity.fingerprint_for(suite_name: c.suite_name, name: c.name)
+        test_identity = identities.fetch(fingerprint)
+        touched_identity_ids << test_identity.id
+
         {
           test_run_id: test_run.id,
           repository_id: @repository.id,
+          test_identity_id: test_identity.id,
           name: c.name,
           suite_name: c.suite_name,
           file_path: c.file_path,
@@ -66,5 +75,7 @@ class TestRunIngester
 
       TestCase.insert_all!(rows) if rows.present?
     end
+
+    touched_identity_ids
   end
 end

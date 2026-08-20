@@ -1,8 +1,11 @@
 # Test Insights (Flaky Tests)
 
 Syrus can ingest structured per-test results from a grader run and turn them
-into durable `TestRun`/`TestCase` history, powering per-test pass/fail
-timelines and a flaky-test report. This is a core feature (not a plugin) —
+into durable `TestRun`/`TestCase` history, grouped under one durable
+`TestIdentity` per `(repository, suite_name, name)` test. `TestIdentity` is
+the searchable/navigable object; `TestCase` is an individual execution row.
+Together they power per-test pass/fail timelines, duration history, and flaky
+test reporting. This is a core feature (not a plugin) —
 `test_result_parser` is a plugin *extension point* that lets a repository's
 test runner supply its own parsing logic, but storage, flakiness scoring, and
 the UI are built into core.
@@ -21,7 +24,8 @@ grade:
 
 After the grader command runs (pass or fail), `Steps::Grader#ingest_test_output!`
 (`app/services/steps/grader.rb:99,156-186`) reads the file at that path and
-writes `TestRun` + `TestCase` rows for the Run, tagged with the grader's name.
+writes one `TestRun`, one `TestCase` row per parsed case, and links each case
+to its stable `TestIdentity`, tagged with the grader's name.
 A missing file is not an error — it logs
 `"junit_output ... not found — skipping ingestion"` and moves on, so a
 `junit_output` path that's only produced by one variant of a grader (see
@@ -111,12 +115,12 @@ results without an N+1.
 
 ## Where it surfaces
 
-- **Repository flaky-tests panel** — `GET /api/v1/app/repositories/:repository_id/flaky_tests`
-  (`Api::V1::App::RepositoryFlakyTestsController`) returns the top flaky tests
-  for a repository. Rendered by `FlakyTestsPanel` in
-  `app/frontend/routes/RepositoryDetail.tsx` on the repository detail page —
-  the panel renders nothing (no empty state) until at least one flaky test has
-  been ingested.
+- **Repository Tests tab** — `GET /api/v1/app/repositories/:repository_id/tests`
+  (`Api::V1::App::RepositoryTestsController#index`) returns interesting recent
+  failures by default and supports search by test name/suite/file. Clicking a
+  row opens `GET /api/v1/app/repositories/:repository_id/tests/:id`, which
+  shows that `TestIdentity`'s execution history, links to the individual Runs,
+  and a duration-over-time graph.
 - **Job test results** — `GET /api/v1/app/jobs/:job_id/test_results`
   (`Api::V1::App::JobTestResultsController`) returns every `TestRun`/`TestCase`
   ingested for a Job's most recent Workflow that has test data, grouped by
@@ -128,6 +132,10 @@ results without an N+1.
   between 0 and 1 (i.e., it has both passed and failed recently) — a `0` or
   `1.0` score means it's either never failed or never passed and isn't
   flagged as flaky.
+- **Global search** — test search results index `TestIdentity`, not
+  `TestCase`, so repeated executions of the same test collapse into one
+  result. Search results link directly to the repository Tests tab history
+  page for that identity.
 
 ## Configuring this for another repository
 

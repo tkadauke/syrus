@@ -10,18 +10,18 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
   end
 
   def prepare_search_tables
-    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_case_fts")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
     SearchRecord.connection.execute(<<~SQL)
-      CREATE VIRTUAL TABLE test_case_fts
+      CREATE VIRTUAL TABLE test_identity_fts
       USING fts5(
         name,
         suite_name,
         file_path,
-        test_case_id UNINDEXED,
+        test_identity_id UNINDEXED,
         user_id UNINDEXED,
         repository_id UNINDEXED,
-        status UNINDEXED,
-        created_at UNINDEXED,
+        last_status UNINDEXED,
+        last_seen_at UNINDEXED,
         tokenize = 'porter unicode61'
       )
     SQL

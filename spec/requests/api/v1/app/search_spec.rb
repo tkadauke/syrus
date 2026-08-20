@@ -192,7 +192,7 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
   end
 
-  it "returns test_case results with path to the associated job" do
+  it "returns test results with path to the repository test history" do
     job = Factories.job_record(user: user, repository: repository)
     run = Run.create!(job: job, user: user, trigger_kind: "initial")
     test_run = TestRun.create!(
@@ -205,15 +205,25 @@ RSpec.describe "App API unified search", type: :request do
       skipped_count: 0,
       error_count: 0
     )
+    test_identity = TestIdentity.create!(
+      repository: repository,
+      fingerprint: TestIdentity.fingerprint_for(suite_name: "AuthSpec", name: "LoginService validates credentials uniquely"),
+      name: "LoginService validates credentials uniquely",
+      suite_name: "AuthSpec",
+      file_path: "spec/services/login_service_spec.rb",
+      last_status: "failed",
+      last_seen_at: Time.current
+    )
     test_case = TestCase.create!(
       test_run: test_run,
       repository: repository,
+      test_identity: test_identity,
       name: "LoginService validates credentials uniquely",
       suite_name: "AuthSpec",
       file_path: "spec/services/login_service_spec.rb",
       status: "failed"
     )
-    TestCaseSearchIndex.upsert(test_case)
+    TestIdentitySearchIndex.upsert(test_identity)
 
     get "/api/v1/app/search", params: { query: "LoginService", types: [ "test_case" ] }
 
@@ -221,12 +231,12 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.length).to eq(1)
     expect(results.first).to include(
       "type" => "test_case",
-      "id" => test_case.id,
+      "id" => test_identity.id,
       "title" => "LoginService validates credentials uniquely",
       "suite_name" => "AuthSpec",
       "file_path" => "spec/services/login_service_spec.rb",
       "state" => "failed",
-      "path" => job_path(job),
+      "path" => repository_path(repository, tab: "tests", test_id: test_identity.id),
       "repository_slug" => "acme/widgets"
     )
     expect(results.first.fetch("snippet")).to include("<mark>")
@@ -316,7 +326,7 @@ RSpec.describe "App API unified search", type: :request do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS epic_fts")
     SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
     SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_search_metadata")
-    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_case_fts")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_identity_fts")
     SearchRecord.connection.execute(<<~SQL)
       CREATE VIRTUAL TABLE job_fts
       USING fts5(
@@ -362,16 +372,16 @@ RSpec.describe "App API unified search", type: :request do
       )
     SQL
     SearchRecord.connection.execute(<<~SQL)
-      CREATE VIRTUAL TABLE test_case_fts
+      CREATE VIRTUAL TABLE test_identity_fts
       USING fts5(
         name,
         suite_name,
         file_path,
-        test_case_id UNINDEXED,
+        test_identity_id UNINDEXED,
         user_id UNINDEXED,
         repository_id UNINDEXED,
-        status UNINDEXED,
-        created_at UNINDEXED,
+        last_status UNINDEXED,
+        last_seen_at UNINDEXED,
         tokenize = 'porter unicode61'
       )
     SQL

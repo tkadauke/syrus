@@ -6,6 +6,7 @@ module RepositoryTabsSerialization
   def repository_tabs_json(repository)
     tabs = [
       { key: "overview", label: "Overview", path: repository_path(repository) },
+      { key: "tests", label: "Tests", path: repository_path(repository, tab: "tests") },
       { key: "documents", label: "Documents", path: repository_documents_path(repository) },
     ]
     unless AppSetting.simple?

@@ -248,7 +248,7 @@ module Filters
     ),
     test_case: Subject.new(
       name: :test_case,
-      model: TestCase,
+      model: TestIdentity,
       chips: {
         "repository_id" => "Filters::Chips::RepositoryId",
         "created_at" => "Filters::Chips::CreatedAt",

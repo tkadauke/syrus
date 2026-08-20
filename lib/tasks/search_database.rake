@@ -47,17 +47,17 @@ module SyrusSearchDatabaseTasks
         tokenize = 'porter unicode61'
       )
     SQL
-    "test_case_fts" => <<~SQL,
-      CREATE VIRTUAL TABLE IF NOT EXISTS test_case_fts
+    "test_identity_fts" => <<~SQL,
+      CREATE VIRTUAL TABLE IF NOT EXISTS test_identity_fts
       USING fts5(
         name,
         suite_name,
         file_path,
-        test_case_id UNINDEXED,
+        test_identity_id UNINDEXED,
         user_id UNINDEXED,
         repository_id UNINDEXED,
-        status UNINDEXED,
-        created_at UNINDEXED,
+        last_status UNINDEXED,
+        last_seen_at UNINDEXED,
         tokenize = 'porter unicode61'
       )
     SQL

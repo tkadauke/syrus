@@ -7,8 +7,8 @@ class IndexTestRunSearchJob < ApplicationJob
     test_run = TestRun.find_by(id: test_run_id)
     return unless test_run
 
-    test_run.test_cases.includes(:repository).find_in_batches(batch_size: BATCH_SIZE) do |batch|
-      TestCaseSearchIndex.upsert_many(batch)
+    test_run.test_cases.where.not(test_identity_id: nil).distinct.pluck(:test_identity_id).each_slice(BATCH_SIZE) do |identity_ids|
+      TestIdentitySearchIndex.upsert_many(TestIdentity.includes(:repository).where(id: identity_ids))
     end
   end
 end

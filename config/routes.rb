@@ -289,6 +289,8 @@ Rails.application.routes.draw do
           end
         end
         get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
+        get "repositories/:repository_id/tests", to: "repository_tests#index"
+        get "repositories/:repository_id/tests/:id", to: "repository_tests#show", constraints: { id: /\d+/ }
         get "repositories/:repository_id/insight_suggestions", to: "insight_suggestions#index"
         patch "insight_suggestions/:id", to: "insight_suggestions#update"
         post "insight_suggestions/:id/discuss", to: "insight_suggestions#discuss"

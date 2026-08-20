@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_19_123000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_19_161000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1973,12 +1973,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_123000) do
     t.bigint "repository_id", null: false
     t.string "status", limit: 32, null: false
     t.string "suite_name", null: false
+    t.integer "test_identity_id"
     t.bigint "test_run_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["repository_id", "status", "created_at"], name: "idx_test_cases_repo_status_created"
     t.index ["repository_id", "suite_name", "name", "created_at"], name: "idx_test_cases_repo_case_created"
     t.index ["repository_id"], name: "index_test_cases_on_repository_id"
+    t.index ["test_identity_id", "created_at"], name: "idx_test_cases_identity_created"
+    t.index ["test_identity_id"], name: "index_test_cases_on_test_identity_id"
     t.index ["test_run_id", "status", "suite_name", "name"], name: "idx_test_cases_run_status_case"
     t.index ["test_run_id"], name: "index_test_cases_on_test_run_id"
+  end
+
+  create_table "test_identities", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "file_path"
+    t.string "fingerprint", limit: 64, null: false
+    t.integer "last_duration_ms"
+    t.datetime "last_failed_at"
+    t.datetime "last_passed_at"
+    t.datetime "last_seen_at"
+    t.string "last_status", limit: 32
+    t.string "name", null: false
+    t.integer "repository_id", null: false
+    t.string "suite_name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id", "fingerprint"], name: "idx_test_identities_repo_fingerprint", unique: true
+    t.index ["repository_id"], name: "index_test_identities_on_repository_id"
   end
 
   create_table "test_runs", force: :cascade do |t|
@@ -2470,7 +2491,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_123000) do
   add_foreign_key "terminal_sessions", "users"
   add_foreign_key "terminal_sessions", "workflows"
   add_foreign_key "test_cases", "repositories"
+  add_foreign_key "test_cases", "test_identities"
   add_foreign_key "test_cases", "test_runs"
+  add_foreign_key "test_identities", "repositories"
   add_foreign_key "test_runs", "repositories"
   add_foreign_key "test_runs", "runs"
   add_foreign_key "whiteboard_snapshots", "chat_sessions"
@@ -2488,4 +2511,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_19_123000) do
   add_foreign_key "workflow_step_resource_profiles", "repositories"
   add_foreign_key "workflows", "jobs"
   add_foreign_key "workflows", "users"
+
+  # Virtual tables defined in this database.
+  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end

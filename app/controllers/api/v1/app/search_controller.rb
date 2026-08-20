@@ -130,8 +130,8 @@ module Api
         def test_case_search_rows(query, limit)
           apply_filter_to_rows(
             "test_case",
-            TestCaseSearchIndex.search(query, user_id: Current.user.id, limit: limit),
-            :test_case_id
+            TestIdentitySearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            :test_identity_id
           )
         end
 
@@ -163,7 +163,7 @@ module Api
           when "test_case"
             ::Filters::Compiler.call(
               ::Filters::Ast.parse(tree),
-              scope: TestCase.joins(:repository).where(repositories: { user_id: Current.user.id }, id: ids),
+              scope: TestIdentity.joins(:repository).where(repositories: { user_id: Current.user.id }, id: ids),
               user: Current.user,
               subject: :test_case
             )
@@ -316,23 +316,21 @@ module Api
         end
 
         def test_case_result_json(row)
-          test_case = test_cases_by_id[row.fetch(:test_case_id).to_i]
-          return unless test_case
-
-          job = test_case.test_run.run.job
+          test_identity = test_identities_by_id[row.fetch(:test_identity_id).to_i]
+          return unless test_identity
 
           {
             type: "test_case",
-            id: test_case.id,
-            title: test_case.name,
-            suite_name: test_case.suite_name,
-            file_path: test_case.file_path,
+            id: test_identity.id,
+            title: test_identity.name,
+            suite_name: test_identity.suite_name,
+            file_path: test_identity.file_path,
             snippet: row.fetch(:snippet),
             rank: row.fetch(:rank),
-            path: job_path(job),
-            state: test_case.status,
-            repository_slug: test_case.repository.slug,
-            created_at: test_case.created_at&.iso8601
+            path: repository_path(test_identity.repository, tab: "tests", test_id: test_identity.id),
+            state: test_identity.last_status,
+            repository_slug: test_identity.repository.slug,
+            created_at: test_identity.last_seen_at&.iso8601
           }
         end
 
@@ -364,11 +362,11 @@ module Api
             .index_by(&:id)
         end
 
-        def test_cases_by_id
-          @test_cases_by_id ||= TestCase
+        def test_identities_by_id
+          @test_identities_by_id ||= TestIdentity
             .joins(:repository)
-            .where(repositories: { user_id: Current.user.id }, id: result_ids(:test_case_id))
-            .includes(:repository, test_run: { run: :job })
+            .where(repositories: { user_id: Current.user.id }, id: result_ids(:test_identity_id))
+            .includes(:repository)
             .index_by(&:id)
         end
 

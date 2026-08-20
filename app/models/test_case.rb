@@ -4,6 +4,7 @@ class TestCase < ApplicationRecord
 
   belongs_to :test_run
   belongs_to :repository
+  belongs_to :test_identity, optional: true
 
   validates :name, :suite_name, presence: true
   validates :status, presence: true, inclusion: { in: STATUSES }
@@ -13,8 +14,6 @@ class TestCase < ApplicationRecord
   scope :failed,  -> { where(status: "failed") }
   scope :skipped, -> { where(status: "skipped") }
   scope :errored, -> { where(status: "error") }
-
-  after_commit :index_for_search, on: %i[create update destroy]
 
   # Returns flakiness data for a specific (repository, suite_name, name) tuple.
   # A test is flaky if it has both passed and failed within the lookback window.
@@ -158,9 +157,4 @@ class TestCase < ApplicationRecord
     result
   end
 
-  private
-
-  def index_for_search
-    IndexTestCaseSearchJob.perform_later(id)
-  end
 end
