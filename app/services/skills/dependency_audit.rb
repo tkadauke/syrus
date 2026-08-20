@@ -8,7 +8,7 @@ module Skills
   # always running the repo's own grade commands first, so a bump that
   # breaks the build never gets pushed.
   #
-  # Unlike RepoPrepPlan::AUTO_DETECT (which picks exactly one install
+  # Unlike RepoPrepPlan's auto-detect (which picks exactly one install
   # command per repo — the first lockfile match wins, full stop), this skill
   # detects independently *per ecosystem*: a poly-ecosystem repo (Gemfile +
   # package-lock.json, e.g. this one) needs both `bundle audit` and `npm
@@ -138,11 +138,11 @@ module Skills
 
         Check for these lockfile/manifest signals, in this priority order
         within each ecosystem — this mirrors Syrus's own `prepare:`
-        auto-detect (`RepoPrepPlan::AUTO_DETECT`), so the ecosystems you
-        audit agree with what Syrus already installs. A repo can use more
-        than one ecosystem at once (e.g. a Rails app with a Node-based
-        frontend) — audit every ecosystem you find evidence for, not just
-        the first:
+        auto-detect (the registered `:prepare_detector` plugins), so the
+        ecosystems you audit agree with what Syrus already installs. A repo
+        can use more than one ecosystem at once (e.g. a Rails app with a
+        Node-based frontend) — audit every ecosystem you find evidence for,
+        not just the first:
 
         #{detection_table}
 

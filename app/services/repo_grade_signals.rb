@@ -9,8 +9,9 @@ require "pathname"
 # The `onboard-to-syrus` built-in skill (Skills::OnboardToSyrus) embeds
 # RULE_DESCRIPTIONS into its agent instructions so the agent's own repo
 # scan can't drift from a single source of truth — the same way it
-# reuses RepoPrepPlan::AUTO_DETECT for the `prepare:` section instead of
-# hand-describing lockfile detection a second time.
+# reuses the combined `signals` of registered :prepare_detector plugins for
+# the `prepare:` section instead of hand-describing lockfile detection a
+# second time.
 #
 # Pure; no side effects. Candidates are suggestions surfaced to the
 # onboarding agent, not commands Syrus runs automatically.

@@ -15,7 +15,8 @@ module Skills
   # instead of borderline (see the Epic description).
   #
   # Ecosystem detection mirrors Skills::DependencyAudit's lockfile
-  # signals (which mirror RepoPrepPlan::AUTO_DETECT), so the ecosystems
+  # signals (which mirror the registered :prepare_detector plugins'
+  # signals), so the ecosystems
   # this skill audits agree with what Syrus already installs. Where a
   # real on-disk checkout is available (currently only Steps::RunSkill),
   # the Node ecosystem gets a genuine Ruby-side pre-scan: every

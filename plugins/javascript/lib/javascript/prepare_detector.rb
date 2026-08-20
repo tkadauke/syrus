@@ -21,6 +21,10 @@ module JavaScript
       entry ? [ entry.last ] : []
     end
 
+    def self.signals
+      PRIORITY
+    end
+
     def self.matching_entry(repo_path)
       path = Pathname.new(repo_path)
       PRIORITY.find { |file, _command| path.join(file).exist? }

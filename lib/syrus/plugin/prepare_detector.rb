@@ -19,6 +19,16 @@ module Syrus
     #     matching plugin (cross-language), but does not dedupe within one
     #     plugin's contribution.
     #
+    # Implementations may optionally define:
+    #
+    #   signals -> Array<[String, String]>
+    #     Documentation-only [file, command] pairs describing this detector's
+    #     static file → command table, for callers that render a human-facing
+    #     detection reference (e.g. Skills::OnboardToSyrus) without a
+    #     materialized repo_path to call detect?/prepare_commands against.
+    #     Defaults to an empty array; detectors whose logic isn't a static
+    #     table (or that don't need documentation) can leave it unimplemented.
+    #
     # Register an implementation at boot time:
     #   Syrus::PluginRegistry.register(
     #     name: "my-plugin", version: "1.0.0",
@@ -41,6 +51,10 @@ module Syrus
 
         def prepare_commands(repo_path)
           raise NotImplementedError, "#{self}.prepare_commands is required"
+        end
+
+        def signals
+          []
         end
       end
 

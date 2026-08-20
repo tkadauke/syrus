@@ -2,6 +2,33 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Skills::DependencyAudit do
+  # This skill's ecosystem detection intentionally mirrors the file signals
+  # registered :prepare_detector plugins recognize (see the class comment).
+  # Register the real bundled `ruby` and `javascript` plugins (mirroring
+  # their engine.rb manifests), same as spec/services/repo_prep_plan_spec.rb,
+  # so the consistency checks below exercise the actual production wiring.
+  before do
+    unless Syrus::PluginRegistry.registered_names.include?("ruby")
+      Syrus::PluginRegistry.register(
+        name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+        provides: { prepare_detector: Ruby::PrepareDetector }
+      )
+    end
+
+    unless Syrus::PluginRegistry.registered_names.include?("javascript")
+      Syrus::PluginRegistry.register(
+        name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+        provides: { prepare_detector: JavaScript::PrepareDetector }
+      )
+    end
+  end
+
+  after { Syrus::PluginRegistry.reset! }
+
+  def prepare_detector_signals
+    Syrus::PluginRegistry.providers_for(:prepare_detector).flat_map(&:signals)
+  end
+
   describe ".definition" do
     it "declares an optional dry_run boolean parameter defaulting to true" do
       definition = described_class.definition
@@ -22,10 +49,10 @@ RSpec.describe Skills::DependencyAudit do
       expect(described_class.definition.instructions).to include("{{dry_run}}")
     end
 
-    it "reuses RepoPrepPlan's lockfile signals for ecosystem detection" do
+    it "reuses the registered :prepare_detector plugins' lockfile signals for ecosystem detection" do
       instructions = described_class.definition.instructions
 
-      RepoPrepPlan::AUTO_DETECT.each do |file, _command|
+      prepare_detector_signals.each do |file, _command|
         expect(instructions).to include("`#{file}`")
       end
     end
@@ -161,7 +188,7 @@ RSpec.describe Skills::DependencyAudit do
     it "still includes the full detection reference table alongside the concrete scan results" do
       instructions = instructions_for
 
-      RepoPrepPlan::AUTO_DETECT.each { |file, _command| expect(instructions).to include("`#{file}`") }
+      prepare_detector_signals.each { |file, _command| expect(instructions).to include("`#{file}`") }
     end
   end
 end
