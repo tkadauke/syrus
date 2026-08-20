@@ -66,7 +66,7 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
       "revision_scope" => "current"
     )
     expect(payload["storage"]).to include("max_events" => PerformanceLogging::Store::MAX_EVENTS)
-    expect(payload["thresholds"]).to include("slow_request_ms", "slow_sql_ms", "slow_phase_ms")
+    expect(payload["thresholds"]).to include("slow_request_ms", "slow_job_ms", "slow_sql_ms", "slow_phase_ms")
     expect(payload).not_to have_key("events")
     expect(payload.dig("summaries", "slow_requests").first).to include(
       "path" => "/api/v1/app/jobs",

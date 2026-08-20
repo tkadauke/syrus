@@ -1,11 +1,13 @@
 module PerformanceLogging
   FEATURE_SLUG = :performance_logging
   SLOW_REQUEST_EVENT = "syrus.performance.slow_request"
+  SLOW_JOB_EVENT = "syrus.performance.slow_job"
   SLOW_SQL_EVENT = "syrus.performance.slow_sql"
   SLOW_PHASE_EVENT = "syrus.performance.slow_phase"
   BROWSER_TRACE_EVENT = "syrus.performance.browser_trace"
 
   DEFAULT_SLOW_REQUEST_MS = 1_000.0
+  DEFAULT_SLOW_JOB_MS = 5_000.0
   DEFAULT_SLOW_SQL_MS = 250.0
   DEFAULT_SLOW_PHASE_MS = 250.0
   DEFAULT_REQUEST_SQL_COUNT_THRESHOLD = 50
@@ -71,6 +73,36 @@ module PerformanceLogging
     yield
   end
 
+  def with_job_context(context)
+    previous = capture_current_context
+    Current.performance_request_context = safe_context(context)
+    Current.performance_sql_count = 0
+    Current.performance_sql_duration_ms = 0.0
+    Current.performance_slow_sql_count = 0
+    Current.performance_sql_fingerprints = {}
+    Current.performance_phase_stack = []
+    yield
+  ensure
+    restore_current_context(previous)
+  end
+
+  def around_job(job)
+    return yield unless enabled?
+
+    error = nil
+    started_at = monotonic_ms
+    with_job_context(job_context(job)) do
+      begin
+        yield
+      rescue StandardError => e
+        error = e
+        raise
+      ensure
+        record_job(job, monotonic_ms - started_at, error: error)
+      end
+    end
+  end
+
   def merge_request_context(context)
     Current.performance_request_context = request_context.merge(safe_context(context))
   end
@@ -133,6 +165,34 @@ module PerformanceLogging
         "status" => payload[:status],
         "view_runtime_ms" => rounded_duration(payload[:view_runtime]),
         "db_runtime_ms" => rounded_duration(payload[:db_runtime]),
+        "sql_count" => Current.performance_sql_count.to_i,
+        "sql_duration_ms" => rounded_duration(Current.performance_sql_duration_ms),
+        "slow_sql_count" => Current.performance_slow_sql_count.to_i,
+        "top_sql_fingerprints" => top_sql_fingerprints
+      ).compact
+    )
+  end
+
+  def record_job(job, duration_ms, error: nil)
+    return if suppressed?
+    return unless enabled?
+    trigger_reasons = job_trigger_reasons(duration_ms)
+    return if trigger_reasons.empty?
+
+    emit(
+      base_event(SLOW_JOB_EVENT).merge(
+        request_context,
+        "duration_ms" => rounded_duration(duration_ms),
+        "trigger_reasons" => trigger_reasons,
+        "job_class" => safe_string(job.class.name, 200),
+        "active_job_id" => safe_string(job.job_id, 100),
+        "provider_job_id" => safe_string(job.provider_job_id, 100),
+        "queue_name" => safe_string(job.queue_name, 100),
+        "priority" => job_priority(job),
+        "executions" => job.executions,
+        "arguments_count" => job.arguments.size,
+        "exception_class" => error ? safe_string(error.class.name, 200) : nil,
+        "exception_message" => error ? safe_string(error.message, 300) : nil,
         "sql_count" => Current.performance_sql_count.to_i,
         "sql_duration_ms" => rounded_duration(Current.performance_sql_duration_ms),
         "slow_sql_count" => Current.performance_slow_sql_count.to_i,
@@ -214,6 +274,10 @@ module PerformanceLogging
     threshold_from_env("SYRUS_PERFORMANCE_SLOW_REQUEST_MS", DEFAULT_SLOW_REQUEST_MS)
   end
 
+  def slow_job_threshold_ms
+    threshold_from_env("SYRUS_PERFORMANCE_SLOW_JOB_MS", DEFAULT_SLOW_JOB_MS)
+  end
+
   def slow_sql_threshold_ms
     threshold_from_env("SYRUS_PERFORMANCE_SLOW_SQL_MS", DEFAULT_SLOW_SQL_MS)
   end
@@ -233,6 +297,7 @@ module PerformanceLogging
   def thresholds
     {
       slow_request_ms: slow_request_threshold_ms,
+      slow_job_ms: slow_job_threshold_ms,
       slow_sql_ms: slow_sql_threshold_ms,
       slow_phase_ms: slow_phase_threshold_ms,
       request_sql_count_threshold: request_sql_count_threshold,
@@ -339,6 +404,14 @@ module PerformanceLogging
     reasons
   end
 
+  def job_trigger_reasons(duration_ms)
+    reasons = []
+    reasons << "duration" if duration_ms.to_f >= slow_job_threshold_ms
+    reasons << "sql_count" if request_sql_count_threshold.positive? && Current.performance_sql_count.to_i >= request_sql_count_threshold
+    reasons << "sql_duration" if request_sql_duration_threshold_ms.positive? && Current.performance_sql_duration_ms.to_f >= request_sql_duration_threshold_ms
+    reasons
+  end
+
   def safe_context(context)
     context.to_h.filter_map do |key, value|
       next if value.nil?
@@ -348,8 +421,14 @@ module PerformanceLogging
         ActiveModel::Type::Boolean.new.cast(value)
       when :user_id
         Integer(value, exception: false)
-      when :request_id
+      when :request_id, :active_job_id, :provider_job_id
         safe_string(value, 100)
+      when :job_class
+        safe_string(value, 200)
+      when :queue_name
+        safe_string(value, 100)
+      when :job_id, :workflow_id, :run_id, :repository_id, :priority, :executions, :arguments_count
+        Integer(value, exception: false)
       when :method
         safe_string(value, 20)
       when :path
@@ -478,6 +557,39 @@ module PerformanceLogging
     return nil if value.nil?
 
     value.to_f.round(1)
+  end
+
+  def capture_current_context
+    {
+      performance_request_context: Current.performance_request_context,
+      performance_sql_count: Current.performance_sql_count,
+      performance_sql_duration_ms: Current.performance_sql_duration_ms,
+      performance_slow_sql_count: Current.performance_slow_sql_count,
+      performance_sql_fingerprints: Current.performance_sql_fingerprints,
+      performance_phase_stack: Current.performance_phase_stack
+    }
+  end
+
+  def restore_current_context(previous)
+    previous.to_h.each do |attribute, value|
+      Current.public_send("#{attribute}=", value)
+    end
+  end
+
+  def job_context(job)
+    {
+      job_class: job.class.name,
+      active_job_id: job.job_id,
+      provider_job_id: job.provider_job_id,
+      queue_name: job.queue_name,
+      priority: job_priority(job),
+      executions: job.executions,
+      arguments_count: job.arguments.size
+    }
+  end
+
+  def job_priority(job)
+    job.priority if job.respond_to?(:priority)
   end
 
   def threshold_from_env(name, fallback)

@@ -2,6 +2,7 @@ import { getJson, postJson } from "@app/api/client"
 
 export type PerformanceThresholds = {
   slow_request_ms: number
+  slow_job_ms: number
   slow_sql_ms: number
   slow_phase_ms: number
   request_sql_count_threshold: number
@@ -31,6 +32,21 @@ export type SlowRequestSummary = {
   average_sql_count: number | null
   average_sql_duration_ms: number | null
   last_seen_at: string | null
+}
+
+export type SlowJobSummary = {
+  job_class: string | null
+  queue_name: string | null
+  count: number
+  total_duration_ms: number
+  average_duration_ms: number | null
+  max_duration_ms: number | null
+  average_sql_count: number | null
+  average_sql_duration_ms: number | null
+  slow_sql_count: number
+  last_seen_at: string | null
+  recent_active_job_id?: string | null
+  recent_trigger_reasons?: string[] | null
 }
 
 export type SlowPhaseSummary = {
@@ -122,6 +138,15 @@ export type PerformanceEvent = {
   self_top_sql_fingerprints?: RequestSqlFingerprint[] | null
   status?: number | null
   trigger_reasons?: string[] | null
+  job_class?: string | null
+  active_job_id?: string | null
+  provider_job_id?: string | null
+  queue_name?: string | null
+  priority?: number | null
+  executions?: number | null
+  arguments_count?: number | null
+  exception_class?: string | null
+  exception_message?: string | null
   metadata?: Record<string, unknown> | null
   trace_id?: string | null
   visibility_state?: string | null
@@ -145,6 +170,7 @@ export type AdminPerformancePayload = {
     revision: string | null
     comparisons: {
       slow_requests: PerformanceComparison[]
+      slow_jobs: PerformanceComparison[]
       slow_phases: PerformanceComparison[]
       browser_traces: PerformanceComparison[]
       sql_fingerprints: PerformanceComparison[]
@@ -152,6 +178,7 @@ export type AdminPerformancePayload = {
   }
   summaries: {
     slow_requests: SlowRequestSummary[]
+    slow_jobs: SlowJobSummary[]
     slow_phases: SlowPhaseSummary[]
     browser_traces: BrowserTraceSummary[]
     sql_fingerprints: SqlFingerprintSummary[]

@@ -37,6 +37,16 @@ RSpec.describe "API: /api/v1/admin/performance", type: :request do
         }
       ]
     )
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_JOB_EVENT,
+      "job_class" => "PollAllRepositoriesJob",
+      "queue_name" => "polling",
+      "active_job_id" => "job-admin-api",
+      "duration_ms" => 6_000.0,
+      "app_revision" => "new-sha",
+      "sql_count" => 20,
+      "sql_duration_ms" => 1_500.0
+    )
   end
 
   it "401s without a token" do
@@ -53,14 +63,20 @@ RSpec.describe "API: /api/v1/admin/performance", type: :request do
     expect(body["enabled"]).to eq(true)
     expect(body["current_revision"]).to eq("new-sha")
     expect(body["revision_scope"]).to eq("current")
-    expect(body["thresholds"]).to include("slow_request_ms", "slow_sql_ms", "slow_phase_ms")
+    expect(body["thresholds"]).to include("slow_request_ms", "slow_job_ms", "slow_sql_ms", "slow_phase_ms")
     expect(body["storage"]).to include("max_events" => PerformanceLogging::Store::MAX_EVENTS)
-    expect(body["events"].first).to include("event" => "syrus.performance.slow_request", "path" => "/dashboard/jobs")
+    expect(body["events"]).to include(include("event" => "syrus.performance.slow_request", "path" => "/dashboard/jobs"))
     expect(body.dig("summaries", "slow_requests").first).to include(
       "method" => "GET",
       "path" => "/dashboard/jobs",
       "count" => 1,
       "average_sql_count" => 12.0
+    )
+    expect(body.dig("summaries", "slow_jobs").first).to include(
+      "job_class" => "PollAllRepositoriesJob",
+      "queue_name" => "polling",
+      "count" => 1,
+      "average_sql_duration_ms" => 1_500.0
     )
     expect(body.dig("summaries", "sql_fingerprints").first).to include(
       "fingerprint" => "SELECT * FROM jobs WHERE id = ?",

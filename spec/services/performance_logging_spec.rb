@@ -156,6 +156,71 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "records slow ActiveJob events with isolated SQL counters and sanitized job context" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_job_threshold_ms).and_return(0.0)
+    allow(described_class).to receive(:slow_sql_threshold_ms).and_return(1_000.0)
+
+    job_class = Class.new(ApplicationJob) do
+      queue_as :polling
+
+      def perform(*)
+        PerformanceLogging.record_sql({ name: "Job Load", sql: "SELECT * FROM jobs WHERE state = 'open'" }, 25.0)
+      end
+    end
+    stub_const("SlowPerformanceJob", job_class)
+
+    SlowPerformanceJob.perform_now("raw arguments are not logged")
+
+    event = described_class::Store.recent.find { |row| row["event"] == "syrus.performance.slow_job" }
+    expect(event).to include(
+      "event" => "syrus.performance.slow_job",
+      "job_class" => "SlowPerformanceJob",
+      "queue_name" => "polling",
+      "trigger_reasons" => [ "duration" ],
+      "sql_count" => 1,
+      "sql_duration_ms" => 25.0,
+      "slow_sql_count" => 0,
+      "arguments_count" => 1
+    )
+    expect(event["active_job_id"]).to be_present
+    expect(event.to_s).not_to include("raw arguments are not logged")
+    expect(event["top_sql_fingerprints"].first).to include(
+      "fingerprint" => "SELECT * FROM jobs WHERE state = ?",
+      "total_duration_ms" => 25.0
+    )
+    expect(Current.performance_request_context).to be_nil
+    expect(Current.performance_sql_count).to be_nil
+  end
+
+  it "records SQL-heavy ActiveJob events even below the job duration threshold" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_job_threshold_ms).and_return(1_000.0)
+    allow(described_class).to receive(:request_sql_count_threshold).and_return(2)
+    allow(described_class).to receive(:request_sql_duration_threshold_ms).and_return(25.0)
+    allow(described_class).to receive(:slow_sql_threshold_ms).and_return(1_000.0)
+
+    job_class = Class.new(ApplicationJob) do
+      def perform
+        PerformanceLogging.record_sql({ name: "Job Load", sql: "SELECT * FROM jobs WHERE id = 1" }, 15.0)
+        PerformanceLogging.record_sql({ name: "Run Load", sql: "SELECT * FROM runs WHERE id = 2" }, 12.0)
+      end
+    end
+    stub_const("SqlHeavyPerformanceJob", job_class)
+
+    SqlHeavyPerformanceJob.perform_now
+
+    event = described_class::Store.recent.find { |row| row["event"] == "syrus.performance.slow_job" }
+    expect(event).to include(
+      "job_class" => "SqlHeavyPerformanceJob",
+      "trigger_reasons" => [ "sql_count", "sql_duration" ],
+      "sql_count" => 2,
+      "sql_duration_ms" => 27.0
+    )
+  end
+
   it "does not record the performance diagnostics endpoint as a slow request" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

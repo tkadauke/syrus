@@ -69,6 +69,7 @@ module SyrusDev
           revision: baseline[:revision],
           comparisons: {
             slow_requests: Array(comparisons[:slow_requests]).map { |row| sanitized_comparison(row) },
+            slow_jobs: Array(comparisons[:slow_jobs]).map { |row| sanitized_comparison(row) },
             slow_phases: Array(comparisons[:slow_phases]).map { |row| sanitized_comparison(row) },
             browser_traces: Array(comparisons[:browser_traces]).map { |row| sanitized_comparison(row) },
             sql_fingerprints: Array(comparisons[:sql_fingerprints]).map { |row| sanitized_comparison(row) }
@@ -84,6 +85,7 @@ module SyrusDev
         summaries = summaries.to_h
         {
           slow_requests: Array(summaries[:slow_requests]).map { |row| sanitized_slow_request(row) },
+          slow_jobs: Array(summaries[:slow_jobs]).map { |row| sanitized_slow_job(row) },
           slow_phases: Array(summaries[:slow_phases]).map { |row| sanitized_slow_phase(row) },
           browser_traces: Array(summaries[:browser_traces]).map { |row| sanitized_browser_trace(row) },
           sql_fingerprints: Array(summaries[:sql_fingerprints]).map { |row| sanitized_sql_fingerprint(row) }
@@ -92,6 +94,10 @@ module SyrusDev
 
       def sanitized_slow_request(row)
         row.merge(path: scrub_path(row[:path]))
+      end
+
+      def sanitized_slow_job(row)
+        row
       end
 
       def sanitized_slow_phase(row)
@@ -127,6 +133,10 @@ module SyrusDev
           "sql_count" => event["sql_count"],
           "sql_duration_ms" => event["sql_duration_ms"],
           "slow_sql_count" => event["slow_sql_count"],
+          "job_class" => event["job_class"],
+          "active_job_id" => event["active_job_id"],
+          "queue_name" => event["queue_name"],
+          "executions" => event["executions"],
           "phase" => event["phase"],
           "metadata" => scrub_metadata(event["metadata"]),
           "name" => scrub_text(event["name"], 200),

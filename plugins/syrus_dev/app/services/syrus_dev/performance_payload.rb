@@ -60,6 +60,7 @@ module SyrusDev
     def summaries_payload(events)
       {
         slow_requests: grouped_slow_requests(events),
+        slow_jobs: grouped_slow_jobs(events),
         slow_phases: grouped_slow_phases(events),
         browser_traces: grouped_browser_traces(events),
         sql_fingerprints: grouped_sql_fingerprints(events)
@@ -74,6 +75,7 @@ module SyrusDev
         revision: baseline_revision,
         comparisons: {
           slow_requests: compare_summary_rows(current_summaries[:slow_requests], baseline_summaries[:slow_requests], :request_key),
+          slow_jobs: compare_summary_rows(current_summaries[:slow_jobs], baseline_summaries[:slow_jobs], :job_key),
           slow_phases: compare_summary_rows(current_summaries[:slow_phases], baseline_summaries[:slow_phases], :phase_key),
           browser_traces: compare_summary_rows(current_summaries[:browser_traces], baseline_summaries[:browser_traces], :browser_trace_key),
           sql_fingerprints: compare_summary_rows(current_summaries[:sql_fingerprints], baseline_summaries[:sql_fingerprints], :sql_fingerprint_key)
@@ -84,6 +86,7 @@ module SyrusDev
     def empty_comparisons
       {
         slow_requests: [],
+        slow_jobs: [],
         slow_phases: [],
         browser_traces: [],
         sql_fingerprints: []
@@ -117,7 +120,7 @@ module SyrusDev
         .limit(limit)
         .map(&:as_event_hash)
       (events + persisted)
-        .uniq { |event| [ event["occurred_at"], event["event"], event["request_id"], event["trace_id"], event["phase"], event["path"], event["fingerprint"] ] }
+        .uniq { |event| [ event["occurred_at"], event["event"], event["request_id"], event["trace_id"], event["active_job_id"], event["job_class"], event["phase"], event["path"], event["fingerprint"] ] }
         .sort_by { |event| event["occurred_at"].to_s }
         .last(limit)
         .reverse
@@ -151,6 +154,10 @@ module SyrusDev
       [ row[:method], comparable_path(row[:path]), row[:controller], row[:action] ].join(" ")
     end
 
+    def job_key(row)
+      [ row[:job_class], row[:queue_name] ].join(" ")
+    end
+
     def phase_key(row)
       row[:phase].to_s
     end
@@ -164,7 +171,7 @@ module SyrusDev
     end
 
     def comparison_label(row)
-      comparable_path(row[:path]).presence || row[:phase].presence || row[:name].presence || row[:fingerprint].to_s.truncate(120)
+      comparable_path(row[:path]).presence || row[:job_class].presence || row[:phase].presence || row[:name].presence || row[:fingerprint].to_s.truncate(120)
     end
 
     def comparable_path(path)
@@ -204,6 +211,29 @@ module SyrusDev
           average_sql_count: average(rows.map { |event| event["sql_count"].to_i }),
           average_sql_duration_ms: average(rows.map { |event| event["sql_duration_ms"].to_f }),
           last_seen_at: rows.map { |event| event["occurred_at"] }.compact.max
+        }
+      end.sort_by { |row| [ -row[:total_duration_ms].to_f, -row[:count] ] }
+    end
+
+    def grouped_slow_jobs(events)
+      grouped = events.select { |event| event["event"] == PerformanceLogging::SLOW_JOB_EVENT }
+        .group_by { |event| [ event["job_class"], event["queue_name"] ] }
+
+      grouped.map do |(job_class, queue_name), rows|
+        durations = rows.map { |event| event["duration_ms"].to_f }
+        {
+          job_class: job_class,
+          queue_name: queue_name,
+          count: rows.size,
+          total_duration_ms: durations.sum.round(1),
+          average_duration_ms: average(durations),
+          max_duration_ms: durations.max&.round(1),
+          average_sql_count: average(rows.map { |event| event["sql_count"].to_i }),
+          average_sql_duration_ms: average(rows.map { |event| event["sql_duration_ms"].to_f }),
+          slow_sql_count: rows.sum { |event| event["slow_sql_count"].to_i },
+          last_seen_at: rows.map { |event| event["occurred_at"] }.compact.max,
+          recent_active_job_id: rows.first["active_job_id"],
+          recent_trigger_reasons: Array(rows.first["trigger_reasons"])
         }
       end.sort_by { |row| [ -row[:total_duration_ms].to_f, -row[:count] ] }
     end

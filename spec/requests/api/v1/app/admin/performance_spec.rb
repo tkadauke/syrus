@@ -68,6 +68,18 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
       "occurred_at" => "2026-08-01T12:00:03Z",
       "app_revision" => "new-sha"
     )
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_JOB_EVENT,
+      "job_class" => "PollRepositoryJob",
+      "queue_name" => "polling",
+      "active_job_id" => "job-current",
+      "duration_ms" => 12_000.0,
+      "sql_count" => 60,
+      "sql_duration_ms" => 8_000.0,
+      "trigger_reasons" => [ "duration", "sql_duration" ],
+      "occurred_at" => "2026-08-01T12:00:04Z",
+      "app_revision" => "new-sha"
+    )
   end
 
   after do
@@ -101,6 +113,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     expect(body["enabled"]).to eq(true)
     expect(body["current_revision"]).to eq("new-sha")
     expect(body["revision_scope"]).to eq("current")
+    expect(body["thresholds"]).to include("slow_job_ms")
     expect(body["events"]).to include(include("event" => "syrus.performance.slow_phase", "phase" => "dashboard_payload"))
     expect(body["events"].to_s).not_to include("stale_dashboard_payload")
     expect(body.dig("baseline", "revision")).to eq("old-sha")
@@ -127,6 +140,16 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
       "recent_api_request_ids" => [ "rows-request" ],
       "recent_metadata" => { "subject" => "job", "rows_count" => "0" }
     )
+    expect(body.dig("summaries", "slow_jobs").first).to include(
+      "job_class" => "PollRepositoryJob",
+      "queue_name" => "polling",
+      "count" => 1,
+      "max_duration_ms" => 12_000.0,
+      "average_sql_count" => 60.0,
+      "average_sql_duration_ms" => 8_000.0,
+      "recent_active_job_id" => "job-current",
+      "recent_trigger_reasons" => [ "duration", "sql_duration" ]
+    )
   end
 
   it "does not synchronously flush performance events while rendering diagnostics" do
@@ -145,7 +168,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     get "/api/v1/app/admin/performance", params: { revision_scope: "all" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["events"].map { |event| event["app_revision"] }).to contain_exactly("new-sha", "new-sha", "new-sha", "old-sha", "old-sha")
+    expect(parse_body["events"].map { |event| event["app_revision"] }).to contain_exactly("new-sha", "new-sha", "new-sha", "new-sha", "old-sha", "old-sha")
   end
 
   it "keeps a prior-revision baseline when current-revision events fill the recent window" do

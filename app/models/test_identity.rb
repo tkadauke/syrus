@@ -79,7 +79,47 @@ class TestIdentity < ApplicationRecord
     ids = Array(ids).compact.uniq
     return if ids.empty?
 
-    where(id: ids).find_each(&:refresh_summary!)
+    latest_by_identity_id = latest_cases_for(ids).index_by(&:test_identity_id)
+    failed_at_by_identity_id = latest_status_at_for(ids, %w[failed error])
+    passed_at_by_identity_id = latest_status_at_for(ids, "passed")
+
+    where(id: ids).find_each do |identity|
+      latest = latest_by_identity_id[identity.id]
+      next unless latest
+
+      identity.update_columns(
+        last_status: latest.status,
+        last_seen_at: latest.created_at,
+        last_failed_at: failed_at_by_identity_id[identity.id],
+        last_passed_at: passed_at_by_identity_id[identity.id],
+        last_duration_ms: latest.duration_ms,
+        file_path: identity.file_path.presence || latest.file_path,
+        updated_at: Time.current
+      )
+    end
+  end
+
+  def self.latest_cases_for(ids)
+    rows = TestCase
+      .where(test_identity_id: ids)
+      .select(:test_identity_id, :status, :created_at, :duration_ms, :file_path)
+      .order(:test_identity_id, created_at: :desc, id: :desc)
+      .to_a
+
+    seen = {}
+    rows.filter_map do |test_case|
+      next if seen[test_case.test_identity_id]
+
+      seen[test_case.test_identity_id] = true
+      test_case
+    end
+  end
+
+  def self.latest_status_at_for(ids, statuses)
+    TestCase
+      .where(test_identity_id: ids, status: statuses)
+      .group(:test_identity_id)
+      .maximum(:created_at)
   end
 
   def self.interesting_for_repository(repository, query: nil, limit: INTERESTING_LIMIT)

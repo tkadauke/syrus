@@ -48,13 +48,14 @@ describe("AdminPerformance", () => {
     await waitFor(() => expect(screen.queryByText("Loading performance logs...")).not.toBeInTheDocument())
     const summary = await screen.findByRole("region", { name: "Performance summary" })
     expect(within(summary).getByText("yes")).toBeInTheDocument()
-    expect(within(summary).getByText("2")).toBeInTheDocument()
+    expect(within(summary).getByText("3")).toBeInTheDocument()
     expect(within(summary).getByText("abcdef123456")).toBeInTheDocument()
     expect(within(summary).getByText("rails.cache")).toBeInTheDocument()
     expect(within(summary).getByText("1.00s")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Overview" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Browser" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Requests" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "SQL" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Phases" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Events" })).toBeInTheDocument()
@@ -68,6 +69,9 @@ describe("AdminPerformance", () => {
     expect(screen.getByText("Backend API avg / max")).toBeInTheDocument()
     expect(screen.getByText("Frontend overhead avg / max")).toBeInTheDocument()
     expect(screen.getByText("GET /api/v1/app/chats/126")).toBeInTheDocument()
+    expect(screen.getByText("PollRepositoryJob")).toBeInTheDocument()
+    expect(screen.getByText("polling")).toBeInTheDocument()
+    expect(screen.getByText("job-123")).toBeInTheDocument()
     expect(screen.getAllByText("chat_payload.recent_chats").length).toBeGreaterThan(0)
     expect(screen.getAllByText("dashboard.route").length).toBeGreaterThan(0)
     expect(screen.getByText("frontend-request-1")).toBeInTheDocument()
@@ -176,6 +180,7 @@ function performancePayload() {
     revision_scope: "current",
     thresholds: {
       slow_request_ms: 1000,
+      slow_job_ms: 5000,
       slow_sql_ms: 500,
       slow_phase_ms: 250,
       request_sql_count_threshold: 50,
@@ -205,6 +210,7 @@ function performancePayload() {
             status: "regressed"
           }
         ],
+        slow_jobs: [],
         slow_phases: [],
         browser_traces: [],
         sql_fingerprints: []
@@ -224,6 +230,22 @@ function performancePayload() {
           average_sql_count: 246,
           average_sql_duration_ms: 629,
           last_seen_at: "2026-08-01T14:32:45Z"
+        }
+      ],
+      slow_jobs: [
+        {
+          job_class: "PollRepositoryJob",
+          queue_name: "polling",
+          count: 1,
+          total_duration_ms: 12_000,
+          average_duration_ms: 12_000,
+          max_duration_ms: 12_000,
+          average_sql_count: 60,
+          average_sql_duration_ms: 8_000,
+          slow_sql_count: 2,
+          last_seen_at: "2026-08-01T14:32:44Z",
+          recent_active_job_id: "job-123",
+          recent_trigger_reasons: [ "duration", "sql_duration" ]
         }
       ],
       slow_phases: [
@@ -265,6 +287,18 @@ function performancePayload() {
       ]
     },
     events: [
+      {
+        event: "syrus.performance.slow_job",
+        occurred_at: "2026-08-01T14:32:44Z",
+        app_revision: "abcdef1234567890",
+        duration_ms: 12_000,
+        job_class: "PollRepositoryJob",
+        active_job_id: "job-123",
+        queue_name: "polling",
+        sql_count: 60,
+        sql_duration_ms: 8_000,
+        trigger_reasons: [ "duration", "sql_duration" ]
+      },
       {
         event: "syrus.performance.slow_request",
         occurred_at: "2026-08-01T14:32:45Z",

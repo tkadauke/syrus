@@ -1,6 +1,10 @@
 class ApplicationJob < ActiveJob::Base
   queue_as :control_plane
 
+  around_perform do |job, block|
+    PerformanceLogging.around_job(job) { block.call }
+  end
+
   # Automatically retry jobs that encountered a deadlock
   # retry_on ActiveRecord::Deadlocked
 

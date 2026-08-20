@@ -1,16 +1,16 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useState, type ReactNode } from "react"
-import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type BrowserTraceSummary, type PerformanceComparison, type PerformanceEvent, type SlowPhaseSummary, type SlowRequestSummary, type SqlExplainResult, type SqlFingerprintSummary } from "../api/adminPerformance"
+import { explainSql, fetchAdminPerformance, type AdminPerformancePayload, type BrowserTraceSummary, type PerformanceComparison, type PerformanceEvent, type SlowJobSummary, type SlowPhaseSummary, type SlowRequestSummary, type SqlExplainResult, type SqlFingerprintSummary } from "../api/adminPerformance"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 
 type RevisionScope = "current" | "all"
-type PerformanceTab = "overview" | "browser" | "requests" | "sql" | "phases" | "events"
+type PerformanceTab = "overview" | "browser" | "requests" | "jobs" | "sql" | "phases" | "events"
 type ExplainModalTab = "visual" | "table" | "json" | "sql"
 type ExplainMode = "explain" | "analyze"
 
-const PERFORMANCE_TABS: PerformanceTab[] = ["overview", "browser", "requests", "sql", "phases", "events"]
+const PERFORMANCE_TABS: PerformanceTab[] = ["overview", "browser", "requests", "jobs", "sql", "phases", "events"]
 const EXPLAIN_MODAL_TABS: ExplainModalTab[] = ["visual", "table", "json", "sql"]
 const OVERVIEW_ROW_LIMIT = 5
 
@@ -75,7 +75,7 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
         <Metric title={t("performance.events")} value={eventCount} context={t("performance.events_context", { max: payload.storage.max_events })} />
         <Metric title={t("performance.revision")} value={payload.revision_scope === "all" ? t("performance.all_revisions_short") : shortRevision(payload.current_revision)} context={payload.revision_scope === "all" ? t("performance.all_revisions_context") : t("performance.current_revision_context")} />
         <Metric title={t("performance.storage")} value={payload.storage.kind} context={t("performance.retention", { hours: Math.round(payload.storage.expires_in_seconds / 3600) })} />
-        <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms), request_sql: formatMs(payload.thresholds.request_sql_duration_ms), request_sql_count: payload.thresholds.request_sql_count_threshold })} />
+        <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { job: formatMs(payload.thresholds.slow_job_ms), phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms), request_sql: formatMs(payload.thresholds.request_sql_duration_ms), request_sql_count: payload.thresholds.request_sql_count_threshold })} />
       </section>
 
       <nav aria-label={t("performance.tabs_aria")} className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700">
@@ -96,12 +96,14 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
           <RegressionTable payload={payload} />
           <BrowserTracesTable onInspect={setBrowserDetail} rows={(payload.summaries.browser_traces ?? []).slice(0, OVERVIEW_ROW_LIMIT)} />
           <SlowRequestsTable onInspect={setRequestDetail} rows={payload.summaries.slow_requests.slice(0, OVERVIEW_ROW_LIMIT)} />
+          <SlowJobsTable rows={(payload.summaries.slow_jobs ?? []).slice(0, OVERVIEW_ROW_LIMIT)} />
           <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints.slice(0, OVERVIEW_ROW_LIMIT)} />
           <SlowPhasesTable rows={payload.summaries.slow_phases.slice(0, OVERVIEW_ROW_LIMIT)} />
         </>
       ) : null}
       {activeTab === "browser" ? <BrowserTracesTable onInspect={setBrowserDetail} rows={payload.summaries.browser_traces ?? []} /> : null}
       {activeTab === "requests" ? <SlowRequestsTable onInspect={setRequestDetail} rows={payload.summaries.slow_requests} /> : null}
+      {activeTab === "jobs" ? <SlowJobsTable rows={payload.summaries.slow_jobs ?? []} /> : null}
       {activeTab === "sql" ? <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints} /> : null}
       {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
       {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
@@ -116,6 +118,7 @@ function RegressionTable({ payload }: { payload: AdminPerformancePayload }) {
   const { t } = useT("syrus_dev")
   const rows = [
     ...comparisonRows(t("performance.slow_requests"), payload.baseline?.comparisons?.slow_requests ?? []),
+    ...comparisonRows(t("performance.slow_jobs"), payload.baseline?.comparisons?.slow_jobs ?? []),
     ...comparisonRows(t("performance.slow_phases"), payload.baseline?.comparisons?.slow_phases ?? []),
     ...comparisonRows(t("performance.browser_traces"), payload.baseline?.comparisons?.browser_traces ?? []),
     ...comparisonRows(t("performance.sql_fingerprints"), payload.baseline?.comparisons?.sql_fingerprints ?? [])
@@ -208,6 +211,47 @@ function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSu
                   {t("performance.details")}
                 </button>
               </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableSection>
+  )
+}
+
+function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
+  const { t } = useT("syrus_dev")
+  return (
+    <TableSection empty={t("performance.no_slow_jobs")} rowCount={rows.length} title={t("performance.slow_jobs")}>
+      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+          <tr>
+            <th className="px-4 py-2">{t("performance.col_job")}</th>
+            <th className="px-4 py-2">{t("performance.col_queue")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_sql")}</th>
+            <th className="px-4 py-2">{t("performance.col_recent_job")}</th>
+            <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {rows.map((row) => (
+            <tr key={`${row.job_class}-${row.queue_name}`}>
+              <td className="max-w-xl px-4 py-2">
+                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.job_class ?? "-"}</div>
+                {row.recent_trigger_reasons?.length ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}</div> : null}
+              </td>
+              <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{row.queue_name ?? "-"}</td>
+              <NumberCell value={row.count} />
+              <NumberCell value={formatMs(row.total_duration_ms)} />
+              <NumberCell value={formatMs(row.average_duration_ms)} />
+              <NumberCell value={formatMs(row.max_duration_ms)} />
+              <NumberCell value={`${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`} />
+              <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{row.recent_active_job_id ?? "-"}</td>
+              <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -659,7 +703,8 @@ function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
               <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">{shortEvent(row.event)}</td>
               <NumberCell value={formatMs(row.duration_ms)} />
               <td className="max-w-4xl px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
-                <div className="font-mono">{row.phase || row.path || row.name || row.fingerprint || "-"}</div>
+                <div className="font-mono">{row.phase || row.path || row.job_class || row.name || row.fingerprint || "-"}</div>
+                {row.queue_name ? <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div> : null}
                 {row.trigger_reasons?.length ? <div className="mt-1">{t("performance.triggered_by", { reasons: row.trigger_reasons.join(", ") })}</div> : null}
                 {row.sql_count != null ? <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div> : null}
                 {row.api_requests?.length ? <div className="mt-1">{t("performance.browser_api_context", { count: row.api_requests.length, ids: row.api_requests.map((request) => request.request_id).filter(Boolean).join(", ") || "-" })}</div> : null}
