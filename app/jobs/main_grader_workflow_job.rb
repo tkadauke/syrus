@@ -15,7 +15,7 @@ class MainGraderWorkflowJob < ApplicationJob
     return unless repository
     return if repository.archived?
     return if MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, sha: sha)
-    return if active_grading_workflow?(repository) || active_main_branch_repair_workflow?(repository)
+    return if active_grading_workflow?(repository) || active_main_branch_repair_workflow?(repository, sha)
 
     user = repository.user
     return unless user
@@ -47,10 +47,17 @@ class MainGraderWorkflowJob < ApplicationJob
     ).where.not(state: "closed").exists?
   end
 
-  def active_main_branch_repair_workflow?(repository)
+  def active_main_branch_repair_workflow?(repository, sha)
     Job.where(
       repository: repository,
       system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR
-    ).where.not(state: "closed").exists?
+    ).where.not(state: "closed").any? do |job|
+      repair_sha = repair_target_sha(job)
+      repair_sha.blank? || repair_sha == sha
+    end
+  end
+
+  def repair_target_sha(job)
+    job.issue_body.to_s[/^Commit:\s*([0-9a-f]{7,40})\b/i, 1]
   end
 end

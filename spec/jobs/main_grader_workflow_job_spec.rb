@@ -106,13 +106,50 @@ RSpec.describe MainGraderWorkflowJob do
     expect(repository.reload.last_graded_sha).to eq("previoussha")
   end
 
-  it "skips creation while a main branch repair job is active for the repository" do
+  it "skips creation while a main branch repair job is active for the same SHA" do
     Job.create!(
       user: user,
       repository: repository,
       kind: "direct",
       system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
       issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+      issue_body: "Main branch health is broken.\nCommit: #{sha}\n",
+      issue_number: nil
+    )
+
+    expect {
+      described_class.perform_now(repository.id, sha)
+    }.not_to change(Job, :count)
+
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "allows creation while only stale main branch repair jobs are active" do
+    Job.create!(
+      user: user,
+      repository: repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+      issue_body: "Main branch health is broken.\nCommit: 111123def456\n",
+      issue_number: nil
+    )
+
+    expect {
+      described_class.perform_now(repository.id, sha)
+    }.to change(Job, :count).by(1)
+
+    expect(StepDispatcher).to have_received(:start_workflow).once
+  end
+
+  it "keeps legacy repair jobs without a target SHA blocking main grading" do
+    Job.create!(
+      user: user,
+      repository: repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+      issue_body: "Main branch health is broken.",
       issue_number: nil
     )
 
