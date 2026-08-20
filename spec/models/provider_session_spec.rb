@@ -101,6 +101,21 @@ RSpec.describe ProviderSession do
     end
   end
 
+  describe "session lookup" do
+    it "is served by the session_id index" do
+      described_class.create!(resumable: run, session_id: "session-lookup", transcript_jsonl: "x")
+
+      plan = ActiveRecord::Base.connection
+                               .select_all("EXPLAIN QUERY PLAN #{described_class.where(session_id: "session-lookup").limit(1).to_sql}")
+                               .map { |row| row["detail"] }
+
+      provider_session_step = plan.find { |detail| detail.include?("provider_sessions") }
+
+      expect(provider_session_step).to include("index_provider_sessions_on_session_id")
+      expect(provider_session_step).not_to include("SCAN")
+    end
+  end
+
   describe ".prunable" do
     it "includes sessions whose Run is terminal AND older than RETAIN_AFTER_TERMINAL" do
       old_run = Factories.job.initial_run.tap { |r| r.start!; r.fail!; r.save! }
