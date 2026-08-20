@@ -30,6 +30,8 @@ import { PreviewPanel, PreviewStopModal } from "./jobDetail/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
+import { MigrationDiffRenderer } from "../components/artifacts/MigrationDiffRenderer"
+import type { MigrationDiffPayload } from "../api/artifacts"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { useBugReportTrigger } from "../lib/bugReportContext"
@@ -1431,7 +1433,7 @@ function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
     case "erd_diagram":
       return <ErdDiagramRenderer payload={artifact.payload} />
     case "migration_diff":
-      return <MigrationDiffRenderer payload={artifact.payload} />
+      return <MigrationDiffRenderer payload={artifact.payload as MigrationDiffPayload} />
     case "data_table":
       return <DataTableRenderer payload={artifact.payload} />
     case "before_after_diff":
@@ -1484,60 +1486,6 @@ function ErdDiagramRenderer({ payload }: { payload: Record<string, unknown> }) {
           </ul>
         </div>
       ) : null}
-    </div>
-  )
-}
-
-function MigrationDiffRenderer({ payload }: { payload: Record<string, unknown> }) {
-  const { t } = useT("jobs")
-  const changes = Array.isArray(payload.changes) ? payload.changes as Array<{ table: string; before?: { columns?: Array<{ name: string; type: string }> }; after?: { columns?: Array<{ name: string; type: string }> } }> : []
-
-  if (changes.length === 0) {
-    return <RawArtifactRenderer payload={payload} />
-  }
-
-  return (
-    <div className="space-y-4">
-      {changes.map((change) => {
-        const beforeCols = change.before?.columns ?? []
-        const afterCols = change.after?.columns ?? []
-        return (
-          <div key={change.table}>
-            <p className="mb-2 text-xs font-bold text-gray-800 dark:text-gray-100">{change.table}</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_migration_before")}</p>
-                <ul className="rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                  {beforeCols.length === 0
-                    ? <li className="px-2 py-1 text-xs italic text-gray-400">(none)</li>
-                    : beforeCols.map((col) => (
-                      <li className="flex justify-between border-b border-gray-200 px-2 py-1 text-xs last:border-b-0 dark:border-gray-700" key={col.name}>
-                        <span className="font-mono text-gray-900 dark:text-gray-100">{col.name}</span>
-                        <span className="text-gray-400 dark:text-gray-500">{col.type}</span>
-                      </li>
-                    ))}
-                </ul>
-              </div>
-              <div>
-                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_migration_after")}</p>
-                <ul className="rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
-                  {afterCols.length === 0
-                    ? <li className="px-2 py-1 text-xs italic text-gray-400">(none)</li>
-                    : afterCols.map((col) => {
-                      const isNew = !beforeCols.some((b) => b.name === col.name)
-                      return (
-                        <li className={`flex justify-between border-b border-gray-200 px-2 py-1 text-xs last:border-b-0 dark:border-gray-700 ${isNew ? "bg-emerald-50 dark:bg-emerald-950/30" : ""}`} key={col.name}>
-                          <span className={`font-mono ${isNew ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-gray-900 dark:text-gray-100"}`}>{col.name}</span>
-                          <span className="text-gray-400 dark:text-gray-500">{col.type}</span>
-                        </li>
-                      )
-                    })}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }

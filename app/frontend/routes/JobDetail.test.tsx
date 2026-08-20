@@ -1225,18 +1225,17 @@ describe("ArtifactsTab", () => {
       created_at: "2026-08-06T10:00:00Z",
       renderer_type: "migration_diff",
       payload: {
-        changes: [{
-          table: "users",
-          before: { columns: [{ name: "id", type: "bigint" }] },
-          after: { columns: [{ name: "id", type: "bigint" }, { name: "admin", type: "boolean" }] }
-        }]
+        migration_name: "AddAdminToUsers",
+        before: { table_name: "users", columns: [{ name: "id", type: "bigint" }] },
+        after: { table_name: "users", columns: [{ name: "id", type: "bigint" }, { name: "admin", type: "boolean" }] },
+        changes: [{ type: "added", column: { name: "admin", type: "boolean" } }]
       }
     }])
 
-    expect(screen.getByText("users")).toBeInTheDocument()
-    expect(screen.getByText("Before")).toBeInTheDocument()
-    expect(screen.getByText("After")).toBeInTheDocument()
-    expect(screen.getAllByText("admin")).toHaveLength(1)
+    expect(screen.getAllByText(/users/)).toHaveLength(2)
+    expect(screen.getByText(/Before/)).toBeInTheDocument()
+    expect(screen.getByText(/After/)).toBeInTheDocument()
+    expect(screen.getAllByText("admin")).toHaveLength(2)
   })
 
   it("renders data_table: headers and rows", () => {
