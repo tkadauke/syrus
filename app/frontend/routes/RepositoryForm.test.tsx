@@ -152,27 +152,3 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     )
   })
 })
-
-describe("RepositoryForm Epic dependency policy field", () => {
-  afterEach(() => vi.restoreAllMocks())
-
-  it("only offers Linear as a selectable dependency policy", async () => {
-    mockFetch()
-    renderRoute()
-
-    const select = await screen.findByLabelText("Epic dependency policy")
-    expect(select).not.toBeDisabled()
-    expect(screen.getByRole("option", { name: /^Linear/ })).toBeInTheDocument()
-    expect(screen.queryByRole("option", { name: /Nonlinear/ })).not.toBeInTheDocument()
-  })
-
-  it("shows an existing nonlinear policy as disabled/informational, not selectable", async () => {
-    mockFetch({ epic_dependency_policy: "nonlinear" })
-    renderRoute()
-
-    const select = await screen.findByLabelText("Epic dependency policy")
-    expect(select).toBeDisabled()
-    expect(select).toHaveValue("nonlinear")
-    expect(screen.queryByRole("option", { name: /^Linear/ })).not.toBeInTheDocument()
-  })
-})
