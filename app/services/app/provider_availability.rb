@@ -24,6 +24,18 @@ module App
       return unless user && provider.present?
 
       clear_cache!(user: user, provider: provider)
+      # clear_cache!(user:, provider:) only busts this class's own
+      # per-user cache. ProviderCircuitBreaker.call(..., include_logs: false)
+      # keeps its own process-level cache (keyed by provider, 30s TTL) that
+      # the `cached: false` below does NOT bypass — without this, a Run
+      # failure/success recorded microseconds before this broadcast (the
+      # common case: this method is called from that same Run's
+      # after_update_commit callback) can read back a decision computed
+      # just before the triggering evidence existed, and that stale
+      # "closed" decision then sticks for retry gates (RetryWorkflowEnqueuer,
+      # SmartRetryEnqueuer, etc.) for up to 30 more seconds regardless of
+      # how many further failures land in that window.
+      ProviderCircuitBreaker.clear_read_cache!
       availability = for_user(user, provider, now: now, cached: false)
       AppEvents.broadcast(
         user: user,
