@@ -72,10 +72,10 @@ RSpec.describe Steps::Base do
       r
     end
 
-    it "cancels every downstream step in the chain" do
+    it "skips every downstream step in the chain" do
       handler_class.new(cancel_run).send(:cancel_downstream!, reason: "auto-rebased clean")
-      expect(s2.reload.state).to eq("cancelled")
-      expect(s3.reload.state).to eq("cancelled")
+      expect(s2.reload.state).to eq("skipped")
+      expect(s3.reload.state).to eq("skipped")
     end
 
     it "leaves the current step alone (it's still mid-execution)" do
@@ -88,13 +88,13 @@ RSpec.describe Steps::Base do
       s2.update!(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
       handler_class.new(cancel_run).send(:cancel_downstream!)
       expect(s2.reload.state).to eq("succeeded")
-      expect(s3.reload.state).to eq("cancelled")
+      expect(s3.reload.state).to eq("skipped")
     end
 
-    it "logs each cancellation with the reason" do
+    it "logs each skipped step with the reason" do
       handler_class.new(cancel_run).send(:cancel_downstream!, reason: "nothing left to do")
       logs = cancel_run.job_logs.pluck(:chunk).join("\n")
-      expect(logs).to include("cancelling downstream step ##{s2.id}")
+      expect(logs).to include("skipping downstream step ##{s2.id}")
       expect(logs).to include("nothing left to do")
     end
   end

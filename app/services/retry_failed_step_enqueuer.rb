@@ -32,6 +32,7 @@ class RetryFailedStepEnqueuer
     workflow.save!
     failed_step.reopen!
     failed_step.save!
+    revive_cancelled_downstream_steps!(failed_step)
 
     if workflow.landing_workflow?
       job = workflow.job
@@ -74,6 +75,21 @@ class RetryFailedStepEnqueuer
     Step::Kind.fetch(failed_step.kind).repair_semantics != :agentic
   rescue ArgumentError
     true
+  end
+
+  def revive_cancelled_downstream_steps!(failed_step)
+    cursor = failed_step.next_step
+    while cursor
+      if cursor.cancelled? && cursor.runs.none?
+        cursor.update_columns(
+          state: "queued",
+          started_at: nil,
+          finished_at: nil,
+          updated_at: Time.current
+        )
+      end
+      cursor = cursor.next_step
+    end
   end
 
   def rebuild_merge_train

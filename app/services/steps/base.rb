@@ -464,13 +464,12 @@ module Steps
 
     # ---- Chain control ----
 
-    # Cancel every downstream step in the linear chain. Used by
+    # Skip every downstream step in the linear chain. Used by
     # steps that have determined their successors have nothing to
     # do (e.g. AutoRebase that succeeded cleanly leaves
-    # AgentRebase + ForcePush with no work). The dispatcher
-    # walks past cancelled steps when advancing, so cancelling
-    # downstream is the way to make a chain terminate early
-    # without hacky artifact flags.
+    # AgentRebase + ForcePush with no work). Real cancellation means
+    # interruption; intentional no-op tails use Step#skipped so recovered
+    # workflows do not confuse omitted work with unpublished work.
     #
     # Idempotent — already-terminal steps are left alone. Walks
     # the linear chain via next_step pointer; a v3 graph would
@@ -479,11 +478,8 @@ module Steps
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor
-          if cursor.may_cancel?
-            log("[#{step.kind}] cancelling downstream step ##{cursor.id} (#{cursor.kind})#{reason ? ': ' + reason : ''}")
-            cursor.cancel!
-            cursor.save!
-          end
+          log("[#{step.kind}] skipping downstream step ##{cursor.id} (#{cursor.kind})#{reason ? ': ' + reason : ''}") if cursor.may_skip?
+          cursor.skip_with_reason!(reason || "downstream_not_needed") if cursor.may_skip?
           cursor = cursor.next_step
         end
       end

@@ -36,6 +36,29 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.run.parent_session_id).to eq(Steps::Base::DISABLE_AGENT_RESUME)
   end
 
+  it "revives cancelled downstream steps when retrying a failed step in place" do
+    job = Factories.job_record(state: "failed", pr_number: 807, branch_name: "syrus/direct-3372")
+    workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback")
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    respond = Step.create!(workflow: workflow, kind: "respond", position: 1)
+    summarize = Step.create!(workflow: workflow, kind: "summarize_amend", position: 2)
+    push = Step.create!(workflow: workflow, kind: "push", position: 3)
+    respond.update!(next_step_id: summarize.id)
+    summarize.update!(next_step_id: push.id)
+    respond.update_columns(state: "failed", started_at: 9.minutes.ago, finished_at: 8.minutes.ago)
+    summarize.update_columns(state: "cancelled", started_at: 8.minutes.ago, finished_at: 8.minutes.ago)
+    push.update_columns(state: "cancelled", started_at: 8.minutes.ago, finished_at: 8.minutes.ago)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(workflow.reload).to be_running
+    expect(respond.reload).to be_queued
+    expect(summarize.reload).to be_queued
+    expect(push.reload).to be_queued
+    expect(result.run.step).to eq(respond)
+  end
+
   it "resumes a failed merge_train_reconcile step in place instead of rebuilding the whole train" do
     job = Factories.job_record(state: "implemented", landing_failure_reason: "merge_train workflow failed")
     workflow = Workflow.create!(job: job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => 999 })
