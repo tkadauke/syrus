@@ -1,15 +1,6 @@
 module Prompts
   class AdversarialReview
-    MAX_DIFF_BYTES = 120.kilobytes
-    MAX_FILE_DIFF_BYTES = 40.kilobytes
-    GENERATED_PATH_PATTERNS = [
-      %r{\Aapp/assets/builds/},
-      %r{\Apublic/assets/},
-      %r{\Adist/},
-      %r{\Abuild/},
-      %r{\Anode_modules/},
-      %r{\.map\z}
-    ].freeze
+    MAX_CHANGED_FILES = 200
 
     FEEDBACK_KIND_LABELS = {
       chat_feedback: { context: "chat feedback",       history: "Chat feedback being addressed" },
@@ -33,7 +24,7 @@ module Prompts
         workflow_context,
         job_context,
         feedback_history,
-        current_diff,
+        change_manifest,
         prior_review_context,
         submission_instructions
       ].compact_blank.join("\n\n")
@@ -87,54 +78,41 @@ module Prompts
       "#{label}:\n\n#{@feedback_context}"
     end
 
-    def current_diff
+    def change_manifest
       agentic_label = feedback_workflow? ? "respond" : "implement"
-      prepared_diff = diff_for_prompt
+      files = changed_files
+      file_lines =
+        if files.empty?
+          [ "- (No changed files captured.)" ]
+        else
+          rendered = files.first(MAX_CHANGED_FILES).map do |file|
+            "- #{file[:path]} (#{file[:bytes]} diff bytes)"
+          end
+          if files.size > MAX_CHANGED_FILES
+            rendered << "- ... #{files.size - MAX_CHANGED_FILES} more file(s) omitted from this manifest"
+          end
+          rendered
+        end
+
       [
-        "Current diff from the latest succeeded #{agentic_label} step:",
-        "```diff",
-        prepared_diff.presence || "(No diff captured.)",
-        "```"
+        "Changed files from the latest succeeded #{agentic_label} step:",
+        *file_lines,
+        "",
+        "Do not rely on this manifest alone. Inspect the workspace directly before deciding:",
+        "- Run `git diff <base>...HEAD -- <path>` for the files that matter.",
+        "- Read the current source files and related tests with normal file tools.",
+        "- Use broad searches when the changed-file list suggests cross-cutting behavior.",
+        "- Treat generated artifacts as validation targets, not primary review input."
       ].join("\n")
     end
 
-    def diff_for_prompt
-      sanitized = sanitize_diff(@diff)
-      return sanitized if sanitized.bytesize <= MAX_DIFF_BYTES
-
-      sanitized.byteslice(0, MAX_DIFF_BYTES).to_s + "\n\n[Diff truncated at #{MAX_DIFF_BYTES} bytes for reviewer prompt budget.]"
-    end
-
-    def sanitize_diff(diff)
-      sections = split_diff_sections(diff)
-      return diff if sections.empty?
-
-      rendered = []
-      omitted = []
-      sections.each do |section|
+    def changed_files
+      split_diff_sections(@diff).filter_map do |section|
         path = section_path(section)
-        if generated_path?(path)
-          omitted << "#{path || '(unknown path)'} (generated asset)"
-          next
-        end
+        next if path.blank?
 
-        if section.bytesize > MAX_FILE_DIFF_BYTES
-          rendered << section.byteslice(0, MAX_FILE_DIFF_BYTES).to_s +
-            "\n[File diff truncated at #{MAX_FILE_DIFF_BYTES} bytes: #{path || '(unknown path)'}]\n"
-        else
-          rendered << section
-        end
+        { path: path, bytes: section.bytesize }
       end
-
-      if omitted.any?
-        rendered << [
-          "Omitted generated or large generated-output files from the inline review prompt:",
-          *omitted.map { |path| "- #{path}" },
-          "Review the source changes and command/test outputs instead; generated outputs should be validated by graders."
-        ].join("\n")
-      end
-
-      rendered.join("\n")
     end
 
     def split_diff_sections(diff)
@@ -146,12 +124,6 @@ module Prompts
     def section_path(section)
       header = section.lines.first.to_s
       header[/\Adiff --git a\/.+ b\/(.+)\s*\z/, 1]
-    end
-
-    def generated_path?(path)
-      return false if path.blank?
-
-      GENERATED_PATH_PATTERNS.any? { |pattern| path.match?(pattern) }
     end
 
     def prior_review_context

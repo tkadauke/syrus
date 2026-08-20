@@ -29,8 +29,11 @@ RSpec.describe Prompts::AdversarialReview do
     expect(prompt).to include("It breaks on nil users.")
   end
 
-  it "includes the diff" do
-    expect(prompt).to include("return if user.nil?")
+  it "includes a changed-file manifest instead of the full diff body" do
+    expect(prompt).to include("Changed files from the latest succeeded implement step")
+    expect(prompt).to include("auth.rb")
+    expect(prompt).to include("git diff <base>...HEAD -- <path>")
+    expect(prompt).not_to include("return if user.nil?")
   end
 
   context "with generated asset diffs" do
@@ -42,22 +45,24 @@ RSpec.describe Prompts::AdversarialReview do
       ].join("\n")
     end
 
-    it "keeps source changes and summarizes generated assets instead of inlining them" do
+    it "lists generated assets without inlining their diff contents" do
       expect(prompt).to include("app/models/user.rb")
-      expect(prompt).to include("def active? = true")
-      expect(prompt).to include("Omitted generated or large generated-output files")
       expect(prompt).to include("app/assets/builds/spa.js")
+      expect(prompt).to include("app/assets/builds/spa.js.map")
+      expect(prompt).to include("generated artifacts as validation targets")
+      expect(prompt).not_to include("def active? = true")
       expect(prompt).not_to include("x" * 1_000)
-      expect(prompt.bytesize).to be < 140.kilobytes
+      expect(prompt.bytesize).to be < 10.kilobytes
     end
   end
 
   context "with a single huge source diff" do
     let(:diff) { "diff --git a/app/models/user.rb b/app/models/user.rb\n+#{'x' * 200_000}\n" }
 
-    it "truncates per-file diff sections" do
-      expect(prompt).to include("File diff truncated")
-      expect(prompt.bytesize).to be < 70.kilobytes
+    it "does not inline huge source diffs" do
+      expect(prompt).to include("app/models/user.rb")
+      expect(prompt).not_to include("x" * 1_000)
+      expect(prompt.bytesize).to be < 10.kilobytes
     end
   end
 

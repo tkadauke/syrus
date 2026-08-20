@@ -66,7 +66,9 @@ RSpec.describe Steps::AdversarialReview do
     expect(handler).not_to receive(:perform_agentic_change_step)
     expect(handler).to receive(:run_agent) do |prompt: nil, required_mcp_tools: nil, disallowed_tools: nil, **|
       expect(prompt).to include("submit_adversarial_review")
-      expect(prompt).to include("diff --git a/app.rb b/app.rb")
+      expect(prompt).to include("Changed files from the latest succeeded implement step")
+      expect(prompt).to include("app.rb")
+      expect(prompt).not_to include("puts 'review me'")
       expect(required_mcp_tools).to eq(%w[submit_adversarial_review])
       expect(disallowed_tools).to eq(%w[ReportFindings])
       workflow.set_artifact!("adversarial_review_iterations", [
@@ -241,7 +243,8 @@ RSpec.describe Steps::AdversarialReview do
 
     it "reads the respond step diff, not an implement diff" do
       expect(fb_handler).to receive(:run_agent) do |prompt: nil, **|
-        expect(prompt).to include("addressed feedback")
+        expect(prompt).to include("Changed files from the latest succeeded respond step")
+        expect(prompt).to include("foo.rb")
         expect(prompt).to include("respond step")
         feedback_workflow.set_artifact!("adversarial_review_iterations", [
           { "iteration" => 1, "critique" => "Fine.", "verdict" => "approved" }
