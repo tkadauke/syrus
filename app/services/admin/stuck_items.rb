@@ -96,11 +96,11 @@ module Admin
     end
 
     def preload_records(issues)
-      run_ids = affected_ids(issues, :run_ids)
+      run_ids = primary_affected_ids(issues, :run_ids)
       @record_maps = {
         Run => Run.where(id: run_ids).includes(:job, step: :workflow).index_by(&:id),
-        Workflow => Workflow.where(id: affected_ids(issues, :workflow_ids)).includes(:job, :steps).index_by(&:id),
-        Job => Job.where(id: affected_ids(issues, :job_ids)).index_by(&:id)
+        Workflow => Workflow.where(id: primary_affected_ids(issues, :workflow_ids)).includes(:job, :steps).index_by(&:id),
+        Job => Job.where(id: primary_affected_ids(issues, :job_ids)).index_by(&:id)
       }
       @provider_session_run_ids = if run_ids.empty?
         Set.new
@@ -109,8 +109,8 @@ module Admin
       end
     end
 
-    def affected_ids(issues, key)
-      issues.flat_map { |issue| issue.affected_ids.fetch(key, []) }.compact.uniq
+    def primary_affected_ids(issues, key)
+      issues.filter_map { |issue| issue.affected_ids.fetch(key, []).first }.uniq
     end
 
     def record_maps
