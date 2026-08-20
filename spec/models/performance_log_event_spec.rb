@@ -50,5 +50,38 @@ RSpec.describe PerformanceLogEvent do
         "count" => 1
       )
     end
+
+    it "round-trips slow job context through durable storage" do
+      event = described_class.create!(
+        described_class.from_event_hash(
+          "occurred_at" => 1.minute.ago.iso8601,
+          "event" => PerformanceLogging::SLOW_JOB_EVENT,
+          "duration_ms" => 12_345.6,
+          "trigger_reasons" => [ "duration", "sql_duration" ],
+          "job_class" => "WorkEngine::ReconcileJob",
+          "active_job_id" => "active-123",
+          "provider_job_id" => "provider-456",
+          "queue_name" => "control_plane",
+          "priority" => 10,
+          "executions" => 2,
+          "arguments_count" => 1,
+          "exception_class" => "ActiveRecord::QueryCanceled",
+          "exception_message" => "query interrupted"
+        )
+      )
+
+      expect(event.as_event_hash).to include(
+        "event" => PerformanceLogging::SLOW_JOB_EVENT,
+        "job_class" => "WorkEngine::ReconcileJob",
+        "active_job_id" => "active-123",
+        "provider_job_id" => "provider-456",
+        "queue_name" => "control_plane",
+        "priority" => 10,
+        "executions" => 2,
+        "arguments_count" => 1,
+        "exception_class" => "ActiveRecord::QueryCanceled",
+        "exception_message" => "query interrupted"
+      )
+    end
   end
 end
