@@ -46,7 +46,7 @@ describe("AdminBrowserErrors", () => {
     expect(screen.getByRole("button", { name: "Per page is 50" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
     expect(await screen.findByText("undefined is not an object")).toBeInTheDocument()
-    expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/app/admin/browser_errors?since=24h&revision_scope=current&per_page=50")
+    expect(String(fetchSpy.mock.calls[0][0])).toBe("/api/v1/app/admin/browser_errors")
   })
 
   it("sorts by a clicked column header and reverses direction on a second click", async () => {

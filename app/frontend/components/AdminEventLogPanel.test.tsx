@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { AdminEventFilterBar, AdminEventLogTable } from "./AdminEventLogPanel"
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{location.search}</output>
+}
 
 describe("AdminEventFilterBar", () => {
   it("renders dashboard-style filter chips from URL params and defaults", () => {
@@ -43,7 +48,37 @@ describe("AdminEventFilterBar", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/?sort=time")
+    // Clearing keeps an explicit (empty) `q` rather than dropping it, so a
+    // later request can tell "user cleared every filter" apart from "no
+    // filter was ever requested" and the backend won't re-apply its own
+    // defaults on top of the just-cleared state.
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/?sort=time&q=eyJhbmQiOltdfQ")
+  })
+
+  it("keeps an explicit empty `q` after removing the last chip, instead of dropping it", () => {
+    // Regression test: removing the only remaining default-bearing chip
+    // (per_page/since/revision_scope) used to drop `q` from the URL
+    // entirely, which the admin backend_exceptions/browser_errors routes
+    // then read as "no filter was ever requested" and re-applied their
+    // default chips — so the just-removed chip reappeared immediately.
+    render(
+      <MemoryRouter>
+        <AdminEventFilterBar
+          clearLabel="Clear"
+          fields={[{ name: "per_page", label: "Per page", defaultValue: "50" }]}
+          filter={{ and: [{ field: "per_page", op: "is", value: "50" }] }}
+          filterSchema={[{ field: "per_page", label: "Per page", bucket: "text", operators: ["is"] }]}
+          search="?q=eyJhbmQiOlt7ImZpZWxkIjoicGVyX3BhZ2UiLCJvcCI6ImlzIiwidmFsdWUiOiI1MCJ9XX0"
+          searchLabel="Search"
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Per page filter" }))
+
+    expect(screen.queryByRole("button", { name: "Per page is 50" })).not.toBeInTheDocument()
+    expect(screen.getByTestId("location")).toHaveTextContent("q=eyJhbmQiOltdfQ")
   })
 })
 

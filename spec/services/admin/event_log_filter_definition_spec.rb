@@ -83,5 +83,29 @@ RSpec.describe Admin::EventLogFilterDefinition do
 
       expect(rows).to eq([ "alpha" ])
     end
+
+    it "still backfills default fields (since/revision_scope/per_page) when there is no canonical q" do
+      fields = definition.filter_tree({}).fetch("and").map { |chip| chip.fetch("field") }
+
+      expect(fields).to include("since", "revision_scope", "per_page")
+    end
+
+    it "does not backfill a default field a canonical q has explicitly dropped" do
+      # Regression for the Admin Backend Exceptions filter chip bug: once the
+      # chip bar has written a q, removing one of the default-bearing chips
+      # (since/revision_scope/per_page) must not have with_defaults silently
+      # reinstate it — that's what made a removed chip reappear immediately.
+      q = Filters::QueryParam.encode("and" => [ { "field" => "revision_scope", "op" => "is", "value" => "all" } ])
+
+      expect(definition.filter_tree(q: q)).to eq(
+        "and" => [ { "field" => "revision_scope", "op" => "is", "value" => "all" } ]
+      )
+    end
+
+    it "does not backfill any default field once the user has cleared every filter via q" do
+      q = Filters::QueryParam.encode("and" => [])
+
+      expect(definition.filter_tree(q: q)).to eq("and" => [])
+    end
   end
 end
