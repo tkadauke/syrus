@@ -1,6 +1,18 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/admin/activity", type: :request do
+  around do |example|
+    # WorkflowActivityPayload#as_json flushes Observability::EventSink's
+    # in-memory :workflow_activity buffer into the DB on every request. Other
+    # specs earlier in this worker process can leave non-durable events
+    # buffered (e.g. via Job/Workflow/Run state-change callbacks), so clear
+    # the buffer around each example the same way spec/services/workflow_activity_spec.rb
+    # does — otherwise unrelated leftover events leak into these assertions.
+    Observability::EventSink.clear!(kind: :workflow_activity)
+    example.run
+    Observability::EventSink.clear!(kind: :workflow_activity)
+  end
+
   it "requires an admin user" do
     Factories.user
     non_admin = Factories.user
