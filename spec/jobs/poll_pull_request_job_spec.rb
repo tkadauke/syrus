@@ -937,7 +937,18 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "suppresses autonomous ci_failure workflows while the provider circuit is open" do
-      5.times { |index| record_provider_transient_failure!(issue_number: index + 100) }
+      decision = ProviderCircuitBreaker::Decision.new(
+        provider: job.workflow_agent_provider,
+        open: true,
+        reason: "provider transient",
+        retry_after: 5.minutes.from_now,
+        failure_count: 5,
+        job_count: 5,
+        signature: "provider transient"
+      )
+      allow(ProviderCircuitBreaker).to receive(:call)
+        .with(job.workflow_agent_provider, include_logs: false)
+        .and_return(decision)
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
           html_url: "u", output: { summary: "fail" } }
