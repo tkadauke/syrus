@@ -148,17 +148,20 @@ class MainHealthChangedService
   end
 
   def repair_status
-    blocking = blocking_fix_job
-    failed_jobs = recent_open_failed_fix_jobs.to_a
-    failed_count = open_failed_fix_jobs.count
     eligible = @repository.main_branch_health_enabled? && @repository.main_branch_repair_enabled? && @repository.main_health_broken?
+    snapshot = eligible ? repair_status_jobs_snapshot : { blocking: nil, failed_jobs: [], failed_count: 0 }
+    blocking = snapshot.fetch(:blocking)
+    failed_jobs = snapshot.fetch(:failed_jobs)
+    failed_count = snapshot.fetch(:failed_count)
     below_failed_cap = failed_count < MAX_OPEN_FAILED_FIX_JOBS
+    evidence_ready = nil
     blocked_reason = if blocking
       blocking_fix_job_reason(blocking)
-    elsif eligible && !repair_evidence_ready?
-      "waiting_for_health_signals"
     elsif eligible && !below_failed_cap
       "failed_open_cap"
+    elsif eligible
+      evidence_ready = repair_evidence_ready?
+      "waiting_for_health_signals" unless evidence_ready
     end
     can_request = eligible && blocking.blank? && below_failed_cap
 
@@ -170,7 +173,7 @@ class MainHealthChangedService
       blocked_reason: blocked_reason,
       blocking_job: blocking,
       can_request: can_request,
-      can_spawn: can_request && repair_evidence_ready?
+      can_spawn: can_request && (evidence_ready.nil? ? repair_evidence_ready? : evidence_ready)
     }
   end
 
@@ -300,6 +303,22 @@ class MainHealthChangedService
 
   def recent_open_failed_fix_jobs
     open_failed_fix_jobs.order(updated_at: :desc, id: :desc).limit(MAX_OPEN_FAILED_FIX_JOBS)
+  end
+
+  def repair_status_jobs_snapshot
+    states = (BLOCKING_FIX_JOB_STATES + [ "failed" ]).uniq
+    candidates = repair_jobs
+      .where(state: states)
+      .order(updated_at: :desc, id: :desc)
+      .limit(50)
+      .to_a
+    failed_count = repair_jobs.where(state: "failed").count
+
+    {
+      blocking: candidates.find { |job| BLOCKING_FIX_JOB_STATES.include?(job.state) },
+      failed_jobs: candidates.select(&:failed?).first(MAX_OPEN_FAILED_FIX_JOBS),
+      failed_count: failed_count
+    }
   end
 
   def blocking_fix_job
