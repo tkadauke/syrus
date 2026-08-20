@@ -118,7 +118,10 @@ results without an N+1.
   failures by default and supports search by test name/suite/file. Clicking a
   row opens `GET /api/v1/app/repositories/:repository_id/tests/:id`, which
   shows that `TestIdentity`'s execution history, links to the individual Runs,
-  and a duration-over-time graph.
+  and a duration-over-time graph. The history list is paginated (`page`/
+  `per_page` params, 20 per page by default, 100 max) and sorted newest to
+  oldest; the duration graph independently plots up to the most recent
+  `TestIdentity::HISTORY_LIMIT` (100) runs regardless of the history page.
 - **Job test results** — `GET /api/v1/app/jobs/:job_id/test_results`
   (`Api::V1::App::JobTestResultsController`) returns every `TestRun`/`TestCase`
   ingested for a Job's most recent Workflow that has test data, grouped by

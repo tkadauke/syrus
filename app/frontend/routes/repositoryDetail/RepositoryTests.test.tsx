@@ -1,12 +1,13 @@
 import { jsonResponse } from "../../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi, afterEach } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { RepositoryTestsRoute } from "./RepositoryTests"
 import type { RepositoryTestDetailPayload, RepositoryTestsPayload } from "../../api/repositories"
 
 const REPOSITORY = { id: 1, slug: "acme/widgets", github_url: "https://github.com/acme/widgets" }
+const TABS = [ { key: "tests", label: "Tests", path: "/repositories/1?tab=tests" } ]
 
 function listPayload(): RepositoryTestsPayload {
   return {
@@ -61,6 +62,44 @@ function mockFetch() {
     if (url.includes("/tests")) return Promise.resolve(jsonResponse(listPayload()))
     return Promise.reject(new Error(`unexpected fetch: ${url}`))
   })
+}
+
+function buildTestsPayload(): RepositoryTestsPayload {
+  return { repository: REPOSITORY, tabs: TABS, query: "", limit: 10, tests: [] }
+}
+
+function buildDetailPayload(page: number): RepositoryTestDetailPayload {
+  const test = {
+    id: 42,
+    suite_name: "Suite",
+    name: "tracks history",
+    file_path: null,
+    fingerprint: "abcdef0123456789",
+    last_status: "passed" as const,
+    last_seen_at: null,
+    last_failed_at: null,
+    last_passed_at: null,
+    last_duration_ms: null,
+    total_count: 2,
+    failed_count: 1,
+    passed_count: 1,
+    failure_rate: 0.5,
+    avg_duration_ms: 175,
+    interesting_reasons: []
+  }
+
+  const history = page === 1
+    ? [ { id: 2, status: "passed" as const, duration_ms: 100, failure_message: null, created_at: "2026-01-02T00:00:00Z", grader_name: "rspec", run: { id: 10, slug: "RUN-10", path: "/jobs/1" }, job: { id: 1, slug: "JOB-1", title: "t" } } ]
+    : [ { id: 1, status: "failed" as const, duration_ms: 250, failure_message: "boom", created_at: "2026-01-01T00:00:00Z", grader_name: "rspec", run: { id: 9, slug: "RUN-9", path: "/jobs/1" }, job: { id: 1, slug: "JOB-1", title: "t" } } ]
+
+  return {
+    repository: REPOSITORY,
+    tabs: TABS,
+    test,
+    history,
+    pagination: { page, per_page: 1, total: 2, total_pages: 2 },
+    duration_points: []
+  }
 }
 
 function renderRoute() {
@@ -127,5 +166,34 @@ describe("DurationChart", () => {
     fireEvent.click(failedDot)
 
     expect(await screen.findByText("Run detail page")).toBeInTheDocument()
+  })
+})
+
+describe("RepositoryTestsRoute history pagination", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders the newest history page first and fetches the next page on demand", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url.includes("/tests/42")) {
+        const page = url.includes("page=2") ? 2 : 1
+        return Promise.resolve(jsonResponse(buildDetailPayload(page)))
+      }
+      return Promise.resolve(jsonResponse(buildTestsPayload()))
+    })
+
+    renderRoute()
+
+    await screen.findByText("RUN-10")
+    expect(screen.queryByText("RUN-9")).not.toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }))
+
+    await screen.findByText("RUN-9")
+    expect(screen.queryByText("RUN-10")).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/tests/42?page=2"), expect.anything())
+    })
   })
 })
