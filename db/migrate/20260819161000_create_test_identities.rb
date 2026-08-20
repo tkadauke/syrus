@@ -21,7 +21,7 @@ class CreateTestIdentities < ActiveRecord::Migration[8.1]
       name: "idx_test_identities_repo_fingerprint",
       if_not_exists: true
 
-    add_reference :test_cases, :test_identity, foreign_key: true, null: true, if_not_exists: true
+    add_reference :test_cases, :test_identity, foreign_key: false, null: true, if_not_exists: true
     add_index :test_cases, [ :test_identity_id, :created_at ], name: "idx_test_cases_identity_created", if_not_exists: true
     add_index :test_cases, [ :repository_id, :status, :created_at ], name: "idx_test_cases_repo_status_created", if_not_exists: true
   end
