@@ -729,8 +729,8 @@ RSpec.describe RepositoryThroughputMetricContract do
       expect(runs_step).to include("finished_at")
     end
 
-    # `SELECT runs.*` pulled `prompt`, and selecting the diff text columns made
-    # this endpoint transfer huge patches before Ruby could decide whether it
+    # `SELECT runs.*` pulled `prompt`, and touching diff text columns here made
+    # this endpoint scan huge patches before Ruby could decide whether it
     # needed them. The source query should stay metadata-only; bounded diff
     # samples are fetched later by primary key.
     it "loads only metadata columns in the output run source query" do
@@ -738,10 +738,8 @@ RSpec.describe RepositoryThroughputMetricContract do
 
       select_clause = sql[/SELECT.*?FROM/m]
 
-      expect(select_clause).to include("LENGTH")
-      expect(select_clause).to include("agent_diff_bytes")
-      expect(select_clause).to include("step_agent_diff_bytes")
       expect(select_clause).to include("\"runs\".\"head_sha\"")
+      expect(select_clause).not_to include("LENGTH")
       expect(select_clause).not_to include("prompt")
       expect(select_clause).not_to include("agent_pr_body")
       expect(select_clause).not_to include("\"runs\".\"agent_diff\"")

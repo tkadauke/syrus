@@ -22,7 +22,7 @@ class RepositoryThroughputMetricContract
   LANDING_VALIDATION_CACHED_REASON = "landing_validation_cached".freeze
   MAX_DIFF_SAMPLE_BYTES = 256.kilobytes
   MAX_TOTAL_DIFF_SAMPLE_BYTES = 2.megabytes
-  MAX_DIFF_SAMPLE_RUNS = 200
+  MAX_DIFF_SAMPLE_RUNS = 25
   APPROVAL_SOURCE_BY_VIA = {
     "operator" => :operator,
     "bulk" => :operator,
@@ -746,18 +746,14 @@ class RepositoryThroughputMetricContract
   end
 
   # Only the columns `output_for` needs for exact commit counting and bounded
-  # diff sampling. The actual longtext diffs are fetched later by primary key,
-  # capped by MAX_*_DIFF_SAMPLE_BYTES and MAX_DIFF_SAMPLE_RUNS, so one
-  # pathological repository page cannot transfer hundreds of MB of patch text
-  # (or blow up the `Run.where(id: ids)` IN-list to thousands of entries) just
+  # diff sampling. The actual longtext diffs are fetched later by primary key
+  # for a small sample, so this source query never scans wide patch text just
   # to draw throughput cards.
   OUTPUT_RUN_COLUMNS = [
     "runs.id",
     "runs.job_id",
     "runs.head_sha",
-    "runs.finished_at",
-    Arel.sql("LENGTH(runs.agent_diff) AS agent_diff_bytes"),
-    Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_bytes")
+    "runs.finished_at"
   ].freeze
 
   def output_runs
@@ -785,30 +781,18 @@ class RepositoryThroughputMetricContract
            .pluck(:id, :step_agent_diff, :agent_diff)
            .each_with_object({}) do |(id, step_diff, run_diff), map|
              diff = step_diff.presence || run_diff.presence
-             map[id] = diff if diff.present?
+             next if diff.blank?
+             next if diff.bytesize > MAX_DIFF_SAMPLE_BYTES
+             next if map.values.sum(&:bytesize) + diff.bytesize > MAX_TOTAL_DIFF_SAMPLE_BYTES
+
+             map[id] = diff
            end
       end
     end
   end
 
   def output_diff_sample_run_ids
-    total_bytes = 0
-    output_runs.filter_map do |run|
-      bytes = preferred_diff_bytes_for(run)
-      next if bytes <= 0
-      next if bytes > MAX_DIFF_SAMPLE_BYTES
-      next if total_bytes + bytes > MAX_TOTAL_DIFF_SAMPLE_BYTES
-
-      total_bytes += bytes
-      run.id
-    end.first(MAX_DIFF_SAMPLE_RUNS)
-  end
-
-  def preferred_diff_bytes_for(run)
-    step_bytes = run.read_attribute(:step_agent_diff_bytes).to_i
-    return step_bytes if step_bytes.positive?
-
-    run.read_attribute(:agent_diff_bytes).to_i
+    output_runs.first(MAX_DIFF_SAMPLE_RUNS).map(&:id)
   end
 
   def actionable_comments

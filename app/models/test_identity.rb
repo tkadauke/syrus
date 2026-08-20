@@ -100,19 +100,26 @@ class TestIdentity < ApplicationRecord
   end
 
   def self.latest_cases_for(ids)
-    rows = TestCase
-      .where(test_identity_id: ids)
-      .select(:test_identity_id, :status, :created_at, :duration_ms, :file_path)
-      .order(:test_identity_id, created_at: :desc, id: :desc)
-      .to_a
+    ids = Array(ids).filter_map { |id| Integer(id, exception: false) }.uniq
+    return [] if ids.empty?
 
-    seen = {}
-    rows.filter_map do |test_case|
-      next if seen[test_case.test_identity_id]
-
-      seen[test_case.test_identity_id] = true
-      test_case
-    end
+    TestCase.find_by_sql([
+      <<~SQL.squish,
+        SELECT *
+        FROM (
+          SELECT
+            test_cases.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY test_cases.test_identity_id
+              ORDER BY test_cases.created_at DESC, test_cases.id DESC
+            ) AS row_number
+          FROM test_cases
+          WHERE test_cases.test_identity_id IN (?)
+        ) latest_test_cases
+        WHERE row_number = 1
+      SQL
+      ids
+    ])
   end
 
   def self.latest_status_at_for(ids, statuses)
