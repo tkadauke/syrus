@@ -274,7 +274,7 @@ class MainHealthChangedService
   end
 
   def repair_job_priority
-    AppSetting.strict_main_branch_breakage_policy? ? "urgent" : "high"
+    @repository.main_branch_repair_blocks_work? ? "urgent" : "high"
   end
 
   def suppressed_by_recent_closed_repair?

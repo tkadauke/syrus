@@ -100,7 +100,7 @@ RSpec.describe MainHealthChangedService do
         expect(workflow.reload.artifact("main_broken")).to be_nil
       end
 
-      it "spawns an urgent-priority direct Job to fix the broken main" do
+      it "spawns an urgent-priority direct Job to fix the broken main when repair jobs block work" do
         expect {
           described_class.on_health_change!(repository)
         }.to change { repository.jobs.where(kind: "direct").count }.by(1)
@@ -121,8 +121,28 @@ RSpec.describe MainHealthChangedService do
         )
       end
 
+      it "spawns a high-priority direct Job when repair jobs do not block other work" do
+        repository.update!(main_branch_repair_blocks_work: false)
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.to change { repository.jobs.where(kind: "direct").count }.by(1)
+
+        fix_job = repository.jobs.where(kind: "direct").last
+        expect(fix_job).to have_attributes(
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          priority: "high",
+          kind: "direct",
+          state: "queued"
+        )
+        run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |job| job[:job] == RunJob }
+        expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["high"])
+      end
+
       it "keeps landing unpaused and creates a high-priority repair Job under isolate-unrelated-failures policy" do
         AppSetting.current.update!(main_branch_breakage_policy: "isolate_unrelated_failures")
+        repository.update!(main_branch_repair_blocks_work: false)
 
         expect {
           described_class.on_health_change!(repository)
@@ -503,6 +523,31 @@ RSpec.describe MainHealthChangedService do
           issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
           state: "queued",
           priority: "urgent"
+        )
+      end
+
+      it "spawns a high-priority replacement fix Job when repair jobs do not block other work" do
+        repository.update!(main_branch_repair_blocks_work: false)
+        failed_repair = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "failed repair",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "high",
+          state: "failed"
+        )
+
+        expect {
+          failed_repair.update!(state: "closed")
+        }.to change { repository.jobs.where(kind: "direct").count }.by(1)
+
+        replacement = repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).order(:id).last
+        expect(replacement).to have_attributes(
+          issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+          state: "queued",
+          priority: "high"
         )
       end
 

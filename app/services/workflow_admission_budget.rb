@@ -112,7 +112,7 @@ class WorkflowAdmissionBudget
   end
 
   def urgent?
-    job.priority == "urgent" || MainHealthChangedService.fix_main_job?(job)
+    job.priority == "urgent"
   end
 
   def medium_or_lower?
