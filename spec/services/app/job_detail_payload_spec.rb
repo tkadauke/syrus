@@ -756,6 +756,66 @@ RSpec.describe App::JobDetailPayload do
       expect(artifacts["coverage"]).not_to have_key("diff_annotations")
       expect(artifacts["coverage"]).not_to have_key("pr_comment_body")
     end
+
+    describe "run can_resume" do
+      def failed_run_with_session(job, workflow)
+        step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "failed")
+        run = Run.create!(
+          job: job,
+          step: step,
+          trigger_kind: "initial",
+          agent_provider: "claude",
+          state: "failed",
+          finished_at: 5.minutes.ago
+        )
+        ProviderSession.create!(
+          resumable: run,
+          provider: "claude",
+          session_id: "claude-thread",
+          transcript_jsonl: "{}\n"
+        )
+        run
+      end
+
+      it "is true for a failed run with a captured session when no other run is active" do
+        job = Factories.job_record(repository: repo)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+        failed_run_with_session(job, workflow)
+
+        run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+        expect(run_payload[:can_resume]).to eq(true)
+      end
+
+      it "is false once a newer run on the same Job is queued or running" do
+        job = Factories.job_record(repository: repo)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+        failed_run_with_session(job, workflow)
+        job.runs.create!(trigger_kind: "manual", state: "running", started_at: Time.current)
+
+        run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+        expect(run_payload[:can_resume]).to eq(false)
+      end
+
+      it "is false without a captured session even when nothing else is active" do
+        job = Factories.job_record(repository: repo)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+        step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "failed")
+        Run.create!(
+          job: job,
+          step: step,
+          trigger_kind: "initial",
+          agent_provider: "claude",
+          state: "failed",
+          finished_at: 5.minutes.ago
+        )
+
+        run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+        expect(run_payload[:can_resume]).to eq(false)
+      end
+    end
   end
 
   describe "#feedback_history_json" do
