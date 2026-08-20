@@ -648,10 +648,12 @@ class LandingQueueProcessor
     return blocked({ key: "missing_pull_request" }) if job.pr_number.blank? && job.external_pr_number.blank?
     # Surface a specific reason when a ci_failure workflow is the active one, so
     # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
-    if job.workflows.active.where(trigger_kind: "ci_failure").exists?
+    # One pluck covers both checks instead of two separate EXISTS round trips per Job.
+    active_trigger_kinds = job.workflows.active.pluck(:trigger_kind)
+    if active_trigger_kinds.include?("ci_failure")
       return override_or_block(job, { key: "ci_failure_in_progress", params: { slug: job.slug } }, consume: consume_override)
     end
-    return override_or_block(job, { key: "active_workflow" }, consume: consume_override) if job.workflows.active.exists?
+    return override_or_block(job, { key: "active_workflow" }, consume: consume_override) if active_trigger_kinds.any?
     # Block on failing or pending PR check-run state cached by PollPullRequestJob.
     # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
     if no_effective_ci_repair?(job) && job.pr_checks_state.in?(%w[failing pending])
