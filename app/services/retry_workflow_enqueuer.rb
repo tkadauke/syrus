@@ -38,7 +38,7 @@ class RetryWorkflowEnqueuer
         if state_error
           failure_result = failure(state_error)
         else
-          workflow = Workflows::Retry.instantiate(job: job, artifacts: artifacts, agent_provider: agent_provider)
+          workflow = instantiate_retry_workflow
         end
       else
         failure_result = failure(eligibility.message)
@@ -131,6 +131,13 @@ class RetryWorkflowEnqueuer
     job.retry_after_failure!
     job.mark_implemented! if job.may_mark_implemented?
     job.save!
+  end
+
+  def instantiate_retry_workflow
+    checkpoint_resume = RunCheckpointResume.call(job: job, agent_provider: agent_provider, artifacts: artifacts)
+    return checkpoint_resume.workflow if checkpoint_resume.success?
+
+    Workflows::Retry.instantiate(job: job, artifacts: artifacts, agent_provider: agent_provider)
   end
 
   def failure(message, circuit: nil)

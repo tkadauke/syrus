@@ -27,6 +27,7 @@ RSpec.describe Steps::Implement do
     allow(handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(handler).to receive(:head_sha).and_return("abc123")
     allow(handler).to receive(:main_branch_context).and_return(nil)
+    allow(RunCheckpointPublisher).to receive(:publish!)
 
     issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
     allow(handler).to receive(:fetch_issue).and_return(issue)

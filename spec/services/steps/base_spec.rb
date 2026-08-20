@@ -297,6 +297,7 @@ RSpec.describe Steps::Base do
       allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
       allow(handler).to receive(:diff_against_sha).and_return(step_diff)
       allow(handler).to receive(:head_sha).and_return("abc123")
+      allow(RunCheckpointPublisher).to receive(:publish!)
     end
 
     it "runs the shared change lifecycle and records diff metadata" do

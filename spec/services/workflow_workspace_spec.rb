@@ -117,6 +117,26 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(ws.path.join("live-base.rb")).to exist
       end
 
+      it "checks out a durable checkpoint ref when resuming a cleaned-up workflow" do
+        checkpoint_ref = "refs/syrus/checkpoints/runs/123"
+        checkpoint_worktree = Pathname.new(@data_root).join("workflows", "_checkpoint")
+        sh("git clone -q file://#{bare_remote_dir} #{checkpoint_worktree}")
+        File.write(checkpoint_worktree.join("checkpoint.rb"), "CHECKPOINT\n")
+        sh("git -C #{checkpoint_worktree} add .")
+        sh("git -C #{checkpoint_worktree} -c user.email=t@e -c user.name=t commit -q -m 'checkpoint'")
+        checkpoint_sha = sh("git -C #{checkpoint_worktree} rev-parse HEAD").strip
+        sh("git -C #{checkpoint_worktree} push -q origin HEAD:#{checkpoint_ref}")
+        FileUtils.rm_rf(checkpoint_worktree)
+        workflow.update!(trigger_kind: "retry", artifacts: { "checkpoint_ref" => checkpoint_ref })
+
+        ws = described_class.new(workflow)
+        ws.setup
+
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(checkpoint_sha)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
+        expect(ws.path.join("checkpoint.rb")).to exist
+      end
+
       it "creates a fresh branch from the default branch after the dependency merges" do
         parent = Factories.job(repository: repository, issue_number: 9)
         parent_branch = "syrus/issue-9-#{parent.id}"

@@ -44,6 +44,54 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
+  it "resumes from a durable checkpoint when a downstream failed workflow workspace was cleaned up" do
+    failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
+    failed_workflow = Workflow.create!(
+      job: failed_job,
+      user: user,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "failed",
+      cleaned_up_at: 1.minute.ago,
+      artifacts: { "pr_title" => "Existing title" }
+    )
+    implement = Step.create!(workflow: failed_workflow, kind: "implement", position: 1, state: "succeeded", finished_at: 2.minutes.ago)
+    summarize = Step.create!(workflow: failed_workflow, kind: "summarize", position: 2, state: "failed", finished_at: 1.minute.ago)
+    implement.update!(next_step: summarize)
+    implement_run = implement.runs.create!(
+      job: failed_job,
+      user: user,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "succeeded",
+      head_sha: "implsha",
+      base_sha: "basesha",
+      finished_at: 2.minutes.ago
+    )
+    RunCheckpoint.create!(
+      run: implement_run,
+      workflow: failed_workflow,
+      step: implement,
+      job: failed_job,
+      repository: repository,
+      user: user,
+      step_kind: "implement",
+      commit_sha: "implsha",
+      base_sha: "basesha",
+      remote_ref: "refs/syrus/checkpoints/runs/#{implement_run.id}",
+      status: "published",
+      published_at: 2.minutes.ago
+    )
+
+    result = described_class.call(job: failed_job)
+
+    expect(result).to be_success
+    expect(result.workflow.artifact("checkpoint_ref")).to eq("refs/syrus/checkpoints/runs/#{implement_run.id}")
+    expect(result.workflow.artifact("checkpoint_sha")).to eq("implsha")
+    expect(result.workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare summarize])
+    expect(result.workflow.first_step.runs.last.agent_provider).to eq("claude")
+  end
+
   it "uses an explicit provider only for the new retry workflow" do
     finish_current_run!
     user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")

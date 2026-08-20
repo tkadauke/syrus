@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_155500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_20_213000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1593,6 +1593,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_155500) do
     t.index ["repository_id", "user_id"], name: "index_repository_memberships_on_repository_id_and_user_id", unique: true
     t.index ["repository_id"], name: "index_repository_memberships_on_repository_id"
     t.index ["user_id"], name: "index_repository_memberships_on_user_id"
+  end
+
+  create_table "run_checkpoints", force: :cascade do |t|
+    t.string "base_sha"
+    t.string "commit_sha", null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.integer "job_id", null: false
+    t.datetime "published_at"
+    t.string "remote_ref", null: false
+    t.integer "repository_id", null: false
+    t.integer "run_id", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "step_id", null: false
+    t.string "step_kind", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.integer "workflow_id", null: false
+    t.index ["job_id", "created_at"], name: "idx_run_checkpoints_job_created"
+    t.index ["remote_ref"], name: "idx_run_checkpoints_remote_ref_unique", unique: true
+    t.index ["repository_id", "created_at"], name: "idx_run_checkpoints_repository_created"
+    t.index ["run_id"], name: "idx_run_checkpoints_run_unique", unique: true
+    t.index ["workflow_id", "step_id"], name: "idx_run_checkpoints_workflow_step"
   end
 
   create_table "run_diagnostics", force: :cascade do |t|

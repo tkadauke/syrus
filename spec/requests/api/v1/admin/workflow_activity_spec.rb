@@ -6,6 +6,12 @@ RSpec.describe "API: /api/v1/admin/activity", type: :request do
 
   def auth = { "Authorization" => "Bearer #{admin_token}" }
 
+  around do |example|
+    Observability::EventSink.clear!(kind: :workflow_activity)
+    example.run
+    Observability::EventSink.clear!(kind: :workflow_activity)
+  end
+
   it "requires an API token" do
     get "/api/v1/admin/activity"
 
@@ -24,9 +30,14 @@ RSpec.describe "API: /api/v1/admin/activity", type: :request do
       )
     end
 
-    get "/api/v1/admin/activity", headers: auth
+    get "/api/v1/admin/activity", params: { job_id: job.id, event_type: "workflow_created" }, headers: auth
 
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.dig("events", 0, "event_type")).to eq("workflow_created")
+    expect(response.parsed_body.fetch("events")).to include(
+      hash_including(
+        "event_type" => "workflow_created",
+        "job" => hash_including("id" => job.id)
+      )
+    )
   end
 end

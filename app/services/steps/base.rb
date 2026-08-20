@@ -417,6 +417,11 @@ module Steps
 
       step_diff = diff_against_sha(base_sha)
       run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      publish_run_checkpoint!
+    end
+
+    def publish_run_checkpoint!
+      RunCheckpointPublisher.publish!(run: run, workspace: workspace, log: method(:log))
     end
 
     # Agent edits files; we commit them locally with a placeholder

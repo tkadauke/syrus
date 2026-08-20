@@ -286,14 +286,19 @@ class WorkflowWorkspace
       return
     end
 
+    # Fork → upstream: fetch the in-instance upstream's default branch so the
+    # work branch bases off (and diffs against) the upstream, not the fork.
+    fetch_upstream_base! if base_on_upstream_default?
+
+    if checkpoint_ref.present?
+      checkout_checkpoint_ref!
+      return
+    end
+
     if @job.external_pr?
       checkout_external_pr!
       return
     end
-
-    # Fork → upstream: fetch the in-instance upstream's default branch so the
-    # work branch bases off (and diffs against) the upstream, not the fork.
-    fetch_upstream_base! if base_on_upstream_default?
 
     remote_ref = ""
     unless skip_existing_branch_checkout?
@@ -332,6 +337,17 @@ class WorkflowWorkspace
 
   def authenticated_git(operation_type, &block)
     GithubAuthenticatedGit.run(repository: @repository, user: @job.user, git: @git, operation_type: operation_type, log: @log, &block)
+  end
+
+  def checkpoint_ref
+    @workflow.artifact("checkpoint_ref").presence
+  end
+
+  def checkout_checkpoint_ref!
+    authenticated_git("git_workflow_fetch_checkpoint") do |url|
+      @git.run("fetch", url, "#{checkpoint_ref}:refs/heads/#{@branch_name}", chdir: path.to_s, env: @env)
+    end
+    @git.run("checkout", @branch_name, chdir: path.to_s)
   end
 
   # Distinguishes a genuinely empty/uninitialized remote (zero branches —
