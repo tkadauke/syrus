@@ -1205,9 +1205,11 @@ module Api
         end
 
         def repository_run_job_count(repository, state:, since: nil)
-          runs = Run.where("runs.job_id = jobs.id").where(state: state)
-          runs = runs.where("runs.updated_at >= ?", since) if since
-          repository.jobs.where(runs.arel.exists).count
+          scope = Run.joins(:job)
+            .where(jobs: { repository_id: repository.id })
+            .where(state: state)
+          scope = scope.where("runs.updated_at >= ?", since) if since
+          scope.distinct.count(:job_id)
         end
 
         def latest_jobs_by_repository_id(repository_ids)
