@@ -593,11 +593,16 @@ class StepDispatcher
     return unless step&.queued?
     return if step.runs.any?
 
+    previous = step.previous_step
     if step.id == workflow.first_step&.id
       start_workflow(workflow)
-    elsif (previous = step.previous_step)&.succeeded?
+    elsif completed_predecessor?(previous)
       advance_from(previous)
     end
+  end
+
+  def self.completed_predecessor?(step)
+    step&.succeeded? || step&.skipped?
   end
 
   def self.next_queued_step_without_run(workflow)
