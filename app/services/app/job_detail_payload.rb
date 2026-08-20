@@ -126,7 +126,7 @@ module App
       provider_availability = PerformanceLogging.phase("job_detail.job.provider_availability", job_id: @job.id, provider: workflow_agent_provider) do
         App::ProviderAvailability.for_user(@user, workflow_agent_provider)
       end
-      any_active_run = PerformanceLogging.phase("job_detail.job.any_active_run", job_id: @job.id) { @job.any_active_run? }
+      any_active_run = job_has_active_run?
       latest_run_for_retry_state = PerformanceLogging.phase("job_detail.job.latest_run_for_retry_state", job_id: @job.id) { latest_run_for_retry_state }
       retry_state = PerformanceLogging.phase("job_detail.job.retry_state", job_id: @job.id) do
         ::App::RetryState.for(@job, latest_run: latest_run_for_retry_state, any_active_run: any_active_run)
