@@ -377,7 +377,12 @@ The `ruby` plugin registers a `:prepare_detector` for `Gemfile` →
 `bundle install` at `prepare_priority: 10`. The `javascript` plugin registers
 a `:prepare_detector` for Node/JS (and TS) repos at `prepare_priority: 20`,
 internally picking exactly one package-manager command in priority order:
-`yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`.
+`yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`. The
+`python` plugin registers a `:prepare_detector` for Python repos at
+`prepare_priority: 30`, internally picking exactly one command in priority
+order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
+`requirements.txt` → `pip install -r requirements.txt`, else bare
+`pyproject.toml` → `pip install -e .`.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
 
@@ -461,6 +466,20 @@ Bundled plugins:
   package-manager command in priority order: `yarn.lock` →
   `pnpm-lock.yaml` → `package-lock.json` → `package.json`
   (`prepare_priority: 20`).
+- `python` — default-enabled. Provides `:prepare_detector` for Python repos,
+  internally picking exactly one install command in priority order:
+  `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
+  `requirements.txt` → `pip install -r requirements.txt`, else bare
+  `pyproject.toml` → `pip install -e .` (`prepare_priority: 30`);
+  `:grader_augmentor` (appends compact `FAILED: test_name — message` lines
+  parsed from `pytest --json-report` output under `.syrus/pytest-json/*.json`
+  to the grade log when a `pytest` grader fails); and a light, unconditional
+  `:prompt_injector` reminding the agent to activate/use a virtual
+  environment or dependency-manager run-prefix. Does not provide a custom
+  `:test_result_parser`/`:coverage_analyzer` — plain `pytest --junitxml=`
+  output is already handled by core's `JunitXmlParser` fallback and
+  `coverage xml` (Cobertura format) is already handled by
+  `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling
