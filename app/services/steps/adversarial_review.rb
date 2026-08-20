@@ -1,5 +1,7 @@
 module Steps
   class AdversarialReview < Base
+    FAILURE_SKIP_THRESHOLD = 2
+
     def call
       workspace.setup
       run.update!(prompt: reviewer_prompt) if run.prompt.blank?
@@ -15,8 +17,18 @@ module Steps
       workflow.reload
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
+        if repeated_review_failures?
+          skip_review!("reviewer did not call submit_adversarial_review after #{prior_failed_review_runs} prior failed attempt(s)")
+          return
+        end
+
         raise StepFailed, "agent didn't call submit_adversarial_review"
       end
+    rescue StandardError => e
+      raise unless skippable_review_failure?(e)
+
+      log("[adversarial_review] skipped after reviewer failure: #{e.class}: #{e.message}", kind: "system")
+      skip_review!("#{e.class}: #{e.message}")
     end
 
     private
@@ -74,6 +86,39 @@ module Steps
 
     def review_iterations
       Array(workflow.artifact("adversarial_review_iterations"))
+    end
+
+    def skippable_review_failure?(exception)
+      prompt_too_long?(exception) || repeated_review_failures?
+    end
+
+    def prompt_too_long?(exception)
+      "#{exception.class}: #{exception.message}".match?(/prompt is too long|context.*too long|maximum context|context length/i)
+    end
+
+    def repeated_review_failures?
+      prior_failed_review_runs >= FAILURE_SKIP_THRESHOLD
+    end
+
+    def prior_failed_review_runs
+      @prior_failed_review_runs ||= step.runs.where.not(id: run.id).where(state: "failed").count
+    end
+
+    def skip_review!(reason)
+      iterations = review_iterations
+      iterations << {
+        "iteration" => step.iteration,
+        "critique" => "Adversarial review skipped: #{reason}",
+        "verdict" => "approved",
+        "skipped" => true,
+        "skip_reason" => reason
+      }
+      workflow.set_artifact!("adversarial_review_iterations", iterations)
+      step.details = step.details.to_h.merge(
+        "adversarial_review_skipped" => true,
+        "adversarial_review_skip_reason" => reason
+      )
+      step.save!
     end
 
     def discard_reviewer_workspace_changes

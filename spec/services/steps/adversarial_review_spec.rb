@@ -85,6 +85,36 @@ RSpec.describe Steps::AdversarialReview do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
   end
 
+  it "skips review when the provider rejects the prompt as too long" do
+    allow(handler).to receive(:run_agent).and_raise(StandardError, "Claude API error: Prompt is too long")
+
+    expect { handler.call }.not_to raise_error
+
+    iteration = workflow.reload.artifact("adversarial_review_iterations").last
+    expect(iteration).to include(
+      "verdict" => "approved",
+      "skipped" => true
+    )
+    expect(iteration["skip_reason"]).to include("Prompt is too long")
+    expect(review_step.reload.details).to include("adversarial_review_skipped" => true)
+  end
+
+  it "skips review after repeated failed reviewer attempts" do
+    2.times do
+      Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
+    end
+    allow(handler).to receive(:run_agent)
+
+    expect { handler.call }.not_to raise_error
+
+    iteration = workflow.reload.artifact("adversarial_review_iterations").last
+    expect(iteration).to include(
+      "verdict" => "approved",
+      "skipped" => true
+    )
+    expect(iteration["skip_reason"]).to include("did not call submit_adversarial_review")
+  end
+
   context "when workspace .syrus.yml has criteria" do
     before do
       syrus_yml_path = Pathname.new("/tmp/workspace/.syrus.yml")

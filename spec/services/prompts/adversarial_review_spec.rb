@@ -33,6 +33,34 @@ RSpec.describe Prompts::AdversarialReview do
     expect(prompt).to include("return if user.nil?")
   end
 
+  context "with generated asset diffs" do
+    let(:diff) do
+      [
+        "diff --git a/app/models/user.rb b/app/models/user.rb\n+def active? = true\n",
+        "diff --git a/app/assets/builds/spa.js b/app/assets/builds/spa.js\n+#{'x' * 200_000}\n",
+        "diff --git a/app/assets/builds/spa.js.map b/app/assets/builds/spa.js.map\n+#{'y' * 200_000}\n"
+      ].join("\n")
+    end
+
+    it "keeps source changes and summarizes generated assets instead of inlining them" do
+      expect(prompt).to include("app/models/user.rb")
+      expect(prompt).to include("def active? = true")
+      expect(prompt).to include("Omitted generated or large generated-output files")
+      expect(prompt).to include("app/assets/builds/spa.js")
+      expect(prompt).not_to include("x" * 1_000)
+      expect(prompt.bytesize).to be < 140.kilobytes
+    end
+  end
+
+  context "with a single huge source diff" do
+    let(:diff) { "diff --git a/app/models/user.rb b/app/models/user.rb\n+#{'x' * 200_000}\n" }
+
+    it "truncates per-file diff sections" do
+      expect(prompt).to include("File diff truncated")
+      expect(prompt.bytesize).to be < 70.kilobytes
+    end
+  end
+
   it "labels the diff as from an implement step by default" do
     expect(prompt).to include("implement step")
     expect(prompt).not_to include("respond step")

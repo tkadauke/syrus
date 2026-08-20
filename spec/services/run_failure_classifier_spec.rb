@@ -94,6 +94,17 @@ RSpec.describe RunFailureClassifier do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies provider prompt-size rejections before missing-tool or sidecar failures" do
+    run.step.update!(kind: "adversarial_review")
+    run.update!(state: "failed", agent_provider: "claude", agent_outcome: "invalid_request")
+    diagnostic("Steps::Base::StepFailed", "agent didn't call submit_adversarial_review")
+    JobLog.append!(run: run, chunk: "Claude API error: Prompt is too long", kind: "system")
+
+    result = classification
+    expect(result.classification).to eq("provider_prompt_too_long")
+    expect(result.retryable).to eq(false)
+  end
+
   it "does not mislabel an E2BIG failure whose command echoes --mcp-config as auth/config (JOB-1819 regression)" do
     run.update!(state: "failed", agent_provider: "claude")
     diagnostic(

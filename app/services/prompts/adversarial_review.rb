@@ -1,5 +1,16 @@
 module Prompts
   class AdversarialReview
+    MAX_DIFF_BYTES = 120.kilobytes
+    MAX_FILE_DIFF_BYTES = 40.kilobytes
+    GENERATED_PATH_PATTERNS = [
+      %r{\Aapp/assets/builds/},
+      %r{\Apublic/assets/},
+      %r{\Adist/},
+      %r{\Abuild/},
+      %r{\Anode_modules/},
+      %r{\.map\z}
+    ].freeze
+
     FEEDBACK_KIND_LABELS = {
       chat_feedback: { context: "chat feedback",       history: "Chat feedback being addressed" },
       pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
@@ -78,12 +89,69 @@ module Prompts
 
     def current_diff
       agentic_label = feedback_workflow? ? "respond" : "implement"
+      prepared_diff = diff_for_prompt
       [
         "Current diff from the latest succeeded #{agentic_label} step:",
         "```diff",
-        @diff.presence || "(No diff captured.)",
+        prepared_diff.presence || "(No diff captured.)",
         "```"
       ].join("\n")
+    end
+
+    def diff_for_prompt
+      sanitized = sanitize_diff(@diff)
+      return sanitized if sanitized.bytesize <= MAX_DIFF_BYTES
+
+      sanitized.byteslice(0, MAX_DIFF_BYTES).to_s + "\n\n[Diff truncated at #{MAX_DIFF_BYTES} bytes for reviewer prompt budget.]"
+    end
+
+    def sanitize_diff(diff)
+      sections = split_diff_sections(diff)
+      return diff if sections.empty?
+
+      rendered = []
+      omitted = []
+      sections.each do |section|
+        path = section_path(section)
+        if generated_path?(path)
+          omitted << "#{path || '(unknown path)'} (generated asset)"
+          next
+        end
+
+        if section.bytesize > MAX_FILE_DIFF_BYTES
+          rendered << section.byteslice(0, MAX_FILE_DIFF_BYTES).to_s +
+            "\n[File diff truncated at #{MAX_FILE_DIFF_BYTES} bytes: #{path || '(unknown path)'}]\n"
+        else
+          rendered << section
+        end
+      end
+
+      if omitted.any?
+        rendered << [
+          "Omitted generated or large generated-output files from the inline review prompt:",
+          *omitted.map { |path| "- #{path}" },
+          "Review the source changes and command/test outputs instead; generated outputs should be validated by graders."
+        ].join("\n")
+      end
+
+      rendered.join("\n")
+    end
+
+    def split_diff_sections(diff)
+      diff.to_s.split(/(?=^diff --git )/)
+        .map(&:strip)
+        .reject(&:empty?)
+    end
+
+    def section_path(section)
+      header = section.lines.first.to_s
+      header[/\Adiff --git a\/.+ b\/(.+)\s*\z/, 1]
+    end
+
+    def generated_path?(path)
+      return false if path.blank?
+
+      GENERATED_PATH_PATTERNS.any? { |pattern| path.match?(pattern) }
     end
 
     def prior_review_context

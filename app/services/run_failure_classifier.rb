@@ -35,6 +35,8 @@ class RunFailureClassifier
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
     when timeout?
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
+    when provider_prompt_too_long?
+      result("provider_prompt_too_long", 0.95, false, "The provider rejected the request because the prompt exceeded the model context budget.")
     when mcp_sidecar?
       result("mcp_sidecar_failure", 0.75, true, "The agent sidecar failed or disconnected.")
     when grader_failure?
@@ -106,6 +108,10 @@ class RunFailureClassifier
     diagnostic&.error_class.to_s.match?(/Timeout/) ||
       text_match?(/timed out|timeout|execution expired/i) ||
       spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
+  end
+
+  def provider_prompt_too_long?
+    text_match?(/prompt is too long|context.*too long|maximum context|context length/i)
   end
 
   def process_died?
