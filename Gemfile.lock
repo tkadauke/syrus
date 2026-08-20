@@ -36,6 +36,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/javascript
+  specs:
+    javascript (0.1.0)
+      railties
+
+PATH
   remote: plugins/linear_source
   specs:
     linear_source (0.1.0)
@@ -610,6 +616,7 @@ DEPENDENCIES
   faraday-retry
   github_source!
   image_processing (~> 2.0)
+  javascript!
   jbuilder
   kamal
   linear_source!
@@ -733,6 +740,7 @@ CHECKSUMS
   image_processing (2.0.3) sha256=793e33f38470edd0a2d6bfd00acf8cb239c76284ba2e3dfb76633ac2b457f23a
   io-console (0.9.1) sha256=34b5d65a6ed934d9d79d28c0d78ae6a547aa04fa75ba185b2996e1bd2c92d6e6
   irb (1.18.0) sha256=de9454a0703a54704b9811a5ef31a60c86949fbf4013fcf244fabc7c775248e3
+  javascript (0.1.0)
   jbuilder (2.15.1) sha256=2430bec28fb0cebacb5875b1009cf9d8bc3c303ccb810c4c8b062a4b51457637
   jmespath (1.6.2) sha256=238d774a58723d6c090494c8879b5e9918c19485f7e840f2c1c7532cf84ebcb1
   json (2.21.2) sha256=1f1d3b7cf2b3ba1a69beca0bb6db13d5438b80bff3cd54cdaaa620b9b07c1c6a

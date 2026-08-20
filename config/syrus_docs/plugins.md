@@ -374,11 +374,12 @@ plugins are concatenated in. Plugins that don't set it keep their
 registration order relative to each other.
 
 The `ruby` plugin registers a `:prepare_detector` for `Gemfile` →
-`bundle install` at `prepare_priority: 10`. Until the `ruby` and
-`javascript` plugins are enabled by default, `RepoPrepPlan::AUTO_DETECT`
-still contains a hardcoded Ruby (`Gemfile`) and Node
-(`yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`/`package.json`) fallback,
-unioned the same way alongside any plugin-contributed commands.
+`bundle install` at `prepare_priority: 10`. The `javascript` plugin registers
+a `:prepare_detector` for Node/JS (and TS) repos at `prepare_priority: 20`,
+internally picking exactly one package-manager command in priority order:
+`yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`.
+`RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
+auto-detected command comes from a registered `:prepare_detector` plugin.
 
 ## Plugin install and uninstall
 
@@ -454,6 +455,12 @@ Bundled plugins:
   progress/documentation output), `:coverage_analyzer` (SimpleCov's
   `.resultset.json`), and `:prepare_detector` (`Gemfile` → `bundle install`,
   `prepare_priority: 10`).
+- `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
+  (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
+  and `package.json` don't distinguish JS from TS. Internally picks exactly one
+  package-manager command in priority order: `yarn.lock` →
+  `pnpm-lock.yaml` → `package-lock.json` → `package.json`
+  (`prepare_priority: 20`).
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling
