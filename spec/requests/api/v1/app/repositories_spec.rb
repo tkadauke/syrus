@@ -1162,6 +1162,14 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     end
     ProviderCircuitBreaker.clear_read_cache!
 
+    # Factories.job(agent_provider: "codex") above already exercises
+    # ProviderCircuitBreaker.call("codex", include_logs: false), which caches
+    # a "closed" decision for 30s (READ_CACHE_TTL) before the failing Runs
+    # created here exist. Without clearing it, the retry endpoint's own
+    # ProviderCircuitBreaker.call below reads that stale cached decision
+    # instead of recomputing against the Runs just created.
+    ProviderCircuitBreaker.clear_read_cache!
+
     expect {
       post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
     }.not_to change { Workflow.where(trigger_kind: "retry").count }
