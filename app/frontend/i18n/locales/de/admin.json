@@ -300,6 +300,10 @@
       "visual_review": {
         "name": "Visuelle Überprüfung",
         "description": "Aktiviert den visual_review-Schritt: Ein unabhängiger Agent steuert einen Headless-Browser gegen die eigene Vorschau des Workers im aktuellen Schritt, um sichtbare Fehler zu erkennen und Screenshot-Artefakte zu erfassen, bevor die Grader laufen. Die .syrus.yml eines Repositorys kann diesen instanzweiten Standardwert pro Repository überschreiben."
+      },
+      "epicless_job_bundling": {
+        "name": "Job-Bündelung ohne Epic",
+        "description": "Ermöglicht das gemeinsame Landen mehrerer genehmigter epicloser Jobs als ein atomares Bündel, so wie die Kinder eines Epics bereits gemeinsam über den Merge-Train landen. Experimentell."
       }
     }
   },

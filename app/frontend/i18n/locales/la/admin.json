@@ -300,6 +300,10 @@
       "visual_review": {
         "name": "Recognitio visualis",
         "description": "Gradum visual_review activat: agens independens navigatorem sine capite contra ipsam praevisionem operarii in gradu dirigit ut vitia visibilia deprehendat et documenta screenshot capiat antequam gradatores currunt. Fasciculus .syrus.yml repositorii hunc valorem praedefinitum totius instantiae per repositorium mutare potest."
+      },
+      "epicless_job_bundling": {
+        "name": "Fasciculatio operum sine Epica",
+        "description": "Permittit pluribus operibus probatis sine Epica simul in unum fasciculum atomicum descendere, sicut liberi Epicae iam simul per agmen fusionale descendunt. Experimentale."
       }
     }
   },

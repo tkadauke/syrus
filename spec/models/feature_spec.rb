@@ -103,6 +103,19 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".epicless_job_bundling_enabled?" do
+    it "is false when the row is absent and follows the row when present" do
+      Feature.where(slug: "epicless_job_bundling").delete_all
+      expect(Feature.epicless_job_bundling_enabled?).to eq(false)
+
+      feature = Feature.create!(slug: "epicless_job_bundling", category: "Labs", name: "Epicless Job bundling", enabled: true)
+      expect(Feature.epicless_job_bundling_enabled?).to eq(true)
+
+      feature.update!(enabled: false)
+      expect(Feature.epicless_job_bundling_enabled?).to eq(false)
+    end
+  end
+
   describe ".coding_mode_enabled?" do
     it "returns the flag value in advanced mode" do
       Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
@@ -151,6 +164,11 @@ RSpec.describe Feature, type: :model do
     it "declares the performance logging operations flag default-off in config/features.yml" do
       declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "performance_logging" }
       expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
+    end
+
+    it "declares the epicless_job_bundling labs flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "epicless_job_bundling" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
 
     it "declares the admin supervisor chat operations flag default-off in config/features.yml" do
