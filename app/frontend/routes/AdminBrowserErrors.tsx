@@ -14,7 +14,7 @@ export function AdminBrowserErrors() {
   const location = useLocation()
   const navigate = useNavigate()
   usePageTitle(t("page_title_browser_errors"))
-  const search = normalizedSearch(location.search)
+  const search = location.search
   const errors = useQuery({
     queryKey: ["admin", "browser_errors", search],
     queryFn: () => fetchAdminBrowserErrors(search),
@@ -169,11 +169,6 @@ function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNav
       )}
     />
   )
-}
-
-function normalizedSearch(search: string) {
-  if (search) return search
-  return "?since=24h&revision_scope=current&per_page=50"
 }
 
 export default AdminBrowserErrors

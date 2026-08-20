@@ -14,7 +14,7 @@ export function AdminBackendExceptions() {
   const location = useLocation()
   const navigate = useNavigate()
   usePageTitle(t("page_title_backend_exceptions"))
-  const search = normalizedSearch(location.search)
+  const search = location.search
   const exceptions = useQuery({
     queryKey: ["admin", "backend_exceptions", search],
     queryFn: () => fetchAdminBackendExceptions(search),
@@ -179,11 +179,6 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
       )}
     />
   )
-}
-
-function normalizedSearch(search: string) {
-  if (search) return search
-  return "?since=24h&revision_scope=current&per_page=50"
 }
 
 export default AdminBackendExceptions

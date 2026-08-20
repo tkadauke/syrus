@@ -1,5 +1,7 @@
 import { Fragment, type ReactNode, useMemo, useState } from "react"
 import { FilterBar, type FilterChip, type FilterSchemaField, type FilterTree } from "./FilterBar"
+import { encodeFilterTree, linkFromSearch } from "./filterBar/helpers"
+import type { FilterLinkUpdates } from "./filterBar/types"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -229,6 +231,7 @@ export function AdminEventFilterBar({
 
   return (
     <FilterBar
+      buildLink={preserveExplicitEmptyFilter}
       className="space-y-2"
       filter={activeFilter}
       filterSchema={schema}
@@ -237,6 +240,19 @@ export function AdminEventFilterBar({
       search={search}
     />
   )
+}
+
+// Removing the last filter chip (or "Clear filters") would otherwise drop the
+// `q` param entirely, making an explicitly-cleared filter set indistinguishable
+// from a page that was never filtered. The backend re-applies its field
+// defaults (since/revision_scope/per_page) whenever no explicit `q` is present,
+// so an omitted `q` caused the just-removed chip to reappear immediately. Keep
+// `q` present (encoding an empty filter tree) so the empty state sticks.
+function preserveExplicitEmptyFilter(pathname: string, search: string, updates: FilterLinkUpdates) {
+  const nextUpdates = "q" in updates && updates.q == null
+    ? { ...updates, q: encodeFilterTree({ and: [] }) }
+    : updates
+  return linkFromSearch(pathname, search, nextUpdates)
 }
 
 function adminEventFilterSchema(fields: AdminEventFilterField[]): FilterSchemaField[] {

@@ -260,8 +260,9 @@ module Admin
     end
 
     def filter_tree(params)
-      explicit_tree = decoded_q(params) || legacy_tree(params)
-      with_defaults(explicit_tree)
+      return decoded_q(params) || legacy_tree(params) if canonical_q?(params)
+
+      with_defaults(legacy_tree(params))
     end
 
     def apply(scope, params)
@@ -275,6 +276,19 @@ module Admin
     end
 
     private
+
+    # Once the chip-bar UI has written a canonical `q`, it is authoritative
+    # for every field it governs (including since/revision_scope/per_page) —
+    # skip with_defaults entirely rather than backfilling anything `q`
+    # doesn't mention. Otherwise, removing the last chip for a defaulted
+    # field is indistinguishable from never having asked (both mean "field
+    # absent from the tree"), and with_defaults immediately reinstates the
+    # chip the user just removed. Legacy flat params (`path=...` bookmarks,
+    # API callers) don't carry that same "this is my complete filter state"
+    # guarantee, so they still get defaults layered on top.
+    def canonical_q?(params)
+      (params[:q] || params["q"]).present?
+    end
 
     def decoded_q(params)
       raw = params[:q] || params["q"]
