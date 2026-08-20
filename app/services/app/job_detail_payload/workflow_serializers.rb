@@ -219,8 +219,8 @@ module App
           agent_diff_bytes: agent_diff_bytes,
           step_agent_diff_present: step_agent_diff_bytes.positive?,
           step_agent_diff_bytes: step_agent_diff_bytes,
-          job_log_count: job_log_counts.fetch(run.id, 0),
-          rate_limited: rate_limited_run_ids.key?(run.id),
+          job_log_count: job_log_stats.fetch(run.id, EMPTY_JOB_LOG_STATS)[:count],
+          rate_limited: job_log_stats.fetch(run.id, EMPTY_JOB_LOG_STATS)[:rate_limited],
           failure_classification: failure_classification_json(run.run_failure_classification),
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: latest_health_snapshot_for(run).then { |snapshot| snapshot ? [ health_snapshot_json(snapshot) ] : [] },
@@ -465,17 +465,20 @@ module App
         @latest_workflow_id ||= @job.workflows.maximum(:id)
       end
 
-      def job_log_counts
-        @job_log_counts ||= begin
-          ids = visible_run_ids
-          ids.empty? ? {} : JobLog.where(run_id: ids).group(:run_id).count
-        end
-      end
+      EMPTY_JOB_LOG_STATS = { count: 0, rate_limited: false }.freeze
 
-      def rate_limited_run_ids
-        @rate_limited_run_ids ||= begin
+      def job_log_stats
+        @job_log_stats ||= begin
           ids = visible_run_ids
-          ids.empty? ? {} : JobLog.where(run_id: ids, kind: "rate_limited").distinct.pluck(:run_id).index_with(true)
+          if ids.empty?
+            {}
+          else
+            JobLog.where(run_id: ids).group(:run_id, :kind).count.each_with_object({}) do |((run_id, kind), count), memo|
+              stats = memo[run_id] ||= { count: 0, rate_limited: false }
+              stats[:count] += count
+              stats[:rate_limited] = true if kind == "rate_limited"
+            end
+          end
         end
       end
 
