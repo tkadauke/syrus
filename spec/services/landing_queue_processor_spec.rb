@@ -836,6 +836,16 @@ RSpec.describe LandingQueueProcessor do
       expect(entry.blocked_reason).to eq({ key: "ci_failure_in_progress", params: { slug: job.slug } })
     end
 
+    it "blocks a job with a non-ci_failure active workflow using the generic reason" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq({ key: "active_workflow" })
+    end
+
     it "blocks a job whose PR checks are cached as failing" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update_columns(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
