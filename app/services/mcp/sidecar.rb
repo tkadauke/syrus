@@ -46,7 +46,7 @@ module Mcp
     end
 
     def self.chat_tool_names(chat_session = nil, tier: :essential)
-      chat_tools(chat_session, tier: tier).map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
+      chat_tools(chat_session, tier: tier).map { |tool| McpToolRegistry.tool_name_for(tool) }
     end
 
     def self.tool_names(chat_session = nil, tier: :essential)
@@ -252,18 +252,7 @@ module Mcp
     end
 
     def tool_names(tools)
-      Array(tools).map do |tool|
-        raw = if tool.respond_to?(:tool_name) && tool.tool_name.present?
-          tool.tool_name
-        elsif tool.respond_to?(:name) && tool.name.present? && tool.name != "Class"
-          tool.name
-        elsif tool.class.name.present?
-          tool.class.name
-        else
-          tool.to_s
-        end
-        raw.to_s.demodulize.sub(/Tool\z/, "").underscore
-      end.sort
+      Array(tools).map { |tool| McpToolRegistry.tool_name_for(tool) }.sort
     end
 
     def safe_server_context

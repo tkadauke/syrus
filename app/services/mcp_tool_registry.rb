@@ -10,7 +10,7 @@ class McpToolRegistry
     :mutation
   ) do
     def tool_name
-      tool.name.demodulize.sub(/Tool\z/, "").underscore
+      McpToolRegistry.tool_name_for(tool)
     end
 
     def read_only?
@@ -56,6 +56,20 @@ class McpToolRegistry
 
     def entry_for(tool)
       entries.find { |entry| entry.tool == tool }
+    end
+
+    def tool_name_for(tool)
+      raw = if tool.respond_to?(:tool_name) && tool.tool_name.present?
+        tool.tool_name
+      elsif tool.respond_to?(:name) && tool.name.present? && tool.name != "Class"
+        tool.name
+      elsif tool.class.name.present?
+        tool.class.name
+      else
+        tool.to_s
+      end
+
+      raw.to_s.demodulize.sub(/Tool\z/, "").underscore.presence || "unknown"
     end
 
     def capability_permitted?(context, capability)

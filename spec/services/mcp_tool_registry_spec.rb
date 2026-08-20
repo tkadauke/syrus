@@ -31,6 +31,23 @@ RSpec.describe McpToolRegistry do
       )
       expect(summary).to include(:feature_flag, :required_roles, :capability, :tool)
     end
+
+    it "uses explicit MCP tool names for anonymous tool classes" do
+      tool = MCP::Tool.define(name: "plugin_ping", description: "Ping.", input_schema: {}) {}
+      entry = described_class::Entry.new(
+        tool: tool,
+        surface: :chat,
+        tier: :essential,
+        admin_only: false,
+        feature_flag: nil,
+        required_roles: [],
+        capability: nil,
+        mutation: false
+      )
+
+      expect(entry.tool_name).to eq("plugin_ping")
+      expect(entry.to_h[:tool_name]).to eq("plugin_ping")
+    end
   end
 
   describe ".tools_for_context" do
