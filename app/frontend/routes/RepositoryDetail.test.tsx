@@ -282,13 +282,6 @@ describe("RepositoryDetailRoute archive", () => {
     expect(link).toHaveAttribute("href", "/app-shell/repositories/1/skills/new")
   })
 
-  it("renders the repository Epic dependency default", async () => {
-    renderRoute()
-
-    expect(await screen.findByText("Epic dependency policy")).toBeInTheDocument()
-    expect(screen.getByText("Nonlinear by default")).toBeInTheDocument()
-  })
-
   it("calls the archive API when the user confirms", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)

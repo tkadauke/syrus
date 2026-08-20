@@ -846,22 +846,12 @@ function DetailsPanel({ deploymentStages, epic, jobs, prefix }: { deploymentStag
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("epic_dependency_policy_detail")}</dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">
-            {epicDependencyPolicyLabel(epic.resolved_epic_dependency_policy, t)}
-          </dd>
-        </div>
-        <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("updated_label")}</dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-200"><RelativeTimestamp value={epic.updated_at} /></dd>
         </div>
       </dl>
     </section>
   )
-}
-
-function epicDependencyPolicyLabel(policy: "linear" | "nonlinear", t: (key: string, opts?: Record<string, unknown>) => string) {
-  return policy === "nonlinear" ? t("epic_dependency_policy_nonlinear") : t("epic_dependency_policy_linear")
 }
 
 function uniqueActiveMembers(jobs: EpicDetailJob[]) {
