@@ -420,8 +420,7 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.keys).to contain_exactly("job", "workflows", "workflows_pagination", "feature_flags", "actions", "paths")
-    expect(body.dig("job", "id")).to eq(job.id)
+    expect(body.keys).to contain_exactly("workflows", "workflows_pagination", "feature_flags", "actions", "paths")
     first_run = body["workflows"].flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run).to include(
       "job_log_count" => 2,
@@ -563,7 +562,6 @@ RSpec.describe "App API job detail", type: :request do
       "previous_path" => "/jobs/#{job.id}?tab=workflows&workflows_page=1",
       "next_path" => nil
     )
-    expect(body.dig("job", "workflows_count")).to eq(12)
   end
 
   it "returns run transcript rows and agent diff as a separate artifact payload" do

@@ -25,7 +25,6 @@ export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: 
 
   return {
     ...payload,
-    job: workflows.job,
     workflows: workflows.workflows,
     workflows_pagination: workflows.workflows_pagination,
     feature_flags: workflows.feature_flags,

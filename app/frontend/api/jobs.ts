@@ -745,7 +745,7 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<JobDetailPayload, "job" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
+export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
 
 export type JobTimelinePayload = {
   job_id: number
