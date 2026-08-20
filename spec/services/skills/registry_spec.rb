@@ -37,6 +37,10 @@ RSpec.describe Skills::Registry do
     it "includes the security-review built-in skill" do
       expect(described_class.values).to include("security-review")
     end
+
+    it "includes the add-ci-workflow built-in skill" do
+      expect(described_class.values).to include("add-ci-workflow")
+    end
   end
 
   describe ".fetch" do
