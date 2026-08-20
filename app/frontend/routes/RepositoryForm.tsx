@@ -20,7 +20,6 @@ import {
   type InputSourceType,
   type LinearTeam,
   type RepositoryFormPayload,
-  type RepositoryEpicDependencyPolicy,
   type RepositoryInput,
   saveInputSource,
   syncFork,
@@ -495,32 +494,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </p>
           </Field>
 
-          <Field label={t('repository_form.label_epic_dependency_policy')}>
-            {values.epic_dependency_policy === "nonlinear" ? (
-              <>
-                <select aria-label={t('repository_form.label_epic_dependency_policy')} className={inputClass()} disabled value="nonlinear">
-                  <option value="nonlinear">{t('repository_form.epic_dependency_nonlinear')}</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {t('repository_form.epic_dependency_nonlinear_legacy_hint')}
-                </p>
-              </>
-            ) : (
-              <>
-                <select
-                  aria-label={t('repository_form.label_epic_dependency_policy')}
-                  className={inputClass()}
-                  onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value as RepositoryEpicDependencyPolicy })}
-                  value={values.epic_dependency_policy}
-                >
-                  <option value="linear">{t('repository_form.epic_dependency_linear')}</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {t('repository_form.epic_dependency_hint')}
-                </p>
-              </>
-            )}
-          </Field>
         </section>
 
         <section className="space-y-3">

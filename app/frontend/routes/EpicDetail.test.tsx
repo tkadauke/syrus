@@ -129,26 +129,6 @@ describe("EpicDetail origin_chat link", () => {
     expect(screen.queryByRole("link", { name: /view in chat/i })).not.toBeInTheDocument()
   })
 
-  it("renders the concrete dependency policy", () => {
-    renderDetail(detailPayload({
-      epic_dependency_policy: "linear",
-      resolved_epic_dependency_policy: "linear",
-      repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", epic_dependency_policy: "linear" }
-    }))
-
-    expect(screen.getByText("Dependency policy")).toBeInTheDocument()
-    expect(screen.getByText("Linear")).toBeInTheDocument()
-  })
-
-  it("renders nonlinear dependency policy", () => {
-    renderDetail(detailPayload({
-      epic_dependency_policy: "nonlinear",
-      resolved_epic_dependency_policy: "nonlinear",
-      repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", epic_dependency_policy: "linear" }
-    }))
-
-    expect(screen.getByText("Nonlinear")).toBeInTheDocument()
-  })
 })
 
 describe("EpicDetail state transition confirm", () => {

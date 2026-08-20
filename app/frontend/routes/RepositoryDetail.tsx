@@ -387,14 +387,6 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
         </div>
         <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            {t('repository.epic_dependency_policy')}
-          </dt>
-          <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
-            {repository.epic_dependency_policy === "nonlinear" ? t('repository.epic_dependency_policy_nonlinear') : t('repository.epic_dependency_policy_linear')}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
             {t('repository.syrus_owner')}
           </dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
