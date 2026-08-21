@@ -226,6 +226,28 @@ RSpec.describe JavaScript::Engine do
     end
   end
 
+  describe JavaScript::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-javascript-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no recognized lockfile or package.json" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the any-type criterion when a JS/TS project is detected" do
+      write("package.json", "{}")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag newly introduced `any` types" ])
+    end
+  end
+
   describe JavaScript::PreviewProvider do
     subject(:provider) { described_class.new }
 
