@@ -13,6 +13,7 @@ class ChatTurnJob < ApplicationJob
   HISTORY_FALLBACK_MAX_BYTES = 12_000
   HISTORY_FALLBACK_ENTRY_MAX_BYTES = 1_000
   HISTORY_FALLBACK_TOOL_RESULT_MAX_BYTES = 400
+  STOP_REQUEST_POLL_INTERVAL = 1.second
 
   queue_as :chat
   discard_on StandardError
@@ -51,7 +52,7 @@ class ChatTurnJob < ApplicationJob
 
     clear_stale_stop_request!
     @chat.clear_suggested_next_step!
-    return if stop_requested?
+    return if stop_requested?(force: true)
     @current_assistant_content = []
 
     provider = chat_provider
@@ -87,7 +88,10 @@ class ChatTurnJob < ApplicationJob
           mcp_config: mcp_config,
           resume_session_id: parent_session_id,
           stop_requested: method(:stop_requested?),
-          process_started: ->(_process) { @chat.broadcast_controls }
+          process_started: ->(_process) {
+            @last_stop_request_polled_at = nil
+            @chat.broadcast_controls
+          }
         )
       end
     end
@@ -98,14 +102,14 @@ class ChatTurnJob < ApplicationJob
     record_provider_success_evidence!(provider, result)
     update_coding_checkout_uncommitted_state!
     touch_chat!
-    stop_requested?
+    stop_requested?(force: true)
     if result&.is_error
       create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
     else
       create_terminal_completion_message! unless @cancelled
     end
   rescue StandardError => e
-    stop_requested? || create_terminal_failure_message!(exception: e)
+    stop_requested?(force: true) || create_terminal_failure_message!(exception: e)
     touch_chat! if @chat
     raise
   ensure
@@ -638,6 +642,8 @@ class ChatTurnJob < ApplicationJob
                          tool_result_content: nil, tool_result_error: nil,
                          tool_use_id: nil, thinking: nil, signature: nil,
                          mcp_servers: nil, **)
+    @last_stop_request_polled_at = nil
+
     case kind.to_s
     when "thinking"
       block = { "type" => "thinking", "thinking" => thinking.to_s }
@@ -797,7 +803,14 @@ class ChatTurnJob < ApplicationJob
     !mcp_available?(status) && !mcp_pending?(status)
   end
 
-  def stop_requested?
+  def stop_requested?(force: false)
+    return true if @cancelled
+
+    if !force && @last_stop_request_polled_at && @last_stop_request_polled_at > STOP_REQUEST_POLL_INTERVAL.ago
+      return false
+    end
+
+    @last_stop_request_polled_at = Time.current unless force
     @chat.reload
     return false unless @chat.stop_requested_at && @chat.stop_requested_at > @stop_request_cutoff_at
 

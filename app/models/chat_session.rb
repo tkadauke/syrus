@@ -48,7 +48,7 @@ class ChatSession < ApplicationRecord
            through: :repository_document_attachments,
            source: :attachable,
            source_type: "Document"
-  has_many :messages, class_name: "ChatMessage", dependent: :destroy
+  has_many :messages, class_name: "ChatMessage", dependent: :destroy, inverse_of: :chat_session
   has_many :context_checkpoints, class_name: "ChatContextCheckpoint", dependent: :destroy
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify

@@ -2056,6 +2056,30 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "throttles repeated runner-side stop checks" do
+    reload_count = 0
+    in_runner = false
+    checks = []
+    allow_any_instance_of(ChatSession).to receive(:reload).and_wrap_original do |method|
+      reload_count += 1 if in_runner
+      method.call
+    end
+    ChatTurnJob.agent_runner = ->(stop_requested:, **_) {
+      in_runner = true
+      5.times { checks << stop_requested.call }
+      chat.update!(stop_requested_at: 1.second.from_now)
+      travel 2.seconds
+      checks << stop_requested.call
+      in_runner = false
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(checks).to eq([ false, false, false, false, false, true ])
+    expect(reload_count).to be < 5
+  end
+
   it "clears stale stop requests at turn start" do
     chat.update!(stop_requested_at: 5.minutes.ago)
     ChatTurnJob.agent_runner = ->(stop_requested:, **_) {
