@@ -35,9 +35,11 @@ RSpec.describe Steps::RunSkill do
     allow(handler).to receive(:head_sha).and_return("abc123")
   end
 
-  it "dispatches into the skill trigger_kind's prepare → run_skill → summarize → pr_open chain" do
+  it "dispatches into the skill trigger_kind's prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open chain" do
     expect(workflow.trigger_kind).to eq("skill")
-    expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare run_skill summarize pr_open])
+    expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+      %w[prepare run_skill grader_fanout grader_collect summarize pr_open]
+    )
   end
 
   describe "when the agent produces a diff" do
