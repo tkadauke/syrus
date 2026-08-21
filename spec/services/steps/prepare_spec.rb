@@ -191,6 +191,34 @@ RSpec.describe Steps::Prepare do
     expect(chunks).not_to include("all commands completed successfully")
   end
 
+  describe "plugin detection" do
+    it "records the detected plugin set as a workflow artifact readable by a later step" do
+      File.write(@ws_path.join("Gemfile"), "")
+      allow(handler).to receive(:run_shell).and_return(true)
+
+      handler.call
+
+      expect(workflow.reload.artifact("detected_plugins")).to eq([ "ruby" ])
+      # Any later Step in the same Run reads through the same Workflow
+      # record and reader helper — no re-derivation needed.
+      later_step_workflow = Workflow.find(workflow.id)
+      expect(later_step_workflow.detected_plugins).to eq([ "ruby" ])
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("[prepare] detected: ruby")
+    end
+
+    it "records an empty set and a 'none' log line when nothing matches" do
+      handler.call
+
+      expect(workflow.reload.artifact("detected_plugins")).to eq([])
+      expect(workflow.reload.detected_plugins).to eq([])
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("[prepare] detected: none")
+    end
+  end
+
   describe "mise install" do
     let(:success_result) do
       ProcessRunner::Result.new(
