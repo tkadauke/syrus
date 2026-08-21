@@ -97,3 +97,10 @@ features:
     description: "Enables landing multiple approved epicless Jobs together as one atomic bundle, the same way an Epic's children land together via the merge train. Experimental."
     description_i18n_key: "features.slugs.epicless_job_bundling.description"
     default: false
+  - slug: persistent_mcp_sidecar
+    category: "Labs"
+    name: "Persistent MCP sidecar"
+    name_i18n_key: "features.slugs.persistent_mcp_sidecar.name"
+    description: "Enables a worker-local persistent MCP sidecar daemon skeleton that can boot once and expose a local-only MCP transport and health check. No workflow or chat agent is wired to it yet; when disabled, agents keep using the default per-run/per-session stdio sidecars."
+    description_i18n_key: "features.slugs.persistent_mcp_sidecar.description"
+    default: false

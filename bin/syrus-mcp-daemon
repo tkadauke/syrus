@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+# Entry point for the persistent worker-local MCP sidecar daemon
+# (PersistentMcpDaemon). Unlike bin/syrus-mcp-sidecar (spawned per-run over
+# stdio by `claude`), this process is started directly by the operator or a
+# process supervisor in a worker container and stays up, boot Rails once.
+#
+# Refuses to start unless the `persistent_mcp_sidecar` feature is enabled —
+# see Feature.persistent_mcp_sidecar_enabled? and PersistentMcpDaemon#start.
+
+require_relative "../config/environment"
+
+daemon = PersistentMcpDaemon.start
+
+Signal.trap("TERM") { daemon.stop }
+Signal.trap("INT") { daemon.stop }
+
+daemon.join

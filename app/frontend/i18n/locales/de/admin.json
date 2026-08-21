@@ -304,6 +304,10 @@
       "epicless_job_bundling": {
         "name": "Job-Bündelung ohne Epic",
         "description": "Ermöglicht das gemeinsame Landen mehrerer genehmigter epicloser Jobs als ein atomares Bündel, so wie die Kinder eines Epics bereits gemeinsam über den Merge-Train landen. Experimentell."
+      },
+      "persistent_mcp_sidecar": {
+        "name": "Persistenter MCP-Sidecar",
+        "description": "Aktiviert das Grundgerüst eines persistenten, worker-lokalen MCP-Sidecar-Daemons, der einmal starten und einen rein lokalen MCP-Transport samt Health-Check bereitstellen kann. Es ist noch kein Workflow- oder Chat-Agent damit verbunden; solange deaktiviert, nutzen Agenten weiterhin die üblichen Stdio-Sidecars pro Run/Sitzung."
       }
     }
   },
