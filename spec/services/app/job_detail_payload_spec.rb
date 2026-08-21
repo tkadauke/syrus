@@ -524,6 +524,38 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#workflows_json" do
+    it "includes generic WorkflowWarning rows on the owning step, redacted" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1)
+      pending_warning = WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "grader_side_effect",
+        severity: "medium",
+        title: "leaked https://x-access-token:abc123@github.com/acme/widgets.git",
+        evidence: { "command" => "curl https://x-access-token:abc123@github.com/acme/widgets.git" },
+        suggested_prompt: "fix it"
+      )
+      dismissed_warning = WorkflowWarnings.record!(workflow: workflow, step: step, kind: "grader_side_effect", title: "already handled")
+      dismissed_warning.dismiss!
+
+      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
+      step_payload = workflow_payload.fetch(:steps).first
+      warnings_by_id = step_payload[:warnings].index_by { |w| w[:id] }
+
+      expect(step_payload[:warnings].size).to eq(2)
+      expect(warnings_by_id[pending_warning.id]).to include(
+        kind: "grader_side_effect",
+        severity: "medium",
+        state: "pending",
+        created_job_id: nil
+      )
+      expect(warnings_by_id[pending_warning.id][:title]).not_to include("abc123")
+      expect(warnings_by_id[pending_warning.id][:evidence]["command"]).not_to include("abc123")
+      expect(warnings_by_id[dismissed_warning.id][:state]).to eq("dismissed")
+    end
+
     it "bounds serialized steps per workflow and keeps workflow failure classification" do
       stub_const("App::JobDetailPayload::WorkflowSerializers::MAX_STEPS_PER_WORKFLOW", 3)
       job = Factories.job_record(repository: repo)

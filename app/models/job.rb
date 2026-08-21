@@ -62,6 +62,7 @@ class Job < ApplicationRecord
   has_many :approving_users, through: :job_approvals, source: :user
   has_many :chat_proposals, dependent: :nullify
   has_many :workflows, -> { order(:created_at) }, dependent: :destroy
+  has_many :workflow_warnings, dependent: :destroy
   # Runs hang off Steps now (Job → Workflow → Step → Run) — Job's
   # direct has_many :runs is a convenience accessor, NOT a cascade
   # parent. Cascade flows through workflows. Runs all carry job_id

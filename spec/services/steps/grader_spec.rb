@@ -227,4 +227,47 @@ RSpec.describe Steps::Grader do
     expect(preflight_run.reload.command_spans.ordered.map(&:command_excerpt)).to eq([ "printf preflight", "printf done" ])
     expect(@ws_path.join(preflight_step.reload.details["log_path"]).to_s).to include("/preflight/tests.log")
   end
+
+  describe "grader side-effect detection" do
+    before do
+      FileUtils.mkdir_p(@ws_path)
+      git_opts = { chdir: @ws_path.to_s, exception: true }
+      system("git", "init", "--quiet", **git_opts)
+      system("git", "config", "user.email", "test@example.com", **git_opts)
+      system("git", "config", "user.name", "Test", **git_opts)
+      File.write(@ws_path.join("README.md"), "hello\n")
+      system("git", "add", ".", **git_opts)
+      system("git", "commit", "--quiet", "-m", "init", **git_opts)
+    end
+
+    it "records a grader_side_effect warning when the command leaves uncommitted changes, without affecting grader pass/fail" do
+      step.update!(details: step.details.merge("command" => "touch dirty.txt"))
+
+      expect { handler.call }.not_to raise_error
+
+      warning = WorkflowWarning.last
+      expect(warning.kind).to eq("grader_side_effect")
+      expect(warning.workflow).to eq(workflow)
+      expect(warning.step).to eq(step)
+      expect(warning.severity).to eq("medium")
+      expect(warning.evidence["grader_name"]).to eq("tests")
+      expect(warning.evidence["command"]).to eq("touch dirty.txt")
+      expect(warning.evidence["changed_files"]).to include("dirty.txt")
+      expect(warning.suggested_prompt).to include("tests")
+      expect(warning.suggested_prompt).to include("dirty.txt")
+      expect(warning.suggested_prompt).to include("formatters:")
+    end
+
+    it "records the warning even when the grader command itself fails" do
+      step.update!(details: step.details.merge("command" => "touch dirty.txt && ruby -e 'exit 1'"))
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+      expect(WorkflowWarning.where(kind: "grader_side_effect").count).to eq(1)
+    end
+
+    it "does not record a warning when the grader leaves the workspace clean" do
+      expect { handler.call }.not_to change(WorkflowWarning, :count)
+    end
+  end
 end
