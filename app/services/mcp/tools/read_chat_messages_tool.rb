@@ -22,14 +22,13 @@ module Mcp::Tools
         chat_session = find_chat_session!(chat_session_id)
 
         page = normalize_page(page)
-        total_messages = chat_session.messages.count
-        total_pages = [ (total_messages.to_f / ChatSession::MESSAGE_PAGE_SIZE).ceil, 1 ].max
-        messages = page_messages(chat_session, page)
+        messages, has_more = page_messages(chat_session, page)
 
         Mcp::Tools.success(
           messages: messages.map { |message| message_payload(message) },
           page: page,
-          total_pages: total_pages,
+          has_more: has_more,
+          next_page: (page + 1 if has_more),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
         )
       end
@@ -44,11 +43,13 @@ module Mcp::Tools
         ids = message_id_scope(chat_session)
           .order(:created_at, :id)
           .offset((page - 1) * ChatSession::MESSAGE_PAGE_SIZE)
-          .limit(ChatSession::MESSAGE_PAGE_SIZE)
+          .limit(ChatSession::MESSAGE_PAGE_SIZE + 1)
           .pluck(:id)
+        has_more = ids.size > ChatSession::MESSAGE_PAGE_SIZE
+        ids = ids.first(ChatSession::MESSAGE_PAGE_SIZE)
         messages_by_id = ChatMessage.where(id: ids).index_by(&:id)
 
-        ids.filter_map { |id| messages_by_id[id] }
+        [ ids.filter_map { |id| messages_by_id[id] }, has_more ]
       end
 
       def message_id_scope(chat_session)

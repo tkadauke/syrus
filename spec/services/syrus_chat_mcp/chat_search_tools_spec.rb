@@ -99,7 +99,8 @@ RSpec.describe "Mcp::Tools chat search tools" do
 
       expect(response[:result][:isError]).to be_falsey
       expect(payload[:page]).to eq(2)
-      expect(payload[:total_pages]).to eq(2)
+      expect(payload[:has_more]).to be(false)
+      expect(payload[:next_page]).to be_nil
       expect(payload[:chat_title]).to eq("Current chat")
       expect(payload[:messages]).to contain_exactly(
         {
@@ -109,6 +110,19 @@ RSpec.describe "Mcp::Tools chat search tools" do
           created_at: messages.last.created_at.iso8601
         }
       )
+    end
+
+    it "reports whether another page exists without counting the whole chat" do
+      31.times { |i| message(chat_session, text: "message #{i}") }
+
+      response = call_tool("read_chat_messages", chat_session_id: chat_session.id, page: 1)
+      payload = response_payload(response)
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload[:has_more]).to be(true)
+      expect(payload[:next_page]).to eq(2)
+      expect(payload[:messages].size).to eq(ChatSession::MESSAGE_PAGE_SIZE)
+      expect(payload).not_to have_key(:total_pages)
     end
 
     it "rejects access to another user's chat" do
