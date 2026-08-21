@@ -145,7 +145,7 @@ RSpec.describe RunJob, "step-dispatch path" do
 
       expect(review_workflow.reload).to be_succeeded
       expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(%w[
-        prepare implement adversarial_review implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan
+        prepare implement adversarial_review implement autofix grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan
       ])
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
@@ -174,6 +174,7 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "implement", 2 ],
         [ "adversarial_review", 2 ],
         [ "implement", 1 ],
+        [ "autofix", 1 ],
         [ "grader_fanout", 1 ],
         [ "grader_collect", 1 ],
         [ "coverage_analyze", 1 ],
@@ -209,6 +210,7 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "implement", "succeeded" ],
         [ "adversarial_review", "succeeded" ],
         [ "implement", "skipped" ],
+        [ "autofix", "succeeded" ],
         [ "grader_fanout", "succeeded" ],
         [ "grader_collect", "succeeded" ],
         [ "coverage_analyze", "succeeded" ],

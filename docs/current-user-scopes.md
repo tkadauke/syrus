@@ -78,6 +78,7 @@ per-user/private:
   - app/controllers/api/v1/app/users_controller.rb
   - app/controllers/api/v1/app/video_walkthroughs_controller.rb
   - app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
+  - app/controllers/api/v1/app/workflow_warnings_controller.rb
   - app/controllers/api/v1/app/workflows_controller.rb
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
