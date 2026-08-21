@@ -317,6 +317,7 @@
     "manual_pause": "Manuell pausiert",
     "repository_archived": "Repository archiviert",
     "waiting_epic_merge_train": "Warte auf Epic-Merge-Train",
+    "waiting_epicless_bundle": "Warte auf Job-Bündel",
     "auto_merge_not_enabled": "Auto-Merge für Repository nicht aktiviert",
     "review_requested_changes": "Review hat Änderungen angefordert",
     "missing_pull_request": "Pull Request fehlt",
