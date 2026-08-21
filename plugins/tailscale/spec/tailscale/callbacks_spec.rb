@@ -4,11 +4,14 @@ RSpec.describe Tailscale::Callbacks do
   let(:manager) { instance_double(Tailscale::DaemonManager) }
 
   before do
+    Syrus::Plugin::EffectRegistry.drain!("tailscale")
     allow(Tailscale::DaemonManager).to receive(:instance).and_return(manager)
     allow(manager).to receive(:alive?).and_return(false)
     allow(Tailscale::HostAllowlist).to receive(:sync)
     allow(Tailscale::HostAllowlist).to receive(:clear)
   end
+
+  after { Syrus::Plugin::EffectRegistry.drain!("tailscale") }
 
   describe ".on_boot" do
     context "when TS_AUTHKEY is present" do
@@ -31,6 +34,19 @@ RSpec.describe Tailscale::Callbacks do
           described_class.on_boot
           expect(Tailscale::HostAllowlist).to have_received(:sync)
         end
+
+        it "registers an effect that clears the host allowlist on drain" do
+          described_class.on_boot
+
+          Syrus::Plugin::EffectRegistry.drain!("tailscale")
+
+          expect(Tailscale::HostAllowlist).to have_received(:clear)
+        end
+
+        it "does not clear the host allowlist before the effect is drained" do
+          described_class.on_boot
+          expect(Tailscale::HostAllowlist).not_to have_received(:clear)
+        end
       end
 
       context "when daemon is not alive after start" do
@@ -42,6 +58,14 @@ RSpec.describe Tailscale::Callbacks do
         it "does not sync the host allowlist" do
           described_class.on_boot
           expect(Tailscale::HostAllowlist).not_to have_received(:sync)
+        end
+
+        it "does not register a host allowlist cleanup effect" do
+          described_class.on_boot
+
+          Syrus::Plugin::EffectRegistry.drain!("tailscale")
+
+          expect(Tailscale::HostAllowlist).not_to have_received(:clear)
         end
       end
     end
@@ -78,6 +102,14 @@ RSpec.describe Tailscale::Callbacks do
         it "syncs the host allowlist" do
           described_class.on_enable
           expect(Tailscale::HostAllowlist).to have_received(:sync)
+        end
+
+        it "registers an effect that clears the host allowlist on drain" do
+          described_class.on_enable
+
+          Syrus::Plugin::EffectRegistry.drain!("tailscale")
+
+          expect(Tailscale::HostAllowlist).to have_received(:clear)
         end
       end
     end
@@ -142,39 +174,18 @@ RSpec.describe Tailscale::Callbacks do
     end
   end
 
-  describe ".on_disable" do
-    before { allow(manager).to receive(:stop) }
+  describe "drain via PluginLifecycleJob" do
+    before { allow(ENV).to receive(:[]).and_call_original }
+    before { allow(ENV).to receive(:[]).with("TS_AUTHKEY").and_return("tskey-auth-abc123") }
 
-    it "clears the host allowlist" do
-      described_class.on_disable
+    it "clears the host allowlist when the plugin is disabled" do
+      allow(manager).to receive(:start)
+      allow(manager).to receive(:alive?).and_return(true)
+      described_class.on_enable
+
+      PluginLifecycleJob.perform_now("tailscale", "on_disable")
+
       expect(Tailscale::HostAllowlist).to have_received(:clear)
-    end
-
-    it "calls stop on the daemon manager" do
-      described_class.on_disable
-      expect(manager).to have_received(:stop)
-    end
-
-    it "clears the allowlist before stopping the daemon" do
-      clear_order = []
-      allow(Tailscale::HostAllowlist).to receive(:clear) { clear_order << :clear }
-      allow(manager).to receive(:stop) { clear_order << :stop }
-      described_class.on_disable
-      expect(clear_order).to eq([:clear, :stop])
-    end
-  end
-
-  describe ".on_shutdown" do
-    before { allow(manager).to receive(:stop) }
-
-    it "clears the host allowlist" do
-      described_class.on_shutdown
-      expect(Tailscale::HostAllowlist).to have_received(:clear)
-    end
-
-    it "calls stop on the daemon manager" do
-      described_class.on_shutdown
-      expect(manager).to have_received(:stop)
     end
   end
 end
