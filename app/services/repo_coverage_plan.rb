@@ -38,7 +38,7 @@ class RepoCoveragePlan
       raise SyrusYml::ConfigError, "artifact: is required"
     end
 
-    threshold = parse_threshold_from_config(raw["threshold"])
+    threshold = parse_threshold(raw["threshold"], label_prefix: "threshold")
 
     on_miss = (raw["on_miss"] || DEFAULT_ON_MISS).to_s.strip
     unless VALID_ON_MISS.include?(on_miss)
@@ -67,6 +67,36 @@ class RepoCoveragePlan
     )
   end
 
+  # Single canonical threshold parser shared by both parse paths — SyrusYml's
+  # primary parse of the workspace's own .syrus.yml (label_prefix
+  # "coverage.threshold") and .from_config's parse of .syrus.yml content read
+  # from GitHub at workflow-instantiation time (label_prefix "threshold").
+  # Keeping one implementation means lines/branches/pr_lines validation can't
+  # silently diverge between the two paths.
+  def self.parse_threshold(raw, label_prefix:)
+    return nil if raw.nil?
+    raise SyrusYml::ConfigError, "#{label_prefix}: must be a mapping" unless raw.is_a?(Hash)
+
+    fields = {}
+    %w[lines branches pr_lines].each do |field|
+      next unless raw.key?(field)
+
+      begin
+        value = Float(raw[field])
+      rescue ArgumentError, TypeError
+        raise SyrusYml::ConfigError, "#{label_prefix}.#{field}: must be a number"
+      end
+
+      if value < 0 || value > 100
+        raise SyrusYml::ConfigError, "#{label_prefix}.#{field}: must be between 0 and 100"
+      end
+
+      fields[field.to_sym] = value
+    end
+
+    Threshold.new(lines: fields[:lines], branches: fields[:branches], pr_lines: fields[:pr_lines])
+  end
+
   def initialize(sources:, threshold:, on_miss:, hitmap_ttl_days:, pr_comment:, schedule_prompt:)
     @sources        = sources
     @threshold      = threshold
@@ -82,6 +112,15 @@ class RepoCoveragePlan
     lines_miss = threshold.lines && lines_pct && lines_pct < threshold.lines
     pr_miss    = threshold.pr_lines && pr_delta_pct && pr_delta_pct < threshold.pr_lines
     lines_miss || pr_miss || false
+  end
+
+  # Branch coverage is deliberately NOT part of #threshold_miss? — lines/pr_lines
+  # still drive the hard `on_miss` gate (block/warn/schedule), but a branches miss
+  # only ever produces a soft WorkflowWarning (see Steps::CoverageAnalyze).
+  def branches_threshold_miss?(branches_pct:)
+    return false unless threshold&.branches && branches_pct
+
+    branches_pct < threshold.branches
   end
 
   private
@@ -103,22 +142,5 @@ class RepoCoveragePlan
 
       Source.new(artifact: artifact, format: format)
     end
-  end
-
-  def self.parse_threshold_from_config(raw)
-    return nil if raw.nil?
-    raise SyrusYml::ConfigError, "threshold: must be a mapping" unless raw.is_a?(Hash)
-
-    fields = {}
-    %w[lines branches pr_lines].each do |field|
-      next unless raw.key?(field)
-      begin
-        fields[field.to_sym] = Float(raw[field])
-      rescue ArgumentError, TypeError
-        raise SyrusYml::ConfigError, "threshold.#{field}: must be a number"
-      end
-    end
-
-    Threshold.new(lines: fields[:lines], branches: fields[:branches], pr_lines: fields[:pr_lines])
   end
 end

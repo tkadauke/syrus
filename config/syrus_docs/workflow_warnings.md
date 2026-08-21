@@ -66,6 +66,16 @@ matching the non-fatal posture of `record_prepare_soft_failure!`
 (`app/services/steps/prepare.rb`) and `record_autofix_failure!`
 (`app/services/steps/autofix.rb`).
 
+## Second consumer: coverage branch-threshold misses
+
+`Steps::CoverageAnalyze` records a `kind: "coverage_branches_threshold_miss"`
+warning when measured branch coverage falls below `coverage.threshold.branches`
+in `.syrus.yml`, with `evidence: { "branches_pct" => ..., "threshold_branches" =>
+... }` and a `suggested_prompt` to add tests for the uncovered branches. Unlike
+`coverage.threshold.lines`/`pr_lines`, a branches miss never goes through
+`coverage.on_miss` (block/warn/schedule) and never fails the step — it is
+always this soft warning. See `coverage.md`.
+
 ## Frontend rendering
 
 The Job details page (`app/frontend/routes/jobDetail/WorkflowGraph.tsx`)

@@ -321,6 +321,96 @@ RSpec.describe Steps::CoverageAnalyze do
     end
   end
 
+  context "branch coverage threshold" do
+    let(:lcov_with_branches) do
+      <<~LCOV
+        TN:
+        SF:app/models/user.rb
+        DA:1,5
+        DA:2,0
+        DA:3,3
+        LF:3
+        LH:2
+        BRDA:1,0,0,1
+        BRDA:1,0,1,0
+        BRF:2
+        BRH:1
+        FNF:1
+        FNH:1
+        end_of_record
+      LCOV
+    end
+
+    context "when branch coverage misses threshold.branches" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              branches: 90
+            on_miss: warn
+        YAML
+        write_lcov(content: lcov_with_branches)
+      end
+
+      it "does not fail the step" do
+        expect { handler.call }.not_to raise_error
+      end
+
+      it "records a WorkflowWarning with kind coverage_branches_threshold_miss" do
+        expect { handler.call }.to change(WorkflowWarning, :count).by(1)
+
+        warning = WorkflowWarning.last
+        expect(warning.workflow).to eq(workflow)
+        expect(warning.job).to eq(job)
+        expect(warning.kind).to eq("coverage_branches_threshold_miss")
+        expect(warning.evidence).to include("branches_pct" => 50.0, "threshold_branches" => 90.0)
+        expect(warning.suggested_prompt).to include("Branch coverage is 50.0%")
+        expect(warning.suggested_prompt).to include("coverage.threshold.branches")
+      end
+    end
+
+    context "when branch coverage meets threshold.branches" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              branches: 40
+        YAML
+        write_lcov(content: lcov_with_branches)
+      end
+
+      it "does not record a WorkflowWarning" do
+        expect { handler.call }.not_to change(WorkflowWarning, :count)
+      end
+    end
+
+    context "when threshold.branches is not configured" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 90
+            on_miss: warn
+        YAML
+        write_lcov(content: lcov_with_branches)
+      end
+
+      it "does not record a branches WorkflowWarning even though lines misses" do
+        expect { handler.call }.not_to change(WorkflowWarning, :count)
+        expect(workflow.reload.artifact("coverage")["threshold_miss"]).to be true
+      end
+    end
+  end
+
   context "coverage_analyzer plugin extension point" do
     def coverage_analyzer_provider(callable)
       Class.new do
