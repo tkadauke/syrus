@@ -157,6 +157,20 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body).to eq("plugins" => [])
   end
 
+  it "includes depends_on and derived dependents in the plugin payload" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "payload-ruby-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "payload-rails-plugin", version: "1.0.0", depends_on: [ "payload-ruby-plugin" ])
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(response).to have_http_status(:ok)
+    plugins = parse_body.fetch("plugins").index_by { |p| p["name"] }
+    expect(plugins.fetch("payload-ruby-plugin")).to include("depends_on" => [], "dependents" => [ "payload-rails-plugin" ])
+    expect(plugins.fetch("payload-rails-plugin")).to include("depends_on" => [ "payload-ruby-plugin" ], "dependents" => [])
+  end
+
   it "reflects agent provider availability" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
@@ -192,6 +206,70 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("plugins").sole).to include("name" => "toggle-plugin", "enabled" => true)
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to eq([ AdminPluginsSpec::AvailableProvider ])
+  end
+
+  it "cascades enabling a plugin's dependencies" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "ruby-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "rails-plugin", version: "1.0.0", depends_on: [ "ruby-plugin" ])
+    PluginRecord.find_by!(name: "ruby-plugin").update!(enabled: false)
+    PluginRecord.find_by!(name: "rails-plugin").update!(enabled: false)
+
+    post "/api/v1/app/admin/plugins/rails-plugin/enable"
+
+    expect(response).to have_http_status(:ok)
+    expect(PluginRecord.find_by!(name: "ruby-plugin").enabled).to be(true)
+    expect(PluginRecord.find_by!(name: "rails-plugin").enabled).to be(true)
+  end
+
+  it "warns instead of disabling when other enabled plugins depend on the target" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "ruby-dep-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "rails-dep-plugin", version: "1.0.0", depends_on: [ "ruby-dep-plugin" ])
+
+    post "/api/v1/app/admin/plugins/ruby-dep-plugin/disable"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["requires_confirmation"]).to be(true)
+    expect(body["plugin_name"]).to eq("ruby-dep-plugin")
+    expect(body["dependents"]).to eq([ "rails-dep-plugin" ])
+    expect(PluginRecord.find_by!(name: "ruby-dep-plugin").enabled).to be(true)
+    expect(PluginRecord.find_by!(name: "rails-dep-plugin").enabled).to be(true)
+  end
+
+  it "cascades disabling a plugin's dependents once confirmed" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "ruby-confirm-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "rails-confirm-plugin", version: "1.0.0", depends_on: [ "ruby-confirm-plugin" ])
+
+    post "/api/v1/app/admin/plugins/ruby-confirm-plugin/disable", params: { confirm_cascade: true }
+
+    expect(response).to have_http_status(:ok)
+    names = parse_body.fetch("plugins").map { |p| p["name"] }
+    expect(names).to include("ruby-confirm-plugin", "rails-confirm-plugin")
+    expect(PluginRecord.find_by!(name: "ruby-confirm-plugin").enabled).to be(false)
+    expect(PluginRecord.find_by!(name: "rails-confirm-plugin").enabled).to be(false)
+  end
+
+  it "does not warn when disabling a plugin with no dependents (unchanged behavior)" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "no-dependents-plugin",
+      version: "1.0.0",
+      provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
+    )
+
+    post "/api/v1/app/admin/plugins/no-dependents-plugin/disable"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["requires_confirmation"]).to be_nil
+    expect(body.fetch("plugins").sole).to include("name" => "no-dependents-plugin", "enabled" => false)
   end
 
   it "rejects disabling a non-disableable plugin" do

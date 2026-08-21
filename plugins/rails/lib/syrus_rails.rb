@@ -5,11 +5,8 @@ require "syrus_rails/route_parser"
 require "syrus_rails/mcp_tool_set"
 require "syrus_rails/schema_erd_renderer"
 require "syrus_rails/migration_diff_renderer"
-require "syrus_rails/rspec_parser"
-require "syrus_rails/simple_cov_analyzer"
 require "syrus_rails/prompt_context"
 require "syrus_rails/preview_provider"
-require "syrus_rails/grader_augmentor"
 require "syrus_rails/engine"
 
 module SyrusRails

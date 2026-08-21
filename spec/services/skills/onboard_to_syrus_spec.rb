@@ -25,7 +25,7 @@ RSpec.describe Skills::OnboardToSyrus do
     it "reuses RepoPrepPlan's auto-detect table verbatim for the prepare: section" do
       instructions = described_class.definition.instructions
 
-      RepoPrepPlan::AUTO_DETECT.each do |file, command|
+      Skills::OnboardToSyrus::PREPARE_SIGNALS.each do |file, command|
         expect(instructions).to include("`#{file}`")
         expect(instructions).to include("`#{command}`")
       end
@@ -92,6 +92,21 @@ RSpec.describe Skills::OnboardToSyrus do
       File.write(path, contents)
     end
 
+    # scan[:prep] delegates to RepoPrepPlan, which now reads registered
+    # :prepare_detector plugins instead of a hardcoded table — register the
+    # real bundled `ruby` plugin (mirroring its engine.rb manifest) so the
+    # Gemfile-detection example below exercises production wiring.
+    before do
+      unless Syrus::PluginRegistry.registered_names.include?("ruby")
+        Syrus::PluginRegistry.register(
+          name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+          provides: { prepare_detector: Ruby::PrepareDetector }
+        )
+      end
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
     it "reports no existing .syrus.yml and no detected signals for an empty repo" do
       instructions = described_class.definition(workspace_path: @dir).instructions
 
@@ -140,7 +155,7 @@ RSpec.describe Skills::OnboardToSyrus do
     it "still includes the full reference tables alongside the concrete scan results" do
       instructions = described_class.definition(workspace_path: @dir).instructions
 
-      RepoPrepPlan::AUTO_DETECT.each { |file, _command| expect(instructions).to include("`#{file}`") }
+      Skills::OnboardToSyrus::PREPARE_SIGNALS.each { |file, _command| expect(instructions).to include("`#{file}`") }
       RepoGradeSignals::RULE_DESCRIPTIONS.each { |rule| expect(instructions).to include(rule.name) }
     end
   end

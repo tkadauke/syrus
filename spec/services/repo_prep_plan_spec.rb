@@ -63,6 +63,29 @@ RSpec.describe RepoPrepPlan do
   end
 
   describe "auto-detect" do
+    # RepoPrepPlan no longer hardcodes Ruby/Node signals — it delegates
+    # entirely to registered :prepare_detector plugins. Register the real
+    # bundled `ruby` and `javascript` plugins (mirroring their engine.rb
+    # manifests) so these specs exercise the actual production wiring
+    # instead of a RepoPrepPlan-local fixture.
+    before do
+      unless Syrus::PluginRegistry.registered_names.include?("ruby")
+        Syrus::PluginRegistry.register(
+          name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+          provides: { prepare_detector: Ruby::PrepareDetector }
+        )
+      end
+
+      unless Syrus::PluginRegistry.registered_names.include?("javascript")
+        Syrus::PluginRegistry.register(
+          name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+          provides: { prepare_detector: JavaScript::PrepareDetector }
+        )
+      end
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
     it "Gemfile → bundle install" do
       write("Gemfile", "")
       result = described_class.for(@dir)
@@ -95,18 +118,82 @@ RSpec.describe RepoPrepPlan do
       expect(described_class.for(@dir).commands).to eq([ "npm install" ])
     end
 
-    it "Gemfile + Node lockfile → only Gemfile (first match wins; no double-install)" do
+    it "Gemfile + Node lockfile → both, unioned across ecosystems (no double-install within Node)" do
       write("Gemfile", "")
+      write("package.json", "{}")
+      write("package-lock.json", "{}")
       write("yarn.lock", "")
       result = described_class.for(@dir)
-      expect(result.commands).to eq([ "bundle install" ])
-      expect(result.source).to include("Gemfile")
+      expect(result.commands).to eq([ "bundle install", "yarn install --frozen-lockfile" ])
+      expect(result.source).to include("Ruby::PrepareDetector")
+      expect(result.source).to include("JavaScript::PrepareDetector")
     end
 
     it "no recognized signals → empty + diagnostic" do
       result = described_class.for(@dir)
       expect(result.commands).to be_empty
       expect(result.note).to match(/no recognized signals/)
+    end
+  end
+
+  describe ":prepare_detector plugins", :reset_plugin_registry do
+    around do |ex|
+      Syrus::PluginRegistry.reset!
+      ex.run
+      Syrus::PluginRegistry.reset!
+    end
+
+    def register_detector(plugin_name:, file:, command:, prepare_priority: 100)
+      detector = Class.new do
+        include Syrus::Plugin::PrepareDetector
+      end
+      detector.define_singleton_method(:name) { plugin_name.to_s.capitalize + "PrepareDetector" }
+      detector.define_singleton_method(:detect?) { |repo_path| File.exist?(File.join(repo_path, file)) }
+      detector.define_singleton_method(:prepare_commands) { |_repo_path| [ command ] }
+
+      Syrus::PluginRegistry.register(
+        name: plugin_name, version: "1.0.0", prepare_priority: prepare_priority,
+        provides: { prepare_detector: detector }
+      )
+      detector
+    end
+
+    it "unions commands from every matching plugin" do
+      register_detector(plugin_name: "test_python", file: "requirements.txt", command: "pip install -r requirements.txt")
+      register_detector(plugin_name: "test_go", file: "go.mod", command: "go mod download")
+      write("requirements.txt", "")
+      write("go.mod", "")
+
+      result = described_class.for(@dir)
+      expect(result.commands).to contain_exactly("pip install -r requirements.txt", "go mod download")
+      expect(result.guessed?).to be(true)
+    end
+
+    it "a single matching plugin behaves like today's single-command output" do
+      register_detector(plugin_name: "test_python", file: "requirements.txt", command: "pip install -r requirements.txt")
+      write("requirements.txt", "")
+
+      result = described_class.for(@dir)
+      expect(result.commands).to eq([ "pip install -r requirements.txt" ])
+    end
+
+    it "orders commands by prepare_priority, lower first, regardless of registration order" do
+      register_detector(plugin_name: "test_low_priority", file: "low.marker", command: "run low", prepare_priority: 200)
+      register_detector(plugin_name: "test_high_priority", file: "high.marker", command: "run high", prepare_priority: 10)
+      write("low.marker", "")
+      write("high.marker", "")
+
+      result = described_class.for(@dir)
+      expect(result.commands).to eq([ "run high", "run low" ])
+    end
+
+    it "excludes plugins the operator has disabled" do
+      register_detector(plugin_name: "test_disabled", file: "disabled.marker", command: "should not run")
+      write("disabled.marker", "")
+      PluginRecord.find_by!(name: "test_disabled").update!(enabled: false)
+
+      result = described_class.for(@dir)
+      expect(result.commands).to be_empty
     end
   end
 end

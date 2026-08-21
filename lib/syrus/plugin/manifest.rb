@@ -17,9 +17,11 @@ module Syrus
       :category,
       :home_queue,
       :tick_interval,
-      :config_schema
+      :config_schema,
+      :depends_on,
+      :prepare_priority
     ) do
-      def initialize(display_name: nil, description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], **) = super
+      def initialize(display_name: nil, description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], prepare_priority: 100, **) = super
 
       def enabled? = enabled
       def default_enabled? = default_enabled

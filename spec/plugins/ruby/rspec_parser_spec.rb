@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tempfile"
 
-RSpec.describe SyrusRails::RspecParser do
+RSpec.describe Ruby::RspecParser do
   let(:fixtures_path) { Rails.root.join("spec/fixtures/rspec") }
 
   def fixture(name)

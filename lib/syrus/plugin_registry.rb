@@ -17,6 +17,7 @@ module Syrus
       grader_augmentor
       callbacks
       platform_delivery
+      prepare_detector
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -36,7 +37,8 @@ module Syrus
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
       grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },
       callbacks:               -> { Syrus::Plugin::Callbacks },
-      platform_delivery:       -> { Syrus::Plugin::PlatformDelivery }
+      platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
+      prepare_detector:        -> { Syrus::Plugin::PrepareDetector }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
@@ -56,7 +58,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], depends_on: [], prepare_priority: 100, **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           return
@@ -81,7 +83,9 @@ module Syrus
             category:        category,
             home_queue:      home_queue,
             tick_interval:   tick_interval,
-            config_schema:   config_schema
+            config_schema:   config_schema,
+            depends_on:      Array(depends_on).map(&:to_s),
+            prepare_priority: prepare_priority
           )
         end
 
@@ -128,10 +132,11 @@ module Syrus
             performance_phase("plugin_registry.providers_for.filter", extension_point: ep, plugin_count: plugins.size) do
               plugins
                 .select { |m| plugin_enabled?(m, records[m.name]) }
+                .then { |ms| sort_by_prepare_priority(ms) }
                 .flat_map { |m| Array(m.provides[ep]) }
             end
           rescue ActiveRecord::ActiveRecordError
-            plugins.flat_map { |m| Array(m.provides[ep]) }
+            sort_by_prepare_priority(plugins).flat_map { |m| Array(m.provides[ep]) }
           end
         end
 
@@ -168,6 +173,24 @@ module Syrus
         @mutex.synchronize { @plugins.map(&:name) }
       end
 
+      # Called once boot settles (see config/initializers/plugin_registry.rb) since
+      # plugin engine initializer order isn't guaranteed - a plugin's depends_on
+      # target may register after the dependent itself. Raises RegistrationError
+      # listing every depends_on name that never resolved to a registered plugin;
+      # callers decide whether to let that raise or just log it.
+      def validate_dependencies!
+        plugins = @mutex.synchronize { @plugins.dup }
+        names = plugins.map(&:name).to_set
+
+        errors = plugins.flat_map do |manifest|
+          Array(manifest.depends_on).reject { |dep_name| names.include?(dep_name) }.map do |dep_name|
+            "Plugin #{manifest.name.inspect} declares depends_on: #{dep_name.inspect}, which is not a registered plugin"
+          end
+        end
+
+        raise RegistrationError, errors.join("; ") if errors.any?
+      end
+
       def reset!
         @mutex.synchronize do
           @plugins = []
@@ -200,6 +223,14 @@ module Syrus
       end
 
       private
+
+      # Lower prepare_priority runs/orders first; a stable index tiebreak
+      # keeps registration order for plugins that don't set one (default 100
+      # for all), so this is a no-op ordering change for every other
+      # extension point.
+      def sort_by_prepare_priority(plugins)
+        plugins.sort_by.with_index { |m, i| [ m.prepare_priority, i ] }
+      end
 
       def upsert_plugin_record!(name:, default_enabled:, disableable:, metadata:)
         record = PluginRecord.find_or_initialize_by(name: name)
