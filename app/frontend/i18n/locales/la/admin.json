@@ -455,7 +455,12 @@
     "telegram_polling_starting": "Incipiens…",
     "telegram_polling_started": "Scrutatio Telegram incoepta.",
     "telegram_polling_already_running": "Scrutatio Telegram iam currit.",
-    "telegram_polling_error": "Scrutatio Telegram incipere non potuit."
+    "telegram_polling_error": "Scrutatio Telegram incipere non potuit.",
+    "discord_heading": "Discord",
+    "discord_token_label": "Tessera automati Discord",
+    "discord_token_placeholder": "Tesseram automati inserere…",
+    "discord_token_clear_confirm": "Tesseram automati Discord delere?",
+    "discord_save_token": "Tesseram servare"
   },
   "github_app": {
     "register_title": "Inscriptio Applicamenti GitHub",
