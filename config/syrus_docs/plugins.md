@@ -287,7 +287,11 @@ fall back to a raw JSON display.
 Allows plugins to append additional diagnostic output to the grade log when a
 grader command fails. Augmentors are called after every failed grader run, before
 the step raises `StepFailed`. They run in registration order; each may return
-zero or more log lines.
+zero or more log lines. A single plugin can register more than one augmentor
+by passing an array to the `:grader_augmentor` key (each guards on a distinct
+grader command, e.g. one for the test runner and one for a linter) — see the
+`ruby` plugin's `Ruby::GraderAugmentor`/`Ruby::RubocopGraderAugmentor` pair
+below.
 
 Include `Syrus::Plugin::GraderAugmentor` and implement the class method:
 
@@ -457,12 +461,15 @@ Bundled plugins:
   agents or operators should inspect Syrus's own production behavior.
 - `ruby` — default-enabled. Provides Ruby-generic extension points usable by
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
-  alike), not just Rails: `:grader_augmentor` (appends structured RSpec JSON
-  failure details to the grade log when an rspec grader fails),
-  `:test_result_parser` (`Ruby::RspecParser` — parses RSpec's plain
-  progress/documentation output), `:coverage_analyzer` (SimpleCov's
-  `.resultset.json`), and `:prepare_detector` (`Gemfile` → `bundle install`,
-  `prepare_priority: 10`).
+  alike), not just Rails: `:grader_augmentor` — registers two providers,
+  `Ruby::GraderAugmentor` (appends structured RSpec JSON failure details to
+  the grade log when an rspec grader fails) and `Ruby::RubocopGraderAugmentor`
+  (appends compact `file:line: cop_name: message` lines parsed from RuboCop's
+  `--format json` output under `.syrus/rubocop-json/*.json` to the grade log
+  when a `rubocop` grader fails); `:test_result_parser` (`Ruby::RspecParser` —
+  parses RSpec's plain progress/documentation output), `:coverage_analyzer`
+  (SimpleCov's `.resultset.json`), and `:prepare_detector` (`Gemfile` →
+  `bundle install`, `prepare_priority: 10`).
 - `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
   (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
   and `package.json` don't distinguish JS from TS. Internally picks exactly one
@@ -475,7 +482,11 @@ Bundled plugins:
   `:prepare_detector` instead of re-implementing package-manager detection.
   `seed_command` is `nil` (no cross-ecosystem JS seeding convention) and
   `health_check_path` stays at the interface default `/` (a soft guess —
-  JS has no Rails-style built-in health endpoint).
+  JS has no Rails-style built-in health endpoint). Also provides
+  `:grader_augmentor` (`JavaScript::EslintGraderAugmentor` — appends compact
+  `file:line: ruleId: message` lines parsed from ESLint's `--format json`
+  output under `.syrus/eslint-json/*.json` to the grade log when an `eslint`
+  grader fails).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
