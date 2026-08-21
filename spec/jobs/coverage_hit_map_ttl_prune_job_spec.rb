@@ -6,26 +6,22 @@ RSpec.describe CoverageHitMapTtlPruneJob do
     wf  = job.workflows.first
     wf.update_columns(created_at: created_at)
     if with_hit_map
-      # Stub the attachment so tests don't need a real blob service.
-      attachment = instance_double(ActiveStorage::Attached::One, attached?: true)
-      allow(wf).to receive(:coverage_hit_map).and_return(attachment)
       allow(wf).to receive(:purge_coverage_hit_map!)
-    else
-      attachment = instance_double(ActiveStorage::Attached::One, attached?: false)
-      allow(wf).to receive(:coverage_hit_map).and_return(attachment)
     end
     wf
   end
 
   def stub_find_each(workflows)
     relation = double("relation")
-    allow(Workflow).to receive(:where).and_call_original
-    allow(Workflow).to receive(:where).with("created_at < ?", anything).and_return(relation)
-    stub = allow(relation).to receive(:find_each)
+    scoped_relation = double("scoped_relation")
+    allow(Workflow).to receive(:joins).and_call_original
+    allow(Workflow).to receive(:joins).with(:coverage_hit_map_attachment).and_return(relation)
+    allow(relation).to receive(:where).with("workflows.created_at < ?", anything).and_return(scoped_relation)
+    stub = allow(scoped_relation).to receive(:find_each)
     workflows.each { |wf| stub = stub.and_yield(wf) }
   end
 
-  it "purges hit maps on workflows past the TTL" do
+  it "purges old workflows from the attachment-scoped relation" do
     old_wf = make_workflow(created_at: (described_class::TTL_DAYS + 1).days.ago, with_hit_map: true)
     stub_find_each([ old_wf ])
 
@@ -34,14 +30,16 @@ RSpec.describe CoverageHitMapTtlPruneJob do
     expect(old_wf).to have_received(:purge_coverage_hit_map!)
   end
 
-  it "skips workflows without a hit map attachment" do
-    old_wf = make_workflow(created_at: (described_class::TTL_DAYS + 1).days.ago, with_hit_map: false)
-    stub_find_each([ old_wf ])
-    allow(old_wf).to receive(:purge_coverage_hit_map!)
+  it "only scans workflows that have a coverage hit map attachment" do
+    relation = double("relation")
+    scoped_relation = double("scoped_relation")
+    allow(Workflow).to receive(:joins).with(:coverage_hit_map_attachment).and_return(relation)
+    allow(relation).to receive(:where).with("workflows.created_at < ?", anything).and_return(scoped_relation)
+    allow(scoped_relation).to receive(:find_each)
 
     described_class.perform_now
 
-    expect(old_wf).not_to have_received(:purge_coverage_hit_map!)
+    expect(Workflow).to have_received(:joins).with(:coverage_hit_map_attachment)
   end
 
   it "is a no-op when no workflows are past the TTL" do
