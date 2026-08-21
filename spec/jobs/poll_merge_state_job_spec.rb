@@ -629,6 +629,21 @@ RSpec.describe PollMergeStateJob, :ci_only do
       expect(job.reload.commits_behind_base).to eq(5)
     end
 
+    it "does not rewrite the job when the computed distance is unchanged" do
+      job.update_column(:commits_behind_base, 5)
+      updates = []
+      callback = lambda do |_name, _started, _finished, _unique_id, payload|
+        sql = payload[:sql].to_s
+        updates << sql if sql.include?("UPDATE") && sql.include?("commits_behind_base")
+      end
+
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        described_class.perform_now(job.id)
+      end
+
+      expect(updates).to be_empty
+    end
+
     it "passes head_sha and base_sha from the PR to the bare clone" do
       expect(fake_clone).to receive(:commits_behind).with(head_sha: "abc", base_sha: "base")
 

@@ -2,6 +2,7 @@ class PollPullRequestJob < ApplicationJob
   include GithubPrPollHelpers
 
   queue_as :polling
+  PR_CHECK_CACHE_REFRESH_INTERVAL = 5.minutes
 
   # Max ci_failure workflows on a Job in any rolling 24h window. CI
   # failures CAN runaway loop (agent's fix introduces new failures →
@@ -433,12 +434,23 @@ class PollPullRequestJob < ApplicationJob
              elsif detail[:all_passed?] then "passing"
              else "unknown"
              end
+    return if pr_checks_cache_fresh?(head_sha, state)
+
     attrs = { pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current }
     if no_effective_ci_repair_landing_reason? &&
        (!state.in?(%w[failing pending]) || (@job.pr_checks_sha.present? && @job.pr_checks_sha != head_sha))
       attrs[:landing_failure_reason] = nil
     end
     @job.update_columns(attrs)
+  end
+
+  def pr_checks_cache_fresh?(head_sha, state)
+    return false if no_effective_ci_repair_landing_reason?
+    return false unless @job.pr_checks_sha == head_sha
+    return false unless @job.pr_checks_state == state
+    return false if @job.pr_checks_checked_at.blank?
+
+    @job.pr_checks_checked_at > PR_CHECK_CACHE_REFRESH_INTERVAL.ago
   end
 
   def ci_infrastructure_failure_only?(head_sha, detail)

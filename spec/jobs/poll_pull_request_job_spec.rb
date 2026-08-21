@@ -1060,6 +1060,30 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.pr_checks_sha).to eq(sha)
     end
 
+    it "does not rewrite fresh unchanged PR check cache rows" do
+      checked_at = 1.minute.ago
+      job.update_columns(pr_checks_sha: sha, pr_checks_state: "passing", pr_checks_checked_at: checked_at)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_checked_at.to_i).to eq(checked_at.to_i)
+    end
+
+    it "refreshes unchanged PR check cache rows after the minimum interval" do
+      checked_at = 10.minutes.ago
+      job.update_columns(pr_checks_sha: sha, pr_checks_state: "passing", pr_checks_checked_at: checked_at)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_checked_at).to be > checked_at
+    end
+
     it "updates the cache even when the ci_failure cap is reached" do
       3.times { Workflow.create!(job: job, trigger_kind: "ci_failure", state: "succeeded", created_at: 30.minutes.ago) }
       stub_check_runs(sha, [

@@ -66,6 +66,8 @@ class PollMergeStateJob < ApplicationJob
     bare_clone = RepositoryBareClone.new(pr_repo)
     bare_clone.sync!(user: @job.user)
     distance = bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+    return if @job.commits_behind_base == distance
+
     @job.update_column(:commits_behind_base, distance)
   rescue StandardError => e
     Rails.logger.warn("[PollMergeStateJob] #{@job.slug} commits_behind_base skipped: #{e.class}: #{e.message}")
