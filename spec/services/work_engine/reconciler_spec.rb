@@ -1440,6 +1440,31 @@ RSpec.describe WorkEngine::Reconciler do
     expect(run.reload).to have_attributes(state: "cancelled", agent_outcome: nil)
   end
 
+  it "does not surface a terminal-workflow-with-active-descendants issue from an unrelated Job on a job-scoped reconcile" do
+    ensure_solid_queue_test_tables!
+    other_job = Factories.job(agent_provider: "claude")
+    other_workflow = other_job.latest_workflow
+    other_step = other_workflow.first_step
+    other_run = other_step.runs.first
+    other_run.update_columns(state: "running", started_at: 1.minute.ago, last_heartbeat_at: 1.minute.ago)
+    other_step.update_columns(state: "succeeded", started_at: other_run.started_at, finished_at: other_run.started_at)
+    other_workflow.update_columns(state: "succeeded", started_at: other_run.started_at, finished_at: other_run.started_at)
+
+    result = reconcile(job_id: job.id)
+
+    expect(result.issues.map(&:affected_ids)).to all(
+      satisfy { |affected| Array(affected[:job_ids]).exclude?(other_job.id) && Array(affected[:workflow_ids]).exclude?(other_workflow.id) }
+    )
+
+    global_result = reconcile
+    expect(global_result.issues).to include(
+      have_attributes(
+        kind: "cleanup_blocked_by_active_descendants",
+        affected_ids: include(run_ids: [ other_run.id ])
+      )
+    )
+  end
+
   it "still classifies a stale running Run under a normal active Workflow through the default job-scoped scan" do
     ensure_solid_queue_test_tables!
     run.update_columns(
