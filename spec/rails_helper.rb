@@ -73,6 +73,13 @@ RSpec.configure do |config|
   config.before do
     Current.reset
     App::ProviderAvailability.clear_cache!
+    # JobLog caches each run's next append sequence in Thread.current (see
+    # JobLog.append!) to avoid a row lock. Transactional fixtures roll back
+    # autoincrement counters along with the row inserts, so a run_id from a
+    # prior example can be reassigned to a fresh run with no JobLog rows —
+    # without this reset, the stale cached sequence leaks in and the new
+    # run's logs start numbering above 0.
+    JobLog.clear_sequence_cache!
     Steps::AutoMerge.mergeability_settle_delay = 0
     # Stub the GitHub API call made by RepoAdversarialReviewPlan#resolve so
     # that specs using Factories.job (which instantiates an Initial workflow)
