@@ -70,6 +70,31 @@ RSpec.describe ChatEventEvaluator do
     expect(transcript).to include("new request", "disposable evaluator transcript byte cap")
   end
 
+  it "detects capped context without counting the whole chat" do
+    stub_const("#{described_class}::MAX_MESSAGES", 3)
+    4.times { |index| message(index.even? ? "user" : "assistant", "message #{index}") }
+    runner = lambda do |**_kwargs|
+      Result.new(final_text: JSON.generate(decision: "no_op", reason: "covered", urgency: 0, confidence: 0.9))
+    end
+
+    queries = capture_sql { described_class.new(event: event, chat_session: chat_session, runner: runner).call }
+
+    expect(queries.grep(/COUNT\\(\\*\\).*chat_messages/i)).to be_empty
+    expect(event.reload.evaluator_result.dig("context_clone", "message_cap_applied")).to eq(true)
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name] == "SCHEMA" || sql.include?("sqlite_master")
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   it "persists a no-op evaluator result without mutating the live provider session" do
     live_session = chat_session.create_provider_session!(
       provider: "claude",

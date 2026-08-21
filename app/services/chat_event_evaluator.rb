@@ -76,9 +76,10 @@ class ChatEventEvaluator
   end
 
   def clone_context
-    source_count = @chat_session.messages.count
-    records = source_count > MAX_MESSAGES ? latest_messages(MAX_MESSAGES) : messages_scope.order(:id).to_a
-    message_cap = source_count > records.size
+    candidate_records = latest_messages(MAX_MESSAGES + 1)
+    message_cap = candidate_records.size > MAX_MESSAGES
+    records = message_cap ? candidate_records.last(MAX_MESSAGES) : candidate_records
+    source_count = records.size + (message_cap ? 1 : 0)
     snapshots = snapshot_messages(records)
     bytes = transcript_bytes(snapshots)
     byte_cap = false
