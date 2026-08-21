@@ -139,4 +139,20 @@ RSpec.describe Ruby::Engine do
       expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
     end
   end
+
+  describe Ruby::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    it "returns [] for a repo with no Gemfile" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the N+1 criterion when a Gemfile is present" do
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
+    end
+  end
 end

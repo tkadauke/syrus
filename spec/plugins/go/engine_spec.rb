@@ -102,4 +102,26 @@ RSpec.describe Go::Engine do
       expect(described_class.criteria(@dir)).to eq([ "Flag swallowed errors (`_ = err`)" ])
     end
   end
+
+  describe Go::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-go-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no go.mod" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the swallowed-error criterion when go.mod is present" do
+      write("go.mod", "module example.com/foo\n\ngo 1.22\n")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag swallowed errors (`_ = err`)" ])
+    end
+  end
 end
