@@ -12,13 +12,14 @@ module Ruby
       Ruby::ReviewCriteriaProvider.include(Syrus::Plugin::ReviewCriteriaProvider)
       Ruby::RspecParser.include(Syrus::Plugin::TestResultParser)
       Ruby::RubocopAutofix.include(Syrus::Plugin::AutofixCommand)
+      Ruby::BundlerAuditCommand.include(Syrus::Plugin::DependencyAuditCommand)
 
       Syrus::PluginRegistry.register(
         name:             "ruby",
         version:          Ruby::VERSION,
         description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                            "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
-                           "RuboCop autofix, default N+1 review criterion",
+                           "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 10,
         provides: {
@@ -27,7 +28,8 @@ module Ruby
           prepare_detector:         Ruby::PrepareDetector,
           review_criteria_provider: Ruby::ReviewCriteriaProvider,
           test_result_parser:       Ruby::RspecParser,
-          autofix_command:          Ruby::RubocopAutofix
+          autofix_command:          Ruby::RubocopAutofix,
+          dependency_audit_command: Ruby::BundlerAuditCommand
         }
       )
     end
