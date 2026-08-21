@@ -19,6 +19,18 @@ class JobBundleAssembler
 
   def self.call(repository) = new(repository).call
 
+  # Whether `priority`'s own candidate pool forms a ready bundle on its
+  # own — independent of whether a higher tier currently occupies the
+  # "first ready tier" slot #call would return. LandingQueueProcessor
+  # uses this (rather than a raw candidate count) to decide whether a
+  # same-tier Job must wait for a bundle, so the queue gate can't
+  # disagree with #call's own readiness math: a dependency-linked
+  # island larger than AppSetting.merge_train_max_size can get capped
+  # below MIN_BUNDLE_SIZE (see #capped_members), and a raw count would
+  # miss that, blocking the Job on a bundle that can never actually
+  # dispatch.
+  def self.ready_for_priority?(repository, priority) = new(repository).ready_for_priority?(priority)
+
   def initialize(repository)
     @repository = repository
   end
@@ -29,11 +41,8 @@ class JobBundleAssembler
     # behavior in LandingQueueProcessor. An urgent Job never shares a
     # bundle with a non-urgent one because tiers are never mixed.
     Job::PRIORITIES.each do |priority|
-      candidates = eligible_candidates(priority)
-      next if candidates.size < MIN_BUNDLE_SIZE
-
-      members = capped_members(LandingQueueProcessor.dependency_ordered(candidates))
-      next if members.size < MIN_BUNDLE_SIZE
+      members = ready_members_for(priority)
+      next if members.empty?
 
       return Result.new(ready: true, reason: nil, priority: priority, members: members)
     end
@@ -41,7 +50,21 @@ class JobBundleAssembler
     not_ready("fewer than #{MIN_BUNDLE_SIZE} same-tier epicless approved own-PR Jobs in any priority tier")
   end
 
+  def ready_for_priority?(priority)
+    ready_members_for(priority).any?
+  end
+
   private
+
+  def ready_members_for(priority)
+    candidates = eligible_candidates(priority)
+    return [] if candidates.size < MIN_BUNDLE_SIZE
+
+    members = capped_members(LandingQueueProcessor.dependency_ordered(candidates))
+    return [] if members.size < MIN_BUNDLE_SIZE
+
+    members
+  end
 
   def eligible_candidates(priority)
     @repository.jobs

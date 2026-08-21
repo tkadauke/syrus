@@ -427,6 +427,22 @@ RSpec.describe App::DashboardPayload do
       expect(child.reload.landing_queue_blocked_reason).to eq({ "key" => "waiting_epic_merge_train" })
     end
 
+    it "reports ordinary epicless job-bundle participation as neutral queue status" do
+      Feature.create!(slug: "epicless_job_bundling", category: "Labs", name: "Epicless Job bundling", enabled: true)
+      repo.update!(auto_merge_enabled: true)
+      first = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
+      second = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 102)
+      [ first, second ].each { |job| job.approve!(via: "github_review") }
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      item = result[:items].find { |row| row[:id] == second.id }
+
+      expect(item[:landing_queue_blocked_reason]).to be_nil
+      expect(item[:landing_queue_wait_reason]).to eq({ "key" => "waiting_epicless_bundle" })
+      expect(second.reload.landing_queue_blocked_reason).to eq({ "key" => "waiting_epicless_bundle" })
+    end
+
     it "sorts eligible landing queue rows before blocked Epic merge-train rows when Queue is ascending" do
       AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)

@@ -165,4 +165,23 @@ RSpec.describe JobBundleAssembler do
 
     expect(result).not_to be_ready
   end
+
+  describe ".ready_for_priority?" do
+    it "agrees with .call when the tier's candidates fit under the cap" do
+      approved(issue_number: 1)
+      approved(issue_number: 2)
+
+      expect(described_class.ready_for_priority?(repository, "medium")).to be true
+    end
+
+    it "agrees with .call when dependency-edge capping drops the tier below the minimum" do
+      AppSetting.current.update!(merge_train_max_size: 2)
+      approved(issue_number: 1)
+      b = approved(issue_number: 2)
+      c = approved(issue_number: 3)
+      JobDependency.create!(job: c, depends_on_job: b, source: "manual")
+
+      expect(described_class.ready_for_priority?(repository, "medium")).to be false
+    end
+  end
 end
