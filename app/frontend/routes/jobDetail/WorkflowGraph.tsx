@@ -11,10 +11,10 @@ import { StatusPill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { buttonClass } from "../../lib/buttonClasses"
-import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobWorkflow } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan } from "./stepArtifacts"
@@ -369,6 +369,9 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
+          {pendingWarnings(step).map((warning) => (
+            <WarningPanel command={command} jobId={payload.job.id} key={warning.id} warning={warning} />
+          ))}
           {step.details && !prepareFailure ? (
             (step.kind === "grader" || step.kind === "preflight_grader")
               ? <GraderDetails details={objectDetails(step.details)} />
@@ -486,6 +489,84 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
       {failure.output_tail ? (
         <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-[11px] text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
       ) : null}
+    </section>
+  )
+}
+
+const WARNING_SEVERITY_CLASSES: Record<string, string> = {
+  high: "border-red-200 bg-red-50 text-red-900 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
+  medium: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200",
+  low: "border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+}
+
+// Generic — rendering is driven entirely by kind/title/evidence/suggested_prompt,
+// with no per-kind branching, so new WorkflowWarning kinds need zero new
+// frontend code. See config/syrus_docs/workflow_warnings.md.
+function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; jobId: number; command: ReturnType<typeof useJobCommand> }) {
+  const { t } = useT("jobs")
+  const [promptExpanded, setPromptExpanded] = useState(false)
+  const [prompt, setPrompt] = useState(warning.suggested_prompt || "")
+  const severityClass = WARNING_SEVERITY_CLASSES[warning.severity] || WARNING_SEVERITY_CLASSES.medium
+  const filePath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/file_job`
+  const dismissPath = `/api/v1/app/jobs/${jobId}/workflow_warnings/${warning.id}/dismiss`
+
+  return (
+    <section className={`mt-2 rounded border p-3 text-xs ${severityClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-semibold">{warning.title}</div>
+        <SmallPill>{humanize(warning.kind)}</SmallPill>
+      </div>
+      {warning.evidence != null ? (
+        <pre className="mt-2 max-h-48 overflow-auto rounded border border-black/10 bg-white/70 p-2 font-mono text-[11px] whitespace-pre-wrap dark:border-white/10 dark:bg-gray-950">
+          {stringify(warning.evidence)}
+        </pre>
+      ) : null}
+      {warning.created_job_id ? (
+        <p className="mt-2">{t("warning_already_filed")}</p>
+      ) : (
+        <div className="mt-3">
+          {warning.suggested_prompt ? (
+            <>
+              <button
+                className="flex items-center gap-1 underline"
+                onClick={() => setPromptExpanded((current) => !current)}
+                type="button"
+              >
+                {promptExpanded ? t("warning_hide_prompt") : t("warning_edit_prompt")}
+              </button>
+              {promptExpanded ? (
+                <textarea
+                  aria-label={t("warning_prompt_label")}
+                  className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-[11px] text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  onChange={(event) => setPrompt(event.target.value)}
+                  rows={5}
+                  value={prompt}
+                />
+              ) : null}
+            </>
+          ) : null}
+          <div className="mt-2 flex gap-2">
+            {warning.suggested_prompt ? (
+              <button
+                className={buttonClass("primary")}
+                disabled={command.isPending || !prompt.trim()}
+                onClick={() => command.mutate({ method: "post", path: filePath, body: { prompt } })}
+                type="button"
+              >
+                {t("warning_file_fix_job")}
+              </button>
+            ) : null}
+            <button
+              className={buttonClass("secondary")}
+              disabled={command.isPending}
+              onClick={() => command.mutate({ method: "post", path: dismissPath })}
+              type="button"
+            >
+              {t("warning_dismiss")}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
