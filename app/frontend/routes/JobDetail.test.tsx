@@ -807,6 +807,24 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Open terminal in workspace" })).not.toBeInTheDocument()
   })
 
+  it("shows the detected plugin set on a workflow card", () => {
+    renderJobDetail(jobPayload({
+      workflows: [ workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: [ "ruby", "syrus-rails", "javascript" ] } }) ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    expect(screen.getByText("Detected: ruby, syrus-rails, javascript")).toBeInTheDocument()
+  })
+
+  it("omits the detected plugin line when nothing was detected", () => {
+    renderJobDetail(jobPayload({
+      workflows: [ workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: [] } }) ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    expect(screen.queryByText(/Detected:/)).not.toBeInTheDocument()
+  })
+
   it("opens a terminal session from a workflow row and navigates to it", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       session: {
