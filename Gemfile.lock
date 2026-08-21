@@ -30,6 +30,12 @@ PATH
       websocket-driver (>= 0.7)
 
 PATH
+  remote: plugins/django
+  specs:
+    django (0.1.0)
+      railties
+
+PATH
   remote: plugins/github_source
   specs:
     github_source (0.1.0)
@@ -617,6 +623,7 @@ DEPENDENCIES
   commonmarker
   debug
   discord!
+  django!
   docx
   faraday-http-cache
   faraday-retry
@@ -718,6 +725,7 @@ CHECKSUMS
   debug (1.11.1) sha256=2e0b0ac6119f2207a6f8ac7d4a73ca8eb4e440f64da0a3136c30343146e952b6
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   discord (0.1.0)
+  django (0.1.0)
   docx (0.13.0) sha256=dd3640c0475726d57a419267676463eea698b36f36a067df1822628d6c1322e8
   dotenv (3.2.0) sha256=e375b83121ea7ca4ce20f214740076129ab8514cd81378161f11c03853fe619d
   drb (2.2.3) sha256=0b00d6fdb50995fe4a45dea13663493c841112e4068656854646f418fda13373
