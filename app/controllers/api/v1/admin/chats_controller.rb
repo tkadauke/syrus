@@ -47,7 +47,6 @@ module Api
           messages, has_more_older = paginated_messages(chat, before_id: before_id, per: per)
 
           render json: serialize_chat(chat).merge(
-            messages_count: chat.messages.count,
             messages_page: {
               before: before_id,
               count: messages.size,
@@ -110,13 +109,12 @@ module Api
           ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
         end
 
-        def serialize_compact(chat)
-          {
+        def serialize_compact(chat, include_message_count: true)
+          payload = {
             id: chat.id,
             title: chat.title,
             user: user_payload(chat.user),
             repositories: attached_repositories(chat).map { |repository| repository_payload(repository) },
-            messages_count: chat.respond_to?(:messages_count) ? chat.messages_count.to_i : chat.messages.count,
             last_message_at: chat.last_message_at,
             stop_requested_at: chat.stop_requested_at,
             cumulative_input_tokens: chat.cumulative_input_tokens.to_i,
@@ -125,10 +123,12 @@ module Api
             created_at: chat.created_at,
             updated_at: chat.updated_at
           }
+          payload[:messages_count] = chat.respond_to?(:messages_count) ? chat.messages_count.to_i : chat.messages.count if include_message_count
+          payload
         end
 
         def serialize_chat(chat)
-          serialize_compact(chat).merge(
+          serialize_compact(chat, include_message_count: false).merge(
             workspace_path: chat.workspace_path,
             attachments: chat.chat_attachments.order(:attached_at, :id).map { |attachment| attachment_payload(attachment) },
             bookmarks: chat.bookmarks.map { |bookmark| bookmark_payload(bookmark) },

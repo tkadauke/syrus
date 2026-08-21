@@ -113,9 +113,9 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
       body = parse_body
       expect(body).to include(
         "id" => chat.id,
-        "title" => "Whiteboard help",
-        "messages_count" => 4
+        "title" => "Whiteboard help"
       )
+      expect(body).not_to have_key("messages_count")
       expect(body["attachments"]).to contain_exactly(include("type" => "Repository", "label" => "tkadauke/syrus-test"))
       expect(body["bookmarks"]).to contain_exactly(include(
         "id" => bookmark.id,
