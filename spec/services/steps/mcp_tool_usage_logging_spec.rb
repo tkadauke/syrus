@@ -21,7 +21,8 @@ RSpec.describe Steps::Base do
       surface: "workflow",
       normalized_tool_name: "read_live_state",
       status: "completed",
-      run_id: run.id
+      run_id: run.id,
+      sidecar_mode: "stdio"
     )
     expect(run.job_logs.pluck(:kind)).to eq(%w[tool_call tool_result])
   end

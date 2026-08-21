@@ -1938,7 +1938,8 @@ RSpec.describe ChatTurnJob do
       error: false,
       chat_session_id: chat.id,
       repository_id: repository.id,
-      user_id: user.id
+      user_id: user.id,
+      sidecar_mode: "stdio"
     )
     expect(chat.messages.where(role: %w[tool_use tool_result]).count).to eq(2)
   end
@@ -2264,6 +2265,28 @@ RSpec.describe ChatTurnJob do
       expect(resolved_deferred.tier).to eq("deferred")
 
       expect(chat.reload.artifact("mcp_transport")).to include("transport" => "persistent")
+    end
+
+    it "skips transcript-derived MCP usage recording for a persistent-transport turn, leaving the daemon's own dispatch boundary as the authoritative source" do
+      set_persistent_mcp_feature(true)
+      stub_healthy_daemon!
+      ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+        log_sink.call("● repo_info(...)", kind: "tool_call",
+                                        tool_name: "mcp__syrus-chat-sidecar__repo_info",
+                                        tool_input: { "repo" => repository.slug },
+                                        tool_use_id: "mcp_1")
+        log_sink.call("ok", kind: "tool_result",
+                            tool_name: "mcp__syrus-chat-sidecar__repo_info",
+                            tool_result_content: { "slug" => repository.slug },
+                            tool_result_error: false,
+                            tool_use_id: "mcp_1")
+        result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(McpToolUsage.count).to eq(0)
+      expect(chat.messages.where(role: %w[tool_use tool_result]).count).to eq(2)
     end
 
     it "falls back to stdio with visible diagnostics when the daemon is unreachable" do

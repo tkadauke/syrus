@@ -191,6 +191,59 @@ RSpec.describe PersistentMcpDaemon do
         expect(result["isError"]).to be true
         expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Expired/)
       end
+
+      describe "MCP usage recording at the dispatch boundary (EPIC-250, McpToolUsageRecorder)" do
+        it "records a completed usage row tagged sidecar_mode=persistent for a successful dispatch" do
+          token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+
+          expect { call_tool("list_jobs", token: token) }.to change(McpToolUsage, :count).by(1)
+
+          usage = McpToolUsage.sole
+          expect(usage).to have_attributes(
+            surface: "chat",
+            normalized_tool_name: "list_jobs",
+            status: "completed",
+            error: false,
+            sidecar_mode: "persistent",
+            daemon_worker_id: worker_id,
+            chat_session_id: chat.id
+          )
+        end
+
+        it "records a failed usage row for a not_authorized dispatch" do
+          token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+
+          expect { call_tool("admin_overview", token: token) }.to change(McpToolUsage, :count).by(1)
+
+          usage = McpToolUsage.sole
+          expect(usage).to have_attributes(
+            surface: "chat",
+            normalized_tool_name: "admin_overview",
+            status: "failed",
+            error: true,
+            sidecar_mode: "persistent",
+            chat_session_id: chat.id
+          )
+          expect(usage.error_message_summary).to match(/not_authorized/)
+        end
+
+        it "records a failed usage row -- without a chat_session -- for a rejection before the invocation context resolves" do
+          token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, expires_in: -1.minute)
+
+          expect { call_tool("list_jobs", token: token) }.to change(McpToolUsage, :count).by(1)
+
+          usage = McpToolUsage.sole
+          expect(usage).to have_attributes(
+            surface: "chat",
+            normalized_tool_name: "list_jobs",
+            status: "failed",
+            error: true,
+            sidecar_mode: "persistent",
+            chat_session_id: nil,
+            error_class: "McpInvocationContext::Expired"
+          )
+        end
+      end
     end
 
     it "returns 404 for unknown paths" do

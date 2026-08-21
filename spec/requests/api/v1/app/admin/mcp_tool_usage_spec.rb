@@ -74,6 +74,9 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       include("surface" => "chat", "calls" => 1, "errors" => 1),
       include("surface" => "workflow", "calls" => 1, "errors" => 0)
     )
+    expect(body["sidecar_mode_breakdown"]).to contain_exactly(
+      include("sidecar_mode" => "stdio", "calls" => 2, "errors" => 1)
+    )
     expect(body["unused_advertised_tools"]).to include("submit_summary")
   end
 end

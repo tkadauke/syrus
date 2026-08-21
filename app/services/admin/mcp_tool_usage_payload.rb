@@ -25,6 +25,7 @@ module Admin
         top_tools: tool_rows(usages, order_by: :calls),
         error_rates: tool_rows(usages, order_by: :error_rate),
         surface_breakdown: surface_rows(usages),
+        sidecar_mode_breakdown: sidecar_mode_rows(usages),
         unused_advertised_tools: (advertised - used).sort
       }
     end
@@ -104,6 +105,29 @@ module Admin
               }
             end
             .sort_by { |row| row[:surface].to_s }
+    end
+
+    # Stdio (transcript-derived) vs. persistent (PersistentMcpDaemon dispatch
+    # boundary, EPIC-250) call/error volumes side by side, so tool
+    # consolidation work can tell whether the persistent daemon path is
+    # actually taking traffic and whether it fails more or less often than
+    # stdio. `sidecar_mode` is nil on rows recorded before this column
+    # existed; those are grouped separately rather than folded into "stdio"
+    # so historical gaps stay visible instead of silently misattributed.
+    def sidecar_mode_rows(usages)
+      usages.group(:sidecar_mode)
+            .pluck(:sidecar_mode, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .map do |sidecar_mode, count, errors|
+              count = count.to_i
+              errors = errors.to_i
+              {
+                sidecar_mode: sidecar_mode,
+                calls: count,
+                errors: errors,
+                error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
+              }
+            end
+            .sort_by { |row| row[:sidecar_mode].to_s }
     end
 
     def limit
