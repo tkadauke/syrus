@@ -3,6 +3,8 @@ require "rails_helper"
 RSpec.describe JobLog do
   let(:run) { Factories.run }
 
+  before { described_class.clear_sequence_cache! }
+
   it "allows chunks at least as large as the step log buffer cap" do
     expect(described_class.columns_hash.fetch("chunk").limit).to be >= Steps::Base::LOG_FLUSH_MAX_BUF
   end
@@ -21,6 +23,23 @@ RSpec.describe JobLog do
     expect(log.sequence).to eq(1)
     expect(log.kind).to eq("system")
     expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
+  end
+
+  it "reuses the next sequence within the current thread" do
+    max_sequence_queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      max_sequence_queries << sql if sql.match?(/\ASELECT MAX\(.+job_logs.+sequence/i)
+    end
+
+    described_class.append!(run: run, chunk: "first")
+    described_class.append!(run: run, chunk: "second")
+    described_class.append!(run: run, chunk: "third")
+
+    expect(max_sequence_queries.size).to eq(1)
+    expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second third])
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
   it "retries when a concurrent append claims the same sequence first" do
