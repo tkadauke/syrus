@@ -4,6 +4,7 @@ gem "ruby",        path: "plugins/ruby"
 gem "javascript",  path: "plugins/javascript"
 gem "python",      path: "plugins/python"
 gem "django",      path: "plugins/django"
+gem "go",          path: "plugins/go"
 gem "syrus_rails", path: "plugins/rails"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
