@@ -74,6 +74,8 @@
   "external_pr_badge_title": "Haec PR non a Syro aperta est.",
   "epic_attribution": "Epica: {{title}}",
   "epic_attribution_by_id": "Epica #{{id}}",
+  "bundle_attribution_one": "Cum {{count}} alio opere fasciculatum",
+  "bundle_attribution_other": "Cum {{count}} aliis operibus fasciculatum",
   "epic_progress": "{{done}}/{{total}} perfecta",
   "epic_progress_label": "Progressus operum epicae",
   "epic_updated": "Epica renovata.",

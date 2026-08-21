@@ -122,24 +122,40 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
 }
 
 // Group key for the landing-queue delineation: one key per *landing unit*.
-// An Epic lands atomically (a merge-train), so all its jobs share a key; an
-// epicless job lands on its own, so each gets its own key (a "single-job
-// epic"). Sorted by queue position, the separators then trace the relative
-// order of lands within a repository.
+// An Epic lands atomically (a merge-train), so all its jobs share a key; a
+// bundled epicless job lands atomically too (a job-bundle merge-train), so
+// its members share a key; an unbundled epicless job lands on its own, so it
+// gets its own key (a "single-job epic"). Sorted by queue position, the
+// separators then trace the relative order of lands within a repository.
 export function epicGroupKey(job: DashboardJobItem) {
-  return job.epic ? `epic-${job.epic.id}` : `job-${job.id}`
+  if (job.epic) return `epic-${job.epic.id}`
+  const bundleId = job.landing_queue_entry_key?.match(/^job_bundle:(.+)$/)?.[1]
+  if (bundleId) return `bundle-${bundleId}`
+  return `job-${job.id}`
+}
+
+function isMultiJobGroupKey(key: string) {
+  return key.startsWith("epic-") || key.startsWith("bundle-")
+}
+
+// Same idea as isMultiJobGroupKey, but for `landing_queue_entry_key`-shaped
+// keys (colon-separated, e.g. "epic:5" / "job_bundle:5") as used by
+// DashboardLandingQueueEntry.key rather than the dash-separated keys above.
+function isMultiJobLandingUnitKey(key: string) {
+  return key.startsWith("epic:") || key.startsWith("job_bundle:")
 }
 
 // True when this row begins a new landing unit relative to the previous row,
-// but only at epic group boundaries — consecutive standalone (epicless) jobs
-// are the same kind of landing unit and do not get a separator between them.
-// Only meaningful when the list is ordered by queue position.
+// but only at multi-job group boundaries (Epics and job bundles) —
+// consecutive standalone (epicless, unbundled) jobs are the same kind of
+// landing unit and do not get a separator between them. Only meaningful when
+// the list is ordered by queue position.
 export function startsNewEpicGroup(items: DashboardJobItem[], index: number, enabled: boolean) {
   if (!enabled || index === 0) return false
   const currentKey = epicGroupKey(items[index])
   const prevKey = epicGroupKey(items[index - 1])
   if (currentKey === prevKey) return false
-  return currentKey.startsWith("epic-") || prevKey.startsWith("epic-")
+  return isMultiJobGroupKey(currentKey) || isMultiJobGroupKey(prevKey)
 }
 
 function JobsTable({
@@ -228,7 +244,7 @@ function JobsTable({
                 onToggleOne={onToggleOne}
                 prefix={prefix}
                 selectedIds={selectedIds}
-                topSeparator={index > 0 && (group.key.startsWith("epic:") || landingQueueGroups[index - 1].key.startsWith("epic:"))}
+                topSeparator={index > 0 && (isMultiJobLandingUnitKey(group.key) || isMultiJobLandingUnitKey(landingQueueGroups[index - 1].key))}
               />
             ))
           ) : (
@@ -462,6 +478,9 @@ function sortLandingQueueRows(rows: LandingQueueDisplayRow[], originalIndex: Map
 function blockerAttribution(job: LandingQueueBlockerJob, groupKey: string, t: (key: string, opts?: Record<string, unknown>) => string) {
   if (job.epic_title) return t("epic_attribution", { title: job.epic_title })
   if (job.epic_id != null) return t("epic_attribution_by_id", { id: job.epic_id })
+  if (job.bundle_other_job_count != null) {
+    return t(job.bundle_other_job_count === 1 ? "bundle_attribution_one" : "bundle_attribution_other", { count: job.bundle_other_job_count })
+  }
   if (Object.prototype.hasOwnProperty.call(job, "epic_id") && job.epic_id == null) return t("standalone")
   if (groupKey.startsWith("job:") && groupKey !== `job:${job.id}`) return t("standalone")
   return null
@@ -499,7 +518,7 @@ function MobileJobsList({
               onToggleOne={onToggleOne}
               prefix={prefix}
               selectedIds={selectedIds}
-              topSeparator={index > 0 && (group.key.startsWith("epic:") || landingQueueGroups[index - 1].key.startsWith("epic:"))}
+              topSeparator={index > 0 && (isMultiJobLandingUnitKey(group.key) || isMultiJobLandingUnitKey(landingQueueGroups[index - 1].key))}
             />
           ))
         ) : (
