@@ -6,7 +6,7 @@ module Api
 
         def show
           render json: PerformanceLogging.suppress {
-            ::AdminMysql::Inspector.new.snapshot(limit: params[:limit])
+            ::AdminMysql::Inspector.new.snapshot(limit: params[:limit], include_slow_log: ActiveModel::Type::Boolean.new.cast(params[:include_slow_log]))
           }
         rescue ::AdminMysql::Inspector::Unavailable => e
           render_error("mysql_unavailable", e.message, status: :unprocessable_entity)

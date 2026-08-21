@@ -4,11 +4,12 @@ import { killMysqlQuery, fetchAdminMysql, type MysqlProcess, type MysqlSnapshot 
 
 export function AdminMysql() {
   const [limit, setLimit] = useState(50)
+  const [includeSlowLog, setIncludeSlowLog] = useState(false)
   const queryClient = useQueryClient()
   const mysql = useQuery({
-    queryKey: ["admin", "mysql", limit],
-    queryFn: () => fetchAdminMysql(limit),
-    refetchInterval: 10_000
+    queryKey: ["admin", "mysql", limit, includeSlowLog],
+    queryFn: () => fetchAdminMysql(limit, includeSlowLog),
+    refetchInterval: includeSlowLog ? false : 10_000
   })
   const killQuery = useMutation({
     mutationFn: killMysqlQuery,
@@ -58,12 +59,32 @@ export function AdminMysql() {
       {killQuery.data && !killQuery.data.killed ? <Panel tone="error">{killQuery.data.error?.message || "MySQL refused the kill request"}</Panel> : null}
       {killQuery.data?.killed ? <Panel tone="success">Killed query for thread {killQuery.data.thread_id}.</Panel> : null}
 
-      {mysql.data ? <MysqlDashboard payload={mysql.data} onKill={onKill} killingThreadId={killQuery.isPending ? killQuery.variables : null} /> : null}
+      {mysql.data ? (
+        <MysqlDashboard
+          includeSlowLog={includeSlowLog}
+          killingThreadId={killQuery.isPending ? killQuery.variables : null}
+          payload={mysql.data}
+          onKill={onKill}
+          onToggleSlowLog={() => setIncludeSlowLog((value) => !value)}
+        />
+      ) : null}
     </main>
   )
 }
 
-function MysqlDashboard({ killingThreadId, onKill, payload }: { killingThreadId: number | null; onKill: (process: MysqlProcess) => void; payload: MysqlSnapshot }) {
+function MysqlDashboard({
+  includeSlowLog,
+  killingThreadId,
+  onKill,
+  onToggleSlowLog,
+  payload
+}: {
+  includeSlowLog: boolean
+  killingThreadId: number | null
+  onKill: (process: MysqlProcess) => void
+  onToggleSlowLog: () => void
+  payload: MysqlSnapshot
+}) {
   const summary = payload.connection_summary
   return (
     <div className="space-y-6">
@@ -156,7 +177,7 @@ function MysqlDashboard({ killingThreadId, onKill, payload }: { killingThreadId:
 
       <section className="grid gap-6 xl:grid-cols-2">
         <StatementDigestPanel payload={payload} />
-        <SlowLogPanel payload={payload} />
+        <SlowLogPanel includeSlowLog={includeSlowLog} payload={payload} onToggleSlowLog={onToggleSlowLog} />
       </section>
     </div>
   )
@@ -202,14 +223,23 @@ function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
   )
 }
 
-function SlowLogPanel({ payload }: { payload: MysqlSnapshot }) {
+function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload }: { includeSlowLog: boolean; onToggleSlowLog: () => void; payload: MysqlSnapshot }) {
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Slow log</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Slow log</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            slow_query_log {String(payload.slow_log.config.slow_query_log || "unknown")} · log_output {String(payload.slow_log.config.log_output || "unknown")} · long_query_time {String(payload.slow_log.config.long_query_time || "unknown")}s
+          </p>
+        </div>
+        <button
+          className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+          onClick={onToggleSlowLog}
+          type="button"
+        >
+          {includeSlowLog ? "Hide slow log rows" : "Load slow log rows"}
+        </button>
       </div>
       {!payload.slow_log.available ? (
         <UnavailablePanel fallback="Slow log rows are unavailable." error={payload.slow_log.error} />

@@ -93,8 +93,12 @@ export type MysqlKillQueryResult = {
   }
 }
 
-export function fetchAdminMysql(limit = 50) {
-  return getJson<MysqlSnapshot>(`/api/v1/app/admin/mysql?limit=${encodeURIComponent(String(limit))}`)
+export function fetchAdminMysql(limit = 50, includeSlowLog = false) {
+  const params = new URLSearchParams({
+    limit: String(limit)
+  })
+  if (includeSlowLog) params.set("include_slow_log", "true")
+  return getJson<MysqlSnapshot>(`/api/v1/app/admin/mysql?${params.toString()}`)
 }
 
 export function killMysqlQuery(threadId: number) {

@@ -69,4 +69,35 @@ RSpec.describe AdminMysql::Inspector do
     expect(payload).to include(available: true, rows: [])
     expect(inspector).to have_received(:select_all_with_timeout).with(include("events_statements_summary_by_digest"))
   end
+
+  it "does not read slow-log rows unless explicitly requested" do
+    inspector = described_class.new
+    allow(inspector).to receive(:variables).and_return({
+      "slow_query_log" => "ON",
+      "log_output" => "TABLE",
+      "long_query_time" => 1
+    })
+    allow(inspector).to receive(:slow_log_rows).and_return(available: true, rows: [ { sql_text: "SELECT 1" } ])
+
+    payload = inspector.send(:slow_log, limit: 5, include_rows: false)
+
+    expect(payload).to include(available: false, rows: [])
+    expect(payload.dig(:error, :message)).to eq("slow-log rows are loaded on demand")
+    expect(inspector).not_to have_received(:slow_log_rows)
+  end
+
+  it "reads slow-log rows when explicitly requested" do
+    inspector = described_class.new
+    allow(inspector).to receive(:variables).and_return({
+      "slow_query_log" => "ON",
+      "log_output" => "TABLE",
+      "long_query_time" => 1
+    })
+    allow(inspector).to receive(:slow_log_rows).and_return(available: true, rows: [ { sql_text: "SELECT 1" } ])
+
+    payload = inspector.send(:slow_log, limit: 5, include_rows: true)
+
+    expect(payload).to include(available: true, rows: [ { sql_text: "SELECT 1" } ])
+    expect(inspector).to have_received(:slow_log_rows).with(limit: 5)
+  end
 end

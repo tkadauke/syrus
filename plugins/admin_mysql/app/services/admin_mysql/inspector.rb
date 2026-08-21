@@ -14,7 +14,7 @@ module AdminMysql
       end
     end
 
-    def snapshot(limit: DEFAULT_LIMIT)
+    def snapshot(limit: DEFAULT_LIMIT, include_slow_log: false)
       require_mysql!
       limit = clamp_limit(limit)
 
@@ -30,7 +30,7 @@ module AdminMysql
           status: status,
           process_list: processes,
           statement_digests: statement_digests(limit: [ limit, 25 ].min),
-          slow_log: slow_log(limit: [ limit, 25 ].min)
+          slow_log: slow_log(limit: [ limit, 25 ].min, include_rows: include_slow_log)
         }
       end
     end
@@ -236,9 +236,9 @@ module AdminMysql
       end
     end
 
-    def slow_log(limit:)
+    def slow_log(limit:, include_rows:)
       config = variables.slice("slow_query_log", "log_output", "long_query_time")
-      rows = slow_log_rows(limit: limit)
+      rows = include_rows ? slow_log_rows(limit: limit) : slow_log_rows_not_requested
 
       {
         available: rows[:available],
@@ -246,6 +246,17 @@ module AdminMysql
         rows: rows.fetch(:rows, []),
         error: rows[:error]
       }.compact
+    end
+
+    def slow_log_rows_not_requested
+      {
+        available: false,
+        rows: [],
+        error: {
+          message: "slow-log rows are loaded on demand",
+          hint: "Reading mysql.slow_log can be expensive on busy instances, so the live MySQL snapshot only loads row data when explicitly requested."
+        }
+      }
     end
 
     def slow_log_rows(limit:)
