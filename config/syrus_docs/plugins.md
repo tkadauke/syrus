@@ -341,6 +341,7 @@ Include `Syrus::Plugin::PrepareDetector` and implement the class methods:
 | `detect?` | `(repo_path) → bool` | True if this plugin's ecosystem is present in the repo |
 | `prepare_commands` | `(repo_path) → Array<String>` | Commands to run |
 | `mise_version_file` | `() → String or nil` | Optional. The mise version-pin filename this ecosystem owns (e.g. `.ruby-version`). Defaults to `nil`. |
+| `span_labels` | `() → Array<[Regexp, String]>` | Optional. Regex → label pairs for naming this ecosystem's sub-commands in grader command span display (e.g. `[/\brspec\b/, "rspec"]`). Defaults to `[]`. |
 
 `RepoPrepPlan` queries every enabled `:prepare_detector` plugin whose
 `detect?` matches and **concatenates** their `prepare_commands` — the union
@@ -404,6 +405,22 @@ declares `.go-version`. A disabled plugin's version file no longer triggers
 `mise install`. `mise_version_file` is independent of `detect?` — the version
 file can be present even when the plugin's own primary signal (`Gemfile`,
 `package.json`, etc.) isn't.
+
+### `span_labels`
+
+`GraderCommandSpans::Plan` names each sub-command phase in the live
+worker-health UI (`read_run_worker_health`) by checking every enabled
+`:prepare_detector` plugin's `span_labels` — in `prepare_priority` order —
+before a handful of remaining genuinely language-agnostic labels it owns
+directly (`website build`, `migration checks`, `eager load check`,
+`production build boot`), then falling back to a generic "first 3 words"
+label built from the sub-command itself. The `ruby` plugin declares labels
+for `bundle check`, `bundle install`, `db:test:prepare`, `rspec`, and
+`rubocop`; `javascript` declares `frontend tests` and `frontend build`;
+`python` declares `pytest`, `ruff`, and `mypy`; `go` declares `go test`,
+`go vet`, and `go build`. This is display polish only — a plugin that
+doesn't declare `span_labels` still gets a usable generic label, never an
+error.
 
 ## `ci_log_parser`
 
