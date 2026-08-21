@@ -302,6 +302,16 @@ class Epic < ApplicationRecord
     child_jobs.any? && child_jobs.all? { |j| j.approved? || j.landing? || j.closed? }
   end
 
+  def fully_materialized_for_stack_rebase?
+    child_jobs = work_jobs.reload
+    child_jobs.any? && child_jobs.all? do |job|
+      job.closed? ||
+        ((job.implemented? || job.approved? || job.landing?) &&
+          job.branch_name.present? &&
+          (job.pr_number.present? || job.external_pr_number.present?))
+    end
+  end
+
   def resolved_epic_dependency_policy
     return nil unless repository
 

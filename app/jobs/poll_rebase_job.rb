@@ -75,6 +75,7 @@ class PollRebaseJob < ApplicationJob
     return if attempt_cap_reached?(pr)
     return if rebase_failure_cooling_down?(pr)
     return if repo_rebase_concurrency_reached?
+    return if automatic_stack_rebase_deferred_until_epic_materialized?
 
     Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{pr_number} unmergeable; instantiating rebase workflow")
     workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: pr)
@@ -148,6 +149,17 @@ class PollRebaseJob < ApplicationJob
     active = RebaseWorkflowSelector.active_in_repository(@job.repository).count
     return false if active < CONCURRENT_REBASES_PER_REPO
     Rails.logger.info("[PollRebaseJob] #{@job.slug} repo #{@job.repository.slug} at concurrent-rebase cap (#{active}/#{CONCURRENT_REBASES_PER_REPO}); deferring")
+    true
+  end
+
+  def automatic_stack_rebase_deferred_until_epic_materialized?
+    return false unless RebaseWorkflowSelector.stack_rebase?(@job)
+
+    epic = @job.epic
+    return false unless epic
+    return false if epic.fully_materialized_for_stack_rebase?
+
+    Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{@job.pr_number || @job.external_pr_number} needs stack rebase but #{epic.slug} is not fully materialized; skipping dispatch")
     true
   end
 end

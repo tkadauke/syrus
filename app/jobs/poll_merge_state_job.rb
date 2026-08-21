@@ -153,6 +153,7 @@ class PollMergeStateJob < ApplicationJob
     return if external_pr_ingest_not_ready?
     return if start_blocked?
     return if merge_train_active_for_stack?
+    return if automatic_stack_rebase_deferred_until_epic_materialized?
     return if stack_rebase_blocked_by_unchanged_deps?
 
     workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: @pr)
@@ -201,6 +202,18 @@ class PollMergeStateJob < ApplicationJob
 
     audit("auto_merge: PR ##{@job.pr_number} needs rebase but merge train ##{train.id} is active for this stack; waiting for the train to finish")
     Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} needs rebase but merge train ##{train.id} is active for this stack; skipping dispatch")
+    true
+  end
+
+  def automatic_stack_rebase_deferred_until_epic_materialized?
+    return false unless RebaseWorkflowSelector.stack_rebase?(@job)
+
+    epic = @job.epic
+    return false unless epic
+    return false if epic.fully_materialized_for_stack_rebase?
+
+    audit("auto_merge: PR ##{@job.pr_number} needs a stack rebase but #{epic.slug} still has unimplemented child work; waiting")
+    Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} needs stack rebase but #{epic.slug} is not fully materialized; skipping dispatch")
     true
   end
 

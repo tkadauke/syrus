@@ -462,6 +462,22 @@ RSpec.describe PollMergeStateJob, :ci_only do
       }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
     end
 
+    it "does not automatically stack rebase while an Epic child has not produced a PR branch" do
+      epic = Factories.epic(user: user, repository: repository)
+      [ parent_job, job, child_job ].each { |stack_job| stack_job.update!(epic: epic) }
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 44,
+        state: "running"
+      )
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "stack_rebase").count }
+    end
+
     it "does not dispatch stack rebase while an active merge train contains a related stack job" do
       epic = Factories.epic(user: user, repository: repository)
       train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "main", state: "grading")

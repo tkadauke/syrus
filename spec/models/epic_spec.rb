@@ -478,6 +478,31 @@ RSpec.describe Epic do
     end
   end
 
+  describe "#fully_materialized_for_stack_rebase?" do
+    it "is true when every open child has an implemented PR branch" do
+      epic = described_class.create!(user: user, repository: repository, title: "Stack ready")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "implemented", branch_name: "syrus/one", pr_number: 1)
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2, state: "approved", branch_name: "syrus/two", pr_number: 2)
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 3, state: "closed", closure_reason: "pr_merged")
+
+      expect(epic.fully_materialized_for_stack_rebase?).to be true
+    end
+
+    it "is false while a child has not produced a PR branch yet" do
+      epic = described_class.create!(user: user, repository: repository, title: "Stack incomplete")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "implemented", branch_name: "syrus/one", pr_number: 1)
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2, state: "running")
+
+      expect(epic.fully_materialized_for_stack_rebase?).to be false
+    end
+
+    it "is false when there are no work jobs" do
+      epic = described_class.create!(user: user, repository: repository, title: "Empty")
+
+      expect(epic.fully_materialized_for_stack_rebase?).to be false
+    end
+  end
+
   it "does not auto-promote to ready while an Epic dependency is unfinished" do
     prerequisite = described_class.create!(user: user, repository: repository, title: "Prerequisite")
     epic = described_class.create!(user: user, repository: repository, title: "Dependent")

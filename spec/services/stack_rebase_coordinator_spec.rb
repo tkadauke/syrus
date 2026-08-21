@@ -31,6 +31,23 @@ RSpec.describe StackRebaseCoordinator do
       .and change { enqueued_jobs.count { |job| job[:job] == RunJob } }.by(1)
   end
 
+  it "does not automatically stack rebase while an Epic child has not produced a PR branch" do
+    epic = Factories.epic(user: parent.user, repository: repository)
+    parent.update!(epic: epic)
+    child.update!(epic: epic, state: "implemented")
+    Factories.job_record(
+      user: parent.user,
+      repository: repository,
+      epic: epic,
+      issue_number: 43,
+      state: "running"
+    )
+
+    expect {
+      described_class.parent_amended(parent)
+    }.not_to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }
+  end
+
   it "rebases amended children leaf-most first" do
     older_child = child
     newer_child = Factories.job(repository: repository, issue_number: 43).tap do |job|

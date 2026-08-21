@@ -60,6 +60,33 @@ RSpec.describe PollRebaseJob do
         %w[ stack_auto_rebase stack_agent_rebase stack_force_push ]
       )
     end
+
+    it "does not automatically stack rebase while an Epic child has not produced a PR branch" do
+      epic = Factories.epic(user: user, repository: repository)
+      job.update!(epic: epic)
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 43,
+        pr_number: 8,
+        branch_name: "syrus/issue-43-2",
+        parent_job: job,
+        state: "implemented"
+      )
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 44,
+        state: "running"
+      )
+      stub_pr(pr_resource(mergeable: false))
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "stack_rebase").count }
+    end
   end
 
   describe "persisting last-known mergeability for the show page" do

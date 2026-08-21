@@ -51,9 +51,19 @@ class StackRebaseCoordinator
     return if child.branch_name.blank? || child.pr_number.blank?
     return if child.workflows.active.exists?
     return if RebaseWorkflowSelector.active_merge_train_for_stack?(child)
+    return if automatic_rebase_deferred_until_epic_materialized?(child)
 
     workflow = RebaseWorkflowSelector.instantiate(job: child, base_branch: child.effective_base_branch)
     StepDispatcher.start_workflow(workflow)
+  end
+
+  def automatic_rebase_deferred_until_epic_materialized?(child)
+    epic = child.epic
+    return false unless epic
+    return false if epic.fully_materialized_for_stack_rebase?
+
+    Rails.logger.info("[StackRebaseCoordinator] #{child.slug} needs stack rebase but #{epic.slug} is not fully materialized; skipping automatic cascade")
+    true
   end
 
   def retarget_child_pull_request(child)
