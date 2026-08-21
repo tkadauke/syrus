@@ -6,7 +6,7 @@
 
 | Extension point | What it does |
 |---|---|
-| `:grader_augmentor` | Reads RSpec's per-worker JSON output under `.syrus/rspec-json/` and appends compact failure details to a failed grader's log when the grader command contains `"rspec"`. |
+| `:grader_augmentor` | Registers two providers: `Ruby::GraderAugmentor` reads RSpec's per-worker JSON output under `.syrus/rspec-json/` and appends compact failure details to a failed grader's log when the grader command contains `"rspec"`; `Ruby::RubocopGraderAugmentor` reads RuboCop's `--format json` output under `.syrus/rubocop-json/` and appends compact `file:line: cop_name: message` lines when the grader command contains `"rubocop"`. |
 | `:coverage_analyzer` | Parses SimpleCov's `.resultset.json` into the coverage artifact shape `Steps::CoverageAnalyze` expects. |
 | `:prepare_detector` | Detects a `Gemfile` at the repo root and contributes `bundle install` to the prepare plan (`prepare_priority: 10`). |
 
