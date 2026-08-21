@@ -65,7 +65,10 @@ class ChatTurnJob < ApplicationJob
 
     @skill_invocation = resolve_skill_invocation
     if @skill_invocation && @skill_invocation.status != :ready
-      create_message!("system", text: @skill_invocation.message)
+      create_message!("system", {
+        text: @skill_invocation.message,
+        skill_invocation: { status: @skill_invocation.status.to_s }
+      })
       touch_chat!
       return
     end
