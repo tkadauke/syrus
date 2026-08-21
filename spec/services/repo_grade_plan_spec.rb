@@ -13,7 +13,6 @@ RSpec.describe RepoGradePlan do
           steps:
             - name: tests
               run: bin/rspec
-              fast: bin/rspec-fast
               ci: RUN_CI_ONLY_SPECS=true bin/rspec
             - name: audit
               run: bin/bundler-audit
@@ -25,8 +24,6 @@ RSpec.describe RepoGradePlan do
 
       expect(result.graders.map(&:name)).to eq(%w[tests tests-ci audit])
       expect(result.graders.map(&:command)).to eq([ "bin/rspec", "RUN_CI_ONLY_SPECS=true bin/rspec", "bin/bundler-audit" ])
-      # `fast:` is still parsed for the deprecation window but no longer
-      # drives runtime selection; a config declaring it still falls back to `run:`.
       expect(result.graders.map(&:phases)).to eq([ %w[review landing], %w[ci], %w[review landing ci] ])
       expect(result.graders.map(&:required)).to eq([ true, true, false ])
       expect(result.graders.map(&:timeout_minutes)).to eq([ 15, 15, 5 ])

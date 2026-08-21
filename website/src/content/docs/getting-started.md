@@ -193,12 +193,10 @@ from lockfiles such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Use `prepare: []` or
 `prepare: false` only when no setup should run.
 
-Graders can define optional `fast` and `ci` command variants. Use `fast`
-for pass/fail-only rechecks such as landing and repeat grade-loop
-iterations. Use `ci` for CI-failure repair workflows and main-branch
-grading, where Syrus needs to run expensive CI-only checks to prove the
-failed CI signal is fixed or main is healthy. Put formatter, coverage,
-and parallel-test behavior in wrapper
+Graders can define an optional `ci` command variant, used for CI-failure
+repair workflows and main-branch grading, where Syrus needs to run
+expensive CI-only checks to prove the failed CI signal is fixed or main
+is healthy. Put formatter, coverage, and parallel-test behavior in wrapper
 scripts such as `bin/rspec-fast` or `bin/rspec-ci`; Syrus runs the
 configured command as-is.
 
