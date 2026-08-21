@@ -7,8 +7,8 @@
 # locking pattern (app/services/merge_train_dispatcher.rb:24) so it
 # races safely with the recurring landing queue tick. See EPIC-246.
 #
-# Inert until a caller actually invokes it — LandingQueueProcessor
-# does not call this yet; that wiring is a follow-up Job.
+# Called from LandingQueueProcessor#try_land! and #call once a Job has
+# enough same-tier epicless siblings (LandingQueueProcessor.bundle_eligible_epicless_job?).
 class JobBundleDispatcher
   # Same cooldown rationale as MergeTrainDispatcher: don't immediately
   # re-dispatch after a failed bundle, so a genuinely-stuck group of
@@ -94,12 +94,24 @@ class JobBundleDispatcher
     Job.landing.where(repository_id: @repository.id).order(:id).first
   end
 
+  # Mirrors MergeTrainDispatcher#cooling_down_failure: transient
+  # landing-start blockers and stale-base rebuild failures don't count
+  # against the cooldown, since those aren't "genuinely stuck" bundles
+  # — the approved members re-enter the queue and Syrus can retry as
+  # soon as the transient blocker clears. Reuses the same reason
+  # classifiers MergeTrainFailureHandler and LandingFailureHandler
+  # already use instead of re-deriving the LIKE patterns.
   def cooling_down_failure
     MergeTrain
       .where(repository_id: @repository.id, epic_id: nil, state: "failed")
       .where("finished_at > ?", RETRY_COOLDOWN.ago)
       .order(finished_at: :desc)
-      .first
+      .find { |train| !transient_failure?(train.failure_reason) }
+  end
+
+  def transient_failure?(reason)
+    LandingQueueReentry.landing_start_blocker?(reason) ||
+      LandingFailureHandler.merge_train_rebuild_required?(reason)
   end
 
   def cooldown_reason(failed_bundle)
