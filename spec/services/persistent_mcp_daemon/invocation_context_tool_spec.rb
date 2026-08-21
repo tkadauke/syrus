@@ -16,7 +16,7 @@ RSpec.describe PersistentMcpDaemon::InvocationContextTool do
     FileUtils.rm_rf(data_root)
   end
 
-  def call_tool(token)
+  def call_tool(token, via_header: false)
     body = {
       jsonrpc: "2.0",
       id: 1,
@@ -24,17 +24,17 @@ RSpec.describe PersistentMcpDaemon::InvocationContextTool do
       params: {
         name: "daemon_invocation_context",
         arguments: {},
-        _meta: token.nil? ? {} : { PersistentMcpDaemon::INVOCATION_CONTEXT_META_KEY => token }
+        _meta: (token.nil? || via_header) ? {} : { PersistentMcpDaemon::INVOCATION_CONTEXT_META_KEY => token }
       }
     }.to_json
 
-    env = Rack::MockRequest.env_for(
-      "/mcp",
-      method: "POST",
-      input: body,
+    headers = {
       "CONTENT_TYPE" => "application/json",
       "HTTP_ACCEPT" => "application/json, text/event-stream"
-    )
+    }
+    headers[PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER_ENV_KEY] = token if via_header && token
+
+    env = Rack::MockRequest.env_for("/mcp", method: "POST", input: body, **headers)
     response = daemon.call(env)
     JSON.parse(response[2].first).dig("result")
   end
@@ -107,5 +107,16 @@ RSpec.describe PersistentMcpDaemon::InvocationContextTool do
     expect(result["isError"]).to be true
     payload = tool_payload(result)
     expect(payload).to include("ok" => false, "error" => "WrongWorker")
+  end
+
+  it "resolves the invocation context when it arrives via the header instead of _meta (claude/codex CLIs cannot set _meta directly)" do
+    run = Factories.job(repository: repository).initial_run
+    token = McpInvocationContext.issue_for_run(run, worker_id: worker_id, provider: "claude")
+
+    result = call_tool(token, via_header: true)
+    payload = tool_payload(result)
+
+    expect(result["isError"]).to be_falsey
+    expect(payload).to include("ok" => true, "surface" => "run", "run_id" => run.id)
   end
 end

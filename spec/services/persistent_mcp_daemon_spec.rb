@@ -53,6 +53,13 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
+      it "advertises an empty capabilities array until the real workflow tool set is wired in" do
+        response = call("/healthz")
+
+        expect(json_body(response)["capabilities"]).to eq([])
+        expect(described_class::CAPABILITIES).to eq([])
+      end
+
       it "returns 503 when the no-op ping round trip does not succeed" do
         allow(daemon.mcp_server).to receive(:handle_json).and_wrap_original do |original, json|
           parsed = JSON.parse(json)
@@ -103,6 +110,63 @@ RSpec.describe PersistentMcpDaemon do
       response = call("/nope")
 
       expect(response[0]).to eq(404)
+    end
+
+    describe "#inject_invocation_context (private -- bridges the header into params._meta)" do
+      def build_env(body:, headers: {})
+        Rack::MockRequest.env_for(
+          "/mcp",
+          method: "POST",
+          input: body,
+          "CONTENT_TYPE" => "application/json",
+          "HTTP_ACCEPT" => "application/json, text/event-stream",
+          **headers
+        )
+      end
+
+      def injected_body(env)
+        result_env = daemon.send(:inject_invocation_context, env)
+        JSON.parse(result_env["rack.input"].read, symbolize_names: true)
+      end
+
+      it "merges the header token into params._meta under INVOCATION_CONTEXT_META_KEY" do
+        body = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "daemon_ping" } }.to_json
+        env = build_env(body: body, headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => "some-token" })
+
+        parsed = injected_body(env)
+
+        expect(parsed.dig(:params, :_meta, described_class::INVOCATION_CONTEXT_META_KEY.to_sym)).to eq("some-token")
+      end
+
+      it "preserves any _meta the request already carried" do
+        body = { jsonrpc: "2.0", id: 1, method: "tools/call",
+                 params: { name: "daemon_ping", _meta: { progressToken: "abc" } } }.to_json
+        env = build_env(body: body, headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => "some-token" })
+
+        parsed = injected_body(env)
+
+        expect(parsed[:params][:_meta]).to include(
+          progressToken: "abc",
+          described_class::INVOCATION_CONTEXT_META_KEY.to_sym => "some-token"
+        )
+      end
+
+      it "returns the env unchanged when no header is present" do
+        body = { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json
+        env = build_env(body: body)
+
+        result_env = daemon.send(:inject_invocation_context, env)
+
+        expect(result_env).to equal(env)
+      end
+
+      it "returns the env unchanged (without raising) for a malformed body even when the header is present" do
+        env = build_env(body: "not json", headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => "some-token" })
+
+        result_env = daemon.send(:inject_invocation_context, env)
+
+        expect(result_env).to equal(env)
+      end
     end
   end
 

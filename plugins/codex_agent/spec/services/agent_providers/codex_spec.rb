@@ -152,6 +152,61 @@ RSpec.describe AgentProviders::Codex do
     end
   end
 
+  describe "MCP transport selection" do
+    def set_feature(enabled)
+      Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |feature|
+        feature.category = "Labs"
+        feature.name = "Persistent MCP sidecar"
+      end.update!(enabled: enabled)
+      Feature.clear_enabled_cache!("persistent_mcp_sidecar")
+    end
+
+    def health_url
+      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}"
+    end
+
+    after { Feature.clear_enabled_cache!("persistent_mcp_sidecar") }
+
+    it "stays on the stdio sidecar and records a provider_unsupported reason even when the daemon would otherwise be eligible" do
+      set_feature(true)
+      stub_request(:get, health_url).to_return(
+        status: 200,
+        body: { status: "ok", identity: { worker_id: "w-1" }, capabilities: [ "workflow_tools" ] }.to_json
+      )
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+
+      result = adapter.run(prompt: "do it", log_sink: ->(*, **) { })
+
+      expect(result).to be_success
+      expect(received[:mcp_server]).to include(command: a_string_ending_with("/bin/syrus-mcp-sidecar"))
+      details = run.step.reload.details["mcp_transport"]
+      expect(details["transport"]).to eq("stdio")
+      expect(details["reason"]).to eq("provider_unsupported: codex has no persistent MCP HTTP transport wiring yet")
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include(
+        "[mcp_transport] transport=stdio reason=provider_unsupported: codex has no persistent MCP HTTP transport wiring yet"
+      )
+    end
+
+    it "records no diagnostics when the feature is disabled" do
+      set_feature(false)
+      RunJob.agent_runner = ->(**kwargs) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { })
+
+      expect(run.step.reload.details).not_to have_key("mcp_transport")
+    end
+  end
+
   describe "#run_once" do
     it "invokes Codex in a tmpdir without MCP or resume state" do
       received = nil
