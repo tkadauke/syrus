@@ -7,6 +7,7 @@
 | Extension point | What it does |
 |---|---|
 | `:prepare_detector` | Detects `go.mod` at the repo root and contributes `go mod download` (`prepare_priority: 40`). Go modules have a single package-manifest signal, unlike `javascript`/`python`'s multi-lockfile priority lists. |
+| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag swallowed errors (`_ = err`)" — when `go.mod` is present (same signal as `:prepare_detector`). |
 
 ### What this plugin intentionally does NOT provide
 
