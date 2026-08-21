@@ -192,7 +192,13 @@ Key steps:
   Graders support an optional `when_files_changed` array of glob patterns; at
   fanout time Syrus computes changed files via `git diff --name-only <base>...HEAD`
   and skips any grader whose patterns don't match — useful for expensive checks
-  like website builds that only matter when relevant files changed. Landing
+  like website builds that only matter when relevant files changed. A registered
+  `:affected_test_analyzer` plugin can additively expand that changed-file set
+  with real import/dependency-graph analysis before matching (e.g. Ruby's
+  `require_relative` graph plus `app`/`lib` <-> `spec` convention) — it can only
+  turn a would-be skip into a run, never the reverse, so no analyzer / a
+  declining analyzer / an erroring analyzer all fall back to plain glob
+  matching against the raw diff. Landing
   workflows may dispatch multiple grader Runs from the fanout in parallel,
   capped within the landing unit; `grader_collect` waits for every required
   result before deciding whether repair is needed.

@@ -7,6 +7,7 @@ require "ruby/simple_cov_analyzer"
 require "ruby/prepare_detector"
 require "ruby/review_criteria_provider"
 require "ruby/rspec_parser"
+require "ruby/affected_test_analyzer"
 require "ruby/engine"
 
 module Ruby

@@ -108,6 +108,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:dependency_audit_command)
     end
 
+    it "includes :affected_test_analyzer" do
+      expect(described_class::EXTENSION_POINTS).to include(:affected_test_analyzer)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -213,6 +217,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(provider).to respond_to(:audit_command)
       expect { provider.lockfiles }.to raise_error(NotImplementedError, /lockfiles is required/)
       expect { provider.audit_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /audit_command is required/)
+    end
+
+    it "maps :affected_test_analyzer to Syrus::Plugin::AffectedTestAnalyzer" do
+      expect(described_class::INTERFACE_FOR[:affected_test_analyzer].call).to eq(Syrus::Plugin::AffectedTestAnalyzer)
+    end
+
+    it "gives affected test analyzer providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::AffectedTestAnalyzer }
+
+      expect(provider).to respond_to(:affected_files)
+      expect { provider.affected_files(repo_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /affected_files is required/)
     end
   end
 

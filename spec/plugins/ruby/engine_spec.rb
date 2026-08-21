@@ -18,7 +18,8 @@ RSpec.describe Ruby::Engine do
           version:          Ruby::VERSION,
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                              "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
-                             "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion",
+                             "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
+                             "require_relative-graph affected-test analysis",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
@@ -28,7 +29,8 @@ RSpec.describe Ruby::Engine do
             review_criteria_provider: Ruby::ReviewCriteriaProvider,
             test_result_parser:       Ruby::RspecParser,
             autofix_command:          Ruby::RubocopAutofix,
-            dependency_audit_command: Ruby::BundlerAuditCommand
+            dependency_audit_command: Ruby::BundlerAuditCommand,
+            affected_test_analyzer:   Ruby::AffectedTestAnalyzer
           }
         )
       end
@@ -47,7 +49,7 @@ RSpec.describe Ruby::Engine do
       expect(registration.prepare_priority).to eq(10)
     end
 
-    it "provides all 7 extension point keys" do
+    it "provides all 8 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
@@ -55,7 +57,8 @@ RSpec.describe Ruby::Engine do
         :review_criteria_provider,
         :test_result_parser,
         :autofix_command,
-        :dependency_audit_command
+        :dependency_audit_command,
+        :affected_test_analyzer
       )
     end
 
@@ -65,6 +68,10 @@ RSpec.describe Ruby::Engine do
 
     it "registers BundlerAuditCommand as the :dependency_audit_command" do
       expect(registration.provides[:dependency_audit_command]).to eq(Ruby::BundlerAuditCommand)
+    end
+
+    it "registers AffectedTestAnalyzer as the :affected_test_analyzer" do
+      expect(registration.provides[:affected_test_analyzer]).to eq(Ruby::AffectedTestAnalyzer)
     end
 
     it "registers SimpleCovAnalyzer as the :coverage_analyzer" do
