@@ -197,6 +197,108 @@ RSpec.describe Steps::AdversarialReview do
     end
   end
 
+  context "with plugin-contributed review criteria" do
+    let(:review_criteria_provider_class) do
+      Class.new do
+        include Syrus::Plugin::ReviewCriteriaProvider
+
+        def self.criteria(repo_path)
+          [ "Flag new N+1 query patterns in ActiveRecord code" ]
+        end
+      end
+    end
+
+    before do
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
+      Syrus::PluginRegistry.register(
+        name: "fake_review_criteria_plugin", version: "1.0.0",
+        provides: { review_criteria_provider: review_criteria_provider_class }
+      )
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
+    it "appears in the reviewer prompt alongside .syrus.yml's criteria" do
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+        SyrusYml::Config.new(
+          prepare: nil,
+          grade: nil,
+          hooks: nil,
+          adversarial_review: SyrusYml::AdversarialReviewConfig.new(
+            rounds: 1,
+            criteria: [ "Verify endpoints enforce authentication" ]
+          ),
+          agent_insight: nil,
+          coverage: nil,
+          formatters: [],
+          generated: [],
+          deployment_stages: [],
+          preview: nil,
+          visual_review: nil,
+          review_plan: false
+        )
+      )
+
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("Verify endpoints enforce authentication")
+        expect(prompt).to include("Flag new N+1 query patterns in ActiveRecord code")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+
+    it "appears even when .syrus.yml has no criteria configured" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("Flag new N+1 query patterns in ActiveRecord code")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+
+    it "does not appear when the contributing plugin is disabled" do
+      PluginRecord.find_by!(name: "fake_review_criteria_plugin").update!(enabled: false)
+
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).not_to include("pay particular attention")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+
+    it "treats a provider returning an empty array as a no-op" do
+      PluginRecord.find_by!(name: "fake_review_criteria_plugin").update!(enabled: false)
+      empty_provider_class = Class.new do
+        include Syrus::Plugin::ReviewCriteriaProvider
+
+        def self.criteria(repo_path)
+          []
+        end
+      end
+      Syrus::PluginRegistry.register(
+        name: "empty_review_criteria_plugin", version: "1.0.0",
+        provides: { review_criteria_provider: empty_provider_class }
+      )
+
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).not_to include("pay particular attention")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+  end
+
   context "in a pr_comment feedback workflow" do
     let(:user) { Factories.user(github_token: "ghp_test") }
     let(:repository) { Factories.repository(user: user) }

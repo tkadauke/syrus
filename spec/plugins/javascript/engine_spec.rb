@@ -18,13 +18,14 @@ RSpec.describe JavaScript::Engine do
         Syrus::PluginRegistry.register(
           name:             "javascript",
           version:          JavaScript::VERSION,
-          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail",
+          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; default `any`-type review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 20,
           provides: {
-            prepare_detector: JavaScript::PrepareDetector,
-            preview_provider: JavaScript::PreviewProvider,
-            grader_augmentor: JavaScript::EslintGraderAugmentor
+            prepare_detector:         JavaScript::PrepareDetector,
+            preview_provider:         JavaScript::PreviewProvider,
+            grader_augmentor:         JavaScript::EslintGraderAugmentor,
+            review_criteria_provider: JavaScript::ReviewCriteriaProvider
           }
         )
       end
@@ -43,8 +44,10 @@ RSpec.describe JavaScript::Engine do
       expect(registration.prepare_priority).to eq(20)
     end
 
-    it "provides exactly the :prepare_detector, :preview_provider, and :grader_augmentor extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :preview_provider, :grader_augmentor)
+    it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, and :review_criteria_provider extension point keys" do
+      expect(registration.provides.keys).to contain_exactly(
+        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider
+      )
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
@@ -57,6 +60,10 @@ RSpec.describe JavaScript::Engine do
 
     it "registers EslintGraderAugmentor as the :grader_augmentor" do
       expect(registration.provides[:grader_augmentor]).to eq(JavaScript::EslintGraderAugmentor)
+    end
+
+    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
+      expect(registration.provides[:review_criteria_provider]).to eq(JavaScript::ReviewCriteriaProvider)
     end
   end
 
@@ -120,6 +127,28 @@ RSpec.describe JavaScript::Engine do
 
     it "declares .node-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".node-version")
+    end
+  end
+
+  describe JavaScript::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-javascript-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no recognized lockfile or package.json" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the any-type criterion when a JS/TS project is detected" do
+      write("package.json", "{}")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag newly introduced `any` types" ])
     end
   end
 

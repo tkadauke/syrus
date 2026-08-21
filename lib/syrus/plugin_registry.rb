@@ -18,6 +18,7 @@ module Syrus
       callbacks
       platform_delivery
       prepare_detector
+      review_criteria_provider
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -38,7 +39,8 @@ module Syrus
       grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },
       callbacks:               -> { Syrus::Plugin::Callbacks },
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
-      prepare_detector:        -> { Syrus::Plugin::PrepareDetector }
+      prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
+      review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

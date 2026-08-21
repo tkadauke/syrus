@@ -19,6 +19,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `grader_augmentor`
 - `callbacks`
 - `prepare_detector`
+- `review_criteria_provider`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -508,6 +509,55 @@ as `:prompt_injector` or a repository-scoped review-criteria provider. The Job
 detail page's Workflows tab renders the set as a "Detected: …" line on each
 workflow card.
 
+## `review_criteria_provider`
+
+Contributes default checklist items to the `adversarial_review` step's
+reviewer prompt, without requiring the operator to configure `.syrus.yml`'s
+`adversarial_review.criteria`. Wired into `Steps::AdversarialReview`, which
+calls every registered (enabled) provider and concatenates the results with
+`.syrus.yml`'s array before rendering `Prompts::AdversarialReview` — both
+sources are additive on top of the reviewer's default checklist; there is no
+override mechanism.
+
+Include `Syrus::Plugin::ReviewCriteriaProvider` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `criteria` | `(repo_path) → Array<String>` | Checklist strings to add to the reviewer prompt, or `[]` to contribute nothing. Must not raise. |
+
+```ruby
+class MyPlugin::ReviewCriteriaProvider
+  include Syrus::Plugin::ReviewCriteriaProvider
+
+  def self.criteria(repo_path)
+    return [] unless File.exist?(File.join(repo_path, "requirements.txt"))
+
+    [ "Flag missing type hints on new public functions" ]
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { review_criteria_provider: MyPlugin::ReviewCriteriaProvider }
+)
+```
+
+`repo_path` is the workflow workspace root (the same checkout the reviewer
+inspects), available because `adversarial_review` runs after the workspace is
+already set up. Providers typically gate their contribution on the same
+repo-detection signal their `:prepare_detector` counterpart uses, so criteria
+tuned for one ecosystem don't show up in an unrelated repo's review.
+
+The `ruby`, `javascript`, `python`, and `go` plugins each register one seed
+criterion, gated on the same signal their `:prepare_detector` uses:
+
+| Plugin | Gate | Criterion |
+|---|---|---|
+| `ruby` | `Gemfile` present | Flag new N+1 query patterns in ActiveRecord code |
+| `javascript` | lockfile/`package.json` present | Flag newly introduced `any` types |
+| `python` | uv/poetry/pip signal present | Flag missing type hints on new public functions |
+| `go` | `go.mod` present | Flag swallowed errors (`` `_ = err` ``) |
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -583,8 +633,11 @@ Bundled plugins:
   `--format json` output under `.syrus/rubocop-json/*.json` to the grade log
   when a `rubocop` grader fails); `:test_result_parser` (`Ruby::RspecParser` —
   parses RSpec's plain progress/documentation output), `:coverage_analyzer`
-  (SimpleCov's `.resultset.json`), and `:prepare_detector` (`Gemfile` →
-  `bundle install`, `prepare_priority: 10`).
+  (SimpleCov's `.resultset.json`), `:prepare_detector` (`Gemfile` →
+  `bundle install`, `prepare_priority: 10`), and `:review_criteria_provider`
+  (`Ruby::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging new N+1 query patterns in ActiveRecord code, gated on
+  the same `Gemfile` signal as `:prepare_detector`).
 - `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
   (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
   and `package.json` don't distinguish JS from TS. Internally picks exactly one
@@ -601,7 +654,10 @@ Bundled plugins:
   `:grader_augmentor` (`JavaScript::EslintGraderAugmentor` — appends compact
   `file:line: ruleId: message` lines parsed from ESLint's `--format json`
   output under `.syrus/eslint-json/*.json` to the grade log when an `eslint`
-  grader fails).
+  grader fails). Also provides `:review_criteria_provider`
+  (`JavaScript::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging newly introduced `any` types, gated on the same
+  lockfile/`package.json` signal as `:prepare_detector`).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
@@ -616,6 +672,10 @@ Bundled plugins:
   output is already handled by core's `JunitXmlParser` fallback and
   `coverage xml` (Cobertura format) is already handled by
   `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
+  Also provides `:review_criteria_provider` (`Python::ReviewCriteriaProvider`
+  — seeds a default adversarial-review criterion flagging missing type hints
+  on new public functions, gated on the same uv/poetry/pip signal as
+  `:prepare_detector`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
   → `go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
@@ -628,7 +688,10 @@ Bundled plugins:
   `coverage.sources[].format`; see the plugin README for both command
   sequences. No `:preview_provider` — no single universal Go web-serving
   convention exists at the language level (net/http, Gin, Echo, etc. all
-  differ).
+  differ). Also provides `:review_criteria_provider`
+  (`Go::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging swallowed errors (`_ = err`), gated on the same
+  `go.mod` signal as `:prepare_detector`).
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling

@@ -56,9 +56,18 @@ module Steps
     end
 
     def adversarial_review_criteria
+      syrus_yml_review_criteria + plugin_review_criteria
+    end
+
+    def syrus_yml_review_criteria
       SyrusYml.load_repo(workspace.path).adversarial_review&.criteria || []
     rescue SyrusYml::ParseError, Errno::ENOENT
       []
+    end
+
+    def plugin_review_criteria
+      Syrus::PluginRegistry.providers_for(:review_criteria_provider)
+        .flat_map { |provider| Array(provider.criteria(workspace.path)) }
     end
 
     def review_issue

@@ -17,14 +17,16 @@ RSpec.describe Ruby::Engine do
           name:             "ruby",
           version:          Ruby::VERSION,
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
-                             "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection",
+                             "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
+                             "default N+1 review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
-            coverage_analyzer:  Ruby::SimpleCovAnalyzer,
-            grader_augmentor:   [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
-            prepare_detector:   Ruby::PrepareDetector,
-            test_result_parser: Ruby::RspecParser
+            coverage_analyzer:        Ruby::SimpleCovAnalyzer,
+            grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
+            prepare_detector:         Ruby::PrepareDetector,
+            review_criteria_provider: Ruby::ReviewCriteriaProvider,
+            test_result_parser:       Ruby::RspecParser
           }
         )
       end
@@ -43,11 +45,12 @@ RSpec.describe Ruby::Engine do
       expect(registration.prepare_priority).to eq(10)
     end
 
-    it "provides all 4 extension point keys" do
+    it "provides all 5 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
         :prepare_detector,
+        :review_criteria_provider,
         :test_result_parser
       )
     end
@@ -64,6 +67,10 @@ RSpec.describe Ruby::Engine do
 
     it "registers PrepareDetector as the :prepare_detector" do
       expect(registration.provides[:prepare_detector]).to eq(Ruby::PrepareDetector)
+    end
+
+    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
+      expect(registration.provides[:review_criteria_provider]).to eq(Ruby::ReviewCriteriaProvider)
     end
 
     it "registers RspecParser as the :test_result_parser" do
@@ -114,6 +121,22 @@ RSpec.describe Ruby::Engine do
 
     it "declares .ruby-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".ruby-version")
+    end
+  end
+
+  describe Ruby::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    it "returns [] for a repo with no Gemfile" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the N+1 criterion when a Gemfile is present" do
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
     end
   end
 end
