@@ -25,7 +25,7 @@ RSpec.describe Skills::DependencyAudit do
     it "reuses RepoPrepPlan's lockfile signals for ecosystem detection" do
       instructions = described_class.definition.instructions
 
-      RepoPrepPlan::AUTO_DETECT.each do |file, _command|
+      RepoPrepPlan::AUTO_DETECT.flatten(1).each do |file, _command|
         expect(instructions).to include("`#{file}`")
       end
     end
@@ -161,7 +161,7 @@ RSpec.describe Skills::DependencyAudit do
     it "still includes the full detection reference table alongside the concrete scan results" do
       instructions = instructions_for
 
-      RepoPrepPlan::AUTO_DETECT.each { |file, _command| expect(instructions).to include("`#{file}`") }
+      RepoPrepPlan::AUTO_DETECT.flatten(1).each { |file, _command| expect(instructions).to include("`#{file}`") }
     end
   end
 end
