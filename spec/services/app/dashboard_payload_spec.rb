@@ -367,6 +367,26 @@ RSpec.describe App::DashboardPayload do
       )
     end
 
+    it "reports a bundle-other-job-count for a blocker that's landing as part of a job bundle" do
+      a = Factories.job_record(user: user, repository: blocker_repo, state: "landing", issue_number: 21, issue_title: "Bundle member A", pr_number: 201)
+      b = Factories.job_record(user: user, repository: blocker_repo, state: "landing", issue_number: 22, issue_title: "Bundle member B", pr_number: 202)
+      train = MergeTrain.create!(repository: blocker_repo, base_branch: blocker_repo.default_branch, priority: "medium")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: b, position: 1)
+
+      approved_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      approved_job.approve!(via: "github_review")
+      JobDependency.create!(job: approved_job, depends_on_job: a, source: "manual", created_by_user: user)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      entries = result.dig(:landing_queue, :entries)
+      blocker_entry = entries&.flat_map { |e| e[:blocker_jobs] }&.find { |blocker| blocker[:id] == a.id }
+
+      expect(blocker_entry).to include(bundle_other_job_count: 1)
+      expect(blocker_entry).not_to have_key(:epic_id)
+    end
+
     it "reports a merge-train start blocker as a blocked reason" do
       AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")

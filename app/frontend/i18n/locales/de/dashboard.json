@@ -74,6 +74,8 @@
   "external_pr_badge_title": "Dieser PR wurde nicht von Syrus geöffnet.",
   "epic_attribution": "Epic: {{title}}",
   "epic_attribution_by_id": "Epic #{{id}}",
+  "bundle_attribution_one": "Gebündelt mit {{count}} weiterem Job",
+  "bundle_attribution_other": "Gebündelt mit {{count}} weiteren Jobs",
   "epic_progress": "{{done}}/{{total}} erledigt",
   "epic_progress_label": "Epic-Aufgabenfortschritt",
   "epic_updated": "Epic aktualisiert.",
