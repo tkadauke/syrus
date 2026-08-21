@@ -538,6 +538,51 @@ RSpec.describe SyrusYml do
       expect(cov.pr_comment).to be true
     end
 
+    it "parses coverage.threshold.branches from the repo's own .syrus.yml" do
+      write_config(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 80
+            branches: 65
+            pr_lines: 70
+      YAML
+
+      plan = described_class.load_repo(@dir).coverage
+
+      expect(plan.threshold.lines).to eq(80.0)
+      expect(plan.threshold.branches).to eq(65.0)
+      expect(plan.threshold.pr_lines).to eq(70.0)
+    end
+
+    it "defaults threshold.branches to nil when omitted" do
+      config = parse(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 80
+      YAML
+
+      expect(config.coverage.threshold.branches).to be_nil
+    end
+
+    it "rejects threshold branches outside 0..100" do
+      expect {
+        parse(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              branches: 150
+        YAML
+      }.to raise_error(described_class::ParseError, /coverage\.threshold\.branches: must be between 0 and 100/)
+    end
+
     it "defaults on_miss to warn and hitmap_ttl_days to 7" do
       config = parse(<<~YAML)
         coverage:
