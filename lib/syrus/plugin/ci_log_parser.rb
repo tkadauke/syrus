@@ -33,9 +33,12 @@ module Syrus
         #   own parsers produce — +:parser+, +:error_summary+, +:error_block+,
         #   and optionally +:failing_tests+ / +:offenses+ — or nil if this
         #   parser doesn't recognize the log, passing control to the next
-        #   registered parser (and eventually to the core fallback).
+        #   registered parser (and eventually to the core fallback). A Hash
+        #   missing +:parser+/+:error_summary+/+:error_block+, or an
+        #   exception raised from this method, is treated the same as nil —
+        #   logged and skipped — rather than failing CI-failure diagnosis.
         def call(text:, step_name: nil)
-          raise NotImplementedError, "#{self.class.name} must implement .call(text:, step_name:)"
+          raise NotImplementedError, "#{self.name} must implement .call(text:, step_name:)"
         end
       end
 
