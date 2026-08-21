@@ -69,7 +69,6 @@ grade:
 | `name` | yes | — | Alphanumeric + hyphens; must be unique |
 | `run` | yes | — | Shell command |
 | `phases` | no | `review`, `landing`, `ci` | Phase or phases where this grader runs |
-| `fast` | no | — | Legacy key; parsed but ignored |
 | `ci` | no | — | Legacy alternate command; expanded into a `<name>-ci` grader in the `ci` phase |
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
@@ -78,15 +77,13 @@ grade:
 | `junit_output` | no | — | Path to JUnit XML produced by the command; enables per-test result ingestion |
 | `failures` | no | `grade.failures` or `strict` | `strict` or `allow_inherited` |
 
-### fast (removed)
-
-`fast` was an optional alternate command used for landing trigger kinds and for
-grade-loop iterations after the first. It has been removed: `run` is the
-everyday command for every non-CI context, so it should already be the fast,
-parallel one. The key is still parsed so existing `.syrus.yml` files keep
-loading, but it selects nothing — a grader declaring `fast` runs `run`.
-
-For Ruby projects, prefer putting formatter, coverage, parallelization, and CI-only filtering policy in a wrapper script such as `bin/rspec-fast`. Grader infrastructure should run the configured command as-is instead of appending RSpec-specific flags.
+`run` is the everyday command for every non-CI context, so it should already
+be the fast, parallel one. For Ruby projects, prefer putting formatter,
+coverage, parallelization, and CI-only filtering policy in a wrapper script
+such as `bin/rspec-fast`. Grader infrastructure runs the configured command
+as-is instead of appending RSpec-specific flags. A `fast:` key is no longer
+accepted at all — declaring it in `.syrus.yml` has no effect and is not
+parsed into anything.
 
 ### phases
 

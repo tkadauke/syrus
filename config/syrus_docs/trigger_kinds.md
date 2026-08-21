@@ -114,10 +114,10 @@ Structurally like `retry`; treated identically in most code paths.
 
 Validates mergeability, mechanically rebases and force-pushes the PR branch onto
 the current base when that rebase is clean, re-runs required graders on the exact
-rebased PR branch with each grader's `fast` command when configured, then
-merges. If the mechanical rebase conflicts, Syrus dispatches the normal `rebase`
-workflow and defers. Landing does not run `coverage_analyze` because fast grader
-variants are pass/fail gates and do not produce the full coverage flow.
+rebased PR branch, then merges. If the mechanical rebase conflicts, Syrus
+dispatches the normal `rebase` workflow and defers. Landing does not run
+`coverage_analyze` because landing graders are pass/fail gates and do not
+produce the full coverage flow.
 Transient GitHub errors defer the Job back to `approved` for retry. Does not run
 `implement` — only landing validation and merge.
 
