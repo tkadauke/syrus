@@ -38,6 +38,7 @@ module Steps
       upsert_snapshot(normalized, pr_delta)
 
       handle_threshold(plan, artifact)
+      record_branches_threshold_warning(plan, artifact)
     end
 
     private
@@ -179,6 +180,35 @@ module Steps
       else
         log("[coverage_analyze] threshold miss — warning only (on_miss: #{plan.on_miss})")
       end
+    end
+
+    # Branch coverage never hard-fails via `on_miss` — unlike lines/pr_lines,
+    # it always records an actionable WorkflowWarning instead (see
+    # config/syrus_docs/workflow_warnings.md and coverage.md).
+    def record_branches_threshold_warning(plan, artifact)
+      branches_pct = artifact.dig("summary", "branches_pct")
+      return unless plan.branches_threshold_miss?(branches_pct: branches_pct)
+
+      threshold_branches = plan.threshold.branches
+
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "coverage_branches_threshold_miss",
+        severity: "medium",
+        title: "Branch coverage #{branches_pct}% is below the #{threshold_branches}% threshold",
+        evidence: { "branches_pct" => branches_pct, "threshold_branches" => threshold_branches },
+        suggested_prompt: branches_threshold_prompt(branches_pct: branches_pct, threshold_branches: threshold_branches)
+      )
+      log("[coverage_analyze] branch coverage threshold miss — recorded warning (#{branches_pct}% < #{threshold_branches}%)")
+    rescue StandardError => e
+      Rails.logger.warn("[CoverageAnalyze] failed to record branches threshold warning for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
+    end
+
+    def branches_threshold_prompt(branches_pct:, threshold_branches:)
+      <<~PROMPT.strip
+        Branch coverage is #{branches_pct}%, below the configured threshold of #{threshold_branches}% (`coverage.threshold.branches` in `.syrus.yml`). Add tests that exercise the untested branches (conditionals, guard clauses, rescue paths) to raise branch coverage above the threshold.
+      PROMPT
     end
   end
 end
