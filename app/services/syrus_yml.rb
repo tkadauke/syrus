@@ -37,11 +37,10 @@ class SyrusYml
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
-  # `fast` and `ci` are accepted for compatibility but no longer drive
-  # command selection. Runtime grading selects configured grader entries by
-  # `phases`; RepoGradePlan expands legacy `ci:` into a synthetic `*-ci`
-  # grader in the `ci` phase.
-  GradeStep = Data.define(:name, :run, :fast, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures)
+  # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
+  # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
+  # otherwise selects configured grader entries by `phases`.
+  GradeStep = Data.define(:name, :run, :ci, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -275,7 +274,6 @@ class SyrusYml
 
     run = raw["run"].to_s.strip
     raise ParseError, "#{label}.run: is required" if run.empty?
-    fast = raw["fast"].to_s.strip.presence # deprecated, ignored — see GradeStep
     ci = raw["ci"].to_s.strip.presence
     phases = parse_grade_phases(raw["phases"], "#{label}.phases")
 
@@ -288,7 +286,6 @@ class SyrusYml
     GradeStep.new(
       name: name,
       run: run,
-      fast: fast,
       ci: ci,
       phases: phases,
       description: raw["description"].to_s.strip.presence,

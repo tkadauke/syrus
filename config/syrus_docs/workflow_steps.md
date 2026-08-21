@@ -161,9 +161,9 @@ An earlier `fast:` command selected a parallel variant for landing trigger
 kinds and for grade-loop iterations after the first, back when `run:` was
 serial. That meant the first grader pass of every workflow — the common case —
 ran single-threaded, and thirteen trigger kinds were in neither list and never
-reached the fast path at all. `run:` is the parallel command now, so `fast:` is
-gone: it is still parsed so existing configs keep loading, but it selects
-nothing and falls back to `run:`.
+reached the fast path at all. `run:` is the parallel command now, so `fast:`
+has been removed entirely: it is no longer parsed, and declaring it in
+`.syrus.yml` has no effect.
 
 An older `ci:` alternate command is still parsed for compatibility. It expands
 into a separate `<name>-ci` grader whose only phase is `ci`; new configs should

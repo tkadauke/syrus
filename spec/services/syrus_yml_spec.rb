@@ -30,8 +30,8 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict"),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", fast: nil, ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict")
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict"),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil, failures: "strict")
     ])
   end
 
@@ -47,7 +47,7 @@ RSpec.describe SyrusYml do
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.failures).to eq("strict")
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", fast: nil, ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict")
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", ci: nil, phases: %w[review landing ci], description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil, failures: "strict")
     ])
   end
 
@@ -262,18 +262,6 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.steps.first.when_files_changed).to eq(%w[website/** docs/**])
     expect(config.grade.steps.second.when_files_changed).to be_nil
-  end
-
-  it "parses an optional fast grader command" do
-    config = parse(<<~YAML)
-      grade:
-        - name: rspec
-          run: bin/rspec
-          fast: COVERAGE=false bin/rspec
-    YAML
-
-    expect(config.grade.steps.first.run).to eq("bin/rspec")
-    expect(config.grade.steps.first.fast).to eq("COVERAGE=false bin/rspec")
   end
 
   it "parses an optional CI grader command" do
