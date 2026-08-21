@@ -26,6 +26,14 @@ class PersistentMcpDaemon
   HEALTH_PATH = "/healthz"
   MCP_PATH = "/mcp"
 
+  # Key callers set in an MCP request's `_meta` to carry a signed
+  # McpInvocationContext token. `_meta` is per-request (MCP::Server merges it
+  # into the shared server_context Hash on every dispatch -- see
+  # MCP::Server#server_context_with_meta), so this is how a per-call
+  # context reaches a tool without any daemon-wide mutable "current
+  # run"/"current chat" state.
+  INVOCATION_CONTEXT_META_KEY = :syrus_invocation_context
+
   def self.port
     Integer(ENV.fetch("SYRUS_PERSISTENT_MCP_PORT", DEFAULT_PORT))
   end
@@ -104,7 +112,7 @@ class PersistentMcpDaemon
   def mcp_server
     @mcp_server ||= MCP::Server.new(
       name: "syrus-persistent-mcp-daemon",
-      tools: [ PersistentMcpDaemon::PingTool ],
+      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ],
       server_context: { identity: identity }
     )
   end
