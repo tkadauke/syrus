@@ -229,7 +229,10 @@ RSpec.describe ProcessRunner, :ci_only do
     runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5)
     runner.instance_variable_set(:@spawned_process, process)
     runner.instance_variable_set(:@resource_sampler, sampler)
-    runner.instance_variable_set(:@last_resource_attribution_persisted_at, 2.minutes.ago)
+    runner.instance_variable_set(
+      :@last_resource_attribution_persisted_at,
+      (ProcessRunner::RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS + 1).seconds.ago
+    )
 
     runner.send(:heartbeat!)
 

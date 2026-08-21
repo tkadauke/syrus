@@ -25,7 +25,10 @@ class ProcessRunner
   READ_CHUNK_BYTES = 16 * 1024
   KILL_POLL_INTERVAL_SECONDS = 1
   HEARTBEAT_INTERVAL_SECONDS = 15
-  RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS = 60
+  # Live process resource samples are useful for the admin UI, but the JSON
+  # update is a hot write on long-running agent/grader processes. Persist
+  # sparingly while running; finalization always writes the final attribution.
+  RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS = 5 * 60
 
   def self.forwarded_env(keys, extra: {})
     ENV.slice(*keys).merge(extra.compact)
