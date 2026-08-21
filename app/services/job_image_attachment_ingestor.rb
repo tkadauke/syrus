@@ -99,6 +99,7 @@ class JobImageAttachmentIngestor
   def download_image(source_url, redirects: 3)
     uri = URI.parse(source_url)
     return nil unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
+    return nil unless SsrfGuard.safe_host?(uri.host)
 
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", read_timeout: 15, open_timeout: 5) do |http|
       request = Net::HTTP::Get.new(uri)
