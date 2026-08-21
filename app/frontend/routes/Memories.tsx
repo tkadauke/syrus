@@ -10,10 +10,13 @@ import {
   createMemory,
   deleteMemory,
   fetchMemories,
+  fetchMemoryAuditEvents,
   publishMemory,
   unpublishMemory,
   updateMemory,
   type MemoriesPayload,
+  type MemoryAuditEvent,
+  type MemoryAuditEventActor,
   type MemoryKind,
   type MemoryRow,
   type MemoryScope
@@ -69,7 +72,17 @@ export function MemoriesRoute() {
 function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
   const location = useLocation()
+  const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  const showDeleted = payload.deleted
+
+  function toggleDeletedView() {
+    const params = new URLSearchParams(location.search)
+    if (showDeleted) params.delete("deleted")
+    else params.set("deleted", "true")
+    params.delete("page")
+    navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : "" })
+  }
 
   return (
     <>
@@ -82,21 +95,29 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
             pathname={location.pathname}
             search={location.search}
           />
-          <button className="shrink-0 rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" onClick={() => setCreating(true)} type="button">
-            {t('memories.create')}
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button className="rounded border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={toggleDeletedView} type="button">
+              {showDeleted ? t('memories.view_active') : t('memories.view_deleted')}
+            </button>
+            {showDeleted ? null : (
+              <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" onClick={() => setCreating(true)} type="button">
+                {t('memories.create')}
+              </button>
+            )}
+          </div>
         </div>
       </section>
-      <MemoriesTable onNotice={onNotice} payload={payload} />
+      <MemoriesTable onNotice={onNotice} payload={payload} showDeleted={showDeleted} />
       <MemoryPagination pagination={payload.pagination} />
       {creating ? <MemoryModal mode="create" onClose={() => setCreating(false)} onNotice={onNotice} payload={payload} /> : null}
     </>
   )
 }
 
-function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNotice: (message: string | null) => void }) {
+function MemoriesTable({ payload, onNotice, showDeleted }: { payload: MemoriesPayload; onNotice: (message: string | null) => void; showDeleted: boolean }) {
   const { t } = useT("settings")
   const showOwner = payload.current_user.admin
+  const columnCount = showOwner ? 7 : 6
 
   return (
     <section className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -107,16 +128,16 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
             <th className="px-4 py-2">{t('memories.col_scope')}</th>
             {showOwner ? <th className="px-4 py-2">{t('memories.col_owner')}</th> : null}
             <th className="px-4 py-2">{t('memories.col_content')}</th>
-            <th className="px-4 py-2">{t('memories.col_published')}</th>
+            <th className="px-4 py-2">{showDeleted ? t('memories.col_deleted') : t('memories.col_published')}</th>
             <th className="px-4 py-2">{t('memories.col_created')}</th>
             <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
           {payload.memories.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={showOwner ? 7 : 6}>{t('memories.no_results')}</td></tr>
+            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={columnCount}>{showDeleted ? t('memories.no_deleted_results') : t('memories.no_results')}</td></tr>
           ) : payload.memories.map((memory) => (
-            <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} payload={payload} showOwner={showOwner} />
+            <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} payload={payload} showDeleted={showDeleted} showOwner={showOwner} />
           ))}
         </tbody>
       </table>
@@ -124,12 +145,13 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
   )
 }
 
-function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: MemoryRow; payload: MemoriesPayload; showOwner: boolean; onNotice: (message: string | null) => void }) {
+function MemoryRowView({ memory, payload, showOwner, showDeleted, onNotice }: { memory: MemoryRow; payload: MemoriesPayload; showOwner: boolean; showDeleted: boolean; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [viewing, setViewing] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [viewingHistory, setViewingHistory] = useState(false)
   const publish = useMutation({
     mutationFn: () => memory.published ? unpublishMemory(memory.paths.app_publish_path) : publishMemory(memory.paths.app_publish_path),
     onSuccess: (payload) => {
@@ -152,27 +174,52 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
       {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
         <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
-        <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
-          {t('memories.see_more')}
-        </button>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <button className="text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
+            {t('memories.see_more')}
+          </button>
+          {memory.changed && memory.permissions.can_manage ? (
+            <button
+              className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800"
+              onClick={() => setViewingHistory(true)}
+              type="button"
+            >
+              {t('memories.changed_badge')}
+            </button>
+          ) : null}
+        </div>
       </td>
       <td className="px-4 py-3">
-        <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? t('memories.published_label') : t('memories.unpublished_label')}</span>
+        {showDeleted ? (
+          <span className="text-gray-600 dark:text-gray-400">
+            {memory.deleted_by
+              ? t('memories.deleted_by', { name: memory.deleted_by.name })
+              : t('memories.deleted_by_unknown')}
+            {memory.deleted_at ? <><br /><RelativeTimestamp value={memory.deleted_at} /></> : null}
+          </span>
+        ) : (
+          <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? t('memories.published_label') : t('memories.unpublished_label')}</span>
+        )}
       </td>
       <td className="px-4 py-3 text-gray-600 dark:text-gray-400"><RelativeTimestamp value={memory.created_at} /></td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-2">
           {memory.permissions.can_manage ? (
+            <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setViewingHistory(true)} type="button">
+              {t('memories.history')}
+            </button>
+          ) : null}
+          {!showDeleted && memory.permissions.can_manage ? (
             <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setEditing(true)} type="button">
               {t('memories.edit')}
             </button>
           ) : null}
-          {memory.permissions.can_publish ? (
+          {!showDeleted && memory.permissions.can_publish ? (
             <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" disabled={publish.isPending} onClick={() => publish.mutate()} type="button">
               {memory.published ? t('memories.unpublish') : t('memories.publish')}
             </button>
           ) : null}
-          {memory.permissions.can_manage ? (
+          {!showDeleted && memory.permissions.can_manage ? (
             <button
               className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
               disabled={destroy.isPending}
@@ -192,6 +239,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
         {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete memory.")}</p> : null}
         {viewing ? <MemoryContentModal memory={memory} onClose={() => setViewing(false)} /> : null}
         {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
+        {viewingHistory ? <MemoryHistoryModal memory={memory} onClose={() => setViewingHistory(false)} /> : null}
         {dialog}
       </td>
     </tr>
@@ -234,6 +282,106 @@ function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: (
       </section>
     </div>
   )
+}
+
+function MemoryHistoryModal({ memory, onClose }: { memory: MemoryRow; onClose: () => void }) {
+  const { t } = useT("settings")
+  const query = useQuery({
+    queryKey: ["memory-audit-events", memory.paths.app_audit_events_path],
+    queryFn: () => fetchMemoryAuditEvents(memory.paths.app_audit_events_path)
+  })
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <section
+        aria-labelledby={`memory-history-modal-title-${memory.id}`}
+        aria-modal="true"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-900"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id={`memory-history-modal-title-${memory.id}`}>{t('memories.history_title')}</h2>
+            <button
+              aria-label={t("common:close")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              onClick={onClose}
+              type="button"
+            >
+              <CloseIcon className="h-7 w-7" />
+            </button>
+          </div>
+          {query.isPending ? <p className="text-sm text-gray-600 dark:text-gray-400">{t('memories.history_loading')}</p> : null}
+          {query.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(query.error, "Unable to load memory history.")}</p> : null}
+          {query.isSuccess ? (
+            <ol className="space-y-3">
+              {query.data.audit_events.map((event) => <AuditEventRow key={event.id} event={event} />)}
+            </ol>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function AuditEventRow({ event }: { event: MemoryAuditEvent }) {
+  const { t } = useT("settings")
+
+  return (
+    <li className="rounded border border-gray-200 p-3 dark:border-gray-700">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <span className="font-medium text-gray-700 dark:text-gray-300">{eventTypeLabel(event.event_type, t)}</span>
+        <span>{actorLabel(event.actor, t)}</span>
+        <RelativeTimestamp value={event.created_at} />
+      </div>
+      {event.event_type === "updated" ? (
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <AuditEventSnapshot label={t('memories.history_previous')} snapshot={event.previous} />
+          <AuditEventSnapshot label={t('memories.history_new')} snapshot={event.new} />
+        </div>
+      ) : (
+        <div className="mt-2">
+          <AuditEventSnapshot label={null} snapshot={event.event_type === "created" ? event.new : event.previous} />
+        </div>
+      )}
+    </li>
+  )
+}
+
+function AuditEventSnapshot({ label, snapshot }: { label: string | null; snapshot: { content: string | null; kind: MemoryKind | null; confidence: number | null } }) {
+  const { t } = useT("settings")
+
+  return (
+    <div>
+      {label ? <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</p> : null}
+      <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{snapshot.content}</p>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {snapshot.kind ? kindLabel(snapshot.kind, t) : null}
+        {snapshot.confidence != null ? ` · ${t('memories.history_confidence', { value: snapshot.confidence })}` : null}
+      </p>
+    </div>
+  )
+}
+
+function eventTypeLabel(eventType: MemoryAuditEvent["event_type"], t: (key: string) => string) {
+  if (eventType === "created") return t('memories.history_event_created')
+  if (eventType === "updated") return t('memories.history_event_updated')
+  return t('memories.history_event_deleted')
+}
+
+function actorLabel(actor: MemoryAuditEventActor, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (actor.kind === "user") return t('memories.history_actor_user', { name: actor.name || "—" })
+  if (actor.kind === "agent") return t('memories.history_actor_agent')
+  return t('memories.history_actor_system')
 }
 
 function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: MemoryRow; mode: "create" | "edit"; payload: MemoriesPayload; onClose: () => void; onNotice: (message: string | null) => void }) {

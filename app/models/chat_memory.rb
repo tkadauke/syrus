@@ -10,6 +10,7 @@ class ChatMemory < ApplicationRecord
   belongs_to :user
   belongs_to :deleted_by_user, class_name: "User", optional: true
   belongs_to :repository, optional: true, foreign_key: :scope_id
+  has_many :chat_memory_audit_events, -> { order(created_at: :asc, id: :asc) }
 
   enum :kind, KIND.index_with(&:itself), validate: true
   enum :scope, SCOPE.index_with(&:itself), validate: true
@@ -23,6 +24,7 @@ class ChatMemory < ApplicationRecord
   after_update :emit_updated_audit_event
 
   scope :active, -> { where(deleted_at: nil) }
+  scope :deleted, -> { where.not(deleted_at: nil) }
   scope :global_scope, -> { where(scope: "global", scope_id: nil) }
   scope :repository_scope, ->(repo_or_id) { where(scope: "repository", scope_id: repository_id_for(repo_or_id)) }
   scope :published, -> { where(published: true) }

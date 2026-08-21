@@ -92,6 +92,20 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     expect(parse_body["pagination"]).to include("page" => 2, "per_page" => 20, "total" => 21, "total_pages" => 2)
   end
 
+  it "flags memories with audit history beyond creation as changed" do
+    sign_in_as(user)
+    unchanged = memory_for(user, content: "Never touched.")
+    changed = memory_for(user, content: "Touched once.")
+    changed.update!(content: "Touched twice.")
+
+    get "/api/v1/app/memories"
+
+    expect(response).to have_http_status(:ok)
+    rows = parse_body["memories"].index_by { |row| row["id"] }
+    expect(rows[unchanged.id]["changed"]).to be(false)
+    expect(rows[changed.id]["changed"]).to be(true)
+  end
+
   it "creates a memory owned by the current user" do
     sign_in_as(user)
 
@@ -246,5 +260,107 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["memories"].map { |row| row["id"] }).not_to include(memory.id)
+  end
+
+  describe "GET /api/v1/app/memories?deleted=true" do
+    it "lists only the current user's own soft-deleted memories" do
+      sign_in_as(user)
+      active = memory_for(user, content: "Still around.")
+      deleted = memory_for(user, content: "Gone now.")
+      deleted.soft_delete_by!(user)
+      other_deleted = memory_for(other, scope_id: repository.id, content: "Someone else's.")
+      other_deleted.soft_delete_by!(other)
+
+      get "/api/v1/app/memories", params: { deleted: "true" }
+
+      expect(response).to have_http_status(:ok)
+      ids = parse_body["memories"].map { |row| row["id"] }
+      expect(ids).to contain_exactly(deleted.id)
+      expect(ids).not_to include(active.id, other_deleted.id)
+      expect(parse_body["deleted"]).to be(true)
+      row = parse_body["memories"].first
+      expect(row.dig("deleted_by", "id")).to eq(user.id)
+      expect(row["deleted_at"]).not_to be_nil
+    end
+
+    it "lets admins see every soft-deleted memory" do
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+      deleted = memory_for(other, scope_id: other_repository.id, content: "Stale fact.")
+      deleted.soft_delete_by!(other)
+
+      get "/api/v1/app/memories", params: { deleted: "true" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["memories"].map { |row| row["id"] }).to contain_exactly(deleted.id)
+    end
+
+    it "defaults to the active listing when deleted is absent" do
+      sign_in_as(user)
+      active = memory_for(user, content: "Still around.")
+      deleted = memory_for(user, content: "Gone now.")
+      deleted.soft_delete_by!(user)
+
+      get "/api/v1/app/memories"
+
+      expect(parse_body["deleted"]).to be(false)
+      expect(parse_body["memories"].map { |row| row["id"] }).to contain_exactly(active.id)
+    end
+  end
+
+  describe "GET /api/v1/app/memories/:id/audit_events" do
+    it "returns the created-then-updated audit trail oldest first" do
+      sign_in_as(user)
+      memory = memory_for(user, kind: "reference", content: "Original content.")
+      memory.update!(content: "Revised content.", kind: "decision")
+
+      get "/api/v1/app/memories/#{memory.id}/audit_events"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["memory_id"]).to eq(memory.id)
+      event_types = parse_body["audit_events"].map { |event| event["event_type"] }
+      expect(event_types).to eq(%w[ created updated ])
+      updated_event = parse_body["audit_events"].last
+      expect(updated_event.dig("previous", "content")).to eq("Original content.")
+      expect(updated_event.dig("new", "content")).to eq("Revised content.")
+      expect(updated_event.dig("previous", "kind")).to eq("reference")
+      expect(updated_event.dig("new", "kind")).to eq("decision")
+    end
+
+    it "includes the audit trail for a soft-deleted memory" do
+      sign_in_as(user)
+      memory = memory_for(user, content: "Stale fact.")
+      memory.soft_delete_by!(user)
+
+      get "/api/v1/app/memories/#{memory.id}/audit_events"
+
+      expect(response).to have_http_status(:ok)
+      event_types = parse_body["audit_events"].map { |event| event["event_type"] }
+      expect(event_types).to eq(%w[ created deleted ])
+      deleted_event = parse_body["audit_events"].last
+      expect(deleted_event.dig("actor", "kind")).to eq("user")
+      expect(deleted_event.dig("actor", "id")).to eq(user.id)
+    end
+
+    it "allows admins to read any memory's audit trail" do
+      admin = Factories.user(admin: true)
+      sign_in_as(admin)
+      memory = memory_for(other, scope_id: other_repository.id)
+
+      get "/api/v1/app/memories/#{memory.id}/audit_events"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["audit_events"].map { |event| event["event_type"] }).to eq(%w[ created ])
+    end
+
+    it "forbids non-admin, non-owner access" do
+      sign_in_as(user)
+      memory = memory_for(other, scope_id: repository.id, published: true)
+
+      get "/api/v1/app/memories/#{memory.id}/audit_events"
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+    end
   end
 end

@@ -709,7 +709,15 @@ facts, feedback, references, and decisions. Memories are private to their
 owner by default; repository-scoped memories can be published to make them
 visible to other operators attached to that repository. The **Memories**
 settings panel lists, filters, edits, publishes, unpublishes, and deletes
-memories, with admins able to manage memories across users.
+memories, with admins able to manage memories across users. Every create,
+edit, and delete is recorded in an append-only audit trail; rows with a
+history beyond their initial creation show a changed indicator that opens a
+history modal with each event's before/after content, kind, confidence,
+actor, and timestamp. A deleted-memories view (admin-or-owner scoped, same
+as the rest of the panel) lists soft-deleted memories alongside who deleted
+them and when. Admin and Supervisor chat agents can call
+`admin_read_memory_audit_history` to read the same audit trail for any
+memory, including deleted ones.
 
 Admin users also get chat tools for operational diagnostics: overview,
 stuck Jobs, stuck explanations, queue tabs, spawned processes, Runs, users,
