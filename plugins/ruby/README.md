@@ -9,6 +9,7 @@
 | `:grader_augmentor` | Registers two providers: `Ruby::GraderAugmentor` reads RSpec's per-worker JSON output under `.syrus/rspec-json/` and appends compact failure details to a failed grader's log when the grader command contains `"rspec"`; `Ruby::RubocopGraderAugmentor` reads RuboCop's `--format json` output under `.syrus/rubocop-json/` and appends compact `file:line: cop_name: message` lines when the grader command contains `"rubocop"`. |
 | `:coverage_analyzer` | Parses SimpleCov's `.resultset.json` into the coverage artifact shape `Steps::CoverageAnalyze` expects. |
 | `:prepare_detector` | Detects a `Gemfile` at the repo root and contributes `bundle install` to the prepare plan (`prepare_priority: 10`). |
+| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag new N+1 query patterns in ActiveRecord code" — when a `Gemfile` is present (same signal as `:prepare_detector`). |
 
 `plugins/rails` (`syrus_rails`) provides the Rails-specific extension points (preview hosting, schema/migration tooling, MCP tools, prompt injection) on top of this plugin.
 

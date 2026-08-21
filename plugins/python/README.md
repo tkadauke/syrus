@@ -9,6 +9,7 @@
 | `:prepare_detector` | Detects a Python package-manager signal at the repo root and contributes exactly one install command, in priority order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`, `requirements.txt` → `pip install -r requirements.txt`, else bare `pyproject.toml` → `pip install -e .` (`prepare_priority: 30`). |
 | `:grader_augmentor` | Reads pytest's [pytest-json-report](https://pypi.org/project/pytest-json-report/) output under `.syrus/pytest-json/*.json` and appends compact `FAILED: test_name — message` lines to a failed grader's log when the grader command contains `"pytest"`. |
 | `:prompt_injector` | Light, unconditional reminder to the implementing agent to activate/use a virtual environment or dependency-manager run-prefix (`.venv`, `uv run`, `poetry run`) instead of assuming a global interpreter. |
+| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag missing type hints on new public functions" — when a Python package-manager signal is present (same signal as `:prepare_detector`). |
 
 ### Enabling the pytest grader augmentor
 
