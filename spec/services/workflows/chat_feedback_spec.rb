@@ -18,7 +18,7 @@ RSpec.describe Workflows::ChatFeedback do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+      %w[ prepare respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
     )
   end
 
@@ -26,16 +26,20 @@ RSpec.describe Workflows::ChatFeedback do
     workflow = described_class.instantiate(job: job)
 
     kinds = workflow.steps.order(:position).pluck(:kind)
-    collect_pos   = kinds.index("grader_collect")
-    analyze_pos   = kinds.index("coverage_analyze")
-    comment_pos   = kinds.index("coverage_pr_comment")
-    summarize_pos = kinds.index("summarize_amend")
-    refresh_pos   = kinds.index("refresh_job_metadata")
-    push_pos      = kinds.index("push")
+    collect_pos      = kinds.index("grader_collect")
+    analyze_pos      = kinds.index("coverage_analyze")
+    comment_pos      = kinds.index("coverage_pr_comment")
+    audit_pos        = kinds.index("dependency_audit")
+    audit_comment_pos = kinds.index("dependency_audit_pr_comment")
+    summarize_pos    = kinds.index("summarize_amend")
+    refresh_pos      = kinds.index("refresh_job_metadata")
+    push_pos         = kinds.index("push")
 
     expect(analyze_pos).to eq(collect_pos + 1)
     expect(comment_pos).to eq(analyze_pos + 1)
-    expect(summarize_pos).to eq(comment_pos + 1)
+    expect(audit_pos).to eq(comment_pos + 1)
+    expect(audit_comment_pos).to eq(audit_pos + 1)
+    expect(summarize_pos).to eq(audit_comment_pos + 1)
     expect(refresh_pos).to eq(summarize_pos + 1)
     expect(push_pos).to eq(refresh_pos + 1)
   end
@@ -52,7 +56,7 @@ RSpec.describe Workflows::ChatFeedback do
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond adversarial_review respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond adversarial_review respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
       )
     end
 
@@ -84,7 +88,7 @@ RSpec.describe Workflows::ChatFeedback do
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond visual_review respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond visual_review respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
       )
     end
 

@@ -18,7 +18,7 @@ RSpec.describe Python::Engine do
           version:          Python::VERSION,
           description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
                              "pytest JSON-report grader detail, venv/uv prompt reminder, " \
-                             "ruff format/black autofix, default type-hint review criterion",
+                             "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 30,
           provides: {
@@ -26,7 +26,8 @@ RSpec.describe Python::Engine do
             grader_augmentor:         Python::GraderAugmentor,
             prompt_injector:          Python::PromptContext,
             review_criteria_provider: Python::ReviewCriteriaProvider,
-            autofix_command:          [ Python::RuffFormatAutofix, Python::BlackAutofix ]
+            autofix_command:          [ Python::RuffFormatAutofix, Python::BlackAutofix ],
+            dependency_audit_command: Python::DependencyAuditCommand
           }
         )
       end
@@ -45,13 +46,14 @@ RSpec.describe Python::Engine do
       expect(registration.prepare_priority).to eq(30)
     end
 
-    it "provides exactly the 5 extension point keys" do
+    it "provides exactly the 6 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :prepare_detector,
         :grader_augmentor,
         :prompt_injector,
         :review_criteria_provider,
-        :autofix_command
+        :autofix_command,
+        :dependency_audit_command
       )
     end
 
@@ -59,6 +61,10 @@ RSpec.describe Python::Engine do
       expect(registration.provides[:autofix_command]).to eq(
         [ Python::RuffFormatAutofix, Python::BlackAutofix ]
       )
+    end
+
+    it "registers DependencyAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(Python::DependencyAuditCommand)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
