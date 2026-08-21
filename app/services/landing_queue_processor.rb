@@ -185,6 +185,7 @@ class LandingQueueProcessor
 
   def landing_units(scope = Job.all)
     chronological = queue_candidates(scope)
+    preload_active_trigger_kinds(chronological)
     next_position = 1
     ordered_landing_units(landing_units_for(chronological), chronological).map do |unit|
       ordered_jobs = dependency_order(unit.jobs)
@@ -652,7 +653,7 @@ class LandingQueueProcessor
     # Surface a specific reason when a ci_failure workflow is the active one, so
     # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
     # One pluck covers both checks instead of two separate EXISTS round trips per Job.
-    active_trigger_kinds = job.workflows.active.pluck(:trigger_kind)
+    active_trigger_kinds = active_trigger_kinds_for(job)
     if active_trigger_kinds.include?("ci_failure")
       return override_or_block(job, { key: "ci_failure_in_progress", params: { slug: job.slug } }, consume: consume_override)
     end
@@ -799,6 +800,27 @@ class LandingQueueProcessor
 
   def no_effective_ci_repair?(job)
     job.landing_failure_reason.to_s.start_with?(PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON)
+  end
+
+  def preload_active_trigger_kinds(jobs)
+    job_ids = jobs.map(&:id)
+    @active_trigger_kinds_by_job_id = if job_ids.empty?
+      {}
+    else
+      Workflow.active
+        .where(job_id: job_ids)
+        .pluck(:job_id, :trigger_kind)
+        .group_by(&:first)
+        .transform_values { |rows| rows.map(&:second) }
+    end
+  end
+
+  def active_trigger_kinds_for(job)
+    if defined?(@active_trigger_kinds_by_job_id) && @active_trigger_kinds_by_job_id
+      return Array(@active_trigger_kinds_by_job_id[job.id])
+    end
+
+    job.workflows.active.pluck(:trigger_kind)
   end
 
   def merged?(job)

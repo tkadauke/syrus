@@ -859,6 +859,19 @@ RSpec.describe LandingQueueProcessor do
       expect(entry.blocked_reason).to eq({ key: "active_workflow" })
     end
 
+    it "preloads active workflow triggers for landing queue entries" do
+      jobs = 4.times.map do |index|
+        queue_job(issue_number: index + 1, approved_at: (index + 1).minutes.ago).tap do |job|
+          Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+        end
+      end
+
+      queries = capture_sql { described_class.entries(Job.where(id: jobs.map(&:id))) }
+
+      active_workflow_queries = queries.grep(/FROM [`"]?workflows[`"]?.*trigger_kind/i)
+      expect(active_workflow_queries.size).to be <= 1
+    end
+
     it "blocks a job whose PR checks are cached as failing" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update_columns(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
@@ -1213,4 +1226,15 @@ RSpec.describe LandingQueueProcessor do
     end
   end
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name] == "SCHEMA" || sql.include?("sqlite_master")
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
 end
