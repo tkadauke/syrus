@@ -962,6 +962,17 @@ RSpec.describe Workflow do
       reloaded = described_class.find(wf.id)
       expect(reloaded.artifact("test_plan")).to eq("steps" => [ "rspec", "lint" ], "note" => "ok")
     end
+
+    describe "#detected_plugins" do
+      it "is empty before Steps::Prepare has recorded anything" do
+        expect(wf.detected_plugins).to eq([])
+      end
+
+      it "reads back the plugin names Steps::Prepare recorded" do
+        wf.set_artifact!("detected_plugins", [ "ruby", "syrus-rails", "javascript" ])
+        expect(described_class.find(wf.id).detected_plugins).to eq([ "ruby", "syrus-rails", "javascript" ])
+      end
+    end
   end
 
   describe "#current_iteration" do

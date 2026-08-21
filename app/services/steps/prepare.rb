@@ -47,6 +47,7 @@ module Steps
       # the fork's own default fresh is a standalone scheduled concern
       # (ForkSyncService / SyncForkJob), not something prepare does.
       run_mise_install if mise_version_file?
+      record_detected_plugins!
       plan = RepoPrepPlan.for(workspace.path)
 
       log("[prepare] source: #{plan.source}")
@@ -265,6 +266,16 @@ module Steps
 
     def env
       ProcessRunner.forwarded_env(PREP_ENV_FORWARD, extra: workspace_dependency_env)
+    end
+
+    # Computed fresh every Run (not cached on Repository) so a repo's
+    # language mix never goes stale — a Gemfile added later, a language
+    # plugin newly enabled, etc. Cheap: just the file-existence checks
+    # :prepare_detector/:preview_provider already implement.
+    def record_detected_plugins!
+      detected = RepoPluginDetector.for(workspace.path)
+      workflow.set_artifact!("detected_plugins", detected)
+      log("[prepare] detected: #{detected.any? ? detected.join(', ') : 'none'}")
     end
   end
 end

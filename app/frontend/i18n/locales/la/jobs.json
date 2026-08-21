@@ -196,6 +196,7 @@
   "workflows_next": "Proximus",
   "workflow_default_agent": "agens defectus",
   "workflow_created": "creatus",
+  "workflow_detected_plugins": "Deprehensa: {{plugins}}",
   "workflow_open_source": "Inspectorem fontis aperi",
   "workflow_retry_from_pr": "Itera ex ramo PR currenti",
   "workflow_replace_pr_branch": "Ramum PR repone",

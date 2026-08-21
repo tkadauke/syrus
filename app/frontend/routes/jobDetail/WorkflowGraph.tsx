@@ -14,7 +14,7 @@ import { buttonClass } from "../../lib/buttonClasses"
 import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobWorkflow } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan } from "./stepArtifacts"
@@ -65,6 +65,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
   const { t } = useT("jobs")
   const stepItems = workflowStepItems(workflow.steps)
   const branchDivergence = workflowBranchDivergence(workflow)
+  const detectedPlugins = workflowDetectedPlugins(workflow)
   const navigate = useNavigate()
   const [terminalOpening, setTerminalOpening] = useState(false)
 
@@ -91,6 +92,9 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
             <Link className="hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflow.slug || workflowSlug(workflow.id)}</Link>
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
+          {detectedPlugins.length > 0 ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t("workflow_detected_plugins", { plugins: detectedPlugins.join(", ") })}</p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}

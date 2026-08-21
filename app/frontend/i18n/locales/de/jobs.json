@@ -200,6 +200,7 @@
   "workflows_next": "Weiter",
   "workflow_default_agent": "Standard-Agent",
   "workflow_created": "erstellt",
+  "workflow_detected_plugins": "Erkannt: {{plugins}}",
   "workflow_open_source": "Quellbrowser öffnen",
   "workflow_retry_from_pr": "Vom aktuellen PR-Branch erneut versuchen",
   "workflow_replace_pr_branch": "PR-Branch ersetzen",

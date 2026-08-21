@@ -200,6 +200,7 @@
   "workflows_next": "Next",
   "workflow_default_agent": "default agent",
   "workflow_created": "created",
+  "workflow_detected_plugins": "Detected: {{plugins}}",
   "workflow_open_source": "Open source browser",
   "workflow_retry_from_pr": "Retry from current PR branch",
   "workflow_replace_pr_branch": "Replace PR branch",

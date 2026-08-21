@@ -1,4 +1,4 @@
-import type { JobRun, JobStep } from "../../api/jobs"
+import type { JobRun, JobStep, JobWorkflow } from "../../api/jobs"
 import type { useT } from "../../hooks/useT"
 
 // Pure step/run/grade model extracted from JobDetail.tsx: grouping a Workflow's
@@ -269,6 +269,14 @@ export function prepareFailureStatus(failure: PrepareFailure, t: ReturnType<type
   if (failure.aliveness_failed) return t("prepare_failure_aliveness_failed")
   if (failure.exit_status != null) return t("prepare_failure_exit", { code: failure.exit_status })
   return t("prepare_failure_failed")
+}
+
+// Plugin names Steps::Prepare detected in this Workflow's workspace
+// (RepoPluginDetector), e.g. ["ruby", "syrus-rails", "javascript"].
+export function workflowDetectedPlugins(workflow: JobWorkflow): string[] {
+  if (!isRecord(workflow.artifacts)) return []
+  const detected = workflow.artifacts.detected_plugins
+  return Array.isArray(detected) ? detected.filter((name): name is string => typeof name === "string") : []
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
