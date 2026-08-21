@@ -108,6 +108,32 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision.retry_after).to be_within(1.second).of(now + 23.hours + 59.minutes)
   end
 
+  it "opens from usage-limit diagnostic text on the logless read path" do
+    run = failed_agent_run(
+      outcome: "turn_failed",
+      message: "Codex API error: weekly usage limit reached; check billing"
+    )
+    run.update!(step: nil)
+
+    decision = described_class.call("codex", now: now, include_logs: false)
+
+    expect(decision).to be_open
+    expect(decision).to be_usage_limit
+  end
+
+  it "keeps log-only usage-limit detection when logs are included" do
+    run = failed_agent_run(outcome: "turn_failed", message: "agent exited with an error")
+    run.update!(step: nil)
+    JobLog.append!(run: run, chunk: "Codex API error: you're out of extra usage", kind: "agent_log")
+
+    logless_decision = described_class.call("codex", now: now, include_logs: false)
+    logged_decision = described_class.call("codex", now: now, include_logs: true)
+
+    expect(logless_decision).not_to be_usage_limit
+    expect(logged_decision).to be_open
+    expect(logged_decision).to be_usage_limit
+  end
+
   it "excludes operator-repaired usage-limit classifications from circuit decisions" do
     run = failed_agent_run(
       outcome: "provider_usage_limit",

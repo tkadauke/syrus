@@ -13,6 +13,21 @@ class ProviderCircuitBreaker
   # path. Other providers have no probe, so there's nothing proactive to look
   # up.
   PROBED_PROVIDERS = %w[codex claude].freeze
+  USAGE_LIMIT_SQL_PATTERNS = [
+    "%usage%limit%",
+    "%insufficient%quota%",
+    "%quota%exhaust%",
+    "%quota%deplet%",
+    "%quota%exceed%",
+    "%quota%insufficient%",
+    "%credit%exhaust%",
+    "%credit%deplet%",
+    "%credit%exceed%",
+    "%billing%",
+    "%balance%exhaust%",
+    "%balance%deplet%",
+    "%out of%usage%"
+  ].freeze
   @read_cache_mutex = Mutex.new
   @read_cache = {}
 
@@ -261,12 +276,32 @@ class ProviderCircuitBreaker
   end
 
   def usage_limit_failed_runs
-    Run
-       .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :agent_summary, :agent_pr_title, :agent_pr_body, :state, :finished_at, :updated_at)
-       .includes(:run_diagnostic, :run_failure_classification, :step)
-       .where(state: "failed", agent_provider: provider)
-       .where("runs.finished_at >= ?", now - USAGE_LIMIT_WINDOW)
-       .order(finished_at: :desc, updated_at: :desc)
+    relation = Run
+      .select(:id, :job_id, :user_id, :step_id, :agent_provider, :agent_outcome, :agent_summary, :agent_pr_title, :agent_pr_body, :state, :finished_at, :updated_at)
+      .where(state: "failed", agent_provider: provider)
+      .where("runs.finished_at >= ?", now - USAGE_LIMIT_WINDOW)
+
+    relation = restrict_to_usage_limit_candidates(relation) unless include_logs?
+
+    relation
+      .includes(:run_diagnostic, :run_failure_classification, :step)
+      .order(finished_at: :desc, updated_at: :desc)
+  end
+
+  def restrict_to_usage_limit_candidates(relation)
+    diagnostic_clauses = USAGE_LIMIT_SQL_PATTERNS.map { "LOWER(run_diagnostics.error_message) LIKE ?" }
+    relation
+      .left_joins(:run_failure_classification, :run_diagnostic)
+      .where(
+        [
+          "runs.agent_outcome = ?",
+          "run_failure_classifications.classification = ?",
+          *diagnostic_clauses
+        ].join(" OR "),
+        ProviderUsageLimit::OUTCOME,
+        ProviderUsageLimit::CLASSIFICATION,
+        *USAGE_LIMIT_SQL_PATTERNS
+      )
   end
 
   def usage_limit?(run, text)
