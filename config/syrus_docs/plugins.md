@@ -17,6 +17,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `artifact_renderer`
 - `grader_augmentor`
 - `callbacks`
+- `prepare_detector`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -51,6 +52,60 @@ the same capability. MCP tool sets are listed as registered because their
 runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
+
+## Plugin dependencies (`depends_on`)
+
+A plugin manifest can declare `depends_on: ["other_plugin_name"]` — an array of
+other plugin names it needs to function:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "syrus-rails", version: "1.0.0",
+  depends_on: [ "ruby" ],
+  provides: { preview_provider: SyrusRails::PreviewProvider }
+)
+```
+
+This is a real relationship, not just an illustrative example: the bundled
+`syrus_rails` gem (`plugins/rails`, registered manifest name `"syrus-rails"`)
+declares `depends_on: [ "ruby" ]` because its Rails-specific tooling assumes
+the Ruby-generic RSpec/SimpleCov/Gemfile support the `ruby` plugin provides.
+Enabling `syrus-rails` cascades to enable `ruby`; disabling `ruby` while
+`syrus-rails` is enabled surfaces the confirmation/cascade-disable path
+described below.
+
+Dependency names are validated once boot settles, from the same
+`Rails.application.config.after_initialize` block that calls
+`fire_boot_callbacks!` — plugin engine initializer order isn't guaranteed, so a
+dependency may register after the plugin that depends on it, and validation has
+to wait until every engine has had a chance to register. An unresolved
+`depends_on` name (misspelled, or the dependency plugin was never installed) is
+logged as an error rather than crashing boot, since a bad `depends_on` in one
+plugin gem shouldn't be able to take down the whole instance.
+
+This declaration drives two behaviors in Admin → Plugins:
+
+- **Enabling** a plugin cascades to enable every plugin in its `depends_on`
+  chain, transitively, silently. There is no confirmation step, since enabling
+  is additive and safe.
+- **Disabling** a plugin checks whether any other currently-enabled plugin
+  depends on it, transitively. If so, the API responds with
+  `{ requires_confirmation: true, plugin_name:, dependents: [...] }` instead of
+  disabling anything; the frontend shows the dependent plugin names and asks
+  the operator to confirm. Retrying the request with `confirm_cascade: true`
+  disables the target plugin and every one of those dependents together, in a
+  single transaction. This is independent of `Admin::PluginDisableGuard`'s
+  existing hard blockers (configured users/repositories/chats/input
+  sources/etc., which still return a `409 plugin_in_use` and block the
+  disable outright) — a plugin can be blocked by usage, have dependents, both,
+  or neither.
+
+`Admin::PluginDependencyGraph` computes both the transitive dependency and
+dependent sets from the registered manifests and is cycle-safe. The API
+payload for each plugin includes its declared `depends_on` array and a derived
+`dependents` array (every plugin — enabled or not — that transitively depends
+on it), so the relationship is visible on the Admin → Plugins page even before
+an operator tries to disable anything.
 
 ## `:preview_provider`
 
@@ -271,6 +326,69 @@ Syrus::PluginRegistry.register(
 )
 ```
 
+## `prepare_detector`
+
+Tells `RepoPrepPlan` which shell commands to run in a freshly-cloned
+workspace before handing off to the agent, based on signals in the repo
+(lockfiles, config files, etc). This is the auto-detect fallback used when a
+repository has no `.syrus.yml` `prepare:` list.
+
+Include `Syrus::Plugin::PrepareDetector` and implement the class methods:
+
+| Method | Signature | Description |
+|---|---|---|
+| `detect?` | `(repo_path) → bool` | True if this plugin's ecosystem is present in the repo |
+| `prepare_commands` | `(repo_path) → Array<String>` | Commands to run |
+
+`RepoPrepPlan` queries every enabled `:prepare_detector` plugin whose
+`detect?` matches and **concatenates** their `prepare_commands` — the union
+is across plugins/ecosystems, not within one. A plugin fronting more than one
+package manager for the same ecosystem (e.g. both `yarn.lock` and
+`package-lock.json` present) must still pick exactly one command internally;
+returning more than one command per package manager it fronts is a plugin
+bug, not something `RepoPrepPlan` dedupes.
+
+```ruby
+class MyPlugin::PrepareDetector
+  include Syrus::Plugin::PrepareDetector
+
+  def self.detect?(repo_path)
+    File.exist?(File.join(repo_path, "requirements.txt"))
+  end
+
+  def self.prepare_commands(repo_path)
+    [ "pip install -r requirements.txt" ]
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  prepare_priority: 100,
+  provides: { prepare_detector: MyPlugin::PrepareDetector }
+)
+```
+
+`prepare_priority` (an `Integer`, default `100`, lower runs/orders first) is a
+general manifest field that controls the order commands from different
+plugins are concatenated in. Plugins that don't set it keep their
+registration order relative to each other.
+
+The `ruby` plugin registers a `:prepare_detector` for `Gemfile` →
+`bundle install` at `prepare_priority: 10`. The `javascript` plugin registers
+a `:prepare_detector` for Node/JS (and TS) repos at `prepare_priority: 20`,
+internally picking exactly one package-manager command in priority order:
+`yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json`. The
+`python` plugin registers a `:prepare_detector` for Python repos at
+`prepare_priority: 30`, internally picking exactly one command in priority
+order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
+`requirements.txt` → `pip install -r requirements.txt`, else bare
+`pyproject.toml` → `pip install -e .`. The `go` plugin registers a
+`:prepare_detector` for `go.mod` → `go mod download` at `prepare_priority: 40`
+— Go modules have a single package-manifest signal, so there's no
+priority list to pick between.
+`RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
+auto-detected command comes from a registered `:prepare_detector` plugin.
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -337,12 +455,66 @@ Bundled plugins:
   diagnostics such as Admin → Performance and the `read_performance_diagnostics`
   / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
   agents or operators should inspect Syrus's own production behavior.
-- `syrus_rails` — installed but disabled by default. Provides Rails-specific
-  extension points: `:preview_provider` (starts a Rails server for preview
-  hosting), `:mcp_tool_set`, `:test_result_parser` (RSpec output),
-  `:coverage_analyzer` (SimpleCov), and `:grader_augmentor` (appends structured
-  RSpec JSON failure details to the grade log when an rspec grader fails). Enable
+- `ruby` — default-enabled. Provides Ruby-generic extension points usable by
+  any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
+  alike), not just Rails: `:grader_augmentor` (appends structured RSpec JSON
+  failure details to the grade log when an rspec grader fails),
+  `:test_result_parser` (`Ruby::RspecParser` — parses RSpec's plain
+  progress/documentation output), `:coverage_analyzer` (SimpleCov's
+  `.resultset.json`), and `:prepare_detector` (`Gemfile` → `bundle install`,
+  `prepare_priority: 10`).
+- `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
+  (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
+  and `package.json` don't distinguish JS from TS. Internally picks exactly one
+  package-manager command in priority order: `yarn.lock` →
+  `pnpm-lock.yaml` → `package-lock.json` → `package.json`
+  (`prepare_priority: 20`).
+- `python` — default-enabled. Provides `:prepare_detector` for Python repos,
+  internally picking exactly one install command in priority order:
+  `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
+  `requirements.txt` → `pip install -r requirements.txt`, else bare
+  `pyproject.toml` → `pip install -e .` (`prepare_priority: 30`);
+  `:grader_augmentor` (appends compact `FAILED: test_name — message` lines
+  parsed from `pytest --json-report` output under `.syrus/pytest-json/*.json`
+  to the grade log when a `pytest` grader fails); and a light, unconditional
+  `:prompt_injector` reminding the agent to activate/use a virtual
+  environment or dependency-manager run-prefix. Does not provide a custom
+  `:test_result_parser`/`:coverage_analyzer` — plain `pytest --junitxml=`
+  output is already handled by core's `JunitXmlParser` fallback and
+  `coverage xml` (Cobertura format) is already handled by
+  `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
+- `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
+  → `go mod download` (`prepare_priority: 40`). Does not provide a custom
+  `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
+  output is already handled by core's `JunitXmlParser` fallback, same as the
+  `python` plugin's `pytest --junitxml=` case, via `.syrus.yml` wiring only.
+  Does not provide a `:coverage_analyzer` either, but unlike Python this is a
+  genuine gap: `go test -coverprofile=coverage.out` has no built-in XML/lcov
+  export. Convert it instead of writing new Ruby — `gocov`+`gocov-xml` to
+  Cobertura, or `gcov2lcov` to lcov — then wire the result into `.syrus.yml`'s
+  `coverage.sources[].format`; see the plugin README for both command
+  sequences. No `:preview_provider` — no single universal Go web-serving
+  convention exists at the language level (net/http, Gin, Echo, etc. all
+  differ).
+- `syrus_rails` (registered manifest name `syrus-rails`) — installed but
+  disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
+  builds on the Ruby-generic support the `ruby` plugin provides; enabling
+  `syrus_rails` cascades to enable `ruby`. Provides only genuinely
+  Rails-framework-specific extension points: `:preview_provider` (starts a
+  Rails server for preview hosting), `:mcp_tool_set`, `:artifact_renderer`
+  (schema ERD and migration diff renderers), and `:prompt_injector`. Enable
   by calling `SyrusRails.register!` from an initializer.
+- `django` — installed but disabled by default. `depends_on: [ "python" ]` —
+  its Django-specific tooling builds on the Python-generic support the
+  `python` plugin provides (prepare detection, pytest grader detail);
+  enabling `django` cascades to enable `python`. Provides only
+  `:preview_provider`: detects a Django repo via `manage.py` plus an
+  importable `DJANGO_SETTINGS_MODULE` settings module, boots
+  `python manage.py runserver`, migrates and optionally seeds via
+  `fixtures/seed.json` (`manage.py loaddata`), and falls back to `/` for the
+  health check since Django has no Rails-style built-in endpoint — repos
+  without a 2xx/3xx root route should set `preview.health_check` in
+  `.syrus.yml`.
 - `browser` — default-enabled. Provides `:mcp_tool_set`
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools
   (`browser_navigate`, `browser_click`, `browser_fill`, `browser_snapshot`,

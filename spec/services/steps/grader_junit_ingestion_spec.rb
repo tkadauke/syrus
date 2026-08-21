@@ -201,7 +201,7 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
   # suite where one example passes in one Run and fails in the next. This is
   # the end-to-end path that was silently broken before TestRunIngester
   # received a properly duck-typed ParsedRun (see
-  # SyrusRails::RspecParser) and before this repo's own .syrus.yml set
+  # Ruby::RspecParser) and before this repo's own .syrus.yml set
   # junit_output on its rspec grader — confirms TestCase.top_flaky_tests
   # surfaces real ingested rows once both are wired up.
   context "flaky test detection via TestCase.top_flaky_tests" do

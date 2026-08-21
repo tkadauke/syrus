@@ -17,14 +17,12 @@ RSpec.describe SyrusRails::Engine do
           version:     SyrusRails::VERSION,
           description: "Ruby on Rails intelligence",
           homepage:    "https://github.com/tkadauke/syrus",
+          depends_on:  [ "ruby" ],
           provides: {
-            mcp_tool_set:       SyrusRails::McpToolSet,
-            artifact_renderer:  [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
-            test_result_parser: SyrusRails::RspecParser,
-            coverage_analyzer:  SyrusRails::SimpleCovAnalyzer,
-            prompt_injector:    SyrusRails::PromptContext,
-            preview_provider:   SyrusRails::PreviewProvider,
-            grader_augmentor:   SyrusRails::GraderAugmentor
+            mcp_tool_set:      SyrusRails::McpToolSet,
+            artifact_renderer: [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
+            prompt_injector:   SyrusRails::PromptContext,
+            preview_provider:  SyrusRails::PreviewProvider
           }
         )
       end
@@ -43,24 +41,13 @@ RSpec.describe SyrusRails::Engine do
       expect(registration.description).to eq("Ruby on Rails intelligence")
     end
 
-    it "provides all 7 extension point keys" do
+    it "provides all 4 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :mcp_tool_set,
         :artifact_renderer,
-        :test_result_parser,
-        :coverage_analyzer,
         :prompt_injector,
-        :preview_provider,
-        :grader_augmentor
+        :preview_provider
       )
-    end
-
-    it "registers RspecParser as the :test_result_parser" do
-      expect(registration.provides[:test_result_parser]).to eq(SyrusRails::RspecParser)
-    end
-
-    it "registers SimpleCovAnalyzer as the :coverage_analyzer" do
-      expect(registration.provides[:coverage_analyzer]).to eq(SyrusRails::SimpleCovAnalyzer)
     end
 
     it "registers both artifact renderers as an array under :artifact_renderer" do
@@ -68,8 +55,8 @@ RSpec.describe SyrusRails::Engine do
       expect(renderers).to include(SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer)
     end
 
-    it "registers GraderAugmentor as the :grader_augmentor" do
-      expect(registration.provides[:grader_augmentor]).to eq(SyrusRails::GraderAugmentor)
+    it "declares a dependency on the ruby plugin" do
+      expect(registration.depends_on).to eq([ "ruby" ])
     end
   end
 end

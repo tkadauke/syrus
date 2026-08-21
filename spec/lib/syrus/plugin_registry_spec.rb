@@ -92,6 +92,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:platform_delivery)
     end
 
+    it "includes :prepare_detector" do
+      expect(described_class::EXTENSION_POINTS).to include(:prepare_detector)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -149,6 +153,19 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect {
         provider.call(artifact_path: Pathname.new("coverage/lcov.info"), format_hint: "lcov")
       }.to raise_error(NotImplementedError, /must implement \.call/)
+    end
+
+    it "maps :prepare_detector to Syrus::Plugin::PrepareDetector" do
+      expect(described_class::INTERFACE_FOR[:prepare_detector].call).to eq(Syrus::Plugin::PrepareDetector)
+    end
+
+    it "gives prepare detector providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::PrepareDetector }
+
+      expect(provider).to respond_to(:detect?)
+      expect(provider).to respond_to(:prepare_commands)
+      expect { provider.detect?("/tmp") }.to raise_error(NotImplementedError, /detect\? is required/)
+      expect { provider.prepare_commands("/tmp") }.to raise_error(NotImplementedError, /prepare_commands is required/)
     end
   end
 
@@ -703,6 +720,100 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "stores a tick_interval on the manifest" do
       described_class.register(name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes)
       expect(described_class.all_plugins.first.tick_interval).to eq(5.minutes)
+    end
+  end
+
+  describe "Manifest depends_on" do
+    it "defaults to an empty array" do
+      described_class.register(name: "no_deps_plugin", version: "1.0.0")
+      expect(described_class.all_plugins.first.depends_on).to eq([])
+    end
+
+    it "stores declared dependency names on the manifest" do
+      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+
+      manifest = described_class.all_plugins.find { |m| m.name == "dependent_plugin" }
+      expect(manifest.depends_on).to eq([ "base_plugin" ])
+    end
+
+    it "stringifies symbol dependency names" do
+      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ :base_plugin ])
+
+      manifest = described_class.all_plugins.find { |m| m.name == "dependent_plugin" }
+      expect(manifest.depends_on).to eq([ "base_plugin" ])
+    end
+
+    it "supports multiple dependencies" do
+      described_class.register(name: "ruby", version: "1.0.0")
+      described_class.register(name: "javascript", version: "1.0.0")
+      described_class.register(name: "rails", version: "1.0.0", depends_on: [ "ruby", "javascript" ])
+
+      manifest = described_class.all_plugins.find { |m| m.name == "rails" }
+      expect(manifest.depends_on).to eq([ "ruby", "javascript" ])
+    end
+  end
+
+  describe "Manifest prepare_priority" do
+    it "defaults to 100" do
+      described_class.register(name: "no_priority_plugin", version: "1.0.0")
+      expect(described_class.all_plugins.first.prepare_priority).to eq(100)
+    end
+
+    it "stores a declared priority on the manifest" do
+      described_class.register(name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10)
+      expect(described_class.all_plugins.first.prepare_priority).to eq(10)
+    end
+  end
+
+  describe ".providers_for prepare_priority ordering" do
+    let(:low_provider) { Class.new { include Syrus::Plugin::PrepareDetector } }
+    let(:high_provider) { Class.new { include Syrus::Plugin::PrepareDetector } }
+
+    it "orders manifest-registered providers by ascending prepare_priority, not registration order" do
+      described_class.register(name: "low_priority_plugin", version: "1.0.0", prepare_priority: 200,
+                                provides: { prepare_detector: low_provider })
+      described_class.register(name: "high_priority_plugin", version: "1.0.0", prepare_priority: 10,
+                                provides: { prepare_detector: high_provider })
+
+      expect(described_class.providers_for(:prepare_detector)).to eq([ high_provider, low_provider ])
+    end
+
+    it "keeps registration order among equal (default) priorities" do
+      described_class.register(name: "first_plugin", version: "1.0.0", provides: { prepare_detector: low_provider })
+      described_class.register(name: "second_plugin", version: "1.0.0", provides: { prepare_detector: high_provider })
+
+      expect(described_class.providers_for(:prepare_detector)).to eq([ low_provider, high_provider ])
+    end
+  end
+
+  describe ".validate_dependencies!" do
+    it "does not raise when every depends_on name resolves to a registered plugin" do
+      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+
+      expect { described_class.validate_dependencies! }.not_to raise_error
+    end
+
+    it "does not raise when no plugin declares depends_on" do
+      described_class.register(name: "solo_plugin", version: "1.0.0")
+
+      expect { described_class.validate_dependencies! }.not_to raise_error
+    end
+
+    it "raises RegistrationError naming the dependent plugin and the unresolved dependency" do
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "missing_plugin" ])
+
+      expect { described_class.validate_dependencies! }
+        .to raise_error(described_class::RegistrationError, /dependent_plugin.*missing_plugin/)
+    end
+
+    it "is resilient to registration order - a dependency registered after its dependent still resolves" do
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+      described_class.register(name: "base_plugin", version: "1.0.0")
+
+      expect { described_class.validate_dependencies! }.not_to raise_error
     end
   end
 

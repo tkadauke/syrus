@@ -1,0 +1,90 @@
+require "rails_helper"
+require "tmpdir"
+
+RSpec.describe Ruby::Engine do
+  describe "PluginRegistry registration" do
+    subject(:registration) do
+      Syrus::PluginRegistry.all_plugins.find { |r| r.name == "ruby" }
+    end
+
+    before do
+      # The after_initialize block runs once at boot; plugin_registry.rb resets
+      # the in-memory registry in test mode. Re-register here so examples see
+      # the manifest. Interface modules were included during after_initialize
+      # and are permanent on the classes.
+      unless Syrus::PluginRegistry.registered_names.include?("ruby")
+        Syrus::PluginRegistry.register(
+          name:             "ruby",
+          version:          Ruby::VERSION,
+          description:      "Ruby-generic intelligence: RSpec grader detail, RSpec output parsing, " \
+                             "SimpleCov analysis, Gemfile prepare detection",
+          homepage:         "https://github.com/tkadauke/syrus",
+          prepare_priority: 10,
+          provides: {
+            coverage_analyzer:  Ruby::SimpleCovAnalyzer,
+            grader_augmentor:   Ruby::GraderAugmentor,
+            prepare_detector:   Ruby::PrepareDetector,
+            test_result_parser: Ruby::RspecParser
+          }
+        )
+      end
+    end
+
+    after do
+      Syrus::PluginRegistry.reset!
+    end
+
+    it "registers itself with Syrus::PluginRegistry" do
+      expect(registration).not_to be_nil
+    end
+
+    it "registers with the correct metadata" do
+      expect(registration.version).to eq(Ruby::VERSION)
+      expect(registration.prepare_priority).to eq(10)
+    end
+
+    it "provides all 4 extension point keys" do
+      expect(registration.provides.keys).to contain_exactly(
+        :coverage_analyzer,
+        :grader_augmentor,
+        :prepare_detector,
+        :test_result_parser
+      )
+    end
+
+    it "registers SimpleCovAnalyzer as the :coverage_analyzer" do
+      expect(registration.provides[:coverage_analyzer]).to eq(Ruby::SimpleCovAnalyzer)
+    end
+
+    it "registers GraderAugmentor as the :grader_augmentor" do
+      expect(registration.provides[:grader_augmentor]).to eq(Ruby::GraderAugmentor)
+    end
+
+    it "registers PrepareDetector as the :prepare_detector" do
+      expect(registration.provides[:prepare_detector]).to eq(Ruby::PrepareDetector)
+    end
+
+    it "registers RspecParser as the :test_result_parser" do
+      expect(registration.provides[:test_result_parser]).to eq(Ruby::RspecParser)
+    end
+  end
+
+  describe Ruby::PrepareDetector do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-prepare-detector") { |dir| @dir = dir; ex.run }
+    end
+
+    it "detects a Gemfile at the repo root" do
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+      expect(described_class.detect?(@dir)).to be true
+    end
+
+    it "does not detect a repo without a Gemfile" do
+      expect(described_class.detect?(@dir)).to be false
+    end
+
+    it "contributes bundle install" do
+      expect(described_class.prepare_commands(@dir)).to eq([ "bundle install" ])
+    end
+  end
+end

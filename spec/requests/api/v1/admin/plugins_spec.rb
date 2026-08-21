@@ -68,6 +68,53 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole).to include("name" => "api-toggle-plugin", "enabled" => false)
   end
 
+  it "cascades enabling a plugin's dependencies through the token admin API" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "api-ruby-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "api-rails-plugin", version: "1.0.0", depends_on: [ "api-ruby-plugin" ])
+    PluginRecord.find_by!(name: "api-ruby-plugin").update!(enabled: false)
+    PluginRecord.find_by!(name: "api-rails-plugin").update!(enabled: false)
+
+    post "/api/v1/admin/plugins/api-rails-plugin/enable", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(PluginRecord.find_by!(name: "api-ruby-plugin").enabled).to be(true)
+    expect(PluginRecord.find_by!(name: "api-rails-plugin").enabled).to be(true)
+  end
+
+  it "warns instead of disabling when other enabled plugins depend on the target" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "api-ruby-dep-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "api-rails-dep-plugin", version: "1.0.0", depends_on: [ "api-ruby-dep-plugin" ])
+
+    post "/api/v1/admin/plugins/api-ruby-dep-plugin/disable", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["requires_confirmation"]).to be(true)
+    expect(body["dependents"]).to eq([ "api-rails-dep-plugin" ])
+    expect(PluginRecord.find_by!(name: "api-ruby-dep-plugin").enabled).to be(true)
+    expect(PluginRecord.find_by!(name: "api-rails-dep-plugin").enabled).to be(true)
+  end
+
+  it "cascades disabling a plugin's dependents once confirmed" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "api-ruby-confirm-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "api-rails-confirm-plugin", version: "1.0.0", depends_on: [ "api-ruby-confirm-plugin" ])
+
+    post "/api/v1/admin/plugins/api-ruby-confirm-plugin/disable",
+         params: { confirm_cascade: true }, headers: auth
+
+    expect(response).to have_http_status(:ok)
+    names = parse_body.fetch("plugins").map { |p| p["name"] }
+    expect(names).to include("api-ruby-confirm-plugin", "api-rails-confirm-plugin")
+    expect(PluginRecord.find_by!(name: "api-ruby-confirm-plugin").enabled).to be(false)
+    expect(PluginRecord.find_by!(name: "api-rails-confirm-plugin").enabled).to be(false)
+  end
+
   it "rejects disabling a plugin through the token admin API while it is in use" do
     admin_token
     Syrus::PluginRegistry.reset!

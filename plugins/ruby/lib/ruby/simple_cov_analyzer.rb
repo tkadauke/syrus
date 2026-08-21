@@ -1,6 +1,6 @@
 require "json"
 
-module SyrusRails
+module Ruby
   # Parses SimpleCov's .resultset.json into the same partial CoverageArtifact
   # hash shape that Steps::CoverageAnalyze uses for summary and files.
   #

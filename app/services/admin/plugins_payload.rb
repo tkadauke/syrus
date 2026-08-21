@@ -6,11 +6,15 @@ module Admin
 
     def as_json(*)
       PerformanceLogging.phase("admin_plugins_payload") do
-        manifests = Syrus::PluginRegistry.all_plugins
-        manifests = filter_by_query(manifests) if @query.present?
+        all_manifests = Syrus::PluginRegistry.all_plugins
+        manifests = @query.present? ? filter_by_query(all_manifests) : all_manifests
         records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
+        # Dependency graph is built from *all* registered manifests, not the
+        # filtered set, so a search hit still shows dependents/dependencies
+        # that fell outside the query.
+        dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
         {
-          plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name]) }
+          plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
         }
       end
     end
@@ -24,7 +28,7 @@ module Admin
       manifests.select { |manifest| matching_names.include?(manifest.name) }
     end
 
-    def plugin_payload(manifest, record = nil)
+    def plugin_payload(manifest, record, dependency_graph)
       PerformanceLogging.phase("admin_plugins.plugin", plugin: manifest.name) do
         spec = PerformanceLogging.phase("admin_plugins.plugin.gem_spec", plugin: manifest.name) { gem_spec_for(manifest) }
         metadata = manifest.metadata.with_indifferent_access
@@ -45,6 +49,8 @@ module Admin
           frontend: metadata[:frontend].presence || {},
           routes: Array(metadata[:routes]).map { |route| route.to_h },
           extension_points: PerformanceLogging.phase("admin_plugins.plugin.extension_points", plugin: manifest.name) { extension_points_payload(manifest) },
+          depends_on: Array(manifest.depends_on),
+          dependents: dependency_graph.dependents_for(manifest.name),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
       end
