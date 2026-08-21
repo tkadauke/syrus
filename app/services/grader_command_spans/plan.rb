@@ -7,14 +7,11 @@ module GraderCommandSpans
     MAX_FRAGMENTS = 20
     MAX_COMMAND_EXCERPT = 1024
 
-    LABELS = [
-      [ /\bbundle\s+check\b/, "bundle check" ],
-      [ /\bbundle\s+install\b/, "bundle install" ],
-      [ /\b(?:bin\/rails|rails)\s+db:test:prepare\b/, "db:test:prepare" ],
-      [ /\b(?:bin\/)?rspec\b/, "rspec" ],
-      [ /\b(?:bin\/)?rubocop\b/, "rubocop" ],
-      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:test|test:react|vitest)\b|\bvitest\b|\bjest\b/, "frontend tests" ],
-      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:build|typecheck)\b|\btsc\s+--noEmit\b/, "frontend build" ],
+    # Labels for sub-commands that aren't tied to any one language plugin.
+    # Language-specific labels (Ruby's rspec/rubocop, JS's frontend
+    # tests/build, etc.) live on each language plugin's `:prepare_detector`
+    # `span_labels` instead — see `label_for`.
+    CORE_LABELS = [
       [ /\bwebsite\/|--prefix\s+website|\b(?:npm|yarn|pnpm)\s+(?:--prefix\s+website\s+)?(?:run\s+)?build\b/, "website build" ],
       [ /\bcheck-migrations?\b/, "migration checks" ],
       [ /\bcheck-eager-load\b/, "eager load check" ],
@@ -78,12 +75,22 @@ module GraderCommandSpans
 
     def label_for(fragment, sequence)
       normalized = fragment.to_s.squish
-      match = LABELS.find { |pattern, _label| normalized.match?(pattern) }
+      match = (plugin_span_labels + CORE_LABELS).find { |pattern, _label| normalized.match?(pattern) }
       return match.last if match
 
       words = normalized.gsub(/\A(?:env\s+(?:-[iu]\s+\S+\s+|\S+=\S+\s+)*)/, "")
       first = words.split(/\s+/).first(3).join(" ").presence || "command"
       "#{first} ##{sequence}"
+    end
+
+    # Plugin prepare_priority order matches the order the original hardcoded
+    # LABELS table checked Ruby patterns before JS patterns, so plugin-
+    # contributed labels take precedence over CORE_LABELS in the same
+    # relative order existing callers already depend on.
+    def plugin_span_labels
+      @plugin_span_labels ||= Syrus::PluginRegistry.providers_for(:prepare_detector).flat_map { |detector| Array(detector.span_labels) }
+    rescue StandardError
+      []
     end
 
     def split_top_level

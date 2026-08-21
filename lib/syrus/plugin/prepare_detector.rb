@@ -31,6 +31,16 @@ module Syrus
     #     (Gemfile, package.json, etc.) isn't. Defaults to nil (no
     #     plugin-declared version file).
     #
+    #   span_labels -> Array<[Regexp, String]>
+    #     Regex → label pairs GraderCommandSpans::Plan uses to name a
+    #     sub-command span in the live worker-health UI (e.g. matching
+    #     `\brspec\b` to the label "rspec"). Checked in
+    #     Syrus::PluginRegistry prepare_priority order across every enabled
+    #     plugin, before the handful of genuinely language-agnostic labels
+    #     GraderCommandSpans::Plan still owns directly, before falling back
+    #     to a generic "first 3 words" label. Defaults to [] (no
+    #     plugin-declared labels).
+    #
     # Register an implementation at boot time:
     #   Syrus::PluginRegistry.register(
     #     name: "my-plugin", version: "1.0.0",
@@ -58,6 +68,10 @@ module Syrus
         def mise_version_file
           nil
         end
+
+        def span_labels
+          []
+        end
       end
 
       def detect?(repo_path)
@@ -70,6 +84,10 @@ module Syrus
 
       def mise_version_file
         nil
+      end
+
+      def span_labels
+        []
       end
     end
   end
