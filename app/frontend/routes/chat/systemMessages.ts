@@ -35,6 +35,9 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const mcp = text.match(/^\[mcp_servers\]\s+(.+)$/)
   if (mcp) return systemMcpMessage(mcp[1])
 
+  const toolsInit = text.match(/^\[mcp_tools_init\]\s+(.+)$/)
+  if (toolsInit) return systemMcpToolsInitMessage(toolsInit[1])
+
   const codexError = text.match(/^\[codex error\]\s+(.+)$/)
   if (codexError) return { tone: "error", label: "Error", body: codexError[1] }
 
@@ -160,6 +163,19 @@ export function systemMcpMessage(payload: string): ChatSystemMessage {
   if (pending.length > 0) return { tone: "neutral", label: "MCP", body: `MCP starting: ${pending.map(([name]) => name).join(", ")}` }
 
   return { tone: "success", label: "Connected", body: `MCP connected: ${servers.map(([name]) => name).join(", ")}` }
+}
+
+export function systemMcpToolsInitMessage(payload: string): ChatSystemMessage {
+  const fields = parseSystemFields(payload)
+  const count = Number.parseInt(fields.count || "", 10)
+  const required = payload.match(/(?:^|\s)required=([^\s]*)/)?.[1].split(",").filter(Boolean) || []
+  const pieces = [
+    Number.isFinite(count) ? `${count} MCP tool${count === 1 ? "" : "s"} available` : "MCP tools available"
+  ]
+
+  if (required.length > 0) pieces.push(`required: ${required.slice(0, 4).join(", ")}${required.length > 4 ? ` +${required.length - 4} more` : ""}`)
+
+  return { tone: "success", label: "MCP tools", body: pieces.join(" · ") }
 }
 
 export function parseSystemFields(payload: string) {
