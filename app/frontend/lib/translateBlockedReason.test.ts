@@ -22,6 +22,7 @@ describe("translateBlockedReason", () => {
     expect(translateBlockedReason({ key: "landing_paused_main_broken" }, mockT)).toBe("common:blocked_reasons.landing_paused_main_broken")
     expect(translateBlockedReason({ key: "repository_archived" }, mockT)).toBe("common:blocked_reasons.repository_archived")
     expect(translateBlockedReason({ key: "waiting_epic_merge_train" }, mockT)).toBe("common:blocked_reasons.waiting_epic_merge_train")
+    expect(translateBlockedReason({ key: "waiting_epicless_bundle" }, mockT)).toBe("common:blocked_reasons.waiting_epicless_bundle")
     expect(translateBlockedReason({ key: "auto_merge_not_enabled" }, mockT)).toBe("common:blocked_reasons.auto_merge_not_enabled")
     expect(translateBlockedReason({ key: "review_requested_changes" }, mockT)).toBe("common:blocked_reasons.review_requested_changes")
     expect(translateBlockedReason({ key: "missing_pull_request" }, mockT)).toBe("common:blocked_reasons.missing_pull_request")
