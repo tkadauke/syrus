@@ -140,11 +140,6 @@ module Steps
       end
     end
 
-    def collect_injected_context
-      Syrus::PluginRegistry.providers_for(:prompt_injector)
-        .filter_map { |provider| provider.call(repository: repository, job: job) }
-    end
-
     def prior_implement_session_id
       cursor = step.previous_step
       while cursor

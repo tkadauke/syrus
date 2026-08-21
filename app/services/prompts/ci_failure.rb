@@ -10,7 +10,7 @@ module Prompts
     MAX_SUMMARY_BYTES = 2_000
     MAX_ERROR_BLOCK_BYTES = 6_000
 
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil)
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil, injected_context: [])
       @issue        = issue
       @pr_number    = pr_number
       @repo_slug    = repo_slug
@@ -20,12 +20,11 @@ module Prompts
       @instructions = instructions.to_s.strip.presence
       @epic = epic
       @job = job
+      @injected_context = Array(injected_context).compact
     end
 
     def to_s
-      [
-        simple_mode_context,
-        <<~PROMPT.strip
+      main_prompt = <<~PROMPT.strip
         CI is failing on PR `#{@repo_slug}##{@pr_number}` (branch `#{@branch_name}` at `#{@head_sha[0..6]}`). Fix the failing checks.
 
         # Original issue
@@ -58,9 +57,9 @@ module Prompts
           will re-run. If you can't fix the failure (e.g. it's a flake
           or an environment issue outside the diff's scope), say so
           in `submit_summary` instead of pushing a noop.
+      PROMPT
 
-        PROMPT
-      ].compact_blank.join("\n\n")
+      [ simple_mode_context, main_prompt, injected_context_section ].compact_blank.join("\n\n")
     end
 
     private
@@ -71,6 +70,12 @@ module Prompts
 
     def epic_context
       Prompts::EpicContext.new(epic: @epic, job: @job).to_s
+    end
+
+    def injected_context_section
+      return nil if @injected_context.empty?
+
+      @injected_context.join("\n\n")
     end
 
     def render_checks

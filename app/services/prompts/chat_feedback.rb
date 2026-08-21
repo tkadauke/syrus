@@ -1,13 +1,14 @@
 module Prompts
   # Prompt for follow-up Runs triggered from Syrus Chat operator feedback.
   class ChatFeedback
-    def initialize(issue:, feedback:, prior_summaries: [], recent_commits: [], epic: nil, job: nil)
+    def initialize(issue:, feedback:, prior_summaries: [], recent_commits: [], epic: nil, job: nil, injected_context: [])
       @issue = issue
       @feedback = feedback
       @prior_summaries = prior_summaries || []
       @recent_commits = recent_commits || []
       @epic = epic
       @job = job
+      @injected_context = Array(injected_context).compact
     end
 
     def to_s
@@ -17,7 +18,8 @@ module Prompts
         prior_context_section,
         feedback_section,
         commits_section,
-        directives_section
+        directives_section,
+        injected_context_section
       ].compact
 
       [ sections.join("\n\n---\n\n"), GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].join("\n\n")
@@ -82,6 +84,12 @@ module Prompts
         "Do NOT revert earlier work unless the feedback explicitly asks for it.",
         "Make commits to the current branch."
       ].join("\n")
+    end
+
+    def injected_context_section
+      return nil if @injected_context.empty?
+
+      @injected_context.join("\n\n")
     end
   end
 end

@@ -139,4 +139,26 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to include("GreetingHelper#greet returns the user's name")
     expect(out).to include("Full log: https://github.com/x/y/runs/1")
   end
+
+  describe "injected_context" do
+    it "is omitted when not provided" do
+      out = build.to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "is omitted when all entries are nil" do
+      out = build(injected_context: [ nil, nil ]).to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "includes injected text in the rendered output" do
+      out = build(injected_context: [ "plugin-injected hint" ]).to_s
+      expect(out).to include("plugin-injected hint")
+    end
+
+    it "joins multiple injected strings in registration order" do
+      out = build(injected_context: [ "First injection", "Second injection" ]).to_s
+      expect(out.index("First injection")).to be < out.index("Second injection")
+    end
+  end
 end
