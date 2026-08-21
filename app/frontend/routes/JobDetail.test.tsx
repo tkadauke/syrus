@@ -996,6 +996,74 @@ describe("JobDetailView", () => {
     expect(screen.getByText("bin/rspec").tagName).toBe("CODE")
     expect(screen.getByText("all").tagName).toBe("STRONG")
   })
+
+  it("renders an auto-approval note with source and grader step link when approval_evidence is present", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        approval_status: { policy: "self", satisfied: true, pending_description: null, approvals_count: 0 },
+        approval_evidence: {
+          rule: "if_graders_pass",
+          source: "ScheduledTask#7",
+          grader_step_id: 42,
+          grader_step_workflow_path: "/jobs/1?tab=workflows#workflow-9"
+        }
+      }
+    }))
+
+    expect(screen.getByText(/Auto-approved via if_graders_pass/)).toBeInTheDocument()
+    expect(screen.getByText(/Source: ScheduledTask#7/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View grader run" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-9")
+  })
+
+  it("does not render an auto-approval note when approval_evidence is absent", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        approval_status: { policy: "self", satisfied: true, pending_description: null, approvals_count: 0 }
+      }
+    }))
+
+    expect(screen.queryByText(/Auto-approved via/)).not.toBeInTheDocument()
+  })
+
+  it("renders invalidation evidence links when present", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        validity: "invalid",
+        invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ]
+      }
+    }))
+
+    expect(screen.getByText("Invalidation evidence")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "https://github.com/acme/widgets/pull/12" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/12")
+  })
+
+  it("does not render invalidation evidence when absent", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), validity: "invalid" } }))
+
+    expect(screen.queryByText("Invalidation evidence")).not.toBeInTheDocument()
+  })
+
+  it("renders a landing blocker override note when granted", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
+        landing_blocker_override_requested_by: { id: 5, display_name: "Ada Admin", email_address: "ada@example.com" }
+      }
+    }))
+
+    expect(screen.getByText("Landing blocker override")).toBeInTheDocument()
+    expect(screen.getByText(/Granted by Ada Admin at/)).toBeInTheDocument()
+  })
+
+  it("does not render a landing blocker override note when never requested", () => {
+    renderJobDetail(jobPayload({ job: baseJob() }))
+
+    expect(screen.queryByText("Landing blocker override")).not.toBeInTheDocument()
+  })
 })
 
 describe("TestPlanPanel", () => {

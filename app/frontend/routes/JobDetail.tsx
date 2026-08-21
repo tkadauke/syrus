@@ -15,7 +15,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopJobPreview, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopJobPreview, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
@@ -390,6 +390,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               <KeyValue label={t("detail_priority")}><PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} /></KeyValue>
               <KeyValue label={t("detail_provider")}><JobProviderSelector payload={payload} providerPath={payload.paths.app_provider_setting_path || `/api/v1/app/jobs/${payload.job.id}/provider_setting`} queryKey={queryKey} /></KeyValue>
               <KeyValue label={t("detail_validity")}><span className="capitalize">{payload.job.validity}</span></KeyValue>
+              {payload.job.invalidation_evidence?.length ? <KeyValue label={t("detail_invalidation_evidence")}><InvalidationEvidenceList urls={payload.job.invalidation_evidence} /></KeyValue> : null}
               {payload.epic ? <KeyValue label={t("detail_epic")}><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
               {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
               <KeyValue label={t("detail_stack_base")}><StackBaseForm command={command} payload={payload} /></KeyValue>
@@ -399,11 +400,16 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               <KeyValue label={t("detail_started")}><RelativeTimestamp value={payload.job.started_at} /></KeyValue>
               {payload.job.finished_at ? <KeyValue label={t("detail_closed")}><RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
               {payload.job.runaway_protection ? <KeyValue label={t("detail_runaway_protection")}><span className="text-amber-700 dark:text-amber-400">{payload.job.runaway_protection}</span> — {t("detail_runaway_protection_hint")}</KeyValue> : null}
+              {payload.job.landing_blocker_override_requested_at ? (
+                <KeyValue label={t("detail_landing_blocker_override")}>
+                  {t("landing_blocker_override_note", { user: payload.job.landing_blocker_override_requested_by?.display_name ?? payload.job.landing_blocker_override_requested_by?.email_address ?? "?" })} <RelativeTimestamp value={payload.job.landing_blocker_override_requested_at} />
+                </KeyValue>
+              ) : null}
             </div>
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </section>
 
-          <ApprovalStatusPanel payload={payload} />
+          <ApprovalStatusPanel payload={payload} prefix={prefix} />
           <DependenciesPanel command={command} payload={payload} />
         </div>
       </div>
@@ -986,7 +992,19 @@ function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
   )
 }
 
-function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
+function InvalidationEvidenceList({ urls }: { urls: string[] }) {
+  return (
+    <ul className="space-y-0.5">
+      {urls.map((url) => (
+        <li key={url}>
+          <a className="block truncate text-blue-600 hover:underline" href={url} rel="noopener" target="_blank">{url}</a>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ApprovalStatusPanel({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
   const { t } = useT("jobs")
   const { job, repository } = payload
   const status: JobApprovalStatus | null = job.approval_status
@@ -1017,6 +1035,7 @@ function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
             }
           </div>
         )}
+        {job.approval_evidence ? <AutoApprovalEvidenceNote evidence={job.approval_evidence} prefix={prefix} /> : null}
         {approvals.length > 0 ? (
           <div>
             <span className="text-gray-500 dark:text-gray-400">{t("approval_approvals")}</span>
@@ -1034,6 +1053,20 @@ function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
         )}
       </div>
     </div>
+  )
+}
+
+function AutoApprovalEvidenceNote({ evidence, prefix }: { evidence: JobApprovalEvidence; prefix: string }) {
+  const { t } = useT("jobs")
+
+  return (
+    <p className="rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+      {t("approval_evidence_auto_approved", { rule: evidence.rule })}
+      {evidence.source ? <> · {t("approval_evidence_source", { source: evidence.source })}</> : null}
+      {evidence.grader_step_workflow_path ? (
+        <> · <Link className="underline hover:no-underline" to={withRoutePrefix(evidence.grader_step_workflow_path, prefix)}>{t("approval_evidence_grader_step_link")}</Link></>
+      ) : null}
+    </p>
   )
 }
 

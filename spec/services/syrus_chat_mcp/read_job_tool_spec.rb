@@ -141,6 +141,43 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(payload[:job]).not_to have_key(:deployment_stages)
   end
 
+  it "includes approval evidence, invalidation evidence, and landing blocker override grant when present" do
+    admin = Factories.user(admin: true)
+    job = Factories.job(
+      repository: repository,
+      approval_evidence: { "rule" => "if_graders_pass", "source" => "ScheduledTask#7", "grader_step_id" => 99 },
+      invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ],
+      landing_blocker_override_key: "landing_paused",
+      landing_blocker_override_reason: "Verified queue pause was stale.",
+      landing_blocker_override_requested_at: Time.zone.parse("2026-08-10T09:00:00Z"),
+      landing_blocker_override_requested_by_user: admin
+    )
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(
+      approval_evidence: { rule: "if_graders_pass", source: "ScheduledTask#7", grader_step_id: 99 },
+      invalidation_evidence: [ "https://github.com/acme/widgets/pull/12" ],
+      landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
+      landing_blocker_override_requested_by: { id: admin.id, display_name: admin.display_name, email_address: admin.email_address }
+    )
+  end
+
+  it "omits approval evidence, invalidation evidence, and landing blocker override grant when absent" do
+    job = Factories.job(repository: repository)
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).not_to have_key(:approval_evidence)
+    expect(payload[:job]).not_to have_key(:invalidation_evidence)
+    expect(payload[:job]).not_to have_key(:landing_blocker_override_requested_at)
+    expect(payload[:job]).not_to have_key(:landing_blocker_override_requested_by)
+  end
+
   it "reads jobs outside the chat repository when they belong to the chat user" do
     other = Factories.job(repository: Factories.repository(user: user))
 
