@@ -293,7 +293,8 @@ module Api
 
         def detail_payload(epic, message: nil)
           jobs = PerformanceLogging.phase("epic_detail.jobs", epic_id: epic.id) do
-            epic.jobs.includes(:repository, :owner_user, :deployment_stage_statuses, :dependencies, :dependent_links, :workflows).order(:id).to_a
+            unordered_jobs = epic.jobs.includes(:repository, :owner_user, :deployment_stage_statuses, :dependencies, :dependent_links, :workflows).order(:id).to_a
+            order_jobs_by_chain(unordered_jobs)
           end
           preload_epic_job_provider_availability(jobs)
           deployment_stages_plan = PerformanceLogging.phase("epic_detail.deployment_stages_plan", epic_id: epic.id) do
@@ -483,6 +484,43 @@ module Api
             nodes: graph.nodes,
             edges: graph.edges
           }
+        end
+
+        # Displays child Jobs in implementation order (upstream dependency
+        # first) rather than creation-id order, which drifts from the chain
+        # whenever child issues aren't filed in ascending issue-number order.
+        # Falls back to id order for jobs with no resolvable position in the
+        # chain (nonlinear epics, dependencies outside the epic, ties).
+        def order_jobs_by_chain(jobs)
+          by_id = jobs.index_by(&:id)
+          downstream_of = Hash.new { |h, k| h[k] = [] }
+          incoming_count = by_id.transform_values { 0 }
+
+          jobs.each do |job|
+            job.dependencies.each do |dependency|
+              next unless by_id.key?(dependency.depends_on_job_id)
+
+              downstream_of[dependency.depends_on_job_id] << job.id
+              incoming_count[job.id] += 1
+            end
+          end
+
+          remaining = incoming_count.dup
+          queue = by_id.keys.select { |id| remaining[id].zero? }.sort
+          ordered_ids = []
+
+          until queue.empty?
+            id = queue.shift
+            ordered_ids << id
+            downstream_of[id].sort.each do |next_id|
+              remaining[next_id] -= 1
+              queue << next_id if remaining[next_id].zero?
+            end
+            queue.sort!
+          end
+
+          ordered_ids.concat(by_id.keys - ordered_ids)
+          ordered_ids.map { |id| by_id.fetch(id) }
         end
 
         def job_json(job, deployment_stages_plan:)
