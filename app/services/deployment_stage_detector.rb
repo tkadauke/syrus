@@ -7,6 +7,7 @@ class DeploymentStageDetector
     @jobs = Array(jobs)
     @client = client
     @tag_cache = nil
+    @compare_cache = {}
   end
 
   def call
@@ -20,8 +21,7 @@ class DeploymentStageDetector
         tag = resolve_tag(stage)
         next unless tag
 
-        compare = github_client.compare_commits(repository.slug, job.landed_sha, tag[:name])
-        next unless REACHED_COMPARE_STATUSES.include?(compare[:status])
+        next unless reached_stage?(job.landed_sha, tag)
 
         recorded += 1 if record_stage!(job, stage, tag)
       end
@@ -53,6 +53,15 @@ class DeploymentStageDetector
 
   def all_tags
     @tag_cache ||= github_client.list_tags(repository.slug)
+  end
+
+  def reached_stage?(landed_sha, tag)
+    return true if tag[:sha].present? && tag[:sha] == landed_sha
+
+    @compare_cache[[ landed_sha, tag[:name] ]] ||= begin
+      compare = github_client.compare_commits(repository.slug, landed_sha, tag[:name])
+      REACHED_COMPARE_STATUSES.include?(compare[:status])
+    end
   end
 
   def record_stage!(job, stage, tag)

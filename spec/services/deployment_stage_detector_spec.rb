@@ -43,4 +43,36 @@ RSpec.describe DeploymentStageDetector do
     expect(status.tag_sha).to eq("old")
     expect(status.reached_at).to eq(reached_at)
   end
+
+  it "records an exact tag SHA without comparing commits" do
+    allow(client).to receive(:list_tags).with(repository.slug).and_return([
+      { name: "staging", sha: "merge-sha" }
+    ])
+    expect(client).not_to receive(:compare_commits)
+
+    count = described_class.new(repository: repository, deployment_stages: [ staging ], jobs: [ job ], client: client).call
+
+    expect(count).to eq(1)
+    expect(job.deployment_stage_statuses.sole).to have_attributes(stage_name: "staging", tag_sha: "merge-sha")
+  end
+
+  it "reuses commit comparison results for jobs landed at the same SHA" do
+    other_job = Factories.job_record(repository: repository, landed_sha: "merge-sha", state: "closed")
+    allow(client).to receive(:list_tags).with(repository.slug).and_return([
+      { name: "staging", sha: "staging-sha" }
+    ])
+    expect(client)
+      .to receive(:compare_commits)
+      .with(repository.slug, "merge-sha", "staging")
+      .once
+      .and_return(status: "ahead")
+
+    count = described_class.new(repository: repository, deployment_stages: [ staging ], jobs: [ job, other_job ], client: client).call
+
+    expect(count).to eq(2)
+    expect(JobDeploymentStageStatus.where(job: [ job, other_job ]).pluck(:job_id, :stage_name, :tag_sha)).to match_array([
+      [ job.id, "staging", "staging-sha" ],
+      [ other_job.id, "staging", "staging-sha" ]
+    ])
+  end
 end
