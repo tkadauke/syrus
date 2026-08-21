@@ -186,8 +186,22 @@ module Observability
 
     def spool_root
       Pathname.new(ENV.fetch("SYRUS_OBSERVABILITY_SPOOL_ROOT") {
-        Rails.root.join("tmp", "observability_spool").to_s
+        Rails.root.join("tmp", "observability_spool#{test_worker_suffix}").to_s
       })
+    end
+
+    # parallel_tests gives each worker its own database (config/database.yml's
+    # storage/test<TEST_ENV_NUMBER>.sqlite3), so job/workflow/run ids collide
+    # across concurrently-running workers. The durable spool is a shared
+    # filesystem path keyed only by kind+hostname; without a matching
+    # per-worker suffix, one worker's buffered "durable" events (e.g.
+    # WorkflowActivity's landing_queue_changed) get drained and persisted by
+    # a *different* worker's flush, leaking rows whose ids coincidentally
+    # match that worker's own records.
+    def test_worker_suffix
+      return "" unless Rails.env.test?
+
+      "-#{ENV["TEST_ENV_NUMBER"].presence || "1"}"
     end
 
     def process_identity
