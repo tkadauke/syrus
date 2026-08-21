@@ -2289,7 +2289,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_154623) do
     t.datetime "created_at", null: false
     t.integer "created_job_id"
     t.json "evidence"
-    t.integer "job_id"
+    t.integer "job_id", null: false
     t.string "kind", null: false
     t.string "severity", default: "medium", null: false
     t.string "state", default: "pending", null: false
@@ -2297,7 +2297,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_154623) do
     t.text "suggested_prompt"
     t.string "title", null: false
     t.datetime "updated_at", null: false
-    t.integer "workflow_id"
+    t.integer "workflow_id", null: false
     t.index ["created_job_id"], name: "index_workflow_warnings_on_created_job_id"
     t.index ["job_id", "created_at"], name: "index_workflow_warnings_on_job_id_and_created_at"
     t.index ["job_id", "state"], name: "index_workflow_warnings_on_job_id_and_state"
@@ -2343,9 +2343,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_154623) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
-  add_foreign_key "workflow_warnings", "jobs"
-  add_foreign_key "workflow_warnings", "jobs", column: "created_job_id"
-  add_foreign_key "workflow_warnings", "steps"
-  add_foreign_key "workflow_warnings", "workflows"
 end

@@ -1,10 +1,10 @@
 class CreateWorkflowWarnings < ActiveRecord::Migration[8.1]
   def up
     create_table :workflow_warnings, if_not_exists: true do |t|
-      t.references :job,         null: false, foreign_key: true, index: true
-      t.references :workflow,    null: false, foreign_key: true, index: true
-      t.references :step,        null: true,  foreign_key: true, index: true
-      t.references :created_job, null: true,  foreign_key: { to_table: :jobs }
+      t.integer :job_id,         null: false
+      t.integer :workflow_id,    null: false
+      t.integer :step_id
+      t.integer :created_job_id
 
       t.string :kind,     null: false
       t.string :severity, null: false, default: "medium"
@@ -19,6 +19,18 @@ class CreateWorkflowWarnings < ActiveRecord::Migration[8.1]
     # JSON columns cannot have a default value on MySQL 8.
     add_column :workflow_warnings, :evidence, :json unless column_exists?(:workflow_warnings, :evidence)
 
+    unless index_exists?(:workflow_warnings, :job_id)
+      add_index :workflow_warnings, :job_id
+    end
+    unless index_exists?(:workflow_warnings, :workflow_id)
+      add_index :workflow_warnings, :workflow_id
+    end
+    unless index_exists?(:workflow_warnings, :step_id)
+      add_index :workflow_warnings, :step_id
+    end
+    unless index_exists?(:workflow_warnings, :created_job_id)
+      add_index :workflow_warnings, :created_job_id
+    end
     unless index_exists?(:workflow_warnings, :state)
       add_index :workflow_warnings, :state
     end
