@@ -12,6 +12,9 @@ export type MemoryRow = {
   repository_name: string | null
   content: string
   published: boolean
+  changed: boolean
+  deleted_at: string | null
+  deleted_by: { id: number; name: string } | null
   created_at: string
   updated_at: string
   owner: {
@@ -25,7 +28,27 @@ export type MemoryRow = {
   paths: {
     app_memory_path: string
     app_publish_path: string
+    app_audit_events_path: string
   }
+}
+
+export type MemoryAuditEventActor =
+  | { kind: "user"; id: number | null; name: string | null }
+  | { kind: "agent"; run_id: number | null }
+  | { kind: "system" }
+
+export type MemoryAuditEvent = {
+  id: number
+  event_type: "created" | "updated" | "deleted"
+  actor: MemoryAuditEventActor
+  previous: { content: string | null; kind: MemoryKind | null; confidence: number | null }
+  new: { content: string | null; kind: MemoryKind | null; confidence: number | null }
+  created_at: string
+}
+
+export type MemoryAuditEventsPayload = {
+  memory_id: number
+  audit_events: MemoryAuditEvent[]
 }
 
 export type MemoryRepository = {
@@ -39,6 +62,7 @@ export type MemoriesPayload = {
   scopes: MemoryScope[]
   repositories: MemoryRepository[]
   filter: Record<string, unknown>
+  deleted: boolean
   controls: {
     filter_schema: FilterSchemaField[]
   }
@@ -91,4 +115,8 @@ export function publishMemory(path: string) {
 
 export function unpublishMemory(path: string) {
   return deleteJson<MemoriesPayload>(path)
+}
+
+export function fetchMemoryAuditEvents(path: string) {
+  return getJson<MemoryAuditEventsPayload>(path)
 }

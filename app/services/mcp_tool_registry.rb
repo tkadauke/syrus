@@ -137,6 +137,7 @@ class McpToolRegistry
         chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         chat(Mcp::Tools::WriteMemoryTool, mutation: true),
         chat(Mcp::Tools::ReadMemoryTool),
+        chat(Mcp::Tools::AdminReadMemoryAuditHistoryTool, admin_only: true),
         chat(Mcp::Tools::RepoInfoTool),
         chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true),
         chat(Mcp::Tools::RenameChatTool, mutation: true),
