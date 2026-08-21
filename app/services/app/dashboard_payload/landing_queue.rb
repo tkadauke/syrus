@@ -222,6 +222,7 @@ module App
 
       def landing_queue_entries_json
         blocker_jobs_by_id = landing_queue_blocker_jobs_by_id
+        bundle_job_counts = landing_queue_bundle_job_counts(blocker_jobs_by_id.values)
 
         landing_queue_entries.map do |key, jobs|
           blocker_ids = jobs.flat_map { |job| Array(job.landing_queue_blocker_job_ids) }.uniq
@@ -229,10 +230,22 @@ module App
             key: key,
             position: jobs.filter_map(&:landing_queue_entry_position).min,
             job_ids: jobs.map(&:id),
-            blocker_jobs: blocker_ids.filter_map { |id| blocker_jobs_by_id[id] }.map { |job| landing_queue_blocker_job_json(job, key) },
+            blocker_jobs: blocker_ids.filter_map { |id| blocker_jobs_by_id[id] }.map { |job| landing_queue_blocker_job_json(job, key, bundle_job_counts) },
             dependency_edges: jobs.flat_map { |job| Array(job.landing_queue_dependency_edges) }.uniq
           }
         end
+      end
+
+      # Blocker jobs are loaded outside the paginated current-page scope, so a
+      # blocker's own bundle size can't be read off `landing_queue_entries`
+      # (which only covers jobs on the current page). `landing_queue_entry_key`
+      # is cached directly on the Job row by LandingQueueProcessor, so one
+      # grouped count query gives every blocker's bundle size without N+1s.
+      def landing_queue_bundle_job_counts(jobs)
+        keys = jobs.filter_map { |job| job.landing_queue_entry_key if job.landing_queue_entry_key.to_s.start_with?("job_bundle:") }.uniq
+        return {} if keys.empty?
+
+        Job.where(landing_queue_entry_key: keys).group(:landing_queue_entry_key).count
       end
 
       def current_landing_queue_jobs
@@ -247,7 +260,7 @@ module App
         Job.where(id: ids).with_latest_workflow_snapshot.includes(:epic, :repository).index_by(&:id)
       end
 
-      def landing_queue_blocker_job_json(job, entry_key)
+      def landing_queue_blocker_job_json(job, entry_key, bundle_job_counts = {})
         json = {
           id: job.id,
           title: job.issue_title.presence || job.slug,
@@ -263,7 +276,9 @@ module App
           started_at: job.started_at&.iso8601,
           created_at: job.created_at&.iso8601
         }
-        if job.epic_id != landing_queue_entry_epic_id(entry_key)
+        if job.landing_queue_entry_key.to_s.start_with?("job_bundle:") && job.landing_queue_entry_key != entry_key
+          json[:bundle_other_job_count] = (bundle_job_counts[job.landing_queue_entry_key] || 1) - 1
+        elsif job.epic_id != landing_queue_entry_epic_id(entry_key)
           json[:epic_id] = job.epic_id
           json[:epic_title] = job.epic&.title
         end
