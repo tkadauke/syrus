@@ -214,23 +214,39 @@ module Syrus
         end
       end
 
+      # A failed on_boot must not leave orphaned effects waiting for a
+      # disable/shutdown that may never come, so a raise drains whatever
+      # got registered before the failure (same policy as PluginLifecycleJob
+      # applies to on_enable).
       def fire_boot_callbacks!
         providers_for(:callbacks).each do |provider|
           provider.on_boot
         rescue StandardError => e
+          drain_effects_for_callback_provider(provider)
           Rails.logger.warn("[PluginRegistry] on_boot failed for #{provider}: #{e.class}: #{e.message}")
         end
       end
 
+      # Always drains, success or failure, so a plugin's on_boot/on_enable
+      # effects are guaranteed to run in reverse registration order on
+      # process shutdown even though it doesn't route through
+      # PluginLifecycleJob like the operator-triggered on_disable does.
       def fire_shutdown_callbacks!
         providers_for(:callbacks).each do |provider|
           provider.on_shutdown
         rescue StandardError => e
           Rails.logger.warn("[PluginRegistry] on_shutdown failed for #{provider}: #{e.class}: #{e.message}")
+        ensure
+          drain_effects_for_callback_provider(provider)
         end
       end
 
       private
+
+      def drain_effects_for_callback_provider(provider)
+        plugin_name = all_plugins.find { |m| Array(m.provides[:callbacks]).include?(provider) }&.name
+        Syrus::Plugin::EffectRegistry.drain!(plugin_name) if plugin_name
+      end
 
       # Lower prepare_priority runs/orders first; a stable index tiebreak
       # keeps registration order for plugins that don't set one (default 100
