@@ -21,13 +21,17 @@ module Mcp::Tools
         scope = ChatSession
           .where(user: chat_session.user)
           .visible
-          .includes(:messages, :attached_repositories)
           .order(updated_at: :desc)
         total_count = scope.count
-        sessions = scope.offset((page - 1) * per_page).limit(per_page)
+        sessions = scope
+          .preload(:attached_repositories)
+          .offset((page - 1) * per_page)
+          .limit(per_page)
+          .to_a
+        message_counts = message_counts_for(sessions)
 
         Mcp::Tools.success(
-          chats: sessions.map { |session| payload_for(session) },
+          chats: sessions.map { |session| payload_for(session, message_count: message_counts.fetch(session.id, 0)) },
           pagination: {
             page: page,
             per_page: per_page,
@@ -48,14 +52,21 @@ module Mcp::Tools
         value.to_i.clamp(1, 100)
       end
 
-      def payload_for(session)
+      def message_counts_for(sessions)
+        ids = sessions.map(&:id)
+        return {} if ids.empty?
+
+        ChatMessage.where(chat_session_id: ids).group(:chat_session_id).count
+      end
+
+      def payload_for(session, message_count:)
         repository = session.attached_repositories.first
 
         {
           id: session.id,
           title: session.title.presence || ChatSession.fallback_title_for(repository),
           repository: repository&.slug,
-          message_count: session.messages.size,
+          message_count: message_count,
           updated_at: session.updated_at.iso8601
         }
       end

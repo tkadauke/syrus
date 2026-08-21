@@ -66,6 +66,15 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     )
   end
 
+  it "does not load full message rows to compute compact message counts" do
+    50.times { |i| add_message(chat_session, text: "large transcript #{i}") }
+
+    queries = capture_sql { response_payload(call_tool) }
+
+    expect(queries.grep(/SELECT .*chat_messages\\.\\*/i)).to be_empty
+    expect(queries.grep(/COUNT.*chat_messages/i)).not_to be_empty
+  end
+
   it "paginates sessions by most recently updated first" do
     chat_session.touch(time: 1.day.ago)
 
@@ -112,5 +121,17 @@ RSpec.describe Mcp::Tools::ListChatsTool do
       total_pages: 1,
       has_next_page: false
     )
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name] == "SCHEMA" || sql.include?("sqlite_master")
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 end
