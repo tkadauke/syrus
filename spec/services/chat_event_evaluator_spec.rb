@@ -152,18 +152,20 @@ RSpec.describe ChatEventEvaluator do
     expect(event.reload).to be_evaluator_completed
   end
 
-  it "does not no-op critical evaluator parse failures" do
+  it "falls back to a low-confidence response for critical evaluator parse failures" do
     event.update!(payload: { "summary" => "Job failed", "severity" => "critical" })
     runner = lambda do |**_kwargs|
       Result.new(final_text: '{ "decision" "respond" }')
     end
 
-    expect {
-      described_class.new(event: event, chat_session: chat_session, runner: runner).call
-    }.to raise_error(JSON::ParserError)
+    result = described_class.new(event: event, chat_session: chat_session, runner: runner).call
 
-    event.reload
-    expect(event).to be_evaluator_failed
-    expect(event.evaluator_result.dig("failure", "raw_output", "text")).to include('"decision"')
+    expect(result).to include(
+      "decision" => "respond",
+      "confidence" => 0.0,
+      "submitted_via" => "parse_failure_fallback"
+    )
+    expect(result.fetch("handoff_prompt")).to include("Evaluator parse error", "Job failed")
+    expect(event.reload).to be_evaluator_completed
   end
 end

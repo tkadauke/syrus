@@ -249,9 +249,7 @@ class ChatEventEvaluator
       begin
         normalize_result(repair_result, clone)
       rescue JSON::ParserError => second_error
-        raise unless low_severity_informational_event?
-
-        low_severity_parse_fallback(second_error, clone)
+        parse_failure_fallback(second_error, clone)
       end
     end
   end
@@ -321,6 +319,19 @@ class ChatEventEvaluator
     [ [ numeric, 0.0 ].max, 1.0 ].min
   end
 
+  def parse_failure_fallback(error, clone)
+    return low_severity_parse_fallback(error, clone) if low_severity_informational_event?
+
+    add_context_clone({
+      "decision" => "respond",
+      "reason" => "Evaluator returned malformed JSON after a repair retry: #{error.message}",
+      "urgency" => fallback_urgency,
+      "confidence" => 0.0,
+      "handoff_prompt" => fallback_handoff_prompt(error),
+      "submitted_via" => "parse_failure_fallback"
+    }, clone)
+  end
+
   def low_severity_parse_fallback(error, clone)
     add_context_clone({
       "decision" => "no_op",
@@ -339,6 +350,32 @@ class ChatEventEvaluator
     return false if kind.match?(/fail|error|degraded|stuck|blocked|attention|limit|quota/)
 
     severity.blank? || %w[info informational low].include?(severity)
+  end
+
+  def fallback_urgency
+    severity = @event.payload["severity"].to_s.downcase
+    return 1.0 if %w[critical high].include?(severity)
+    return 0.7 if %w[error warning].include?(severity)
+
+    0.4
+  end
+
+  def fallback_handoff_prompt(error)
+    summary = @event.payload["summary"].to_s.presence ||
+      @event.payload["title"].to_s.presence ||
+      @event.payload["message"].to_s.presence ||
+      @event.source_kind.to_s
+
+    <<~PROMPT.strip
+      A scoped event evaluator could not produce parseable JSON after a repair retry.
+      Treat this as an evaluator failure, not as proof that the underlying event is actionable.
+
+      Event kind: #{@event.source_kind}
+      Event summary: #{summary}
+      Evaluator parse error: #{error.class}: #{error.message}
+
+      Read current Syrus state before deciding whether any action is required.
+    PROMPT
   end
 
   def persist_failure_payload(error)
