@@ -260,6 +260,24 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     )
   end
 
+  it "orders Epic detail child Jobs by dependency chain, not creation id" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    # Created in ascending-id order 1, 2, 3, but chained so job3 (highest id,
+    # filed first on GitHub) is actually the first to implement: job1 depends
+    # on job2, job2 depends on job3, job3 has no upstream dependency.
+    job1 = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 3)
+    job2 = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2)
+    job3 = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1)
+    job1.dependencies.create!(depends_on_job: job2, source: "manual", created_by_user: user)
+    job2.dependencies.create!(depends_on_job: job3, source: "manual", created_by_user: user)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("jobs").map { |job| job.fetch("id") }).to eq([ job3.id, job2.id, job1.id ])
+  end
+
   it "omits deployment stage data on Epic detail child Jobs when no stages are configured" do
     sign_in_as(user)
     allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
