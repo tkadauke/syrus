@@ -14250,7 +14250,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByText("Working...")).toBeInTheDocument()
-    expect(screen.getAllByText("Cancelling workflow...").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Cancelling workflow...")).toHaveLength(1)
     expect(screen.getAllByText("Failed").length).toBeGreaterThan(0)
     expect(screen.getByText("ArgumentError: Job is not accessible.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
