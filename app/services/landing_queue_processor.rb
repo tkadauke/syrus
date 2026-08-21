@@ -661,14 +661,7 @@ class LandingQueueProcessor
     return false unless Feature.epicless_job_bundling_enabled?
     return false if job.epic_id.present? || job.external_pr?
 
-    epicless_bundle_candidates_for(job).count >= JobBundleAssembler::MIN_BUNDLE_SIZE
-  end
-
-  def epicless_bundle_candidates_for(job)
-    job.repository.jobs
-       .approved
-       .where(epic_id: nil, priority: job.priority)
-       .where.not(kind: "external_pr")
+    JobBundleAssembler.ready_for_priority?(job.repository, job.priority)
   end
 
   def blockage_for(job, consume_override: false)

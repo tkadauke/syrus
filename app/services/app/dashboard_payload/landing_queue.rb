@@ -112,11 +112,13 @@ module App
         end
       end
 
+      NORMAL_LANDING_QUEUE_WAIT_REASON_KEYS = %w[ waiting_epic_merge_train waiting_epicless_bundle ].freeze
+
       def normal_landing_queue_wait_reason?(reason)
         return false unless reason.respond_to?(:to_h)
 
         hash = reason.to_h
-        (hash["key"] || hash[:key]).to_s == "waiting_epic_merge_train"
+        NORMAL_LANDING_QUEUE_WAIT_REASON_KEYS.include?((hash["key"] || hash[:key]).to_s)
       end
 
       def merge_train_start_blocked_reason_text_for(job)
