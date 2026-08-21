@@ -112,6 +112,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:autofix_command)
     end
 
+    it "includes :dependency_audit_command" do
+      expect(described_class::EXTENSION_POINTS).to include(:dependency_audit_command)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -210,6 +214,19 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect(provider).to respond_to(:autofix_command)
       expect { provider.autofix_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /autofix_command is required/)
+    end
+
+    it "maps :dependency_audit_command to Syrus::Plugin::DependencyAuditCommand" do
+      expect(described_class::INTERFACE_FOR[:dependency_audit_command].call).to eq(Syrus::Plugin::DependencyAuditCommand)
+    end
+
+    it "gives dependency audit command providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::DependencyAuditCommand }
+
+      expect(provider).to respond_to(:lockfiles)
+      expect(provider).to respond_to(:audit_command)
+      expect { provider.lockfiles }.to raise_error(NotImplementedError, /lockfiles is required/)
+      expect { provider.audit_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /audit_command is required/)
     end
   end
 

@@ -16,13 +16,14 @@ RSpec.describe Go::Engine do
         Syrus::PluginRegistry.register(
           name:             "go",
           version:          Go::VERSION,
-          description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; default swallowed-error review criterion",
+          description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 40,
           provides: {
             prepare_detector:         Go::PrepareDetector,
             review_criteria_provider: Go::ReviewCriteriaProvider,
-            autofix_command:          Go::GofmtAutofix
+            autofix_command:          Go::GofmtAutofix,
+            dependency_audit_command: Go::DependencyAuditCommand
           }
         )
       end
@@ -41,12 +42,16 @@ RSpec.describe Go::Engine do
       expect(registration.prepare_priority).to eq(40)
     end
 
-    it "provides exactly the :prepare_detector, :review_criteria_provider, and :autofix_command extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command)
+    it "provides exactly the :prepare_detector, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do
+      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command)
     end
 
     it "registers GofmtAutofix as the :autofix_command" do
       expect(registration.provides[:autofix_command]).to eq(Go::GofmtAutofix)
+    end
+
+    it "registers DependencyAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(Go::DependencyAuditCommand)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do

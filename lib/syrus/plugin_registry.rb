@@ -20,6 +20,7 @@ module Syrus
       prepare_detector
       review_criteria_provider
       autofix_command
+      dependency_audit_command
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -42,7 +43,8 @@ module Syrus
       platform_delivery:       -> { Syrus::Plugin::PlatformDelivery },
       prepare_detector:        -> { Syrus::Plugin::PrepareDetector },
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
-      autofix_command:         -> { Syrus::Plugin::AutofixCommand }
+      autofix_command:         -> { Syrus::Plugin::AutofixCommand },
+      dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

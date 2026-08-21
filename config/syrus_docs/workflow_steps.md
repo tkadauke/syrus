@@ -380,6 +380,18 @@ Non-agentic. Parses coverage artifacts produced by graders, merges multiple sour
 
 Non-agentic. Posts the formatted coverage summary as a PR comment when `pr_comment: true` is set in `.syrus.yml`.
 
+## Dependency audit steps
+
+### dependency_audit
+
+Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by a registered `:dependency_audit_command` plugin (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see [`plugins.md`](plugins.md#dependency_audit_command) for the extension point contract.
+
+When a matching lockfile changed, runs each matching provider's audit command (`bundle-audit check --update`, `npm`/`yarn`/`pnpm audit --json`, `pip-audit`, `govulncheck ./...`) and stores the results as the `dependency_audit` workflow artifact. A non-zero exit status is not a step failure — it is how these tools report that vulnerabilities were found, and `dependency_audit`'s `fail_policy` is `:advance` so a broken audit tool never blocks the chain. A clean scan across every scanned ecosystem leaves no `pr_comment_body` in the artifact, so nothing gets posted — a clean scan is a silent no-op. `Steps::PrOpen` posts the formatted findings as a PR comment (alongside the coverage comment) when it opens or updates the PR in `initial`/`retry` workflows.
+
+### dependency_audit_pr_comment
+
+Non-agentic. Posts or updates the formatted dependency-audit comment on an existing PR. Inserted after `dependency_audit` in `pr_comment` and `chat_feedback` workflows, where the PR already exists (mirrors `coverage_pr_comment`). No-ops when the `dependency_audit` artifact has no `pr_comment_body` (no lockfile changed, or every scanned ecosystem was clean) or the Job has no PR yet.
+
 ## Preflight grader steps (main_branch_repair)
 
 ### preflight_grader_fanout

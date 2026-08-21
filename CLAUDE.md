@@ -89,11 +89,11 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → summarize → test_plan → pr_open → review_plan
-pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
-chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → summarize → test_plan → pr_open → review_plan
+retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
@@ -104,7 +104,7 @@ external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 skill:       prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open
 ```
 
-`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
+`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository. `dependency_audit` (and, in feedback workflows, `dependency_audit_pr_comment`) is always present in these chains but self-skips at runtime unless the PR diff touched a lockfile a registered `:dependency_audit_command` plugin owns.
 
 Key steps:
 

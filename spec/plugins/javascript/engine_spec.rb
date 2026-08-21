@@ -18,7 +18,7 @@ RSpec.describe JavaScript::Engine do
         Syrus::PluginRegistry.register(
           name:             "javascript",
           version:          JavaScript::VERSION,
-          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; default `any`-type review criterion",
+          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; npm/yarn/pnpm audit dependency scanning; default `any`-type review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 20,
           provides: {
@@ -26,7 +26,8 @@ RSpec.describe JavaScript::Engine do
             preview_provider:         JavaScript::PreviewProvider,
             grader_augmentor:         JavaScript::EslintGraderAugmentor,
             review_criteria_provider: JavaScript::ReviewCriteriaProvider,
-            autofix_command:          [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ]
+            autofix_command:          [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ],
+            dependency_audit_command: JavaScript::DependencyAuditCommand
           }
         )
       end
@@ -45,9 +46,9 @@ RSpec.describe JavaScript::Engine do
       expect(registration.prepare_priority).to eq(20)
     end
 
-    it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, and :autofix_command extension point keys" do
+    it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command
+        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, :dependency_audit_command
       )
     end
 
@@ -55,6 +56,10 @@ RSpec.describe JavaScript::Engine do
       expect(registration.provides[:autofix_command]).to eq(
         [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ]
       )
+    end
+
+    it "registers DependencyAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(JavaScript::DependencyAuditCommand)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do

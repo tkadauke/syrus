@@ -21,6 +21,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `prepare_detector`
 - `review_criteria_provider`
 - `autofix_command`
+- `dependency_audit_command`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -619,6 +620,70 @@ registers `Python::RuffFormatAutofix` (`ruff format .`, gated on a ruff
 config signal) and `Python::BlackAutofix` (`black .`, gated on a
 `[tool.black]` table in `pyproject.toml`).
 
+## `dependency_audit_command`
+
+Tells `Steps::DependencyAudit` (see
+[`workflow_steps.md`](workflow_steps.md#dependency_audit)) which dependency
+vulnerability scan command to run for this ecosystem, and which lockfile(s)
+in the PR diff should trigger it. Present in `initial`, `retry`,
+`pr_comment`, and `chat_feedback` workflows only — the step is always in
+those chains but self-skips unless the diff touched a matching lockfile.
+
+Include `Syrus::Plugin::DependencyAuditCommand` and implement the class methods:
+
+| Method | Signature | Description |
+|---|---|---|
+| `lockfiles` | `() → Array<String>` | Basenames of the lockfile(s) this provider's audit command applies to. `Steps::DependencyAudit` matches these against the PR diff's changed files (by basename) before running anything — a diff that never touches one of these files skips this provider entirely. |
+| `audit_command` | `(workspace_path:) → String \| nil` | Return the shell command to run, or `nil` when this provider's audit tool doesn't apply (e.g. none of `lockfiles` actually exist on disk). |
+
+A non-zero exit status from the returned command is not a tool error — it is
+how bundler-audit/npm audit/pip-audit/govulncheck report that vulnerabilities
+were found. `Steps::DependencyAudit` never fails the workflow or a grader on
+a non-clean scan; it stores the results as a `dependency_audit` workflow
+artifact, and — only when at least one scanned ecosystem is non-clean — a
+`pr_comment_body` for `Steps::PrOpen`/`Steps::DependencyAuditPrComment` to
+post. A clean scan across every scanned ecosystem is a silent no-op: no
+comment gets posted.
+
+A plugin whose ecosystem needs more than one distinct audit tool (e.g. a
+different tool per package manager) registers one provider class per tool,
+the same multi-provider pattern `:grader_augmentor`/`:autofix_command` use:
+
+```ruby
+class MyPlugin::DependencyAuditCommand
+  include Syrus::Plugin::DependencyAuditCommand
+
+  def self.lockfiles
+    [ "my-lockfile.lock" ]
+  end
+
+  def self.audit_command(workspace_path:)
+    return nil unless File.exist?(File.join(workspace_path, "my-lockfile.lock"))
+
+    "my-audit-tool check"
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { dependency_audit_command: MyPlugin::DependencyAuditCommand }
+)
+```
+
+The `ruby` plugin registers `Ruby::BundlerAuditCommand` (`bundle-audit check
+--update`, gated on `Gemfile.lock` — the lockfile, not the `Gemfile` manifest
+`:prepare_detector` keys off). The `javascript` plugin registers
+`JavaScript::DependencyAuditCommand`, which reuses the same three true
+lockfile names as `:prepare_detector`'s `PRIORITY` table (`yarn.lock` →
+`yarn audit --json`, `pnpm-lock.yaml` → `pnpm audit --json`,
+`package-lock.json` → `npm audit --json`) minus its `package.json` fallback,
+since a bare `package.json` has no pinned dependency tree to audit. The
+`python` plugin registers `Python::DependencyAuditCommand` (`pip-audit`,
+gated on `uv.lock`/`poetry.lock`/`requirements.txt` — one tool covers every
+lockfile flavor, unlike JavaScript's per-package-manager split). The `go`
+plugin registers `Go::DependencyAuditCommand` (`govulncheck ./...`, gated on
+`go.sum`).
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -698,9 +763,10 @@ Bundled plugins:
   `bundle install`, `prepare_priority: 10`), `:review_criteria_provider`
   (`Ruby::ReviewCriteriaProvider` — seeds a default adversarial-review
   criterion flagging new N+1 query patterns in ActiveRecord code, gated on
-  the same `Gemfile` signal as `:prepare_detector`), and `:autofix_command`
+  the same `Gemfile` signal as `:prepare_detector`), `:autofix_command`
   (`Ruby::RubocopAutofix` — `bundle exec rubocop -a`, gated on `.rubocop.yml`
-  being present).
+  being present), and `:dependency_audit_command` (`Ruby::BundlerAuditCommand`
+  — `bundle-audit check --update`, gated on `Gemfile.lock`).
 - `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
   (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
   and `package.json` don't distinguish JS from TS. Internally picks exactly one
@@ -724,7 +790,10 @@ Bundled plugins:
   `:autofix_command` — two providers, `JavaScript::EslintAutofix` (`npx
   eslint --fix .`, gated on an ESLint config file) and
   `JavaScript::PrettierAutofix` (`npx prettier --write .`, gated on a
-  Prettier config file or `package.json`'s `prettier` key).
+  Prettier config file or `package.json`'s `prettier` key). Also provides
+  `:dependency_audit_command` (`JavaScript::DependencyAuditCommand` — picks
+  `yarn audit --json`/`pnpm audit --json`/`npm audit --json` matching
+  whichever of `:prepare_detector`'s true lockfiles is present).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
@@ -746,7 +815,9 @@ Bundled plugins:
   `Python::RuffFormatAutofix` (`ruff format .`, gated on a `.ruff.toml`/
   `ruff.toml` file or a `[tool.ruff]` table in `pyproject.toml`) and
   `Python::BlackAutofix` (`black .`, gated on a `[tool.black]` table in
-  `pyproject.toml`).
+  `pyproject.toml`). Also provides `:dependency_audit_command`
+  (`Python::DependencyAuditCommand` — `pip-audit`, gated on
+  `uv.lock`/`poetry.lock`/`requirements.txt`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
   → `go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
@@ -764,7 +835,9 @@ Bundled plugins:
   criterion flagging swallowed errors (`_ = err`), gated on the same
   `go.mod` signal as `:prepare_detector`). Also provides `:autofix_command`
   (`Go::GofmtAutofix` — `gofmt -w .`, gated only on `go.mod` since gofmt has
-  no configuration surface to gate on further).
+  no configuration surface to gate on further). Also provides
+  `:dependency_audit_command` (`Go::DependencyAuditCommand` —
+  `govulncheck ./...`, gated on `go.sum`).
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling

@@ -145,6 +145,7 @@ RSpec.describe RunJob, :ci_only do
         [ "grader_fanout",    "succeeded" ],
         [ "grader_collect",   "succeeded" ],
         [ "coverage_analyze", "succeeded" ],
+        [ "dependency_audit", "succeeded" ],
         [ "summarize",        "succeeded" ],
         [ "test_plan",        "succeeded" ],
         [ "pr_open",          "succeeded" ],
@@ -268,6 +269,8 @@ RSpec.describe RunJob, :ci_only do
         [ "grader_collect",       "succeeded" ],
         [ "coverage_analyze",     "succeeded" ],
         [ "coverage_pr_comment",  "succeeded" ],
+        [ "dependency_audit",           "succeeded" ],
+        [ "dependency_audit_pr_comment", "succeeded" ],
         [ "summarize_amend",      "succeeded" ],
         [ "refresh_job_metadata", "succeeded" ],
         [ "push",                 "succeeded" ]
