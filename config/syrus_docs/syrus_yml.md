@@ -199,6 +199,47 @@ Glob matching uses `File::FNM_DOTMATCH` so `*` and `**` cross directory separato
 
 How many repair→check cycles Syrus attempts before failing the workflow. Range: 1–10. Defaults to `AppSetting.grade_max_iterations` (instance-wide default: 5).
 
+## formatters
+
+Configures the `format` step: a deterministic pass that runs after the agentic step (`implement`/`respond`) and before graders check, on every grader-retry iteration, so a style-only failure a formatter could fix for free doesn't cost the agent a turn.
+
+```yaml
+formatters:
+  - command: bundle exec rubocop -a
+    files: "**/*.rb"
+  - command: npx prettier --write
+    files:
+      - "**/*.ts"
+      - "**/*.tsx"
+```
+
+Each entry's `command` runs only when this iteration's diff (`git diff --name-only <base>...HEAD`) touches at least one file matching its `files` glob (same `File::FNM_DOTMATCH` semantics as a grader's `when_files_changed`); an entry whose glob matches nothing is skipped. `command` and `files` are both required.
+
+Omitting `formatters:` entirely falls back to the `:autofix_command` plugin providers bundled with Syrus's language plugins (RuboCop, ESLint/Prettier, gofmt, ruff/black — see [`plugins.md`](plugins.md#autofix_command)), each gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
+
+Set `formatters: false` (or `off`) to disable formatting altogether for this repository, including the plugin defaults.
+
+## generated
+
+Configures the `generate` step: a deterministic codegen pass that runs immediately after `format`, using the same diff-scoped, every-iteration shape.
+
+```yaml
+generated:
+  - command: buf generate
+    sources: "proto/**/*.proto"
+    generates:
+      - "lib/proto/**/*.rb"
+  - command: bin/rails db:schema:dump
+    generates: "db/schema.rb"
+    codegen_ignore: true
+```
+
+Each entry's `command` runs only when this iteration's diff touches its `sources` glob; an entry with no `sources` configured always runs. `generates` (the paths the command produces) is required and documents intent, but isn't itself diff-matched. Running the command and committing whatever it changes is the `regen == committed` check: if the regenerated output already matches what's committed, there's nothing to commit.
+
+`codegen_ignore: true` marks an entry whose generator is non-deterministic across environments (e.g. `db:schema:dump`'s SQLite vs. MySQL output). The `generate` step skips these entries entirely — auto-committing their regenerated output would introduce environment-specific noise rather than fix anything; that invariant is meant to be validated by a grader, not by this step.
+
+There is no plugin-provided default for codegen — it's inherently repo-specific (protobuf vs. GraphQL vs. Rails schema dump vary too much to guess) — so omitting `generated:` leaves the `generate` step a no-op. Set `generated: false` (or `off`) to disable it explicitly (equivalent to omitting it).
+
 ## adversarial_review
 
 Enables an independent reviewer agent that critiques the implementation before graders run.

@@ -45,11 +45,25 @@ class SyrusYml
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
+  #
+  # `Config#formatters` is tri-state: `nil` when the `formatters:` key is
+  # absent (Steps::Format falls back to plugin-provided `:autofix_command`
+  # defaults), `false` when explicitly disabled (`formatters: false`/`off` —
+  # no formatting at all, including plugin defaults), or an `Array` of
+  # `FormatterStep` when explicitly configured.
   FormatterStep = Data.define(:command, :files)
   # Deterministic codegen: derives checked-in `generates` outputs from `sources`
   # inputs. `codegen_ignore` marks an output committed for human reasons but
   # exempt from the `regen == committed` assertion (non-deterministic generator,
-  # e.g. schema.rb across SQLite/MySQL) — grader-validated, not diff-validated.
+  # e.g. schema.rb across SQLite/MySQL) — grader-validated, not diff-validated;
+  # Steps::Generate also skips running these entries itself, since forcing a
+  # non-deterministic regen and committing the result would introduce
+  # environment-specific noise rather than fix anything.
+  #
+  # `Config#generated` follows the same tri-state as `formatters` above:
+  # `nil` when absent (Steps::Generate no-ops — there is no plugin-provided
+  # codegen default), `false` when explicitly disabled, or an `Array` of
+  # `GeneratedStep` when explicitly configured.
   GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore)
   HooksConfig = Data.define(:post_checkout)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
@@ -110,8 +124,10 @@ class SyrusYml
   end
 
   def parse_formatters(raw)
-    return [] if raw.nil?
-    raise ParseError, "formatters: must be an array" unless raw.is_a?(Array)
+    return nil if raw.nil?
+    return false if raw == false
+
+    raise ParseError, "formatters: must be an array, or false/off to disable" unless raw.is_a?(Array)
 
     raw.each_with_index.map do |item, index|
       label = "formatters[#{index}]"
@@ -128,8 +144,10 @@ class SyrusYml
   end
 
   def parse_generated(raw)
-    return [] if raw.nil?
-    raise ParseError, "generated: must be an array" unless raw.is_a?(Array)
+    return nil if raw.nil?
+    return false if raw == false
+
+    raise ParseError, "generated: must be an array, or false/off to disable" unless raw.is_a?(Array)
 
     raw.each_with_index.map do |item, index|
       label = "generated[#{index}]"

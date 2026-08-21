@@ -662,8 +662,8 @@ RSpec.describe SyrusYml do
       expect(config.formatters.last.files).to eq([ "**/*.ts", "**/*.tsx" ])
     end
 
-    it "defaults to an empty array when absent" do
-      expect(parse("grade: []").formatters).to eq([])
+    it "defaults to nil when absent (Steps::Format falls back to plugin defaults)" do
+      expect(parse("grade: []").formatters).to be_nil
     end
 
     it "requires a command and files" do
@@ -676,6 +676,15 @@ RSpec.describe SyrusYml do
     it "rejects a non-array formatters value" do
       expect { parse("formatters: bin/rubocop") }
         .to raise_error(SyrusYml::ParseError, /formatters: must be an array/)
+    end
+
+    it "parses false (or the YAML off spelling) as an explicit disable, distinct from absent" do
+      expect(parse("formatters: false").formatters).to be(false)
+      expect(parse("formatters: off").formatters).to be(false)
+    end
+
+    it "treats an explicit empty array as configured-but-empty, not a fallback trigger" do
+      expect(parse("formatters: []").formatters).to eq([])
     end
   end
 
@@ -705,8 +714,18 @@ RSpec.describe SyrusYml do
       expect(schema.codegen_ignore).to be(true)
     end
 
-    it "defaults to an empty array when absent" do
-      expect(parse("grade: []").generated).to eq([])
+    it "defaults to nil when absent (Steps::Generate no-ops)" do
+      expect(parse("grade: []").generated).to be_nil
+    end
+
+    it "parses false (or the YAML off spelling) as an explicit disable, distinct from absent" do
+      expect(parse("generated: false").generated).to be(false)
+      expect(parse("generated: off").generated).to be(false)
+    end
+
+    it "rejects a non-array generated value" do
+      expect { parse("generated: buf generate") }
+        .to raise_error(SyrusYml::ParseError, /generated: must be an array/)
     end
 
     it "requires command and generates but allows omitting sources" do

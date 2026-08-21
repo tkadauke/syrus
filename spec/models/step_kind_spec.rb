@@ -74,8 +74,9 @@ RSpec.describe Step::Kind do
       expect(described_class.fetch("review_plan").fail_policy).to eq(:advance)
     end
 
-    it "returns :advance for autofix (deterministic, never fails the workflow — the handler itself never raises either)" do
-      expect(described_class.fetch("autofix").fail_policy).to eq(:advance)
+    it "returns :advance for format and generate (deterministic, never fail the workflow — the handlers themselves never raise either)" do
+      expect(described_class.fetch("format").fail_policy).to eq(:advance)
+      expect(described_class.fetch("generate").fail_policy).to eq(:advance)
     end
 
     it "returns :loop_iteration for grader_collect and grade (drives retry loop)" do
