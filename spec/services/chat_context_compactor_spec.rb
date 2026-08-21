@@ -110,6 +110,17 @@ RSpec.describe ChatContextCompactor do
     expect(second.summary).to include("Previous checkpoint: through ChatMessage ##{first.compacted_through_message_id}")
   end
 
+  it "finds the compaction cutoff without counting the whole transcript" do
+    enable_compaction!
+    session = chat
+    add_messages(session, 130)
+
+    queries = capture_sql { described_class.maybe_compact!(session) }
+
+    expect(queries.grep(/COUNT\\(\\*\\).*chat_messages/i)).to be_empty
+    expect(session.context_checkpoints.latest_first.first.source_message_count).to eq(90)
+  end
+
   it "forces the chat message cursor index on MySQL" do
     session = chat
     compactor = described_class.new(session)
@@ -119,5 +130,17 @@ RSpec.describe ChatContextCompactor do
     expect(compactor.send(:messages_scope).to_sql).to include(
       "FORCE INDEX (index_chat_messages_on_session_id_and_id)"
     )
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name] == "SCHEMA" || sql.include?("sqlite_master")
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 end

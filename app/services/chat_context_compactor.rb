@@ -41,10 +41,7 @@ class ChatContextCompactor
   def maybe_compact!
     return unless enabled_for_chat?
 
-    message_count = messages_scope.count
-    return if message_count < MIN_MESSAGES
-
-    cutoff_id = cutoff_message_id(message_count)
+    cutoff_id = compaction_cutoff_message_id
     return unless cutoff_id
 
     latest = latest_checkpoint
@@ -95,11 +92,11 @@ class ChatContextCompactor
     ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
   end
 
-  def cutoff_message_id(message_count)
-    offset = message_count - KEEP_RECENT_MESSAGES - 1
-    return if offset.negative?
+  def compaction_cutoff_message_id
+    newest_ids = messages_scope.reselect(:id).order(id: :desc).limit(MIN_MESSAGES).pluck(:id)
+    return if newest_ids.size < MIN_MESSAGES
 
-    messages_scope.reselect(:id).order(:id).offset(offset).limit(1).pick(:id)
+    newest_ids[KEEP_RECENT_MESSAGES]
   end
 
   def messages_for_full_replay
