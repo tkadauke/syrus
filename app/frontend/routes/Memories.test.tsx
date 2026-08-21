@@ -151,6 +151,97 @@ describe("MemoriesRoute", () => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/memories/10", expect.objectContaining({ method: "DELETE" }))
     })
   }, 15000)
+
+  it("shows a changed badge for edited memories and opens the history modal", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url === "/api/v1/app/memories/10/audit_events") {
+        return Promise.resolve(jsonResponse({
+          memory_id: 10,
+          audit_events: [
+            {
+              id: 1,
+              event_type: "created",
+              actor: { kind: "system" },
+              previous: { content: null, kind: null, confidence: null },
+              new: { content: "Use Rails for the app.", kind: "project_fact", confidence: null },
+              created_at: "2026-06-20T12:00:00Z"
+            },
+            {
+              id: 2,
+              event_type: "updated",
+              actor: { kind: "user", id: 2, name: "Ada Lovelace" },
+              previous: { content: "Use Rails for the app.", kind: "project_fact", confidence: null },
+              new: { content: "Use Rails and Vite for the app.", kind: "decision", confidence: 0.8 },
+              created_at: "2026-06-23T12:00:00Z"
+            }
+          ]
+        }))
+      }
+      return Promise.resolve(jsonResponse(memoriesPayload({
+        memories: [memoryRow({ changed: true })]
+      })))
+    })
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    const row = (await screen.findByText("Use Rails for the app.")).closest("tr") as HTMLElement
+    fireEvent.click(within(row).getByRole("button", { name: "Changed" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Memory history" })
+    expect(await within(dialog).findByText("Created")).toBeInTheDocument()
+    expect(within(dialog).getByText("Updated")).toBeInTheDocument()
+    expect(within(dialog).getByText("Use Rails and Vite for the app.")).toBeInTheDocument()
+    expect(within(dialog).getByText("By Ada Lovelace")).toBeInTheDocument()
+  })
+
+  it("does not show a changed badge for unmodified memories", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload({
+      memories: [memoryRow({ changed: false })]
+    })))
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    const row = (await screen.findByText("Use Rails for the app.")).closest("tr") as HTMLElement
+    expect(within(row).queryByRole("button", { name: "Changed" })).not.toBeInTheDocument()
+  })
+
+  it("toggles to the deleted memories view and back", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("deleted=true")) {
+        return Promise.resolve(jsonResponse(memoriesPayload({
+          deleted: true,
+          memories: [
+            memoryRow({
+              content: "Old fact.",
+              deleted_at: "2026-06-25T12:00:00Z",
+              deleted_by: { id: 1, name: "Grace Hopper" }
+            })
+          ]
+        })))
+      }
+      return Promise.resolve(jsonResponse(memoriesPayload()))
+    })
+
+    renderRoute(<MemoriesRoute />, "/app-shell/memories")
+
+    await screen.findByText("Use Rails for the app.")
+    expect(screen.getByRole("button", { name: "View deleted" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "View deleted" }))
+
+    await screen.findByText("Old fact.")
+    expect(screen.getByText("Deleted by Grace Hopper")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Create memory" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("deleted=true"))).toBe(true)
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "View active" }))
+    await screen.findByText("Use Rails for the app.")
+  })
 })
 
 function renderRoute(children: ReactNode, path: string) {
@@ -172,6 +263,7 @@ function memoriesPayload(overrides: Record<string, unknown> = {}) {
     scopes: ["global", "repository"],
     repositories: [{ id: 3, name: "acme/widgets" }],
     filter: { and: [] },
+    deleted: false,
     controls: {
       filter_schema: [
         { field: "content", label: "Content", bucket: "string", operators: ["contains"] },
@@ -196,13 +288,17 @@ function memoryRow(overrides: Record<string, unknown> = {}) {
     repository_name: "acme/widgets",
     content: "Use Rails for the app.",
     published: false,
+    changed: false,
+    deleted_at: null,
+    deleted_by: null,
     created_at: "2026-06-23T12:00:00Z",
     updated_at: "2026-06-23T12:00:00Z",
     owner: { id: 2, name: "Ada Lovelace" },
     permissions: { can_manage: true, can_publish: true },
     paths: {
       app_memory_path: "/api/v1/app/memories/10",
-      app_publish_path: "/api/v1/app/memories/10/publish"
+      app_publish_path: "/api/v1/app/memories/10/publish",
+      app_audit_events_path: "/api/v1/app/memories/10/audit_events"
     },
     ...overrides
   }
