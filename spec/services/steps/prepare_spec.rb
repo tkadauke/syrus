@@ -216,18 +216,75 @@ RSpec.describe Steps::Prepare do
       expect(workflow.reload.artifact("mise_install_failure")).to be_nil
     end
 
-    Steps::Prepare::MISE_VERSION_FILES.each do |version_file|
-      it "detects #{version_file} and runs mise install" do
+    def expect_mise_install_ran
+      fake_runner = instance_double(ProcessRunner, run: success_result)
+      allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+      handler.call
+
+      expect(ProcessRunner).to have_received(:new).with(
+        hash_including(command: [ "mise", "install" ], timeout: Steps::Prepare::MISE_INSTALL_TIMEOUT)
+      )
+      expect(workflow.reload.artifact("mise_install_failure")).to be_nil
+    end
+
+    Steps::Prepare::UNIVERSAL_MISE_VERSION_FILES.each do |version_file|
+      it "detects the universal #{version_file} and runs mise install" do
         File.write(@ws_path.join(version_file), "ruby 3.4.0\n")
-        fake_runner = instance_double(ProcessRunner, run: success_result)
-        allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+        expect_mise_install_ran
+      end
+    end
 
-        handler.call
+    it "detects a universal version file with zero :prepare_detector plugins registered" do
+      Syrus::PluginRegistry.reset!
+      File.write(@ws_path.join(".tool-versions"), "ruby 3.4.0\n")
+      expect_mise_install_ran
+    end
 
-        expect(ProcessRunner).to have_received(:new).with(
-          hash_including(command: [ "mise", "install" ], timeout: Steps::Prepare::MISE_INSTALL_TIMEOUT)
-        )
-        expect(workflow.reload.artifact("mise_install_failure")).to be_nil
+    context "with every bundled language plugin registered" do
+      before do
+        unless Syrus::PluginRegistry.registered_names.include?("javascript")
+          Syrus::PluginRegistry.register(
+            name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+            provides: { prepare_detector: JavaScript::PrepareDetector }
+          )
+        end
+
+        unless Syrus::PluginRegistry.registered_names.include?("python")
+          Syrus::PluginRegistry.register(
+            name: "python", version: Python::VERSION, prepare_priority: 30,
+            provides: { prepare_detector: Python::PrepareDetector }
+          )
+        end
+
+        unless Syrus::PluginRegistry.registered_names.include?("go")
+          Syrus::PluginRegistry.register(
+            name: "go", version: Go::VERSION, prepare_priority: 40,
+            provides: { prepare_detector: Go::PrepareDetector }
+          )
+        end
+      end
+
+      {
+        ".ruby-version"   => "ruby",
+        ".node-version"   => "javascript",
+        ".python-version" => "python",
+        ".go-version"     => "go"
+      }.each do |version_file, plugin_name|
+        it "detects #{version_file} declared by the #{plugin_name} plugin and runs mise install" do
+          File.write(@ws_path.join(version_file), "3.4.0\n")
+          expect_mise_install_ran
+        end
+
+        it "does not run mise install for #{version_file} when the #{plugin_name} plugin is disabled" do
+          File.write(@ws_path.join(version_file), "3.4.0\n")
+          PluginRecord.find_by!(name: plugin_name).update!(enabled: false)
+
+          handler.call
+
+          chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+          expect(chunks).not_to include("mise install")
+        end
       end
     end
 

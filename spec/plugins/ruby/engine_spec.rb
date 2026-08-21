@@ -86,5 +86,9 @@ RSpec.describe Ruby::Engine do
     it "contributes bundle install" do
       expect(described_class.prepare_commands(@dir)).to eq([ "bundle install" ])
     end
+
+    it "declares .ruby-version as its mise version file" do
+      expect(described_class.mise_version_file).to eq(".ruby-version")
+    end
   end
 end

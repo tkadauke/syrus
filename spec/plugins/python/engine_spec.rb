@@ -109,6 +109,10 @@ RSpec.describe Python::Engine do
 
       expect(described_class.prepare_commands(@dir)).to eq([ "pip install -e ." ])
     end
+
+    it "declares .python-version as its mise version file" do
+      expect(described_class.mise_version_file).to eq(".python-version")
+    end
   end
 
   describe Python::PromptContext do
