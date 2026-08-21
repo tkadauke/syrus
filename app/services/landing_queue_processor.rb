@@ -234,18 +234,21 @@ class LandingQueueProcessor
         "landing_queue_waiting_job_ids" => landing_queue_waiting_job_ids(entry),
         "landing_queue_dependency_edges" => entry.dependency_edges
       }
+      snapshot_changed = landing_queue_snapshot_changed?(before_snapshot, after_snapshot)
 
-      entry.job.update_columns(
-        landing_queue_position: after_snapshot.fetch("landing_queue_position"),
-        landing_queue_entry_position: after_snapshot.fetch("landing_queue_entry_position"),
-        landing_queue_blocked_reason: after_snapshot.fetch("landing_queue_blocked_reason"),
-        landing_queue_entry_key: after_snapshot.fetch("landing_queue_entry_key"),
-        landing_queue_blocker_job_ids: after_snapshot.fetch("landing_queue_blocker_job_ids"),
-        landing_queue_waiting_job_ids: after_snapshot.fetch("landing_queue_waiting_job_ids"),
-        landing_queue_dependency_edges: after_snapshot.fetch("landing_queue_dependency_edges"),
-        landing_queue_cached_at: now
-      )
-      WorkflowActivity.landing_queue_changed!(entry.job, before: before_snapshot, after: after_snapshot) if landing_queue_snapshot_changed?(before_snapshot, after_snapshot)
+      if snapshot_changed || entry.job.landing_queue_cached_at.blank?
+        entry.job.update_columns(
+          landing_queue_position: after_snapshot.fetch("landing_queue_position"),
+          landing_queue_entry_position: after_snapshot.fetch("landing_queue_entry_position"),
+          landing_queue_blocked_reason: after_snapshot.fetch("landing_queue_blocked_reason"),
+          landing_queue_entry_key: after_snapshot.fetch("landing_queue_entry_key"),
+          landing_queue_blocker_job_ids: after_snapshot.fetch("landing_queue_blocker_job_ids"),
+          landing_queue_waiting_job_ids: after_snapshot.fetch("landing_queue_waiting_job_ids"),
+          landing_queue_dependency_edges: after_snapshot.fetch("landing_queue_dependency_edges"),
+          landing_queue_cached_at: now
+        )
+      end
+      WorkflowActivity.landing_queue_changed!(entry.job, before: before_snapshot, after: after_snapshot) if snapshot_changed
     end
 
     clear_stale_snapshot!(scope, cached_ids)

@@ -694,6 +694,19 @@ RSpec.describe LandingQueueProcessor do
     expect(ready.reload.landing_queue_position).to eq(2)
   end
 
+  it "does not rewrite unchanged cached queue snapshots" do
+    ready = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+
+    described_class.refresh_snapshot!(Job.where(id: ready.id))
+    first_cached_at = ready.reload.landing_queue_cached_at
+
+    travel_to 1.minute.from_now do
+      described_class.refresh_snapshot!(Job.where(id: ready.id))
+    end
+
+    expect(ready.reload.landing_queue_cached_at.to_i).to eq(first_cached_at.to_i)
+  end
+
   describe "priority ordering" do
     it "lands an urgent approved Job ahead of older medium and low Jobs" do
       low = queue_job(issue_number: 1, approved_at: 10.minutes.ago).tap { |j| j.update!(priority: "low") }
