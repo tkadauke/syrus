@@ -225,6 +225,55 @@ initializer.
 from a `PluginRecord` `after_commit` callback whenever the operator toggles a
 plugin's enabled state through Admin → Plugins.
 
+### Effect registration (`effect`)
+
+Pairing an `on_enable`/`on_boot` side effect with a hand-written
+`on_disable`/`on_shutdown` teardown method means the inverse has to be
+reconstructed by hand and kept in sync separately — easy to let drift, and it
+does nothing for a side effect that only got half set up before a later step
+in the same call raised. Register the cleanup at the point the effect actually
+takes hold instead, with the class-level `effect(&cleanup)` helper
+`Syrus::Plugin::Callbacks` provides:
+
+```ruby
+class MyPlugin::LifecycleCallbacks
+  include Syrus::Plugin::Callbacks
+
+  def self.on_enable
+    MyPlugin::Daemon.start!
+    effect { MyPlugin::Daemon.stop! }
+  end
+end
+```
+
+`effect` resolves the including class's own plugin name from
+`Syrus::PluginRegistry.all_plugins` (raising if the class isn't registered as
+some plugin's `callbacks` provider) and delegates to
+`Syrus::Plugin::EffectRegistry.register`, a mutex-guarded, per-plugin-name
+stack of cleanup procs. `Syrus::Plugin::EffectRegistry.drain!(plugin_name)`
+pops and runs every registered cleanup for that plugin, most-recently-registered
+first — LIFO, the natural inverse of setup order — then clears the stack. A
+cleanup that raises is rescued and logged rather than blocking the rest.
+
+`PluginLifecycleJob` drains automatically, so plugin authors don't call
+`drain!` themselves:
+
+- After `on_disable` or `on_shutdown`, effects always drain, even if the
+  callback method itself raised.
+- If `on_boot` or `on_enable` raises, whatever effects it managed to register
+  before failing are drained immediately, then the error re-raises. A failed
+  enable never leaves an orphaned effect waiting for a disable that may never
+  come.
+
+`effect` isn't limited to the callbacks class itself — call it with an
+explicit receiver from any collaborator that needs to register a cleanup at
+the moment its own effect takes hold. `Tailscale::DaemonManager#start` does
+exactly this: it calls `Tailscale::Callbacks.effect { stop }` immediately
+after spawning the `tailscaled` process, before any of the steps that can
+fail (`wait_until_ready!`, `run_tailscale_up!`, `run_tailscale_serve!`), so a
+failure partway through startup still gets the daemon killed instead of
+leaked.
+
 ## `prompt_injector`
 
 Injects additional text into the implementing agent's system prompt. Use this to instruct the agent to call `submit_artifact` when it touches specific files, or to add any other repository-specific guidance that should appear in every implement run.

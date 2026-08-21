@@ -10,12 +10,16 @@ RSpec.describe Tailscale::DaemonManager do
 
   describe "#start" do
     before do
+      Syrus::Plugin::EffectRegistry.drain!("tailscale")
       allow(Process).to receive(:spawn).and_return(42)
       allow(Process).to receive(:detach)
       allow(manager).to receive(:wait_until_ready!)
       allow(manager).to receive(:run_tailscale_up!)
       allow(manager).to receive(:run_tailscale_serve!)
+      allow(manager).to receive(:stop)
     end
+
+    after { Syrus::Plugin::EffectRegistry.drain!("tailscale") }
 
     it "spawns tailscaled with state and socket paths" do
       manager.start
@@ -63,6 +67,32 @@ RSpec.describe Tailscale::DaemonManager do
       it "does not spawn tailscaled" do
         manager.start
         expect(Process).not_to have_received(:spawn)
+      end
+    end
+
+    it "registers an effect that stops the daemon, right after spawning it" do
+      manager.start
+
+      expect(manager).not_to have_received(:stop)
+
+      Syrus::Plugin::EffectRegistry.drain!("tailscale")
+
+      expect(manager).to have_received(:stop)
+    end
+
+    context "when run_tailscale_up! raises partway through startup" do
+      before { allow(manager).to receive(:run_tailscale_up!).and_raise("tailscale up failed") }
+
+      it "propagates the error" do
+        expect { manager.start }.to raise_error("tailscale up failed")
+      end
+
+      it "still gets the daemon stopped once the failed effect is drained" do
+        expect { manager.start }.to raise_error("tailscale up failed")
+
+        Syrus::Plugin::EffectRegistry.drain!("tailscale")
+
+        expect(manager).to have_received(:stop)
       end
     end
   end
