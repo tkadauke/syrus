@@ -53,6 +53,7 @@ class Job < ApplicationRecord
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :claimed_by_user, class_name: "User", optional: true
   belongs_to :manual_paused_by_user, class_name: "User", optional: true
+  belongs_to :landing_blocker_override_requested_by_user, class_name: "User", optional: true
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
   belongs_to :linked_chat, class_name: "ChatSession", optional: true

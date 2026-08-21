@@ -163,4 +163,41 @@ describe("landing queue status column", () => {
     const status = screen.getByText("Landing paused").closest("span")
     expect(status?.className).toContain("red")
   })
+
+  it("shows a pending override badge when an override was granted but not yet used", () => {
+    renderTable([
+      jobItem({
+        id: 3,
+        landing_queue_blocked_reason: { key: "landing_paused" },
+        landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
+        landing_blocker_override_requested_by: { id: 9, name: "Ada Admin", email_address: "ada@example.com" },
+        landing_blocker_override_used_at: null
+      })
+    ])
+
+    const badge = screen.getByText("Override granted")
+    expect(badge.closest("span")?.className).toContain("amber")
+    expect(badge.closest("span")).toHaveAttribute("title", "Granted by Ada Admin at 2026-08-10T09:00:00Z")
+  })
+
+  it("shows a used override badge once the one-shot override has been consumed", () => {
+    renderTable([
+      jobItem({
+        id: 4,
+        landing_blocker_override_requested_at: "2026-08-10T09:00:00Z",
+        landing_blocker_override_requested_by: { id: 9, name: "Ada Admin", email_address: "ada@example.com" },
+        landing_blocker_override_used_at: "2026-08-10T09:05:00Z"
+      })
+    ])
+
+    const badge = screen.getByText("Override used")
+    expect(badge.closest("span")?.className).toContain("gray")
+  })
+
+  it("does not show an override badge when no override was ever requested", () => {
+    renderTable([ jobItem({ id: 5 }) ])
+
+    expect(screen.queryByText("Override granted")).not.toBeInTheDocument()
+    expect(screen.queryByText("Override used")).not.toBeInTheDocument()
+  })
 })

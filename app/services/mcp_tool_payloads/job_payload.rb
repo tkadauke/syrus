@@ -25,6 +25,9 @@ module McpToolPayloads
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601
       }.merge(deployment_stages_payload(job, plan: deployment_stages_plan))
+       .merge(approval_evidence_payload(job))
+       .merge(invalidation_evidence_payload(job))
+       .merge(landing_blocker_override_payload(job))
     end
 
     # Compact payload for list_jobs — includes repository_slug but not dependencies.
@@ -105,6 +108,38 @@ module McpToolPayloads
 
       stages = App::DeploymentStagesPayload.for_job(job, plan: plan)
       stages ? { deployment_stages: stages } : {}
+    end
+
+    # Auto-approval audit trail — set only when a Job was auto-approved
+    # via AutoApprovalRule or MainBranchRepairAutoApprover.
+    def approval_evidence_payload(job)
+      job.approval_evidence.presence ? { approval_evidence: job.approval_evidence } : {}
+    end
+
+    # Triage-classifier audit trail — set only when the Job was auto-invalidated.
+    def invalidation_evidence_payload(job)
+      job.invalidation_evidence.presence ? { invalidation_evidence: job.invalidation_evidence } : {}
+    end
+
+    # Landing-blocker one-shot override grant — requester identity/timestamp only;
+    # the key/reason/used_at fields drive the actual override logic elsewhere.
+    def landing_blocker_override_payload(job)
+      return {} unless job.landing_blocker_override_requested_at.present?
+
+      {
+        landing_blocker_override_requested_at: job.landing_blocker_override_requested_at.iso8601,
+        landing_blocker_override_requested_by: user_reference_payload(job.landing_blocker_override_requested_by_user)
+      }
+    end
+
+    def user_reference_payload(user)
+      return nil unless user
+
+      {
+        id: user.id,
+        display_name: user.display_name,
+        email_address: user.email_address
+      }
     end
   end
 end

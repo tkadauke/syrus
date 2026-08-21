@@ -192,7 +192,7 @@ module App
         approved_by_user_id: @job.approved_by_user_id,
         owner_user_id: @job.owner_user_id,
         owner_user: owner_user_json(@job.owner_user),
-        approval_evidence: @job.approval_evidence,
+        approval_evidence: approval_evidence_json,
         job_approvals: @job.job_approvals.includes(:user).map { |a| job_approval_json(a) },
         approval_status: approval_status,
         claimed_at: iso8601(@job.claimed_at),
@@ -200,6 +200,8 @@ module App
         claimed_by_current_user: @job.claimed_by_user_id == @user.id,
         invalidation_reason: @job.invalidation_reason,
         invalidation_evidence: @job.invalidation_evidence,
+        landing_blocker_override_requested_at: iso8601(@job.landing_blocker_override_requested_at),
+        landing_blocker_override_requested_by: user_reference_json(@job.landing_blocker_override_requested_by_user),
         scheduled_task_id: @job.scheduled_task_id,
         scheduled_task: scheduled_task_json(@job.scheduled_task),
         epic_id: @job.epic_id,
@@ -306,6 +308,35 @@ module App
       {
         id: owner_user.id,
         email_address: owner_user.email_address
+      }
+    end
+
+    def user_reference_json(user)
+      return nil unless user
+
+      {
+        id: user.id,
+        display_name: user.display_name,
+        email_address: user.email_address
+      }
+    end
+
+    # Auto-approval audit trail — nil unless the Job was auto-approved via
+    # AutoApprovalRule or MainBranchRepairAutoApprover. Enriches the raw
+    # evidence hash with a link back to the Workflow that produced the
+    # approving grader run.
+    def approval_evidence_json
+      evidence = @job.approval_evidence
+      return nil if evidence.blank?
+
+      grader_step_id = evidence["grader_step_id"]
+      grader_step = grader_step_id.present? ? Step.find_by(id: grader_step_id) : nil
+
+      {
+        rule: evidence["rule"],
+        source: evidence["source"],
+        grader_step_id: grader_step_id,
+        grader_step_workflow_path: grader_step ? "#{job_path(@job)}?tab=workflows#workflow-#{grader_step.workflow_id}" : nil
       }
     end
 

@@ -56,6 +56,63 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).fetch(:job)).not_to have_key(:worker_health_correlation)
     end
 
+    it "resolves approval evidence to a grader step workflow link when the Job was auto-approved" do
+      job = Factories.job(repository: repo)
+      grader_step = job.workflows.first.steps.first
+      job.update!(approval_evidence: { "rule" => "if_graders_pass", "source" => "AutoApprovalRule", "grader_step_id" => grader_step.id })
+
+      expect(payload_for(job).dig(:job, :approval_evidence)).to eq(
+        rule: "if_graders_pass",
+        source: "AutoApprovalRule",
+        grader_step_id: grader_step.id,
+        grader_step_workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{grader_step.workflow_id}"
+      )
+    end
+
+    it "omits the grader step workflow link when the grader step no longer exists" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved", approval_evidence: { "rule" => "if_graders_pass", "source" => "AutoApprovalRule", "grader_step_id" => 999_999 })
+
+      expect(payload_for(job).dig(:job, :approval_evidence)).to eq(
+        rule: "if_graders_pass",
+        source: "AutoApprovalRule",
+        grader_step_id: 999_999,
+        grader_step_workflow_path: nil
+      )
+    end
+
+    it "returns nil approval evidence when the Job was not auto-approved" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(payload_for(job).dig(:job, :approval_evidence)).to be_nil
+    end
+
+    it "includes the landing blocker override grant when present" do
+      admin = Factories.user
+      requested_at = Time.zone.parse("2026-08-10T09:00:00Z")
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        landing_blocker_override_key: "landing_paused",
+        landing_blocker_override_reason: "Verified queue pause was stale.",
+        landing_blocker_override_requested_at: requested_at,
+        landing_blocker_override_requested_by_user: admin
+      )
+
+      expect(payload_for(job).dig(:job, :landing_blocker_override_requested_at)).to eq(requested_at.iso8601)
+      expect(payload_for(job).dig(:job, :landing_blocker_override_requested_by)).to eq(
+        id: admin.id,
+        display_name: admin.display_name,
+        email_address: admin.email_address
+      )
+    end
+
+    it "returns nil landing blocker override fields when no override was ever requested" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(payload_for(job).dig(:job, :landing_blocker_override_requested_at)).to be_nil
+      expect(payload_for(job).dig(:job, :landing_blocker_override_requested_by)).to be_nil
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
