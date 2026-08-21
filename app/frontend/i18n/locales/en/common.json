@@ -317,6 +317,7 @@
     "manual_pause": "Manually paused",
     "repository_archived": "Repository archived",
     "waiting_epic_merge_train": "Waiting for Epic merge-train",
+    "waiting_epicless_bundle": "Waiting for job bundle",
     "auto_merge_not_enabled": "Auto-merge not enabled for repository",
     "review_requested_changes": "Review requested changes",
     "missing_pull_request": "Missing pull request",
