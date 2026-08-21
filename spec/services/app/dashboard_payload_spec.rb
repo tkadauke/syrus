@@ -90,6 +90,33 @@ RSpec.describe App::DashboardPayload do
     end
   end
 
+  describe "start-blocked row data" do
+    it "only scans start-blocked workflow artifacts for the current job page" do
+      visible = Factories.job_record(user: user, repository: repo, state: "queued")
+      unrelated = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: visible,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "admission_control" }
+      )
+      Workflow.create!(
+        job: unrelated,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "main_branch_broken" }
+      )
+
+      payload = described_class.new(user: user, params: ActionController::Parameters.new(subject: "job", section: "rows"))
+      payload.instance_variable_set(:@current_jobs, [ visible ])
+
+      result = payload.send(:start_blocked_data_by_job_id)
+
+      expect(result.keys).to eq([ visible.id ])
+      expect(result.dig(visible.id, :reason)).to eq("admission_control")
+    end
+  end
+
   describe "default inbox view" do
     # Builtins are seeded by the service on each call, but we need them available
     # for assertions before the second call, so ensure them explicitly.
