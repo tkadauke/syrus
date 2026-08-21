@@ -476,10 +476,10 @@ class RunJob < ApplicationJob
   def log(chunk, kind: nil, **)
     text = chunk.to_s
     if text.strip.empty?
-      @run.update_column(:last_heartbeat_at, Time.current) if @run.running?
+      RunHeartbeat.touch(@run)
       return
     end
     JobLog.append!(run: @run, chunk: text, kind: kind)
-    @run.update_column(:last_heartbeat_at, Time.current) if @run.running?
+    RunHeartbeat.touch(@run)
   end
 end
