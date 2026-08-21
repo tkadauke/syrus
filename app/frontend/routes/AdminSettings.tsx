@@ -41,10 +41,11 @@ export function AdminSettings() {
 }
 
 function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
-  const otherSecrets = payload.settings.clearable_secrets.filter(s => s.key !== "telegram_bot_token")
+  const otherSecrets = payload.settings.clearable_secrets.filter(s => s.key !== "telegram_bot_token" && s.key !== "discord_bot_token")
   return (
     <>
       <TelegramSection onNotice={onNotice} payload={payload} />
+      <DiscordSection onNotice={onNotice} payload={payload} />
 
       {otherSecrets.length > 0 && (
         <section className="divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -392,6 +393,80 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
       {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
       {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
       {startPolling.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("settings.telegram_polling_error")}</p> : null}
+    </section>
+  )
+}
+
+function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("admin")
+  const queryClient = useQueryClient()
+  const [tokenInput, setTokenInput] = useState("")
+
+  const discordSecret = payload.settings.clearable_secrets.find(s => s.key === "discord_bot_token")
+  const tokenSet = discordSecret?.set ?? false
+
+  const saveToken = useMutation({
+    mutationFn: () => updateAdminSettings({ discord_bot_token: tokenInput }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      setTokenInput("")
+      onNotice(updated.message || t("settings.settings_updated"))
+    }
+  })
+
+  const clearToken = useMutation({
+    mutationFn: () => clearAdminSettingSecret("discord_bot_token"),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || t("settings.settings_updated"))
+    }
+  })
+
+  return (
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("settings.discord_heading")}</h2>
+
+      <div className="text-xs text-gray-500 dark:text-gray-400">
+        {tokenSet ? t("settings.currently_set") : t("settings.not_set")}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <input
+          aria-label={t("settings.discord_token_label")}
+          autoComplete="off"
+          className="flex-1 min-w-48 rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm dark:bg-gray-800 dark:text-gray-100"
+          onChange={(e) => setTokenInput(e.target.value)}
+          placeholder={t("settings.discord_token_placeholder")}
+          type="password"
+          value={tokenInput}
+        />
+        <button
+          className="rounded bg-terracotta-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={saveToken.isPending || !tokenInput.trim()}
+          onClick={() => { onNotice(null); saveToken.mutate() }}
+          type="button"
+        >
+          {saveToken.isPending ? t("settings.saving") : t("settings.discord_save_token")}
+        </button>
+        {tokenSet && (
+          <button
+            className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={clearToken.isPending}
+            onClick={() => {
+              if (window.confirm(t("settings.discord_token_clear_confirm"))) {
+                onNotice(null)
+                clearToken.mutate()
+              }
+            }}
+            type="button"
+          >
+            {clearToken.isPending ? t("settings.clearing") : t("settings.clear")}
+          </button>
+        )}
+      </div>
+
+      {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
+      {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
     </section>
   )
 }

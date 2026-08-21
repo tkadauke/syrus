@@ -515,7 +515,12 @@
     "telegram_polling_starting": "Starting…",
     "telegram_polling_started": "Telegram polling started.",
     "telegram_polling_already_running": "Telegram polling is already running.",
-    "telegram_polling_error": "Unable to start Telegram polling."
+    "telegram_polling_error": "Unable to start Telegram polling.",
+    "discord_heading": "Discord",
+    "discord_token_label": "Discord bot token",
+    "discord_token_placeholder": "Enter bot token…",
+    "discord_token_clear_confirm": "Clear the Discord bot token?",
+    "discord_save_token": "Save token"
   },
   "github_app": {
     "register_title": "GitHub App registration",
