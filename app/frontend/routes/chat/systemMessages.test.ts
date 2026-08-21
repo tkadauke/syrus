@@ -1,0 +1,78 @@
+import { describe, expect, it } from "vitest"
+import type { ChatMessageItem, ChatRenderItem } from "../../api/chats"
+import { isLowPrioritySystemMessage } from "./messageDisplay"
+import { skillInvocationFromContent, systemMessage } from "./systemMessages"
+
+function systemMessageItem(overrides: Partial<ChatMessageItem> = {}): ChatMessageItem {
+  return {
+    type: "message",
+    id: 1,
+    role: "system",
+    text: "",
+    bookmarkable: false,
+    ...overrides
+  }
+}
+
+describe("skillInvocationFromContent", () => {
+  it("returns null when the content carries no skill_invocation marker", () => {
+    expect(skillInvocationFromContent({ text: "MCP starting: syrus-chat-sidecar" }, "MCP starting: syrus-chat-sidecar")).toBeNull()
+  })
+
+  it("returns a warning-toned message for a coding_mode_required marker", () => {
+    const result = skillInvocationFromContent(
+      { skill_invocation: { status: "coding_mode_required" } },
+      "`/security-review` runs a skill, which executes within this chat's Coding Mode workspace."
+    )
+
+    expect(result).toMatchObject({
+      tone: "warning",
+      body: "`/security-review` runs a skill, which executes within this chat's Coding Mode workspace."
+    })
+  })
+
+  it("returns a warning-toned message for unknown_skill and invalid_args markers", () => {
+    expect(skillInvocationFromContent({ skill_invocation: { status: "unknown_skill" } }, "No skill named `/dead-code-sweep`.")).toMatchObject({ tone: "warning" })
+    expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({ tone: "warning" })
+  })
+})
+
+describe("systemMessage", () => {
+  it("renders a skill-invocation guidance message with a non-neutral tone via the structured marker", () => {
+    const message = systemMessageItem({
+      text: "`/security-review` runs a skill, which executes within this chat's Coding Mode workspace. Enable Coding Mode for this chat, then run the command again.",
+      content: {
+        text: "`/security-review` runs a skill, which executes within this chat's Coding Mode workspace. Enable Coding Mode for this chat, then run the command again.",
+        skill_invocation: { status: "coding_mode_required" }
+      }
+    })
+
+    const result = systemMessage(message)
+
+    expect(result).not.toBeNull()
+    expect(result?.tone).not.toBe("neutral")
+    expect(result?.body).toContain("Coding Mode")
+  })
+
+  it("is not filtered by isLowPrioritySystemMessage once tagged with the skill_invocation marker", () => {
+    const message = systemMessageItem({
+      text: "No skill named `/dead-code-sweep` is available for acme/widgets.",
+      content: {
+        text: "No skill named `/dead-code-sweep` is available for acme/widgets.",
+        skill_invocation: { status: "unknown_skill" }
+      }
+    })
+    const renderItem: ChatRenderItem = { ...message, system: systemMessage(message) ?? undefined }
+
+    expect(isLowPrioritySystemMessage(renderItem)).toBe(false)
+  })
+
+  it("still falls through to the neutral catch-all for bare skill-guidance text without the marker (pre-fix behavior)", () => {
+    const message = systemMessageItem({
+      text: "`/security-review` runs a skill, which executes within this chat's Coding Mode workspace.",
+      content: { text: "`/security-review` runs a skill, which executes within this chat's Coding Mode workspace." }
+    })
+
+    expect(systemMessage(message)).toMatchObject({ tone: "neutral", label: "System" })
+  })
+})

@@ -26,6 +26,9 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const providerError = providerErrorFromContent(message.content)
   if (providerError) return providerError
 
+  const skillInvocation = skillInvocationFromContent(message.content, text)
+  if (skillInvocation) return skillInvocation
+
   const mcpHealth = mcpHealthFromContent(message.content)
   if (mcpHealth.length > 0) return structuredMcpMessage(mcpHealth)
 
@@ -81,6 +84,13 @@ export function providerErrorFromContent(content: unknown): ChatSystemMessage | 
     body: detail || "Agent turn failed.",
     prominent: true
   }
+}
+
+export function skillInvocationFromContent(content: unknown, text: string): ChatSystemMessage | null {
+  const record = contentRecord(contentRecord(content)?.skill_invocation)
+  if (!record) return null
+
+  return { tone: "warning", label: "Skill", body: text }
 }
 
 export function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage | null {
