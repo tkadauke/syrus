@@ -72,7 +72,8 @@ declares `depends_on: [ "ruby" ]` because its Rails-specific tooling assumes
 the Ruby-generic RSpec/SimpleCov/Gemfile support the `ruby` plugin provides.
 Enabling `syrus-rails` cascades to enable `ruby`; disabling `ruby` while
 `syrus-rails` is enabled surfaces the confirmation/cascade-disable path
-described below.
+described below. The bundled `django` gem (`plugins/django`) declares the
+same shape of relationship against `python`: `depends_on: [ "python" ]`.
 
 Dependency names are validated once boot settles, from the same
 `Rails.application.config.after_initialize` block that calls
@@ -480,6 +481,22 @@ Bundled plugins:
   output is already handled by core's `JunitXmlParser` fallback and
   `coverage xml` (Cobertura format) is already handled by
   `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
+- `django` — default-enabled. `depends_on: [ "python" ]` — its Django-specific
+  tooling builds on the Python-generic support the `python` plugin provides;
+  enabling `django` cascades to enable `python`. Provides only the
+  Django-framework-specific `:preview_provider` extension point: `detect?`
+  matches `manage.py` plus an importable Django settings module (parsed from
+  `manage.py`'s `DJANGO_SETTINGS_MODULE` assignment and resolved to a real
+  file on disk); `start_command` runs `python manage.py runserver
+  0.0.0.0:<port>`; `seed_command` runs `python manage.py migrate` plus a
+  documented fixtures/seed convention (a custom `seed` management command if
+  present, else `fixtures/seed.json` via `loaddata`); `setup_commands`
+  branches on the same Python package-manager priority order as the `python`
+  plugin's `:prepare_detector`, evaluated independently against the preview
+  checkout; and `health_check_path` defaults to `/admin/login/` since Django
+  has no Rails-style built-in `/up` — `django.contrib.admin`'s login view
+  ships in the default `startproject` scaffold and returns `200` without
+  authentication.
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling
