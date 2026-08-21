@@ -338,6 +338,11 @@ module Steps
       ].join("\n\n")
     end
 
+    def collect_injected_context
+      Syrus::PluginRegistry.providers_for(:prompt_injector)
+        .filter_map { |provider| provider.call(repository: repository, job: job) }
+    end
+
     # ---- Workspace + git helpers ----
 
     # `git diff origin/<default>...HEAD` for what THIS branch

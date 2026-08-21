@@ -17,7 +17,7 @@ module Prompts
   # can cross-reference what actually shipped against what was
   # promised in the prior summaries.
   class PrFeedback
-    def initialize(issue:, comments:, cutoff: nil, prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [])
+    def initialize(issue:, comments:, cutoff: nil, prior_summaries: [], recent_commits: [], epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @comments = comments
       @cutoff = cutoff
@@ -27,6 +27,7 @@ module Prompts
       @job = job
       @user = user
       @repository_ids = repository_ids
+      @injected_context = Array(injected_context).compact
     end
 
     def to_s
@@ -38,7 +39,8 @@ module Prompts
         comments_section,
         commits_section,
         memory_context,
-        directives_section
+        directives_section,
+        injected_context_section
       ].compact
 
       body = sections.join("\n\n---\n\n")
@@ -65,6 +67,12 @@ module Prompts
 
     def memory_context
       Prompts::MemoryContext.new(user: @user, repository_ids: @repository_ids).to_s.presence
+    end
+
+    def injected_context_section
+      return nil if @injected_context.empty?
+
+      @injected_context.join("\n\n")
     end
 
     def prior_context_section

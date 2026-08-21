@@ -252,4 +252,87 @@ RSpec.describe Steps::Respond do
     expect(chat_run.reload.prompt).to include("Operator feedback from Syrus Chat")
     expect(chat_run.prompt).to include("Please simplify the UI copy.")
   end
+
+  context "prompt injector plugins" do
+    after { Syrus::PluginRegistry.reset! }
+
+    it "includes output from a registered prompt injector in the pr_comment prompt" do
+      injector = Class.new do
+        include Syrus::Plugin::PromptInjector
+        def call(repository:, job:) = "Plugin-injected context: review the schema changes."
+      end.new
+      Syrus::PluginRegistry.register(:prompt_injector, injector)
+
+      handler.call
+
+      expect(run.reload.prompt).to include("Plugin-injected context: review the schema changes.")
+    end
+
+    it "includes output from a registered prompt injector in the chat_feedback prompt" do
+      injector = Class.new do
+        include Syrus::Plugin::PromptInjector
+        def call(repository:, job:) = "Plugin-injected context: chat feedback path."
+      end.new
+      Syrus::PluginRegistry.register(:prompt_injector, injector)
+
+      chat_workflow = Workflows::ChatFeedback.instantiate(job: job, artifacts: { "chat_feedback" => "Please simplify the UI copy." })
+      chat_step = chat_workflow.steps.find_by(kind: "respond")
+      chat_run = chat_step.runs.create!(job: job, trigger_kind: chat_workflow.trigger_kind)
+      chat_handler = described_class.new(chat_run)
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(chat_handler).to receive(:workspace).and_return(fake_ws)
+      allow(chat_handler).to receive(:run_agent)
+      allow(chat_handler).to receive(:commit_agent_changes)
+      allow(chat_handler).to receive(:assert_branch_history_intact!)
+      allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+      allow(chat_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+      allow(chat_handler).to receive(:head_sha).and_return("abc789")
+
+      chat_handler.call
+
+      expect(chat_run.reload.prompt).to include("Plugin-injected context: chat feedback path.")
+    end
+
+    it "passes the step's repository and job to the injector" do
+      received = {}
+      injector = Class.new do
+        include Syrus::Plugin::PromptInjector
+        attr_accessor :received
+        def call(repository:, job:)
+          self.received = { repository: repository, job: job }
+          nil
+        end
+      end.new
+      Syrus::PluginRegistry.register(:prompt_injector, injector)
+
+      handler.call
+
+      expect(injector.received[:repository]).to eq(job.repository)
+      expect(injector.received[:job]).to eq(job)
+    end
+
+    it "skips injectors that return nil without raising" do
+      Syrus::PluginRegistry.register(:prompt_injector, Class.new do
+        include Syrus::Plugin::PromptInjector
+        def call(repository:, job:) = nil
+      end.new)
+
+      expect { handler.call }.not_to raise_error
+      expect(run.reload.prompt).to include("Add greeting helper")
+    end
+
+    it "appends output from multiple injectors in registration order" do
+      %w[Alpha Beta].each do |label|
+        Syrus::PluginRegistry.register(:prompt_injector, Class.new do
+          define_method(:call) { |repository:, job:| "Injected by #{label}" }
+          include Syrus::Plugin::PromptInjector
+        end.new)
+      end
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt.index("Injected by Alpha")).to be < prompt.index("Injected by Beta")
+    end
+  end
 end

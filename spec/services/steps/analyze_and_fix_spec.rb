@@ -86,4 +86,62 @@ RSpec.describe Steps::AnalyzeAndFix do
     expect(run.reload.agent_diff).to eq("diff --git a/spec/foo_spec.rb b/spec/foo_spec.rb\n+bar")
     expect(run.head_sha).to eq("def456")
   end
+
+  context "prompt injector plugins" do
+    after { Syrus::PluginRegistry.reset! }
+
+    it "includes output from a registered prompt injector in the assembled prompt" do
+      injector = Class.new do
+        include Syrus::Plugin::PromptInjector
+        def call(repository:, job:) = "Plugin-injected context: check the lockfile."
+      end.new
+      Syrus::PluginRegistry.register(:prompt_injector, injector)
+
+      handler.call
+
+      expect(run.reload.prompt).to include("Plugin-injected context: check the lockfile.")
+    end
+
+    it "passes the step's repository and job to the injector" do
+      received = {}
+      injector = Class.new do
+        include Syrus::Plugin::PromptInjector
+        attr_accessor :received
+        def call(repository:, job:)
+          self.received = { repository: repository, job: job }
+          nil
+        end
+      end.new
+      Syrus::PluginRegistry.register(:prompt_injector, injector)
+
+      handler.call
+
+      expect(injector.received[:repository]).to eq(job.repository)
+      expect(injector.received[:job]).to eq(job)
+    end
+
+    it "skips injectors that return nil without raising" do
+      Syrus::PluginRegistry.register(:prompt_injector, Class.new do
+        include Syrus::Plugin::PromptInjector
+        def call(repository:, job:) = nil
+      end.new)
+
+      expect { handler.call }.not_to raise_error
+      expect(run.reload.prompt).to include("CI is failing on PR")
+    end
+
+    it "appends output from multiple injectors in registration order" do
+      %w[Alpha Beta].each do |label|
+        Syrus::PluginRegistry.register(:prompt_injector, Class.new do
+          define_method(:call) { |repository:, job:| "Injected by #{label}" }
+          include Syrus::Plugin::PromptInjector
+        end.new)
+      end
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt.index("Injected by Alpha")).to be < prompt.index("Injected by Beta")
+    end
+  end
 end

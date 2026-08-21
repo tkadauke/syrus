@@ -29,7 +29,8 @@ module Steps
         failed_checks: failed,
         instructions: workflow.artifact("manual_ci_repair").to_h["instructions"],
         epic: job.epic,
-        job: job
+        job: job,
+        injected_context: collect_injected_context
       ).to_s
     end
   end
