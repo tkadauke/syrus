@@ -401,7 +401,7 @@ RSpec.describe StepDispatcher do
       candidate = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
       candidate_first = candidate.first_step
 
-      %w[prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan].each do |step_kind|
+      %w[prepare implement autofix grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan].each do |step_kind|
         WorkflowStepResourceProfile.create!(
           repository: repository,
           agent_provider: "claude",
