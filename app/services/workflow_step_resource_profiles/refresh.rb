@@ -1,3 +1,5 @@
+require "set"
+
 module WorkflowStepResourceProfiles
   class Refresh
     def initialize(now: Time.current)
@@ -10,8 +12,11 @@ module WorkflowStepResourceProfiles
     end
 
     def refresh_for_summaries!(summaries)
-      grouped_inputs(summaries).each_value do |inputs|
-        refresh_profile!(inputs)
+      summaries = summaries.to_a
+      with_span_samples(summaries) do
+        grouped_inputs(summaries).each_value do |inputs|
+          refresh_profile!(inputs)
+        end
       end
     end
 
@@ -224,7 +229,7 @@ module WorkflowStepResourceProfiles
     end
 
     def attributed_span_metrics(span)
-      correlation = WorkerHealthRunCorrelation.for_span(span, sample_limit: 0, now: now)
+      correlation = WorkerHealthRunCorrelation.for_span(span, sample_limit: 0, now: now, samples_by_hostname: span_samples_by_hostname)
       return if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
 
       {
@@ -233,6 +238,43 @@ module WorkflowStepResourceProfiles
         io_pressure: correlation.dig(:summary, :io_pressure_some, :max),
         memory_used_percent: correlation.dig(:summary, :memory_used_percent, :max)
       }
+    end
+
+    def with_span_samples(summaries)
+      previous = @span_samples_by_hostname
+      @span_samples_by_hostname = preload_span_samples_by_hostname(summaries)
+      yield
+    ensure
+      @span_samples_by_hostname = previous
+    end
+
+    def span_samples_by_hostname
+      @span_samples_by_hostname || {}
+    end
+
+    def preload_span_samples_by_hostname(summaries)
+      retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
+      hostnames = Set.new
+      starts = []
+      finishes = []
+
+      summaries.each do |summary|
+        Array(summary.run&.command_spans).each do |span|
+          next if span.hostname.blank? || span.started_at.blank?
+
+          hostnames << span.hostname
+          starts << [ span.started_at, retained_since ].max
+          finishes << (span.finished_at || now)
+        end
+      end
+
+      return {} if hostnames.empty? || starts.empty? || finishes.empty?
+
+      WorkerHealthRunCorrelation.sample_scope
+        .where(hostname: hostnames.to_a, observed_at: starts.min..finishes.max)
+        .order(:hostname, :observed_at)
+        .to_a
+        .group_by(&:hostname)
     end
 
     def normalized_grader_name(summary)

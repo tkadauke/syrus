@@ -23,8 +23,8 @@ class WorkerHealthRunCorrelation
     new(run: run, sample_limit: sample_limit, now: now).as_json
   end
 
-  def self.for_span(span, sample_limit: 0, now: Time.current, samples: nil)
-    SpanCorrelation.new(span: span, sample_limit: sample_limit, now: now, samples: samples).as_json
+  def self.for_span(span, sample_limit: 0, now: Time.current, samples: nil, samples_by_hostname: nil)
+    SpanCorrelation.new(span: span, sample_limit: sample_limit, now: now, samples: samples, samples_by_hostname: samples_by_hostname).as_json
   end
 
   def self.for_job(job, run_limit: JOB_RUN_LIMIT, now: Time.current)
@@ -180,7 +180,6 @@ class WorkerHealthRunCorrelation
   def self.sample_scope
     WorkerHostHealthSample.select(*SAMPLE_COLUMNS)
   end
-  private_class_method :sample_scope
 
   def initialize(run:, sample_limit: SAMPLE_LIMIT, now: Time.current, samples_by_hostname: nil)
     @run = run
@@ -310,7 +309,7 @@ class WorkerHealthRunCorrelation
           .select { |sample| sample.observed_at >= effective_since && sample.observed_at <= range_finish }
           .sort_by(&:observed_at)
       else
-        self.class.send(:sample_scope)
+        self.class.sample_scope
           .where(hostname: hostnames, observed_at: effective_since..range_finish)
           .order(:observed_at)
           .to_a
@@ -454,7 +453,7 @@ class WorkerHealthRunCorrelation
           samples_by_hostname.fetch(span.hostname, [])
             .select { |sample| sample.observed_at >= effective_since && sample.observed_at <= range_finish }
         else
-          WorkerHealthRunCorrelation.send(:sample_scope)
+          WorkerHealthRunCorrelation.sample_scope
             .where(hostname: span.hostname, observed_at: effective_since..range_finish)
             .order(:observed_at)
             .to_a

@@ -242,7 +242,15 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       )
     end
 
-    described_class.new(now: now).refresh_all!
+    sample_queries = []
+    callback = lambda do |_name, _started, _finished, _unique_id, payload|
+      sql = payload[:sql].to_s
+      sample_queries << sql if sql.start_with?("SELECT") && sql.include?("worker_host_health_samples")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new(now: now).refresh_all!
+    end
 
     profile = WorkflowStepResourceProfile.first
     expect(profile.sample_count).to eq(10)
@@ -255,6 +263,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       prediction_source: "command_attributed",
       fallback_reason: nil
     )
+    expect(sample_queries.size).to eq(1)
   end
 
   it "excludes retention-limited summaries from aggregate inputs" do
