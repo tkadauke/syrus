@@ -16,11 +16,14 @@ RSpec.describe Go::Engine do
         Syrus::PluginRegistry.register(
           name:             "go",
           version:          Go::VERSION,
-          description:      "Go prepare detection: go.mod → go mod download",
+          description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 40,
           provides: {
-            prepare_detector: Go::PrepareDetector
+            prepare_detector:         Go::PrepareDetector,
+            review_criteria_provider: Go::ReviewCriteriaProvider,
+            autofix_command:          Go::GofmtAutofix,
+            dependency_audit_command: Go::DependencyAuditCommand
           }
         )
       end
@@ -39,12 +42,24 @@ RSpec.describe Go::Engine do
       expect(registration.prepare_priority).to eq(40)
     end
 
-    it "provides exactly the :prepare_detector extension point key" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector)
+    it "provides exactly the :prepare_detector, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do
+      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :review_criteria_provider, :autofix_command, :dependency_audit_command)
+    end
+
+    it "registers GofmtAutofix as the :autofix_command" do
+      expect(registration.provides[:autofix_command]).to eq(Go::GofmtAutofix)
+    end
+
+    it "registers DependencyAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(Go::DependencyAuditCommand)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
       expect(registration.provides[:prepare_detector]).to eq(Go::PrepareDetector)
+    end
+
+    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
+      expect(registration.provides[:review_criteria_provider]).to eq(Go::ReviewCriteriaProvider)
     end
   end
 
@@ -73,6 +88,72 @@ RSpec.describe Go::Engine do
 
     it "declares .go-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".go-version")
+    end
+  end
+
+  describe Go::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-go-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no go.mod" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the swallowed-error criterion when go.mod is present" do
+      write("go.mod", "module example.com/foo\n\ngo 1.22\n")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag swallowed errors (`_ = err`)" ])
+    end
+  end
+
+  describe Go::GofmtAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-go-gofmt-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns nil for a repo with no go.mod" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes gofmt -w . when go.mod is present" do
+      write("go.mod", "module example.com/foo\n\ngo 1.22\n")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("gofmt -w .")
+    end
+  end
+
+  describe Go::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-go-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no go.mod" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the swallowed-error criterion when go.mod is present" do
+      write("go.mod", "module example.com/foo\n\ngo 1.22\n")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag swallowed errors (`_ = err`)" ])
     end
   end
 end

@@ -120,6 +120,53 @@ Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. 
 
 Agentic. Operator-triggered free-form step; prompt is supplied at dispatch time.
 
+### format
+
+Non-agentic. Runs `.syrus.yml`'s `formatters:` commands, each scoped to its
+own `files:` glob intersected with this iteration's diff (`git diff
+--name-only <base>...HEAD`) — a formatter whose glob matches nothing in the
+diff is skipped. With no `formatters:` key at all, falls back to the
+deterministic formatter/linter-autocorrect commands language plugins
+register under the `:autofix_command` extension point (Ruby's `bundle exec
+rubocop -a`, JavaScript's `npx eslint --fix .`/`npx prettier --write .`,
+Go's `gofmt -w .`, Python's `ruff format .`/`black .`), each gated on the
+plugin detecting its own config signal in the repo (e.g. Ruby only offers
+`rubocop -a` when `.rubocop.yml` is present) and on the diff being
+non-empty. `formatters: false` (or `off`) explicitly disables formatting
+altogether, including the plugin defaults. Commits any resulting changes. A
+command failing is always soft — logged as a warning and skipped, the same
+non-fatal posture `prepare`'s auto-detected commands use — since a broken
+formatter must never block the workflow the way an explicit `.syrus.yml`
+grader failure does; whatever it managed to fix is still committed.
+
+### generate
+
+Non-agentic. Runs `.syrus.yml`'s `generated:` commands
+(`command`/`sources`/`generates`/`codegen_ignore`), each scoped to its own
+`sources:` glob intersected with this iteration's diff the same way
+`format` scopes `formatters:` (an entry with no `sources` configured always
+runs). Commits any resulting changes, which is effectively the `regen ==
+committed` check: if the regenerated output already matches what's
+committed there's nothing to commit. Entries marked `codegen_ignore` are
+skipped here — that flag exists because their generator is non-deterministic
+across environments (e.g. `db:schema:dump`'s SQLite vs. MySQL output), so
+auto-committing their regenerated output would introduce environment noise
+instead of fixing anything; that invariant is meant to be grader-validated
+instead. There is no plugin-provided default for codegen — it's inherently
+repo-specific — so this step simply no-ops when `generated:` isn't
+configured. `generated: false` (or `off`) explicitly disables it. A command
+failing is always soft, same posture as `format`.
+
+Both steps are inserted as repair steps of the grader retry loop (`repair: [
+implement | respond, format, generate ], check: [ grader_fanout,
+grader_collect ]`) in `initial`, `retry`, `pr_comment`, and `chat_feedback`
+workflows, so they rerun on every retry iteration right before graders check
+again — a style regression or stale generated output the agent's latest edit
+reintroduced gets fixed for free before the next grade rather than costing
+another agent turn. See [`plugins.md`](plugins.md#autofix_command) for the
+`:autofix_command` extension point contract and the bundled providers `format`
+falls back to.
+
 ## Review and quality steps
 
 ### adversarial_review
@@ -141,6 +188,18 @@ Non-agentic. Reads grader definitions from `.syrus.yml` and materializes one `gr
 Grader materialization remains sequential within the current workflow workspace.
 Landing-specific fanout is not enabled; any future design needs isolated
 workspaces for grader side effects before multiple grader Runs can overlap.
+
+Before matching a grader's `when_files_changed` globs, this step also asks
+every registered `:affected_test_analyzer` plugin (see
+[`plugins.md`](plugins.md#affected_test_analyzer)) whether it can more
+precisely resolve which files this diff actually affects — real
+import/dependency-graph analysis instead of a glob's path-pattern guess. A
+confident answer is added to the matched-file set (never removed from it),
+so it can only turn a would-be skip into a run; no registered analyzer, a
+declining analyzer, or one that raises all fall back to plain glob matching
+against the raw diff. This expanded set is never used for the
+`grade_plan_changed_files` artifact or its fingerprint, which stay a literal
+diff for comparison against other landing-validation-cache fingerprints.
 
 ### grader
 
@@ -332,6 +391,18 @@ Non-agentic. Parses coverage artifacts produced by graders, merges multiple sour
 ### coverage_pr_comment
 
 Non-agentic. Posts the formatted coverage summary as a PR comment when `pr_comment: true` is set in `.syrus.yml`.
+
+## Dependency audit steps
+
+### dependency_audit
+
+Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by a registered `:dependency_audit_command` plugin (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see [`plugins.md`](plugins.md#dependency_audit_command) for the extension point contract.
+
+When a matching lockfile changed, runs each matching provider's audit command (`bundle-audit check --update`, `npm`/`yarn`/`pnpm audit --json`, `pip-audit`, `govulncheck ./...`) and stores the results as the `dependency_audit` workflow artifact. A non-zero exit status is not a step failure — it is how these tools report that vulnerabilities were found, and `dependency_audit`'s `fail_policy` is `:advance` so a broken audit tool never blocks the chain. A clean scan across every scanned ecosystem leaves no `pr_comment_body` in the artifact, so nothing gets posted — a clean scan is a silent no-op. `Steps::PrOpen` posts the formatted findings as a PR comment (alongside the coverage comment) when it opens or updates the PR in `initial`/`retry` workflows.
+
+### dependency_audit_pr_comment
+
+Non-agentic. Posts or updates the formatted dependency-audit comment on an existing PR. Inserted after `dependency_audit` in `pr_comment` and `chat_feedback` workflows, where the PR already exists (mirrors `coverage_pr_comment`). No-ops when the `dependency_audit` artifact has no `pr_comment_body` (no lockfile changed, or every scanned ecosystem was clean) or the Job has no PR yet.
 
 ## Preflight grader steps (main_branch_repair)
 

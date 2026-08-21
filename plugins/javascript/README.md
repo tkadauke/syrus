@@ -8,6 +8,8 @@
 |---|---|
 | `:prepare_detector` | Detects a Node/JS lockfile at the repo root and contributes exactly one package-manager install command, in priority order: `yarn.lock` → `pnpm-lock.yaml` → `package-lock.json` → `package.json` (`prepare_priority: 20`). |
 | `:preview_provider` | Starts a preview using `package.json`'s `scripts.dev` (preferred) or `scripts.start`, the closest thing JS/TS has to a universal "how do I run this" convention. |
+| `:grader_augmentor` | `JavaScript::EslintGraderAugmentor` reads ESLint's `--format json` output under `.syrus/eslint-json/` and appends compact `file:line: ruleId: message` lines to a failed grader's log when the grader command contains `"eslint"`. |
+| `:review_criteria_provider` | Seeds a default adversarial-review checklist item — "Flag newly introduced `any` types" — when a Node/JS (or TS) lockfile or `package.json` is present (same signal as `:prepare_detector`). |
 
 ### `:preview_provider` details
 

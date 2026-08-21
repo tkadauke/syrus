@@ -89,11 +89,11 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open → review_plan
-pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
-chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open → review_plan
+retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
@@ -104,7 +104,7 @@ external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 skill:       prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open
 ```
 
-`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
+`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository. `dependency_audit` (and, in feedback workflows, `dependency_audit_pr_comment`) is always present in these chains but self-skips at runtime unless the PR diff touched a lockfile a registered `:dependency_audit_command` plugin owns.
 
 Key steps:
 
@@ -131,6 +131,23 @@ Key steps:
   invoke the Workflow's configured `AgentProviders::*` adapter. Claude uses
   `AgentInvocation`/`claude --print`; Codex uses `CodexInvocation`/`codex exec`.
   Pluggable `runner:` for tests.
+- **`format`** / **`generate`** — Non-agentic, deterministic repair steps
+  inserted between the agentic step and `graders` inside the grader retry
+  loop of `initial`, `retry`, `pr_comment`, and `chat_feedback` (not
+  `ci_failure`, `skill`, or any landing/maintenance workflow) — they rerun on
+  every repair iteration, not just once. Both are diff-scoped: a command only
+  runs when `git diff --name-only <base>...HEAD` touches the files/sources it
+  cares about. `format` runs `.syrus.yml`'s `formatters:` array when present;
+  with no `formatters:` key it falls back to the `:autofix_command` plugin
+  providers (RuboCop, ESLint/Prettier, gofmt, ruff/black); `formatters: false`
+  (or `off`) disables both. `generate` runs `.syrus.yml`'s `generated:` array
+  the same diff-scoped way (no plugin-provided fallback — codegen is too
+  repo-specific to guess), skipping `codegen_ignore` entries; `generated:
+  false`/`off` disables it. Both commit whatever they change and never fail
+  the workflow — a command failure is logged as a non-fatal warning, the same
+  soft-fail posture `prepare`'s auto-detected commands use. See
+  `config/syrus_docs/syrus_yml.md` and `config/syrus_docs/workflow_steps.md`
+  for the full `.syrus.yml` schema and step contract.
 - **`run_skill`** — Agentic step of `skill` workflows (EPIC-233). Resolves the
   Job's `skill_name` via `Skills.for(repository:, name:)` (repo-local override,
   else built-in), renders the resolved `Skills::Definition`'s instructions with
@@ -175,7 +192,13 @@ Key steps:
   Graders support an optional `when_files_changed` array of glob patterns; at
   fanout time Syrus computes changed files via `git diff --name-only <base>...HEAD`
   and skips any grader whose patterns don't match — useful for expensive checks
-  like website builds that only matter when relevant files changed. Landing
+  like website builds that only matter when relevant files changed. A registered
+  `:affected_test_analyzer` plugin can additively expand that changed-file set
+  with real import/dependency-graph analysis before matching (e.g. Ruby's
+  `require_relative` graph plus `app`/`lib` <-> `spec` convention) — it can only
+  turn a would-be skip into a run, never the reverse, so no analyzer / a
+  declining analyzer / an erroring analyzer all fall back to plain glob
+  matching against the raw diff. Landing
   workflows may dispatch multiple grader Runs from the fanout in parallel,
   capped within the landing unit; `grader_collect` waits for every required
   result before deciding whether repair is needed.

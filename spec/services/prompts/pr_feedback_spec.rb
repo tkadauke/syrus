@@ -141,4 +141,29 @@ RSpec.describe Prompts::PrFeedback do
       expect(out).not_to include(Prompts::SimpleModeAgentContext::TEXT)
     end
   end
+
+  describe "injected_context" do
+    it "is omitted when not provided" do
+      out = described_class.new(issue: issue, comments: [ conversation ]).to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "is omitted when all entries are nil" do
+      out = described_class.new(issue: issue, comments: [ conversation ], injected_context: [ nil, nil ]).to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "includes injected text in the rendered output" do
+      out = described_class.new(issue: issue, comments: [ conversation ], injected_context: [ "plugin-injected hint" ]).to_s
+      expect(out).to include("plugin-injected hint")
+    end
+
+    it "joins multiple injected strings in registration order" do
+      out = described_class.new(
+        issue: issue, comments: [ conversation ],
+        injected_context: [ "First injection", "Second injection" ]
+      ).to_s
+      expect(out.index("First injection")).to be < out.index("Second injection")
+    end
+  end
 end

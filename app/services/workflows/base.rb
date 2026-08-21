@@ -138,10 +138,19 @@ module Workflows
       Workflows::Loop.new(max_iterations: plan.rounds, steps: [ agent_step, :visual_review ])
     end
 
-    def self.grader_retry_loop(agent_step, max_iterations: AppSetting.grade_max_iterations)
+    # `autofix:` inserts the config-driven format (rubocop -a, eslint --fix,
+    # gofmt -w, ... or `.syrus.yml` `formatters:`) and generate (`.syrus.yml`
+    # `generated:`) steps between the agent step and the grader check on
+    # every iteration, so a style-only failure or stale generated output the
+    # fixer could resolve for free never costs the agent a turn. Opt-in per
+    # call site rather than unconditional so ci_failure/skill/
+    # main_branch_repair/external_pr_feedback (repair loops with different
+    # repair semantics) aren't affected by a change scoped to
+    # initial/retry/pr_comment/chat_feedback.
+    def self.grader_retry_loop(agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false)
       Workflows::RetryUntil.new(
         max_iterations: max_iterations,
-        repair: [ agent_step ],
+        repair: autofix ? [ agent_step, :format, :generate ] : [ agent_step ],
         check: [ :grader_fanout, :grader_collect ]
       )
     end
@@ -167,6 +176,8 @@ module Workflows
       [
         "coverage_analyze",
         "coverage_pr_comment",
+        "dependency_audit",
+        "dependency_audit_pr_comment",
         "summarize_amend",
         "refresh_job_metadata",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)

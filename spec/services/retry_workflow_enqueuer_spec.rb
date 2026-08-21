@@ -239,7 +239,7 @@ RSpec.describe RetryWorkflowEnqueuer do
 
     expect(result).to be_success
     expect(job.reload).to be_skip_prepare
-    expect(result.workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ])
+    expect(result.workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ])
   end
 
   it "transitions a :failed Job back to :queued before instantiating the new workflow" do

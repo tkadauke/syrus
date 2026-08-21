@@ -16,15 +16,21 @@ RSpec.describe Ruby::Engine do
         Syrus::PluginRegistry.register(
           name:             "ruby",
           version:          Ruby::VERSION,
-          description:      "Ruby-generic intelligence: RSpec grader detail, RSpec output parsing, " \
-                             "SimpleCov analysis, Gemfile prepare detection",
+          description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
+                             "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
+                             "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
+                             "require_relative-graph affected-test analysis",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
-            coverage_analyzer:  Ruby::SimpleCovAnalyzer,
-            grader_augmentor:   Ruby::GraderAugmentor,
-            prepare_detector:   Ruby::PrepareDetector,
-            test_result_parser: Ruby::RspecParser
+            coverage_analyzer:        Ruby::SimpleCovAnalyzer,
+            grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
+            prepare_detector:         Ruby::PrepareDetector,
+            review_criteria_provider: Ruby::ReviewCriteriaProvider,
+            test_result_parser:       Ruby::RspecParser,
+            autofix_command:          Ruby::RubocopAutofix,
+            dependency_audit_command: Ruby::BundlerAuditCommand,
+            affected_test_analyzer:   Ruby::AffectedTestAnalyzer
           }
         )
       end
@@ -43,29 +49,74 @@ RSpec.describe Ruby::Engine do
       expect(registration.prepare_priority).to eq(10)
     end
 
-    it "provides all 4 extension point keys" do
+    it "provides all 8 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
         :prepare_detector,
-        :test_result_parser
+        :review_criteria_provider,
+        :test_result_parser,
+        :autofix_command,
+        :dependency_audit_command,
+        :affected_test_analyzer
       )
+    end
+
+    it "registers RubocopAutofix as the :autofix_command" do
+      expect(registration.provides[:autofix_command]).to eq(Ruby::RubocopAutofix)
+    end
+
+    it "registers BundlerAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(Ruby::BundlerAuditCommand)
+    end
+
+    it "registers AffectedTestAnalyzer as the :affected_test_analyzer" do
+      expect(registration.provides[:affected_test_analyzer]).to eq(Ruby::AffectedTestAnalyzer)
     end
 
     it "registers SimpleCovAnalyzer as the :coverage_analyzer" do
       expect(registration.provides[:coverage_analyzer]).to eq(Ruby::SimpleCovAnalyzer)
     end
 
-    it "registers GraderAugmentor as the :grader_augmentor" do
-      expect(registration.provides[:grader_augmentor]).to eq(Ruby::GraderAugmentor)
+    it "registers GraderAugmentor and RubocopGraderAugmentor as the :grader_augmentor providers" do
+      expect(registration.provides[:grader_augmentor]).to eq(
+        [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ]
+      )
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
       expect(registration.provides[:prepare_detector]).to eq(Ruby::PrepareDetector)
     end
 
+    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
+      expect(registration.provides[:review_criteria_provider]).to eq(Ruby::ReviewCriteriaProvider)
+    end
+
     it "registers RspecParser as the :test_result_parser" do
       expect(registration.provides[:test_result_parser]).to eq(Ruby::RspecParser)
+    end
+
+    it "surfaces both grader augmentors through providers_for" do
+      expect(Syrus::PluginRegistry.providers_for(:grader_augmentor)).to include(
+        Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor
+      )
+    end
+
+    it "leaves RSpec augmentor behavior unaffected by RubocopGraderAugmentor being registered alongside it" do
+      Dir.mktmpdir("syrus-ruby-augmentors") do |dir|
+        workspace_path = Pathname.new(dir)
+        rspec_dir = workspace_path.join(".syrus/rspec-json")
+        FileUtils.mkdir_p(rspec_dir)
+        rspec_dir.join("worker-0.json").write(JSON.generate(
+          "examples" => [ { "status" => "failed", "full_description" => "still works" } ]
+        ))
+
+        lines = Ruby::GraderAugmentor.augment_grader_failure(
+          name: "rspec", command: "bin/rspec", workspace_path: workspace_path
+        )
+
+        expect(lines).to include("still works\n")
+      end
     end
   end
 
@@ -89,6 +140,54 @@ RSpec.describe Ruby::Engine do
 
     it "declares .ruby-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".ruby-version")
+    end
+  end
+
+  describe Ruby::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    it "returns [] for a repo with no Gemfile" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the N+1 criterion when a Gemfile is present" do
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
+    end
+  end
+
+  describe Ruby::RubocopAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-rubocop-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    it "returns nil for a repo with no .rubocop.yml" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes the autocorrect command when .rubocop.yml is present" do
+      FileUtils.touch(File.join(@dir, ".rubocop.yml"))
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("bundle exec rubocop -a")
+    end
+  end
+
+  describe Ruby::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    it "returns [] for a repo with no Gemfile" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the N+1 criterion when a Gemfile is present" do
+      FileUtils.touch(File.join(@dir, "Gemfile"))
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
     end
   end
 end

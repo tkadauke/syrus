@@ -58,7 +58,7 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   def seed_low_cost_profiles(except: [], attributed: false)
-    %w[prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan].each do |step_kind|
+    %w[prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan].each do |step_kind|
       next if except.include?(step_kind)
 
       if attributed
@@ -417,18 +417,18 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.action).to eq("admit_now")
     expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("command_attributed")
     expect(decision.pressure.dig("candidate", "predicted_command_cost")).to include(
-      "duration_seconds" => 140,
-      "cpu_pressure" => 13.0,
-      "io_pressure" => 11.0,
+      "duration_seconds" => 170,
+      "cpu_pressure" => 16.0,
+      "io_pressure" => 14.0,
       "memory_used_percent" => 25.0,
       "source" => "command_attributed",
       "confidence" => "process_attributed"
     )
     expect(decision.pressure.dig("candidate", "process_attributed_cost")).to include(
-      "duration_seconds" => 140,
-      "cpu_percent" => 13.0,
+      "duration_seconds" => 170,
+      "cpu_percent" => 16.0,
       "memory_bytes" => 25,
-      "io_bytes" => 11
+      "io_bytes" => 14
     )
     expect(decision.pressure.dig("candidate", "fallback_reasons")).to eq([])
   end
@@ -518,7 +518,7 @@ RSpec.describe WorkflowAdmissionBudget do
       "prediction_source" => "host_correlated"
     )
     expect(decision.pressure.dig("candidate", "prediction_sources")).to include(
-      "command_attributed" => 8,
+      "command_attributed" => 11,
       "host_correlated" => 1
     )
     expect(decision.pressure.dig("candidate", "prediction_source_contributions", "host_correlated", "cpu_pressure")).to eq(120.0)

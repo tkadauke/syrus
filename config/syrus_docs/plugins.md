@@ -19,6 +19,10 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `grader_augmentor`
 - `callbacks`
 - `prepare_detector`
+- `review_criteria_provider`
+- `autofix_command`
+- `dependency_audit_command`
+- `affected_test_analyzer`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -227,7 +231,7 @@ plugin's enabled state through Admin → Plugins.
 
 ## `prompt_injector`
 
-Injects additional text into the implementing agent's system prompt. Use this to instruct the agent to call `submit_artifact` when it touches specific files, or to add any other repository-specific guidance that should appear in every implement run.
+Injects additional text into the agentic step's system prompt. Use this to instruct the agent to call `submit_artifact` when it touches specific files, or to add any other repository-specific guidance that should appear whenever the agent is writing code. Wired into `Steps::Implement` (`initial`/`retry` workflows), `Steps::Respond` (`pr_comment`/`chat_feedback` follow-up workflows), and `Steps::AnalyzeAndFix` (`ci_failure` repair) — the same call, with the same `repository:`/`job:` args, runs from all three so a repo-convention hint isn't lost on a follow-up or repair attempt just because it wasn't the first pass.
 
 Providers are registered via the **direct** form (an instance or lambda, not a class in a `provides:` manifest), since injectors are typically lightweight closures:
 
@@ -288,7 +292,11 @@ fall back to a raw JSON display.
 Allows plugins to append additional diagnostic output to the grade log when a
 grader command fails. Augmentors are called after every failed grader run, before
 the step raises `StepFailed`. They run in registration order; each may return
-zero or more log lines.
+zero or more log lines. A single plugin can register more than one augmentor
+by passing an array to the `:grader_augmentor` key (each guards on a distinct
+grader command, e.g. one for the test runner and one for a linter) — see the
+`ruby` plugin's `Ruby::GraderAugmentor`/`Ruby::RubocopGraderAugmentor` pair
+below.
 
 Include `Syrus::Plugin::GraderAugmentor` and implement the class method:
 
@@ -504,6 +512,234 @@ as `:prompt_injector` or a repository-scoped review-criteria provider. The Job
 detail page's Workflows tab renders the set as a "Detected: …" line on each
 workflow card.
 
+## `review_criteria_provider`
+
+Contributes default checklist items to the `adversarial_review` step's
+reviewer prompt, without requiring the operator to configure `.syrus.yml`'s
+`adversarial_review.criteria`. Wired into `Steps::AdversarialReview`, which
+calls every registered (enabled) provider and concatenates the results with
+`.syrus.yml`'s array before rendering `Prompts::AdversarialReview` — both
+sources are additive on top of the reviewer's default checklist; there is no
+override mechanism.
+
+Include `Syrus::Plugin::ReviewCriteriaProvider` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `criteria` | `(repo_path) → Array<String>` | Checklist strings to add to the reviewer prompt, or `[]` to contribute nothing. Must not raise. |
+
+```ruby
+class MyPlugin::ReviewCriteriaProvider
+  include Syrus::Plugin::ReviewCriteriaProvider
+
+  def self.criteria(repo_path)
+    return [] unless File.exist?(File.join(repo_path, "requirements.txt"))
+
+    [ "Flag missing type hints on new public functions" ]
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { review_criteria_provider: MyPlugin::ReviewCriteriaProvider }
+)
+```
+
+`repo_path` is the workflow workspace root (the same checkout the reviewer
+inspects), available because `adversarial_review` runs after the workspace is
+already set up. Providers typically gate their contribution on the same
+repo-detection signal their `:prepare_detector` counterpart uses, so criteria
+tuned for one ecosystem don't show up in an unrelated repo's review.
+
+The `ruby`, `javascript`, `python`, and `go` plugins each register one seed
+criterion, gated on the same signal their `:prepare_detector` uses:
+
+| Plugin | Gate | Criterion |
+|---|---|---|
+| `ruby` | `Gemfile` present | Flag new N+1 query patterns in ActiveRecord code |
+| `javascript` | lockfile/`package.json` present | Flag newly introduced `any` types |
+| `python` | uv/poetry/pip signal present | Flag missing type hints on new public functions |
+| `go` | `go.mod` present | Flag swallowed errors (`` `_ = err` ``) |
+
+## `autofix_command`
+
+Tells `Steps::Format` (see [`workflow_steps.md`](workflow_steps.md#format))
+which deterministic formatter/linter-autocorrect shell command to run in the
+workspace after the agentic step (`implement`/`respond`) and before the
+grader retry loop's check phase, so a style-only grader failure the tool
+could resolve for free doesn't cost the agent a full turn to notice and fix
+by hand. Only used as a fallback when the repo's `.syrus.yml` has no
+explicit `formatters:` key — an explicit `formatters:` array (or an explicit
+`formatters: false`/`off` disable) takes over entirely and this extension
+point is not consulted. Present in `initial`, `retry`, `pr_comment`, and
+`chat_feedback` workflows only.
+
+Include `Syrus::Plugin::AutofixCommand` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `autofix_command` | `(workspace_path:) → String \| nil` | Return the shell command to run, or `nil` when this plugin's fixer doesn't apply to the repo (e.g. no config file for the tool). |
+
+A plugin that offers more than one distinct fixer (e.g. ESLint and Prettier)
+registers one provider class per fixer — each independently gated on its own
+config signal — by passing an array to the `:autofix_command` key, the same
+multi-provider pattern `:grader_augmentor` uses:
+
+```ruby
+class MyPlugin::AutofixCommand
+  include Syrus::Plugin::AutofixCommand
+
+  def self.autofix_command(workspace_path:)
+    return nil unless File.exist?(File.join(workspace_path, "my-linter.toml"))
+
+    "my-linter --fix ."
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { autofix_command: MyPlugin::AutofixCommand }
+)
+```
+
+When no explicit `formatters:` config applies, `Steps::Format` runs every
+applicable command from every enabled plugin (union across plugins, ordered
+by `prepare_priority` same as `:prepare_detector`) that this iteration's
+diff is non-empty for, commits any resulting changes, and never fails the
+workflow: a command that exits non-zero is logged as a non-fatal warning and
+the step moves on to the next command, mirroring the soft-fail posture
+`Steps::Prepare` uses for auto-detected (guessed) prepare commands.
+
+The `ruby` plugin registers `Ruby::RubocopAutofix` (`bundle exec rubocop -a`,
+gated on `.rubocop.yml`). The `javascript` plugin registers
+`JavaScript::EslintAutofix` (`npx eslint --fix .`, gated on an ESLint config
+file) and `JavaScript::PrettierAutofix` (`npx prettier --write .`, gated on a
+Prettier config file or `package.json`'s `prettier` key). The `go` plugin
+registers `Go::GofmtAutofix` (`gofmt -w .`, gated only on `go.mod` since
+gofmt has no configuration surface to gate on further). The `python` plugin
+registers `Python::RuffFormatAutofix` (`ruff format .`, gated on a ruff
+config signal) and `Python::BlackAutofix` (`black .`, gated on a
+`[tool.black]` table in `pyproject.toml`).
+
+## `dependency_audit_command`
+
+Tells `Steps::DependencyAudit` (see
+[`workflow_steps.md`](workflow_steps.md#dependency_audit)) which dependency
+vulnerability scan command to run for this ecosystem, and which lockfile(s)
+in the PR diff should trigger it. Present in `initial`, `retry`,
+`pr_comment`, and `chat_feedback` workflows only — the step is always in
+those chains but self-skips unless the diff touched a matching lockfile.
+
+Include `Syrus::Plugin::DependencyAuditCommand` and implement the class methods:
+
+| Method | Signature | Description |
+|---|---|---|
+| `lockfiles` | `() → Array<String>` | Basenames of the lockfile(s) this provider's audit command applies to. `Steps::DependencyAudit` matches these against the PR diff's changed files (by basename) before running anything — a diff that never touches one of these files skips this provider entirely. |
+| `audit_command` | `(workspace_path:) → String \| nil` | Return the shell command to run, or `nil` when this provider's audit tool doesn't apply (e.g. none of `lockfiles` actually exist on disk). |
+
+A non-zero exit status from the returned command is not a tool error — it is
+how bundler-audit/npm audit/pip-audit/govulncheck report that vulnerabilities
+were found. `Steps::DependencyAudit` never fails the workflow or a grader on
+a non-clean scan; it stores the results as a `dependency_audit` workflow
+artifact, and — only when at least one scanned ecosystem is non-clean — a
+`pr_comment_body` for `Steps::PrOpen`/`Steps::DependencyAuditPrComment` to
+post. A clean scan across every scanned ecosystem is a silent no-op: no
+comment gets posted.
+
+A plugin whose ecosystem needs more than one distinct audit tool (e.g. a
+different tool per package manager) registers one provider class per tool,
+the same multi-provider pattern `:grader_augmentor`/`:autofix_command` use:
+
+```ruby
+class MyPlugin::DependencyAuditCommand
+  include Syrus::Plugin::DependencyAuditCommand
+
+  def self.lockfiles
+    [ "my-lockfile.lock" ]
+  end
+
+  def self.audit_command(workspace_path:)
+    return nil unless File.exist?(File.join(workspace_path, "my-lockfile.lock"))
+
+    "my-audit-tool check"
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { dependency_audit_command: MyPlugin::DependencyAuditCommand }
+)
+```
+
+The `ruby` plugin registers `Ruby::BundlerAuditCommand` (`bundle-audit check
+--update`, gated on `Gemfile.lock` — the lockfile, not the `Gemfile` manifest
+`:prepare_detector` keys off). The `javascript` plugin registers
+`JavaScript::DependencyAuditCommand`, which reuses the same three true
+lockfile names as `:prepare_detector`'s `PRIORITY` table (`yarn.lock` →
+`yarn audit --json`, `pnpm-lock.yaml` → `pnpm audit --json`,
+`package-lock.json` → `npm audit --json`) minus its `package.json` fallback,
+since a bare `package.json` has no pinned dependency tree to audit. The
+`python` plugin registers `Python::DependencyAuditCommand` (`pip-audit`,
+gated on `uv.lock`/`poetry.lock`/`requirements.txt` — one tool covers every
+lockfile flavor, unlike JavaScript's per-package-manager split). The `go`
+plugin registers `Go::DependencyAuditCommand` (`govulncheck ./...`, gated on
+`go.sum`).
+
+## `affected_test_analyzer`
+
+Lets `Steps::GraderFanout` (see
+[`workflow_steps.md`](workflow_steps.md#grader_fanout) and
+[`syrus_yml.md`](syrus_yml.md#when_files_changed)) refine a grader's
+`when_files_changed` glob matching with real per-language import/dependency
+analysis instead of relying on path patterns alone. A glob is a coarse proxy
+for "which tests does this diff actually affect" — it can under-run (miss a
+grader whose test files are affected only transitively, e.g. through a
+shared library) as easily as it can over-run.
+
+Include `Syrus::Plugin::AffectedTestAnalyzer` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `affected_files` | `(repo_path:, changed_files:) → Array<String> \| nil` | Given the repo checkout path and the diff's changed (repo-relative) files, return additional repo-relative paths transitively affected by the diff, or `nil` to decline — when the analyzer can't confidently resolve this diff. Must not raise; catch internally and return `nil` on unexpected error. |
+
+`Steps::GraderFanout` only ever **adds** a provider's answer to the diff's
+changed-file set before matching `when_files_changed` patterns against it —
+it never removes files the raw diff already reported, and it never uses the
+analyzer-expanded set for anything besides that match decision (the
+`grade_plan_changed_files` artifact and its fingerprint, which
+`LandingValidationCache` compares against plain `git diff --name-only`
+fingerprints computed elsewhere, always reflect the literal diff). That
+makes an analyzer's answer strictly additive and safe by construction: a
+confident answer can turn a would-be skip into a run, but neither a declined
+answer nor a raised error can ever cause a grader that would have run under
+glob-only matching to be skipped. When no `:affected_test_analyzer` is
+registered at all, or every registered provider declines or errors, grader
+selection is identical to today's glob-only behavior.
+
+```ruby
+class MyPlugin::AffectedTestAnalyzer
+  include Syrus::Plugin::AffectedTestAnalyzer
+
+  def self.affected_files(repo_path:, changed_files:)
+    # real import/dependency-graph analysis for this language
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { affected_test_analyzer: MyPlugin::AffectedTestAnalyzer }
+)
+```
+
+The `ruby` plugin registers `Ruby::AffectedTestAnalyzer`, which combines a
+`require_relative` reverse-dependency graph (a file that `require_relative`s
+a changed file is itself treated as affected, even though the diff never
+touched it) with the standard Rails/RSpec `app/x/y.rb` <-> `spec/x/y_spec.rb`
+(and `lib/x/y.rb` <-> `spec/lib/x/y_spec.rb`) path convention, applied to
+every affected file to find its own spec. It declines when the diff touches
+no `.rb` files or when the repo's `app`/`lib` tree is too large to walk with
+confidence on every `grader_fanout` call.
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -572,12 +808,25 @@ Bundled plugins:
   agents or operators should inspect Syrus's own production behavior.
 - `ruby` — default-enabled. Provides Ruby-generic extension points usable by
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
-  alike), not just Rails: `:grader_augmentor` (appends structured RSpec JSON
-  failure details to the grade log when an rspec grader fails),
-  `:test_result_parser` (`Ruby::RspecParser` — parses RSpec's plain
-  progress/documentation output), `:coverage_analyzer` (SimpleCov's
-  `.resultset.json`), and `:prepare_detector` (`Gemfile` → `bundle install`,
-  `prepare_priority: 10`).
+  alike), not just Rails: `:grader_augmentor` — registers two providers,
+  `Ruby::GraderAugmentor` (appends structured RSpec JSON failure details to
+  the grade log when an rspec grader fails) and `Ruby::RubocopGraderAugmentor`
+  (appends compact `file:line: cop_name: message` lines parsed from RuboCop's
+  `--format json` output under `.syrus/rubocop-json/*.json` to the grade log
+  when a `rubocop` grader fails); `:test_result_parser` (`Ruby::RspecParser` —
+  parses RSpec's plain progress/documentation output), `:coverage_analyzer`
+  (SimpleCov's `.resultset.json`), `:prepare_detector` (`Gemfile` →
+  `bundle install`, `prepare_priority: 10`), `:review_criteria_provider`
+  (`Ruby::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging new N+1 query patterns in ActiveRecord code, gated on
+  the same `Gemfile` signal as `:prepare_detector`), `:autofix_command`
+  (`Ruby::RubocopAutofix` — `bundle exec rubocop -a`, gated on `.rubocop.yml`
+  being present), `:dependency_audit_command` (`Ruby::BundlerAuditCommand`
+  — `bundle-audit check --update`, gated on `Gemfile.lock`), and
+  `:affected_test_analyzer` (`Ruby::AffectedTestAnalyzer` — combines a
+  `require_relative` reverse-dependency graph with the `app`/`lib` <-> `spec`
+  path convention to report additional spec files a diff transitively
+  affects).
 - `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
   (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
   and `package.json` don't distinguish JS from TS. Internally picks exactly one
@@ -590,7 +839,21 @@ Bundled plugins:
   `:prepare_detector` instead of re-implementing package-manager detection.
   `seed_command` is `nil` (no cross-ecosystem JS seeding convention) and
   `health_check_path` stays at the interface default `/` (a soft guess —
-  JS has no Rails-style built-in health endpoint).
+  JS has no Rails-style built-in health endpoint). Also provides
+  `:grader_augmentor` (`JavaScript::EslintGraderAugmentor` — appends compact
+  `file:line: ruleId: message` lines parsed from ESLint's `--format json`
+  output under `.syrus/eslint-json/*.json` to the grade log when an `eslint`
+  grader fails). Also provides `:review_criteria_provider`
+  (`JavaScript::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging newly introduced `any` types, gated on the same
+  lockfile/`package.json` signal as `:prepare_detector`). Also provides
+  `:autofix_command` — two providers, `JavaScript::EslintAutofix` (`npx
+  eslint --fix .`, gated on an ESLint config file) and
+  `JavaScript::PrettierAutofix` (`npx prettier --write .`, gated on a
+  Prettier config file or `package.json`'s `prettier` key). Also provides
+  `:dependency_audit_command` (`JavaScript::DependencyAuditCommand` — picks
+  `yarn audit --json`/`pnpm audit --json`/`npm audit --json` matching
+  whichever of `:prepare_detector`'s true lockfiles is present).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
@@ -605,6 +868,16 @@ Bundled plugins:
   output is already handled by core's `JunitXmlParser` fallback and
   `coverage xml` (Cobertura format) is already handled by
   `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
+  Also provides `:review_criteria_provider` (`Python::ReviewCriteriaProvider`
+  — seeds a default adversarial-review criterion flagging missing type hints
+  on new public functions, gated on the same uv/poetry/pip signal as
+  `:prepare_detector`). Also provides `:autofix_command` — two providers,
+  `Python::RuffFormatAutofix` (`ruff format .`, gated on a `.ruff.toml`/
+  `ruff.toml` file or a `[tool.ruff]` table in `pyproject.toml`) and
+  `Python::BlackAutofix` (`black .`, gated on a `[tool.black]` table in
+  `pyproject.toml`). Also provides `:dependency_audit_command`
+  (`Python::DependencyAuditCommand` — `pip-audit`, gated on
+  `uv.lock`/`poetry.lock`/`requirements.txt`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
   → `go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
@@ -617,7 +890,14 @@ Bundled plugins:
   `coverage.sources[].format`; see the plugin README for both command
   sequences. No `:preview_provider` — no single universal Go web-serving
   convention exists at the language level (net/http, Gin, Echo, etc. all
-  differ).
+  differ). Also provides `:review_criteria_provider`
+  (`Go::ReviewCriteriaProvider` — seeds a default adversarial-review
+  criterion flagging swallowed errors (`_ = err`), gated on the same
+  `go.mod` signal as `:prepare_detector`). Also provides `:autofix_command`
+  (`Go::GofmtAutofix` — `gofmt -w .`, gated only on `go.mod` since gofmt has
+  no configuration surface to gate on further). Also provides
+  `:dependency_audit_command` (`Go::DependencyAuditCommand` —
+  `govulncheck ./...`, gated on `go.sum`).
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling

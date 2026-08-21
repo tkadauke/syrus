@@ -104,6 +104,22 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:prepare_detector)
     end
 
+    it "includes :review_criteria_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:review_criteria_provider)
+    end
+
+    it "includes :autofix_command" do
+      expect(described_class::EXTENSION_POINTS).to include(:autofix_command)
+    end
+
+    it "includes :dependency_audit_command" do
+      expect(described_class::EXTENSION_POINTS).to include(:dependency_audit_command)
+    end
+
+    it "includes :affected_test_analyzer" do
+      expect(described_class::EXTENSION_POINTS).to include(:affected_test_analyzer)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -180,6 +196,52 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       provider = Class.new { include Syrus::Plugin::PrepareDetector }
 
       expect(provider.mise_version_file).to be_nil
+    end
+
+    it "maps :review_criteria_provider to Syrus::Plugin::ReviewCriteriaProvider" do
+      expect(described_class::INTERFACE_FOR[:review_criteria_provider].call).to eq(Syrus::Plugin::ReviewCriteriaProvider)
+    end
+
+    it "gives review criteria providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::ReviewCriteriaProvider }
+
+      expect(provider).to respond_to(:criteria)
+      expect { provider.criteria("/tmp") }.to raise_error(NotImplementedError, /criteria is required/)
+    end
+
+    it "maps :autofix_command to Syrus::Plugin::AutofixCommand" do
+      expect(described_class::INTERFACE_FOR[:autofix_command].call).to eq(Syrus::Plugin::AutofixCommand)
+    end
+
+    it "gives autofix command providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::AutofixCommand }
+
+      expect(provider).to respond_to(:autofix_command)
+      expect { provider.autofix_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /autofix_command is required/)
+    end
+
+    it "maps :dependency_audit_command to Syrus::Plugin::DependencyAuditCommand" do
+      expect(described_class::INTERFACE_FOR[:dependency_audit_command].call).to eq(Syrus::Plugin::DependencyAuditCommand)
+    end
+
+    it "gives dependency audit command providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::DependencyAuditCommand }
+
+      expect(provider).to respond_to(:lockfiles)
+      expect(provider).to respond_to(:audit_command)
+      expect { provider.lockfiles }.to raise_error(NotImplementedError, /lockfiles is required/)
+      expect { provider.audit_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /audit_command is required/)
+    end
+
+    it "maps :affected_test_analyzer to Syrus::Plugin::AffectedTestAnalyzer" do
+      expect(described_class::INTERFACE_FOR[:affected_test_analyzer].call).to eq(Syrus::Plugin::AffectedTestAnalyzer)
+    end
+
+    it "gives affected test analyzer providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::AffectedTestAnalyzer }
+
+      expect(provider).to respond_to(:affected_files)
+      expect { provider.affected_files(repo_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /affected_files is required/)
     end
   end
 

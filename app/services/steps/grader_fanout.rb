@@ -34,7 +34,8 @@ module Steps
       # Skip graders whose when_files_changed globs don't match this PR's diff.
       files = changed_files
       record_changed_files!(files)
-      active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, files) }
+      matching_files = matching_files_for(files)
+      active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, matching_files) }
       skipped_graders.each { |g| log("[grader_fanout] skipped #{g.name} (no matching files changed)") }
 
       if active_graders.empty?
@@ -89,6 +90,40 @@ module Steps
       changed_files.any? do |file|
         grader.when_files_changed.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
       end
+    end
+
+    # Expands the raw diff's changed files with any :affected_test_analyzer
+    # answers before when_files_changed matching. This set is ONLY used for
+    # the match decision below — never for record_changed_files!, which must
+    # stay a literal diff so its fingerprint stays comparable with the plain
+    # `git diff --name-only` fingerprints other landing-validation-cache call
+    # sites compute. Strictly additive: a registered analyzer can only turn a
+    # would-be skip into a run, never the reverse, so an unregistered,
+    # declining, or erroring analyzer leaves matching identical to glob-only
+    # behavior against the raw diff.
+    def matching_files_for(files)
+      return files if files.empty?
+
+      extra = affected_test_files(files)
+      extra.empty? ? files : (files + extra).uniq
+    end
+
+    def affected_test_files(files)
+      Syrus::PluginRegistry.providers_for(:affected_test_analyzer).flat_map do |analyzer|
+        begin
+          result = analyzer.affected_files(repo_path: workspace.path.to_s, changed_files: files)
+          if result.nil?
+            log("[grader_fanout] #{analyzer} declined to analyze this diff — falling back to glob-only for it")
+            []
+          else
+            log("[grader_fanout] #{analyzer} reports #{result.size} additional affected file(s)") if result.any?
+            Array(result)
+          end
+        rescue StandardError => e
+          log("[grader_fanout] affected_test_analyzer #{analyzer} raised #{e.class}: #{e.message} — falling back to glob-only for it")
+          []
+        end
+      end.uniq
     end
 
     def record_plan_source!(plan, grader_fingerprint)

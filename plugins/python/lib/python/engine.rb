@@ -8,18 +8,26 @@ module Python
       Python::PrepareDetector.include(Syrus::Plugin::PrepareDetector)
       Python::GraderAugmentor.include(Syrus::Plugin::GraderAugmentor)
       Python::PromptContext.include(Syrus::Plugin::PromptInjector)
+      Python::ReviewCriteriaProvider.include(Syrus::Plugin::ReviewCriteriaProvider)
+      Python::RuffFormatAutofix.include(Syrus::Plugin::AutofixCommand)
+      Python::BlackAutofix.include(Syrus::Plugin::AutofixCommand)
+      Python::DependencyAuditCommand.include(Syrus::Plugin::DependencyAuditCommand)
 
       Syrus::PluginRegistry.register(
         name:             "python",
         version:          Python::VERSION,
         description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
-                           "pytest JSON-report grader detail, venv/uv prompt reminder",
+                           "pytest JSON-report grader detail, venv/uv prompt reminder, " \
+                           "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 30,
         provides: {
-          prepare_detector: Python::PrepareDetector,
-          grader_augmentor: Python::GraderAugmentor,
-          prompt_injector:  Python::PromptContext
+          prepare_detector:         Python::PrepareDetector,
+          grader_augmentor:         Python::GraderAugmentor,
+          prompt_injector:          Python::PromptContext,
+          review_criteria_provider: Python::ReviewCriteriaProvider,
+          autofix_command:          [ Python::RuffFormatAutofix, Python::BlackAutofix ],
+          dependency_audit_command: Python::DependencyAuditCommand
         }
       )
     end

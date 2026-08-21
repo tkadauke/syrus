@@ -17,13 +17,17 @@ RSpec.describe Python::Engine do
           name:             "python",
           version:          Python::VERSION,
           description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
-                             "pytest JSON-report grader detail, venv/uv prompt reminder",
+                             "pytest JSON-report grader detail, venv/uv prompt reminder, " \
+                             "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 30,
           provides: {
-            prepare_detector: Python::PrepareDetector,
-            grader_augmentor: Python::GraderAugmentor,
-            prompt_injector:  Python::PromptContext
+            prepare_detector:         Python::PrepareDetector,
+            grader_augmentor:         Python::GraderAugmentor,
+            prompt_injector:          Python::PromptContext,
+            review_criteria_provider: Python::ReviewCriteriaProvider,
+            autofix_command:          [ Python::RuffFormatAutofix, Python::BlackAutofix ],
+            dependency_audit_command: Python::DependencyAuditCommand
           }
         )
       end
@@ -42,12 +46,25 @@ RSpec.describe Python::Engine do
       expect(registration.prepare_priority).to eq(30)
     end
 
-    it "provides exactly the 3 extension point keys" do
+    it "provides exactly the 6 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :prepare_detector,
         :grader_augmentor,
-        :prompt_injector
+        :prompt_injector,
+        :review_criteria_provider,
+        :autofix_command,
+        :dependency_audit_command
       )
+    end
+
+    it "registers RuffFormatAutofix and BlackAutofix as the :autofix_command providers" do
+      expect(registration.provides[:autofix_command]).to eq(
+        [ Python::RuffFormatAutofix, Python::BlackAutofix ]
+      )
+    end
+
+    it "registers DependencyAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(Python::DependencyAuditCommand)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
@@ -60,6 +77,10 @@ RSpec.describe Python::Engine do
 
     it "registers PromptContext as the :prompt_injector" do
       expect(registration.provides[:prompt_injector]).to eq(Python::PromptContext)
+    end
+
+    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
+      expect(registration.provides[:review_criteria_provider]).to eq(Python::ReviewCriteriaProvider)
     end
   end
 
@@ -122,6 +143,90 @@ RSpec.describe Python::Engine do
       expect(text).to include("virtual")
       expect(text).to include("uv run")
       expect(text).to include("poetry run")
+    end
+  end
+
+  describe Python::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-python-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no recognized Python signal" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the type-hint criterion when a Python project is detected" do
+      write("pyproject.toml")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag missing type hints on new public functions" ])
+    end
+  end
+
+  describe Python::RuffFormatAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-python-ruff-format-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns nil for a repo with no ruff config" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes ruff format . when a standalone ruff.toml is present" do
+      write("ruff.toml")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("ruff format .")
+    end
+
+    it "contributes ruff format . when pyproject.toml has a [tool.ruff] table" do
+      write("pyproject.toml", "[tool.ruff]\nline-length = 100\n")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("ruff format .")
+    end
+
+    it "returns nil when pyproject.toml exists but has no [tool.ruff] table" do
+      write("pyproject.toml", "[tool.black]\n")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+  end
+
+  describe Python::BlackAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-python-black-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns nil for a repo with no pyproject.toml" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "returns nil when pyproject.toml has no [tool.black] table" do
+      write("pyproject.toml", "[tool.ruff]\n")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes black . when pyproject.toml has a [tool.black] table" do
+      write("pyproject.toml", "[tool.black]\nline-length = 88\n")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("black .")
     end
   end
 end
