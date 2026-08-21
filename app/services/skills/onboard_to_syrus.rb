@@ -206,7 +206,7 @@ module Skills
     end
 
     def prepare_detection_table
-      RepoPrepPlan::AUTO_DETECT.map { |file, command| "- `#{file}` → `#{command}`" }.join("\n")
+      RepoPrepPlan::FLAT_AUTO_DETECT.map { |file, command| "- `#{file}` → `#{command}`" }.join("\n")
     end
 
     def grade_detection_table

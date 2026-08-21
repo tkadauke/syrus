@@ -43,6 +43,12 @@ class RepoPrepPlan
     ]
   ].freeze
 
+  # Flat [file, command] pairs across every legacy group, for callers that
+  # want the full reference table (e.g. onboarding/audit skill instructions)
+  # rather than the "first match per group" resolution `AUTO_DETECT` groups
+  # are structured for.
+  FLAT_AUTO_DETECT = AUTO_DETECT.flatten(1).freeze
+
   Result = Data.define(:commands, :source, :note) do
     # Auto-detected plans are a *guess* — Syrus inferred the command
     # from a lockfile, the repo never asked for it. Steps::Prepare
