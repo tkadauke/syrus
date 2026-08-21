@@ -10,5 +10,9 @@ module Go
     def self.prepare_commands(repo_path)
       detect?(repo_path) ? [ "go mod download" ] : []
     end
+
+    def self.mise_version_file
+      ".go-version"
+    end
   end
 end
