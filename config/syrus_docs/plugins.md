@@ -446,13 +446,16 @@ criterion, gated on the same signal their `:prepare_detector` uses:
 
 ## `autofix_command`
 
-Tells `Steps::Autofix` (see [`workflow_steps.md`](workflow_steps.md#autofix))
+Tells `Steps::Format` (see [`workflow_steps.md`](workflow_steps.md#format))
 which deterministic formatter/linter-autocorrect shell command to run in the
 workspace after the agentic step (`implement`/`respond`) and before the
 grader retry loop's check phase, so a style-only grader failure the tool
 could resolve for free doesn't cost the agent a full turn to notice and fix
-by hand. Present in `initial`, `retry`, `pr_comment`, and `chat_feedback`
-workflows only.
+by hand. Only used as a fallback when the repo's `.syrus.yml` has no
+explicit `formatters:` key — an explicit `formatters:` array (or an explicit
+`formatters: false`/`off` disable) takes over entirely and this extension
+point is not consulted. Present in `initial`, `retry`, `pr_comment`, and
+`chat_feedback` workflows only.
 
 Include `Syrus::Plugin::AutofixCommand` and implement the class method:
 
@@ -482,9 +485,10 @@ Syrus::PluginRegistry.register(
 )
 ```
 
-`Steps::Autofix` runs every applicable command from every enabled plugin
-(union across plugins, ordered by `prepare_priority` same as
-`:prepare_detector`), commits any resulting changes, and never fails the
+When no explicit `formatters:` config applies, `Steps::Format` runs every
+applicable command from every enabled plugin (union across plugins, ordered
+by `prepare_priority` same as `:prepare_detector`) that this iteration's
+diff is non-empty for, commits any resulting changes, and never fails the
 workflow: a command that exits non-zero is logged as a non-fatal warning and
 the step moves on to the next command, mirroring the soft-fail posture
 `Steps::Prepare` uses for auto-detected (guessed) prepare commands.

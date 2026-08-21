@@ -118,29 +118,52 @@ Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. 
 
 Agentic. Operator-triggered free-form step; prompt is supplied at dispatch time.
 
-### autofix
+### format
 
-Non-agentic. Runs deterministic formatter/linter-autocorrect commands
-registered by language plugins under the `:autofix_command` extension point
-(Ruby's `bundle exec rubocop -a`, JavaScript's `npx eslint --fix .`/`npx
-prettier --write .`, Go's `gofmt -w .`, Python's `ruff format .`/`black .`),
-each gated on the plugin detecting its own config signal in the repo (e.g.
-Ruby only offers `rubocop -a` when `.rubocop.yml` is present). Commits any
-resulting changes. A command failing is always soft — logged as a warning
-and skipped, the same non-fatal posture `prepare`'s auto-detected commands
-use — since a broken formatter must never block the workflow the way an
-explicit `.syrus.yml` grader failure does; whatever it managed to fix is
-still committed. A repo with no registered/applicable autofix command is a
-no-op.
+Non-agentic. Runs `.syrus.yml`'s `formatters:` commands, each scoped to its
+own `files:` glob intersected with this iteration's diff (`git diff
+--name-only <base>...HEAD`) — a formatter whose glob matches nothing in the
+diff is skipped. With no `formatters:` key at all, falls back to the
+deterministic formatter/linter-autocorrect commands language plugins
+register under the `:autofix_command` extension point (Ruby's `bundle exec
+rubocop -a`, JavaScript's `npx eslint --fix .`/`npx prettier --write .`,
+Go's `gofmt -w .`, Python's `ruff format .`/`black .`), each gated on the
+plugin detecting its own config signal in the repo (e.g. Ruby only offers
+`rubocop -a` when `.rubocop.yml` is present) and on the diff being
+non-empty. `formatters: false` (or `off`) explicitly disables formatting
+altogether, including the plugin defaults. Commits any resulting changes. A
+command failing is always soft — logged as a warning and skipped, the same
+non-fatal posture `prepare`'s auto-detected commands use — since a broken
+formatter must never block the workflow the way an explicit `.syrus.yml`
+grader failure does; whatever it managed to fix is still committed.
 
-Inserted as the last repair step of the grader retry loop (`repair: [
-implement | respond, autofix ], check: [ grader_fanout, grader_collect ]`)
-in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows, so it
-reruns on every retry iteration right before graders check again — a style
-regression the agent's latest edit reintroduced gets fixed for free before
-the next grade rather than costing another agent turn. See
-[`plugins.md`](plugins.md#autofix_command) for the extension point contract
-and the bundled providers.
+### generate
+
+Non-agentic. Runs `.syrus.yml`'s `generated:` commands
+(`command`/`sources`/`generates`/`codegen_ignore`), each scoped to its own
+`sources:` glob intersected with this iteration's diff the same way
+`format` scopes `formatters:` (an entry with no `sources` configured always
+runs). Commits any resulting changes, which is effectively the `regen ==
+committed` check: if the regenerated output already matches what's
+committed there's nothing to commit. Entries marked `codegen_ignore` are
+skipped here — that flag exists because their generator is non-deterministic
+across environments (e.g. `db:schema:dump`'s SQLite vs. MySQL output), so
+auto-committing their regenerated output would introduce environment noise
+instead of fixing anything; that invariant is meant to be grader-validated
+instead. There is no plugin-provided default for codegen — it's inherently
+repo-specific — so this step simply no-ops when `generated:` isn't
+configured. `generated: false` (or `off`) explicitly disables it. A command
+failing is always soft, same posture as `format`.
+
+Both steps are inserted as repair steps of the grader retry loop (`repair: [
+implement | respond, format, generate ], check: [ grader_fanout,
+grader_collect ]`) in `initial`, `retry`, `pr_comment`, and `chat_feedback`
+workflows, so they rerun on every retry iteration right before graders check
+again — a style regression or stale generated output the agent's latest edit
+reintroduced gets fixed for free before the next grade rather than costing
+another agent turn. See [`plugins.md`](plugins.md#autofix_command) for the
+`:autofix_command` extension point contract and the bundled providers `format`
+falls back to.
 
 ## Review and quality steps
 
