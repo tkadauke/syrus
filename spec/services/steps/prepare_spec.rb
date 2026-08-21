@@ -265,6 +265,17 @@ RSpec.describe Steps::Prepare do
 
     it "detects a universal version file with zero :prepare_detector plugins registered" do
       Syrus::PluginRegistry.reset!
+      # reset! wipes every registered plugin, including the agent_provider
+      # plugins the global support hook pre-registers — but this test only
+      # cares about zero :prepare_detector providers. Re-register just the
+      # agent_provider Steps::Prepare's plugin detection now writes a
+      # workflow artifact on every run, which re-validates the whole record
+      # (including the pre-existing "claude" agent_provider against
+      # User.agent_providers).
+      Syrus::PluginRegistry.register(
+        name: "claude_agent", version: "0", category: "agent_provider",
+        provides: { agent_provider: AgentProviders::Claude }
+      )
       File.write(@ws_path.join(".tool-versions"), "ruby 3.4.0\n")
       expect_mise_install_ran
     end
