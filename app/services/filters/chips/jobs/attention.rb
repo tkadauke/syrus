@@ -154,7 +154,7 @@ module Filters
 
         def apply_queued
           # Infrastructure workflows skip propagate_start_to_job!, leaving the job :queued while the workflow runs; exclude them so they appear in_progress instead.
-          running_infra_ids = Workflow.where(state: "running", trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS).select(:job_id)
+          running_infra_ids = active_workflow_job_ids(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
           active = scope.where(manual_paused: false)
           active.where(state: "queued")
                .where.not(id: running_infra_ids)
@@ -257,16 +257,24 @@ module Filters
         end
 
         def unpaused_running_workflow_job_ids
-          Workflow.where(state: "running")
-                  .where("artifacts IS NULL OR NOT (artifacts LIKE ? OR artifacts LIKE ?)", '%"pause_reason"%', '%"start_blocked_reason"%')
-                  .select(:job_id)
+          active_workflow_job_ids do |relation|
+            relation.where("artifacts IS NULL OR NOT (artifacts LIKE ? OR artifacts LIKE ?)", '%"pause_reason"%', '%"start_blocked_reason"%')
+          end
         end
 
         def paused_workflow_job_ids
-          Workflow.where(state: "running")
-                  .where.not(trigger_kind: Workflow::LANDING_TRIGGER_KINDS)
-                  .where("artifacts LIKE ? OR artifacts LIKE ?", '%"pause_reason"%', '%"start_blocked_reason"%')
-                  .select(:job_id)
+          active_workflow_job_ids(excluding_trigger_kind: Workflow::LANDING_TRIGGER_KINDS) do |relation|
+            relation.where("artifacts LIKE ? OR artifacts LIKE ?", '%"pause_reason"%', '%"start_blocked_reason"%')
+          end
+        end
+
+        def active_workflow_job_ids(trigger_kind: nil, excluding_trigger_kind: nil)
+          relation = Workflow.where(state: "running")
+          relation = relation.where(trigger_kind: trigger_kind) if trigger_kind
+          relation = relation.where.not(trigger_kind: excluding_trigger_kind) if excluding_trigger_kind
+          relation = yield(relation) if block_given?
+
+          relation.distinct.pluck(:job_id)
         end
 
         def awaiting_epic_ids
