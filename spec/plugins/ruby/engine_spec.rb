@@ -18,7 +18,7 @@ RSpec.describe Ruby::Engine do
           version:          Ruby::VERSION,
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                              "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
-                             "default N+1 review criterion",
+                             "RuboCop autofix, default N+1 review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
@@ -26,7 +26,8 @@ RSpec.describe Ruby::Engine do
             grader_augmentor:         [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
             prepare_detector:         Ruby::PrepareDetector,
             review_criteria_provider: Ruby::ReviewCriteriaProvider,
-            test_result_parser:       Ruby::RspecParser
+            test_result_parser:       Ruby::RspecParser,
+            autofix_command:          Ruby::RubocopAutofix
           }
         )
       end
@@ -45,14 +46,19 @@ RSpec.describe Ruby::Engine do
       expect(registration.prepare_priority).to eq(10)
     end
 
-    it "provides all 5 extension point keys" do
+    it "provides all 6 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
         :prepare_detector,
         :review_criteria_provider,
-        :test_result_parser
+        :test_result_parser,
+        :autofix_command
       )
+    end
+
+    it "registers RubocopAutofix as the :autofix_command" do
+      expect(registration.provides[:autofix_command]).to eq(Ruby::RubocopAutofix)
     end
 
     it "registers SimpleCovAnalyzer as the :coverage_analyzer" do
@@ -133,6 +139,22 @@ RSpec.describe Ruby::Engine do
       FileUtils.touch(File.join(@dir, "Gemfile"))
 
       expect(described_class.criteria(@dir)).to eq([ "Flag new N+1 query patterns in ActiveRecord code" ])
+    end
+  end
+
+  describe Ruby::RubocopAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-ruby-rubocop-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    it "returns nil for a repo with no .rubocop.yml" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes the autocorrect command when .rubocop.yml is present" do
+      FileUtils.touch(File.join(@dir, ".rubocop.yml"))
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("bundle exec rubocop -a")
     end
   end
 end
