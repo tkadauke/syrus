@@ -195,6 +195,8 @@ grade:
 
 Glob matching uses `File::FNM_DOTMATCH` so `*` and `**` cross directory separators — `website/**` matches any file under the `website/` directory at any depth, including dotfiles. If the git diff command fails (e.g. no commits on the branch yet), Syrus logs a warning, treats the changed-file list as empty, and skips any grader with `when_files_changed` set while still running graders without it.
 
+If a registered `:affected_test_analyzer` plugin (see [`plugins.md`](plugins.md#affected_test_analyzer)) can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
+
 ### grade.max_iterations
 
 How many repair→check cycles Syrus attempts before failing the workflow. Range: 1–10. Defaults to `AppSetting.grade_max_iterations` (instance-wide default: 5).
