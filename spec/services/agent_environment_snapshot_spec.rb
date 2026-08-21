@@ -173,6 +173,90 @@ RSpec.describe AgentEnvironmentSnapshot do
     end
   end
 
+  describe "#dependency_summary" do
+    after { Syrus::PluginRegistry.reset! }
+
+    def register_real_ruby_and_javascript_plugins
+      unless Syrus::PluginRegistry.registered_names.include?("ruby")
+        Syrus::PluginRegistry.register(
+          name: "ruby", version: Ruby::VERSION, prepare_priority: 10,
+          provides: { prepare_detector: Ruby::PrepareDetector }
+        )
+      end
+
+      unless Syrus::PluginRegistry.registered_names.include?("javascript")
+        Syrus::PluginRegistry.register(
+          name: "javascript", version: JavaScript::VERSION, prepare_priority: 20,
+          provides: { prepare_detector: JavaScript::PrepareDetector }
+        )
+      end
+    end
+
+    def snapshot_for_workspace
+      repo = repository(owner: "rome", name: "aqueduct", default_branch: "main")
+      job = Factories.job(repository: repo)
+      workflow = job.workflows.last
+      step = workflow.steps.find_by!(kind: "implement")
+      run = step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, iteration: 1)
+
+      described_class.for_run(run, workspace_path: @workspace_path)
+    end
+
+    it "renders Ruby and JavaScript dependency signals via the real prepare_detector plugins (regression)" do
+      register_real_ruby_and_javascript_plugins
+      @workspace_path.join("Gemfile").write("")
+      @workspace_path.join("package.json").write("{}")
+      @workspace_path.join("package-lock.json").write("{}")
+
+      snapshot = snapshot_for_workspace
+
+      expect(snapshot).to include("Dependency signals: Ruby::PrepareDetector (bundle install), JavaScript::PrepareDetector (npm ci)")
+    end
+
+    it "reports no dependency signals when no detector matches" do
+      register_real_ruby_and_javascript_plugins
+
+      snapshot = snapshot_for_workspace
+
+      expect(snapshot).to include("Dependency signals: no common dependency signals found")
+    end
+
+    it "includes Python and Go signals once those plugins are registered and enabled" do
+      unless Syrus::PluginRegistry.registered_names.include?("python")
+        Syrus::PluginRegistry.register(
+          name: "python", version: Python::VERSION, prepare_priority: 30,
+          provides: { prepare_detector: Python::PrepareDetector }
+        )
+      end
+
+      unless Syrus::PluginRegistry.registered_names.include?("go")
+        Syrus::PluginRegistry.register(
+          name: "go", version: Go::VERSION, prepare_priority: 40,
+          provides: { prepare_detector: Go::PrepareDetector }
+        )
+      end
+      @workspace_path.join("requirements.txt").write("")
+      @workspace_path.join("go.mod").write("")
+
+      snapshot = snapshot_for_workspace
+
+      expect(snapshot).to include("Python::PrepareDetector (pip install -r requirements.txt)")
+      expect(snapshot).to include("Go::PrepareDetector (go mod download)")
+    end
+
+    it "omits a disabled plugin's signal" do
+      register_real_ruby_and_javascript_plugins
+      @workspace_path.join("Gemfile").write("")
+      @workspace_path.join("package.json").write("{}")
+      PluginRecord.find_by!(name: "ruby").update!(enabled: false)
+
+      snapshot = snapshot_for_workspace
+
+      expect(snapshot).not_to include("Ruby::PrepareDetector")
+      expect(snapshot).to include("Dependency signals: JavaScript::PrepareDetector (npm install)")
+    end
+  end
+
   describe ".for_chat" do
     it "renders attached repository paths and chat MCP tool groups" do
       repo = repository(owner: "rome", name: "forums", default_branch: "trunk")
