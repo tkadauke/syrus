@@ -179,6 +179,63 @@ RSpec.describe CiLogParser do
       expect(result[:parser]).to eq("go")
     end
 
+    it "treats a plugin that raises as a non-match and falls through to the built-in parsers" do
+      plugin = double("ci_log_parser_plugin")
+      allow(plugin).to receive(:call).and_raise(StandardError, "boom")
+      Syrus::PluginRegistry.register(
+        name: "raising_ci_log_plugin", version: "1.0.0",
+        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
+      )
+
+      result = nil
+      expect { result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse }
+        .not_to raise_error
+
+      expect(result[:parser]).to eq("rspec")
+    end
+
+    it "treats a plugin result missing required keys as a non-match" do
+      plugin = double("ci_log_parser_plugin")
+      allow(plugin).to receive(:call).and_return(failing_tests: [ "test_foo" ])
+      Syrus::PluginRegistry.register(
+        name: "incomplete_ci_log_plugin", version: "1.0.0",
+        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
+      )
+
+      result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
+
+      expect(result[:parser]).to eq("rspec")
+    end
+
+    it "treats a non-Hash plugin result as a non-match" do
+      plugin = double("ci_log_parser_plugin")
+      allow(plugin).to receive(:call).and_return("not a hash")
+      Syrus::PluginRegistry.register(
+        name: "malformed_ci_log_plugin", version: "1.0.0",
+        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
+      )
+
+      result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
+
+      expect(result[:parser]).to eq("rspec")
+    end
+
+    it "accepts a plugin result with string keys" do
+      plugin = double("ci_log_parser_plugin")
+      allow(plugin).to receive(:call).and_return(
+        "parser" => "go", "error_summary" => "1 test failure", "error_block" => "--- FAIL: TestFoo"
+      )
+      Syrus::PluginRegistry.register(
+        name: "string_keyed_ci_log_plugin", version: "1.0.0",
+        provides: { ci_log_parser: ci_log_parser_provider(plugin) }
+      )
+
+      result = described_class.new(fixture_log("rspec_failure"), step_name: "bundle exec rspec").parse
+
+      expect(result[:parser]).to eq("go")
+      expect(result[:error_summary]).to eq("1 test failure")
+    end
+
     it "leaves built-in Ruby/JS parser output unchanged when no plugins are registered" do
       expect(Syrus::PluginRegistry.providers_for(:ci_log_parser)).to be_empty
 
