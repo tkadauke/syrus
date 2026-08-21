@@ -1,5 +1,5 @@
 require "rails_helper"
-require Rails.root.join("db/migrate/20260820012905_make_merge_train_epic_optional_add_priority")
+require Rails.root.join("db/migrate/20260821203829_make_merge_train_epic_optional_add_priority")
 
 RSpec.describe MakeMergeTrainEpicOptionalAddPriority, :ci_only do
   it "is idempotent when run more than once" do
