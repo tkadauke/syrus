@@ -304,6 +304,34 @@ original description, helps elaborate technical decisions, updates the Epic
 description first so version history preserves that elaboration step, and then
 proposes child Jobs against the existing Epic.
 
+## Epicless Job Bundling
+
+When the `epicless_job_bundling` feature flag is enabled, Syrus can land
+several approved Jobs together as one atomic unit even when they don't
+belong to an Epic — the same all-or-nothing integration branch that Epic
+merge trains already use. This is an experimental Labs feature, off by
+default.
+
+Syrus only bundles Jobs that share the same priority tier: urgent Jobs
+bundle only with other urgent Jobs, never with medium or low-priority work,
+so urgent work still lands first. A single ready Job never waits around for
+a bundle — bundling only kicks in once at least two same-priority Jobs are
+ready to land together; a lone ready Job lands on its own right away.
+Externally filed pull requests are never bundled, since they land directly
+against the GitHub PR rather than through a Syrus-owned integration branch.
+
+As with Epic merge trains, only the final integrated result that actually
+lands is graded — intermediate commits inside the integration branch are
+not individually validated. If a bundle fails, its Jobs return to approved
+for re-review (or automatically retry, for a transient failure), and Syrus
+waits out a cooldown before assembling a fresh bundle for the same
+repository so a genuinely stuck group of Jobs surfaces for an operator
+instead of retrying every queue tick.
+
+The landing queue dashboard groups bundled Jobs together the same way it
+already groups an Epic's children, so operators can see at a glance which
+Jobs are landing as one unit.
+
 ## Schedules
 
 Scheduled tasks attach a recurring or one-shot prompt to a repository.
