@@ -384,6 +384,7 @@ Include `Syrus::Plugin::PrepareDetector` and implement the class methods:
 | `detect?` | `(repo_path) → bool` | True if this plugin's ecosystem is present in the repo |
 | `prepare_commands` | `(repo_path) → Array<String>` | Commands to run |
 | `mise_version_file` | `() → String or nil` | Optional. The mise version-pin filename this ecosystem owns (e.g. `.ruby-version`). Defaults to `nil`. |
+| `span_labels` | `() → Array<[Regexp, String]>` | Optional. Regex → label pairs for this ecosystem's grader sub-commands (e.g. `[[/\brspec\b/, "rspec"]]`). Defaults to `[]`. |
 
 `RepoPrepPlan` queries every enabled `:prepare_detector` plugin whose
 `detect?` matches and **concatenates** their `prepare_commands` — the union
@@ -447,6 +448,28 @@ declares `.go-version`. A disabled plugin's version file no longer triggers
 `mise install`. `mise_version_file` is independent of `detect?` — the version
 file can be present even when the plugin's own primary signal (`Gemfile`,
 `package.json`, etc.) isn't.
+
+### `span_labels`
+
+`GraderCommandSpans::Plan` splits a composite grader command into sub-command
+spans for the live worker-health UI (`read_run_worker_health`) and labels each
+one for display. A small set of genuinely generic labels (`website build`,
+`migration checks`, `eager load check`, `production build boot` — none tied
+to one language) live in core. Per-language labels come from each enabled
+`:prepare_detector` plugin's `span_labels` instead of a hardcoded list: the
+`ruby` plugin declares labels for `bundle check`, `bundle install`,
+`db:test:prepare`, `rspec`, and `rubocop`; the `javascript` plugin declares
+labels for frontend tests (`npm`/`yarn`/`pnpm test`, `vitest`, `jest`) and
+frontend build (`npm`/`yarn`/`pnpm build`/`typecheck`, `tsc --noEmit`).
+`Plan#label_for` checks every enabled plugin's `span_labels` in
+`prepare_priority` order first, then core's labels, before falling back to a
+generic "first 3 words" label for anything unmatched. Plugin labels are
+checked first because core's `website build` pattern also matches a bare
+`npm ... build` with no website-specific marker, and the more specific
+`javascript` plugin's `frontend build` label must keep winning for that case,
+same as it did when both patterns lived in one ordered array. A disabled
+plugin's labels no longer apply, and unlabeled sub-commands still get a
+readable, if generic, name instead of failing.
 
 ## Plugin install and uninstall
 

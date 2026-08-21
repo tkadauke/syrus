@@ -181,6 +181,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect(provider.mise_version_file).to be_nil
     end
+
+    it "defaults span_labels to an empty array for prepare detector providers that don't declare any" do
+      provider = Class.new { include Syrus::Plugin::PrepareDetector }
+
+      expect(provider.span_labels).to eq([])
+    end
   end
 
   describe ".providers_for" do

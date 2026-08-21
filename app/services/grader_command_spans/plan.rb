@@ -7,14 +7,11 @@ module GraderCommandSpans
     MAX_FRAGMENTS = 20
     MAX_COMMAND_EXCERPT = 1024
 
-    LABELS = [
-      [ /\bbundle\s+check\b/, "bundle check" ],
-      [ /\bbundle\s+install\b/, "bundle install" ],
-      [ /\b(?:bin\/rails|rails)\s+db:test:prepare\b/, "db:test:prepare" ],
-      [ /\b(?:bin\/)?rspec\b/, "rspec" ],
-      [ /\b(?:bin\/)?rubocop\b/, "rubocop" ],
-      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:test|test:react|vitest)\b|\bvitest\b|\bjest\b/, "frontend tests" ],
-      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:build|typecheck)\b|\btsc\s+--noEmit\b/, "frontend build" ],
+    # Genuinely generic labels not tied to any one language ecosystem.
+    # Per-language sub-command labels (bundle/rspec/rubocop, npm/yarn/pnpm
+    # test/build, etc.) come from each enabled :prepare_detector plugin's
+    # `span_labels` instead of a hardcoded list here.
+    CORE_LABELS = [
       [ /\bwebsite\/|--prefix\s+website|\b(?:npm|yarn|pnpm)\s+(?:--prefix\s+website\s+)?(?:run\s+)?build\b/, "website build" ],
       [ /\bcheck-migrations?\b/, "migration checks" ],
       [ /\bcheck-eager-load\b/, "eager load check" ],
@@ -78,12 +75,29 @@ module GraderCommandSpans
 
     def label_for(fragment, sequence)
       normalized = fragment.to_s.squish
-      match = LABELS.find { |pattern, _label| normalized.match?(pattern) }
+
+      # Plugin span_labels are checked ahead of CORE_LABELS: CORE_LABELS'
+      # website-build pattern also matches a bare "npm ... build" (no
+      # website-specific marker), and the JS plugin's more specific
+      # frontend-build label must win for that case, same as it did when
+      # both lived in one ordered array.
+      plugin_label = plugin_label_for(normalized)
+      return plugin_label if plugin_label
+
+      match = CORE_LABELS.find { |pattern, _label| normalized.match?(pattern) }
       return match.last if match
 
       words = normalized.gsub(/\A(?:env\s+(?:-[iu]\s+\S+\s+|\S+=\S+\s+)*)/, "")
       first = words.split(/\s+/).first(3).join(" ").presence || "command"
       "#{first} ##{sequence}"
+    end
+
+    def plugin_label_for(normalized)
+      Syrus::PluginRegistry.providers_for(:prepare_detector).each do |detector|
+        match = Array(detector.span_labels).find { |pattern, _label| normalized.match?(pattern) }
+        return match.last if match
+      end
+      nil
     end
 
     def split_top_level

@@ -98,5 +98,13 @@ RSpec.describe JavaScript::Engine do
     it "declares .node-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".node-version")
     end
+
+    it "declares span labels for frontend test and build commands" do
+      labels = described_class.span_labels.to_h { |pattern, label| [ label, pattern ] }
+
+      expect(labels.keys).to contain_exactly("frontend tests", "frontend build")
+      expect("npm run test:react").to match(labels["frontend tests"])
+      expect("npm run build").to match(labels["frontend build"])
+    end
   end
 end

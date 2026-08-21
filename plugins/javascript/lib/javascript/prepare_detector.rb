@@ -5,6 +5,11 @@ module JavaScript
   # Node repos — npm/yarn/pnpm/bun + package.json detection is identical for
   # JS and TS, so one detector covers both.
   class PrepareDetector
+    SPAN_LABELS = [
+      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:test|test:react|vitest)\b|\bvitest\b|\bjest\b/, "frontend tests" ],
+      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:build|typecheck)\b|\btsc\s+--noEmit\b/, "frontend build" ]
+    ].freeze
+
     PRIORITY = [
       [ "yarn.lock",         "yarn install --frozen-lockfile" ],
       [ "pnpm-lock.yaml",    "pnpm install --frozen-lockfile" ],
@@ -29,6 +34,10 @@ module JavaScript
 
     def self.mise_version_file
       ".node-version"
+    end
+
+    def self.span_labels
+      SPAN_LABELS
     end
   end
 end

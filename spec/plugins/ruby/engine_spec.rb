@@ -90,5 +90,13 @@ RSpec.describe Ruby::Engine do
     it "declares .ruby-version as its mise version file" do
       expect(described_class.mise_version_file).to eq(".ruby-version")
     end
+
+    it "declares span labels for bundle, rspec, and rubocop commands" do
+      labels = described_class.span_labels.to_h { |pattern, label| [ label, pattern ] }
+
+      expect(labels.keys).to contain_exactly("bundle check", "bundle install", "db:test:prepare", "rspec", "rubocop")
+      expect("bundle check").to match(labels["bundle check"])
+      expect("bin/rspec spec/models").to match(labels["rspec"])
+    end
   end
 end
