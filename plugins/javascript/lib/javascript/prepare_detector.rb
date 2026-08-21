@@ -37,5 +37,9 @@ module JavaScript
       end
       "#{clauses.join(' ')} fi"
     end
+
+    def self.mise_version_file
+      ".node-version"
+    end
   end
 end

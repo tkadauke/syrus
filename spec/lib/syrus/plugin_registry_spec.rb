@@ -175,6 +175,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect { provider.detect?("/tmp") }.to raise_error(NotImplementedError, /detect\? is required/)
       expect { provider.prepare_commands("/tmp") }.to raise_error(NotImplementedError, /prepare_commands is required/)
     end
+
+    it "defaults mise_version_file to nil for prepare detector providers that don't declare one" do
+      provider = Class.new { include Syrus::Plugin::PrepareDetector }
+
+      expect(provider.mise_version_file).to be_nil
+    end
   end
 
   describe ".providers_for" do

@@ -340,6 +340,7 @@ Include `Syrus::Plugin::PrepareDetector` and implement the class methods:
 |---|---|---|
 | `detect?` | `(repo_path) → bool` | True if this plugin's ecosystem is present in the repo |
 | `prepare_commands` | `(repo_path) → Array<String>` | Commands to run |
+| `mise_version_file` | `() → String or nil` | Optional. The mise version-pin filename this ecosystem owns (e.g. `.ruby-version`). Defaults to `nil`. |
 
 `RepoPrepPlan` queries every enabled `:prepare_detector` plugin whose
 `detect?` matches and **concatenates** their `prepare_commands` — the union
@@ -389,6 +390,20 @@ order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 priority list to pick between.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
+
+### `mise_version_file`
+
+`Steps::Prepare` runs `mise install` before any prepare commands when the
+workspace contains a mise version-pin file. The two universal triggers
+(`.tool-versions`, `.mise.toml`) are always recognized, regardless of which
+plugins are registered. Per-language version-pin filenames come from each
+enabled `:prepare_detector` plugin's `mise_version_file` instead of a
+hardcoded list: the `ruby` plugin declares `.ruby-version`, `javascript`
+declares `.node-version`, `python` declares `.python-version`, and `go`
+declares `.go-version`. A disabled plugin's version file no longer triggers
+`mise install`. `mise_version_file` is independent of `detect?` — the version
+file can be present even when the plugin's own primary signal (`Gemfile`,
+`package.json`, etc.) isn't.
 
 ## `ci_log_parser`
 

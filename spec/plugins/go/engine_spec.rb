@@ -70,5 +70,9 @@ RSpec.describe Go::Engine do
       expect(described_class.detect?(@dir)).to be true
       expect(described_class.prepare_commands(@dir)).to eq([ "go mod download" ])
     end
+
+    it "declares .go-version as its mise version file" do
+      expect(described_class.mise_version_file).to eq(".go-version")
+    end
   end
 end
