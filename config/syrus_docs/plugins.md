@@ -259,15 +259,22 @@ pops and runs every registered cleanup for that plugin, most-recently-registered
 first — LIFO, the natural inverse of setup order — then clears the stack. A
 cleanup that raises is rescued and logged rather than blocking the rest.
 
-`PluginLifecycleJob` drains automatically, so plugin authors don't call
-`drain!` themselves:
+Draining is automatic, so plugin authors don't call `drain!` themselves. Both
+places that dispatch lifecycle callbacks apply the same policy:
+`PluginLifecycleJob` (operator-triggered `on_enable`/`on_disable`) and
+`Syrus::PluginRegistry.fire_boot_callbacks!`/`fire_shutdown_callbacks!`
+(process-wide `on_boot`/`on_shutdown`, called from
+`config/initializers/plugin_registry.rb`'s `after_initialize` and `at_exit`).
 
 - After `on_disable` or `on_shutdown`, effects always drain, even if the
-  callback method itself raised.
+  callback method itself raised — and even if the plugin never overrides
+  `on_disable`/`on_shutdown` at all, since draining doesn't depend on the
+  callback method doing anything.
 - If `on_boot` or `on_enable` raises, whatever effects it managed to register
-  before failing are drained immediately, then the error re-raises. A failed
-  enable never leaves an orphaned effect waiting for a disable that may never
-  come.
+  before failing are drained immediately, then the error re-raises (or, for
+  `fire_boot_callbacks!`, logged and swallowed the same way a plain `on_boot`
+  failure already was). A failed enable never leaves an orphaned effect
+  waiting for a disable that may never come.
 
 `effect` isn't limited to the callbacks class itself — call it with an
 explicit receiver from any collaborator that needs to register a cleanup at

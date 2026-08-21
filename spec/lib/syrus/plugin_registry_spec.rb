@@ -3,8 +3,10 @@ require "rails_helper"
 RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   around do |ex|
     described_class.reset!
+    Syrus::Plugin::EffectRegistry.reset!
     ex.run
     described_class.reset!
+    Syrus::Plugin::EffectRegistry.reset!
   end
 
   let(:agent_provider_class) do
@@ -946,6 +948,106 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect { described_class.fire_boot_callbacks! }.not_to raise_error
       expect(Rails.logger).to have_received(:warn).with(/on_boot failed/)
+    end
+
+    it "drains effects registered during a failing on_boot" do
+      raising_callbacks = Class.new do
+        include Syrus::Plugin::Callbacks
+        class << self
+          attr_reader :cleaned_up
+
+          def on_boot
+            effect { @cleaned_up = true }
+            raise "boot error"
+          end
+        end
+      end
+
+      described_class.register(name: "raising_effect_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      allow(Rails.logger).to receive(:warn)
+
+      described_class.fire_boot_callbacks!
+
+      expect(raising_callbacks.cleaned_up).to be(true)
+    end
+
+    it "does not drain effects after a successful on_boot" do
+      cleaned_up = false
+      succeeding_callbacks = Class.new do
+        include Syrus::Plugin::Callbacks
+      end
+      succeeding_callbacks.define_singleton_method(:on_boot) { effect { cleaned_up = true } }
+
+      described_class.register(name: "succeeding_effect_plugin", version: "1.0.0", provides: { callbacks: succeeding_callbacks })
+
+      described_class.fire_boot_callbacks!
+
+      expect(cleaned_up).to be(false)
+
+      Syrus::Plugin::EffectRegistry.drain!("succeeding_effect_plugin")
+
+      expect(cleaned_up).to be(true)
+    end
+  end
+
+  describe ".fire_shutdown_callbacks!" do
+    let(:callbacks_class) do
+      Class.new do
+        include Syrus::Plugin::Callbacks
+        def self.on_shutdown = @shut_down = true
+        def self.shut_down? = @shut_down
+      end
+    end
+
+    it "calls on_shutdown on enabled callback providers" do
+      described_class.register(name: "shutdown_plugin", version: "1.0.0", provides: { callbacks: callbacks_class })
+
+      described_class.fire_shutdown_callbacks!
+
+      expect(callbacks_class.shut_down?).to be(true)
+    end
+
+    it "logs and continues when a provider raises on_shutdown" do
+      raising_callbacks = Class.new do
+        include Syrus::Plugin::Callbacks
+        def self.on_shutdown = raise "shutdown error"
+      end
+
+      described_class.register(name: "raising_shutdown_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      allow(Rails.logger).to receive(:warn)
+
+      expect { described_class.fire_shutdown_callbacks! }.not_to raise_error
+      expect(Rails.logger).to have_received(:warn).with(/on_shutdown failed/)
+    end
+
+    it "drains effects left over from an earlier on_enable/on_boot even when on_shutdown itself is a no-op" do
+      noop_shutdown_callbacks = Class.new { include Syrus::Plugin::Callbacks }
+
+      described_class.register(name: "noop_shutdown_plugin", version: "1.0.0", provides: { callbacks: noop_shutdown_callbacks })
+
+      cleaned_up = false
+      Syrus::Plugin::EffectRegistry.register("noop_shutdown_plugin") { cleaned_up = true }
+
+      described_class.fire_shutdown_callbacks!
+
+      expect(cleaned_up).to be(true)
+    end
+
+    it "still drains registered effects when on_shutdown itself raises" do
+      raising_callbacks = Class.new do
+        include Syrus::Plugin::Callbacks
+        def self.on_shutdown = raise "shutdown error"
+      end
+
+      described_class.register(name: "raising_shutdown_effect_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      allow(Rails.logger).to receive(:warn)
+
+      cleaned_up = false
+      Syrus::Plugin::EffectRegistry.register("raising_shutdown_effect_plugin") { cleaned_up = true }
+
+      described_class.fire_shutdown_callbacks!
+
+      expect(cleaned_up).to be(true)
     end
   end
 
