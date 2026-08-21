@@ -1,6 +1,7 @@
 require "ruby/version"
 require "ruby/grader_augmentor"
 require "ruby/rubocop_grader_augmentor"
+require "ruby/rubocop_autofix"
 require "ruby/simple_cov_analyzer"
 require "ruby/prepare_detector"
 require "ruby/review_criteria_provider"

@@ -18,14 +18,15 @@ RSpec.describe JavaScript::Engine do
         Syrus::PluginRegistry.register(
           name:             "javascript",
           version:          JavaScript::VERSION,
-          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; default `any`-type review criterion",
+          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; default `any`-type review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 20,
           provides: {
             prepare_detector:         JavaScript::PrepareDetector,
             preview_provider:         JavaScript::PreviewProvider,
             grader_augmentor:         JavaScript::EslintGraderAugmentor,
-            review_criteria_provider: JavaScript::ReviewCriteriaProvider
+            review_criteria_provider: JavaScript::ReviewCriteriaProvider,
+            autofix_command:          [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ]
           }
         )
       end
@@ -44,9 +45,15 @@ RSpec.describe JavaScript::Engine do
       expect(registration.prepare_priority).to eq(20)
     end
 
-    it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, and :review_criteria_provider extension point keys" do
+    it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, and :autofix_command extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
-        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider
+        :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command
+      )
+    end
+
+    it "registers EslintAutofix and PrettierAutofix as the :autofix_command providers" do
+      expect(registration.provides[:autofix_command]).to eq(
+        [ JavaScript::EslintAutofix, JavaScript::PrettierAutofix ]
       )
     end
 
@@ -171,6 +178,68 @@ RSpec.describe JavaScript::Engine do
       write("package.json", "{}")
 
       expect(described_class.criteria(@dir)).to eq([ "Flag newly introduced `any` types" ])
+    end
+  end
+
+  describe JavaScript::EslintAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-javascript-eslint-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns nil for a repo with no ESLint config file" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes the fix command when a flat eslint.config.js is present" do
+      write("eslint.config.js")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx eslint --fix .")
+    end
+
+    it "contributes the fix command when a legacy .eslintrc.json is present" do
+      write(".eslintrc.json", "{}")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx eslint --fix .")
+    end
+  end
+
+  describe JavaScript::PrettierAutofix do
+    around do |ex|
+      Dir.mktmpdir("syrus-javascript-prettier-autofix") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns nil for a repo with no Prettier config" do
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
+    end
+
+    it "contributes the write command when a .prettierrc is present" do
+      write(".prettierrc", "{}")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx prettier --write .")
+    end
+
+    it "contributes the write command when package.json declares a prettier key" do
+      write("package.json", JSON.generate("prettier" => { "singleQuote" => true }))
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to eq("npx prettier --write .")
+    end
+
+    it "returns nil for malformed package.json instead of raising" do
+      write("package.json", "not json")
+
+      expect(described_class.autofix_command(workspace_path: @dir)).to be_nil
     end
   end
 

@@ -39,7 +39,7 @@ module Workflows
         job,
         adversarial_review_loop(job, agent_step: :implement),
         visual_review_loop(job, agent_step: :implement),
-        grader_retry_loop(:implement),
+        grader_retry_loop(:implement, autofix: true),
         "coverage_analyze",
         initial_pr_finish_steps
       )

@@ -108,6 +108,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:review_criteria_provider)
     end
 
+    it "includes :autofix_command" do
+      expect(described_class::EXTENSION_POINTS).to include(:autofix_command)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -195,6 +199,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect(provider).to respond_to(:criteria)
       expect { provider.criteria("/tmp") }.to raise_error(NotImplementedError, /criteria is required/)
+    end
+
+    it "maps :autofix_command to Syrus::Plugin::AutofixCommand" do
+      expect(described_class::INTERFACE_FOR[:autofix_command].call).to eq(Syrus::Plugin::AutofixCommand)
+    end
+
+    it "gives autofix command providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::AutofixCommand }
+
+      expect(provider).to respond_to(:autofix_command)
+      expect { provider.autofix_command(workspace_path: "/tmp") }.to raise_error(NotImplementedError, /autofix_command is required/)
     end
   end
 
