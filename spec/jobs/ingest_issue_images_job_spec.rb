@@ -75,6 +75,16 @@ RSpec.describe IngestIssueImagesJob do
     }.not_to change { job.job_attachments.count }
   end
 
+  it "refuses to fetch images from private/internal network destinations" do
+    internal_url = "http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+    job.update!(issue_body: "![metadata](#{internal_url})")
+
+    expect {
+      described_class.perform_now(job.id)
+    }.not_to change { job.job_attachments.count }
+    expect(WebMock).not_to have_requested(:head, internal_url)
+  end
+
   it "deduplicates by source URL" do
     existing = job.job_attachments.build(
       attachment_type: :uploaded_file,
