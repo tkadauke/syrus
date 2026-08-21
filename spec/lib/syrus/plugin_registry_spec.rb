@@ -31,6 +31,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::CoverageAnalyzer }
   end
 
+  let(:ci_log_parser_class) do
+    Class.new { include Syrus::Plugin::CiLogParser }
+  end
+
   let(:preview_provider_class) do
     Class.new { include Syrus::Plugin::PreviewProvider }
   end
@@ -62,6 +66,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer)
+    end
+
+    it "includes :ci_log_parser" do
+      expect(described_class::EXTENSION_POINTS).to include(:ci_log_parser)
     end
 
     it "includes :preview_provider" do
@@ -189,6 +197,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:coverage_analyzer)).to eq([ coverage_analyzer_class ])
+    end
+
+    it "returns ci log parser providers" do
+      described_class.register(
+        name: "ci_log_parser_plugin", version: "1.0.0",
+        provides: { ci_log_parser: ci_log_parser_class }
+      )
+
+      expect(described_class.providers_for(:ci_log_parser)).to eq([ ci_log_parser_class ])
     end
 
     it "returns preview providers" do
@@ -339,6 +356,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             input_source:       input_source_class,
             test_result_parser: test_result_parser_class,
             coverage_analyzer:  coverage_analyzer_class,
+            ci_log_parser:      ci_log_parser_class,
             preview_provider:   preview_provider_class,
             admin_page:         admin_page_class,
             chat_mcp_tool_set:  chat_mcp_tool_set_class,
