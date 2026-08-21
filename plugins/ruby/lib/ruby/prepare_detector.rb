@@ -11,5 +11,21 @@ module Ruby
     def self.prepare_commands(repo_path)
       [ "bundle install" ]
     end
+
+    def self.mise_version_file
+      ".ruby-version"
+    end
+
+    SPAN_LABELS = [
+      [ /\bbundle\s+check\b/, "bundle check" ],
+      [ /\bbundle\s+install\b/, "bundle install" ],
+      [ /\b(?:bin\/rails|rails)\s+db:test:prepare\b/, "db:test:prepare" ],
+      [ /\b(?:bin\/)?rspec\b/, "rspec" ],
+      [ /\b(?:bin\/)?rubocop\b/, "rubocop" ]
+    ].freeze
+
+    def self.span_labels
+      SPAN_LABELS
+    end
   end
 end

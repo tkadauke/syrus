@@ -19,6 +19,28 @@ module Syrus
     #     matching plugin (cross-language), but does not dedupe within one
     #     plugin's contribution.
     #
+    # Implementations may optionally define:
+    #
+    #   mise_version_file -> String or nil
+    #     The mise version-pin filename this plugin's ecosystem owns (e.g.
+    #     ".ruby-version"). Steps::Prepare treats its presence in the
+    #     workspace, alongside the two universal mise triggers
+    #     (.tool-versions, .mise.toml), as a signal to run `mise install`
+    #     before any prepare commands. Not tied to `detect?` — the version
+    #     file can be present even when the plugin's own primary signal
+    #     (Gemfile, package.json, etc.) isn't. Defaults to nil (no
+    #     plugin-declared version file).
+    #
+    #   span_labels -> Array<[Regexp, String]>
+    #     Regex → label pairs GraderCommandSpans::Plan uses to name a
+    #     sub-command span in the live worker-health UI (e.g. matching
+    #     `\brspec\b` to the label "rspec"). Checked in
+    #     Syrus::PluginRegistry prepare_priority order across every enabled
+    #     plugin, before the handful of genuinely language-agnostic labels
+    #     GraderCommandSpans::Plan still owns directly, before falling back
+    #     to a generic "first 3 words" label. Defaults to [] (no
+    #     plugin-declared labels).
+    #
     # Register an implementation at boot time:
     #   Syrus::PluginRegistry.register(
     #     name: "my-plugin", version: "1.0.0",
@@ -42,6 +64,14 @@ module Syrus
         def prepare_commands(repo_path)
           raise NotImplementedError, "#{self}.prepare_commands is required"
         end
+
+        def mise_version_file
+          nil
+        end
+
+        def span_labels
+          []
+        end
       end
 
       def detect?(repo_path)
@@ -50,6 +80,14 @@ module Syrus
 
       def prepare_commands(repo_path)
         raise NotImplementedError, "#{self.class}#prepare_commands is required"
+      end
+
+      def mise_version_file
+        nil
+      end
+
+      def span_labels
+        []
       end
     end
   end

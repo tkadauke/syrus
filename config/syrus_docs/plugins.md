@@ -9,6 +9,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `input_source`
 - `test_result_parser`
 - `coverage_analyzer`
+- `ci_log_parser`
 - `preview_provider`
 - `admin_page`
 - `chat_mcp_tool_set`
@@ -339,6 +340,8 @@ Include `Syrus::Plugin::PrepareDetector` and implement the class methods:
 |---|---|---|
 | `detect?` | `(repo_path) → bool` | True if this plugin's ecosystem is present in the repo |
 | `prepare_commands` | `(repo_path) → Array<String>` | Commands to run |
+| `mise_version_file` | `() → String or nil` | Optional. The mise version-pin filename this ecosystem owns (e.g. `.ruby-version`). Defaults to `nil`. |
+| `span_labels` | `() → Array<[Regexp, String]>` | Optional. Regex → label pairs for naming this ecosystem's sub-commands in grader command span display (e.g. `[/\brspec\b/, "rspec"]`). Defaults to `[]`. |
 
 `RepoPrepPlan` queries every enabled `:prepare_detector` plugin whose
 `detect?` matches and **concatenates** their `prepare_commands` — the union
@@ -388,6 +391,79 @@ order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 priority list to pick between.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
+
+### `mise_version_file`
+
+`Steps::Prepare` runs `mise install` before any prepare commands when the
+workspace contains a mise version-pin file. The two universal triggers
+(`.tool-versions`, `.mise.toml`) are always recognized, regardless of which
+plugins are registered. Per-language version-pin filenames come from each
+enabled `:prepare_detector` plugin's `mise_version_file` instead of a
+hardcoded list: the `ruby` plugin declares `.ruby-version`, `javascript`
+declares `.node-version`, `python` declares `.python-version`, and `go`
+declares `.go-version`. A disabled plugin's version file no longer triggers
+`mise install`. `mise_version_file` is independent of `detect?` — the version
+file can be present even when the plugin's own primary signal (`Gemfile`,
+`package.json`, etc.) isn't.
+
+### `span_labels`
+
+`GraderCommandSpans::Plan` names each sub-command phase in the live
+worker-health UI (`read_run_worker_health`) by checking every enabled
+`:prepare_detector` plugin's `span_labels` — in `prepare_priority` order —
+before a handful of remaining genuinely language-agnostic labels it owns
+directly (`website build`, `migration checks`, `eager load check`,
+`production build boot`), then falling back to a generic "first 3 words"
+label built from the sub-command itself. The `ruby` plugin declares labels
+for `bundle check`, `bundle install`, `db:test:prepare`, `rspec`, and
+`rubocop`; `javascript` declares `frontend tests` and `frontend build`;
+`python` declares `pytest`, `ruff`, and `mypy`; `go` declares `go test`,
+`go vet`, and `go build`. This is display polish only — a plugin that
+doesn't declare `span_labels` still gets a usable generic label, never an
+error.
+
+## `ci_log_parser`
+
+Lets a plugin claim a CI log before `CiLogParser` falls back to its own
+built-in parsers — same "plugin tries first, core generic parser is the
+fallback" pattern as `:test_result_parser` and `:coverage_analyzer`.
+`CiLogParser#parse` feeds the diagnostic summary a `ci_failure` repair agent
+sees (`error_summary`, `failing_tests`/`offenses`, `error_block`).
+
+Include `Syrus::Plugin::CiLogParser` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `call` | `(text:, step_name:) → Hash\|nil` | Return a result Hash (see below), or `nil` if this parser doesn't recognize the log — control passes to the next registered `:ci_log_parser` plugin and, eventually, to `CiLogParser`'s own fallback parsers. |
+
+Parameters:
+
+- `text` — the CI log, already scoped to the failing step
+- `step_name` — the failing step's name, or `nil`
+
+The returned Hash needs `parser:`, `error_summary:`, and `error_block:`; it
+may also include `failing_tests:` and/or `offenses:` (both default to `[]`).
+Providers are tried in registration order; the first non-nil result wins. A
+result missing the required keys, or a raised exception, is treated the same
+as `nil` — logged and skipped — so one misbehaving plugin degrades to the
+next parser instead of breaking CI-failure diagnosis for every check.
+
+```ruby
+class MyPlugin::CiLogParser
+  include Syrus::Plugin::CiLogParser
+
+  def self.call(text:, step_name: nil)
+    return unless text.match?(/^Traceback \(most recent call last\):/)
+
+    { parser: "pytest", error_summary: "pytest failure", error_block: text }
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { ci_log_parser: MyPlugin::CiLogParser }
+)
+```
 
 ## Plugin install and uninstall
 

@@ -112,6 +112,10 @@ RSpec.describe JavaScript::Engine do
         )
       end
     end
+
+    it "declares .node-version as its mise version file" do
+      expect(described_class.mise_version_file).to eq(".node-version")
+    end
   end
 
   describe JavaScript::PreviewProvider do

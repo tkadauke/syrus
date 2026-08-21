@@ -25,5 +25,19 @@ module Python
       PRIORITY.find { |file, _command| path.join(file).exist? }
     end
     private_class_method :matching_entry
+
+    def self.mise_version_file
+      ".python-version"
+    end
+
+    SPAN_LABELS = [
+      [ /\bpytest\b/, "pytest" ],
+      [ /\bruff\b/, "ruff" ],
+      [ /\bmypy\b/, "mypy" ]
+    ].freeze
+
+    def self.span_labels
+      SPAN_LABELS
+    end
   end
 end

@@ -10,5 +10,19 @@ module Go
     def self.prepare_commands(repo_path)
       detect?(repo_path) ? [ "go mod download" ] : []
     end
+
+    def self.mise_version_file
+      ".go-version"
+    end
+
+    SPAN_LABELS = [
+      [ /\bgo\s+test\b/, "go test" ],
+      [ /\bgo\s+vet\b/, "go vet" ],
+      [ /\bgo\s+build\b/, "go build" ]
+    ].freeze
+
+    def self.span_labels
+      SPAN_LABELS
+    end
   end
 end

@@ -17,7 +17,8 @@ class CiLogParser
     return base_result(parser: "empty", error_summary: "No CI log was available.", error_block: "") if @log.blank?
 
     scoped = scoped_log
-    parse_rspec(scoped) ||
+    try_plugin_parsers(scoped) ||
+      parse_rspec(scoped) ||
       parse_minitest(scoped) ||
       parse_rubocop(scoped) ||
       parse_js_test(scoped) ||
@@ -27,6 +28,33 @@ class CiLogParser
   end
 
   private
+
+  # Tries registered :ci_log_parser plugins before the language-specific
+  # parsers below. Ruby/JS parsing currently still lives here in core rather
+  # than in `ruby`/`javascript` plugins — those plugins don't exist yet (see
+  # EPIC-243) — but the extension point lets a language plugin claim a log
+  # ahead of these built-ins once it does.
+  #
+  # A plugin that raises, or returns something other than a Hash with the
+  # required keys, is treated as a non-match (logged, then skipped) instead
+  # of taking down CI-failure diagnosis for every check — third-party plugin
+  # code is not as trusted as the built-in parsers below it.
+  def try_plugin_parsers(text)
+    Syrus::PluginRegistry.providers_for(:ci_log_parser).each do |provider|
+      result = PerformanceLogging.plugin_call(extension_point: :ci_log_parser, provider: provider, operation: :call) do
+        provider.call(text: text, step_name: @step_name.presence)
+      end
+      next unless result.is_a?(Hash)
+
+      result = result.symbolize_keys
+      next unless %i[parser error_summary error_block].all? { |key| result.key?(key) }
+
+      return base_result(**result)
+    rescue StandardError => e
+      Rails.logger.warn("[CiLogParser] ci_log_parser plugin #{provider} failed: #{e.class}: #{e.message}")
+    end
+    nil
+  end
 
   def base_result(parser:, error_summary:, error_block:, **extra)
     {

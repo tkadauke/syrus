@@ -8,6 +8,7 @@ module Syrus
       prompt_injector
       test_result_parser
       coverage_analyzer
+      ci_log_parser
       preview_provider
       admin_page
       chat_mcp_tool_set
@@ -28,6 +29,7 @@ module Syrus
       prompt_injector:         -> { Syrus::Plugin::PromptInjector },
       test_result_parser:      -> { Syrus::Plugin::TestResultParser },
       coverage_analyzer:       -> { Syrus::Plugin::CoverageAnalyzer },
+      ci_log_parser:           -> { Syrus::Plugin::CiLogParser },
       preview_provider:        -> { Syrus::Plugin::PreviewProvider },
       admin_page:              -> { Syrus::Plugin::AdminPage },
       chat_mcp_tool_set:       -> { Syrus::Plugin::ChatMcpToolSet },
