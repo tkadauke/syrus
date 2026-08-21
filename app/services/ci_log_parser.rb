@@ -17,7 +17,8 @@ class CiLogParser
     return base_result(parser: "empty", error_summary: "No CI log was available.", error_block: "") if @log.blank?
 
     scoped = scoped_log
-    parse_rspec(scoped) ||
+    try_plugin_parsers(scoped) ||
+      parse_rspec(scoped) ||
       parse_minitest(scoped) ||
       parse_rubocop(scoped) ||
       parse_js_test(scoped) ||
@@ -27,6 +28,19 @@ class CiLogParser
   end
 
   private
+
+  # Tries registered :ci_log_parser plugins before the language-specific
+  # parsers below. Ruby/JS parsing currently still lives here in core rather
+  # than in `ruby`/`javascript` plugins — those plugins don't exist yet (see
+  # EPIC-243) — but the extension point lets a language plugin claim a log
+  # ahead of these built-ins once it does.
+  def try_plugin_parsers(text)
+    Syrus::PluginRegistry.providers_for(:ci_log_parser).each do |provider|
+      result = provider.call(text: text, step_name: @step_name.presence)
+      return base_result(**result) if result
+    end
+    nil
+  end
 
   def base_result(parser:, error_summary:, error_block:, **extra)
     {

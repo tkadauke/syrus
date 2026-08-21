@@ -9,6 +9,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `input_source`
 - `test_result_parser`
 - `coverage_analyzer`
+- `ci_log_parser`
 - `preview_provider`
 - `admin_page`
 - `chat_mcp_tool_set`
@@ -388,6 +389,46 @@ order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 priority list to pick between.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
+
+## `ci_log_parser`
+
+Lets a plugin claim a CI log before `CiLogParser` falls back to its own
+built-in parsers — same "plugin tries first, core generic parser is the
+fallback" pattern as `:test_result_parser` and `:coverage_analyzer`.
+`CiLogParser#parse` feeds the diagnostic summary a `ci_failure` repair agent
+sees (`error_summary`, `failing_tests`/`offenses`, `error_block`).
+
+Include `Syrus::Plugin::CiLogParser` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `call` | `(text:, step_name:) → Hash\|nil` | Return a result Hash (see below), or `nil` if this parser doesn't recognize the log — control passes to the next registered `:ci_log_parser` plugin and, eventually, to `CiLogParser`'s own fallback parsers. |
+
+Parameters:
+
+- `text` — the CI log, already scoped to the failing step
+- `step_name` — the failing step's name, or `nil`
+
+The returned Hash needs `parser:`, `error_summary:`, and `error_block:`; it
+may also include `failing_tests:` and/or `offenses:` (both default to `[]`).
+Providers are tried in registration order; the first non-nil result wins.
+
+```ruby
+class MyPlugin::CiLogParser
+  include Syrus::Plugin::CiLogParser
+
+  def self.call(text:, step_name: nil)
+    return unless text.match?(/^Traceback \(most recent call last\):/)
+
+    { parser: "pytest", error_summary: "pytest failure", error_block: text }
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { ci_log_parser: MyPlugin::CiLogParser }
+)
+```
 
 ## Plugin install and uninstall
 
