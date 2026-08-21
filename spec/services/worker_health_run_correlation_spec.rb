@@ -69,6 +69,31 @@ RSpec.describe WorkerHealthRunCorrelation do
     expect(payload[:processes].first).to include(kind: "grader", command: "bin/rspec")
   end
 
+  it "does not load raw worker health metrics when correlating Run samples" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step)
+    sample(
+      observed_at: now - 4.minutes,
+      cpu_used_percent: 92.0,
+      raw_metrics: { "large" => "payload" }
+    )
+
+    payload = nil
+    queries = []
+    callback = lambda do |_name, _started, _finished, _unique_id, payload_data|
+      sql = payload_data[:sql].to_s
+      queries << sql if sql.include?("worker_host_health_samples")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      payload = described_class.for_run(run, now: now)
+    end
+
+    expect(payload[:sample_count]).to eq(1)
+    expect(queries.join("\n")).not_to include("raw_metrics")
+  end
+
   it "redacts GitHub credentials from process and command span telemetry" do
     wf = workflow
     step = step_for(wf)

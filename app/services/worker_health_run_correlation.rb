@@ -3,6 +3,21 @@ require "set"
 class WorkerHealthRunCorrelation
   SAMPLE_LIMIT = 20
   JOB_RUN_LIMIT = 10
+  SAMPLE_COLUMNS = %i[
+    id
+    hostname
+    observed_at
+    cpu_used_percent
+    memory_used_percent
+    data_root_used_percent
+    load_1m
+    load_5m
+    load_15m
+    cpu_pressure_some
+    cpu_pressure_full
+    io_pressure_some
+    io_pressure_full
+  ].freeze
 
   def self.for_run(run, sample_limit: SAMPLE_LIMIT, now: Time.current)
     new(run: run, sample_limit: sample_limit, now: now).as_json
@@ -154,13 +169,18 @@ class WorkerHealthRunCorrelation
 
     return {} if hostnames.empty? || starts.empty? || finishes.empty?
 
-    WorkerHostHealthSample
+    sample_scope
       .where(hostname: hostnames.to_a, observed_at: starts.min..finishes.max)
       .order(:hostname, :observed_at)
       .to_a
       .group_by(&:hostname)
   end
   private_class_method :preload_samples_by_hostname
+
+  def self.sample_scope
+    WorkerHostHealthSample.select(*SAMPLE_COLUMNS)
+  end
+  private_class_method :sample_scope
 
   def initialize(run:, sample_limit: SAMPLE_LIMIT, now: Time.current, samples_by_hostname: nil)
     @run = run
@@ -290,7 +310,7 @@ class WorkerHealthRunCorrelation
           .select { |sample| sample.observed_at >= effective_since && sample.observed_at <= range_finish }
           .sort_by(&:observed_at)
       else
-        WorkerHostHealthSample
+        self.class.send(:sample_scope)
           .where(hostname: hostnames, observed_at: effective_since..range_finish)
           .order(:observed_at)
           .to_a
@@ -434,7 +454,7 @@ class WorkerHealthRunCorrelation
           samples_by_hostname.fetch(span.hostname, [])
             .select { |sample| sample.observed_at >= effective_since && sample.observed_at <= range_finish }
         else
-          WorkerHostHealthSample
+          WorkerHealthRunCorrelation.send(:sample_scope)
             .where(hostname: span.hostname, observed_at: effective_since..range_finish)
             .order(:observed_at)
             .to_a
