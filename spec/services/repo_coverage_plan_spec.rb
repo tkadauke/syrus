@@ -188,6 +188,12 @@ RSpec.describe RepoCoveragePlan do
           from_config("artifact" => "coverage/lcov.info", "threshold" => 80)
         }.to raise_error(SyrusYml::ConfigError, /threshold: must be a mapping/)
       end
+
+      it "raises ConfigError when a threshold value is outside 0..100" do
+        expect {
+          from_config("artifact" => "coverage/lcov.info", "threshold" => { "branches" => 150 })
+        }.to raise_error(SyrusYml::ConfigError, /threshold\.branches: must be between 0 and 100/)
+      end
     end
 
     context "other validation" do
@@ -256,6 +262,44 @@ RSpec.describe RepoCoveragePlan do
         "threshold" => { "branches" => 80 }
       )
       expect(plan.threshold_miss?(lines_pct: 10)).to be(false)
+    end
+  end
+
+  describe "#branches_threshold_miss?" do
+    let(:plan_with_branches_threshold) do
+      from_config("artifact" => "coverage/lcov.info", "threshold" => { "branches" => 70 })
+    end
+
+    it "returns false when no threshold is configured" do
+      plan = from_config("artifact" => "coverage/lcov.info")
+      expect(plan.branches_threshold_miss?(branches_pct: 10)).to be(false)
+    end
+
+    it "returns false when threshold.branches is not configured" do
+      plan = from_config("artifact" => "coverage/lcov.info", "threshold" => { "lines" => 80 })
+      expect(plan.branches_threshold_miss?(branches_pct: 10)).to be(false)
+    end
+
+    it "returns false when branches_pct is nil" do
+      expect(plan_with_branches_threshold.branches_threshold_miss?(branches_pct: nil)).to be(false)
+    end
+
+    it "returns true when branches_pct falls below threshold.branches" do
+      expect(plan_with_branches_threshold.branches_threshold_miss?(branches_pct: 69.9)).to be(true)
+    end
+
+    it "returns false when branches_pct meets or exceeds threshold.branches" do
+      expect(plan_with_branches_threshold.branches_threshold_miss?(branches_pct: 70)).to be(false)
+      expect(plan_with_branches_threshold.branches_threshold_miss?(branches_pct: 95)).to be(false)
+    end
+
+    it "is independent of lines threshold misses" do
+      plan = from_config(
+        "artifact" => "coverage/lcov.info",
+        "threshold" => { "lines" => 80, "branches" => 70 }
+      )
+      expect(plan.threshold_miss?(lines_pct: 10)).to be(true)
+      expect(plan.branches_threshold_miss?(branches_pct: 95)).to be(false)
     end
   end
 end
