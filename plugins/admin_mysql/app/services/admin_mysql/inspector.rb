@@ -2,6 +2,7 @@ module AdminMysql
   class Inspector
     MAX_LIMIT = 200
     DEFAULT_LIMIT = 50
+    DIAGNOSTIC_SELECT_TIMEOUT_MS = 1_000
 
     class Unavailable < StandardError; end
 
@@ -74,6 +75,10 @@ module AdminMysql
 
     def select_all(sql)
       connection.exec_query(sql).to_a
+    end
+
+    def select_all_with_timeout(sql, timeout_ms: DIAGNOSTIC_SELECT_TIMEOUT_MS)
+      select_all(mysql_timeout_hint(sql, timeout_ms: timeout_ms))
     end
 
     def safe_section
@@ -169,6 +174,10 @@ module AdminMysql
       values.map { |value| connection.quote(value) }.join(", ")
     end
 
+    def mysql_timeout_hint(sql, timeout_ms:)
+      sql.to_s.sub(/\ASELECT\b/i, "SELECT /*+ MAX_EXECUTION_TIME(#{Integer(timeout_ms)}) */")
+    end
+
     def process_list(limit:)
       rows = select_all("SHOW FULL PROCESSLIST")
 
@@ -190,7 +199,7 @@ module AdminMysql
 
     def statement_digests(limit:)
       safe_section do
-        rows = select_all(<<~SQL.squish)
+        rows = select_all_with_timeout(<<~SQL.squish)
           SELECT SCHEMA_NAME,
                  DIGEST_TEXT,
                  COUNT_STAR,
@@ -271,7 +280,7 @@ module AdminMysql
       end
 
       safe_section do
-        rows = select_all(<<~SQL.squish)
+        rows = select_all_with_timeout(<<~SQL.squish)
           SELECT start_time, user_host, query_time, lock_time, rows_sent, rows_examined, db, LEFT(sql_text, 1000) AS sql_text
           FROM mysql.slow_log
           ORDER BY start_time DESC

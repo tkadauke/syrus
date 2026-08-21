@@ -49,4 +49,24 @@ RSpec.describe AdminMysql::Inspector do
     expect(rows.first).to include(command: "Query", info: "SELECT 2")
     expect(inspector).not_to have_received(:select_all).with(include("information_schema.PROCESSLIST"))
   end
+
+  it "adds a per-statement timeout hint to expensive diagnostic SELECTs" do
+    hinted = described_class.new.send(:mysql_timeout_hint, "SELECT * FROM mysql.slow_log", timeout_ms: 750)
+
+    expect(hinted).to eq("SELECT /*+ MAX_EXECUTION_TIME(750) */ * FROM mysql.slow_log")
+  end
+
+  it "runs statement digest reads through the bounded diagnostic SELECT helper" do
+    inspector = described_class.new
+    allow(inspector).to receive(:connection).and_return(double(
+      current_database: "syrus_production",
+      quote: ->(value) { "'#{value}'" }
+    ))
+    allow(inspector).to receive(:select_all_with_timeout).and_return([])
+
+    payload = inspector.send(:statement_digests, limit: 5)
+
+    expect(payload).to include(available: true, rows: [])
+    expect(inspector).to have_received(:select_all_with_timeout).with(include("events_statements_summary_by_digest"))
+  end
 end
