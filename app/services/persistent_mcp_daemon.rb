@@ -1,19 +1,26 @@
 require "puma"
 require "mcp"
 require "json"
+require "stringio"
 
 # Worker-local, persistent MCP sidecar daemon skeleton (EPIC-250: persistent
 # MCP sidecar and tool usage visibility). Disabled by default behind the
 # `persistent_mcp_sidecar` feature — #start refuses to boot while the
-# feature is off, and nothing else in the codebase points an agent's MCP
-# transport at this daemon, so workflow and chat agents keep spawning the
-# existing per-run/per-session stdio sidecars (Mcp::Sidecar) unchanged.
+# feature is off. WorkflowMcpTransportSelector is the only thing that decides
+# whether a workflow agent invocation actually points its MCP transport here
+# instead of the existing per-run stdio sidecar (Mcp::Sidecar); it requires
+# the feature on, a passing #health_check, AND `capabilities` to include
+# WORKFLOW_TOOLS_CAPABILITY, falling back to stdio (with a logged reason)
+# otherwise. So even with the feature enabled, workflow agents still use
+# stdio today.
 #
-# This is a skeleton, not a real tool surface: it proves the daemon can boot
-# Rails once, hold one MCP::Server in memory, and answer a health/readiness
-# check that enumerates tools and round-trips a no-op MCP request (the
-# protocol-level `ping` method) — no workflow or chat agent capability is
-# wired to it yet.
+# This is still mostly a skeleton, not a real tool surface: it proves the
+# daemon can boot Rails once, hold one MCP::Server in memory, and answer a
+# health/readiness check that enumerates tools and round-trips a no-op MCP
+# request (the protocol-level `ping` method). CAPABILITIES stays empty (so
+# WorkflowMcpTransportSelector always falls back) until a later EPIC-250
+# milestone wires the real workflow tool set (Mcp::Tools) onto this daemon's
+# MCP::Server.
 #
 # Local-only: bound to loopback by default (SYRUS_PERSISTENT_MCP_HOST), and
 # MCP requests are served through
@@ -33,6 +40,28 @@ class PersistentMcpDaemon
   # context reaches a tool without any daemon-wide mutable "current
   # run"/"current chat" state.
   INVOCATION_CONTEXT_META_KEY = :syrus_invocation_context
+
+  # `claude`/`codex` build the outbound JSON-RPC body themselves -- there is
+  # no config surface to make either CLI attach a custom `_meta` key to every
+  # tool call. An HTTP header IS under Syrus's control (both CLIs support a
+  # static `headers` map for HTTP-type MCP servers), so a caller that cannot
+  # set `_meta` directly attaches its signed McpInvocationContext token here
+  # instead, and #call bridges it into `_meta` (see #inject_invocation_context)
+  # before dispatch -- tools keep reading a single, transport-agnostic place
+  # (server_context[:_meta][INVOCATION_CONTEXT_META_KEY]).
+  INVOCATION_CONTEXT_HEADER = "X-Syrus-Invocation-Context"
+  INVOCATION_CONTEXT_HEADER_ENV_KEY = "HTTP_X_SYRUS_INVOCATION_CONTEXT"
+
+  # Advertised in #health_check's `capabilities` array once a workflow's real
+  # tool set (Mcp::Tools, the same tools the stdio sidecar serves) is wired
+  # onto this daemon's MCP::Server -- a later EPIC-250 milestone. Empty today:
+  # this daemon only exposes its proof-of-pipe tools (daemon_ping,
+  # daemon_invocation_context), so WorkflowMcpTransportSelector always falls
+  # back callers to the stdio sidecar in production. Tests exercise the
+  # persistent-transport path by stubbing a health response that includes
+  # this capability.
+  CAPABILITIES = [].freeze
+  WORKFLOW_TOOLS_CAPABILITY = "workflow_tools"
 
   def self.port
     Integer(ENV.fetch("SYRUS_PERSISTENT_MCP_PORT", DEFAULT_PORT))
@@ -85,7 +114,7 @@ class PersistentMcpDaemon
     if request.path == HEALTH_PATH
       health_response
     elsif request.path == MCP_PATH || request.path.start_with?("#{MCP_PATH}/")
-      mcp_transport.call(env)
+      mcp_transport.call(inject_invocation_context(env))
     else
       not_found
     end
@@ -131,6 +160,7 @@ class PersistentMcpDaemon
       started_at: @started_at&.utc&.iso8601,
       uptime_seconds: @started_at ? (Time.current - @started_at).round(1) : nil,
       tools: Array(tools_result.dig("result", "tools")).map { |tool| tool["name"] },
+      capabilities: self.class::CAPABILITIES,
       ping_ok: ping_ok
     }
   rescue StandardError => e
@@ -138,6 +168,37 @@ class PersistentMcpDaemon
   end
 
   private
+
+  # Bridges INVOCATION_CONTEXT_HEADER into the JSON-RPC request's
+  # `params._meta` so MCP::Server#server_context_with_meta (and, downstream,
+  # tools reading server_context[:_meta]) see it exactly as they would if the
+  # MCP client itself had set `_meta` -- see the constant comment above for
+  # why a header bridge is necessary. A no-op (env returned unchanged) unless
+  # the header is present on a POST with a single JSON-RPC object body;
+  # anything else is left for the transport's own validation to reject.
+  def inject_invocation_context(env)
+    token = env[INVOCATION_CONTEXT_HEADER_ENV_KEY]
+    return env if token.blank? || env["REQUEST_METHOD"] != "POST"
+
+    request = Rack::Request.new(env)
+    body_string = request.body.read
+    request.body.rewind
+
+    parsed = JSON.parse(body_string, symbolize_names: true)
+    return env unless parsed.is_a?(Hash) && parsed[:method]
+
+    params = parsed[:params].is_a?(Hash) ? parsed[:params] : {}
+    meta = params[:_meta].is_a?(Hash) ? params[:_meta] : {}
+    parsed[:params] = params.merge(_meta: meta.merge(INVOCATION_CONTEXT_META_KEY => token))
+
+    new_body = JSON.generate(parsed)
+    new_env = env.dup
+    new_env["rack.input"] = StringIO.new(new_body)
+    new_env["CONTENT_LENGTH"] = new_body.bytesize.to_s
+    new_env
+  rescue JSON::ParserError
+    env
+  end
 
   def dispatch(id, method)
     JSON.parse(mcp_server.handle_json({ jsonrpc: "2.0", id: id, method: method }.to_json))

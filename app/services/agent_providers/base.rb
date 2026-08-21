@@ -167,5 +167,46 @@ module AgentProviders
     def sidecar_args
       [ "--run-id", @run.id.to_s ]
     end
+
+    # Memoized per invocation. `nil` when the feature is off, which callers
+    # use as the "behave exactly as before, don't log anything" signal --
+    # see #log_mcp_transport_decision!.
+    def mcp_transport_decision
+      return @mcp_transport_decision if defined?(@mcp_transport_decision)
+
+      @mcp_transport_decision = Feature.persistent_mcp_sidecar_enabled? ? WorkflowMcpTransportSelector.select : nil
+    end
+
+    # Records the transport decision where existing run/job diagnostics
+    # already surface it: a JobLog system line (transcript) and
+    # Step#details (already serialized by Admin::JobStateSerializer, so no
+    # separate diagnostics plumbing is needed). No-ops (and is never called)
+    # when the feature is off, so disabled behavior stays byte-identical to
+    # before this existed.
+    def log_mcp_transport_decision!(decision)
+      return unless decision
+
+      step = @run.step
+      step.update!(details: (step.details || {}).merge(
+        "mcp_transport" => {
+          "transport" => decision.transport.to_s,
+          "reason" => decision.reason,
+          "checked_at" => Time.current.utc.iso8601
+        }.compact
+      ))
+
+      message = if decision.persistent?
+        "[mcp_transport] transport=persistent daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')}"
+      else
+        "[mcp_transport] transport=stdio reason=#{decision.reason}"
+      end
+      JobLog.append!(run: @run, kind: "system", chunk: message)
+    rescue StandardError => e
+      Rails.logger.warn("[#{self.class.name}] failed to record mcp transport decision: #{e.class}: #{e.message}")
+    end
+
+    def mint_invocation_context_token(decision)
+      McpInvocationContext.issue_for_run(@run, worker_id: decision.daemon_identity["worker_id"], provider: provider)
+    end
   end
 end

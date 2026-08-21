@@ -63,7 +63,10 @@ module AgentProviders
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil)
       on_session_id = ->(sid) { @run.update_columns(live_session_id: sid) rescue nil }
       if mcp
-        with_mcp_config do |mcp_config_path|
+        decision = mcp_transport_decision
+        log_mcp_transport_decision!(decision) if decision
+
+        with_mcp_config(decision) do |mcp_config_path|
           invoke_claude(workspace_path: workspace_path,
                         prompt: prompt,
                         log_sink: log_sink,
@@ -130,8 +133,19 @@ module AgentProviders
     # tools through the deferred catalog and the resumed agent
     # couldn't find them. Server key MUST match the binary basename
     # (`syrus-mcp-sidecar`) because claude-code derives resumed MCP
-    # tool prefixes from the binary basename.
-    def with_mcp_config
+    # tool prefixes from the binary basename -- kept as the config key
+    # for the persistent/http entry too, for the same reason (see
+    # ClaudeInvocation#required_mcp_tools_update, which looks up this
+    # exact name in claude's init event regardless of transport).
+    def with_mcp_config(decision = nil)
+      if decision&.persistent?
+        with_persistent_mcp_config(decision) { |path| yield path }
+      else
+        with_stdio_mcp_config { |path| yield path }
+      end
+    end
+
+    def with_stdio_mcp_config
       Tempfile.create([ "syrus-mcp-#{@run.id}-", ".json" ]) do |f|
         env = sidecar_env
         f.write({
@@ -151,6 +165,36 @@ module AgentProviders
       end
     end
 
+    # Points claude at PersistentMcpDaemon's HTTP transport instead of
+    # spawning a stdio subprocess. The signed McpInvocationContext token
+    # travels as a header (not `_meta` -- claude builds the JSON-RPC body
+    # itself, so there's no config surface to set `_meta` directly); the
+    # daemon bridges the header into `_meta` on its side (see
+    # PersistentMcpDaemon#inject_invocation_context).
+    def with_persistent_mcp_config(decision)
+      Tempfile.create([ "syrus-mcp-#{@run.id}-", ".json" ]) do |f|
+        url = persistent_mcp_url
+        token = mint_invocation_context_token(decision)
+        f.write({
+          mcpServers: {
+            "syrus-mcp-sidecar" => {
+              type: "http",
+              url: url,
+              headers: { PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => token },
+              alwaysLoad: true
+            }
+          }
+        }.to_json)
+        f.flush
+        log_persistent_mcp_config!(path: f.path, url: url)
+        yield f.path
+      end
+    end
+
+    def persistent_mcp_url
+      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+    end
+
     def log_mcp_config!(path:, env:)
       JobLog.append!(
         run: @run,
@@ -159,6 +203,16 @@ module AgentProviders
       )
     rescue StandardError => e
       Rails.logger.warn("[AgentProviders::Claude] failed to log MCP config for Run ##{@run.id}: #{e.class}: #{e.message}")
+    end
+
+    def log_persistent_mcp_config!(path:, url:)
+      JobLog.append!(
+        run: @run,
+        kind: "system",
+        chunk: "[mcp_config] server=syrus-mcp-sidecar transport=persistent url=#{url} alwaysLoad=true path=#{path}"
+      )
+    rescue StandardError => e
+      Rails.logger.warn("[AgentProviders::Claude] failed to log persistent MCP config for Run ##{@run.id}: #{e.class}: #{e.message}")
     end
   end
 end
