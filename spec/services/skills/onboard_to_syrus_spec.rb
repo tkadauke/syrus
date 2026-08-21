@@ -25,7 +25,7 @@ RSpec.describe Skills::OnboardToSyrus do
     it "reuses RepoPrepPlan's auto-detect table verbatim for the prepare: section" do
       instructions = described_class.definition.instructions
 
-      RepoPrepPlan::AUTO_DETECT.each do |file, command|
+      RepoPrepPlan::AUTO_DETECT.flatten(1).each do |file, command|
         expect(instructions).to include("`#{file}`")
         expect(instructions).to include("`#{command}`")
       end
@@ -140,7 +140,7 @@ RSpec.describe Skills::OnboardToSyrus do
     it "still includes the full reference tables alongside the concrete scan results" do
       instructions = described_class.definition(workspace_path: @dir).instructions
 
-      RepoPrepPlan::AUTO_DETECT.each { |file, _command| expect(instructions).to include("`#{file}`") }
+      RepoPrepPlan::AUTO_DETECT.flatten(1).each { |file, _command| expect(instructions).to include("`#{file}`") }
       RepoGradeSignals::RULE_DESCRIPTIONS.each { |rule| expect(instructions).to include(rule.name) }
     end
   end
