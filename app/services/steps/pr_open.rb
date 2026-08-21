@@ -40,6 +40,7 @@ module Steps
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
         transition_job_to_implemented!
         post_coverage_comment_if_present
+        post_dependency_audit_comment_if_present
         return
       end
 
@@ -48,9 +49,11 @@ module Steps
       elsif fork_to_upstream?
         open_upstream_pr
         post_coverage_comment_if_present
+        post_dependency_audit_comment_if_present
       else
         open_pr
         post_coverage_comment_if_present
+        post_dependency_audit_comment_if_present
       end
     end
 
@@ -416,6 +419,32 @@ module Steps
       end
     rescue => e
       log("[pr_open] failed to post coverage comment: #{e.class}: #{e.message}")
+    end
+
+    def post_dependency_audit_comment_if_present
+      pr_comment_body = workflow.artifact("dependency_audit")&.[]("pr_comment_body")
+      return unless pr_comment_body.present?
+
+      pr_number = job.pr_number
+      return unless pr_number.present?
+
+      pr_repo   = job.effective_pr_repository
+      client    = GithubClient.for(repository: pr_repo, user: job.user)
+      repo_slug = pr_repo.slug
+
+      existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
+        comment.body.to_s.include?(DependencyAuditReport::PrCommentFormatter::MARKER)
+      end
+
+      if existing
+        client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
+        log("[pr_open] updated dependency audit comment ##{existing.id} on PR ##{pr_number}")
+      else
+        client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
+        log("[pr_open] posted dependency audit comment on PR ##{pr_number}")
+      end
+    rescue => e
+      log("[pr_open] failed to post dependency audit comment: #{e.class}: #{e.message}")
     end
 
     def attribution_footer(implement_run)

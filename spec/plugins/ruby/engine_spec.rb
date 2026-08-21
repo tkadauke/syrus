@@ -18,7 +18,7 @@ RSpec.describe Ruby::Engine do
           version:          Ruby::VERSION,
           description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
                              "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
-                             "RuboCop autofix, default N+1 review criterion",
+                             "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
@@ -27,7 +27,8 @@ RSpec.describe Ruby::Engine do
             prepare_detector:         Ruby::PrepareDetector,
             review_criteria_provider: Ruby::ReviewCriteriaProvider,
             test_result_parser:       Ruby::RspecParser,
-            autofix_command:          Ruby::RubocopAutofix
+            autofix_command:          Ruby::RubocopAutofix,
+            dependency_audit_command: Ruby::BundlerAuditCommand
           }
         )
       end
@@ -46,19 +47,24 @@ RSpec.describe Ruby::Engine do
       expect(registration.prepare_priority).to eq(10)
     end
 
-    it "provides all 6 extension point keys" do
+    it "provides all 7 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :coverage_analyzer,
         :grader_augmentor,
         :prepare_detector,
         :review_criteria_provider,
         :test_result_parser,
-        :autofix_command
+        :autofix_command,
+        :dependency_audit_command
       )
     end
 
     it "registers RubocopAutofix as the :autofix_command" do
       expect(registration.provides[:autofix_command]).to eq(Ruby::RubocopAutofix)
+    end
+
+    it "registers BundlerAuditCommand as the :dependency_audit_command" do
+      expect(registration.provides[:dependency_audit_command]).to eq(Ruby::BundlerAuditCommand)
     end
 
     it "registers SimpleCovAnalyzer as the :coverage_analyzer" do

@@ -176,6 +176,8 @@ module Workflows
       [
         "coverage_analyze",
         "coverage_pr_comment",
+        "dependency_audit",
+        "dependency_audit_pr_comment",
         "summarize_amend",
         "refresh_job_metadata",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
