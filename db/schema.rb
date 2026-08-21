@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_154623) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2285,6 +2285,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
   end
 
+  create_table "workflow_warnings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "created_job_id"
+    t.json "evidence"
+    t.integer "job_id"
+    t.string "kind", null: false
+    t.string "severity", default: "medium", null: false
+    t.string "state", default: "pending", null: false
+    t.integer "step_id"
+    t.text "suggested_prompt"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.index ["created_job_id"], name: "index_workflow_warnings_on_created_job_id"
+    t.index ["job_id", "created_at"], name: "index_workflow_warnings_on_job_id_and_created_at"
+    t.index ["job_id", "state"], name: "index_workflow_warnings_on_job_id_and_state"
+    t.index ["job_id"], name: "index_workflow_warnings_on_job_id"
+    t.index ["kind"], name: "index_workflow_warnings_on_kind"
+    t.index ["state"], name: "index_workflow_warnings_on_state"
+    t.index ["step_id"], name: "index_workflow_warnings_on_step_id"
+    t.index ["workflow_id"], name: "index_workflow_warnings_on_workflow_id"
+  end
+
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
     t.text "artifacts", limit: 16777215
@@ -2321,6 +2344,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  # Virtual tables defined in this database.
-  # Note that virtual tables may not work with other database engines. Be careful if changing database.
+  add_foreign_key "workflow_warnings", "jobs"
+  add_foreign_key "workflow_warnings", "jobs", column: "created_job_id"
+  add_foreign_key "workflow_warnings", "steps"
+  add_foreign_key "workflow_warnings", "workflows"
 end

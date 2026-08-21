@@ -1,4 +1,4 @@
-import type { JobRun, JobStep } from "../../api/jobs"
+import type { JobRun, JobStep, WorkflowWarning } from "../../api/jobs"
 import type { useT } from "../../hooks/useT"
 
 // Pure step/run/grade model extracted from JobDetail.tsx: grouping a Workflow's
@@ -269,6 +269,14 @@ export function prepareFailureStatus(failure: PrepareFailure, t: ReturnType<type
   if (failure.aliveness_failed) return t("prepare_failure_aliveness_failed")
   if (failure.exit_status != null) return t("prepare_failure_exit", { code: failure.exit_status })
   return t("prepare_failure_failed")
+}
+
+// Generic — any WorkflowWarning kind renders the same way, so no per-kind
+// extractor is needed here (contrast with prepareFailureDetails above).
+// Dismissed warnings are filtered out; they're operator history, not
+// something the step panel needs to keep showing.
+export function pendingWarnings(step: JobStep): WorkflowWarning[] {
+  return step.warnings.filter((warning) => warning.state === "pending")
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

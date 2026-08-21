@@ -42,7 +42,7 @@ module Mcp::Tools
 
         scope = Workflow
           .joins(:job)
-          .includes(:job, steps: :runs)
+          .includes(:job, :workflow_warnings, steps: :runs)
           .where(jobs: { repository_id: repository.id, user_id: context_run.job.user_id })
           .where.not(jobs: { kind: "agent_insight" })
           .where.not(finished_at: nil)
@@ -129,7 +129,25 @@ module Mcp::Tools
           run_count: runs.size,
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
-          runs: runs.map { |run| run_payload(run) }
+          runs: runs.map { |run| run_payload(run) },
+          warnings: workflow.workflow_warnings.map { |warning| warning_payload(warning) }
+        }
+      end
+
+      # Deterministic, structural findings (e.g. grader_side_effect) recorded
+      # via WorkflowWarnings.record! — surfaced here so an insight agent's
+      # normal read-only survey picks them up as evidence for higher-level
+      # pattern suggestions (e.g. a grader repeatedly triggering this warning).
+      def warning_payload(warning)
+        {
+          id: warning.id,
+          kind: warning.kind,
+          severity: warning.severity,
+          title: text_snippet(redact(warning.title), 200),
+          evidence: CommandRedactor.redact_value(warning.evidence),
+          state: warning.state,
+          created_job_id: warning.created_job_id,
+          created_at: warning.created_at&.iso8601
         }
       end
 
