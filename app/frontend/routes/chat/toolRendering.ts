@@ -6,7 +6,8 @@
 // over the shared value utils, so they live outside the 6k-line Chat.tsx.
 import { contentRecord, firstLine, stringValue } from "./utils"
 
-const WORKSPACE_ROOT_PATTERN = /(?:\/[^\s'"`,:;\])}]+)+\/\.syrus\/(?:chat-workspaces\/\d+\/repositories\/[^/\s'"`,:;\])}]+\/[^/\s'"`,:;\])}]+|workflows\/\d+)\/?/g
+const WORKSPACE_MARKER = "/.syrus/"
+const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", "\"", "`", ",", ":", ";", "]", ")", "}"])
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
 const TOOL_RESULT_PREVIEW_CHARS = 20_000
@@ -97,7 +98,74 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
 }
 
 export function shortenWorkspacePaths(value: string) {
-  return value.replace(WORKSPACE_ROOT_PATTERN, (match) => match.endsWith("/") ? "" : ".")
+  if (!value.includes(WORKSPACE_MARKER)) return value
+
+  let output = ""
+  let cursor = 0
+  let searchFrom = 0
+
+  while (searchFrom < value.length) {
+    const markerIndex = value.indexOf(WORKSPACE_MARKER, searchFrom)
+    if (markerIndex === -1) break
+
+    const replacement = workspacePathReplacement(value, markerIndex)
+    if (!replacement) {
+      searchFrom = markerIndex + WORKSPACE_MARKER.length
+      continue
+    }
+
+    const [start, end, text] = replacement
+    output += value.slice(cursor, start)
+    output += text
+    cursor = end
+    searchFrom = end
+  }
+
+  return cursor === 0 ? value : output + value.slice(cursor)
+}
+
+function workspacePathReplacement(value: string, markerIndex: number): [number, number, string] | null {
+  const suffixStart = markerIndex + WORKSPACE_MARKER.length
+  let end: number | null = null
+
+  if (value.startsWith("workflows/", suffixStart)) {
+    end = consumePathSegments(value, suffixStart + "workflows/".length, 1)
+  } else if (value.startsWith("chat-workspaces/", suffixStart)) {
+    const afterWorkspaceId = consumePathSegments(value, suffixStart + "chat-workspaces/".length, 1)
+    if (afterWorkspaceId == null || !value.startsWith("/repositories/", afterWorkspaceId)) return null
+
+    end = consumePathSegments(value, afterWorkspaceId + "/repositories/".length, 2)
+  }
+
+  if (end == null) return null
+
+  const start = findWorkspaceTokenStart(value, markerIndex)
+  const includesTrailingSlash = value[end] === "/"
+  if (includesTrailingSlash) end += 1
+
+  return [start, end, includesTrailingSlash ? "" : "."]
+}
+
+function consumePathSegments(value: string, start: number, count: number) {
+  let cursor = start
+
+  for (let index = 0; index < count; index += 1) {
+    const segmentStart = cursor
+    while (cursor < value.length && value[cursor] !== "/" && !WORKSPACE_TOKEN_DELIMITERS.has(value[cursor])) cursor += 1
+    if (cursor === segmentStart) return null
+    if (index < count - 1) {
+      if (value[cursor] !== "/") return null
+      cursor += 1
+    }
+  }
+
+  return cursor
+}
+
+function findWorkspaceTokenStart(value: string, markerIndex: number) {
+  let start = markerIndex
+  while (start > 0 && !WORKSPACE_TOKEN_DELIMITERS.has(value[start - 1])) start -= 1
+  return start
 }
 
 export function toolResultSummary(name: string, body: string) {

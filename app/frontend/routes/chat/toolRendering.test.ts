@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fullResultBody, toolDetail } from "./toolRendering"
+import { fullResultBody, shortenWorkspacePaths, toolDetail } from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -31,5 +31,29 @@ describe("tool result rendering", () => {
 describe("toolDetail", () => {
   it("shows the invoked skill's name for the synthetic resolve_skill provenance call", () => {
     expect(toolDetail("resolve_skill", { name: "investigate" })).toBe("investigate")
+  })
+})
+
+describe("shortenWorkspacePaths", () => {
+  it("leaves long non-workspace lines unchanged without running path replacement", () => {
+    const line = `[mcp_tools_init] tools=${Array.from({ length: 500 }, (_, index) => `tool_${index}`).join(",")}`
+
+    expect(shortenWorkspacePaths(line)).toBe(line)
+  })
+
+  it("shortens chat workspace repository roots", () => {
+    expect(
+      shortenWorkspacePaths("/syrus-home/.syrus/chat-workspaces/161/repositories/tkadauke/syrus/app/models/job.rb")
+    ).toBe("app/models/job.rb")
+  })
+
+  it("shortens workflow workspace roots", () => {
+    expect(
+      shortenWorkspacePaths("changed /syrus-home/.syrus/workflows/123/app/models/job.rb")
+    ).toBe("changed app/models/job.rb")
+  })
+
+  it("keeps exact workspace references readable", () => {
+    expect(shortenWorkspacePaths("/syrus-home/.syrus/workflows/123")).toBe(".")
   })
 })
