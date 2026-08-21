@@ -92,6 +92,7 @@ class IngestIssueImagesJob < ApplicationJob
 
   def request(method, uri, headers, redirects: MAX_REDIRECTS)
     raise ArgumentError, "too many redirects for #{uri}" if redirects.negative?
+    raise ArgumentError, "blocked destination host for #{uri}" unless SsrfGuard.safe_host?(uri.host)
 
     response = Net::HTTP.start(
       uri.host,
