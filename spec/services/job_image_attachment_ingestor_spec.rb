@@ -80,4 +80,17 @@ RSpec.describe JobImageAttachmentIngestor do
     expect(result.attached).to eq(0)
     expect(result.skipped).to eq(0)
   end
+
+  it "refuses to fetch images from private/internal network destinations" do
+    result = described_class.ingest_markdown_images(
+      job: job,
+      markdown: "![metadata](http://169.254.169.254/latest/meta-data/) ![internal](http://127.0.0.1:6379/)"
+    )
+
+    expect(result.attached).to eq(0)
+    expect(result.skipped).to eq(2)
+    expect(job.job_attachments).to be_empty
+    expect(WebMock).not_to have_requested(:get, "http://169.254.169.254/latest/meta-data/")
+    expect(WebMock).not_to have_requested(:get, "http://127.0.0.1:6379/")
+  end
 end
