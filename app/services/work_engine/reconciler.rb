@@ -273,6 +273,11 @@ module WorkEngine
         Workflow.where(id: workflow_id)
       elsif run_id.present?
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
+      elsif job_id.present?
+        active_ids = Workflow.where(job_id: job_id, state: %w[ queued running failed ]).pluck(:id)
+        terminal_descendant_ids = terminal_workflows_with_active_descendants(job_ids: [ job_id ]).pluck(:id)
+
+        Workflow.where(id: active_ids + terminal_descendant_ids)
       else
         active_ids = Workflow.where(job_id: jobs.map(&:id), state: %w[ queued running failed ]).pluck(:id)
         terminal_descendant_ids = terminal_workflows_with_active_descendants.pluck(:id)
@@ -294,10 +299,23 @@ module WorkEngine
     # behind in queued/running. Drive this off active descendants (small sets)
     # instead of scanning every terminal Workflow, so old failed/cancelled
     # Workflows do not keep invisible queued work forever.
-    def terminal_workflows_with_active_descendants
-      active_step_workflows = Step.where(state: Step::ACTIVE_STATES).select(:workflow_id)
-      active_run_workflows = Step.where(id: Run.where(state: Run::ACTIVE_STATES).select(:step_id)).select(:workflow_id)
-      Workflow.terminal.where(id: active_step_workflows).or(Workflow.terminal.where(id: active_run_workflows))
+    # job_ids: nil scans every active Step/Run system-wide (the periodic
+    # full reconcile's job). A job_id-scoped reconcile request (fired on
+    # nearly every landing-queue/admission-wakeup/repair event) must not
+    # pay for that global scan just to check its own job's workflows, so
+    # narrow the Step/Run lookup to that job's workflows first.
+    def terminal_workflows_with_active_descendants(job_ids: nil)
+      active_steps = Step.where(state: Step::ACTIVE_STATES)
+      steps_with_active_runs = Step.where(id: Run.where(state: Run::ACTIVE_STATES).select(:step_id))
+
+      if job_ids
+        workflow_ids = Workflow.where(job_id: job_ids).select(:id)
+        active_steps = active_steps.where(workflow_id: workflow_ids)
+        steps_with_active_runs = steps_with_active_runs.where(workflow_id: workflow_ids)
+      end
+
+      Workflow.terminal.where(id: active_steps.select(:workflow_id))
+        .or(Workflow.terminal.where(id: steps_with_active_runs.select(:workflow_id)))
     end
 
     def classify_queued_runs
