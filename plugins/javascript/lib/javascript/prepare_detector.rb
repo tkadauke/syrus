@@ -30,5 +30,14 @@ module JavaScript
     def self.mise_version_file
       ".node-version"
     end
+
+    SPAN_LABELS = [
+      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:test|test:react|vitest)\b|\bvitest\b|\bjest\b/, "frontend tests" ],
+      [ /\b(?:npm|yarn|pnpm)\s+(?:run\s+)?(?:build|typecheck)\b|\btsc\s+--noEmit\b/, "frontend build" ]
+    ].freeze
+
+    def self.span_labels
+      SPAN_LABELS
+    end
   end
 end

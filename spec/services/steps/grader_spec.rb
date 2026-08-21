@@ -190,6 +190,7 @@ RSpec.describe Steps::Grader do
 
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed)
 
@@ -204,6 +205,7 @@ RSpec.describe Steps::Grader do
 
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
 
     handler.call
   end
