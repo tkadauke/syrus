@@ -488,6 +488,17 @@ Bundled plugins:
   Rails server for preview hosting), `:mcp_tool_set`, `:artifact_renderer`
   (schema ERD and migration diff renderers), and `:prompt_injector`. Enable
   by calling `SyrusRails.register!` from an initializer.
+- `django` — installed but disabled by default. `depends_on: [ "python" ]` —
+  its Django-specific tooling builds on the Python-generic support the
+  `python` plugin provides (prepare detection, pytest grader detail);
+  enabling `django` cascades to enable `python`. Provides only
+  `:preview_provider`: detects a Django repo via `manage.py` plus an
+  importable `DJANGO_SETTINGS_MODULE` settings module, boots
+  `python manage.py runserver`, migrates and optionally seeds via
+  `fixtures/seed.json` (`manage.py loaddata`), and falls back to `/` for the
+  health check since Django has no Rails-style built-in endpoint — repos
+  without a 2xx/3xx root route should set `preview.health_check` in
+  `.syrus.yml`.
 - `browser` — default-enabled. Provides `:mcp_tool_set`
   (`SyrusBrowser::McpToolSet`): granular headless-browser tools
   (`browser_navigate`, `browser_click`, `browser_fill`, `browser_snapshot`,
