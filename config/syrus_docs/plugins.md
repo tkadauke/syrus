@@ -19,6 +19,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `callbacks`
 - `prepare_detector`
 - `review_criteria_provider`
+- `autofix_command`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -443,6 +444,62 @@ criterion, gated on the same signal their `:prepare_detector` uses:
 | `python` | uv/poetry/pip signal present | Flag missing type hints on new public functions |
 | `go` | `go.mod` present | Flag swallowed errors (`` `_ = err` ``) |
 
+## `autofix_command`
+
+Tells `Steps::Autofix` (see [`workflow_steps.md`](workflow_steps.md#autofix))
+which deterministic formatter/linter-autocorrect shell command to run in the
+workspace after the agentic step (`implement`/`respond`) and before the
+grader retry loop's check phase, so a style-only grader failure the tool
+could resolve for free doesn't cost the agent a full turn to notice and fix
+by hand. Present in `initial`, `retry`, `pr_comment`, and `chat_feedback`
+workflows only.
+
+Include `Syrus::Plugin::AutofixCommand` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `autofix_command` | `(workspace_path:) → String \| nil` | Return the shell command to run, or `nil` when this plugin's fixer doesn't apply to the repo (e.g. no config file for the tool). |
+
+A plugin that offers more than one distinct fixer (e.g. ESLint and Prettier)
+registers one provider class per fixer — each independently gated on its own
+config signal — by passing an array to the `:autofix_command` key, the same
+multi-provider pattern `:grader_augmentor` uses:
+
+```ruby
+class MyPlugin::AutofixCommand
+  include Syrus::Plugin::AutofixCommand
+
+  def self.autofix_command(workspace_path:)
+    return nil unless File.exist?(File.join(workspace_path, "my-linter.toml"))
+
+    "my-linter --fix ."
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { autofix_command: MyPlugin::AutofixCommand }
+)
+```
+
+`Steps::Autofix` runs every applicable command from every enabled plugin
+(union across plugins, ordered by `prepare_priority` same as
+`:prepare_detector`), commits any resulting changes, and never fails the
+workflow: a command that exits non-zero is logged as a non-fatal warning and
+the step moves on to the next command, mirroring the soft-fail posture
+`Steps::Prepare` uses for auto-detected (guessed) prepare commands.
+
+The `ruby` plugin registers `Ruby::RubocopAutofix` (`bundle exec rubocop -a`,
+gated on `.rubocop.yml`). The `javascript` plugin registers
+`JavaScript::EslintAutofix` (`npx eslint --fix .`, gated on an ESLint config
+file) and `JavaScript::PrettierAutofix` (`npx prettier --write .`, gated on a
+Prettier config file or `package.json`'s `prettier` key). The `go` plugin
+registers `Go::GofmtAutofix` (`gofmt -w .`, gated only on `go.mod` since
+gofmt has no configuration surface to gate on further). The `python` plugin
+registers `Python::RuffFormatAutofix` (`ruff format .`, gated on a ruff
+config signal) and `Python::BlackAutofix` (`black .`, gated on a
+`[tool.black]` table in `pyproject.toml`).
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -519,10 +576,12 @@ Bundled plugins:
   when a `rubocop` grader fails); `:test_result_parser` (`Ruby::RspecParser` —
   parses RSpec's plain progress/documentation output), `:coverage_analyzer`
   (SimpleCov's `.resultset.json`), `:prepare_detector` (`Gemfile` →
-  `bundle install`, `prepare_priority: 10`), and `:review_criteria_provider`
+  `bundle install`, `prepare_priority: 10`), `:review_criteria_provider`
   (`Ruby::ReviewCriteriaProvider` — seeds a default adversarial-review
   criterion flagging new N+1 query patterns in ActiveRecord code, gated on
-  the same `Gemfile` signal as `:prepare_detector`).
+  the same `Gemfile` signal as `:prepare_detector`), and `:autofix_command`
+  (`Ruby::RubocopAutofix` — `bundle exec rubocop -a`, gated on `.rubocop.yml`
+  being present).
 - `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
   (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
   and `package.json` don't distinguish JS from TS. Internally picks exactly one
@@ -542,7 +601,11 @@ Bundled plugins:
   grader fails). Also provides `:review_criteria_provider`
   (`JavaScript::ReviewCriteriaProvider` — seeds a default adversarial-review
   criterion flagging newly introduced `any` types, gated on the same
-  lockfile/`package.json` signal as `:prepare_detector`).
+  lockfile/`package.json` signal as `:prepare_detector`). Also provides
+  `:autofix_command` — two providers, `JavaScript::EslintAutofix` (`npx
+  eslint --fix .`, gated on an ESLint config file) and
+  `JavaScript::PrettierAutofix` (`npx prettier --write .`, gated on a
+  Prettier config file or `package.json`'s `prettier` key).
 - `python` — default-enabled. Provides `:prepare_detector` for Python repos,
   internally picking exactly one install command in priority order:
   `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
@@ -560,7 +623,11 @@ Bundled plugins:
   Also provides `:review_criteria_provider` (`Python::ReviewCriteriaProvider`
   — seeds a default adversarial-review criterion flagging missing type hints
   on new public functions, gated on the same uv/poetry/pip signal as
-  `:prepare_detector`).
+  `:prepare_detector`). Also provides `:autofix_command` — two providers,
+  `Python::RuffFormatAutofix` (`ruff format .`, gated on a `.ruff.toml`/
+  `ruff.toml` file or a `[tool.ruff]` table in `pyproject.toml`) and
+  `Python::BlackAutofix` (`black .`, gated on a `[tool.black]` table in
+  `pyproject.toml`).
 - `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
   → `go mod download` (`prepare_priority: 40`). Does not provide a custom
   `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
@@ -576,7 +643,9 @@ Bundled plugins:
   differ). Also provides `:review_criteria_provider`
   (`Go::ReviewCriteriaProvider` — seeds a default adversarial-review
   criterion flagging swallowed errors (`_ = err`), gated on the same
-  `go.mod` signal as `:prepare_detector`).
+  `go.mod` signal as `:prepare_detector`). Also provides `:autofix_command`
+  (`Go::GofmtAutofix` — `gofmt -w .`, gated only on `go.mod` since gofmt has
+  no configuration surface to gate on further).
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling

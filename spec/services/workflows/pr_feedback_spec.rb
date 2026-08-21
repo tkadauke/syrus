@@ -18,7 +18,7 @@ RSpec.describe Workflows::PrFeedback do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+      %w[ prepare respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
     )
   end
 
@@ -52,7 +52,7 @@ RSpec.describe Workflows::PrFeedback do
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond adversarial_review respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond adversarial_review respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
       )
     end
 
@@ -95,7 +95,7 @@ RSpec.describe Workflows::PrFeedback do
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond visual_review respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+        %w[ prepare respond visual_review respond autofix grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
       )
     end
 
