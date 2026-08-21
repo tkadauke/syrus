@@ -82,6 +82,21 @@ module Steps
       WorkspaceDependencyEnv.for(workspace.path)
     end
 
+    # Best-effort sccache stats snapshot (EPIC-251), called by Prepare and
+    # Grader after each shell command they run. Relies on the subclass's own
+    # private `env` method (both define one, forwarding
+    # Prepare::PREP_ENV_FORWARD) so the capture sees the same PATH/SCCACHE_*
+    # env the just-run command did. Never fails the step — a stats capture
+    # is diagnostic, not part of the command's own success/failure.
+    def capture_sccache_stats!(step_kind:, label:)
+      stats = SccacheStatsCapture.capture(env: env, chdir: workspace.path)
+      return if stats.nil?
+
+      Workflow::SccacheArtifact.record!(workflow, run: run, step_kind: step_kind, label: label, stats: stats)
+    rescue StandardError => e
+      log("[#{step.kind}] sccache stats capture failed: #{e.class}: #{e.message}", kind: "system")
+    end
+
     def capture_workspace_git_state
       git = GitRunner.new
       {

@@ -341,6 +341,37 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       doxygen graphviz lcov gcovr \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
+# sccache — transparent remote compiler cache for C/C++ builds (EPIC-251).
+# Installed as a real binary, then masqueraded onto PATH under the names
+# CMake/Make/Meson/Bazel all resolve host compilers by — no per-repo
+# .syrus.yml or CMakeLists.txt changes needed. The shim symlinks land in
+# /usr/local/bin, which already precedes /usr/bin (where apt puts the real
+# gcc/g++/clang/clang++) on this image's default PATH; sccache finds the
+# *real* compiler at invocation time by searching PATH with its own
+# directory removed, so the shim dir must stay separate from wherever the
+# real toolchain lives. Backend config (S3/MinIO bucket, credentials) is
+# environment-driven at grader/prepare time — see
+# Steps::Prepare::PREP_ENV_FORWARD — and sccache falls back to a local
+# per-pod disk cache when SCCACHE_BUCKET is unset, so this is safe to ship
+# before the operator provisions a bucket.
+ARG SCCACHE_VERSION=0.17.0
+RUN set -eu; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) sccache_arch=x86_64-unknown-linux-musl ;; \
+      arm64) sccache_arch=aarch64-unknown-linux-musl ;; \
+      *) echo "unsupported architecture for sccache: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    sccache_dir="sccache-v${SCCACHE_VERSION}-${sccache_arch}"; \
+    sccache_tarball="${sccache_dir}.tar.gz"; \
+    curl -fsSL -o "/tmp/${sccache_tarball}" \
+      "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${sccache_tarball}"; \
+    tar -xzf "/tmp/${sccache_tarball}" -C /tmp; \
+    install -m 0755 "/tmp/${sccache_dir}/sccache" /usr/local/bin/sccache; \
+    rm -rf "/tmp/${sccache_tarball}" "/tmp/${sccache_dir}"; \
+    for name in cc c++ gcc g++ clang clang++; do \
+      ln -sf /usr/local/bin/sccache "/usr/local/bin/${name}"; \
+    done
+
 # Tailscale — connectivity plugin runs the daemon in the worker container.
 # The web pod uses the `app` stage and does not need the binaries.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

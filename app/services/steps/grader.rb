@@ -75,6 +75,7 @@ module Steps
       end
 
       flush.call
+      capture_sccache_stats!(step_kind: "grader", label: name)
 
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       passed = runner_result&.success?

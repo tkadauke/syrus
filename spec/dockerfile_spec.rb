@@ -113,6 +113,24 @@ RSpec.describe "Dockerfile" do
     end
   end
 
+  it "installs sccache and masquerades it as the C/C++ compiler toolchain, only in the worker image" do
+    stage = worker_deps_stage
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+
+    expect(stage).to include("ARG SCCACHE_VERSION=")
+    expect(stage).to include('"https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/${sccache_tarball}"')
+    expect(stage).to include("amd64) sccache_arch=x86_64-unknown-linux-musl")
+    expect(stage).to include("arm64) sccache_arch=aarch64-unknown-linux-musl")
+    expect(stage).to include("install -m 0755 \"/tmp/${sccache_dir}/sccache\" /usr/local/bin/sccache")
+
+    expect(stage).to include("for name in cc c++ gcc g++ clang clang++; do")
+    expect(stage).to include('ln -sf /usr/local/bin/sccache "/usr/local/bin/${name}"')
+
+    # The `app` stage is the web pod image — it never compiles C/C++, so the
+    # compiler cache has no reason to ship there.
+    expect(app_stage).not_to include("sccache")
+  end
+
   it "seeds /opt/mise from /opt/mise-seed on first boot via the entrypoint" do
     worker_deps = worker_deps_stage
     entrypoint = Rails.root.join("bin/docker-entrypoint").read
