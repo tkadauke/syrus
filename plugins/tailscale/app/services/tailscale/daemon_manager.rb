@@ -21,6 +21,7 @@ module Tailscale
         err: File::NULL
       )
       Process.detach(@pid)
+      Tailscale::Callbacks.effect { stop }
       wait_until_ready!
       run_tailscale_up!
       run_tailscale_serve!
