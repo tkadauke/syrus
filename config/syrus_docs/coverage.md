@@ -38,8 +38,11 @@ Multiple sources are merged before threshold evaluation. Use multiple sources wh
 |---|---|
 | `threshold.lines` | Minimum overall line coverage percentage (0–100) |
 | `threshold.pr_lines` | Minimum line coverage on lines changed in this PR (0–100) |
+| `threshold.branches` | Minimum overall branch coverage percentage (0–100) |
 
-Omit a threshold field to skip that check. Both thresholds are evaluated together; a miss on either triggers `on_miss` behavior.
+Omit a threshold field to skip that check. `lines` and `pr_lines` are evaluated together against `on_miss` below; a miss on either triggers that behavior.
+
+`threshold.branches` behaves differently on purpose: a miss never triggers `on_miss` (it does not block, warn-and-continue via `on_miss`, or schedule a fix Job through that mechanism) and never fails the `coverage_analyze` step. Instead, a branches miss records a `WorkflowWarning` (`kind: "coverage_branches_threshold_miss"`, `evidence: { "branches_pct" => ..., "threshold_branches" => ... }`) with a suggested prompt to add tests for the uncovered branches — the same generic, always-on, one-click "file a fix Job" mechanism `Steps::Grader` uses for `grader_side_effect` findings. See `workflow_warnings.md`.
 
 ## on_miss
 

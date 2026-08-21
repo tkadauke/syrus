@@ -412,23 +412,13 @@ class SyrusYml
     end
   end
 
+  # Delegates to RepoCoveragePlan's shared parser so this primary parse path
+  # (reading the workspace's own .syrus.yml) and .from_config's GitHub-content
+  # parse path can't silently diverge on lines/branches/pr_lines validation.
+  # ConfigError is a subclass of ParseError, so callers that rescue ParseError
+  # see no behavior change.
   def parse_coverage_threshold(raw)
-    return nil if raw.nil?
-    raise ParseError, "coverage.threshold: must be a mapping" unless raw.is_a?(Hash)
-
-    lines = raw.key?("lines") ? Float(raw["lines"]) : nil
-    pr_lines = raw.key?("pr_lines") ? Float(raw["pr_lines"]) : nil
-
-    if lines && (lines < 0 || lines > 100)
-      raise ParseError, "coverage.threshold.lines: must be between 0 and 100"
-    end
-    if pr_lines && (pr_lines < 0 || pr_lines > 100)
-      raise ParseError, "coverage.threshold.pr_lines: must be between 0 and 100"
-    end
-
-    RepoCoveragePlan::Threshold.new(lines: lines, branches: nil, pr_lines: pr_lines)
-  rescue ArgumentError, TypeError
-    raise ParseError, "coverage.threshold: lines and pr_lines must be numbers"
+    RepoCoveragePlan.parse_threshold(raw, label_prefix: "coverage.threshold")
   end
 
   def parse_adversarial_review_criteria(raw)
