@@ -91,14 +91,16 @@ class LandingValidationPrefetcher
   end
 
   def source_unit_key
-    job.epic_id.present? ? "epic:#{job.epic_id}" : "job:#{job.id}"
+    LandingQueueProcessor.landing_unit_key(job)
   end
 
   def target_for(unit)
     return if unit.blocker_jobs.any?
 
-    if merge_train_unit?(unit) && AppSetting.merge_train_enabled?
+    if epic_merge_train_unit?(unit) && AppSetting.merge_train_enabled?
       merge_train_target(unit)
+    elsif job_bundle_unit?(unit)
+      job_bundle_target(unit)
     else
       ordinary_target(unit)
     end
@@ -143,19 +145,64 @@ class LandingValidationPrefetcher
     )
   end
 
-  def merge_train_unit?(unit)
+  def epic_merge_train_unit?(unit)
     unit.key.start_with?("epic:")
+  end
+
+  # An epicless-bundle unit is either already-dispatched (grouped by
+  # LandingQueueProcessor under "job_bundle:<id>") or a not-yet-dispatched
+  # candidate — LandingQueueProcessor only groups a bundle once
+  # JobBundleDispatcher has actually persisted it, so a same-tier candidate
+  # pool still appears as individual "job:<id>" units beforehand. Checking
+  # bundle eligibility on the lone job of a singleton unit lets prefetch
+  # discover the bundle the same way MergeTrainAssembler lets it discover an
+  # Epic's not-yet-dispatched train.
+  def job_bundle_unit?(unit)
+    return false unless Feature.epicless_job_bundling_enabled?
+
+    unit.key.start_with?("job_bundle:") ||
+      (unit.jobs.one? && LandingQueueProcessor.bundle_eligible_epicless_job?(unit.jobs.first))
+  end
+
+  def job_bundle_target(unit)
+    return unless unit.jobs.all? { |member| ordinary_job_bundle_member?(member) }
+    return if Workflow.active.where(job_id: unit.job_ids, trigger_kind: %w[merge_train merge_train_validation]).exists?
+
+    repository = unit.jobs.first.repository
+    result = JobBundleAssembler.call(repository)
+    return unless result.ready?
+    return unless (unit.job_ids - result.job_ids).empty?
+
+    TargetUnit.new(
+      kind: "merge_train",
+      key: unit.key,
+      jobs: result.members,
+      artifacts: {
+        "prefetch_landing_unit_key" => unit.key,
+        "prefetch_landing_unit_kind" => "merge_train",
+        "prefetch_job_bundle_priority" => result.priority,
+        "prefetch_merge_train_member_job_ids" => result.job_ids,
+        "predicted_base_ref" => result.members.first.repository.default_branch
+      }
+    )
   end
 
   def ordinary_auto_merge_candidate?(candidate)
     ordinary_merge_candidate?(candidate) &&
       !(candidate.epic_id.present? && AppSetting.merge_train_enabled?) &&
+      !(candidate.epic_id.nil? && LandingQueueProcessor.bundle_eligible_epicless_job?(candidate)) &&
       !candidate.workflows.active.where(trigger_kind: VALIDATION_TRIGGER_KINDS).exists?
   end
 
   def ordinary_merge_train_member?(candidate)
     ordinary_merge_candidate?(candidate) &&
       candidate.epic_id.present? &&
+      !candidate.workflows.active.where(trigger_kind: VALIDATION_TRIGGER_KINDS).exists?
+  end
+
+  def ordinary_job_bundle_member?(candidate)
+    ordinary_merge_candidate?(candidate) &&
+      candidate.epic_id.nil? &&
       !candidate.workflows.active.where(trigger_kind: VALIDATION_TRIGGER_KINDS).exists?
   end
 
