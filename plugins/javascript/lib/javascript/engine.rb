@@ -8,17 +8,19 @@ module JavaScript
       JavaScript::PrepareDetector.include(Syrus::Plugin::PrepareDetector)
       JavaScript::PreviewProvider.include(Syrus::Plugin::PreviewProvider)
       JavaScript::EslintGraderAugmentor.include(Syrus::Plugin::GraderAugmentor)
+      JavaScript::ReviewCriteriaProvider.include(Syrus::Plugin::ReviewCriteriaProvider)
 
       Syrus::PluginRegistry.register(
         name:             "javascript",
         version:          JavaScript::VERSION,
-        description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail",
+        description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; default `any`-type review criterion",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 20,
         provides: {
-          prepare_detector: JavaScript::PrepareDetector,
-          preview_provider: JavaScript::PreviewProvider,
-          grader_augmentor: JavaScript::EslintGraderAugmentor
+          prepare_detector:         JavaScript::PrepareDetector,
+          preview_provider:         JavaScript::PreviewProvider,
+          grader_augmentor:         JavaScript::EslintGraderAugmentor,
+          review_criteria_provider: JavaScript::ReviewCriteriaProvider
         }
       )
     end

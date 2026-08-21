@@ -96,6 +96,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:prepare_detector)
     end
 
+    it "includes :review_criteria_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:review_criteria_provider)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -166,6 +170,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(provider).to respond_to(:prepare_commands)
       expect { provider.detect?("/tmp") }.to raise_error(NotImplementedError, /detect\? is required/)
       expect { provider.prepare_commands("/tmp") }.to raise_error(NotImplementedError, /prepare_commands is required/)
+    end
+
+    it "maps :review_criteria_provider to Syrus::Plugin::ReviewCriteriaProvider" do
+      expect(described_class::INTERFACE_FOR[:review_criteria_provider].call).to eq(Syrus::Plugin::ReviewCriteriaProvider)
+    end
+
+    it "gives review criteria providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::ReviewCriteriaProvider }
+
+      expect(provider).to respond_to(:criteria)
+      expect { provider.criteria("/tmp") }.to raise_error(NotImplementedError, /criteria is required/)
     end
   end
 

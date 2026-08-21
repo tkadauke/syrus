@@ -17,13 +17,15 @@ RSpec.describe Python::Engine do
           name:             "python",
           version:          Python::VERSION,
           description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
-                             "pytest JSON-report grader detail, venv/uv prompt reminder",
+                             "pytest JSON-report grader detail, venv/uv prompt reminder, " \
+                             "default type-hint review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 30,
           provides: {
-            prepare_detector: Python::PrepareDetector,
-            grader_augmentor: Python::GraderAugmentor,
-            prompt_injector:  Python::PromptContext
+            prepare_detector:         Python::PrepareDetector,
+            grader_augmentor:         Python::GraderAugmentor,
+            prompt_injector:          Python::PromptContext,
+            review_criteria_provider: Python::ReviewCriteriaProvider
           }
         )
       end
@@ -42,11 +44,12 @@ RSpec.describe Python::Engine do
       expect(registration.prepare_priority).to eq(30)
     end
 
-    it "provides exactly the 3 extension point keys" do
+    it "provides exactly the 4 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :prepare_detector,
         :grader_augmentor,
-        :prompt_injector
+        :prompt_injector,
+        :review_criteria_provider
       )
     end
 
@@ -60,6 +63,10 @@ RSpec.describe Python::Engine do
 
     it "registers PromptContext as the :prompt_injector" do
       expect(registration.provides[:prompt_injector]).to eq(Python::PromptContext)
+    end
+
+    it "registers ReviewCriteriaProvider as the :review_criteria_provider" do
+      expect(registration.provides[:review_criteria_provider]).to eq(Python::ReviewCriteriaProvider)
     end
   end
 
@@ -118,6 +125,28 @@ RSpec.describe Python::Engine do
       expect(text).to include("virtual")
       expect(text).to include("uv run")
       expect(text).to include("poetry run")
+    end
+  end
+
+  describe Python::ReviewCriteriaProvider do
+    around do |ex|
+      Dir.mktmpdir("syrus-python-review-criteria-provider") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "returns [] for a repo with no recognized Python signal" do
+      expect(described_class.criteria(@dir)).to eq([])
+    end
+
+    it "contributes the type-hint criterion when a Python project is detected" do
+      write("pyproject.toml")
+
+      expect(described_class.criteria(@dir)).to eq([ "Flag missing type hints on new public functions" ])
     end
   end
 end
