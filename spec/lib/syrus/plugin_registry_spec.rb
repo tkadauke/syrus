@@ -250,16 +250,45 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for(:agent_provider)).to eq([ enabled_provider ])
     end
 
+    it "reuses plugin record snapshots briefly across provider lookups" do
+      stub_const("Syrus::PluginRegistry::PLUGIN_RECORD_CACHE_TTL", 60.seconds)
+      described_class.register(name: "cached_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      described_class.clear_plugin_record_cache!
+
+      queries = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        queries << sql if sql.match?(/\bFROM [`"]?plugin_records[`"]?/i)
+      end
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+
+      expect(queries.size).to eq(1)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    end
+
+    it "clears the cached plugin record snapshot when plugin state changes" do
+      stub_const("Syrus::PluginRegistry::PLUGIN_RECORD_CACHE_TTL", 60.seconds)
+      described_class.register(name: "toggle_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+      PluginRecord.find_by!(name: "toggle_plugin").update!(enabled: false)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([])
+    end
+
     it "returns all plugins when the plugin_records table does not exist" do
       described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
 
       expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
     end
 
     it "returns all plugins when the database is unavailable" do
       described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::ConnectionNotEstablished)
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
 
       expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
     end

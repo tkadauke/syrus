@@ -38,10 +38,12 @@ module Syrus
     }.freeze
 
     RegistrationError = Class.new(StandardError)
+    PLUGIN_RECORD_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
 
     @mutex            = Mutex.new
     @plugins          = []
     @direct_providers = Hash.new { |h, k| h[k] = [] }
+    @plugin_record_cache_mutex = Mutex.new
 
     class << self
       # Two call forms:
@@ -169,6 +171,14 @@ module Syrus
           @plugins = []
           @direct_providers = Hash.new { |h, k| h[k] = [] }
         end
+        clear_plugin_record_cache!
+      end
+
+      def clear_plugin_record_cache!
+        @plugin_record_cache_mutex.synchronize do
+          @plugin_record_cache_by_name = nil
+          @plugin_record_cache_expires_at = nil
+        end
       end
 
       def fire_boot_callbacks!
@@ -210,7 +220,7 @@ module Syrus
       end
 
       def records_for(plugins)
-        records = PluginRecord.where(name: plugins.map(&:name)).index_by(&:name)
+        records = plugin_records_by_name.slice(*plugins.map(&:name))
         missing = plugins.reject { |manifest| records.key?(manifest.name) }
         missing.each do |manifest|
           upsert_plugin_record!(
@@ -226,9 +236,23 @@ module Syrus
               category: manifest.category
             ).compact
           )
-          records[manifest.name] = PluginRecord.find_by!(name: manifest.name)
         end
+        records = plugin_records_by_name.slice(*plugins.map(&:name)) if missing.any?
         records
+      end
+
+      def plugin_records_by_name
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        @plugin_record_cache_mutex.synchronize do
+          if @plugin_record_cache_by_name && @plugin_record_cache_expires_at.to_f > now
+            return @plugin_record_cache_by_name
+          end
+
+          @plugin_record_cache_by_name = PluginRecord.all.index_by(&:name)
+          @plugin_record_cache_expires_at = now + PLUGIN_RECORD_CACHE_TTL.to_f
+          @plugin_record_cache_by_name
+        end
       end
 
       def manifest_with_record(manifest, record)

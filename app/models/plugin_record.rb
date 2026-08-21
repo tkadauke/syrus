@@ -44,6 +44,8 @@ class PluginRecord < ApplicationRecord
     PluginLifecycleJob.set(queue: queue).perform_later(name, event)
   end
 
+  after_commit { Syrus::PluginRegistry.clear_plugin_record_cache! if defined?(Syrus::PluginRegistry) }
+
   def effective_enabled?
     enabled? || !disableable?
   end
