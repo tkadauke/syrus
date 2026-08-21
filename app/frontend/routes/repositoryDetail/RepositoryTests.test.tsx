@@ -51,6 +51,7 @@ function detailPayload(): RepositoryTestDetailPayload {
     tabs: [],
     test,
     history,
+    pagination: { page: 1, per_page: history.length, total: history.length, total_pages: 1 },
     duration_points: history.map((item) => ({ test_case_id: item.id, created_at: item.created_at, duration_ms: item.duration_ms as number, status: item.status }))
   }
 }
