@@ -180,14 +180,15 @@ class AgentEnvironmentSnapshot
   end
 
   def dependency_summary
-    signals = []
-    signals << "Gemfile" if workspace_path.join("Gemfile").exist?
-    signals << "node_modules" if workspace_path.join("node_modules").directory?
-    signals << "package-lock.json" if workspace_path.join("package-lock.json").exist?
-    signals << "yarn.lock" if workspace_path.join("yarn.lock").exist?
-    signals << "pnpm-lock.yaml" if workspace_path.join("pnpm-lock.yaml").exist?
-    signals << ".bundle" if workspace_path.join(".bundle").directory?
+    signals = Syrus::PluginRegistry.providers_for(:prepare_detector).filter_map do |detector|
+      next unless detector.detect?(workspace_path.to_s)
+
+      commands = Array(detector.prepare_commands(workspace_path.to_s))
+      commands.any? ? "#{detector.name} (#{commands.join(', ')})" : detector.name
+    end
     signals.presence&.join(", ") || "no common dependency signals found"
+  rescue StandardError => e
+    "unavailable (#{e.class}: #{e.message})"
   end
 
   def package_script_summary
