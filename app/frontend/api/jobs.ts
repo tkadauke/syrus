@@ -92,11 +92,16 @@ export type JobRecord = {
   approved_via: string | null
   owner_user_id: number | null
   owner_user: JobOwnerUser | null
+  approval_evidence?: JobApprovalEvidence | null
   job_approvals: JobApprovalRecord[]
   approval_status: JobApprovalStatus | null
   claimed_at: string | null
   claimed_by_user: JobOwner | null
   claimed_by_current_user: boolean
+  invalidation_reason?: string | null
+  invalidation_evidence?: string[] | null
+  landing_blocker_override_requested_at?: string | null
+  landing_blocker_override_requested_by?: JobUserReference | null
   scheduled_task_id?: number | null
   scheduled_task?: JobScheduledTask | null
   total_cost_usd: number | null
@@ -227,6 +232,19 @@ export type JobCommandSpan = {
 export type JobOwnerUser = {
   id: number
   email_address: string
+}
+
+export type JobUserReference = {
+  id: number
+  display_name: string
+  email_address: string
+}
+
+export type JobApprovalEvidence = {
+  rule: string | null
+  source: string | null
+  grader_step_id: number | null
+  grader_step_workflow_path: string | null
 }
 
 export type JobApprovalRecord = {

@@ -150,6 +150,9 @@ export type DashboardJobItem = {
   landing_queue_blocked_reason: BlockedReason | string | null
   landing_queue_wait_reason: BlockedReason | string | null
   landing_queue_entry_key: string | null
+  landing_blocker_override_requested_at?: string | null
+  landing_blocker_override_requested_by?: DashboardOwnerUser | null
+  landing_blocker_override_used_at?: string | null
   blocked_reason: BlockedReason | null
   retry_state?: JobRetryState
   created_at: string | null

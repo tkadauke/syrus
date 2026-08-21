@@ -712,12 +712,16 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
 
 function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
   const { t } = useT("dashboard")
+
   if (job.landing_queue_blocked_reason) {
     return (
       <td className="px-4 py-3">
-        <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800">
-          {translateBlockedReason(job.landing_queue_blocked_reason, t)}
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800">
+            {translateBlockedReason(job.landing_queue_blocked_reason, t)}
+          </span>
+          <LandingBlockerOverrideBadge job={job} />
+        </div>
       </td>
     )
   }
@@ -725,14 +729,44 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
   if (job.landing_queue_wait_reason) {
     return (
       <td className="px-4 py-3">
-        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">
-          {translateBlockedReason(job.landing_queue_wait_reason, t)}
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">
+            {translateBlockedReason(job.landing_queue_wait_reason, t)}
+          </span>
+          <LandingBlockerOverrideBadge job={job} />
+        </div>
       </td>
     )
   }
 
-  return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">-</td>
+  return (
+    <td className="px-4 py-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+        <LandingBlockerOverrideBadge job={job} />
+      </div>
+    </td>
+  )
+}
+
+function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {
+  const { t } = useT("dashboard")
+  if (!job.landing_blocker_override_requested_at) return null
+
+  const requestedBy = job.landing_blocker_override_requested_by?.name || job.landing_blocker_override_requested_by?.email_address
+  const used = Boolean(job.landing_blocker_override_used_at)
+  const title = requestedBy
+    ? t("landing_blocker_override_granted_by", { time: job.landing_blocker_override_requested_at, user: requestedBy })
+    : undefined
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${used ? "bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700" : "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800"}`}
+      title={title}
+    >
+      {used ? t("landing_blocker_override_used") : t("landing_blocker_override_pending")}
+    </span>
+  )
 }
 
 export function CommitsBehindBadge({ count }: { count: number | null | undefined }) {
