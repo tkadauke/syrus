@@ -194,6 +194,49 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(SpawnedProcess.find(result.spawned_process_id).last_chunk_at).to be_present
   end
 
+  it "throttles spawned process resource attribution writes between liveness heartbeats" do
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-a",
+      started_at: 2.minutes.ago,
+      last_chunk_at: 1.minute.ago,
+      resource_attribution: { "method" => "initial" }
+    )
+    sampler = double("sampler", sample!: nil, payload: { "method" => "sampled" })
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5)
+    runner.instance_variable_set(:@spawned_process, process)
+    runner.instance_variable_set(:@resource_sampler, sampler)
+    runner.instance_variable_set(:@last_resource_attribution_persisted_at, Time.current)
+
+    runner.send(:heartbeat!)
+
+    expect(sampler).not_to have_received(:sample!)
+    expect(process.reload.last_chunk_at).to be_within(2.seconds).of(Time.current)
+    expect(process.resource_attribution).to eq("method" => "initial")
+  end
+
+  it "refreshes spawned process resource attribution once the throttle window elapses" do
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-a",
+      started_at: 2.minutes.ago,
+      last_chunk_at: 1.minute.ago,
+      resource_attribution: { "method" => "initial" }
+    )
+    sampler = double("sampler", sample!: nil, payload: { "method" => "sampled" })
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5)
+    runner.instance_variable_set(:@spawned_process, process)
+    runner.instance_variable_set(:@resource_sampler, sampler)
+    runner.instance_variable_set(:@last_resource_attribution_persisted_at, 2.minutes.ago)
+
+    runner.send(:heartbeat!)
+
+    expect(sampler).to have_received(:sample!)
+    expect(process.reload.resource_attribution).to eq("method" => "sampled")
+  end
+
   it "reconciles a stopped chat turn when the process exits before output" do
     user = Factories.user(claude_oauth_token: "oat-test")
     chat = ChatSession.create!(user: user, workspace_path: @dir, stop_requested_at: Time.current)

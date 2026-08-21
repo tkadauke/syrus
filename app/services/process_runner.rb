@@ -25,6 +25,7 @@ class ProcessRunner
   READ_CHUNK_BYTES = 16 * 1024
   KILL_POLL_INTERVAL_SECONDS = 1
   HEARTBEAT_INTERVAL_SECONDS = 15
+  RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS = 60
 
   def self.forwarded_env(keys, extra: {})
     ENV.slice(*keys).merge(extra.compact)
@@ -257,6 +258,7 @@ class ProcessRunner
     @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
     sample_resource_attribution!
     @spawned_process.update_column(:resource_attribution, current_resource_attribution)
+    @last_resource_attribution_persisted_at = Time.current
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] failed to record pid #{pid}: #{e.class}: #{e.message}")
   end
@@ -268,11 +270,16 @@ class ProcessRunner
     last = @spawned_process.last_chunk_at
     return if last && (now - last) < HEARTBEAT_INTERVAL_SECONDS
 
-    sample_resource_attribution!
-    @spawned_process.update_columns(
-      last_chunk_at: now,
-      resource_attribution: current_resource_attribution
-    )
+    if persist_resource_attribution?(now)
+      sample_resource_attribution!
+      @spawned_process.update_columns(
+        last_chunk_at: now,
+        resource_attribution: current_resource_attribution
+      )
+      @last_resource_attribution_persisted_at = now
+    else
+      @spawned_process.update_columns(last_chunk_at: now)
+    end
     heartbeat_run!(now)
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] heartbeat failed: #{e.class}: #{e.message}")
@@ -318,6 +325,13 @@ class ProcessRunner
 
   def sample_resource_attribution!
     @resource_sampler&.sample!
+  end
+
+  def persist_resource_attribution?(now)
+    return false unless @resource_sampler
+    return true unless @last_resource_attribution_persisted_at
+
+    (now - @last_resource_attribution_persisted_at) >= RESOURCE_ATTRIBUTION_UPDATE_INTERVAL_SECONDS
   end
 
   def current_resource_attribution
