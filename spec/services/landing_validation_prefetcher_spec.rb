@@ -120,4 +120,51 @@ RSpec.describe LandingValidationPrefetcher do
       described_class.after_landing_graders_passed(workflow: workflow)
     }.to change { Workflow.where(trigger_kind: "landing_validation", job: candidate).count }.by(1)
   end
+
+  it "dispatches a merge_train_validation workflow for the next eligible epicless job-bundle landing unit" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    Feature.find_or_create_by!(slug: "epicless_job_bundling") do |feature|
+      feature.category = "Labs"
+      feature.name = "Epicless Job bundling"
+    end.update!(enabled: true)
+    candidate.destroy!
+
+    first = approved_job(issue_number: 10, approved_at: 1.minute.ago)
+    second = approved_job(issue_number: 11, approved_at: 30.seconds.ago)
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.to change { Workflow.where(trigger_kind: "merge_train_validation", job: second).count }.by(1)
+
+    prefetch = Workflow.where(trigger_kind: "merge_train_validation", job: second).last
+    expect(prefetch.artifacts).to include(
+      "prefetch_landing_unit_kind" => "merge_train",
+      "prefetch_job_bundle_priority" => "medium",
+      "prefetch_source_head_sha" => "source-head",
+      "predicted_base_sha" => "source-head",
+      "predicted_base_tree_sha" => "source-tree",
+      "predicted_base_ref" => repository.default_branch
+    )
+    expect(prefetch.artifacts["prefetch_merge_train_member_job_ids"]).to match_array([ first.id, second.id ])
+    expect(StepDispatcher).to have_received(:start_workflow).with(prefetch)
+  end
+
+  it "lets a successful epicless job-bundle merge_train workflow prefetch the next ordinary landing unit" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    Feature.find_or_create_by!(slug: "epicless_job_bundling") do |feature|
+      feature.category = "Labs"
+      feature.name = "Epicless Job bundling"
+    end.update!(enabled: true)
+
+    other_member = approved_job(issue_number: 20, approved_at: 3.minutes.ago, state: "landing")
+    train = MergeTrain.create!(repository: repository, base_branch: repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: other_member, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: source_job, position: 1)
+    workflow.update!(trigger_kind: "merge_train", artifacts: { "merge_train_id" => train.id })
+    candidate.update!(approved_at: 30.seconds.ago)
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.to change { Workflow.where(trigger_kind: "landing_validation", job: candidate).count }.by(1)
+  end
 end
