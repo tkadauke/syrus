@@ -304,6 +304,10 @@
       "epicless_job_bundling": {
         "name": "Fasciculatio operum sine Epica",
         "description": "Permittit pluribus operibus probatis sine Epica simul in unum fasciculum atomicum descendere, sicut liberi Epicae iam simul per agmen fusionale descendunt. Experimentale."
+      },
+      "persistent_mcp_sidecar": {
+        "name": "Adiutor MCP Persistens",
+        "description": "Activat exemplar rudimentale daemonis adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportum MCP solum localem cum indicio salutis praebere. Nullus adhuc agens laboris vel colloquii ei connexus est; quo desactivato, agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
       }
     }
   },

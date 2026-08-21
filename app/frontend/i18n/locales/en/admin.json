@@ -357,6 +357,10 @@
       "epicless_job_bundling": {
         "name": "Epicless Job bundling",
         "description": "Enables landing multiple approved epicless Jobs together as one atomic bundle, the same way an Epic's children land together via the merge train. Experimental."
+      },
+      "persistent_mcp_sidecar": {
+        "name": "Persistent MCP sidecar",
+        "description": "Enables a worker-local persistent MCP sidecar daemon skeleton that can boot once and expose a local-only MCP transport and health check. No workflow or chat agent is wired to it yet; when disabled, agents keep using the default per-run/per-session stdio sidecars."
       }
     }
   },
