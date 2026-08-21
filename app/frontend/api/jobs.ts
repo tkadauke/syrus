@@ -482,8 +482,24 @@ export type JobStep = {
   created_at: string | null
   updated_at: string | null
   details: unknown
+  warnings: WorkflowWarning[]
   latest: boolean
   runs: JobRun[]
+}
+
+// Generic, structural finding recorded via WorkflowWarnings.record! (e.g. a
+// grader command that left uncommitted changes). Rendering is driven
+// entirely by kind/title/evidence — no per-kind branching needed here.
+export type WorkflowWarning = {
+  id: number
+  kind: string
+  severity: string
+  title: string
+  evidence: unknown
+  suggested_prompt: string | null
+  state: string
+  created_job_id: number | null
+  created_at: string | null
 }
 
 export type JobRun = {

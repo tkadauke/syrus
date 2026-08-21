@@ -144,6 +144,36 @@ module App
         command_spans_by_run_id.fetch(run.id, [])
       end
 
+      def warnings_for(step)
+        workflow_warnings_by_step_id.fetch(step.id, [])
+      end
+
+      def workflow_warnings_by_step_id
+        @workflow_warnings_by_step_id ||= PerformanceLogging.phase("job_detail.workflow.warnings.query", job_id: @job.id, step_count: visible_step_ids.size) do
+          ids = visible_step_ids
+          next {} if ids.empty?
+
+          WorkflowWarning.where(step_id: ids).order(:step_id, :created_at, :id).group_by(&:step_id)
+        end
+      end
+
+      # Generic — driven entirely by kind/title/evidence/suggested_prompt so
+      # new WorkflowWarning kinds render on the Job details page with zero
+      # new backend or frontend code. See config/syrus_docs/workflow_warnings.md.
+      def workflow_warning_json(warning)
+        {
+          id: warning.id,
+          kind: warning.kind,
+          severity: warning.severity,
+          title: warning.redacted_title,
+          evidence: warning.redacted_evidence,
+          suggested_prompt: warning.redacted_suggested_prompt,
+          state: warning.state,
+          created_job_id: warning.created_job_id,
+          created_at: iso8601(warning.created_at)
+        }
+      end
+
       def step_json(step, workflow:, latest_step:)
         PerformanceLogging.phase("job_detail.step.serialize", job_id: @job.id, workflow_id: workflow.id, step_id: step.id, kind: step.kind) do
           runs = ordered_runs_for(step)
@@ -161,6 +191,7 @@ module App
             created_at: iso8601(step.created_at),
             updated_at: iso8601(step.updated_at),
             details: step.details.presence,
+            warnings: warnings_for(step).map { |warning| workflow_warning_json(warning) },
             latest: step == latest_step,
             runs: PerformanceLogging.phase("job_detail.step.runs", job_id: @job.id, workflow_id: workflow.id, step_id: step.id, run_count: runs.size) do
               runs.map { |run| run_json(run, workflow: workflow, step: step) }

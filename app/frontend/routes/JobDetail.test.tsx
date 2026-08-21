@@ -955,6 +955,56 @@ describe("JobDetailView", () => {
     expect(document.querySelector("strong")).toHaveTextContent("the bug")
   })
 
+  it("renders a generic WorkflowWarning panel and files a fix Job from the (unedited, pre-filled) prompt", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Fix Job JOB-99 filed.", warning: { id: 5, state: "pending", created_job_id: 99 }, job: { id: 99, slug: "JOB-99" } }, 201)
+    )
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 8,
+          steps: [
+            step({
+              id: 13,
+              kind: "analyze_and_fix",
+              display_name: "Analyze and fix",
+              warnings: [
+                {
+                  id: 5,
+                  kind: "some_new_kind",
+                  severity: "high",
+                  title: "Something unusual happened",
+                  evidence: { detail: "unexpected" },
+                  suggested_prompt: "Investigate the unusual thing.",
+                  state: "pending",
+                  created_job_id: null,
+                  created_at: null
+                }
+              ]
+            })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Analyze and fix/ }))
+
+    // Rendering is driven purely by title/kind/evidence — no kind-specific
+    // frontend code exists for "some_new_kind".
+    expect(screen.getByText("Something unusual happened")).toBeInTheDocument()
+    expect(screen.getByText("some new kind")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "File a fix Job" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/workflow_warnings/5/file_job", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ prompt: "Investigate the unusual thing." })
+      }))
+    })
+  })
+
   it("renders agent summary as markdown in the Summary tab", () => {
     renderJobDetail(jobPayload({
       summary: { run_id: 1, text: "## Summary\n\nFixed **the bug**.", finished_at: null }
@@ -2018,6 +2068,7 @@ function step(overrides: Partial<JobStep>): JobStep {
     created_at: null,
     updated_at: null,
     details: null,
+    warnings: [],
     latest: true,
     runs: [],
     ...overrides

@@ -16466,6 +16466,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
             created_at: "2026-05-30T10:00:00Z",
             updated_at: "2026-05-30T12:00:00Z",
             details: null,
+            warnings: [],
             latest: true,
             runs: [
               {

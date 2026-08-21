@@ -41,6 +41,8 @@ module Steps
       span_recorder = GraderCommandSpans::Recorder.new(run: run, step: step, workflow: workflow, plan: span_plan)
       runner_command = span_recorder.wrap(span_plan.shell_command)
 
+      git_status_before = capture_git_status(name: name)
+
       File.open(absolute_log_path, "wb") do |file|
         runner_result = run_with_span_recording(
           runner_command: runner_command,
@@ -75,6 +77,13 @@ module Steps
       end
 
       flush.call
+
+      record_grader_side_effect_warning!(
+        name: name,
+        command: command,
+        before_status: git_status_before,
+        after_status: capture_git_status(name: name)
+      )
 
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       passed = runner_result&.success?
@@ -126,6 +135,70 @@ module Steps
     rescue StandardError
       span_recorder.finalize!(exit_code: nil, timed_out: false)
       raise
+    end
+
+    # Non-fatal side-effect detector — grader pass/fail is completely
+    # untouched by this. A grader command is meant to validate, not mutate;
+    # when one leaves uncommitted changes it usually means either the
+    # generated output should be gitignored, or the command belongs in
+    # .syrus.yml's formatters:/generated: section instead of grade:. See
+    # config/syrus_docs/workflow_warnings.md. Runs a plain synchronous
+    # subprocess rather than going through GitRunner/ProcessRunner — this is
+    # a fast, internal, non-interactive check, not a command whose spans,
+    # timeouts, or kill-switch matter the way a real grader command's does.
+    def capture_git_status(name:)
+      stdout, _stderr, status = Open3.capture3("git", "status", "--porcelain", chdir: workspace.path.to_s)
+      return nil unless status.success?
+
+      stdout
+    rescue StandardError => e
+      log("[grader:#{name}] warning: git status check failed (skipping side-effect detection): #{e.class}: #{e.message}")
+      nil
+    end
+
+    def record_grader_side_effect_warning!(name:, command:, before_status:, after_status:)
+      return if before_status.nil? || after_status.nil?
+      return if before_status == after_status
+
+      changed_files = git_status_diff_paths(before_status, after_status)
+      return if changed_files.empty?
+
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "grader_side_effect",
+        severity: "medium",
+        title: "Grader #{name.inspect} produced uncommitted changes",
+        evidence: { "grader_name" => name, "command" => command, "changed_files" => changed_files },
+        suggested_prompt: grader_side_effect_prompt(name: name, command: command, changed_files: changed_files)
+      )
+    rescue StandardError => e
+      log("[grader:#{name}] warning: failed to record grader side-effect warning: #{e.class}: #{e.message}")
+    end
+
+    # WorkflowWorkspace#setup registers ".syrus/" in .git/info/exclude, so in
+    # a normally-set-up workspace `git status --porcelain` already omits our
+    # own .syrus/grade-output/... log files. Filtering them here too is
+    # belt-and-suspenders — Syrus's own bookkeeping writes are never a
+    # "grader mutated the codebase" finding, exclude entry or not.
+    def git_status_diff_paths(before_status, after_status)
+      before_lines = before_status.to_s.each_line.map(&:chomp).to_set
+      after_lines = after_status.to_s.each_line.map(&:chomp).to_set
+      changed_lines = (before_lines - after_lines) | (after_lines - before_lines)
+      changed_lines.filter_map { |line| git_status_line_path(line) }.reject { |path| path.start_with?(".syrus/") }.uniq
+    end
+
+    def git_status_line_path(line)
+      return if line.blank?
+
+      path = line[3..].to_s.strip
+      path.include?(" -> ") ? path.split(" -> ").last.strip : path
+    end
+
+    def grader_side_effect_prompt(name:, command:, changed_files:)
+      <<~PROMPT.strip
+        Grader `#{name}` (`#{command}`) produced uncommitted changes to the workspace when it ran on this Job (files: `#{changed_files.join(', ')}`). Run this grader locally and reproduce the output. Determine whether the generated/modified files should be gitignored — if so, add them to `.gitignore` and stop. If not, root-cause why the grader produces this output. If the output is genuinely important and should be committed, consider moving this grader's command from `grade:` to `.syrus.yml`'s `formatters:` or `generated:` section instead, so it runs as an explicit deterministic pass rather than a validation step. Otherwise, use your judgment to fix the grader (or its command/config) so it does not mutate the codebase when run as a grader in this project.
+      PROMPT
     end
 
     def grader_log_path(name)
