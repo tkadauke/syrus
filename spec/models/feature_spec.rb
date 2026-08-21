@@ -43,6 +43,23 @@ RSpec.describe Feature, type: :model do
       expect(Feature.enabled?(:memoized_feature)).to be true
     end
 
+    it "reuses a short process cache across Current resets" do
+      previous_ttl = Feature.process_cache_ttl
+      Feature.process_cache_ttl = 60.seconds
+      Feature.create!(slug: "process_cached_feature", category: "Example", name: "Process cached", enabled: true)
+
+      expect(Feature).to receive(:pluck).with(:slug, :enabled).once.and_call_original
+
+      Current.reset
+      expect(Feature.enabled?("process_cached_feature")).to be true
+
+      Current.reset
+      expect(Feature.enabled?("process_cached_feature")).to be true
+    ensure
+      Feature.process_cache_ttl = previous_ttl
+      Feature.clear_enabled_cache!
+    end
+
     it "can clear memoized values" do
       Feature.create!(slug: "cleared_feature", category: "Example", name: "Cleared", enabled: true)
       Current.feature_enabled_cache = { "cleared_feature" => false }

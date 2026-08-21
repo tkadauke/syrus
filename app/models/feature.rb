@@ -1,5 +1,9 @@
 class Feature < ApplicationRecord
   ENABLED_CACHE_LOADED_KEY = "__all_features_loaded__".freeze
+  PROCESS_CACHE_MUTEX = Mutex.new
+  DEFAULT_PROCESS_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
+
+  class_attribute :process_cache_ttl, default: DEFAULT_PROCESS_CACHE_TTL
 
   after_commit :clear_request_enabled_cache
 
@@ -23,22 +27,44 @@ class Feature < ApplicationRecord
   end
 
   def self.load_enabled_cache!(cache)
-    pluck(:slug, :enabled).each do |feature_slug, enabled|
+    process_enabled_cache.each do |feature_slug, enabled|
       cache[feature_slug.to_s] = enabled == true
     end
     cache[ENABLED_CACHE_LOADED_KEY] = true
   end
   private_class_method :load_enabled_cache!
 
+  def self.process_enabled_cache
+    now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    PROCESS_CACHE_MUTEX.synchronize do
+      if defined?(@process_enabled_cache) &&
+          @process_enabled_cache &&
+          @process_enabled_cache_expires_at.to_f > now
+        return @process_enabled_cache
+      end
+
+      @process_enabled_cache = pluck(:slug, :enabled)
+      @process_enabled_cache_expires_at = now + process_cache_ttl.to_f
+      @process_enabled_cache
+    end
+  end
+  private_class_method :process_enabled_cache
+
   def self.clear_enabled_cache!(slug = nil)
     cache = Current.feature_enabled_cache
-    return unless cache
+    if cache
+      if slug
+        cache.delete(slug.to_s)
+        cache.delete(ENABLED_CACHE_LOADED_KEY)
+      else
+        cache.clear
+      end
+    end
 
-    if slug
-      cache.delete(slug.to_s)
-      cache.delete(ENABLED_CACHE_LOADED_KEY)
-    else
-      cache.clear
+    PROCESS_CACHE_MUTEX.synchronize do
+      @process_enabled_cache = nil
+      @process_enabled_cache_expires_at = nil
     end
   end
 
