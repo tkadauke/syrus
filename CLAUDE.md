@@ -101,7 +101,7 @@ merge_train: merge_train_assemble → merge_train_build → merge_train_reconcil
 coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open → review_plan
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
-skill:       prepare → run_skill → summarize → pr_open
+skill:       prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open
 ```
 
 `[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
@@ -141,10 +141,15 @@ Key steps:
   requirement — never a silent shadowing trap). A skill run with no diff (a
   read-only `investigate` skill, an operational skill that only reports) is a
   valid outcome: like `implement`, it raises `Steps::Base::NoChangesProduced`,
-  which fails the step/workflow but `propagate_fail_to_job!` closes the Job
-  with `closure_reason: "no_changes"` instead — the same happy path cron Jobs
-  use, so `summarize`/`pr_open` never run and no PR is opened.
-  `Steps::Summarize` recognizes both `implement` and `run_skill` as the
+  which fails the step before the grader retry loop has anything to grade —
+  `propagate_fail_to_job!` closes the Job with `closure_reason: "no_changes"`
+  instead — the same happy path cron Jobs use, so the grader loop,
+  `summarize`, and `pr_open` never run and no PR is opened. When the agent
+  does commit a diff, it is gated through `retry_until(run_skill → graders)`
+  the same as `initial`/`retry`'s `implement` loop — bounded by
+  `AppSetting.grade_max_iterations` — before `summarize`/`pr_open` run;
+  `adversarial_review`/`visual_review` are intentionally not part of this
+  chain. `Steps::Summarize` recognizes both `implement` and `run_skill` as the
   upstream agentic step it resumes from. `SkillJobs::Creator` is the Job
   creation entry point: validates the skill resolves and `args` satisfy its
   parameter schema, then creates a `direct` Job with `skill_name`/`skill_args`

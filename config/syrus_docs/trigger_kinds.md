@@ -14,19 +14,28 @@ The primary workflow: explores the repo, writes code, runs graders, and opens a 
 
 **When it fires:** A `direct` Job is created with `skill_name` + `skill_args` set (`SkillJobs::Creator`), rather than a free-form prompt.
 
-**Step chain:** `prepare → run_skill → summarize → pr_open`
+**Step chain:** `prepare → run_skill → retry_until(run_skill, graders) → summarize → pr_open`
 
 `run_skill` resolves the named skill via `Skills.for` (a repo-local
 `.syrus/skills/<name>/SKILL.md` override, or a built-in `Skills::` class),
 renders its instructions with `skill_args` substituted, and invokes the agent
 the same way `implement` does. There is no dedicated "conditional PR" control
 node: like `implement`, `run_skill` raises `Steps::Base::NoChangesProduced`
-when the agent commits nothing, which fails the step before `summarize`/
-`pr_open` ever run — `propagate_fail_to_job!` then closes the Job with
-`closure_reason: "no_changes"` instead of `:failed`, the same happy path cron
-Jobs use for a no-op survey. This makes read-only skills (an `investigate`
-skill, an operational skill that only reports) first-class: no diff is a
-successful, PR-less outcome, not an error.
+when the agent commits nothing, which fails the step before the grader retry
+loop has anything to grade — `propagate_fail_to_job!` then closes the Job
+with `closure_reason: "no_changes"` instead of `:failed`, the same happy path
+cron Jobs use for a no-op survey. This makes read-only skills (an
+`investigate` skill, an operational skill that only reports) first-class: no
+diff is a successful, PR-less outcome, not an error.
+
+When the agent does commit a diff, it is gated through the same
+`retry_until(agent_step, graders)` mechanism `initial`/`retry` use for
+`implement`: `run_skill` repairs, `grader_fanout`/`grader_collect` check, and
+a failing check re-runs `run_skill` (not just the graders) up to
+`AppSetting.grade_max_iterations` before the workflow fails outright. This
+closes the gap where a `skill` Job could open a PR with zero automated
+verification. The `adversarial_review`/`visual_review` loops that `initial`
+also runs are intentionally not part of the `skill` chain.
 
 Which tier resolved (`skill_source`: `repo_override` or `built_in`) and the
 resolved path/class are recorded on the Run so a repo-local skill silently
