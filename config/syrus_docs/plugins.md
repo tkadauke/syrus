@@ -293,7 +293,10 @@ Parameters:
 
 The returned Hash needs `parser:`, `error_summary:`, and `error_block:`; it
 may also include `failing_tests:` and/or `offenses:` (both default to `[]`).
-Providers are tried in registration order; the first non-nil result wins.
+Providers are tried in registration order; the first non-nil result wins. A
+result missing the required keys, or a raised exception, is treated the same
+as `nil` — logged and skipped — so one misbehaving plugin degrades to the
+next parser instead of breaking CI-failure diagnosis for every check.
 
 ```ruby
 class MyPlugin::CiLogParser
