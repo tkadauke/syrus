@@ -123,4 +123,43 @@ RSpec.describe JobBundleDispatcher do
 
     expect(described_class.try_dispatch!(repository)).to be_present
   end
+
+  it "re-dispatches immediately after a stale-base bundle failure, same as an Epic-backed train" do
+    approved_job(1)
+    approved_job(2)
+    MergeTrain.create!(
+      repository: repository, base_branch: "master", priority: "medium",
+      state: "failed",
+      failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required",
+      finished_at: 5.minutes.ago
+    )
+
+    expect(described_class.try_dispatch!(repository)).to be_present
+  end
+
+  it "re-dispatches immediately after an old bundle missing base tracking fails" do
+    approved_job(1)
+    approved_job(2)
+    MergeTrain.create!(
+      repository: repository, base_branch: "master", priority: "medium",
+      state: "failed",
+      failure_reason: "merge_train: missing built base SHA; rebuild required",
+      finished_at: 5.minutes.ago
+    )
+
+    expect(described_class.try_dispatch!(repository)).to be_present
+  end
+
+  it "re-dispatches immediately after a transient landing-start blocker failure" do
+    approved_job(1)
+    approved_job(2)
+    MergeTrain.create!(
+      repository: repository, base_branch: "master", priority: "medium",
+      state: "failed",
+      failure_reason: "landing start blocked: dependency failed",
+      finished_at: 5.minutes.ago
+    )
+
+    expect(described_class.try_dispatch!(repository)).to be_present
+  end
 end
