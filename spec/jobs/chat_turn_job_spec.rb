@@ -144,6 +144,50 @@ RSpec.describe ChatTurnJob do
     expect(ChatWorkspace).not_to have_received(:uncommitted_changes?)
   end
 
+  describe "skill slash-command invocation guidance" do
+    let(:user_message) { chat.messages.create!(role: "user", content: { text: "/investigate question=why?" }) }
+
+    before do
+      allow(GithubClient).to receive(:for)
+        .with(repository: repository, user: user)
+        .and_return(instance_double(GithubClient, file_content_at: nil))
+    end
+
+    it "persists the coding_mode_required guidance with a structured skill_invocation marker and does not invoke the agent" do
+      agent_called = false
+      ChatTurnJob.agent_runner = ->(**_) { agent_called = true; result_fixture(session_id: "s1") }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(agent_called).to eq(false)
+      message = chat.messages.where(role: "system").order(:id).last
+      expect(message.content["text"]).to include("Coding Mode")
+      expect(message.content["skill_invocation"]).to eq("status" => "coding_mode_required")
+    end
+
+    it "persists the unknown_skill guidance with a structured skill_invocation marker" do
+      unknown_message = chat.messages.create!(role: "user", content: { text: "/does-not-exist foo=bar" })
+      ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+      described_class.perform_now(chat.id, unknown_message.id)
+
+      message = chat.messages.where(role: "system").order(:id).last
+      expect(message.content["text"]).to include("/does-not-exist")
+      expect(message.content["skill_invocation"]).to eq("status" => "unknown_skill")
+    end
+
+    it "persists the invalid_args guidance with a structured skill_invocation marker" do
+      invalid_message = chat.messages.create!(role: "user", content: { text: "/investigate" })
+      ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+      described_class.perform_now(chat.id, invalid_message.id)
+
+      message = chat.messages.where(role: "system").order(:id).last
+      expect(message.content["text"]).to include("valid arguments")
+      expect(message.content["skill_invocation"]).to eq("status" => "invalid_args")
+    end
+  end
+
   it "does not inject the coding mode section when the feature flag is off (planning mode chat)" do
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
