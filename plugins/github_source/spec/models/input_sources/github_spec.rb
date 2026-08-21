@@ -114,6 +114,32 @@ RSpec.describe InputSources::Github do
       expect(epic.title).to eq("Attachments rollout")
     end
 
+    it "preloads prior jobs and referenced epics for the issue batch" do
+      epic = Epic.create!(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/77",
+        title: "Batch epic",
+        description: "Existing epic"
+      )
+      existing = Factories.job(user: user, repository: repository, issue_number: 101)
+      issues = [
+        issue(number: 101, body: "Epic: #77"),
+        issue(number: 102, body: "Epic: #77"),
+        issue(number: 103, body: "Epic: #77")
+      ]
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label) do |_client, _slug, _label, state: "open"|
+        state == "closed" ? [] : issues
+      end
+
+      queries = capture_sql { source.poll! }
+
+      expect(Job.where(issue_number: 101).sole).to eq(existing)
+      expect(Job.where(issue_number: [ 102, 103 ]).pluck(:epic_id)).to contain_exactly(epic.id, epic.id)
+      expect(queries.grep(/SELECT .*FROM [`"]?epics[`"]?.*github_issue_url/i).size).to be <= 1
+      expect(queries.grep(/SELECT .*FROM [`"]?jobs[`"]?.*issue_number/i).size).to be <= 1
+    end
+
     it "sets external_ref and input_source on a preempted Job" do
       linked_pr = { number: 9 }
       allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(linked_pr)
@@ -127,5 +153,17 @@ RSpec.describe InputSources::Github do
       expect(job.external_ref).to eq("42")
       expect(job.input_source).to eq(source)
     end
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      queries << sql unless payload[:name] == "SCHEMA" || sql.include?("sqlite_master")
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 end

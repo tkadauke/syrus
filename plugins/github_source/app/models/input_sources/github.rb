@@ -17,6 +17,7 @@ module InputSources
         issues = client.issues_with_label(repository.slug, trigger_label)
         closed_issues = client.issues_with_label(repository.slug, trigger_label, state: "closed")
 
+        preload_ingest_caches(issues)
         issues.each { |issue| ingest(issue) }
         close_jobs_for_closed_issues!(closed_issues)
         repository.jobs.open_threads.find_each(&:start_pending_workflows_if_dependencies_satisfied!)
@@ -25,6 +26,8 @@ module InputSources
       rescue => e
         repository.update_columns(last_poll_status: "failed", last_poll_error: e.message)
         raise
+      ensure
+        clear_ingest_caches
       end
     end
 
@@ -58,7 +61,7 @@ module InputSources
         return
       end
 
-      marker = EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
+      marker = marker_for(issue)
       return ingest_epic_marker!(marker, issue) if marker
 
       prior = latest_job_for_issue(issue.number)
@@ -98,6 +101,7 @@ module InputSources
           external_ref: dedup_key(issue)
         )
         enqueue_issue_image_ingest(job)
+        remember_latest_job(job)
         return
       end
 
@@ -115,6 +119,7 @@ module InputSources
       )
       classify_if_available(job)
       enqueue_issue_image_ingest(job)
+      remember_latest_job(job)
     end
 
     def close_jobs_for_closed_issues!(issues)
@@ -168,7 +173,7 @@ module InputSources
       end
 
       epic_url = issue_url_for_reference(marker)
-      epic = user.epics.find_by(github_issue_url: epic_url)
+      epic = epic_for_url(epic_url)
       job = Job.create!(
         user: user,
         repository: repository,
@@ -186,6 +191,7 @@ module InputSources
       )
       job.advance_after_triage! if job.epic && job.may_advance_after_triage?
       enqueue_issue_image_ingest(job)
+      remember_latest_job(job)
     end
 
     def classify_if_available(job)
@@ -196,7 +202,58 @@ module InputSources
     end
 
     def latest_job_for_issue(issue_number)
+      return @latest_jobs_by_issue[issue_number.to_i] if defined?(@latest_jobs_by_issue) && @latest_jobs_by_issue
+
       Job.where(repository_id: repository.id, issue_number: issue_number).order(:created_at).last
+    end
+
+    def preload_ingest_caches(issues)
+      issue_numbers = Array(issues).filter_map { |issue| issue.number.to_i.presence }.uniq
+      @latest_jobs_by_issue = if issue_numbers.empty?
+        {}
+      else
+        repository.jobs
+          .where(issue_number: issue_numbers)
+          .order(:issue_number, :created_at, :id)
+          .to_a
+          .group_by(&:issue_number)
+          .transform_values(&:last)
+      end
+
+      @markers_by_issue_number = Array(issues).to_h do |issue|
+        [ issue.number.to_i, EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository) ]
+      end
+
+      epic_urls = @markers_by_issue_number.values
+        .compact
+        .select { |marker| marker[:kind] == :child_of_epic }
+        .map { |marker| issue_url_for_reference(marker) }
+        .uniq
+      @epics_by_url = epic_urls.empty? ? {} : user.epics.where(github_issue_url: epic_urls).index_by(&:github_issue_url)
+    end
+
+    def clear_ingest_caches
+      @latest_jobs_by_issue = nil
+      @markers_by_issue_number = nil
+      @epics_by_url = nil
+    end
+
+    def marker_for(issue)
+      return @markers_by_issue_number[issue.number.to_i] if defined?(@markers_by_issue_number) && @markers_by_issue_number
+
+      EpicMarkerParser.parse(text: issue_body(issue), default_repository: repository)
+    end
+
+    def epic_for_url(epic_url)
+      return @epics_by_url[epic_url] if defined?(@epics_by_url) && @epics_by_url
+
+      user.epics.find_by(github_issue_url: epic_url)
+    end
+
+    def remember_latest_job(job)
+      return unless defined?(@latest_jobs_by_issue) && @latest_jobs_by_issue
+
+      @latest_jobs_by_issue[job.issue_number.to_i] = job
     end
 
     def sync_issue_label_state!(job, issue)
