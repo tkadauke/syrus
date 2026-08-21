@@ -129,11 +129,21 @@ into same-priority tiers, minimum 2 members, capped at
 `AppSetting.merge_train_max_size` without splitting a real `JobDependency`
 edge across bundles) and `JobBundleDispatcher` (transactional
 `MergeTrain`/`MergeTrainMember` creation, member locking, and dispatch of the
-existing `merge_train` Workflow chain — mirrors `MergeTrainDispatcher`) exist
-but nothing calls them yet. `LandingQueueProcessor` does not invoke either
-service, so this flag still gates no observable queue or dispatcher behavior
-until that wiring lands in a follow-up change. Existing Epic merge trains are
-unaffected either way.
+existing `merge_train` Workflow chain — mirrors `MergeTrainDispatcher`) are
+now wired into `LandingQueueProcessor`: `blockage_for` routes a Job off the
+per-Job `auto_merge` path with a `waiting_epicless_bundle` blocked reason once
+its repository has at least two same-tier epicless own-PR candidates, and
+`try_land!`/`#call` dispatch `JobBundleDispatcher` for those Jobs the same way
+they already dispatch `MergeTrainDispatcher` for Epic children. Landing units
+are priority-homogeneous and never mix tiers — the existing urgent-preemption
+check (`unrelated_urgent_job_active_for_repository?`) is unit-aware, so an
+active urgent bundle still blocks non-urgent Jobs from landing exactly like a
+lone active urgent Job always has. External-PR-tracked Jobs (`kind:
+"external_pr"`, landed via `Workflows::ExternalPrMerge`) are never bundle
+candidates and keep landing individually. Existing Epic merge trains are
+unaffected either way. Off by default; flip it on to try epicless bundling on
+a repository with several small approved Jobs pending in the same priority
+tier.
 
 ## performance_logging
 

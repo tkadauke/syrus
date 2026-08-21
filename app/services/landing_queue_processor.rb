@@ -113,6 +113,10 @@ class LandingQueueProcessor
     # half-merged Epic). Route it to the train dispatcher instead of the
     # per-Job path.
     return MergeTrainDispatcher.try_dispatch!(job.epic) if merge_train_for_epic_child?(job)
+    # Same idea for epicless Jobs once enough same-tier candidates exist:
+    # land them together as one bundle instead of racing each other for
+    # the repo's single landing slot.
+    return JobBundleDispatcher.try_dispatch!(job.repository) if bundle_eligible_epicless_job?(job)
 
     return unless job.approved?
     # For jobs that went through the operator review flow (job_approvals exist),
@@ -145,6 +149,10 @@ class LandingQueueProcessor
         next if first_entry.blocker_jobs.any?
 
         MergeTrainDispatcher.try_dispatch!(first_entry.job.epic)
+      elsif bundle_eligible_epicless_job?(first_entry.job)
+        next if first_entry.blocker_jobs.any?
+
+        JobBundleDispatcher.try_dispatch!(first_entry.job.repository)
       else
         entry = unit_entries.find(&:eligible?)
         land(entry.job) if entry
@@ -325,7 +333,21 @@ class LandingQueueProcessor
   end
 
   def landing_unit_key(job)
-    job.epic_id.present? ? "epic:#{job.epic_id}" : "job:#{job.id}"
+    return "epic:#{job.epic_id}" if job.epic_id.present?
+
+    bundle_id = active_epicless_bundle_id(job)
+    bundle_id ? "job_bundle:#{bundle_id}" : "job:#{job.id}"
+  end
+
+  # Only set once JobBundleDispatcher has actually persisted a bundle for
+  # this Job (i.e. it's landing as part of one) — a same-tier candidate
+  # pool that hasn't been dispatched yet still keys off the individual
+  # Job so it can be blocked/routed per-Job by blockage_for/try_land!.
+  def active_epicless_bundle_id(job)
+    MergeTrainMember.joins(:merge_train)
+      .where(job_id: job.id)
+      .merge(MergeTrain.active.where.not(priority: nil))
+      .pick(:merge_train_id)
   end
 
   def ordered_landing_units(units, jobs)
@@ -607,6 +629,25 @@ class LandingQueueProcessor
       job.epic_id.present?
   end
 
+  # Parallels merge_train_for_epic_child?: once enough same-tier epicless
+  # own-PR candidates exist for the repo, the Job lands only as part of
+  # JobBundleDispatcher's bundle rather than racing for the landing slot
+  # on its own. A single ready candidate falls through to the ordinary
+  # per-Job auto_merge path (JobBundleAssembler::MIN_BUNDLE_SIZE).
+  def bundle_eligible_epicless_job?(job)
+    return false unless Feature.epicless_job_bundling_enabled?
+    return false if job.epic_id.present? || job.external_pr?
+
+    epicless_bundle_candidates_for(job).count >= JobBundleAssembler::MIN_BUNDLE_SIZE
+  end
+
+  def epicless_bundle_candidates_for(job)
+    job.repository.jobs
+       .approved
+       .where(epic_id: nil, priority: job.priority)
+       .where.not(kind: "external_pr")
+  end
+
   def blockage_for(job, consume_override: false)
     if job.landing?
       if (retry_after = active_landing_start_blocker_retry_after(job))
@@ -634,6 +675,10 @@ class LandingQueueProcessor
     # them in :approved with a clear reason; MergeTrainDispatcher picks
     # the Epic up once every child is approved.
     return override_or_block(job, { key: "waiting_epic_merge_train" }, consume: consume_override) if merge_train_for_epic_child?(job)
+    # Same idea, epicless: once a same-tier bundle is forming, keep the
+    # Job in :approved with a clear reason instead of letting it try to
+    # land solo — JobBundleDispatcher picks the group up atomically.
+    return override_or_block(job, { key: "waiting_epicless_bundle" }, consume: consume_override) if bundle_eligible_epicless_job?(job)
     if (retry_after = landing_start_blocker_retry_after(job))
       return blocked({ key: "landing_start_blocked_retrying", params: { retry_at: retry_after.iso8601 } })
     end
@@ -757,12 +802,26 @@ class LandingQueueProcessor
     nil
   end
 
+  # Generalized from "is a single urgent Job active" to "does the active
+  # landing unit for this repo contain an urgent-priority member" so an
+  # urgent epicless bundle (grouped under one job_bundle: landing unit,
+  # never mixed-tier per JobBundleAssembler) preempts non-urgent Jobs the
+  # same way a lone urgent Job always has. Grouping (rather than checking
+  # each urgent Job individually) matters once landing units exist: if
+  # `job` is a prerequisite for *any* member of an active urgent unit,
+  # the whole unit is "related" and must not block `job` — blocking it
+  # would deadlock the unit against its own prerequisite.
   def unrelated_urgent_job_active_for_repository?(job)
-    job.repository.jobs
-       .where(priority: "urgent")
-       .where(state: URGENT_ACTIVE_STATES)
-       .where.not(id: job.id)
-       .any? { |urgent_job| !landing_queue_prerequisite_ids(urgent_job).include?(job.id) }
+    active_urgent_jobs = job.repository.jobs
+      .where(priority: "urgent")
+      .where(state: URGENT_ACTIVE_STATES)
+      .where.not(id: job.id)
+      .to_a
+    return false if active_urgent_jobs.empty?
+
+    active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.any? do |unit_jobs|
+      unit_jobs.none? { |urgent_job| landing_queue_prerequisite_ids(urgent_job).include?(job.id) }
+    end
   end
 
   def unapproved_epic_siblings(job)
