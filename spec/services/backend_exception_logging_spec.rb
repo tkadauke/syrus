@@ -63,4 +63,30 @@ RSpec.describe BackendExceptionLogging do
   ensure
     Thread.current[:syrus_current_run] = nil
   end
+
+  it "does not record expected workflow step failures as backend exceptions" do
+    run = Factories.run
+    Thread.current[:syrus_current_run] = run
+    active_job = RunJob.new(run.id)
+    exception = Steps::Base::StepFailed.new("auto_merge: PR is not approved")
+
+    expect {
+      described_class.ingest_job({
+        job: active_job,
+        exception: [ "Steps::Base::StepFailed", exception.message ],
+        exception_object: exception
+      }, 12.3)
+    }.not_to change(BackendExceptionEvent, :count)
+  ensure
+    Thread.current[:syrus_current_run] = nil
+  end
+
+  it "does not record expected workflow step failures when only the exception class is available" do
+    expect {
+      described_class.ingest_job({
+        job_class: "RunJob",
+        exception: [ "Steps::Base::StepFailed", "merge_train: members not in :landing (1)" ]
+      }, 12.3)
+    }.not_to change(BackendExceptionEvent, :count)
+  end
 end
