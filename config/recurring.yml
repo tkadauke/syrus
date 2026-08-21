@@ -167,4 +167,4 @@ production:
   clear_solid_queue_finished_jobs:
     class: SolidQueueCleanupJob
     queue: cleanup
-    schedule: every hour at minute 12
+    schedule: every 5 minutes
