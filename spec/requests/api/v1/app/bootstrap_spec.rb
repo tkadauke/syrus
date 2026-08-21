@@ -298,6 +298,24 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(parse_body.dig("setup", "complete")).to eq(true)
   end
 
+  it "does not run live readiness probes after setup is complete" do
+    user = Factories.user(github_token: "ghp_secret_pat", claude_oauth_token: "claude_secret_token")
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    epic.override_state!("done")
+    sign_in_as(user)
+
+    expect(AppApi::ReadinessChecks).not_to receive(:new)
+
+    get api_v1_app_bootstrap_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("setup_status", "readiness")).to eq(
+      "status" => "ok",
+      "checks" => []
+    )
+  end
+
   it "keeps setup incomplete (Setup nav shown) for a fresh user with no landed Epic" do
     user = Factories.user
     sign_in_as(user)

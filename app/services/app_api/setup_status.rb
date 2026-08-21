@@ -132,6 +132,8 @@ module AppApi
     end
 
     def readiness
+      return { status: "ok", checks: [] } if first_successful_job_completed?
+
       AppApi::ReadinessChecks.new(user).as_json
     end
 
