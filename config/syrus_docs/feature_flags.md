@@ -114,6 +114,37 @@ speculative result and the normal `auto_merge` or `merge_train` workflow reruns
 graders. The flag defaults to off because it spends grader capacity ahead of the
 queue and may produce wasted work when the front unit fails.
 
+## epicless_job_bundling
+
+**Category:** Labs
+
+Groundwork flag for landing multiple approved epicless Jobs together as one
+atomic bundle, the same way an Epic's children already land together via the
+merge train (`MergeTrain`/`MergeTrainMember`). `MergeTrain.epic_id` is
+nullable and a `priority` column exists so a train row can be either
+epic-backed (`epic_id` present, `priority` nil) or bundle-backed (`epic_id`
+nil, `priority` present), enforced by a model validation. `JobBundleAssembler`
+(candidate selection: same repository, epicless, approved, own-PR, grouped
+into same-priority tiers, minimum 2 members, capped at
+`AppSetting.merge_train_max_size` without splitting a real `JobDependency`
+edge across bundles) and `JobBundleDispatcher` (transactional
+`MergeTrain`/`MergeTrainMember` creation, member locking, and dispatch of the
+existing `merge_train` Workflow chain — mirrors `MergeTrainDispatcher`) are
+now wired into `LandingQueueProcessor`: `blockage_for` routes a Job off the
+per-Job `auto_merge` path with a `waiting_epicless_bundle` blocked reason once
+its repository has at least two same-tier epicless own-PR candidates, and
+`try_land!`/`#call` dispatch `JobBundleDispatcher` for those Jobs the same way
+they already dispatch `MergeTrainDispatcher` for Epic children. Landing units
+are priority-homogeneous and never mix tiers — the existing urgent-preemption
+check (`unrelated_urgent_job_active_for_repository?`) is unit-aware, so an
+active urgent bundle still blocks non-urgent Jobs from landing exactly like a
+lone active urgent Job always has. External-PR-tracked Jobs (`kind:
+"external_pr"`, landed via `Workflows::ExternalPrMerge`) are never bundle
+candidates and keep landing individually. Existing Epic merge trains are
+unaffected either way. Off by default; flip it on to try epicless bundling on
+a repository with several small approved Jobs pending in the same priority
+tier.
+
 ## performance_logging
 
 **Category:** Operations

@@ -1288,11 +1288,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
   create_table "merge_trains", force: :cascade do |t|
     t.string "base_branch", null: false
     t.datetime "created_at", null: false
-    t.integer "epic_id", null: false
+    t.integer "epic_id"
     t.string "failure_reason", limit: 500
     t.datetime "finished_at"
     t.string "integration_branch"
     t.string "integration_sha"
+    t.string "priority"
     t.integer "repository_id", null: false
     t.string "state", default: "building", null: false
     t.datetime "updated_at", null: false

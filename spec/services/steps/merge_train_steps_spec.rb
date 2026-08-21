@@ -1260,5 +1260,88 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(a.reload.state).to eq("implemented")
       expect(train.reload.state).to eq("failed")
     end
+
+    # MergeTrainFailureHandler itself is epic-agnostic (it only reads
+    # workflow.artifact("merge_train_id") and walks train.members), but
+    # it had no coverage against a bundle-backed (epic_id: nil,
+    # priority: set) train until now. See EPIC-246.
+    context "when the train is bundle-backed (epicless, epic_id: nil)" do
+      def bundle_member_job(issue_number:, state: "landing", priority: "medium")
+        Factories.job_record(
+          user: user, repository: repository,
+          issue_number: issue_number, state: state, priority: priority,
+          pr_number: 700 + issue_number, branch_name: "syrus/issue-#{issue_number}"
+        )
+      end
+
+      def build_bundle_train(members, priority: "medium")
+        train = MergeTrain.create!(repository: repository, base_branch: "master", priority: priority,
+                                  integration_branch: "syrus/job-bundle-#{repository.id}-x")
+        members.each_with_index { |job, i| MergeTrainMember.create!(merge_train: train, job: job, position: i) }
+        train
+      end
+
+      def bundle_workflow(train, owner_job, reason:)
+        Workflow.create!(
+          job: owner_job, trigger_kind: "merge_train",
+          artifacts: { "merge_train_id" => train.id },
+          failure_reason: reason
+        )
+      end
+
+      it "fail_lands members (requires re-approval) on a genuine failure, same as an Epic-backed train" do
+        a = bundle_member_job(issue_number: 101)
+        b = bundle_member_job(issue_number: 102)
+        train = build_bundle_train([ a, b ])
+        workflow = bundle_workflow(train, b, reason: "loop_exhausted_after_grader_failure")
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("implemented")
+        expect(b.reload.state).to eq("implemented")
+        expect(train.reload.epic_id).to be_nil
+        expect(train.reload.priority).to eq("medium")
+        expect(train.reload.state).to eq("failed")
+        expect(train.members.pluck(:state).uniq).to eq([ "failed" ])
+      end
+
+      it "defer_lands members (auto-retry) on a transient infrastructure blocker" do
+        a = bundle_member_job(issue_number: 103)
+        b = bundle_member_job(issue_number: 104)
+        train = build_bundle_train([ a, b ])
+        workflow = bundle_workflow(train, b, reason: "No space left on device")
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("approved")
+        expect(b.reload.state).to eq("approved")
+        expect(train.reload.epic_id).to be_nil
+        expect(train.reload.state).to eq("failed")
+      end
+
+      it "defer_lands members when the bundle's integration base moved and needs rebuilding" do
+        a = bundle_member_job(issue_number: 105)
+        train = build_bundle_train([ a ])
+        workflow = bundle_workflow(train, a, reason: "merge_train: base moved from oldbase to newbase; rebuild required")
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("approved")
+        expect(train.reload.state).to eq("failed")
+      end
+
+      it "marks a cancelled bundle train :cancelled (not :failed)" do
+        a = bundle_member_job(issue_number: 106)
+        b = bundle_member_job(issue_number: 107)
+        train = build_bundle_train([ a, b ])
+        workflow = bundle_workflow(train, b, reason: nil)
+
+        described_class.call(workflow: workflow, cancelled: true)
+
+        expect(a.reload.state).to eq("implemented")
+        expect(b.reload.state).to eq("implemented")
+        expect(train.reload.state).to eq("cancelled")
+      end
+    end
   end
 end
