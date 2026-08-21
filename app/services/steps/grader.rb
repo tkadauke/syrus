@@ -77,6 +77,7 @@ module Steps
       end
 
       flush.call
+      capture_sccache_stats!(step_kind: "grader", label: name)
 
       record_grader_side_effect_warning!(
         name: name,

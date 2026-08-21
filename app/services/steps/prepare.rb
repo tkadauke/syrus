@@ -35,10 +35,35 @@ module Steps
     # don't leak into a `bundle install` that's supposed to install
     # the target repo's gems (incl. test gems) into the workspace.
     # Same posture the agent gets — predictable, repo-independent.
-    PREP_ENV_FORWARD = %w[
+    # sccache (EPIC-251) is masqueraded onto PATH as cc/gcc/g++/clang/etc.
+    # in the worker image (Dockerfile, worker-deps stage); these are the
+    # env vars its S3 backend reads to reach the shared MinIO build-cache
+    # bucket instead of silently falling back to a useless per-invocation
+    # local-only cache. SCCACHE_BUCKET unset (operator hasn't provisioned
+    # the bucket yet) is a supported no-op — sccache falls back to local
+    # disk caching on its own.
+    #
+    # Deliberately NOT forwarding SCCACHE_BASEDIRS: sccache's default
+    # (require an exact absolute-path match to hit cache) is what keeps
+    # gcov/`--coverage` builds safe here. Every Workflow clones to a
+    # unique, never-reused `$SYRUS_DATA_ROOT/workflows/<id>/` path, so a
+    # gcov-instrumented compile's .gcno notes file (which sccache caches
+    # and restores byte-for-byte on a hit, embedded absolute source paths
+    # and all) can only ever cache-hit against a compile from the SAME
+    # workflow's SAME still-live workspace. Forwarding SCCACHE_BASEDIRS
+    # would normalize those paths before hashing and let a coverage build
+    # cache-hit across workflows, silently corrupting `gcovr` output with
+    # a `.gcno` pointing at a different, likely-deleted workspace. See
+    # config/syrus_docs/sccache_build_cache.md.
+    SCCACHE_ENV_FORWARD = %w[
+      SCCACHE_BUCKET SCCACHE_ENDPOINT SCCACHE_REGION SCCACHE_S3_KEY_PREFIX
+      AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+    ].freeze
+
+    PREP_ENV_FORWARD = (%w[
       HOME USER LOGNAME PATH TERM LANG LC_ALL LC_CTYPE TZ HOSTNAME TMPDIR SHELL
       MISE_DATA_DIR
-    ].freeze
+    ] + SCCACHE_ENV_FORWARD).freeze
 
     def call
       workspace.setup
@@ -104,6 +129,7 @@ module Steps
         }
       ).run
       flush_log_buffer(buffer)
+      capture_sccache_stats!(step_kind: "prepare", label: cmd)
 
       return true if result.success? && !result.timed_out
 
