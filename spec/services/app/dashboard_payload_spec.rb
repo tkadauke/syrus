@@ -90,6 +90,20 @@ RSpec.describe App::DashboardPayload do
     end
   end
 
+  describe "active workflow trigger on job items" do
+    it "uses preloaded active workflow trigger data for running jobs" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running", started_at: Time.current)
+
+      allow_any_instance_of(Job).to receive(:active_workflow_trigger_kind).and_raise("unexpected fallback query")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:active_workflow_trigger_kind]).to eq("chat_feedback")
+    end
+  end
+
   describe "start-blocked row data" do
     it "only scans start-blocked workflow artifacts for the current job page" do
       visible = Factories.job_record(user: user, repository: repo, state: "queued")
