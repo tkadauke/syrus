@@ -1,6 +1,7 @@
 class McpToolUsage < ApplicationRecord
   SURFACES = %w[ workflow chat ].freeze
   STATUSES = %w[ started completed failed ].freeze
+  SIDECAR_MODES = %w[ stdio persistent ].freeze
   ERROR_SUMMARY_MAX_LENGTH = 512
 
   belongs_to :user, optional: true
@@ -13,6 +14,7 @@ class McpToolUsage < ApplicationRecord
   validates :surface, :raw_tool_name, :tool_name, :normalized_tool_name, :status, presence: true
   validates :surface, inclusion: { in: SURFACES }
   validates :status, inclusion: { in: STATUSES }
+  validates :sidecar_mode, inclusion: { in: SIDECAR_MODES }, allow_nil: true
 
   scope :in_window, ->(started_at, ended_at) {
     where("COALESCE(started_at, created_at) >= ? AND COALESCE(started_at, created_at) < ?", started_at, ended_at)

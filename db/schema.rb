@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_21_205051) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1236,6 +1236,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
     t.integer "chat_session_id"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
+    t.string "daemon_worker_id"
     t.boolean "error", default: false, null: false
     t.string "error_class"
     t.string "error_message_summary", limit: 512
@@ -1249,6 +1250,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
     t.integer "run_id"
     t.string "server_name"
     t.string "session_id"
+    t.string "sidecar_mode"
     t.datetime "started_at"
     t.string "status", null: false
     t.string "surface", null: false
@@ -1266,6 +1268,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
     t.index ["server_name", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_server_tool_window"
     t.index ["surface", "created_at"], name: "index_mcp_tool_usages_on_surface_and_created_at"
     t.index ["surface", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_surface_tool_window"
+    t.index ["surface", "sidecar_mode", "created_at"], name: "idx_mcp_tool_usages_surface_sidecar_mode_window"
     t.index ["user_id"], name: "index_mcp_tool_usages_on_user_id"
     t.index ["workflow_id"], name: "index_mcp_tool_usages_on_workflow_id"
   end
@@ -2321,7 +2324,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_043500) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
-  # Virtual tables defined in this database.
-  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end
