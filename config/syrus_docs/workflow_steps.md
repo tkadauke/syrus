@@ -189,6 +189,18 @@ Grader materialization remains sequential within the current workflow workspace.
 Landing-specific fanout is not enabled; any future design needs isolated
 workspaces for grader side effects before multiple grader Runs can overlap.
 
+Before matching a grader's `when_files_changed` globs, this step also asks
+every registered `:affected_test_analyzer` plugin (see
+[`plugins.md`](plugins.md#affected_test_analyzer)) whether it can more
+precisely resolve which files this diff actually affects — real
+import/dependency-graph analysis instead of a glob's path-pattern guess. A
+confident answer is added to the matched-file set (never removed from it),
+so it can only turn a would-be skip into a run; no registered analyzer, a
+declining analyzer, or one that raises all fall back to plain glob matching
+against the raw diff. This expanded set is never used for the
+`grade_plan_changed_files` artifact or its fingerprint, which stay a literal
+diff for comparison against other landing-validation-cache fingerprints.
+
 ### grader
 
 Non-agentic. Runs a single grader command (e.g., `bin/rspec`). Required graders must pass; non-required graders warn on failure.

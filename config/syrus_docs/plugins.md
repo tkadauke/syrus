@@ -22,6 +22,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `review_criteria_provider`
 - `autofix_command`
 - `dependency_audit_command`
+- `affected_test_analyzer`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -684,6 +685,61 @@ lockfile flavor, unlike JavaScript's per-package-manager split). The `go`
 plugin registers `Go::DependencyAuditCommand` (`govulncheck ./...`, gated on
 `go.sum`).
 
+## `affected_test_analyzer`
+
+Lets `Steps::GraderFanout` (see
+[`workflow_steps.md`](workflow_steps.md#grader_fanout) and
+[`syrus_yml.md`](syrus_yml.md#when_files_changed)) refine a grader's
+`when_files_changed` glob matching with real per-language import/dependency
+analysis instead of relying on path patterns alone. A glob is a coarse proxy
+for "which tests does this diff actually affect" — it can under-run (miss a
+grader whose test files are affected only transitively, e.g. through a
+shared library) as easily as it can over-run.
+
+Include `Syrus::Plugin::AffectedTestAnalyzer` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `affected_files` | `(repo_path:, changed_files:) → Array<String> \| nil` | Given the repo checkout path and the diff's changed (repo-relative) files, return additional repo-relative paths transitively affected by the diff, or `nil` to decline — when the analyzer can't confidently resolve this diff. Must not raise; catch internally and return `nil` on unexpected error. |
+
+`Steps::GraderFanout` only ever **adds** a provider's answer to the diff's
+changed-file set before matching `when_files_changed` patterns against it —
+it never removes files the raw diff already reported, and it never uses the
+analyzer-expanded set for anything besides that match decision (the
+`grade_plan_changed_files` artifact and its fingerprint, which
+`LandingValidationCache` compares against plain `git diff --name-only`
+fingerprints computed elsewhere, always reflect the literal diff). That
+makes an analyzer's answer strictly additive and safe by construction: a
+confident answer can turn a would-be skip into a run, but neither a declined
+answer nor a raised error can ever cause a grader that would have run under
+glob-only matching to be skipped. When no `:affected_test_analyzer` is
+registered at all, or every registered provider declines or errors, grader
+selection is identical to today's glob-only behavior.
+
+```ruby
+class MyPlugin::AffectedTestAnalyzer
+  include Syrus::Plugin::AffectedTestAnalyzer
+
+  def self.affected_files(repo_path:, changed_files:)
+    # real import/dependency-graph analysis for this language
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { affected_test_analyzer: MyPlugin::AffectedTestAnalyzer }
+)
+```
+
+The `ruby` plugin registers `Ruby::AffectedTestAnalyzer`, which combines a
+`require_relative` reverse-dependency graph (a file that `require_relative`s
+a changed file is itself treated as affected, even though the diff never
+touched it) with the standard Rails/RSpec `app/x/y.rb` <-> `spec/x/y_spec.rb`
+(and `lib/x/y.rb` <-> `spec/lib/x/y_spec.rb`) path convention, applied to
+every affected file to find its own spec. It declines when the diff touches
+no `.rb` files or when the repo's `app`/`lib` tree is too large to walk with
+confidence on every `grader_fanout` call.
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -765,8 +821,12 @@ Bundled plugins:
   criterion flagging new N+1 query patterns in ActiveRecord code, gated on
   the same `Gemfile` signal as `:prepare_detector`), `:autofix_command`
   (`Ruby::RubocopAutofix` — `bundle exec rubocop -a`, gated on `.rubocop.yml`
-  being present), and `:dependency_audit_command` (`Ruby::BundlerAuditCommand`
-  — `bundle-audit check --update`, gated on `Gemfile.lock`).
+  being present), `:dependency_audit_command` (`Ruby::BundlerAuditCommand`
+  — `bundle-audit check --update`, gated on `Gemfile.lock`), and
+  `:affected_test_analyzer` (`Ruby::AffectedTestAnalyzer` — combines a
+  `require_relative` reverse-dependency graph with the `app`/`lib` <-> `spec`
+  path convention to report additional spec files a diff transitively
+  affects).
 - `javascript` — default-enabled. Provides `:prepare_detector` for Node/JS
   (and TS) repos — identical detection applies to both, since npm/yarn/pnpm/bun
   and `package.json` don't distinguish JS from TS. Internally picks exactly one

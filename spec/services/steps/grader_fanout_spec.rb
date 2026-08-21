@@ -473,6 +473,123 @@ RSpec.describe Steps::GraderFanout do
     expect(chunks).to include("all graders skipped")
   end
 
+  # --- :affected_test_analyzer (EPIC-244) ---------------------------------
+
+  describe ":affected_test_analyzer" do
+    after { Syrus::PluginRegistry.reset! }
+
+    def register_analyzer(&block)
+      analyzer = Class.new do
+        define_singleton_method(:affected_files, &block)
+      end
+      Syrus::PluginRegistry.register(:affected_test_analyzer, analyzer)
+      analyzer
+    end
+
+    it "is unaffected when no analyzer is registered (regression-safe default)" do
+      write_config(<<~YAML)
+        grade:
+          - name: website-build
+            run: npm --prefix website run build
+            when_files_changed:
+              - "website/**"
+          - name: rspec
+            run: bin/rspec
+      YAML
+      stub_changed_files("app/models/user.rb")
+
+      handler.call
+
+      grader_steps = workflow.steps.where(kind: "grader").order(:position)
+      expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec])
+    end
+
+    it "runs a grader an analyzer reports as transitively affected, which glob-only matching would have skipped" do
+      write_config(<<~YAML)
+        grade:
+          - name: website-build
+            run: npm --prefix website run build
+            when_files_changed:
+              - "website/**"
+          - name: rspec
+            run: bin/rspec
+      YAML
+      stub_changed_files("app/models/user.rb")
+      register_analyzer { |repo_path:, changed_files:| [ "website/src/generated_from_user.js" ] }
+
+      handler.call
+
+      grader_steps = workflow.steps.where(kind: "grader").order(:position)
+      expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
+    end
+
+    it "does not affect graders whose when_files_changed already matches the raw diff" do
+      write_config(<<~YAML)
+        grade:
+          - name: rspec
+            run: bin/rspec
+            when_files_changed:
+              - "app/**"
+      YAML
+      stub_changed_files("app/models/user.rb")
+      register_analyzer { |repo_path:, changed_files:| [] }
+
+      handler.call
+
+      expect(workflow.steps.where(kind: "grader").count).to eq(1)
+    end
+
+    it "falls back to glob-only behavior when the analyzer declines by returning nil" do
+      write_config(<<~YAML)
+        grade:
+          - name: website-build
+            run: npm --prefix website run build
+            when_files_changed:
+              - "website/**"
+          - name: rspec
+            run: bin/rspec
+      YAML
+      stub_changed_files("app/models/user.rb")
+      register_analyzer { |repo_path:, changed_files:| nil }
+
+      handler.call
+
+      grader_steps = workflow.steps.where(kind: "grader").order(:position)
+      expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec])
+    end
+
+    it "falls back to glob-only behavior rather than silently skipping a grader when the analyzer raises" do
+      write_config(<<~YAML)
+        grade:
+          - name: website-build
+            run: npm --prefix website run build
+            when_files_changed:
+              - "website/**"
+          - name: rspec
+            run: bin/rspec
+      YAML
+      stub_changed_files("website/src/index.js")
+      register_analyzer { |repo_path:, changed_files:| raise "boom" }
+
+      handler.call
+
+      grader_steps = workflow.steps.where(kind: "grader").order(:position)
+      expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[website-build rspec])
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("affected_test_analyzer").and include("falling back to glob-only")
+    end
+
+    it "does not use analyzer-expanded files for the recorded changed-files fingerprint" do
+      write_grade_config("bin/rspec")
+      stub_changed_files("app/models/user.rb")
+      register_analyzer { |repo_path:, changed_files:| [ "spec/models/user_spec.rb" ] }
+
+      handler.call
+
+      expect(workflow.reload.artifact("grade_plan_changed_files")).to eq([ "app/models/user.rb" ])
+    end
+  end
+
   it "persists the HEAD SHA to the workflow artifact" do
     write_grade_config("bin/rspec")
 
