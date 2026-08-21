@@ -44,7 +44,7 @@ RSpec.describe PersistentMcpDaemon do
         expect(response[0]).to eq(200)
         body = json_body(response)
         expect(body["status"]).to eq("ok")
-        expect(body["tools"]).to eq([ "daemon_ping" ])
+        expect(body["tools"]).to eq([ "daemon_ping", "daemon_invocation_context" ])
         expect(body["ping_ok"]).to be true
         expect(body["identity"]).to include(
           "worker_id" => WorkerStorageIdentity.key(data_root: data_root),
@@ -95,7 +95,7 @@ RSpec.describe PersistentMcpDaemon do
 
         expect(list_response[0]).to eq(200)
         tool_names = json_body(list_response).dig("result", "tools").map { |tool| tool["name"] }
-        expect(tool_names).to eq([ "daemon_ping" ])
+        expect(tool_names).to eq([ "daemon_ping", "daemon_invocation_context" ])
       end
     end
 

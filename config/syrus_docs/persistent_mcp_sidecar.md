@@ -48,12 +48,14 @@ Two paths are served, both local-only:
   on success, `503` otherwise.
 - `/mcp` — the real MCP transport
   (`MCP::Server::Transports::StreamableHTTPTransport`, stateless mode),
-  mountable by any MCP-speaking client. It currently exposes exactly one
-  tool, `daemon_ping` (`PersistentMcpDaemon::PingTool`) — a no-op call that
-  echoes the daemon's identity back. This is deliberate: the skeleton proves
-  the transport and dispatch path work end to end without wiring any real
-  workflow or chat tool capability to it. The transport also independently
-  enforces DNS-rebinding/loopback host protections per the MCP spec.
+  mountable by any MCP-speaking client. It exposes two tools:
+  `daemon_ping` (`PersistentMcpDaemon::PingTool`), a no-op call that echoes
+  the daemon's identity back, and `daemon_invocation_context`
+  (`PersistentMcpDaemon::InvocationContextTool`), which resolves whatever
+  signed context (see below) the caller attached to the request and echoes
+  back what it reconstructed. Neither wires any real workflow or chat tool
+  capability to the daemon yet. The transport also independently enforces
+  DNS-rebinding/loopback host protections per the MCP spec.
 
 ## Worker-local identity
 
@@ -64,10 +66,46 @@ on) rather than minting a second identity file — it survives daemon restarts
 on the same worker volume. `pid` distinguishes the current process instance
 across restarts.
 
+## Per-invocation context (`McpInvocationContext`)
+
+Stdio sidecars get a fresh subprocess per run or chat turn, so
+per-invocation identifiers (`--run-id`, `SYRUS_CHAT_SESSION_ID`,
+`SYRUS_CHAT_SCOPED_EVENT_ID`, ...) are safe as ENV/argv because nothing else
+shares that process. The persistent daemon is a single process meant to
+serve many concurrent runs/chats, so it cannot reuse that pattern — ENV and
+any daemon-wide "current run"/"current chat" attribute would leak across
+concurrent dispatches.
+
+`McpInvocationContext` is a short-lived signed context envelope instead:
+`.issue_for_run` / `.issue_for_chat` mint a token (via
+`Rails.application.message_verifier(:mcp_invocation)`) carrying only the
+minimum needed to dispatch a tool call — surface, run/chat/message ids,
+tier, provider, the issuing `worker_id`, and an expiry (5 minutes by
+default). `.resolve(token, worker_id:)` verifies the token is unexpired and
+was minted for the dispatching worker, then reconstructs the same
+`McpToolContext` stdio mode builds (`McpToolContext.from_run` /
+`.from_chat_session`) — so tool availability (`McpToolPolicy`) stays
+equivalent between the two dispatch modes. `.resolve` raises (and logs) a
+specific `McpInvocationContext::InvalidContext` subclass for every rejection
+reason: `Malformed` (blank/garbage/tampered token), `Expired`, `WrongWorker`
+(minted for a different daemon instance), or `Unauthorized` (the referenced
+run/chat no longer exists, or the token's claims no longer match it).
+
+A caller passes the token through the MCP request's standard `_meta` field,
+under `PersistentMcpDaemon::INVOCATION_CONTEXT_META_KEY`
+(`:syrus_invocation_context`) — the MCP gem merges `_meta` into the shared
+`server_context` per request, so each tool call resolves its own context
+independently with no shared mutable state on the daemon.
+`PersistentMcpDaemon::InvocationContextTool` (`daemon_invocation_context`)
+proves this reconstruction over the real transport; it carries no other
+capability.
+
 ## What this is not (yet)
 
 - No workflow or chat agent points its MCP transport at this daemon. Every
   agent invocation still spawns the existing per-run/per-session stdio
-  sidecar exactly as before, whether or not this feature is enabled.
-- No real tool dispatch, context isolation, or tool-usage logging beyond the
-  no-op `daemon_ping` tool. Those are later EPIC-250 milestones.
+  sidecar exactly as before, whether or not this feature is enabled — nothing
+  issues `McpInvocationContext` tokens for a real dispatch yet.
+- No real tool dispatch beyond the `daemon_ping` / `daemon_invocation_context`
+  proof-of-pipe tools, and no tool-usage logging. Those are later EPIC-250
+  milestones.
