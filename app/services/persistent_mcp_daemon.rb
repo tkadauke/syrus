@@ -3,24 +3,29 @@ require "mcp"
 require "json"
 require "stringio"
 
-# Worker-local, persistent MCP sidecar daemon skeleton (EPIC-250: persistent
-# MCP sidecar and tool usage visibility). Disabled by default behind the
+# Worker-local, persistent MCP sidecar daemon (EPIC-250: persistent MCP
+# sidecar and tool usage visibility). Disabled by default behind the
 # `persistent_mcp_sidecar` feature — #start refuses to boot while the
-# feature is off. WorkflowMcpTransportSelector is the only thing that decides
-# whether a workflow agent invocation actually points its MCP transport here
-# instead of the existing per-run stdio sidecar (Mcp::Sidecar); it requires
-# the feature on, a passing #health_check, AND `capabilities` to include
-# WORKFLOW_TOOLS_CAPABILITY, falling back to stdio (with a logged reason)
-# otherwise. So even with the feature enabled, workflow agents still use
-# stdio today.
+# feature is off. WorkflowMcpTransportSelector and ChatMcpTransportSelector
+# are the only things that decide whether a workflow agent invocation or a
+# chat turn, respectively, actually points its MCP transport here instead of
+# the existing per-run/per-turn stdio sidecars (Mcp::Sidecar); each requires
+# the feature on, a passing #health_check, AND `capabilities` to include its
+# own capability (WORKFLOW_TOOLS_CAPABILITY / CHAT_TOOLS_CAPABILITY),
+# falling back to stdio (with a logged reason) otherwise. The two are
+# independent: with the feature enabled, chat turns route here today, but
+# workflow agents still always use stdio (see WORKFLOW_TOOLS_CAPABILITY).
 #
-# This is still mostly a skeleton, not a real tool surface: it proves the
-# daemon can boot Rails once, hold one MCP::Server in memory, and answer a
-# health/readiness check that enumerates tools and round-trips a no-op MCP
-# request (the protocol-level `ping` method). CAPABILITIES stays empty (so
-# WorkflowMcpTransportSelector always falls back) until a later EPIC-250
-# milestone wires the real workflow tool set (Mcp::Tools) onto this daemon's
-# MCP::Server.
+# It proves the daemon can boot Rails once, hold one MCP::Server in memory,
+# and answer a health/readiness check that enumerates tools and round-trips
+# a no-op MCP request (the protocol-level `ping` method). The real chat MCP
+# tool set (McpToolRegistry surface: :chat) is wired onto this daemon's
+# MCP::Server (see #chat_tools, PersistentMcpDaemon::ChatToolDispatch), so
+# CAPABILITIES advertises CHAT_TOOLS_CAPABILITY and ChatMcpTransportSelector
+# can pick :persistent for a chat turn once this passes #health_check.
+# CAPABILITIES does NOT yet include WORKFLOW_TOOLS_CAPABILITY -- wiring the
+# real workflow tool set onto this daemon is a later EPIC-250 milestone, so
+# WorkflowMcpTransportSelector still always falls back to stdio in production.
 #
 # Local-only: bound to loopback by default (SYRUS_PERSISTENT_MCP_HOST), and
 # MCP requests are served through
@@ -52,15 +57,22 @@ class PersistentMcpDaemon
   INVOCATION_CONTEXT_HEADER = "X-Syrus-Invocation-Context"
   INVOCATION_CONTEXT_HEADER_ENV_KEY = "HTTP_X_SYRUS_INVOCATION_CONTEXT"
 
-  # Advertised in #health_check's `capabilities` array once a workflow's real
-  # tool set (Mcp::Tools, the same tools the stdio sidecar serves) is wired
-  # onto this daemon's MCP::Server -- a later EPIC-250 milestone. Empty today:
-  # this daemon only exposes its proof-of-pipe tools (daemon_ping,
-  # daemon_invocation_context), so WorkflowMcpTransportSelector always falls
-  # back callers to the stdio sidecar in production. Tests exercise the
-  # persistent-transport path by stubbing a health response that includes
-  # this capability.
-  CAPABILITIES = [].freeze
+  # Advertised in #health_check's `capabilities` array once a chat turn's
+  # real tool set (McpToolRegistry surface: :chat, the same tools the stdio
+  # chat sidecars serve) is wired onto this daemon's MCP::Server -- see
+  # #chat_tools and PersistentMcpDaemon::ChatToolDispatch. ChatMcpTransportSelector
+  # requires this before routing a chat turn's MCP traffic here.
+  CHAT_TOOLS_CAPABILITY = "chat_tools"
+  CAPABILITIES = [ CHAT_TOOLS_CAPABILITY ].freeze
+
+  # NOT yet included in CAPABILITIES: wiring a workflow's real tool set
+  # (Mcp::Tools, the same tools the stdio sidecar serves) onto this daemon's
+  # MCP::Server is a later EPIC-250 milestone. Until then this daemon only
+  # exposes its proof-of-pipe tools (daemon_ping, daemon_invocation_context)
+  # plus the chat tool set above, so WorkflowMcpTransportSelector always
+  # falls callers back to the stdio sidecar in production. Tests exercise
+  # the persistent-transport path by stubbing a health response that
+  # includes this capability.
   WORKFLOW_TOOLS_CAPABILITY = "workflow_tools"
 
   def self.port
@@ -141,9 +153,21 @@ class PersistentMcpDaemon
   def mcp_server
     @mcp_server ||= MCP::Server.new(
       name: "syrus-persistent-mcp-daemon",
-      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ],
+      tools: [ PersistentMcpDaemon::PingTool, PersistentMcpDaemon::InvocationContextTool ] + chat_tools,
       server_context: { identity: identity }
     )
+  end
+
+  # The full known chat MCP tool surface (every surface: :chat entry in
+  # McpToolRegistry, essential and deferred tiers combined), each wrapped so
+  # a call resolves its own per-invocation chat_session/tier/role from the
+  # signed McpInvocationContext token in that request's `_meta` -- see
+  # PersistentMcpDaemon::ChatToolDispatch for why a single static tool list
+  # has to be the superset rather than a tier-exact one, and
+  # PersistentMcpDaemon::ChatContextResolver for how the security-relevant
+  # tiering/role/feature-flag gate is still enforced per call.
+  def chat_tools
+    @chat_tools ||= McpToolRegistry.tools(surface: :chat).uniq.map { |tool| PersistentMcpDaemon::ChatToolDispatch.wrap(tool) }
   end
 
   # Boots (or reuses) the in-memory MCP::Server, lists its tools, and

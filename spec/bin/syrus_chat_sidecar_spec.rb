@@ -56,7 +56,7 @@ RSpec.describe "bin/syrus-chat-sidecar", :ci_only do
       job = ChatTurnJob.new
       job.instance_variable_set(:@chat, chat)
       job.instance_variable_set(:@user_message, message)
-      job.send(:with_chat_mcp_config) do |path|
+      job.send(:with_chat_mcp_config, Struct.new(:provider).new("claude")) do |path|
         JSON.parse(File.read(path))
       end
     end
