@@ -382,7 +382,10 @@ internally picking exactly one package-manager command in priority order:
 `prepare_priority: 30`, internally picking exactly one command in priority
 order: `uv.lock` → `uv sync`, `poetry.lock` → `poetry install`,
 `requirements.txt` → `pip install -r requirements.txt`, else bare
-`pyproject.toml` → `pip install -e .`.
+`pyproject.toml` → `pip install -e .`. The `go` plugin registers a
+`:prepare_detector` for `go.mod` → `go mod download` at `prepare_priority: 40`
+— Go modules have a single package-manifest signal, so there's no
+priority list to pick between.
 `RepoPrepPlan` no longer hardcodes any Ruby or Node fallback signals — every
 auto-detected command comes from a registered `:prepare_detector` plugin.
 
@@ -480,6 +483,19 @@ Bundled plugins:
   output is already handled by core's `JunitXmlParser` fallback and
   `coverage xml` (Cobertura format) is already handled by
   `CoverageAnalysis::Parsers::Cobertura`, both via `.syrus.yml` wiring only.
+- `go` — default-enabled. Provides `:prepare_detector` for Go repos: `go.mod`
+  → `go mod download` (`prepare_priority: 40`). Does not provide a custom
+  `:test_result_parser` — plain `gotestsum --junitfile=report.xml ./...`
+  output is already handled by core's `JunitXmlParser` fallback, same as the
+  `python` plugin's `pytest --junitxml=` case, via `.syrus.yml` wiring only.
+  Does not provide a `:coverage_analyzer` either, but unlike Python this is a
+  genuine gap: `go test -coverprofile=coverage.out` has no built-in XML/lcov
+  export. Convert it instead of writing new Ruby — `gocov`+`gocov-xml` to
+  Cobertura, or `gcov2lcov` to lcov — then wire the result into `.syrus.yml`'s
+  `coverage.sources[].format`; see the plugin README for both command
+  sequences. No `:preview_provider` — no single universal Go web-serving
+  convention exists at the language level (net/http, Gin, Echo, etc. all
+  differ).
 - `syrus_rails` (registered manifest name `syrus-rails`) — installed but
   disabled by default. `depends_on: [ "ruby" ]` — its Rails-specific tooling
   builds on the Ruby-generic support the `ruby` plugin provides; enabling
