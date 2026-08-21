@@ -66,6 +66,25 @@ class LandingQueueProcessor
     new.send(:dependency_order, jobs.to_a)
   end
 
+  # The landing-unit grouping key a Job currently falls under: an Epic's
+  # children always share "epic:<id>"; an epicless Job already landing as
+  # part of a dispatched bundle shares "job_bundle:<merge_train_id>";
+  # everything else is keyed individually as "job:<id>". Used by
+  # LandingValidationPrefetcher to identify which landing_units entry a
+  # currently-landing Job's own Workflow corresponds to.
+  def self.landing_unit_key(job)
+    new.send(:landing_unit_key, job)
+  end
+
+  # Whether this epicless, approved Job currently has enough same-tier
+  # siblings to land as a JobBundleDispatcher bundle rather than solo.
+  # Used by LandingValidationPrefetcher to route speculative prefetch for
+  # not-yet-dispatched bundle candidates the same way it already routes
+  # Epic children.
+  def self.bundle_eligible_epicless_job?(job)
+    new.send(:bundle_eligible_epicless_job?, job)
+  end
+
   # Try to land a specific Job right now. Used by callers that have
   # just made a Job land-able and don't want to wait for the next
   # recurring tick — e.g. a Rebase workflow's success callback when
