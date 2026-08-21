@@ -208,6 +208,19 @@ tool list contains — so tiering, admin/supervisor exclusion, and feature
 flags (coding mode, local mode, video walkthroughs, agent insights) stay
 enforced identically to stdio mode.
 
+**Usage logging is authoritative at this boundary.** `ChatToolDispatch` wraps
+every call (success, `not_authorized`, and an invalid/expired/wrong-worker
+`McpInvocationContext`) with `McpToolUsageRecorder.record_dispatch`, tagging
+the resulting `mcp_tool_usages` row `sidecar_mode: "persistent"` plus the
+dispatching daemon's `worker_id`. `ChatTurnJob` skips its own
+transcript-derived recording for any turn whose transport decision was
+`:persistent` (`ChatTurnJob#record_transcript_mcp_usage?`), so a persistent-
+mode call is recorded exactly once, at the daemon, not twice. See
+`mcp_tool_usage.md`'s "Sidecar mode" section for the full comparison between
+this path and stdio's transcript-derived recording, including how a
+before-dispatch rejection ends up as a `status: "failed"` row with no
+`chat_session` when the invocation context couldn't even be resolved.
+
 **Known gap: `tools/list` advertises a superset.** The underlying `mcp` gem
 builds a server's tool list once at `MCP::Server.new(tools:)` time with no
 per-request hook, so unlike stdio mode's genuinely tier-scoped process, the
@@ -233,9 +246,9 @@ at all, so it isn't part of the daemon's registered chat tool surface either.
 - No workflow tool dispatch: `PersistentMcpDaemon::CAPABILITIES` does not
   include `WORKFLOW_TOOLS_CAPABILITY`, so `WorkflowMcpTransportSelector`
   still always falls back to stdio in production. Wiring the real workflow
-  tool set (`Mcp::Tools`) onto this daemon is a later EPIC-250 milestone.
-- No tool-usage logging beyond what `McpToolUsageRecorder` already captures
-  from the agent's own event stream (unchanged by this milestone).
+  tool set (`Mcp::Tools`) onto this daemon is a later EPIC-250 milestone, so
+  workflow tool usage is still exclusively transcript-derived
+  (`sidecar_mode: "stdio"`) until then.
 - Codex has no persistent transport wiring for either surface (see
   `provider_unsupported` above) — only `AgentProviders::Claude` and
   `ChatProviders::Claude` build `http`-type MCP config when their respective

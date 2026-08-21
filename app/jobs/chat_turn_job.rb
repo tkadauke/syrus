@@ -757,13 +757,16 @@ class ChatTurnJob < ApplicationJob
       return if tool_name.blank?
 
       flush_current_assistant_content!
-      McpToolUsageRecorder.record_chat_tool_call(
-        chat_session: @chat,
-        tool_name: tool_name,
-        tool_use_id: tool_use_id,
-        tool_input: tool_input,
-        provider: @chat.effective_chat_provider
-      ) if mcp_tool_name?(tool_name)
+      if mcp_tool_name?(tool_name) && record_transcript_mcp_usage?
+        McpToolUsageRecorder.record_chat_tool_call(
+          chat_session: @chat,
+          tool_name: tool_name,
+          tool_use_id: tool_use_id,
+          tool_input: tool_input,
+          provider: @chat.effective_chat_provider,
+          sidecar_mode: "stdio"
+        )
+      end
       @chat.messages.create!(
         role: "tool_use",
         tool_name: tool_name,
@@ -779,14 +782,15 @@ class ChatTurnJob < ApplicationJob
       return if tool_name.blank? && tool_use_id.blank? && tool_result_content.blank?
 
       flush_current_assistant_content!
-      if mcp_tool_name?(tool_name) || mcp_tool_result_id?(tool_use_id)
+      if record_transcript_mcp_usage? && (mcp_tool_name?(tool_name) || mcp_tool_result_id?(tool_use_id))
         McpToolUsageRecorder.record_chat_tool_result(
           chat_session: @chat,
           tool_name: tool_name,
           tool_use_id: tool_use_id,
           content: tool_result_content,
           error: tool_result_error == true,
-          provider: @chat.effective_chat_provider
+          provider: @chat.effective_chat_provider,
+          sidecar_mode: "stdio"
         )
       end
       anchor_pending_action_to_tool_call!(tool_use_id, tool_result_content) unless tool_result_error == true
@@ -808,6 +812,18 @@ class ChatTurnJob < ApplicationJob
 
       create_message!("system", system_content_for(chunk, mcp_servers: mcp_servers))
     end
+  end
+
+  # Persistent-mode calls are recorded authoritatively at the daemon's own
+  # dispatch boundary (PersistentMcpDaemon::ChatToolDispatch), which sees
+  # every call/result synchronously and can capture rejections (invalid
+  # invocation context, tier/role authorization) that never make it into
+  # this transcript as a clean tool_call/tool_result pair. Recording again
+  # here from the transcript would double-count the same call under a
+  # different (transcript-derived) tool_use_id, so this transcript path
+  # stays the source of truth only for stdio-mode turns.
+  def record_transcript_mcp_usage?
+    !@chat_mcp_transport_decision&.persistent?
   end
 
   def mcp_tool_name?(tool_name)
