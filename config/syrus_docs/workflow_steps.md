@@ -118,6 +118,30 @@ Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. 
 
 Agentic. Operator-triggered free-form step; prompt is supplied at dispatch time.
 
+### autofix
+
+Non-agentic. Runs deterministic formatter/linter-autocorrect commands
+registered by language plugins under the `:autofix_command` extension point
+(Ruby's `bundle exec rubocop -a`, JavaScript's `npx eslint --fix .`/`npx
+prettier --write .`, Go's `gofmt -w .`, Python's `ruff format .`/`black .`),
+each gated on the plugin detecting its own config signal in the repo (e.g.
+Ruby only offers `rubocop -a` when `.rubocop.yml` is present). Commits any
+resulting changes. A command failing is always soft — logged as a warning
+and skipped, the same non-fatal posture `prepare`'s auto-detected commands
+use — since a broken formatter must never block the workflow the way an
+explicit `.syrus.yml` grader failure does; whatever it managed to fix is
+still committed. A repo with no registered/applicable autofix command is a
+no-op.
+
+Inserted as the last repair step of the grader retry loop (`repair: [
+implement | respond, autofix ], check: [ grader_fanout, grader_collect ]`)
+in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows, so it
+reruns on every retry iteration right before graders check again — a style
+regression the agent's latest edit reintroduced gets fixed for free before
+the next grade rather than costing another agent turn. See
+[`plugins.md`](plugins.md#autofix_command) for the extension point contract
+and the bundled providers.
+
 ## Review and quality steps
 
 ### adversarial_review
