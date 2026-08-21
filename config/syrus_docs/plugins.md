@@ -465,6 +465,45 @@ Syrus::PluginRegistry.register(
 )
 ```
 
+## Centralized per-repo plugin detection (`RepoPluginDetector`)
+
+Every extension point that needs to know "does this plugin apply to this
+repo" used to answer that question independently — `Syrus::PreviewProviderResolver`
+calling `detect?` on each provider, `:prepare_detector` doing the same for
+language plugins, `:mcp_tool_set` with its own `.available_for?(repo)`. Steps
+run the same file-existence checks over and over, once per extension point,
+per Step.
+
+`RepoPluginDetector` centralizes this into a single computation per Run.
+`Steps::Prepare` calls `RepoPluginDetector.for(workspace.path)` once, right
+alongside `RepoPrepPlan.for`, and stores the result as the `detected_plugins`
+Workflow artifact (see `config/syrus_docs/workflow_steps.md`). It reuses the
+two extension points that already implement per-repo detection instead of
+inventing a third mechanism:
+
+- Every enabled `:prepare_detector` plugin's `detect?(repo_path)` (a class
+  method — language plugins: `ruby`, `javascript`, `python`, `go`).
+- Every enabled `:preview_provider` plugin's `detect?(repo_path)` (an
+  instance method — framework plugins that don't register their own
+  `:prepare_detector`, such as `syrus-rails` and `django`).
+
+The result is the union of matching plugin manifest names (e.g.
+`["ruby", "syrus-rails", "javascript"]`), computed fresh every Run rather than
+cached on `Repository` — a repo's language mix can change over time (a
+`Gemfile` added later, a plugin newly enabled), and the checks are cheap file
+existence tests either interface already implements. Only currently-enabled
+plugins are considered (`Syrus::PluginRegistry.all_plugins.select(&:enabled?)`),
+so disabling a plugin instance-wide removes it from the detected set even if
+its files still match.
+
+Any Step in the same Run can read the result via `workflow.detected_plugins`
+(an `Array<String>`, empty if `Steps::Prepare` hasn't run yet or found no
+match) instead of re-deriving its own file-existence check — the intended
+audience is extension points with no natural per-repo gate of their own, such
+as `:prompt_injector` or a repository-scoped review-criteria provider. The Job
+detail page's Workflows tab renders the set as a "Detected: …" line on each
+workflow card.
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run

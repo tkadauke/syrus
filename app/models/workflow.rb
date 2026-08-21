@@ -550,6 +550,13 @@ class Workflow < ApplicationRecord
     save!
   end
 
+  # Plugin names detected in this Run's workspace by Steps::Prepare (see
+  # RepoPluginDetector), e.g. ["ruby", "syrus-rails", "javascript"]. Empty
+  # array if Steps::Prepare hasn't run yet or found no matches; never nil.
+  def detected_plugins
+    Array(artifact("detected_plugins"))
+  end
+
   # Shared replace-on-type write for the 'typed_artifacts' array, used by
   # both SyrusMcp::SubmitArtifactTool and SyrusMcp::SubmitVisualArtifactTool
   # so the idempotent-replace semantics live in one place.
