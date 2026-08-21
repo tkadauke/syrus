@@ -314,6 +314,45 @@ RSpec.describe LandingValidationCache do
     end
   end
 
+  describe "epicless job-bundle vs Epic-train cache isolation" do
+    it "never lets a job-bundle member's cached validation satisfy an unrelated Epic-train member sharing the same repo/base, even with a colliding head SHA" do
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+      bundle_job = Factories.job_record(user: user, repository: repository, state: "approved", pr_number: 101)
+      epic_job = Factories.job_record(user: user, repository: repository, state: "approved", pr_number: 102, epic: epic)
+
+      bundle_train = MergeTrain.create!(repository: repository, base_branch: "main", priority: "medium")
+      MergeTrainMember.create!(merge_train: bundle_train, job: bundle_job, position: 0)
+
+      epic_train = MergeTrain.create!(repository: repository, base_branch: "main", epic: epic)
+      MergeTrainMember.create!(merge_train: epic_train, job: epic_job, position: 0)
+
+      bundle_workflow = Workflow.create!(job: bundle_job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => bundle_train.id })
+      described_class.record!(
+        workflow: bundle_workflow,
+        head_sha: "shared-head",
+        base_sha: "base-sha",
+        base_ref: "main",
+        grader_fingerprint: "fp"
+      )
+
+      # LandingValidationCache only ever scans a Job's own workflows
+      # (`job.workflows`), and each train/bundle records its result onto its
+      # own tip Job's own Workflow. So the job-bundle's green validation must
+      # never satisfy the unrelated Epic-train member, even though repo,
+      # base_ref, base_sha, and grader fingerprint all collide.
+      cross_decision = described_class.reusable_for?(
+        job: epic_job, head_sha: "shared-head", base_sha: "base-sha", base_ref: "main", grader_fingerprint: "fp"
+      )
+      expect(cross_decision.reusable?).to be false
+
+      own_decision = described_class.reusable_for?(
+        job: bundle_job, head_sha: "shared-head", base_sha: "base-sha", base_ref: "main", grader_fingerprint: "fp"
+      )
+      expect(own_decision.reusable?).to be true
+      expect(own_decision.workflow).to eq(bundle_workflow)
+    end
+  end
+
   describe "throughput metric artifact compatibility" do
     it "records supported skip match types for debug payload consumers" do
       job = make_job
