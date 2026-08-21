@@ -11,5 +11,9 @@ module Ruby
     def self.prepare_commands(repo_path)
       [ "bundle install" ]
     end
+
+    def self.mise_version_file
+      ".ruby-version"
+    end
   end
 end

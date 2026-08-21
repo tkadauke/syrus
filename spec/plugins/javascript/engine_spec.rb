@@ -94,5 +94,9 @@ RSpec.describe JavaScript::Engine do
 
       expect(described_class.prepare_commands(@dir)).to eq([ "npm install" ])
     end
+
+    it "declares .node-version as its mise version file" do
+      expect(described_class.mise_version_file).to eq(".node-version")
+    end
   end
 end

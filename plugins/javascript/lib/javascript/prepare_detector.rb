@@ -26,5 +26,9 @@ module JavaScript
       PRIORITY.find { |file, _command| path.join(file).exist? }
     end
     private_class_method :matching_entry
+
+    def self.mise_version_file
+      ".node-version"
+    end
   end
 end

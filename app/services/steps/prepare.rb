@@ -19,13 +19,13 @@ module Steps
     MISE_INSTALL_TIMEOUT = 5.minutes.to_i
     OUTPUT_TAIL_BYTES = 8.kilobytes
 
-    MISE_VERSION_FILES = %w[
+    # Universal mise triggers, recognized regardless of registered plugins.
+    # Per-language version-pin filenames (.ruby-version, .node-version, etc.)
+    # come from each enabled :prepare_detector plugin's `mise_version_file`
+    # instead of a hardcoded list here.
+    UNIVERSAL_MISE_VERSION_FILES = %w[
       .tool-versions
       .mise.toml
-      .ruby-version
-      .python-version
-      .node-version
-      .go-version
     ].freeze
 
     # Mirror of AgentInvocation::ENV_FORWARD. Prep commands
@@ -229,7 +229,12 @@ module Steps
     end
 
     def mise_version_file?
-      MISE_VERSION_FILES.any? { |f| workspace.path.join(f).exist? }
+      return true if UNIVERSAL_MISE_VERSION_FILES.any? { |f| workspace.path.join(f).exist? }
+
+      Syrus::PluginRegistry.providers_for(:prepare_detector).any? do |detector|
+        file = detector.mise_version_file
+        file.present? && workspace.path.join(file).exist?
+      end
     end
 
     def run_mise_install
