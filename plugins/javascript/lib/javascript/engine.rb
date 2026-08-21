@@ -7,16 +7,18 @@ module JavaScript
       # Syrus::Plugin::* constants are autoloadable from the main app's lib/.
       JavaScript::PrepareDetector.include(Syrus::Plugin::PrepareDetector)
       JavaScript::PreviewProvider.include(Syrus::Plugin::PreviewProvider)
+      JavaScript::EslintGraderAugmentor.include(Syrus::Plugin::GraderAugmentor)
 
       Syrus::PluginRegistry.register(
         name:             "javascript",
         version:          JavaScript::VERSION,
-        description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start",
+        description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail",
         homepage:         "https://github.com/tkadauke/syrus",
         prepare_priority: 20,
         provides: {
           prepare_detector: JavaScript::PrepareDetector,
-          preview_provider: JavaScript::PreviewProvider
+          preview_provider: JavaScript::PreviewProvider,
+          grader_augmentor: JavaScript::EslintGraderAugmentor
         }
       )
     end

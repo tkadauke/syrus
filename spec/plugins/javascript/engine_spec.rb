@@ -18,12 +18,13 @@ RSpec.describe JavaScript::Engine do
         Syrus::PluginRegistry.register(
           name:             "javascript",
           version:          JavaScript::VERSION,
-          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start",
+          description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 20,
           provides: {
             prepare_detector: JavaScript::PrepareDetector,
-            preview_provider: JavaScript::PreviewProvider
+            preview_provider: JavaScript::PreviewProvider,
+            grader_augmentor: JavaScript::EslintGraderAugmentor
           }
         )
       end
@@ -42,8 +43,8 @@ RSpec.describe JavaScript::Engine do
       expect(registration.prepare_priority).to eq(20)
     end
 
-    it "provides exactly the :prepare_detector and :preview_provider extension point keys" do
-      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :preview_provider)
+    it "provides exactly the :prepare_detector, :preview_provider, and :grader_augmentor extension point keys" do
+      expect(registration.provides.keys).to contain_exactly(:prepare_detector, :preview_provider, :grader_augmentor)
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
@@ -52,6 +53,10 @@ RSpec.describe JavaScript::Engine do
 
     it "registers PreviewProvider as the :preview_provider" do
       expect(registration.provides[:preview_provider]).to eq(JavaScript::PreviewProvider)
+    end
+
+    it "registers EslintGraderAugmentor as the :grader_augmentor" do
+      expect(registration.provides[:grader_augmentor]).to eq(JavaScript::EslintGraderAugmentor)
     end
   end
 

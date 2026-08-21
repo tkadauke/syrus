@@ -16,13 +16,13 @@ RSpec.describe Ruby::Engine do
         Syrus::PluginRegistry.register(
           name:             "ruby",
           version:          Ruby::VERSION,
-          description:      "Ruby-generic intelligence: RSpec grader detail, RSpec output parsing, " \
-                             "SimpleCov analysis, Gemfile prepare detection",
+          description:      "Ruby-generic intelligence: RSpec grader detail, RuboCop grader detail, " \
+                             "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection",
           homepage:         "https://github.com/tkadauke/syrus",
           prepare_priority: 10,
           provides: {
             coverage_analyzer:  Ruby::SimpleCovAnalyzer,
-            grader_augmentor:   Ruby::GraderAugmentor,
+            grader_augmentor:   [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ],
             prepare_detector:   Ruby::PrepareDetector,
             test_result_parser: Ruby::RspecParser
           }
@@ -56,8 +56,10 @@ RSpec.describe Ruby::Engine do
       expect(registration.provides[:coverage_analyzer]).to eq(Ruby::SimpleCovAnalyzer)
     end
 
-    it "registers GraderAugmentor as the :grader_augmentor" do
-      expect(registration.provides[:grader_augmentor]).to eq(Ruby::GraderAugmentor)
+    it "registers GraderAugmentor and RubocopGraderAugmentor as the :grader_augmentor providers" do
+      expect(registration.provides[:grader_augmentor]).to eq(
+        [ Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor ]
+      )
     end
 
     it "registers PrepareDetector as the :prepare_detector" do
@@ -66,6 +68,29 @@ RSpec.describe Ruby::Engine do
 
     it "registers RspecParser as the :test_result_parser" do
       expect(registration.provides[:test_result_parser]).to eq(Ruby::RspecParser)
+    end
+
+    it "surfaces both grader augmentors through providers_for" do
+      expect(Syrus::PluginRegistry.providers_for(:grader_augmentor)).to include(
+        Ruby::GraderAugmentor, Ruby::RubocopGraderAugmentor
+      )
+    end
+
+    it "leaves RSpec augmentor behavior unaffected by RubocopGraderAugmentor being registered alongside it" do
+      Dir.mktmpdir("syrus-ruby-augmentors") do |dir|
+        workspace_path = Pathname.new(dir)
+        rspec_dir = workspace_path.join(".syrus/rspec-json")
+        FileUtils.mkdir_p(rspec_dir)
+        rspec_dir.join("worker-0.json").write(JSON.generate(
+          "examples" => [ { "status" => "failed", "full_description" => "still works" } ]
+        ))
+
+        lines = Ruby::GraderAugmentor.augment_grader_failure(
+          name: "rspec", command: "bin/rspec", workspace_path: workspace_path
+        )
+
+        expect(lines).to include("still works\n")
+      end
     end
   end
 
