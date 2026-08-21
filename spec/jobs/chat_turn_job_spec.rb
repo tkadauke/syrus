@@ -2197,6 +2197,121 @@ RSpec.describe ChatTurnJob do
     end
   end
 
+  describe "persistent MCP transport (EPIC-250 chat routing)" do
+    let(:daemon_health_url) { "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}" }
+
+    def set_persistent_mcp_feature(enabled)
+      feature = Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |record|
+        record.category = "Labs"
+        record.name = "Persistent MCP sidecar"
+      end
+      feature.update!(enabled: enabled)
+      Feature.clear_enabled_cache!("persistent_mcp_sidecar")
+    end
+
+    def stub_healthy_daemon!
+      stub_request(:get, daemon_health_url).to_return(
+        status: 200,
+        body: { status: "ok", identity: { worker_id: "w1" }, capabilities: [ "chat_tools" ] }.to_json
+      )
+    end
+
+    it "never calls the selector and keeps stdio config when the feature is disabled" do
+      set_persistent_mcp_feature(false)
+      expect(ChatMcpTransportSelector).not_to receive(:select)
+      config = nil
+      ChatTurnJob.agent_runner = ->(**kwargs) {
+        config = JSON.parse(File.read(kwargs.fetch(:mcp_config)))
+        result_fixture(session_id: "s1")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(config.dig("mcpServers", "syrus-chat-sidecar", "type")).to eq("stdio")
+      expect(config.dig("mcpServers", "syrus-chat-deferred-sidecar", "type")).to eq("stdio")
+      expect(chat.reload.artifact("mcp_transport")).to be_nil
+    end
+
+    it "routes both tiers through the persistent daemon with distinct signed per-tier tokens when it is healthy" do
+      set_persistent_mcp_feature(true)
+      stub_healthy_daemon!
+      config = nil
+      ChatTurnJob.agent_runner = ->(**kwargs) {
+        config = JSON.parse(File.read(kwargs.fetch(:mcp_config)))
+        result_fixture(session_id: "s1")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      essential = config.dig("mcpServers", "syrus-chat-sidecar")
+      deferred = config.dig("mcpServers", "syrus-chat-deferred-sidecar")
+      expect(essential["type"]).to eq("http")
+      expect(essential["url"]).to eq("http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}")
+      expect(essential["alwaysLoad"]).to eq(true)
+      expect(deferred["type"]).to eq("http")
+      expect(deferred["alwaysLoad"]).to eq(false)
+
+      essential_token = essential.dig("headers", PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER)
+      deferred_token = deferred.dig("headers", PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER)
+      expect(essential_token).to be_present
+      expect(deferred_token).to be_present
+      expect(essential_token).not_to eq(deferred_token)
+
+      resolved_essential = McpInvocationContext.resolve(essential_token, worker_id: "w1")
+      expect(resolved_essential.tier).to eq("essential")
+      expect(resolved_essential.tool_context.chat_session).to eq(chat)
+      resolved_deferred = McpInvocationContext.resolve(deferred_token, worker_id: "w1")
+      expect(resolved_deferred.tier).to eq("deferred")
+
+      expect(chat.reload.artifact("mcp_transport")).to include("transport" => "persistent")
+    end
+
+    it "falls back to stdio with visible diagnostics when the daemon is unreachable" do
+      set_persistent_mcp_feature(true)
+      stub_request(:get, daemon_health_url).to_raise(Errno::ECONNREFUSED)
+      allow(Rails.logger).to receive(:warn).and_call_original
+      config = nil
+      ChatTurnJob.agent_runner = ->(**kwargs) {
+        config = JSON.parse(File.read(kwargs.fetch(:mcp_config)))
+        result_fixture(session_id: "s1")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      expect(config.dig("mcpServers", "syrus-chat-sidecar", "type")).to eq("stdio")
+      artifact = chat.reload.artifact("mcp_transport")
+      expect(artifact["transport"]).to eq("stdio")
+      expect(artifact["reason"]).to match(/\Adaemon_unreachable: /)
+      expect(Rails.logger).to have_received(:warn).with(a_string_matching(/mcp_transport=stdio chat_id=#{chat.id} reason=daemon_unreachable/))
+    end
+
+    it "downgrades a healthy persistent decision to stdio for Codex chats (no HTTP MCP transport wiring)" do
+      codex_user = Factories.user(codex_api_key: "sk-test", github_token: "ghp-test", chat_provider: "codex")
+      codex_repository = Factories.repository(user: codex_user, owner: "acme", name: "codex-widgets", default_branch: "main")
+      codex_chat = ChatSession.create!(repository: codex_repository, user: codex_user)
+      codex_message = codex_chat.messages.create!(role: "user", content: { text: "hi" })
+      codex_workspace_path = workspace_root.join("codex-persistent-chat")
+      allow(ChatWorkspace).to receive(:path_for).with(codex_chat).and_return(codex_workspace_path)
+      allow(ChatWorkspace).to receive(:ensure_root!).with(codex_chat).and_return(codex_workspace_path)
+
+      set_persistent_mcp_feature(true)
+      stub_healthy_daemon!
+      received = {}
+      ChatTurnJob.agent_runner = ->(**kwargs) {
+        received.merge!(kwargs)
+        result_fixture(session_id: "s1")
+      }
+
+      described_class.perform_now(codex_chat.id, codex_message.id)
+
+      servers = received[:mcp_servers]
+      expect(servers["syrus-chat-sidecar"]).to include(command: Rails.root.join("bin/syrus-chat-sidecar").to_s)
+      artifact = codex_chat.reload.artifact("mcp_transport")
+      expect(artifact["transport"]).to eq("stdio")
+      expect(artifact["reason"]).to match(/\Aprovider_unsupported: codex/)
+    end
+  end
+
   def result_fixture(**overrides)
     attrs = {
       turns: 1,

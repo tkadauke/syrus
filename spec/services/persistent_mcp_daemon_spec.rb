@@ -44,7 +44,8 @@ RSpec.describe PersistentMcpDaemon do
         expect(response[0]).to eq(200)
         body = json_body(response)
         expect(body["status"]).to eq("ok")
-        expect(body["tools"]).to eq([ "daemon_ping", "daemon_invocation_context" ])
+        expect(body["tools"]).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "read_workflow")
+        expect(body["tools"].size).to eq(McpToolRegistry.tools(surface: :chat).uniq.size + 2)
         expect(body["ping_ok"]).to be true
         expect(body["identity"]).to include(
           "worker_id" => WorkerStorageIdentity.key(data_root: data_root),
@@ -53,11 +54,12 @@ RSpec.describe PersistentMcpDaemon do
         )
       end
 
-      it "advertises an empty capabilities array until the real workflow tool set is wired in" do
+      it "advertises chat_tools but not workflow_tools until the real workflow tool set is wired in" do
         response = call("/healthz")
 
-        expect(json_body(response)["capabilities"]).to eq([])
-        expect(described_class::CAPABILITIES).to eq([])
+        expect(json_body(response)["capabilities"]).to eq([ "chat_tools" ])
+        expect(described_class::CAPABILITIES).to eq([ "chat_tools" ])
+        expect(described_class::CAPABILITIES).not_to include(described_class::WORKFLOW_TOOLS_CAPABILITY)
       end
 
       it "returns 503 when the no-op ping round trip does not succeed" do
@@ -102,7 +104,92 @@ RSpec.describe PersistentMcpDaemon do
 
         expect(list_response[0]).to eq(200)
         tool_names = json_body(list_response).dig("result", "tools").map { |tool| tool["name"] }
-        expect(tool_names).to eq([ "daemon_ping", "daemon_invocation_context" ])
+        expect(tool_names).to include("daemon_ping", "daemon_invocation_context", "list_jobs", "admin_overview")
+      end
+    end
+
+    describe "chat tool dispatch over /mcp (PersistentMcpDaemon::ChatToolDispatch)" do
+      let!(:bootstrap_admin) { Factories.user(admin: true) }
+      let(:user) { Factories.user }
+      let(:repository) { Factories.repository(user: user) }
+      let(:chat) { ChatSession.create!(user: user, repository: repository) }
+      let(:worker_id) { WorkerStorageIdentity.key(data_root: data_root) }
+
+      def call_tool(name, token:, arguments: {})
+        call(
+          "/mcp",
+          method: "POST",
+          body: {
+            jsonrpc: "2.0", id: 1, method: "tools/call",
+            params: { name: name, arguments: arguments }
+          }.to_json,
+          headers: { "HTTP_X_SYRUS_INVOCATION_CONTEXT" => token }
+        )
+      end
+
+      def call(path, method: "GET", body: nil, headers: {})
+        env = Rack::MockRequest.env_for(
+          path, method: method, input: body,
+          "CONTENT_TYPE" => "application/json",
+          "HTTP_ACCEPT" => "application/json, text/event-stream",
+          **headers
+        )
+        daemon.call(env)
+      end
+
+      it "dispatches an ordinary essential-tier chat tool for a ChatMcpTransportSelector-selected turn" do
+        token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+
+        response = call_tool("list_jobs", token: token)
+
+        expect(response[0]).to eq(200)
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be_falsey
+        payload = JSON.parse(result.dig("content", 0, "text"))
+        expect(payload["jobs"]).to eq([])
+      end
+
+      it "denies an admin-only tool for a non-admin chat session" do
+        token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+
+        response = call_tool("admin_overview", token: token)
+
+        expect(response[0]).to eq(200)
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be true
+        expect(JSON.parse(result.dig("content", 0, "text"))["error"]).to eq("not_authorized")
+      end
+
+      it "dispatches an admin-only chat tool for an admin chat session" do
+        admin_chat = ChatSession.create!(user: bootstrap_admin, repository: Factories.repository(user: bootstrap_admin))
+        token = McpInvocationContext.issue_for_chat(admin_chat, worker_id: worker_id, tier: "essential")
+
+        response = call_tool("admin_overview", token: token)
+
+        expect(response[0]).to eq(200)
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be_falsey
+        expect(JSON.parse(result.dig("content", 0, "text"))).to have_key("total_users")
+      end
+
+      it "denies a deferred-tier tool called through the essential-tier token" do
+        token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+
+        response = call_tool("read_workflow", token: token, arguments: { workflow_id: 1 })
+
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be true
+        expect(JSON.parse(result.dig("content", 0, "text"))["error"]).to eq("not_authorized")
+      end
+
+      it "returns an Unauthorized tool error for an expired invocation token" do
+        token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, expires_in: -1.minute)
+
+        response = call_tool("list_jobs", token: token)
+
+        result = json_body(response)["result"]
+        expect(result["isError"]).to be true
+        expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Expired/)
       end
     end
 
