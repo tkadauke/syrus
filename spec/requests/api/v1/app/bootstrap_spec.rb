@@ -133,6 +133,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "local_mode" => false,
       "operational_log_indexing" => false,
       "performance_logging" => false,
+      "persistent_mcp_sidecar" => false,
       "terminal" => false,
       "video_walkthroughs" => false,
       "visual_review" => false
