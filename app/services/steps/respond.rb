@@ -38,7 +38,8 @@ module Steps
         epic: job.epic,
         job: job,
         user: job.user,
-        repository_ids: [ job.repository_id ]
+        repository_ids: [ job.repository_id ],
+        injected_context: collect_injected_context
       ).to_s
     end
 
@@ -49,7 +50,8 @@ module Steps
         prior_summaries: prior_feedback_summaries(Workflow::TriggerKind.feedback_values),
         recent_commits: recent_branch_commits,
         epic: job.epic,
-        job: job
+        job: job,
+        injected_context: collect_injected_context
       ).to_s
     end
 

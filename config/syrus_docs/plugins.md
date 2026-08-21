@@ -226,7 +226,7 @@ plugin's enabled state through Admin → Plugins.
 
 ## `prompt_injector`
 
-Injects additional text into the implementing agent's system prompt. Use this to instruct the agent to call `submit_artifact` when it touches specific files, or to add any other repository-specific guidance that should appear in every implement run.
+Injects additional text into the agentic step's system prompt. Use this to instruct the agent to call `submit_artifact` when it touches specific files, or to add any other repository-specific guidance that should appear whenever the agent is writing code. Wired into `Steps::Implement` (`initial`/`retry` workflows), `Steps::Respond` (`pr_comment`/`chat_feedback` follow-up workflows), and `Steps::AnalyzeAndFix` (`ci_failure` repair) — the same call, with the same `repository:`/`job:` args, runs from all three so a repo-convention hint isn't lost on a follow-up or repair attempt just because it wasn't the first pass.
 
 Providers are registered via the **direct** form (an instance or lambda, not a class in a `provides:` manifest), since injectors are typically lightweight closures:
 
