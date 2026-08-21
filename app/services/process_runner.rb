@@ -291,7 +291,7 @@ class ProcessRunner
   def heartbeat_run!(now)
     return unless @run
 
-    Run.where(id: @run.id, finished_at: nil).update_all(last_heartbeat_at: now)
+    RunHeartbeat.touch(@run, now: now)
   end
 
   # Conditional UPDATE races safely with SpawnedProcessSupervisor#tick,

@@ -194,6 +194,27 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(SpawnedProcess.find(result.spawned_process_id).last_chunk_at).to be_present
   end
 
+  it "uses the shared run heartbeat throttle for process heartbeats" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    step = Step.create!(workflow: workflow, kind: "prepare", position: 0, state: "running")
+    run = Run.create!(
+      job: job,
+      step: step,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "running",
+      started_at: Time.zone.parse("2026-08-20T11:59:00Z"),
+      last_heartbeat_at: nil
+    )
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5, run: run)
+
+    runner.send(:heartbeat_run!, Time.zone.parse("2026-08-20T12:00:00Z"))
+    runner.send(:heartbeat_run!, Time.zone.parse("2026-08-20T12:00:05Z"))
+
+    expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:00Z"))
+  end
+
   it "throttles spawned process resource attribution writes between liveness heartbeats" do
     process = SpawnedProcess.create!(
       kind: "agent",
