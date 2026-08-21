@@ -1,4 +1,4 @@
-# Persistent MCP sidecar (skeleton)
+# Persistent MCP sidecar
 
 Workflow and chat agents normally talk to Syrus over a stdio MCP server that
 is spawned fresh for every run or chat turn (`Mcp::Sidecar`, see
@@ -7,14 +7,19 @@ sidecars boots Rails from scratch each time, which is expensive and can fail
 under load.
 
 `persistent_mcp_sidecar` is a labs feature (default off) gating an
-experimental, worker-local **daemon skeleton** that boots Rails once and
-stays up, instead of once per run. `WorkflowMcpTransportSelector` decides,
-per workflow agent invocation, whether to route that run's MCP traffic to
-this daemon instead of spawning the usual stdio sidecar -- see "Workflow
-transport selection" below. Enabling the feature alone does not change
-behavior: the daemon's tool surface is still a skeleton (`CAPABILITIES` is
-empty), so the selector always falls back to stdio in production until a
-later EPIC-250 milestone wires the real workflow tool set onto the daemon.
+experimental, worker-local daemon that boots Rails once and stays up,
+instead of once per run or chat turn. `WorkflowMcpTransportSelector` and
+`ChatMcpTransportSelector` each decide, per workflow agent invocation or chat
+turn respectively, whether to route that invocation's MCP traffic to this
+daemon instead of spawning the usual stdio sidecar -- see "Workflow transport
+selection" and "Chat transport selection" below. The two surfaces are
+independent: enabling the feature makes chat tool dispatch real today (the
+daemon's `CAPABILITIES` advertises `CHAT_TOOLS_CAPABILITY`, and
+`ChatMcpTransportSelector` picks `:persistent` once the daemon is healthy),
+while workflow tool dispatch is still a skeleton (`CAPABILITIES` does not
+advertise `WORKFLOW_TOOLS_CAPABILITY`), so `WorkflowMcpTransportSelector`
+always falls back to stdio in production until a later EPIC-250 milestone
+wires the real workflow tool set onto the daemon.
 
 ## Enabling
 
@@ -51,11 +56,13 @@ Two paths are served, both local-only:
   on success, `503` otherwise.
 - `/mcp` — the real MCP transport
   (`MCP::Server::Transports::StreamableHTTPTransport`, stateless mode),
-  mountable by any MCP-speaking client. It exposes two tools:
-  `daemon_ping` (`PersistentMcpDaemon::PingTool`), a no-op call that echoes
-  the daemon's identity back, and `daemon_invocation_context`
-  (`PersistentMcpDaemon::InvocationContextTool`), which resolves whatever
-  signed context (see below) the caller attached to the request and echoes
+  mountable by any MCP-speaking client. Alongside the full known chat MCP
+  tool surface (see "Chat transport selection" below), it exposes two
+  proof-of-pipe tools: `daemon_ping` (`PersistentMcpDaemon::PingTool`), a
+  no-op call that echoes the daemon's identity back, and
+  `daemon_invocation_context` (`PersistentMcpDaemon::InvocationContextTool`),
+  which resolves whatever signed context (see below) the caller attached to
+  the request and echoes
   back what it reconstructed. Neither wires any real workflow or chat tool
   capability to the daemon yet. The transport also independently enforces
   DNS-rebinding/loopback host protections per the MCP spec.
@@ -152,13 +159,85 @@ that header into the JSON-RPC request's `params._meta` before dispatch, so
 tools keep reading `server_context[:_meta]` the same way regardless of how
 the token arrived.
 
+## Chat transport selection (`ChatMcpTransportSelector`)
+
+Chat is a second, independent EPIC-250 milestone on top of the same daemon.
+Every `ChatTurnJob` turn asks `ChatMcpTransportSelector.select` the same
+question `WorkflowMcpTransportSelector` answers for workflow steps, gated on
+a different capability (`PersistentMcpDaemon::CHAT_TOOLS_CAPABILITY`,
+`"chat_tools"`) so enabling chat routing doesn't imply workflow routing is
+safe, or vice versa — `PersistentMcpDaemon::CAPABILITIES` currently advertises
+`chat_tools` but not `workflow_tools`. Reasons mirror the workflow selector's
+(`feature_disabled`, `daemon_unreachable: ...`, `daemon_unhealthy: ...`,
+`daemon_incompatible: ...`), plus:
+
+- `provider_unsupported: ...` — Codex-only, same rationale as workflow's:
+  `ChatProviders::Codex#mcp_servers_for` reads every configured entry as a
+  stdio server (`.fetch("command")`), so an `http`-type entry would crash it.
+  `ChatTurnJob` downgrades any `:persistent` decision to `:stdio` with this
+  reason before building config when the turn's chat provider isn't Claude.
+- `nil` (persistent, no fallback) — `ChatTurnJob` builds `http`-type
+  `mcpServers` entries for BOTH the essential and deferred config keys
+  (`"syrus-chat-sidecar"` / `"syrus-chat-deferred-sidecar"`, same names as
+  stdio mode, same reason as workflow: resumed sessions derive MCP tool
+  prefixes from the config key), each carrying its own
+  `McpInvocationContext.issue_for_chat` token so the daemon can tell which
+  tier a given call belongs to.
+
+**Diagnostics**: every non-`nil` decision is recorded on
+`ChatSession#artifact("mcp_transport")` (via `ChatSession#set_artifact!`, the
+same read/write convention `SubmitArtifactTool` uses for `typed_artifacts`)
+and as a Rails log line — `warn`-level specifically for a stdio fallback so
+"feature enabled, daemon failed" is greppable via the `read_syrus_logs` MCP
+tool, not just via manual inspection of a specific chat's artifacts.
+
+**Tool dispatch (`PersistentMcpDaemon::ChatToolDispatch`,
+`PersistentMcpDaemon::ChatContextResolver`)**: unlike the workflow milestone,
+chat tool dispatch is actually wired. The daemon registers the full known
+chat tool surface (`McpToolRegistry.tools(surface: :chat)`, essential and
+deferred tiers combined) once at boot, each tool wrapped so a call resolves
+its own per-invocation context: `ChatContextResolver.resolve` reads the
+signed `McpInvocationContext` token from that request's `_meta`, rebuilds the
+same `{chat_session:, current_message:, evaluator:, scoped_event_id:,
+evaluator_session_id:}` shape `Mcp::Sidecar.chat_context` builds for stdio
+mode, and computes the session/tier/role/feature-flag-scoped allowed tool set
+(`McpToolRegistry.tools_for_context` plus the supervisor exclusion list,
+exactly mirroring `Mcp::Sidecar.chat_tools_for`). A call to a tool outside
+that set is denied (`not_authorized`) regardless of what the daemon's static
+tool list contains — so tiering, admin/supervisor exclusion, and feature
+flags (coding mode, local mode, video walkthroughs, agent insights) stay
+enforced identically to stdio mode.
+
+**Known gap: `tools/list` advertises a superset.** The underlying `mcp` gem
+builds a server's tool list once at `MCP::Server.new(tools:)` time with no
+per-request hook, so unlike stdio mode's genuinely tier-scoped process, the
+persistent daemon's `tools/list` response is the same full known chat tool
+surface for both the essential and deferred config entries. This does not
+weaken the security boundary (enforced per call by `ChatToolDispatch`, above)
+but does mean an `alwaysLoad: true` essential connection eagerly activates a
+larger tool set than stdio's essential sidecar would. Narrowing `tools/list`
+itself would need either patching the vendored `mcp` gem or splitting the
+daemon into multiple `MCP::Server` instances server-side; out of scope for
+this milestone.
+
+**Evaluator tier stays stdio-only.** `ChatEventEvaluator::ProviderRunner` (the
+disposable scoped-event evaluator, distinct from `ChatTurnJob`) is not
+wired to `ChatMcpTransportSelector` and always spawns
+`bin/syrus-chat-sidecar --tier evaluator`; its tool set
+(`McpToolPolicy#chat_evaluator_tools`) includes at least one tool
+(`SubmitScopedEventDecisionTool`) that isn't registered in `McpToolRegistry`
+at all, so it isn't part of the daemon's registered chat tool surface either.
+
 ## What this is not (yet)
 
-- No real tool dispatch beyond the `daemon_ping` / `daemon_invocation_context`
-  proof-of-pipe tools, and no tool-usage logging. Wiring the real workflow
-  tool set (`Mcp::Tools`) onto this daemon so `WorkflowMcpTransportSelector`
-  can actually pick `:persistent` in production, and doing the same for chat
-  agents, are later EPIC-250 milestones.
-- Codex has no persistent transport wiring (see `provider_unsupported`
-  above) — only `AgentProviders::Claude` builds an `http`-type MCP config
-  when the selector picks `:persistent`.
+- No workflow tool dispatch: `PersistentMcpDaemon::CAPABILITIES` does not
+  include `WORKFLOW_TOOLS_CAPABILITY`, so `WorkflowMcpTransportSelector`
+  still always falls back to stdio in production. Wiring the real workflow
+  tool set (`Mcp::Tools`) onto this daemon is a later EPIC-250 milestone.
+- No tool-usage logging beyond what `McpToolUsageRecorder` already captures
+  from the agent's own event stream (unchanged by this milestone).
+- Codex has no persistent transport wiring for either surface (see
+  `provider_unsupported` above) — only `AgentProviders::Claude` and
+  `ChatProviders::Claude` build `http`-type MCP config when their respective
+  selector picks `:persistent`.
+- The chat evaluator tier (see above) is out of scope for this milestone.
