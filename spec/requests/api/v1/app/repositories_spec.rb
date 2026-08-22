@@ -499,7 +499,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(member_payload.fetch("retry_state")).to include("retryable" => false)
   end
 
-  it "omits GitHub Issues and scheduled task tabs in simple mode" do
+  it "omits GitHub Issues, Tests, and scheduled task tabs in simple mode" do
     sign_in_as(user)
     AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
@@ -509,7 +509,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:ok)
     tab_keys = parse_body["tabs"].map { |tab| tab["key"] }
     expect(tab_keys).to include("overview", "documents")
-    expect(tab_keys).not_to include("github_issues", "scheduled_tasks")
+    expect(tab_keys).not_to include("github_issues", "tests", "scheduled_tasks")
   end
 
   it "does not serve GitHub Issues in simple mode" do
