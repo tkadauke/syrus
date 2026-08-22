@@ -12,7 +12,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-d
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
 import { patchJson, postJson } from "../api/client"
-import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
+import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
@@ -915,6 +915,8 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
 
 function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseDrawer: () => void; payload: DashboardChromePayload; prefix: string }) {
   const { t } = useTranslation(["epics", "jobs", "common"])
+  const location = useLocation()
+  const activeSubject = dashboardSubjectFromPath(location.pathname) ?? payload.subject
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
     { key: "epic", label: t("epics:title"), path: "/dashboard/epics" },
     { key: "job", label: t("jobs:title"), path: "/dashboard/jobs" },
@@ -925,7 +927,7 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
     <nav aria-label={t("nav:dashboard_sections_aria")} className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
       {subjects.map((subject) => (
         <Link
-          className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${activeSubject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           onClick={onCloseDrawer}
           to={withRoutePrefix(subject.path, prefix)}

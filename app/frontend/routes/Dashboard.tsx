@@ -20,7 +20,7 @@ import { FilterBar } from "../components/FilterBar"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
-import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardUntaggedIssues, type DashboardWorkflowItem } from "../api/dashboard"
+import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardUntaggedIssues, type DashboardWorkflowItem } from "../api/dashboard"
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
@@ -476,7 +476,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
     <div className="space-y-3 px-4 sm:px-0">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
-          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" payload={payload} prefix={prefix} />
+          <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" pathname={pathname} payload={payload} prefix={prefix} />
         </div>
         <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} isDesktop={false} />
       </div>
@@ -584,8 +584,9 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   )
 }
 
-function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { payload: DashboardPayload; prefix: string; className?: string }) {
+function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" }: { pathname: string; payload: DashboardPayload; prefix: string; className?: string }) {
   const { t } = useT("dashboard")
+  const activeSubject = dashboardSubjectFromPath(pathname) ?? payload.subject
   const subjects: Array<{ key: DashboardSubject; label: string; path: string }> = [
     { key: "epic", label: t("tab_epics"), path: "/dashboard/epics" },
     { key: "job", label: t("tab_jobs"), path: "/dashboard/jobs" },
@@ -596,7 +597,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
     <nav aria-label={t("subjects")} className={className}>
       {subjects.map((subject) => (
         <Link
-          className={`px-3 py-1.5 font-medium ${payload.subject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`px-3 py-1.5 font-medium ${activeSubject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           to={withRoutePrefix(subject.path, prefix)}
         >
