@@ -137,6 +137,40 @@ RSpec.describe PreviewService do
       allow(Net::HTTP).to receive(:start).and_raise(Errno::ECONNREFUSED)
       expect(service.send(:http_ok?, "http://127.0.0.1:1/")).to be false
     end
+
+    it "fails when local health passes but the proxy target cannot reach the preview app" do
+      stub_const("PreviewService::INTERNAL_HOST", "preview")
+      service = described_class.new
+      env = create_env(state: "seeding", port: 28_009)
+      child = PreviewService::ChildProcess.new(pid: 12_345, environment_id: env.id, port: 28_009)
+      service.instance_variable_get(:@children)[env.id] = child
+
+      allow(Process).to receive(:waitpid2).with(12_345, Process::WNOHANG).and_return(nil)
+      allow(Time).to receive(:current).and_return(Time.zone.parse("2026-08-22 12:00:00"))
+      allow(service).to receive(:http_ok?) do |url|
+        url == "http://127.0.0.1:28009/up"
+      end
+
+      expect {
+        service.send(:await_health_check, env, 28_009, "/up")
+      }.to raise_error(RuntimeError, /not reachable at preview:28009/)
+    end
+
+    it "does not require a second health check when the proxy target is loopback" do
+      stub_const("PreviewService::INTERNAL_HOST", "127.0.0.1")
+      service = described_class.new
+      env = create_env(state: "seeding", port: 28_009)
+      child = PreviewService::ChildProcess.new(pid: 12_345, environment_id: env.id, port: 28_009)
+      service.instance_variable_get(:@children)[env.id] = child
+
+      allow(Process).to receive(:waitpid2).with(12_345, Process::WNOHANG).and_return(nil)
+      allow(service).to receive(:http_ok?).with("http://127.0.0.1:28009/up").and_return(true)
+
+      service.send(:await_health_check, env, 28_009, "/up")
+
+      expect(service).to have_received(:http_ok?).once
+      expect(env.reload).to be_running
+    end
   end
 
   describe "#poll_starting_environments" do
@@ -305,6 +339,59 @@ RSpec.describe PreviewService do
 
       expect(service).not_to receive(:stop_environment)
       service.send(:check_ttl_expirations)
+    end
+  end
+
+  describe "external stop requests" do
+    it "kills tracked children for environments already marked stopping" do
+      service = described_class.new
+      env = create_env(state: "stopping", port: 28_011)
+      service.instance_variable_get(:@children)[env.id] =
+        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28_011)
+
+      expect(service).to receive(:kill_process_group).with(99_999)
+
+      service.send(:poll_stopping_environments)
+
+      expect(env.reload.state).to eq("stopping")
+    end
+
+    it "marks already-stopping environments without a tracked child as stopped" do
+      service = described_class.new
+      env = create_env(state: "stopping", port: 28_011)
+
+      service.send(:poll_stopping_environments)
+
+      expect(env.reload.state).to eq("stopped")
+      expect(env.workspace_path).to be_nil
+    end
+
+    it "does not spawn the app when stop is requested during setup" do
+      env = create_env
+      service = described_class.new
+      source = instance_double(PreviewCommandSource,
+        resolve: PreviewCommandSource::Config.new(
+          start_command_for: ->(port:) { "bin/server -p #{port}" },
+          setup_commands: [ "bin/setup-preview" ],
+          seed_command: nil,
+          health_check_path: "/",
+          log_paths: [],
+          env: {},
+          unset_env: []
+        ))
+
+      allow(PreviewCommandSource).to receive(:new).and_return(source)
+      allow(service).to receive(:allocate_port).and_return(28_011)
+      allow(service).to receive(:system) do
+        env.reload.begin_stopping!
+        env.save!
+        true
+      end
+      expect(service).not_to receive(:spawn_app)
+
+      service.send(:poll_starting_environments)
+
+      expect(env.reload.state).to eq("stopped")
     end
   end
 

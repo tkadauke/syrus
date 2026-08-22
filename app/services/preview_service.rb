@@ -45,6 +45,7 @@ class PreviewService
 
       with_connection do
         poll_starting_environments
+        poll_stopping_environments
         check_ttl_expirations if ttl_check_due?
         heartbeat_children!
         honor_kill_requests!
@@ -91,6 +92,12 @@ class PreviewService
     end
   end
 
+  def poll_stopping_environments
+    PreviewEnvironment.where(state: "stopping").find_each do |env|
+      stop_environment(env)
+    end
+  end
+
   def start_environment(env)
     workspace_path = ensure_workspace!(env)
 
@@ -112,7 +119,10 @@ class PreviewService
     process_env = preview_process_env(source, workspace_path)
 
     run_setup_commands(source, workspace_path, process_env)
+    return if stop_requested?(env)
+
     run_seed_command(source, workspace_path, process_env) if source.seed_command
+    return if stop_requested?(env)
 
     child = spawn_app(source.start_command_for.call(port: port), workspace_path, port, env, process_env)
     @mutex.synchronize { @children[env.id] = child }
@@ -141,6 +151,14 @@ class PreviewService
     return workspace_path if workspace_path.present? && Dir.exist?(workspace_path)
 
     PreviewWorkspace.prepare!(env)
+  end
+
+  def stop_requested?(env)
+    env.reload
+    return false unless env.stopping?
+
+    stop_environment(env)
+    true
   end
 
   def spawn_app(command, workspace_path, port, preview_environment, process_env = {})
@@ -194,7 +212,8 @@ class PreviewService
         raise "preview process exited before health check passed"
       end
 
-      if http_ok?("http://127.0.0.1:#{port}#{health_check_path}")
+      if http_ok?(local_health_check_url(port, health_check_path))
+        validate_proxy_reachability!(port, health_check_path)
         with_connection do
           env.reload
           env.mark_running! && env.save!
@@ -206,6 +225,27 @@ class PreviewService
 
       sleep HEALTH_CHECK_RETRY_INTERVAL_SECONDS
     end
+  end
+
+  def local_health_check_url(port, health_check_path)
+    "http://127.0.0.1:#{port}#{health_check_path}"
+  end
+
+  def proxy_health_check_url(port, health_check_path)
+    "http://#{INTERNAL_HOST}:#{port}#{health_check_path}"
+  end
+
+  def validate_proxy_reachability!(port, health_check_path)
+    return if loopback_internal_host?
+
+    url = proxy_health_check_url(port, health_check_path)
+    return if http_ok?(url)
+
+    raise "preview process is healthy on 127.0.0.1:#{port} but is not reachable at #{INTERNAL_HOST}:#{port}; configure the preview start command to bind to 0.0.0.0"
+  end
+
+  def loopback_internal_host?
+    INTERNAL_HOST.in?([ "127.0.0.1", "localhost", "::1" ])
   end
 
   def http_ok?(url)
@@ -261,7 +301,7 @@ class PreviewService
 
   def stop_environment(env)
     child = @mutex.synchronize { @children[env.id] }
-    env.begin_stopping! && env.save!
+    env.begin_stopping! && env.save! if env.may_begin_stopping?
 
     if child
       kill_process_group(child.pid)
