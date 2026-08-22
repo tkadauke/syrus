@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { fetchPreview, fetchPreviewLogs, startPreview, stopPreview, type PreviewEnvironmentRecord } from "../api/jobs"
+import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { CloseIcon } from "./CloseIcon"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 const ACTIVE_STATES = ["starting", "seeding", "running", "stopping"] as const
 const POLL_INTERVAL_MS = 3000
@@ -45,6 +48,7 @@ function useCountdown(expiresAt: string | null) {
 export function PreviewPanel({
   queryKeyPrefix,
   entityId,
+  repositoryId,
   previewPath,
   previewLogsPath,
   canStart,
@@ -53,6 +57,7 @@ export function PreviewPanel({
 }: {
   queryKeyPrefix: string
   entityId: number
+  repositoryId: number
   previewPath: string
   previewLogsPath: string
   canStart: boolean
@@ -61,6 +66,8 @@ export function PreviewPanel({
 }) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const previewQueryKey = [`${queryKeyPrefix}-preview`, entityId] as const
 
@@ -97,6 +104,21 @@ export function PreviewPanel({
     onError: (err) => setError(errorMessage(err, t("preview_failed")))
   })
 
+  const fixPreview = useMutation({
+    mutationFn: () => createDirectJob({
+      repositoryId: String(repositoryId),
+      agentProvider: "",
+      title: t("preview_fix_job_title"),
+      prompt: t("preview_fix_prompt", { error_message: env?.error_message ?? "" }),
+      priority: "high",
+      createMore: false,
+      files: [],
+      googleDocUrl: ""
+    }),
+    onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, routePrefix(location.pathname))),
+    onError: (err) => setError(errorMessage(err, t("preview_fix_error")))
+  })
+
   const countdown = useCountdown(env?.state === "running" ? env.expires_at : null)
   const expired = env?.state === "running" && env.expires_at != null && new Date(env.expires_at) <= new Date()
 
@@ -127,6 +149,16 @@ export function PreviewPanel({
         ) : null}
         {env?.state === "failed" && env.error_message ? (
           <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
+        ) : null}
+        {env?.state === "failed" && env.error_reason === "not_reachable" ? (
+          <button
+            className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={fixPreview.isPending}
+            onClick={() => fixPreview.mutate()}
+            type="button"
+          >
+            {t("preview_fix_button")}
+          </button>
         ) : null}
       </div>
     </section>
