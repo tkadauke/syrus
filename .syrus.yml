@@ -154,6 +154,18 @@ grade:
     required: true
     timeout_minutes: 1
 
+  - name: plugin-model-namespaces
+    description: |
+      Ensures plugin-owned Active Record models are namespaced and use
+      namespace-prefixed table names. Plugin STI subclasses may share
+      their core superclass table, but new plugin tables must be clearly
+      owned by the plugin to avoid collisions once engine migrations are
+      installed into the host app.
+    run: bin/check-plugin-model-namespaces
+    phases: [review, landing, ci]
+    required: true
+    timeout_minutes: 1
+
   - name: eager-load
     description: |
       Forces Rails.application.eager_load! to surface Zeitwerk
