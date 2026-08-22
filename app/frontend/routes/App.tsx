@@ -25,6 +25,7 @@ import { AdminQueueRoute } from "./AdminQueue"
 import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
 import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
+import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
 import { AdminSettings } from "./AdminSettings"
 import { AdminStuck } from "./AdminStuck"
 import { AdminTranscript } from "./AdminTranscript"
@@ -97,6 +98,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/plugins", element: <AdminPlugins /> },
   { path: "/admin/processes", element: <AdminProcessesIndex /> },
   { path: "/admin/processes/:id", element: <AdminProcessDetail /> },
+  { path: "/admin/mcp_tool_usage", element: <AdminMcpToolUsage /> },
   { path: "/admin/runs/:runId/transcript", element: <AdminTranscript /> },
   { path: "/admin/users", element: <AdminUsersIndex /> },
   { path: "/admin/users/:id", element: <AdminUserDetailRoute /> },

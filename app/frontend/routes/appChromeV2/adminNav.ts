@@ -44,6 +44,7 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
   { id: "resource_admission", labelKey: "nav_resource_admission", to: "/admin/resource_admission", paths: ["/admin/resource_admission"], groupId: "observability", order: 20 },
   { id: "browser_errors", labelKey: "nav_browser_errors", to: "/admin/browser_errors", paths: ["/admin/browser_errors"], groupId: "observability", order: 30 },
   { id: "backend_exceptions", labelKey: "nav_backend_exceptions", to: "/admin/backend_exceptions", paths: ["/admin/backend_exceptions"], groupId: "observability", order: 40 },
+  { id: "mcp_tool_usage", labelKey: "nav_mcp_tool_usage", to: "/admin/mcp_tool_usage", paths: ["/admin/mcp_tool_usage"], groupId: "observability", order: 50 },
   { id: "users", labelKey: "nav_users", to: "/admin/users", paths: ["/admin/users"], groupId: "users_access", order: 10 },
   { id: "invitations", labelKey: "nav_invitations", to: "/invitations", paths: ["/invitations"], groupId: "users_access", order: 20 },
   { id: "github_app", labelKey: "nav_github_app", to: "/admin/github_app/register", paths: ["/admin/github_app"], groupId: "users_access", order: 30 },

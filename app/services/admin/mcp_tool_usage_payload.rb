@@ -25,8 +25,11 @@ module Admin
         top_tools: tool_rows(usages, order_by: :calls),
         error_rates: tool_rows(usages, order_by: :error_rate),
         surface_breakdown: surface_rows(usages),
+        provider_breakdown: provider_rows(usages),
+        server_breakdown: server_rows(usages),
         sidecar_mode_breakdown: sidecar_mode_rows(usages),
-        unused_advertised_tools: (advertised - used).sort
+        unused_advertised_tools: (advertised - used).sort,
+        recent_calls: recent_call_rows(usages)
       }
     end
 
@@ -107,6 +110,38 @@ module Admin
             .sort_by { |row| row[:surface].to_s }
     end
 
+    def provider_rows(usages)
+      usages.group(:provider)
+            .pluck(:provider, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .map do |provider, count, errors|
+              count = count.to_i
+              errors = errors.to_i
+              {
+                provider: provider,
+                calls: count,
+                errors: errors,
+                error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
+              }
+            end
+            .sort_by { |row| [ -row[:calls], row[:provider].to_s ] }
+    end
+
+    def server_rows(usages)
+      usages.group(:server_name)
+            .pluck(:server_name, Arel.sql("COUNT(*)"), Arel.sql("SUM(CASE WHEN error THEN 1 ELSE 0 END)"))
+            .map do |server_name, count, errors|
+              count = count.to_i
+              errors = errors.to_i
+              {
+                server_name: server_name,
+                calls: count,
+                errors: errors,
+                error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
+              }
+            end
+            .sort_by { |row| [ -row[:calls], row[:server_name].to_s ] }
+    end
+
     # Stdio (transcript-derived) vs. persistent (PersistentMcpDaemon dispatch
     # boundary, EPIC-250) call/error volumes side by side, so tool
     # consolidation work can tell whether the persistent daemon path is
@@ -133,6 +168,50 @@ module Admin
     def limit
       value = params[:limit].to_i
       return 20 if value <= 0
+
+      [ value, 100 ].min
+    end
+
+    # Individual call rows for operators tracing a specific failure or
+    # deciding whether a tool is actually reached from the surfaces it
+    # claims to serve. Never includes raw tool input/result -- only the
+    # bounded, already-truncated `error_message_summary` McpToolUsageRecorder
+    # stores -- and links back to the originating Job/Workflow/Run/chat
+    # instead of duplicating their data.
+    def recent_call_rows(usages)
+      usages.includes(:job, :run, :chat_session, workflow: :job)
+            .order(Arel.sql("COALESCE(mcp_tool_usages.completed_at, mcp_tool_usages.started_at, mcp_tool_usages.created_at) DESC"))
+            .limit(recent_limit)
+            .map { |usage| recent_call_row(usage) }
+    end
+
+    def recent_call_row(usage)
+      {
+        id: usage.id,
+        occurred_at: (usage.completed_at || usage.started_at || usage.created_at).iso8601,
+        surface: usage.surface,
+        provider: usage.provider,
+        tool_name: usage.tool_name,
+        server_name: usage.server_name,
+        status: usage.status,
+        error: usage.error,
+        error_class: usage.error_class,
+        error_message_summary: usage.error_message_summary,
+        sidecar_mode: usage.sidecar_mode,
+        job_id: usage.job_id,
+        job_path: usage.job_id ? "/jobs/#{usage.job_id}" : nil,
+        workflow_id: usage.workflow_id,
+        workflow_path: usage.workflow ? App::WorkflowNavigation.path(usage.workflow) : nil,
+        run_id: usage.run_id,
+        run_path: usage.run_id ? "/admin/runs/#{usage.run_id}/transcript" : nil,
+        chat_session_id: usage.chat_session_id,
+        chat_path: usage.chat_session_id ? "/chats/#{usage.chat_session_id}" : nil
+      }
+    end
+
+    def recent_limit
+      value = params[:recent_limit].to_i
+      return 25 if value <= 0
 
       [ value, 100 ].min
     end

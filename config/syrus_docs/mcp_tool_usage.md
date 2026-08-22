@@ -14,21 +14,42 @@ chat message records.
 
 Operators can inspect aggregate usage through:
 
-- `GET /api/v1/app/admin/mcp_tool_usage`
-- `GET /api/v1/admin/mcp_tool_usage`
+- `GET /api/v1/app/admin/mcp_tool_usage` — session-authenticated, used by the
+  admin **MCP Tool Usage** page (`/admin/mcp_tool_usage`, under the
+  Observability nav group).
+- `GET /api/v1/admin/mcp_tool_usage` — Bearer-token admin API.
 
 Query parameters:
 
-- `start` / `end`: ISO8601 time window. Defaults to the last 7 days and caps at
-  90 days.
+- `start` / `end` (aliases `since` / `until`): ISO8601 time window. Defaults to
+  the last 7 days and caps at 90 days.
 - `surface`: optional `workflow` or `chat` filter.
 - `limit`: maximum rows returned for top-tool and error-rate sections, capped at
   100.
+- `recent_limit`: maximum rows returned in `recent_calls`, capped at 100
+  (default 25).
 
 The response includes top tools, unused currently advertised tools for the
 selected surface, error rates by tool, chat-vs-workflow usage breakdown
-(`surface_breakdown`), and stdio-vs-persistent usage breakdown
-(`sidecar_mode_breakdown`).
+(`surface_breakdown`), provider breakdown (`provider_breakdown`), MCP server
+breakdown (`server_breakdown`), stdio-vs-persistent usage breakdown
+(`sidecar_mode_breakdown`), and a bounded list of the most recent individual
+calls (`recent_calls`) for tracing a specific failure back to its origin.
+Each `recent_calls` row carries the linked Job/Workflow/Run/chat ids plus a
+ready-to-use `job_path` / `workflow_path` / `run_path` / `chat_path` (nil when
+not applicable) so the admin UI (and any other consumer) can link straight to
+the originating record without re-deriving routes. Rows never include raw
+tool input/result — only the same bounded, already-truncated
+`error_message_summary` described above.
+
+The admin **MCP Tool Usage** page (`Admin::McpToolUsagePayload`,
+`app/frontend/routes/AdminMcpToolUsage.tsx`) renders all of the above: call/
+error totals, the top-tools and highest-error-rate tables, unused advertised
+tools, the surface/provider/server/sidecar-mode breakdowns, and the recent
+calls table with links to the originating Job, Workflow, Run transcript, or
+chat. It supports the same `start`/`since`, `until`, and `surface` filters as
+the API through simple window-preset and surface controls; it does not surface
+raw tool input/result, consistent with what the payload itself omits.
 
 ## Sidecar mode (`sidecar_mode`, `daemon_worker_id`)
 
