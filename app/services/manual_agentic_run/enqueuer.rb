@@ -29,7 +29,8 @@ module ManualAgenticRun
       base_result = BaseSelection.for(@base).new(job: @job, payload: base_payload).resolve
       raise ArgumentError, base_result.message unless base_result.success?
 
-      workflow = Workflows::ManualAgenticRun.instantiate(
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "manual_agentic_run",
         job: @job,
         artifacts: artifacts(base_result),
         agent_provider: @agent_provider

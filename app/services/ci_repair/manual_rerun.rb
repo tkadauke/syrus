@@ -37,7 +37,8 @@ module CiRepair
       cleared = clear_handled_sha?(refresh.head_sha)
       @job.update!(last_ci_handled_sha: nil) if cleared
 
-      workflow = Workflows::CiFailure.instantiate(
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "ci_failure",
         job: @job,
         artifacts: artifacts_for(refresh),
         agent_provider: @agent_provider

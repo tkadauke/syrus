@@ -17,7 +17,7 @@ class ManualVisualReviewSubmission
       return Result.new(workflow: nil, run: nil, error: "Visual review is not configured for this repository.")
     end
 
-    workflow = Workflows::ManualVisualReview.instantiate(job: job)
+    workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
     run = StepDispatcher.start_workflow(workflow)
 
     Result.new(workflow: workflow, run: run, error: nil)
