@@ -21,6 +21,7 @@ class WorkUnit < ApplicationRecord
 
   has_many :child_work_units, class_name: "WorkUnit", foreign_key: :parent_work_unit_id, dependent: nil, inverse_of: :parent_work_unit
   has_many :work_unit_members, dependent: nil
+  has_many :member_jobs, through: :work_unit_members, source: :job
   has_many :work_unit_locks, dependent: nil
 
   before_validation :normalize_blocked_details

@@ -13,6 +13,32 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.steps.pluck(:kind)).to eq(%w[prepare visual_review])
   end
 
+  it "creates a shadow work intent and unit for the workflow attempt" do
+    workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
+    unit = workflow.work_unit
+    intent = unit.work_intent
+
+    expect(intent).to have_attributes(
+      kind: "manual_visual_review",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      priority: job.priority,
+      actor: user,
+      source_type: "workflow_launch"
+    )
+    expect(unit).to have_attributes(
+      kind: "manual_visual_review",
+      state: "queued",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    expect(unit.work_unit_members.map { |member| [ member.job_id, member.role ] }).to eq([[ job.id, "primary" ]])
+  end
+
   it "passes artifacts and agent provider through to the workflow template" do
     workflow = described_class.instantiate(
       kind: "ci_failure",

@@ -19,6 +19,7 @@ class Workflow < ApplicationRecord
   belongs_to :job
   belongs_to :user
   has_many :workflow_warnings, dependent: :destroy
+  has_one :work_unit, dependent: nil
   has_many :steps, -> { order(:position) }, dependent: :destroy
   has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
