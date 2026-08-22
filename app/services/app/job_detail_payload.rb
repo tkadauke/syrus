@@ -58,6 +58,7 @@ module App
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
+          work_units: [],
           workflows: [],
           workflows_pagination: PerformanceLogging.phase("job_detail.workflows_pagination", job_id: @job.id) { workflows_pagination_json },
           feature_flags: feature_flags_json,

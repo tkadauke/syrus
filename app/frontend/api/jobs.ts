@@ -484,6 +484,27 @@ export type JobWorkflow = {
   steps: JobStep[]
 }
 
+export type JobWorkUnit = {
+  id: number
+  kind: string
+  state: string
+  work_intent_id: number
+  workflow_id: number | null
+  workflow_slug: string | null
+  workflow_trigger_kind: string | null
+  workflow_state: string | null
+  workflow_attached_job_id: number | null
+  member_role: string
+  scope_type: string
+  scope_id: number | null
+  blocked_reason: string | null
+  blocked_until: string | null
+  blocked_details: Record<string, unknown> | null
+  created_at: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
 export type JobStep = {
   id: number
   kind: string
@@ -771,6 +792,7 @@ export type JobDetailPayload = {
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
+  work_units?: JobWorkUnit[]
   workflows: JobWorkflow[]
   workflows_pagination: JobWorkflowsPagination
   deployment_stages?: JobDeploymentStage[]
@@ -798,7 +820,7 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
+export type JobWorkflowsPayload = Pick<JobDetailPayload, "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
 
 export type JobTimelinePayload = {
   job_id: number

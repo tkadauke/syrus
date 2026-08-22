@@ -12,7 +12,7 @@ import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { buttonClass } from "../../lib/buttonClasses"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
@@ -33,15 +33,61 @@ import { workflowBranchDivergence } from "./branchDivergence"
 
 export function WorkflowsTab({ payload, command, prefix, loading = false, error = null }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; loading?: boolean; error?: unknown }) {
   const { t } = useT("jobs")
+  const workUnits = payload.work_units || []
   if (loading) return <PanelMessage>{t("section_workflows_loading")}</PanelMessage>
   if (error) return <PanelMessage tone="error">{errorMessage(error, t("section_workflows_load_error"))}</PanelMessage>
-  if (payload.workflows.length === 0) return <PanelMessage>{t("section_no_workflows")}</PanelMessage>
+  if (payload.workflows.length === 0 && workUnits.length === 0) return <PanelMessage>{t("section_no_workflows")}</PanelMessage>
 
   return (
     <div className="space-y-4">
+      <WorkUnitsPanel units={workUnits} prefix={prefix} />
       <WorkflowsPagination payload={payload} prefix={prefix} />
       {payload.workflows.map((workflow) => <WorkflowCard command={command} key={workflow.id} payload={payload} prefix={prefix} workflow={workflow} />)}
       <WorkflowsPagination payload={payload} prefix={prefix} />
+    </div>
+  )
+}
+
+function WorkUnitsPanel({ units, prefix }: { units: JobWorkUnit[]; prefix: string }) {
+  if (units.length === 0) return null
+
+  return (
+    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Work attempts</h3>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {units.map((unit) => <WorkUnitRow key={unit.id} prefix={prefix} unit={unit} />)}
+      </div>
+    </section>
+  )
+}
+
+function WorkUnitRow({ unit, prefix }: { unit: JobWorkUnit; prefix: string }) {
+  const workflowAnchor = unit.workflow_id ? `#workflow-${unit.workflow_id}` : ""
+  const workflowPath = unit.workflow_id ? withRoutePrefix(`/jobs/${unit.workflow_attached_job_id || ""}?tab=workflows${workflowAnchor}`, prefix) : null
+  const label = humanize(unit.kind)
+  const membership = unit.member_role === "member" ? "member" : "primary"
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
+          <SmallPill>{membership}</SmallPill>
+          {unit.blocked_reason ? <SmallPill>{humanize(unit.blocked_reason)}</SmallPill> : null}
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span>WU-{unit.id}</span>
+          {workflowPath ? (
+            <Link className="underline hover:no-underline" to={workflowPath}>{unit.workflow_slug || workflowSlug(unit.workflow_id!)}</Link>
+          ) : (
+            <span>No workflow attached</span>
+          )}
+          {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to JOB-{unit.workflow_attached_job_id}</span> : null}
+        </div>
+      </div>
+      <StatusPill state={unit.state} />
     </div>
   )
 }
