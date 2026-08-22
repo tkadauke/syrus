@@ -23,6 +23,7 @@ RSpec.describe ManualVisualReviewSubmission do
     expect(result).to be_success
     expect(result.workflow.trigger_kind).to eq("manual_visual_review")
     expect(result.workflow.job).to eq(job)
+    expect(result.workflow.work_unit).to have_attributes(kind: "manual_visual_review")
     expect(result.run).to be_present
   end
 
