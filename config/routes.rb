@@ -314,6 +314,7 @@ Rails.application.routes.draw do
         post "repositories/:repository_id/scheduled_tasks", to: "scheduled_tasks#create"
         patch "repositories/:repository_id/scheduled_tasks/:id", to: "scheduled_tasks#repository_update"
         delete "repositories/:repository_id/scheduled_tasks/:id", to: "scheduled_tasks#repository_destroy"
+        get "scheduled_tasks/new", to: "scheduled_tasks#new_repository_options"
         resources :scheduled_tasks, only: %i[ index show update destroy ] do
           collection do
             post :preview_schedule
@@ -530,6 +531,7 @@ Rails.application.routes.draw do
   get "search", to: "spa#show", as: :search
   get "profiles", to: "spa#show", as: :profiles
   get "profiles/:id", to: "spa#show", as: :profile, constraints: { id: /\d+/ }
+  get "scheduled_tasks/new", to: "spa#show", as: :new_scheduled_task
   get "scheduled_tasks/:id", to: "spa#show", as: :scheduled_task, constraints: { id: /\d+/ }
   get "scheduled_tasks/:id/edit", to: "spa#show", as: :edit_scheduled_task, constraints: { id: /\d+/ }
   get "onboarding", to: "spa#show", as: :onboarding
