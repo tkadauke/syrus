@@ -285,24 +285,13 @@ class Workflow < ApplicationRecord
   def sync_work_unit_running!
     return unless work_unit
 
-    work_unit.update!(
-      state: "running",
-      started_at: started_at || Time.current,
-      finished_at: nil,
-      blocked_reason: nil,
-      blocked_until: nil
-    )
+    work_unit.mark_running!
   end
 
   def sync_work_unit_terminal!(state)
     return unless work_unit
 
-    work_unit.update!(
-      state: state,
-      finished_at: finished_at || Time.current,
-      blocked_reason: nil,
-      blocked_until: nil
-    )
+    work_unit.mark_terminal!(state)
   end
 
   # When a workflow fails, drive the Job into :failed so the operator

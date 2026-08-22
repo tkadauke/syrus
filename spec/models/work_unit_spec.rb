@@ -30,4 +30,55 @@ RSpec.describe WorkUnit do
 
     expect(parent.child_work_units).to contain_exactly(child)
   end
+
+  it "blocks and unblocks with typed runtime reason details" do
+    user = Factories.user
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+    unit.block!(
+      reason: "admission_control",
+      blocked_until: 5.minutes.from_now,
+      details: { "available_slots" => 0 },
+      user: user
+    )
+
+    expect(unit).to have_attributes(state: "blocked", blocked_reason: "admission_control", blocked_by_user: user)
+    expect(unit.blocked_details).to include("available_slots" => 0)
+
+    unit.unblock!
+
+    expect(unit).to have_attributes(state: "queued", blocked_reason: nil, blocked_until: nil, blocked_by_user: nil)
+    expect(unit.blocked_details).to eq({})
+  end
+
+  it "marks running and terminal lifecycle states" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "blocked", scope_type: "job", scope_id: 123,
+                                   blocked_reason: "manual_pause", blocked_details: { "operator" => true })
+
+    unit.mark_running!
+    expect(unit).to have_attributes(state: "running", blocked_reason: nil, finished_at: nil)
+    expect(unit.started_at).to be_present
+
+    unit.mark_terminal!("succeeded")
+    expect(unit).to have_attributes(state: "succeeded")
+    expect(unit.finished_at).to be_present
+  end
+
+  it "rejects non-terminal states through mark_terminal!" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+    expect {
+      unit.mark_terminal!("running")
+    }.to raise_error(ArgumentError, /terminal/)
+  end
+
+  it "records manual pause intent separately from blocked state" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+    unit.request_pause!
+    expect(unit.reload.pause_requested).to be true
+
+    unit.clear_pause!
+    expect(unit.reload.pause_requested).to be false
+  end
 end

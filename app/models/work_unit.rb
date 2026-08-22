@@ -42,6 +42,59 @@ class WorkUnit < ApplicationRecord
     queued? || blocked? || running?
   end
 
+  def block!(reason:, blocked_until: nil, details: {}, user: nil)
+    update!(
+      state: "blocked",
+      blocked_reason: reason,
+      blocked_until: blocked_until,
+      blocked_details: details || {},
+      blocked_by_user: user
+    )
+  end
+
+  def unblock!
+    update!(
+      state: "queued",
+      blocked_reason: nil,
+      blocked_until: nil,
+      blocked_details: {},
+      blocked_by_user: nil
+    )
+  end
+
+  def mark_running!
+    update!(
+      state: "running",
+      started_at: started_at || Time.current,
+      finished_at: nil,
+      blocked_reason: nil,
+      blocked_until: nil,
+      blocked_details: {},
+      blocked_by_user: nil
+    )
+  end
+
+  def mark_terminal!(state)
+    raise ArgumentError, "state must be terminal" unless state.to_s.in?(%w[succeeded failed cancelled])
+
+    update!(
+      state: state.to_s,
+      finished_at: finished_at || Time.current,
+      blocked_reason: nil,
+      blocked_until: nil,
+      blocked_details: {},
+      blocked_by_user: nil
+    )
+  end
+
+  def request_pause!
+    update!(pause_requested: true)
+  end
+
+  def clear_pause!
+    update!(pause_requested: false)
+  end
+
   private
 
   def normalize_blocked_details
