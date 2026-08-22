@@ -1525,6 +1525,8 @@ Completed slices:
 - Speculative landing-validation prefetch now starts validation Workflows
   through `WorkUnits::Launcher.start!` after transactional eligibility checks,
   preserving the existing source Workflow artifact link.
+- Auto-merge control now starts inline rebase Workflows through
+  `WorkUnits::Launcher.start!` when landing discovers the PR needs a rebase.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

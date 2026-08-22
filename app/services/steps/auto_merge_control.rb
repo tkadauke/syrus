@@ -43,7 +43,7 @@ module Steps
       unless rebase_workflow_active?
         rebase_workflow = RebaseWorkflowSelector.instantiate(job: job, pr: gate.pr)
         log("auto_merge: dispatched rebase #{rebase_workflow.slug}", kind: "system")
-        StepDispatcher.start_workflow(rebase_workflow)
+        WorkUnits::Launcher.start!(rebase_workflow)
       end
 
       cancel_workflow!

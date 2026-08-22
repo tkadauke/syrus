@@ -121,7 +121,7 @@ RSpec.describe Steps::AutoMerge do
     allow(client).to receive(:pull_request).and_return(
       pr(mergeable_state: "behind", base_ref: "syrus/parent", base_sha: "parent-sha")
     )
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
 
     expect {
       described_class.new(run).call
@@ -134,7 +134,7 @@ RSpec.describe Steps::AutoMerge do
     # Approval persists across the defer — operator doesn't have to re-approve.
     expect(job.approved_at).to eq(original_approved_at)
     expect(job.approved_via).to eq("github_review")
-    expect(StepDispatcher).to have_received(:start_workflow).with(an_instance_of(Workflow))
+    expect(WorkUnits::Launcher).to have_received(:start!).with(an_instance_of(Workflow))
   end
 
   it "does not dispatch a second Rebase workflow when one is already active" do
@@ -144,13 +144,13 @@ RSpec.describe Steps::AutoMerge do
     existing = Workflows::Rebase.instantiate(job: job)
     existing.update!(state: "running")
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "behind"))
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
 
     expect {
       described_class.new(run).call
     }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
 
-    expect(StepDispatcher).not_to have_received(:start_workflow)
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
   end
 
   it "does not dispatch another Rebase workflow when the latest no-op rebase already covered this head/base" do
@@ -170,7 +170,7 @@ RSpec.describe Steps::AutoMerge do
       }
     )
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "behind", mergeable: false))
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
 
     expect {
       described_class.new(run).call
@@ -179,7 +179,7 @@ RSpec.describe Steps::AutoMerge do
     expect(job.reload).to be_approved
     expect(job.pr_mergeable).to be false
     expect(run.reload).to be_cancelled
-    expect(StepDispatcher).not_to have_received(:start_workflow)
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
   end
 
   it "dispatches a fresh Rebase workflow when GitHub's PR base sha is stale after a no-op rebase" do
@@ -199,13 +199,13 @@ RSpec.describe Steps::AutoMerge do
     )
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "dirty", mergeable: false, base_sha: "old-base"))
     allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("new-live-base")
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
 
     expect {
       described_class.new(run).call
     }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
 
-    expect(StepDispatcher).to have_received(:start_workflow).with(an_instance_of(Workflow))
+    expect(WorkUnits::Launcher).to have_received(:start!).with(an_instance_of(Workflow))
   end
 
   it "fails landing instead of dispatching a rebase once REBASE_ATTEMPT_CAP consecutive rebases have failed" do
@@ -294,7 +294,7 @@ RSpec.describe Steps::AutoMerge do
     it "cancels cleanly when mergeable_state is #{mergeable_state.inspect}" do
       allow(client).to receive(:pull_request).and_return(pr(mergeable_state: mergeable_state))
       allow(client).to receive(:merge_pull_request)
-      allow(StepDispatcher).to receive(:start_workflow)
+      allow(WorkUnits::Launcher).to receive(:start!)
 
       expect { described_class.new(run).call }.not_to raise_error
 
@@ -379,7 +379,7 @@ RSpec.describe Steps::AutoMerge do
     original_approved_at = job.approved_at
     job.start_landing!
     job.save!
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
     allow(client).to receive(:merge_pull_request)
       .and_raise(octokit_error(Octokit::MethodNotAllowed, status: 405, message: "This branch can't be rebased"))
 
@@ -391,7 +391,7 @@ RSpec.describe Steps::AutoMerge do
     expect(job.approved_at).to eq(original_approved_at)
     expect(run.reload).to be_cancelled
     expect(workflow.reload).to be_cancelled
-    expect(StepDispatcher).to have_received(:start_workflow).with(an_instance_of(Workflow))
+    expect(WorkUnits::Launcher).to have_received(:start!).with(an_instance_of(Workflow))
     expect(run.job_logs.pluck(:chunk)).to include(include("GitHub rejected rebase merge"))
   end
 
