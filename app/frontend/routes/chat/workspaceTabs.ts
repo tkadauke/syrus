@@ -14,7 +14,15 @@ import {
   CHAT_WORKSPACE_TAB_KEY,
   CHAT_WORKSPACE_WIDTH_KEY
 } from "./constants"
+import { imageAttachments } from "./messageDisplay"
 import { codingFilesTabVisible, jobsTabVisible } from "./utils"
+
+export function mediaTabVisible(payload: ChatPayload): boolean {
+  return imageAttachments(payload.messages).length > 0 ||
+    (payload.video_walkthroughs?.length ?? 0) > 0 ||
+    (payload.chat.whiteboard_snapshot_count ?? 0) > 0 ||
+    (payload.chat.typed_artifact_count ?? 0) > 0
+}
 
 export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs"
 export type MobileChatTab = "chat" | WorkspaceTab
@@ -43,7 +51,7 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false)
   return [
     "whiteboard",
     ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
-    "media",
+    ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
     "pinned",
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),

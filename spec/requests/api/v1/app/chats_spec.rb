@@ -1883,6 +1883,40 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  describe "GET /api/v1/app/chats/:id (media tab visibility counts)" do
+    it "reports zero whiteboard_snapshot_count and typed_artifact_count for a chat with no media" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(0)
+      expect(parse_body.dig("chat", "typed_artifact_count")).to eq(0)
+    end
+
+    it "counts whiteboard snapshots and typed artifacts attached to the chat" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      WhiteboardSnapshot.create!(
+        chat_session: chat,
+        name: "Arch diagram",
+        scene_json: { "elements" => [ { "id" => "e1", "type" => "rectangle" } ], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 1
+      )
+      chat.set_artifact!("typed_artifacts", [
+        { "type" => "rails_schema_erd", "title" => "Schema ERD", "created_at" => Time.current.iso8601, "payload" => {} }
+      ])
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "whiteboard_snapshot_count")).to eq(1)
+      expect(parse_body.dig("chat", "typed_artifact_count")).to eq(1)
+    end
+  end
+
   describe "DELETE /api/v1/app/chats/:id/coding_checkout" do
     def enable_coding_mode!(enabled: true)
       feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|

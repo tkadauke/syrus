@@ -379,6 +379,12 @@ describe("MediaGallery busy states", () => {
     expect(screen.queryByText(/chat is busy/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/canvas is busy/i)).not.toBeInTheDocument()
   })
+
+  it("shows the empty state when nothing has been shared", async () => {
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    expect(await screen.findByText("No media shared yet.")).toBeInTheDocument()
+  })
 })
 
 describe("MediaGallery artifacts", () => {

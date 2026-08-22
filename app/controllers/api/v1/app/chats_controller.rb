@@ -1397,6 +1397,8 @@ module Api
             confirmed_proposal_count: PerformanceLogging.phase("chat_json.confirmed_proposal_count", chat_id: chat_session.id) { chat_session.proposals.confirmed.count },
             linked_direct_job_count: PerformanceLogging.phase("chat_json.linked_direct_job_count", chat_id: chat_session.id) { Job.where(linked_chat_id: chat_session.id, kind: "direct").count },
             scratchpad_items_count: PerformanceLogging.phase("chat_json.scratchpad_items_count", chat_id: chat_session.id) { chat_session.scratchpad_items.count },
+            whiteboard_snapshot_count: PerformanceLogging.phase("chat_json.whiteboard_snapshot_count", chat_id: chat_session.id) { chat_session.whiteboard_snapshots.count },
+            typed_artifact_count: PerformanceLogging.phase("chat_json.typed_artifact_count", chat_id: chat_session.id) { Array(chat_session.artifact("typed_artifacts")).size },
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
             coding_relay_ready: chat_session.coding_relay_address.present? && chat_session.coding_relay_token.present?,
