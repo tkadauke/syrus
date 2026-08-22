@@ -14,7 +14,7 @@ import { buttonClass } from "../../lib/buttonClasses"
 import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
@@ -182,13 +182,19 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
+  const summaries = loopGradeSummaries(item)
 
   return (
     <WorkflowGroup
       numberLabel={numberLabel}
       onToggle={() => setOpen((current) => !current)}
       open={open}
-      pills={<SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>}
+      pills={(
+        <>
+          <SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>
+          {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
+        </>
+      )}
       status={status}
       title={loopDisplayName(item, t)}
     >

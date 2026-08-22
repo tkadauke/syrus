@@ -138,7 +138,13 @@ export function isGradeDisplayStep(step: JobStep) {
 }
 
 function isNamedLoop(steps: JobStep[]) {
-  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review" || isGradeDisplayStep(step))
+  // Grade steps are excluded here on purpose: a single-iteration grade group
+  // already renders its own collapsible header (GradeGroup, with pills and
+  // phases) via displayStepItems, so wrapping it in an outer Loop as well
+  // would force a redundant extra click to reach Setup/Result. Multi-iteration
+  // grade retries still get the Loop wrapper below since iterations.length > 1
+  // forces it regardless of this check.
+  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review")
 }
 
 export function displayStepItemKey(item: DisplayStepItem) {
@@ -203,6 +209,12 @@ export function gradeSummaryCounts(summaries: GradeSummary[]) {
     else if (summary.status === "error") counts.error += 1
     return counts
   }, { passed: 0, failed: 0, error: 0 })
+}
+
+export function loopGradeSummaries(item: LoopStepItem): GradeSummary[] {
+  const latestIteration = item.iterations[item.iterations.length - 1]
+  if (!latestIteration) return []
+  return latestIteration.items.flatMap((displayItem) => displayItem.type === "grade" ? gradeSummaries(displayItem) : [])
 }
 
 export function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["t"]) {
