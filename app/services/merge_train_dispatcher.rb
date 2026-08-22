@@ -91,7 +91,7 @@ class MergeTrainDispatcher
 
   def active_train_in_progress?
     MergeTrain.active.where(epic_id: @epic.id).exists? ||
-      Workflow.active.where(trigger_kind: %w[merge_train merge_train_validation], job_id: @epic.jobs.select(:id)).exists?
+      WorkUnits::Ownership.active_for_epic?(@epic, kinds: %w[merge_train merge_train_validation])
   end
 
   def landing_job_in_progress

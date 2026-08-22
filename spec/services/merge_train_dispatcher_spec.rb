@@ -134,6 +134,38 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  it "does not dispatch when an active merge-train work unit owns the Epic" do
+    first = approved_child(1)
+    second = approved_child(2)
+    other_epic_job = Factories.job_record(user: user, repository: repository, issue_number: 99, state: "queued")
+    workflow = Workflow.create!(job: other_epic_job, trigger_kind: "merge_train", state: "running")
+    intent = WorkIntent.create!(
+      kind: "merge_train",
+      state: "requested",
+      repository: repository,
+      scope_type: "epic",
+      scope_id: epic.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "merge_train",
+      state: "running",
+      repository: repository,
+      scope_type: "epic",
+      scope_id: epic.id,
+      workflow: workflow
+    )
+    [ first, second ].each_with_index do |job, index|
+      unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
+    end
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not dispatch the real train while speculative train validation is active" do
     child = approved_child(1)
     Workflow.create!(job: child, trigger_kind: "merge_train_validation", state: "running")
