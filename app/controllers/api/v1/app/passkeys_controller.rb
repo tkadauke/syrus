@@ -29,7 +29,7 @@ module Api
               display_name: current_user.name.presence || current_user.email_address
             },
             exclude: current_user.passkeys.pluck(:external_id).map { |id| { id: id, type: "public-key" } },
-            authenticator_selection: { resident_key: "required", user_verification: "preferred" }
+            authenticator_selection: { resident_key: "required", user_verification: "required" }
           )
 
           PasskeyChallenge.create_for!(type: "registration", challenge: options.challenge, user: current_user)
@@ -61,7 +61,7 @@ module Api
         def authentication_options
           options = WebAuthn::Credential.options_for_get(
             allow: [],
-            user_verification: "preferred"
+            user_verification: "required"
           )
 
           PasskeyChallenge.create_for!(type: "authentication", challenge: options.challenge)
