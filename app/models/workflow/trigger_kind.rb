@@ -1,37 +1,39 @@
 class Workflow
   module TriggerKind
-    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind) do
+    Entry = Data.define(:kind, :template, :label, :style, :retry_label, :feedback_kind, :runtime_role) do
       def template_class
         "Workflows::#{template}".constantize
       end
     end
 
+    RUNTIME_ROLES = %w[first_class child infrastructure legacy].freeze
+
     ENTRIES = [
-      Entry.new(kind: "initial",       template: "Initial",     label: "Initial implementation", style: "bg-purple-100 text-purple-700",  retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "pr_comment",    template: "PrFeedback",  label: "PR feedback",             style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment),
-      Entry.new(kind: "chat_feedback", template: "ChatFeedback", label: "Chat feedback",           style: "bg-indigo-100 text-indigo-700",  retry_label: "Retry failed step",  feedback_kind: :chat_feedback),
-      Entry.new(kind: "ci_failure",    template: "CiFailure",   label: "CI failure",              style: "bg-red-100 text-red-700",        retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "rebase",        template: "Rebase",      label: "Rebase",                  style: "bg-teal-100 text-teal-700",      retry_label: "Retry rebase step",  feedback_kind: nil),
-      Entry.new(kind: "stack_rebase",  template: "StackRebase", label: "Stack rebase",            style: "bg-teal-100 text-teal-700",      retry_label: "Retry rebase step",  feedback_kind: nil),
-      Entry.new(kind: "auto_merge",         template: "AutoMerge",        label: "Auto-merge",              style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil),
-      Entry.new(kind: "landing_validation", template: "LandingValidation", label: "Landing validation",      style: "bg-emerald-100 text-emerald-700", retry_label: nil,                  feedback_kind: nil),
-      Entry.new(kind: "external_pr_merge",  template: "ExternalPrMerge",  label: "External PR merge",       style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil),
-      Entry.new(kind: "merge_train",   template: "MergeTrain",  label: "Epic merge-train",        style: "bg-green-100 text-green-800",    retry_label: nil,                  feedback_kind: nil),
-      Entry.new(kind: "merge_train_validation", template: "MergeTrainValidation", label: "Epic train validation", style: "bg-emerald-100 text-emerald-800", retry_label: nil, feedback_kind: nil),
-      Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil),
-      Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "manual",             template: "Manual",           label: "Manual",             style: "bg-gray-100 text-gray-700",       retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "resume",             template: "Manual",           label: "Resume",             style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "coding_handoff",     template: "CodingHandoff",    label: "Coding handoff",     style: "bg-violet-100 text-violet-700",   retry_label: "Retry grader step",  feedback_kind: nil),
-      Entry.new(kind: "local_mode_handoff", template: "LocalModeHandoff", label: "Local mode handoff", style: "bg-emerald-100 text-emerald-700", retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "main_grader",          template: "MainGrader",        label: "Main branch grader",    style: "bg-gray-100 text-gray-500",       retry_label: nil,                  feedback_kind: nil),
-      Entry.new(kind: "main_branch_repair",  template: "MainBranchRepair",  label: "Main branch repair",    style: "bg-red-100 text-red-800",         retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "manual_agentic_run",  template: "ManualAgenticRun",  label: "Manual agentic run",    style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "agent_insight",       template: "AgentInsight",      label: "Agent insight",         style: "bg-amber-100 text-amber-700",     retry_label: nil,                  feedback_kind: nil),
-      Entry.new(kind: "external_pr_ingest",  template: "ExternalPrIngest",  label: "External PR graders",   style: "bg-orange-100 text-orange-700",   retry_label: "Retry grader step",  feedback_kind: nil),
-      Entry.new(kind: "external_pr_feedback", template: "ExternalPrFeedback", label: "External PR feedback", style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment),
-      Entry.new(kind: "skill",               template: "Skill",             label: "Skill run",             style: "bg-lime-100 text-lime-700",       retry_label: "Retry failed step",  feedback_kind: nil)
+      Entry.new(kind: "initial",       template: "Initial",     label: "Initial implementation", style: "bg-purple-100 text-purple-700",  retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "pr_comment",    template: "PrFeedback",  label: "PR feedback",             style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class"),
+      Entry.new(kind: "chat_feedback", template: "ChatFeedback", label: "Chat feedback",           style: "bg-indigo-100 text-indigo-700",  retry_label: "Retry failed step",  feedback_kind: :chat_feedback, runtime_role: "first_class"),
+      Entry.new(kind: "ci_failure",    template: "CiFailure",   label: "CI failure",              style: "bg-red-100 text-red-700",        retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "rebase",        template: "Rebase",      label: "Rebase",                  style: "bg-teal-100 text-teal-700",      retry_label: "Retry rebase step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "stack_rebase",  template: "StackRebase", label: "Stack rebase",            style: "bg-teal-100 text-teal-700",      retry_label: "Retry rebase step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "auto_merge",         template: "AutoMerge",        label: "Auto-merge",              style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "landing_validation", template: "LandingValidation", label: "Landing validation",      style: "bg-emerald-100 text-emerald-700", retry_label: nil,                  feedback_kind: nil, runtime_role: "child"),
+      Entry.new(kind: "external_pr_merge",  template: "ExternalPrMerge",  label: "External PR merge",       style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "merge_train",   template: "MergeTrain",  label: "Epic merge-train",        style: "bg-green-100 text-green-800",    retry_label: nil,                  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "merge_train_validation", template: "MergeTrainValidation", label: "Epic train validation", style: "bg-emerald-100 text-emerald-800", retry_label: nil, feedback_kind: nil, runtime_role: "child"),
+      Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "legacy"),
+      Entry.new(kind: "manual",             template: "Manual",           label: "Manual",             style: "bg-gray-100 text-gray-700",       retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "resume",             template: "Manual",           label: "Resume",             style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "coding_handoff",     template: "CodingHandoff",    label: "Coding handoff",     style: "bg-violet-100 text-violet-700",   retry_label: "Retry grader step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "local_mode_handoff", template: "LocalModeHandoff", label: "Local mode handoff", style: "bg-emerald-100 text-emerald-700", retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "main_grader",          template: "MainGrader",        label: "Main branch grader",    style: "bg-gray-100 text-gray-500",       retry_label: nil,                  feedback_kind: nil, runtime_role: "infrastructure"),
+      Entry.new(kind: "main_branch_repair",  template: "MainBranchRepair",  label: "Main branch repair",    style: "bg-red-100 text-red-800",         retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "manual_agentic_run",  template: "ManualAgenticRun",  label: "Manual agentic run",    style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "agent_insight",       template: "AgentInsight",      label: "Agent insight",         style: "bg-amber-100 text-amber-700",     retry_label: nil,                  feedback_kind: nil, runtime_role: "infrastructure"),
+      Entry.new(kind: "external_pr_ingest",  template: "ExternalPrIngest",  label: "External PR graders",   style: "bg-orange-100 text-orange-700",   retry_label: "Retry grader step",  feedback_kind: nil, runtime_role: "first_class"),
+      Entry.new(kind: "external_pr_feedback", template: "ExternalPrFeedback", label: "External PR feedback", style: "bg-cyan-100 text-cyan-700",      retry_label: "Retry failed step",  feedback_kind: :pr_comment, runtime_role: "first_class"),
+      Entry.new(kind: "skill",               template: "Skill",             label: "Skill run",             style: "bg-lime-100 text-lime-700",       retry_label: "Retry failed step",  feedback_kind: nil, runtime_role: "first_class")
     ].freeze
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze
@@ -68,6 +70,17 @@ class Workflow
 
     def registry
       BY_KIND.transform_values(&:template).freeze
+    end
+
+    def runtime_role_for(kind)
+      fetch(kind).runtime_role
+    end
+
+    def runtime_role_values(role)
+      role = role.to_s
+      raise ArgumentError, "unknown runtime_role=#{role.inspect}" unless RUNTIME_ROLES.include?(role)
+
+      ENTRIES.select { |entry| entry.runtime_role == role }.map(&:kind).freeze
     end
 
     def label_for(kind)
