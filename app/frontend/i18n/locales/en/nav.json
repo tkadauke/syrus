@@ -260,5 +260,9 @@
   "repository_tabs_aria": "Repository tabs",
   "title_uncommitted": "Uncommitted coding changes",
   "title_scratchpad": "Has scratch pad items",
-  "title_turn_active": "Chat turn active"
+  "title_turn_active": "Chat turn active",
+  "plugin_repo_tabs": {
+    "unavailable_heading": "Page unavailable",
+    "unavailable_body": "This repository tab is not available. The plugin that provides it may be disabled or missing."
+  }
 }

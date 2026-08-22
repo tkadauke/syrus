@@ -18,6 +18,21 @@ class PluginRouteResolver
       find(request, controller_prefix: controller_prefix).present?
     end
 
+    # Generic SPA-route existence check used by wildcard host routes (e.g.
+    # "admin/*path", "repositories/:repository_id/plugin/*path") to decide
+    # whether some plugin declared a matching `spa#show` route, instead of
+    # 404ing a plugin page on hard reload/direct navigation. Unlike #find,
+    # this only checks path shape (params can include dynamic segments like
+    # ":repository_id"), not an HTTP verb, since spa#show is always GET.
+    def spa_route_declared?(path)
+      plugin_routes.any? do |route|
+        # path_params_for returns {} (falsy-looking but truthy) for a static
+        # match with no dynamic segments — check truthiness, not #present?,
+        # since {}.present? is false.
+        route.controller == "spa#show" && !!path_params_for(route.path, path)
+      end
+    end
+
     private
 
     def plugin_routes

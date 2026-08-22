@@ -400,4 +400,30 @@ RSpec.describe Repository do
       expect(Repository.accessible_repository_ids_for(nil)).to be_empty
     end
   end
+
+  describe ".accessible_to" do
+    it "includes repositories the user owns" do
+      owner = Factories.user
+      owned = Factories.repository(user: owner)
+
+      expect(Repository.accessible_to(owner)).to include(owned)
+    end
+
+    it "includes repositories where the user has a RepositoryMembership" do
+      owner = Factories.user(email_address: "owner@example.com")
+      collaborator = Factories.user(email_address: "collaborator@example.com")
+      shared_repo = Factories.repository(user: owner)
+      shared_repo.repository_memberships.create!(user: collaborator, role: "collaborator")
+
+      expect(Repository.accessible_to(collaborator)).to include(shared_repo)
+    end
+
+    it "excludes repositories the user neither owns nor is a member of" do
+      owner = Factories.user(email_address: "owner2@example.com")
+      unrelated_user = Factories.user(email_address: "unrelated@example.com")
+      other_repo = Factories.repository(user: owner)
+
+      expect(Repository.accessible_to(unrelated_user)).not_to include(other_repo)
+    end
+  end
 end

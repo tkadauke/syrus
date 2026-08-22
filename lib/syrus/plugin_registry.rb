@@ -11,6 +11,7 @@ module Syrus
       ci_log_parser
       preview_provider
       admin_page
+      repo_page_tab
       chat_mcp_tool_set
       source_control_provider
       artifact_renderer
@@ -36,6 +37,7 @@ module Syrus
       ci_log_parser:           -> { Syrus::Plugin::CiLogParser },
       preview_provider:        -> { Syrus::Plugin::PreviewProvider },
       admin_page:              -> { Syrus::Plugin::AdminPage },
+      repo_page_tab:           -> { Syrus::Plugin::RepoPageTab },
       chat_mcp_tool_set:       -> { Syrus::Plugin::ChatMcpToolSet },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },

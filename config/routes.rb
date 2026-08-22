@@ -297,6 +297,7 @@ Rails.application.routes.draw do
         resources :teams, only: %i[ index show create update destroy ] do
           resources :memberships, controller: "team_memberships", only: %i[ create update destroy ]
         end
+        get "repositories/:repository_id/plugin_tabs", to: "repository_plugin_tabs#index"
         get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
         get "repositories/:repository_id/tests", to: "repository_tests#index"
         get "repositories/:repository_id/tests/:id", to: "repository_tests#show", constraints: { id: /\d+/ }
@@ -526,6 +527,9 @@ Rails.application.routes.draw do
   end
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
+  get "repositories/:repository_id/plugin/*path", to: "spa#show", as: :repository_plugin_spa, constraints: lambda { |request|
+    PluginRouteResolver.spa_route_declared?(request.path)
+  }
 
   get "chats/search", to: "spa#show", as: :search_chats
   get "chats/shared/:token", to: "spa#show", as: :shared_chat

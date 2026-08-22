@@ -18,6 +18,11 @@ module RepositoryTabsSerialization
       pending_count = repository.insight_suggestions.pending.count
       tabs << { key: "insights", label: "Insights", path: repository_insights_path(repository), badge: pending_count.positive? ? pending_count : nil }
     end
+    tabs.concat(
+      Repositories::PluginRepoTabsPayload.tabs_for(repository: repository, user: Current.user).map do |tab|
+        { key: tab[:id], label: tab[:label], path: tab[:path], badge: tab[:badge] }
+      end
+    )
     tabs
   end
 end
