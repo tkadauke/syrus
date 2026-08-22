@@ -1468,6 +1468,8 @@ Completed slices:
   unapprove-before-dispatch behavior through the launcher boundary.
 - Manual visual review submission now uses the launcher create-plus-dispatch
   result instead of starting the Workflow in the service.
+- Manual CI repair reruns now use the launcher create-plus-dispatch result while
+  preserving the existing deferred-start error path.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

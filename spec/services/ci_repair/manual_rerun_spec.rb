@@ -41,6 +41,7 @@ RSpec.describe CiRepair::ManualRerun do
     )
 
     expect(result.workflow).to have_attributes(job: job, trigger_kind: "ci_failure")
+    expect(result.workflow.work_unit).to have_attributes(kind: "ci_failure")
     expect(result.run).to be_present
     expect(job.reload.last_ci_handled_sha).to eq(sha)
     expect(result.cleared_handled_sha).to be true

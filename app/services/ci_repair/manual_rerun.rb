@@ -37,17 +37,16 @@ module CiRepair
       cleared = clear_handled_sha?(refresh.head_sha)
       @job.update!(last_ci_handled_sha: nil) if cleared
 
-      workflow = WorkUnits::Launcher.instantiate(
+      result = WorkUnits::Launcher.create_and_start!(
         kind: "ci_failure",
         job: @job,
         artifacts: artifacts_for(refresh),
         agent_provider: @agent_provider
       )
-      run = StepDispatcher.start_workflow(workflow)
-      raise ArgumentError, "CI repair workflow start was deferred." unless run
+      raise ArgumentError, "CI repair workflow start was deferred." unless result.run
 
       @job.update!(last_ci_handled_sha: refresh.head_sha)
-      Result.new(job: @job.reload, workflow: workflow, run: run, refresh: refresh, cleared_handled_sha: cleared)
+      Result.new(job: @job.reload, workflow: result.workflow, run: result.run, refresh: refresh, cleared_handled_sha: cleared)
     end
 
     private
