@@ -198,7 +198,29 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message).to start_with("Add greeting helper")
     end
 
-    it "refuses to rewrite a different commit than the successful implement run recorded" do
+    it "allows deterministic commits on top of the successful implement run" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      Run.create!(
+        job: job,
+        step: implement_step,
+        trigger_kind: "initial",
+        state: "succeeded",
+        head_sha: implement_sha
+      )
+
+      File.write(@ws_path.join("wrong_head.rb"), "class WrongHead; end\n")
+      sh("git -C #{@ws_path} add wrong_head.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Format: apply deterministic formatting'")
+      stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
+
+      handler.call
+
+      expect(workflow.reload.artifact("pr_title")).to eq("Add greeting helper")
+      expect(commit_message).to start_with("Add greeting helper")
+    end
+
+    it "refuses to rewrite when the workspace no longer contains the successful implement run" do
       implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
       implement_sha = head_sha
       implement_run = Run.create!(
@@ -209,6 +231,8 @@ RSpec.describe Steps::Summarize, :ci_only do
         head_sha: implement_sha
       )
 
+      sh("git -C #{@ws_path} checkout --orphan unrelated-head")
+      sh("git -C #{@ws_path} rm -rf .")
       File.write(@ws_path.join("wrong_head.rb"), "class WrongHead; end\n")
       sh("git -C #{@ws_path} add wrong_head.rb")
       sh("git -C #{@ws_path} commit -q -m 'Different workspace HEAD'")
@@ -216,7 +240,7 @@ RSpec.describe Steps::Summarize, :ci_only do
 
       expect {
         handler.call
-      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not match implement run HEAD #{implement_run.head_sha}/)
+      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not contain implement run HEAD #{implement_run.head_sha}/)
       expect(workflow.reload.artifact("pr_title")).to be_nil
       expect(commit_message).to eq("Different workspace HEAD")
     end

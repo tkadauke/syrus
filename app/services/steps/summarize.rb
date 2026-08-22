@@ -30,13 +30,14 @@ module Steps
 
       if (impl_run = implement_run_with_summary)
         log("implement step already called submit_summary — skipping agent call")
-        assert_workspace_matches_successful_implement_head!
+        assert_workspace_contains_successful_implement_head!
         promote_artifacts!(from: impl_run)
         rewrite_implement_commit_message!
         return
       end
       raise StepFailed, "#{workflow.slug} has no completed implement run to summarize" if missing_required_implement_run?
 
+      assert_workspace_contains_successful_implement_head!
       run.update!(prompt: fallback_prompt)
       git_state_before_agent = capture_workspace_git_state
 
@@ -49,7 +50,7 @@ module Steps
       )
 
       assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize")
-      assert_workspace_matches_successful_implement_head!
+      assert_workspace_contains_successful_implement_head!
       promote_artifacts!
       rewrite_implement_commit_message!
     end
@@ -138,16 +139,24 @@ module Steps
       parts.join("\n")
     end
 
-    def assert_workspace_matches_successful_implement_head!
+    def assert_workspace_contains_successful_implement_head!
       expected_sha = successful_implement_run&.head_sha.to_s.strip
       return if expected_sha.blank?
 
       actual_sha = head_sha
       return if actual_sha == expected_sha
+      return if implement_head_ancestor_of?(actual_sha, expected_sha)
 
       raise StepFailed,
             "summarize refused to rewrite commit message because workspace HEAD #{actual_sha} " \
-            "does not match implement run HEAD #{expected_sha}"
+            "does not contain implement run HEAD #{expected_sha}"
+    end
+
+    def implement_head_ancestor_of?(actual_sha, expected_sha)
+      GitRunner.new.run("merge-base", "--is-ancestor", expected_sha, actual_sha, chdir: workspace.path.to_s)
+      true
+    rescue GitRunner::GitError
+      false
     end
   end
 end
