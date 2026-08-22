@@ -9,15 +9,27 @@ RSpec.describe WorkDefinitions do
 
   it "keeps WorkDefinition metadata in sync with Workflow::TriggerKind" do
     described_class.registry.each do |kind, definition_class|
-      trigger_entry = Workflow::TriggerKind.fetch(kind)
       definition = definition_class.new
+      trigger_entry = Workflow::TriggerKind.fetch(definition.workflow_trigger_kind)
 
       expect(definition.kind).to eq(kind)
-      expect(definition.workflow_trigger_kind).to eq(kind)
+      expect(Workflow::TriggerKind.values).to include(definition.workflow_trigger_kind)
       expect(definition.runtime_role).to eq(trigger_entry.runtime_role)
-      expect(definition.workflow_template).to eq(trigger_entry.template_class)
+      if definition.kind == definition.workflow_trigger_kind
+        expect(definition.workflow_template).to eq(trigger_entry.template_class)
+      else
+        expect(definition.workflow_template.trigger_kind).to eq(definition.workflow_trigger_kind)
+      end
       expect(definition.scope).to be_present
     end
+  end
+
+  it "defines checkpoint resume as a first-class retry work definition alias" do
+    definition = described_class.for("checkpoint_resume")
+
+    expect(definition.workflow_trigger_kind).to eq("retry")
+    expect(definition.workflow_template).to eq(Workflows::CheckpointResume)
+    expect(definition).to be_first_class
   end
 
   it "requires child workflow definitions to declare their parent kind" do

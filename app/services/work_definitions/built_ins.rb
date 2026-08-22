@@ -87,6 +87,15 @@ module WorkDefinitions
     self.scope = "job"
   end
 
+  class CheckpointResume < Base
+    self.kind = "checkpoint_resume"
+    self.workflow_trigger_kind = "retry"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+
+    def workflow_template = Workflows::CheckpointResume
+  end
+
   class ManualVisualReview < Base
     self.kind = "manual_visual_review"
     self.workflow_trigger_kind = "manual_visual_review"

@@ -34,7 +34,8 @@ class RunCheckpointResume
     checkpoint = checkpoint_before(failed_step)
     return failure("No published mutation checkpoint is available before #{failed_step.kind}.") unless checkpoint
 
-    workflow = Workflows::CheckpointResume.instantiate(
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "checkpoint_resume",
       job: job,
       agent_provider: agent_provider,
       artifacts: checkpoint_artifacts(source, failed_step, checkpoint)

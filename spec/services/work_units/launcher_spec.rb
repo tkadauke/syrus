@@ -69,4 +69,16 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.trigger_kind).to eq("rebase")
     expect(workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("syrus/parent")
   end
+
+  it "can use a specialized template while recording an existing workflow trigger kind" do
+    workflow = described_class.instantiate(
+      kind: "checkpoint_resume",
+      job: job,
+      artifacts: { "checkpoint_resume_steps" => %w[prepare summarize] }
+    )
+
+    expect(workflow.trigger_kind).to eq("retry")
+    expect(workflow.work_unit.kind).to eq("checkpoint_resume")
+    expect(workflow.steps.pluck(:kind)).to eq(%w[prepare summarize])
+  end
 end
