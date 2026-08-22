@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchChatMedia, fetchChatMessagePins, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
+import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
+import type { WorkspaceTab } from "./workspaceTabs"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
     ...actual,
+    closeChatPreviewPanel: vi.fn(),
     fetchChatMedia: vi.fn(),
     fetchChatMessagePins: vi.fn(),
     fetchCodingCommits: vi.fn(),
@@ -52,6 +54,7 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
     queued_messages: [],
     scratchpad_items: [],
     video_walkthroughs: [],
+    preview_panels: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],
@@ -116,8 +119,8 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
 }
 
 function renderWorkspacePanel(payload: ChatPayload, options: {
-  activeTab?: "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs"
-  onSelectTab?: (tab: "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs") => void
+  activeTab?: WorkspaceTab
+  onSelectTab?: (tab: WorkspaceTab) => void
   onBookmarkSelect?: (messageId: number) => void
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -512,5 +515,50 @@ describe("ChatWorkspacePanel pinned tab", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Discuss aqueducts\./ }))
 
     expect(onBookmarkSelect).toHaveBeenCalledWith(21)
+  })
+})
+
+describe("ChatWorkspacePanel preview panels", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function payloadWithPanel(): ChatPayload {
+    return {
+      ...makePayload(),
+      preview_panels: [
+        { id: 7, title: "Layout mockup", file_count: 2, url: "http://preview-panel-7.lvh.me/", app_close_path: "/api/v1/app/chats/1/preview_panels/7" }
+      ]
+    }
+  }
+
+  it("renders a tab for each open panel and a sandboxed iframe pointed at it once selected", () => {
+    renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(screen.getByRole("button", { name: "Layout mockup" })).toBeInTheDocument()
+
+    const iframe = document.querySelector("iframe")
+    expect(iframe).not.toBeNull()
+    expect(iframe?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/")
+    expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts")
+  })
+
+  it("does not render a preview tab or iframe once the panel list is empty", () => {
+    renderWorkspacePanel(makePayload(), { activeTab: "files" })
+
+    expect(screen.queryByRole("button", { name: "Layout mockup" })).not.toBeInTheDocument()
+    expect(document.querySelector("iframe")).toBeNull()
+  })
+
+  it("closes the panel through the API when the close affordance is clicked", async () => {
+    vi.mocked(closeChatPreviewPanel).mockResolvedValue({ ...makePayload(), preview_panels: [] })
+
+    renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    fireEvent.click(screen.getByRole("button", { name: "Close preview panel: Layout mockup" }))
+
+    await waitFor(() => {
+      expect(closeChatPreviewPanel).toHaveBeenCalledWith("/api/v1/app/chats/1/preview_panels/7")
+    })
   })
 })

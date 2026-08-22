@@ -3528,6 +3528,30 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("attachment_groups", "repositories")).to eq([])
   end
 
+  it "lists open preview panels and closes them through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["preview_panels"]).to contain_exactly(include(
+      "id" => panel.id,
+      "title" => "Layout mockup",
+      "file_count" => 1,
+      "app_close_path" => "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}"
+    ))
+    expect(parse_body["preview_panels"].first["url"]).to include("preview-panel-#{panel.id}.")
+
+    delete "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Layout mockup closed.")
+    expect(parse_body["preview_panels"]).to eq([])
+    expect(panel.reload.state).to eq("closed")
+  end
+
   it "renders attached Epics with their titles" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)
