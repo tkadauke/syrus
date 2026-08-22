@@ -131,37 +131,36 @@ RSpec.describe RunJob, "step-dispatch path" do
     ])
   end
 
-  describe "adversarial review loop integration" do
+  describe "adversarial review loop integration (implement is top-level; the loop starts with the review)" do
     before do
       allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
         RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
       )
     end
 
-    it "runs one review round, then resumes the final implement from the implement session" do
+    it "reviews the top-level implement once, then proceeds straight to grading once the (single-round) budget is exhausted" do
       AppSetting.current.update!(adversarial_review_rounds: 1)
       review_job = Factories.job_record(issue_number: 77, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
       observed_parents = []
 
-      install_adversarial_loop_handlers(observed_parents)
+      install_adversarial_loop_handlers(observed_parents, review_verdicts: { 1 => "needs_work" })
 
       StepDispatcher.start_workflow(review_workflow)
       described_class.perform_now(review_workflow.first_step.runs.last.id)
 
       expect(review_workflow.reload).to be_succeeded
       expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(%w[
-        prepare implement adversarial_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan
+        prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan
       ])
+      expect(review_workflow.steps.where(kind: "implement").count).to eq(1)
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
-        [ "adversarial_review", 1, nil ],
-        [ "implement_final", 1, "implement-1" ]
+        [ "adversarial_review", 1, nil ]
       )
-      expect(observed_parents.none? { |role, _, parent| role == "adversarial_review" && parent&.start_with?("implement") }).to be(true)
     end
 
-    it "runs two review rounds with isolated reviewer session continuity" do
+    it "pairs a repair implement with a second review, then repairs once more with no further review once the budget runs out" do
       AppSetting.current.update!(adversarial_review_rounds: 2)
       review_job = Factories.job_record(issue_number: 78, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -178,8 +177,6 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "implement", 1 ],
         [ "adversarial_review", 1 ],
         [ "implement", 2 ],
-        [ "adversarial_review", 2 ],
-        [ "implement", 1 ],
         [ "format", 1 ],
         [ "generate", 1 ],
         [ "grader_fanout", 1 ],
@@ -191,17 +188,17 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "pr_open", 1 ],
         [ "review_plan", 1 ]
       ])
+      # Only one review ever runs (rounds - 1 = 1): the final iteration is a
+      # repair-only implement with no review budget left to spend on it.
+      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ],
-        [ "implement_review", 2, "implement-1" ],
-        [ "adversarial_review", 2, "review-1" ],
-        [ "implement_final", 1, "implement-2" ]
+        [ "implement_final", 2, "implement-1" ]
       )
-      expect(observed_parents).not_to include([ "adversarial_review", 2, "implement-2" ])
     end
 
-    it "skips only the final implement when the reviewer approves and still completes the workflow" do
+    it "runs straight to grading when the reviewer approves on the first round, without ever creating a repair implement" do
       AppSetting.current.update!(adversarial_review_rounds: 2)
       review_job = Factories.job_record(issue_number: 81, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -217,7 +214,6 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "prepare", "succeeded" ],
         [ "implement", "succeeded" ],
         [ "adversarial_review", "succeeded" ],
-        [ "implement", "skipped" ],
         [ "format", "succeeded" ],
         [ "generate", "succeeded" ],
         [ "grader_fanout", "succeeded" ],
@@ -229,7 +225,11 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "pr_open", "succeeded" ],
         [ "review_plan", "succeeded" ]
       ])
-      expect(review_workflow.steps.where(loop_id: review_workflow.steps.find_by!(kind: "adversarial_review").loop_id, iteration: 2)).to be_empty
+      # Nothing to skip this time: the grade loop no longer leads with an
+      # implement (it's check-first), so approving early doesn't need to
+      # cancel anything — it just advances.
+      expect(review_workflow.steps.where(kind: "implement").count).to eq(1)
+      expect(review_workflow.steps.where(kind: "implement").first).to be_succeeded
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
         [ "adversarial_review", 1, nil ]
@@ -250,13 +250,13 @@ RSpec.describe RunJob, "step-dispatch path" do
       }.to raise_error(Steps::Base::StepFailed, "reviewer crashed")
 
       expect(review_workflow.reload).to be_failed
-      expect(review_workflow.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1, 1 ])
+      expect(review_workflow.steps.where(kind: "implement").pluck(:iteration)).to eq([ 1 ])
       expect(review_workflow.steps.where(kind: "adversarial_review").pluck(:iteration, :state)).to eq([
         [ 1, "failed" ]
       ])
     end
 
-    it "hard-fails when the implement step inside the review loop fails" do
+    it "hard-fails when the top-level implement fails before the review loop ever runs" do
       AppSetting.current.update!(adversarial_review_rounds: 2)
       review_job = Factories.job_record(issue_number: 80, state: "queued")
       review_workflow = Workflows::Initial.instantiate(job: review_job)
@@ -270,6 +270,23 @@ RSpec.describe RunJob, "step-dispatch path" do
 
       expect(review_workflow.reload).to be_failed
       expect(review_workflow.steps.where(kind: "adversarial_review").first.runs).to be_empty
+    end
+
+    it "hard-fails when the final, budget-exhausted repair implement fails" do
+      AppSetting.current.update!(adversarial_review_rounds: 2)
+      review_job = Factories.job_record(issue_number: 82, state: "queued")
+      review_workflow = Workflows::Initial.instantiate(job: review_job)
+      install_adversarial_loop_handlers([], fail_role: "implement_final")
+
+      StepDispatcher.start_workflow(review_workflow)
+
+      expect {
+        described_class.perform_now(review_workflow.first_step.runs.last.id)
+      }.to raise_error(Steps::Base::StepFailed, "implement crashed")
+
+      expect(review_workflow.reload).to be_failed
+      expect(review_workflow.steps.where(kind: "implement", iteration: 2).first.state).to eq("failed")
+      expect(review_workflow.steps.where(kind: "adversarial_review").count).to eq(1)
     end
   end
 

@@ -719,7 +719,7 @@ class StepDispatcher
     return false unless loop_step_kinds(loop_node).last == kind
 
     if review_loop_exit?(artifact_key, exit_verdicts)
-      cancel_and_skip_to_next!(implement_step: @from_step.next_step, cancellation_reason: cancellation_reason)
+      exit_review_loop!(loop_node, cancellation_reason: cancellation_reason)
       true
     elsif @from_step.iteration < loop_max_iterations(loop_node)
       enqueue_next_loop_iteration!(loop_node)
@@ -734,14 +734,33 @@ class StepDispatcher
     exit_verdicts.include?(verdict)
   end
 
-  def cancel_and_skip_to_next!(implement_step:, cancellation_reason:)
-    return unless implement_step
-    continuation = implement_step.next_step
+  # The step right after this loop is only skippable when it's another
+  # redundant run of this loop's own agent_step (e.g. the visual_review
+  # loop's own leading implement, or a repair_first grade loop's leading
+  # implement/respond) — a pass this exit no longer needs since the
+  # reviewer just approved. A review_first grade loop (Initial) has no
+  # such step waiting there anymore (its first iteration is check-only),
+  # so there's nothing to skip: just advance to whatever's next as normal.
+  def exit_review_loop!(loop_node, cancellation_reason:)
+    next_node = @from_step.next_step
+    agent_kind = loop_step_kinds(loop_node).first
+    redundant_agent_step = next_node if next_node&.kind == agent_kind
+
+    cancel_and_skip_to_next!(
+      implement_step: redundant_agent_step,
+      fallback_continuation: next_node,
+      cancellation_reason: cancellation_reason
+    )
+  end
+
+  def cancel_and_skip_to_next!(implement_step:, cancellation_reason:, fallback_continuation: nil)
+    continuation = implement_step ? implement_step.next_step : fallback_continuation
+    return unless continuation
 
     Step.transaction do
-      implement_step.skip_with_reason!(cancellation_reason) if implement_step.may_skip?
+      implement_step.skip_with_reason!(cancellation_reason) if implement_step&.may_skip?
 
-      if continuation&.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
+      if continuation.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
         self.class.create_run_and_enqueue(continuation, @workflow)
       end
     end
@@ -795,7 +814,14 @@ class StepDispatcher
   def loop_node_matches?(node, actual_kinds)
     case node["type"]
     when "loop"
-      Array(node["steps"]).map(&:to_s) == actual_kinds
+      full_steps = Array(node["steps"]).map(&:to_s)
+      return full_steps == actual_kinds unless node["review_first"]
+
+      # A review_first loop's materialized shape varies by iteration: just
+      # the review step (iteration 1), the full agent+review pair (middle
+      # iterations), or just the agent step (the final, budget-exhausted
+      # iteration — see StepDispatcher#enqueue_next_loop_iteration!).
+      actual_kinds == full_steps || actual_kinds == [ full_steps.last ] || actual_kinds == [ full_steps.first ]
     when "retry_until"
       check_steps = Array(node["check"]).map(&:to_s)
       actual_kinds == check_steps || actual_kinds == loop_step_kinds(node)
@@ -817,6 +843,14 @@ class StepDispatcher
     else
       []
     end
+  end
+
+  # The final iteration of a review_first loop (budget exhausted) drops
+  # the trailing review step — it's the last repair attempt, and there's
+  # no iteration left to act on further review feedback. See
+  # Workflows::Loop.
+  def final_review_iteration?(loop_node, iteration)
+    loop_node["type"] == "loop" && loop_node["review_first"] && iteration == loop_max_iterations(loop_node)
   end
 
   def handle_try_failure
@@ -936,6 +970,7 @@ class StepDispatcher
     insertion_position = current_grade.position + 1
     next_iteration = current_grade.iteration + 1
     loop_steps = loop_step_kinds(loop_node)
+    loop_steps = loop_steps.first(loop_steps.size - 1) if final_review_iteration?(loop_node, next_iteration)
     Step.transaction do
       loop_step_count = loop_steps.size
       @workflow.steps.where("position >= ?", insertion_position).update_all(
