@@ -6,9 +6,12 @@ RSpec.describe SccacheStatsCapture do
 
   describe ".capture" do
     it "returns nil when the sccache binary is not on PATH" do
-      # No stubbing: this sandbox genuinely has no `sccache` binary, so this
-      # exercises the real Errno::ENOENT path a non-C/C++ repo (or an image
-      # built before sccache existed) hits on every call.
+      # Some worker images (this one included) have sccache installed for
+      # other repos, so stub the ENOENT Open3 raises when the binary is
+      # missing from PATH rather than relying on this sandbox's ambient
+      # tool availability.
+      allow(Open3).to receive(:capture2e).and_raise(Errno::ENOENT)
+
       expect(described_class.capture(env: env, chdir: chdir)).to be_nil
     end
 
