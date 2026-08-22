@@ -27,6 +27,7 @@ RSpec.describe UrgentJobClosedJob do
     create_urgent_job!(state: "closed")
     workflow, step = create_blocked_workflow!
 
+    expect(WorkUnits::Launcher).to receive(:start!).with(workflow).once.and_call_original
     expect {
       described_class.new.perform(repository.id)
     }.to change { step.runs.count }.by(1)

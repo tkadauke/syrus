@@ -16,7 +16,7 @@ class UrgentJobClosedJob < ApplicationJob
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
       .find_each do |workflow|
         next unless workflow.artifact("start_blocked_reason") == StepDispatcher::URGENT_BLOCK_REASON
-        StepDispatcher.start_workflow(workflow)
+        WorkUnits::Launcher.start!(workflow)
       end
   end
 end

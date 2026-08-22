@@ -1494,6 +1494,8 @@ Completed slices:
 - Queued workflow continuation starts from dependency unblock and start-block
   rechecks now route through `WorkUnits::Launcher.start!` rather than calling
   `StepDispatcher` directly.
+- Urgent-job release now resumes held queued workflows through
+  `WorkUnits::Launcher.start!`.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
