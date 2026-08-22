@@ -132,6 +132,12 @@ RSpec.describe RunJob, "step-dispatch path" do
   end
 
   describe "adversarial review loop integration" do
+    before do
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+      )
+    end
+
     it "runs one review round, then resumes the final implement from the implement session" do
       AppSetting.current.update!(adversarial_review_rounds: 1)
       review_job = Factories.job_record(issue_number: 77, state: "queued")

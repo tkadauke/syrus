@@ -459,6 +459,9 @@ RSpec.describe StepDispatcher do
 
     it "staggers medium-priority workflows when predicted grader pressure would overlap" do
       repository = job.repository
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+      )
       existing = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
       candidate = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
       candidate_first = candidate.first_step

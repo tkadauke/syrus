@@ -12,6 +12,9 @@ RSpec.describe Workflows::ChatFeedback do
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
       RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
   end
 
   it "materializes the standard chain with coverage steps always present" do
@@ -20,6 +23,22 @@ RSpec.describe Workflows::ChatFeedback do
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
       %w[ prepare respond format generate grader_fanout grader_collect coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
     )
+  end
+
+  context "when formatters, generated, and grade are all unconfigured" do
+    before do
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: false, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "materializes a bare respond step with no format/generate/grader steps at all" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare respond coverage_analyze coverage_pr_comment dependency_audit dependency_audit_pr_comment summarize_amend refresh_job_metadata push ]
+      )
+    end
   end
 
   it "places metadata refresh after summarize_amend and before push" do
