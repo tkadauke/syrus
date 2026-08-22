@@ -58,7 +58,7 @@ module JobCodingMode
       artifacts: handoff_artifacts,
       agent_provider: agent_provider
     )
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
     workflow
   end
 

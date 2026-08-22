@@ -30,12 +30,13 @@ RSpec.describe PendingActions::CompleteImplementStep do
                                linked_chat_id: chat_session.id)
     action = pending_action(job)
 
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
     action.confirm!(user: user)
 
     expect(action.reload).to be_confirmed
     expect(action.result).to be_a(Workflow)
     expect(action.result.trigger_kind).to eq("coding_handoff")
+    expect(action.result.work_unit).to be_present
   end
 
   it "transitions the job out of coding state" do
@@ -43,7 +44,7 @@ RSpec.describe PendingActions::CompleteImplementStep do
                                linked_chat_id: chat_session.id)
     action = pending_action(job)
 
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
     action.confirm!(user: user)
 
     expect(job.reload).not_to be_coding

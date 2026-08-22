@@ -2687,6 +2687,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.reload).not_to be_coding
         expect(job.linked_chat_id).to be_nil
         expect(workflow.artifact("coding_handoff_chat_id")).to eq(chat_session.id)
+        expect(workflow.work_unit).to be_present
       end
 
       it "returns false when job is not in coding state" do

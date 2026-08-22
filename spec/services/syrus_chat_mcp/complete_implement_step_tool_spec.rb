@@ -11,7 +11,7 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
       record.name = "Coding Mode"
     end
     feature.update!(enabled: true)
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
   end
 
   def server
@@ -51,7 +51,7 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     expect(workflow.trigger_kind).to eq("coding_handoff")
     expect(job.reload.linked_chat_id).to eq(chat_session.id)
     expect(ChatJobStatusQuery.call(chat_session).map { |item| item[:job_id] }).to include(job.id)
-    expect(StepDispatcher).to have_received(:start_workflow)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
   it "uses a supplied replacement branch_name instead of the stale stored branch" do

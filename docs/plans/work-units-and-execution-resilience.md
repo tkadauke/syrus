@@ -1505,6 +1505,9 @@ Completed slices:
   dispatch now start maintenance workflows through `WorkUnits::Launcher.start!`.
 - Operator pending actions for `rebase_job`, `force_rebase`, and `restack_epic`
   now start their rebase workflows through `WorkUnits::Launcher.start!`.
+- Coding and local-mode handoff workflows now start through
+  `WorkUnits::Launcher.start!` after handoff state changes, covering both
+  pending-action confirmation and direct MCP `complete_implement_step` calls.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
