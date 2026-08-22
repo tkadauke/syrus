@@ -544,7 +544,7 @@ class LandingQueueProcessor
     end
     return unless landed
 
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
     workflow
   end
 

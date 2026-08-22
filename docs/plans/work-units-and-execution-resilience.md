@@ -1473,6 +1473,10 @@ Completed slices:
 - External PR ingest, external PR feedback, and external PR ingest retry now use
   the launcher create-plus-dispatch result instead of direct `StepDispatcher`
   calls in their poll/retry services.
+- Landing queue, job bundle, and merge-train dispatch now route post-transaction
+  starts through `WorkUnits::Launcher.start!`, preserving their existing
+  create-under-lock/start-after-commit boundary while removing direct dispatcher
+  calls from the landing services.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

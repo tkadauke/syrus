@@ -59,7 +59,7 @@ class JobBundleDispatcher
 
     return unless workflow
 
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
     workflow
   end
 

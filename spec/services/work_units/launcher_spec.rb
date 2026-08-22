@@ -141,6 +141,16 @@ RSpec.describe WorkUnits::Launcher do
     ])
   end
 
+  it "can start an existing workflow through the launcher boundary" do
+    workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
+
+    result = described_class.start!(workflow)
+
+    expect(result.workflow).to eq(workflow)
+    expect(result.run).to be_queued
+    expect(result.run.step).to eq(workflow.first_step)
+  end
+
   it "snapshots merge train members from the merge train artifact" do
     epic = Factories.epic(user: user, repository: repository)
     first = Factories.job_record(user: user, repository: repository, epic: epic)

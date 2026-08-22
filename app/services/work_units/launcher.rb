@@ -27,7 +27,11 @@ module WorkUnits
         **options
       )
       before_start&.call(workflow)
-      Result.new(workflow: workflow, run: StepDispatcher.start_workflow(workflow))
+      start!(workflow)
+    end
+
+    def self.start!(workflow, **options)
+      Result.new(workflow: workflow, run: StepDispatcher.start_workflow(workflow, **options))
     end
 
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:)
