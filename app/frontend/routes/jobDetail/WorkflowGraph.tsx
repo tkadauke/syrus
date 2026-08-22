@@ -691,6 +691,24 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
           </p>
+          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            {run.started_at ? (
+              <>
+                <span>{t("run_started_at")}</span>
+                <RelativeTimestamp value={run.started_at} />
+              </>
+            ) : (
+              <span>{t("run_not_started")}</span>
+            )}
+            {run.finished_at ? (
+              <>
+                <span>·</span>
+                <span>{t("run_finished_at")}</span>
+                <RelativeTimestamp value={run.finished_at} />
+                <span>({formatDuration(run.started_at, run.finished_at)})</span>
+              </>
+            ) : null}
+          </p>
           {run.agent_summary ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={run.agent_summary} /> : null}
           {run.skill_source ? (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
