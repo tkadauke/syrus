@@ -76,6 +76,7 @@
     "landing_paused_main_health": "Arbeit pausiert — Repository-Gesundheit muss geprüft werden.",
     "all_items_job": "Alle Aufgaben",
     "all_items_epic": "Alle Epics",
+    "all_items_epic_simple": "Alle Funktionen",
     "all_items_workflow": "Alle Workflows",
     "names": {
       "all_jobs": "Alle Aufgaben",
@@ -92,6 +93,7 @@
       "stale": "Veraltet",
       "merged_this_week": "Diese Woche zusammengeführt",
       "epics_mine": "Meine Epics",
+      "epics_mine_simple": "Meine Funktionen",
       "epics_claimable": "Übernehmbar",
       "epics_in_progress": "In Bearbeitung",
       "epics_ready": "Bereit",

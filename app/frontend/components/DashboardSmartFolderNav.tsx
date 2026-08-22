@@ -13,7 +13,7 @@ import { errorMessage } from "../lib/errorMessage"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
+type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "rows_current_for_search" | "simple_mode" | "smart_folders" | "subject" | "view">
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardSmartFolderPayload; prefix: string; search: string }) {
   const { t } = useT("nav")
@@ -40,7 +40,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view })
   const allJobsLink = (
     <Link className={folderClass(activeSmartFolderId == null)} onClick={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null })} to={allPath}>
-      {allSubjectLabel(payload.subject, t)}
+      {allSubjectLabel(payload.subject, t, payload.simple_mode ?? false)}
     </Link>
   )
   const appliedTree = filterTreeFromPayload(payload.filter)
@@ -142,12 +142,12 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     <aside aria-label={t("smart_folders_panel_aria")} className="space-y-2">
       <nav aria-label={t("smart_folders_aria")} className="space-y-1">
         {payload.subject === "job" ? null : allJobsLink}
-        {primaryFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
+        {primaryFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} simpleMode={payload.simple_mode} />)}
         {moreFolders.length > 0 ? (
           <details className="space-y-1" open={moreFolders.some((folder) => folder.id === activeSmartFolderId || folder.active) || undefined}>
             <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.more")}</summary>
             <div className="space-y-1">
-              {moreFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
+              {moreFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} simpleMode={payload.simple_mode} />)}
             </div>
           </details>
         ) : null}
@@ -168,6 +168,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
                 onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })}
                 prefix={prefix}
                 showDragHandle
+                simpleMode={payload.simple_mode}
               />
             ))}
           </nav>
@@ -239,7 +240,8 @@ function SmartFolderLink({
   onDrop,
   onSelect,
   prefix,
-  showDragHandle = false
+  showDragHandle = false,
+  simpleMode = false
 }: {
   draggable?: boolean
   folder: DashboardSmartFolder
@@ -250,6 +252,7 @@ function SmartFolderLink({
   onSelect?: () => void
   prefix: string
   showDragHandle?: boolean
+  simpleMode?: boolean
 }) {
   const { t } = useT("nav")
   const queryClient = useQueryClient()
@@ -359,7 +362,7 @@ function SmartFolderLink({
   }
 
   const displayName = (folder.kind !== "user_defined" && folder.key)
-    ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
+    ? t(`smart_folder.names.${simpleMode && folder.key === "epics_mine" ? "epics_mine_simple" : folder.key}`, { defaultValue: folder.name })
     : folder.name
 
   if (folder.kind === "user_defined") {
@@ -546,9 +549,13 @@ function subjectPath(subject: DashboardSubject) {
   return "/dashboard/epics"
 }
 
-function allSubjectLabel(subject: DashboardSubject, t: (key: string, options?: Record<string, unknown>) => string) {
+function allSubjectLabel(subject: DashboardSubject, t: (key: string, options?: Record<string, unknown>) => string, simpleMode: boolean) {
   if (subject === "job") return t("smart_folder.all_items_job", { defaultValue: "All jobs" })
-  if (subject === "epic") return t("smart_folder.all_items_epic", { defaultValue: "All epics" })
+  if (subject === "epic") {
+    return simpleMode
+      ? t("smart_folder.all_items_epic_simple", { defaultValue: "All features" })
+      : t("smart_folder.all_items_epic", { defaultValue: "All epics" })
+  }
   return t("smart_folder.all_items_workflow", { defaultValue: "All workflows" })
 }
 

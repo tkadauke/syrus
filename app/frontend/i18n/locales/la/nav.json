@@ -76,6 +76,7 @@
     "landing_paused_main_health": "Opera suspensa — sanitas receptaculi recognoscenda est.",
     "all_items_job": "Omnia Opera",
     "all_items_epic": "Omnia Epica",
+    "all_items_epic_simple": "Omnia Features",
     "all_items_workflow": "Omnes Cursus",
     "names": {
       "all_jobs": "Omnia Opera",
@@ -92,6 +93,7 @@
       "stale": "Obsoleta",
       "merged_this_week": "Hac Hebdomade Unita",
       "epics_mine": "Epica Mea",
+      "epics_mine_simple": "Features Mea",
       "epics_claimable": "Capessibilia",
       "epics_in_progress": "In Progressu",
       "epics_ready": "Parata",

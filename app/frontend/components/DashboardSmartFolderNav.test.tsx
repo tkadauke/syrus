@@ -360,6 +360,38 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
   })
 
+  it("renders advanced-mode epic labels by default", () => {
+    renderNav([
+      folder({ id: 7, name: "My epics", key: "epics_mine", kind: "builtin", position: 0, path: "/dashboard/epics?smart_folder_id=7" })
+    ], {
+      payload: { subject: "epic" }
+    })
+
+    expect(screen.getByRole("link", { name: "All epics" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "My epics 3" })).toBeInTheDocument()
+  })
+
+  it("renders simple-mode feature labels for the epic subject", () => {
+    renderNav([
+      folder({ id: 7, name: "My epics", key: "epics_mine", kind: "builtin", position: 0, path: "/dashboard/epics?smart_folder_id=7" })
+    ], {
+      payload: { subject: "epic", simple_mode: true }
+    })
+
+    expect(screen.getByRole("link", { name: "All features" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "My features 3" })).toBeInTheDocument()
+  })
+
+  it("leaves non-epics_mine builtin folder labels unchanged in simple mode", () => {
+    renderNav([
+      folder({ id: 8, name: "Claimable", key: "epics_claimable", kind: "builtin", position: 0, path: "/dashboard/epics?smart_folder_id=8" })
+    ], {
+      payload: { subject: "epic", simple_mode: true }
+    })
+
+    expect(screen.getByRole("link", { name: "Claimable 3" })).toBeInTheDocument()
+  })
+
   it("compares selected folder filters independent of object key order", () => {
     renderNav([
       folder({
