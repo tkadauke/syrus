@@ -27,6 +27,15 @@ module App
         end
       end
 
+      def active_work_json
+        member = active_work_unit_member_for_job
+        return nil unless member
+
+        work_unit_json(member.work_unit, member).merge(
+          current_step: current_work_unit_step_json(member.work_unit)
+        )
+      end
+
       def work_unit_json(unit, member)
         workflow = unit.workflow
         {
@@ -51,6 +60,17 @@ module App
         }
       end
 
+      def active_work_unit_member_for_job
+        @active_work_unit_member_for_job ||= PerformanceLogging.phase("job_detail.active_work.query", job_id: @job.id) do
+          WorkUnitMember
+            .joins(:work_unit)
+            .includes(work_unit: [ :workflow, :work_intent ])
+            .where(job_id: @job.id, work_units: { state: %w[queued blocked running] })
+            .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+            .first
+        end
+      end
+
       def work_unit_members_for_job
         @work_unit_members_for_job ||= PerformanceLogging.phase("job_detail.work_units.query", job_id: @job.id) do
           WorkUnitMember
@@ -61,6 +81,25 @@ module App
             .limit(50)
             .to_a
         end
+      end
+
+      def current_work_unit_step_json(unit)
+        workflow = unit.workflow
+        return nil unless workflow
+
+        step = workflow.steps
+          .where(state: %w[running queued])
+          .reorder(Arel.sql("CASE state WHEN 'running' THEN 0 ELSE 1 END"), :position, :id)
+          .first
+        return nil unless step
+
+        {
+          id: step.id,
+          kind: step.kind,
+          display_name: step_display_name(step),
+          state: step.state,
+          position: step.position
+        }
       end
 
       def workflow_json(workflow)

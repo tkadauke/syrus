@@ -441,6 +441,50 @@ RSpec.describe "App API job detail", type: :request do
     expect(body.dig("workflows_pagination", "total_workflows")).to eq(job.workflows.count)
   end
 
+  it "returns active work from the current WorkUnit without loading the workflow graph" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["workflows"]).to eq([])
+    expect(body["active_work"]).to include(
+      "kind" => "manual_visual_review",
+      "state" => "queued",
+      "workflow_id" => workflow.id,
+      "workflow_attached_job_id" => job.id,
+      "member_role" => "primary",
+      "current_step" => include(
+        "kind" => "prepare",
+        "state" => "queued"
+      )
+    )
+  end
+
+  it "returns active Epic-wide work for member jobs whose workflow is attached elsewhere" do
+    epic = Factories.epic(user: user, repository: repo)
+    first = Factories.job_record(user: user, repository: repo, epic: epic)
+    second = Factories.job_record(user: user, repository: repo, epic: epic)
+    train = MergeTrain.create!(epic: epic, repository: repo, base_branch: "main")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+    workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: second, artifacts: { "merge_train_id" => train.id })
+
+    get "/api/v1/app/jobs/#{first.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["active_work"]).to include(
+      "kind" => "merge_train",
+      "state" => "queued",
+      "workflow_id" => workflow.id,
+      "workflow_attached_job_id" => second.id,
+      "member_role" => "primary",
+      "scope_type" => "epic",
+      "scope_id" => epic.id
+    )
+  end
+
   it "returns a workflow-only job detail payload for live workflow refreshes" do
     run = job.initial_run
     run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "digging trench")

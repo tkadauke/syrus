@@ -500,6 +500,13 @@ export type JobWorkUnit = {
   blocked_reason: string | null
   blocked_until: string | null
   blocked_details: Record<string, unknown> | null
+  current_step?: {
+    id: number
+    kind: string
+    display_name: string
+    state: string
+    position: number
+  } | null
   created_at: string | null
   started_at: string | null
   finished_at: string | null
@@ -792,6 +799,7 @@ export type JobDetailPayload = {
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
+  active_work?: JobWorkUnit | null
   work_units?: JobWorkUnit[]
   workflows: JobWorkflow[]
   workflows_pagination: JobWorkflowsPagination
