@@ -704,15 +704,17 @@ function SidebarContent({
             <PlusIcon />
             <span>{t("nav:new_chat")}</span>
           </button>
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            disabled={!user}
-            onClick={onStartGroupChat}
-            type="button"
-          >
-            <TeamIcon />
-            <span>{t("nav:new_group_chat")}</span>
-          </button>
+          {showTeamProfile ? (
+            <button
+              className="inline-flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={!user}
+              onClick={onStartGroupChat}
+              type="button"
+            >
+              <TeamIcon />
+              <span>{t("nav:new_group_chat")}</span>
+            </button>
+          ) : null}
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
         </div>
         <div className="px-3 pb-4">
