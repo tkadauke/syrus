@@ -705,6 +705,8 @@ RSpec.describe "App API insight suggestions", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(Job.where(kind: "agent_insight", repository: repository).count).to eq(1)
+      workflow = Job.find_by!(kind: "agent_insight", repository: repository).workflows.last
+      expect(workflow.work_unit).to be_present
     end
 
     it "does not create a duplicate when an insight job is already running" do

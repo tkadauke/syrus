@@ -1480,6 +1480,8 @@ Completed slices:
 - Scheduled task fires now route their prompt-specific starts through
   `WorkUnits::Launcher.start!`, preserving rendered prompts for freeform cron
   tasks and blank prompts for skill tasks while retaining WorkUnit ownership.
+- Automatic and manual agent-insight workflow starts now use
+  `WorkUnits::Launcher.create_and_start!` instead of direct dispatcher calls.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

@@ -379,8 +379,7 @@ module Api
               issue_title: "Insight analysis: #{repository.slug}",
               owner_user: user
             )
-            workflow = WorkUnits::Launcher.instantiate(kind: "agent_insight", job: j)
-            StepDispatcher.start_workflow(workflow)
+            WorkUnits::Launcher.create_and_start!(kind: "agent_insight", job: j)
             j
           end
 
