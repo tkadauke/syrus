@@ -1,0 +1,155 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Author-time only: normalizes a sourced plugin icon into the flat SVG shape
+# every icon under public/plugin-icons/ shares, so a row of them (list rows,
+# badges, dropdown options) reads as one consistent set instead of a
+# grab-bag of whatever padding/viewBox each upstream source shipped with.
+#
+# This script is invoked by a developer's workstation when adding or
+# updating a plugin icon; it is never run by a workflow agent, never
+# shipped in the worker Docker image, and has nothing to do with rendering
+# target-repository code. Same posture as public/icon.png being a
+# checked-in static asset rather than something generated at runtime.
+#
+# Usage:
+#   bin/process-plugin-icon SOURCE OUTPUT [--padding=FRACTION]
+#
+#   SOURCE     path to the sourced icon (.svg, or a raster format Vips
+#              supports: .png, .jpg, .webp, ...)
+#   OUTPUT     path to write the normalized .svg to
+#   --padding  fraction of the 24x24 target box to leave as margin on each
+#              side (default 0 - most sourced marks, e.g. Simple Icons,
+#              already sit full-bleed in a square viewBox). Use a larger
+#              value for a source that reads "tighter" than the rest of the
+#              set once placed in a row.
+#
+# Caveat: SVG normalization fits the source's declared viewBox (or
+# width/height) into the target box, not the actual ink bounding box of its
+# path data - computing a true geometric bounding box needs a real SVG
+# renderer. In practice sourced marks are already close to full-bleed
+# within their own viewBox, so this is sufficient; a visibly off-center or
+# oddly-inset result should be fixed by hand-adjusting --padding or the
+# source file, not by adding a rasterizing renderer here.
+
+require "bundler/setup"
+require "rexml/document"
+require "optparse"
+require "fileutils"
+require "base64"
+
+TARGET_SIZE = 24
+RASTER_EXTENSIONS = %w[.png .jpg .jpeg .webp .gif .tiff].freeze
+
+def fail_with(message)
+  warn "[process-plugin-icon] #{message}"
+  exit 1
+end
+
+padding = 0.0
+OptionParser.new do |opts|
+  opts.banner = "Usage: bin/process-plugin-icon SOURCE OUTPUT [--padding=FRACTION]"
+  opts.on("--padding=FRACTION", Float, "Margin fraction of the 24x24 box on each side (default 0)") { |v| padding = v }
+end.parse!(ARGV)
+
+source_path, output_path = ARGV
+fail_with("usage: bin/process-plugin-icon SOURCE OUTPUT [--padding=FRACTION]") unless source_path && output_path
+fail_with("no such file: #{source_path}") unless File.file?(source_path)
+fail_with("--padding must be less than 0.5") if padding >= 0.5
+
+def parse_source_box(root)
+  if (view_box = root.attributes["viewBox"])
+    parts = view_box.strip.split(/[\s,]+/).map(&:to_f)
+    return parts if parts.size == 4
+  end
+
+  width = root.attributes["width"].to_f
+  height = root.attributes["height"].to_f
+  return [ 0.0, 0.0, width, height ] if width.positive? && height.positive?
+
+  fail_with("source SVG has no viewBox and no numeric width/height to infer one from")
+end
+
+def normalize_svg(source_path, output_path, padding)
+  document = REXML::Document.new(File.read(source_path))
+  root = document.root
+  fail_with("#{source_path} has no root <svg> element") unless root
+
+  min_x, min_y, source_width, source_height = parse_source_box(root)
+  fail_with("source viewBox/dimensions must be positive") unless source_width.positive? && source_height.positive?
+
+  usable = TARGET_SIZE * (1 - (2 * padding))
+  scale = usable / [ source_width, source_height ].max
+  offset = TARGET_SIZE * padding
+  tx = offset + ((usable - (source_width * scale)) / 2) - (min_x * scale)
+  ty = offset + ((usable - (source_height * scale)) / 2) - (min_y * scale)
+
+  fill = root.attributes["fill"]
+  title = root.elements["title"]&.text
+
+  normalized = REXML::Document.new
+  svg = normalized.add_element("svg", {
+    "xmlns" => "http://www.w3.org/2000/svg",
+    "viewBox" => "0 0 #{TARGET_SIZE} #{TARGET_SIZE}",
+    "role" => "img"
+  })
+  svg.add_element("title").text = title if title
+  group = svg.add_element("g", { "transform" => "translate(#{format('%.4f', tx)} #{format('%.4f', ty)}) scale(#{format('%.6f', scale)})" })
+  group.add_attribute("fill", fill) if fill
+
+  root.each_element do |child|
+    next if child.name == "title"
+
+    group.add_element(child.deep_clone)
+  end
+
+  FileUtils.mkdir_p(File.dirname(output_path))
+  formatter = REXML::Formatters::Pretty.new(2)
+  formatter.compact = true
+  File.open(output_path, "w") { |f| formatter.write(normalized, f) }
+end
+
+def normalize_raster(source_path, output_path, padding)
+  require "image_processing/vips"
+
+  usable = TARGET_SIZE * (1 - (2 * padding))
+  processed = ImageProcessing::Vips
+    .source(source_path)
+    .resize_to_fit(usable.round, usable.round)
+    .call
+
+  data = File.binread(processed.path)
+  encoded = Base64.strict_encode64(data)
+  mime = case File.extname(source_path).downcase
+  when ".jpg", ".jpeg" then "image/jpeg"
+  when ".webp" then "image/webp"
+  when ".gif" then "image/gif"
+  else "image/png"
+  end
+
+  image = Vips::Image.new_from_buffer(data, "")
+  offset_x = ((TARGET_SIZE - ((usable / [ image.width, image.height ].max) * image.width)) / 2).round(4)
+  offset_y = ((TARGET_SIZE - ((usable / [ image.width, image.height ].max) * image.height)) / 2).round(4)
+  width = ((usable / [ image.width, image.height ].max) * image.width).round(4)
+  height = ((usable / [ image.width, image.height ].max) * image.height).round(4)
+
+  svg = <<~SVG
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 #{TARGET_SIZE} #{TARGET_SIZE}" role="img">
+      <image x="#{offset_x}" y="#{offset_y}" width="#{width}" height="#{height}" href="data:#{mime};base64,#{encoded}"/>
+    </svg>
+  SVG
+
+  FileUtils.mkdir_p(File.dirname(output_path))
+  File.write(output_path, svg)
+ensure
+  processed&.close if processed.respond_to?(:close)
+end
+
+if File.extname(source_path).downcase == ".svg"
+  normalize_svg(source_path, output_path, padding)
+else
+  fail_with("unsupported raster extension: #{File.extname(source_path)}") unless RASTER_EXTENSIONS.include?(File.extname(source_path).downcase)
+  normalize_raster(source_path, output_path, padding)
+end
+
+puts "[process-plugin-icon] wrote #{output_path}"

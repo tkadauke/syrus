@@ -813,7 +813,10 @@ describe("JobDetailView", () => {
       workflows_pagination: workflowPagination(1)
     }), { activeTab: "workflows" })
 
-    expect(screen.getByText("Detected: ruby, syrus-rails, javascript")).toBeInTheDocument()
+    expect(screen.getByText("Detected:")).toBeInTheDocument()
+    expect(screen.getByText("ruby")).toBeInTheDocument()
+    expect(screen.getByText("syrus-rails")).toBeInTheDocument()
+    expect(screen.getByText("javascript")).toBeInTheDocument()
   })
 
   it("omits the detected plugin line when nothing was detected", () => {

@@ -11,6 +11,7 @@ import { StatusPill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { buttonClass } from "../../lib/buttonClasses"
+import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
@@ -93,7 +94,15 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
           </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">{workflow.trigger_kind} · {workflow.agent_provider || t("workflow_default_agent")} · {t("workflow_created")} <RelativeTimestamp value={workflow.created_at} /></p>
           {detectedPlugins.length > 0 ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t("workflow_detected_plugins", { plugins: detectedPlugins.join(", ") })}</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+              <span>{t("workflow_detected_plugins_label")}</span>
+              {detectedPlugins.map((name) => (
+                <span className="inline-flex items-center gap-1" key={name}>
+                  <img alt="" aria-hidden="true" className="h-3.5 w-3.5 shrink-0" src={pluginIconSrc(name)} />
+                  {name}
+                </span>
+              ))}
+            </p>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">

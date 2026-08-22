@@ -18,6 +18,7 @@ module JavaScript
         version:          JavaScript::VERSION,
         description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; npm/yarn/pnpm audit dependency scanning; default `any`-type review criterion",
         homepage:         "https://github.com/tkadauke/syrus",
+        icon_url:         "/plugin-icons/javascript.svg",
         prepare_priority: 20,
         provides: {
           prepare_detector:         JavaScript::PrepareDetector,

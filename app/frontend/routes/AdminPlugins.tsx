@@ -112,6 +112,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
             <h2 className="break-words text-base font-semibold text-gray-900 dark:text-gray-100">{plugin.display_name || plugin.name}</h2>
             {plugin.display_name && plugin.display_name !== plugin.name ? <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span> : null}
             <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{plugin.version}</span>

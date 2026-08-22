@@ -22,6 +22,7 @@ export type AdminPlugin = {
   category: string | null
   description: string | null
   homepage: string | null
+  icon_url: string | null
   author: string | null
   source: string | null
   extension_points: AdminPluginExtensionPoint[]
