@@ -54,6 +54,7 @@ RSpec.describe WorkUnit do
   it "marks running and terminal lifecycle states" do
     unit = described_class.create!(work_intent: intent, kind: "initial", state: "blocked", scope_type: "job", scope_id: 123,
                                    blocked_reason: "manual_pause", blocked_details: { "operator" => true })
+    lock = unit.work_unit_locks.create!(lock_key: "job:123")
 
     unit.mark_running!
     expect(unit).to have_attributes(state: "running", blocked_reason: nil, finished_at: nil)
@@ -62,6 +63,7 @@ RSpec.describe WorkUnit do
     unit.mark_terminal!("succeeded")
     expect(unit).to have_attributes(state: "succeeded")
     expect(unit.finished_at).to be_present
+    expect(lock.reload).not_to be_active
   end
 
   it "rejects non-terminal states through mark_terminal!" do

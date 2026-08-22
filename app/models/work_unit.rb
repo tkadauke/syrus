@@ -77,14 +77,17 @@ class WorkUnit < ApplicationRecord
   def mark_terminal!(state)
     raise ArgumentError, "state must be terminal" unless state.to_s.in?(%w[succeeded failed cancelled])
 
-    update!(
-      state: state.to_s,
-      finished_at: finished_at || Time.current,
-      blocked_reason: nil,
-      blocked_until: nil,
-      blocked_details: {},
-      blocked_by_user: nil
-    )
+    transaction do
+      update!(
+        state: state.to_s,
+        finished_at: finished_at || Time.current,
+        blocked_reason: nil,
+        blocked_until: nil,
+        blocked_details: {},
+        blocked_by_user: nil
+      )
+      work_unit_locks.active.find_each(&:release!)
+    end
   end
 
   def request_pause!

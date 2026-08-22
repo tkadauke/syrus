@@ -8,12 +8,21 @@ RSpec.describe WorkUnitLock do
     end
   end
 
-  it "sets acquired_at and enforces unique lock keys" do
+  it "sets acquired_at and can be released" do
     lock = described_class.create!(work_unit: work_unit, lock_key: "job:123")
-    duplicate = described_class.new(work_unit: work_unit, lock_key: "job:123")
 
     expect(lock.acquired_at).to be_present
-    expect(duplicate).not_to be_valid
-    expect(duplicate.errors[:lock_key]).to be_present
+    expect(lock).to be_active
+    expect {
+      lock.release!
+    }.to change { lock.reload.released_at }.from(nil)
+    expect(lock).not_to be_active
+  end
+
+  it "allows repeated historical lock keys while active enforcement is shadowed" do
+    described_class.create!(work_unit: work_unit, lock_key: "job:123")
+    duplicate = described_class.new(work_unit: work_unit, lock_key: "job:123")
+
+    expect(duplicate).to be_valid
   end
 end

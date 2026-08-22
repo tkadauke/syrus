@@ -23,9 +23,23 @@ module WorkDefinitions
       Workflow::TriggerKind.template_for(workflow_trigger_kind)
     end
 
+    def lock_keys_for(job:, member_jobs:)
+      keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
+      keys << "epic:#{job.epic_id}" if scope == "epic" && job.epic_id.present?
+      keys << "repository:#{job.repository_id}" if scope == "repository" && job.repository_id.present?
+      keys << "landing:repository:#{job.repository_id}" if landing_lock?
+      keys.uniq
+    end
+
     def first_class? = runtime_role == "first_class"
     def child? = runtime_role == "child"
     def infrastructure? = runtime_role == "infrastructure"
     def legacy? = runtime_role == "legacy"
+
+    private
+
+    def landing_lock?
+      kind.in?(%w[auto_merge external_pr_merge merge_train landing_validation merge_train_validation])
+    end
   end
 end

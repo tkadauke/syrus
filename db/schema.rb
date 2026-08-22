@@ -2214,9 +2214,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_173241) do
     t.datetime "acquired_at", null: false
     t.datetime "created_at", null: false
     t.string "lock_key", limit: 255, null: false
+    t.datetime "released_at"
     t.datetime "updated_at", null: false
     t.bigint "work_unit_id", null: false
-    t.index ["lock_key"], name: "idx_work_unit_locks_lock_key", unique: true
+    t.index ["lock_key", "released_at"], name: "idx_work_unit_locks_key_release"
+    t.index ["lock_key"], name: "idx_work_unit_locks_lock_key"
     t.index ["work_unit_id"], name: "idx_work_unit_locks_unit"
   end
 

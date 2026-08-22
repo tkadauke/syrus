@@ -25,6 +25,7 @@ module WorkUnits
         workflow = definition.workflow_template.instantiate(**instantiate_arguments)
         unit.update!(workflow: workflow)
         create_members!(unit)
+        create_locks!(unit)
         workflow
       end
     end
@@ -63,6 +64,12 @@ module WorkUnits
           job: member_job,
           role: index.zero? ? "primary" : "member"
         )
+      end
+    end
+
+    def create_locks!(unit)
+      definition.lock_keys_for(job: job, member_jobs: member_jobs).each do |lock_key|
+        unit.work_unit_locks.create!(lock_key: lock_key)
       end
     end
 

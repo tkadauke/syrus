@@ -37,6 +37,7 @@ RSpec.describe WorkUnits::Launcher do
       workflow: workflow
     )
     expect(unit.work_unit_members.map { |member| [ member.job_id, member.role ] }).to eq([[ job.id, "primary" ]])
+    expect(unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("job:#{job.id}")
   end
 
   it "creates shadow ownership for normal initial jobs" do
@@ -98,6 +99,12 @@ RSpec.describe WorkUnits::Launcher do
 
     expect(workflow.work_unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
       [[ first.id, "primary" ], [ second.id, "member" ]]
+    )
+    expect(workflow.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly(
+      "epic:#{epic.id}",
+      "job:#{first.id}",
+      "job:#{second.id}",
+      "landing:repository:#{repository.id}"
     )
   end
 end
