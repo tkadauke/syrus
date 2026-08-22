@@ -1,7 +1,7 @@
 class CreateAdminBuildCacheClearRequests < ActiveRecord::Migration[8.1]
   def change
     create_table :admin_build_cache_clear_requests, if_not_exists: true do |t|
-      t.references :user, null: false
+      t.references :user, null: false, index: true
       t.string :scope, null: false
       t.integer :older_than_days
       t.text :reason, null: false
