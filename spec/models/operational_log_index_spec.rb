@@ -23,6 +23,17 @@ RSpec.describe OperationalLogIndex do
     )
   end
 
+  it "searches messages containing FTS5-significant punctuation without raising" do
+    namespaced = event(message: "SolidCable::TrimJob 0.7ms executions=1 queue_name=default")
+    key_value = event(message: "job_id=42 workflow_id=7 run_id=3")
+    path = event(message: "POST /api/v1/app/performance_events 202 7.7ms")
+    [ namespaced, key_value, path ].each { |record| described_class.upsert(record) }
+
+    expect(described_class.search(query: "SolidCable::TrimJob").map { |row| row[:operational_log_event_id] }).to eq([ namespaced.id ])
+    expect(described_class.search(query: "job_id=42").map { |row| row[:operational_log_event_id] }).to eq([ key_value.id ])
+    expect(described_class.search(query: "/api/v1/app/performance_events").map { |row| row[:operational_log_event_id] }).to eq([ path.id ])
+  end
+
   it "returns recent rows without an FTS query" do
     older = event(message: "older event", occurred_at: 2.hours.ago)
     newer = event(message: "newer event", occurred_at: 5.minutes.ago)
