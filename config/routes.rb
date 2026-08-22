@@ -330,6 +330,10 @@ Rails.application.routes.draw do
           post "insights/:id/promote_memory", to: "insights#promote_memory"
           get "overview", to: "overview#show"
           get "worker_health", to: "worker_health#show"
+          get "build_cache", to: "build_cache#show"
+          post "build_cache/clear_requests", to: "build_cache#create_clear_request"
+          post "build_cache/clear_requests/:id/confirm", to: "build_cache#confirm_clear_request", constraints: { id: /\d+/ }
+          post "build_cache/clear_requests/:id/cancel", to: "build_cache#cancel_clear_request", constraints: { id: /\d+/ }
           get "plugins", to: "plugins#index"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
@@ -439,6 +443,7 @@ Rails.application.routes.draw do
         get "browser_errors", to: "browser_errors#index"
         get "backend_exceptions", to: "backend_exceptions#index"
         get "worker_health", to: "worker_health#show"
+        get "build_cache", to: "build_cache#show"
         get "plugins",  to: "plugins#index"
         post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
         post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
@@ -586,6 +591,7 @@ Rails.application.routes.draw do
   get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
   get "admin/features", to: "spa#show", as: :admin_features
   get "admin/plugins", to: "spa#show", as: :admin_plugins
+  get "admin/build_cache", to: "spa#show", as: :admin_build_cache
   get "admin/insights", to: "spa#show", as: :admin_insights
   get "admin/performance", to: "spa#show", as: :admin_performance
   get "admin/tailscale", to: "spa#show", as: :admin_tailscale

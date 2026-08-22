@@ -15,6 +15,7 @@ import { ConnectionContext } from "../lib/connectionContext"
 import { AdminConsole } from "./AdminConsole"
 import { AdminBackendExceptions } from "./AdminBackendExceptions"
 import { AdminBrowserErrors } from "./AdminBrowserErrors"
+import { AdminBuildCache } from "./AdminBuildCache"
 import { AppChromeV2 } from "./AppChromeV2"
 import { AdminGithubAppConfirm, AdminGithubAppRegister } from "./AdminGithubApp"
 import { AdminInvitations } from "./AdminInvitations"
@@ -99,6 +100,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/processes", element: <AdminProcessesIndex /> },
   { path: "/admin/processes/:id", element: <AdminProcessDetail /> },
   { path: "/admin/mcp_tool_usage", element: <AdminMcpToolUsage /> },
+  { path: "/admin/build_cache", element: <AdminBuildCache /> },
   { path: "/admin/runs/:runId/transcript", element: <AdminTranscript /> },
   { path: "/admin/users", element: <AdminUsersIndex /> },
   { path: "/admin/users/:id", element: <AdminUserDetailRoute /> },

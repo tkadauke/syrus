@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_205051) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_22_025745) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -48,6 +48,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_205051) do
     t.integer "user_id", null: false
     t.index ["performed_at"], name: "index_admin_actions_on_performed_at"
     t.index ["user_id"], name: "index_admin_actions_on_user_id"
+  end
+
+  create_table "admin_build_cache_clear_requests", force: :cascade do |t|
+    t.datetime "cancelled_at"
+    t.datetime "confirmed_at"
+    t.datetime "created_at", null: false
+    t.integer "older_than_days"
+    t.text "reason", null: false
+    t.json "result"
+    t.string "scope", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["state"], name: "index_admin_build_cache_clear_requests_on_state"
+    t.index ["user_id"], name: "index_admin_build_cache_clear_requests_on_user_id"
   end
 
   create_table "app_settings", force: :cascade do |t|
@@ -2347,4 +2362,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_205051) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "admin_build_cache_clear_requests", "users"
 end
