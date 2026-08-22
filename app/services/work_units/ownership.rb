@@ -18,6 +18,22 @@ module WorkUnits
       active_units_for_epic(epic, kinds: kinds).any? || legacy_active_epic_workflows(epic, kinds: kinds).exists?
     end
 
+    def self.active_for_lock_key?(lock_key, kinds: nil)
+      active_unit_for_lock_key(lock_key, kinds: kinds).present?
+    end
+
+    def self.active_unit_for_lock_key(lock_key, kinds: nil)
+      key = lock_key.to_s
+      return nil if key.blank?
+
+      scope = WorkUnit
+        .joins(:work_unit_locks)
+        .where(state: ACTIVE_STATES, work_unit_locks: { lock_key: key, released_at: nil })
+        .includes(:workflow)
+      scope = scope.where(kind: Array(kinds).map(&:to_s)) if kinds.present?
+      scope.order(created_at: :desc, id: :desc).first
+    end
+
     def self.active_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?

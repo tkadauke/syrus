@@ -68,6 +68,42 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_for_epic?(epic, kinds: "retry")).to be false
   end
 
+  it "reports active units by persisted lock key" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "auto_merge")
+    unit.work_unit_locks.create!(lock_key: "landing:repository:#{job.repository_id}")
+
+    expect(described_class.active_for_lock_key?("landing:repository:#{job.repository_id}")).to be true
+    expect(described_class.active_unit_for_lock_key("landing:repository:#{job.repository_id}")).to eq(unit)
+  end
+
+  it "filters active lock ownership by kind" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "auto_merge")
+    unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
+
+    expect(described_class.active_for_lock_key?("job:#{job.id}", kinds: "auto_merge")).to be true
+    expect(described_class.active_for_lock_key?("job:#{job.id}", kinds: "merge_train")).to be false
+  end
+
+  it "ignores released locks and terminal units" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "auto_merge")
+    lock = unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
+
+    expect(described_class.active_for_lock_key?("job:#{job.id}")).to be true
+
+    lock.release!
+    expect(described_class.active_for_lock_key?("job:#{job.id}")).to be false
+
+    unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
+    unit.mark_terminal!("cancelled")
+    expect(described_class.active_for_lock_key?("job:#{job.id}")).to be false
+  end
+
   it "prefers work unit ownership over stale direct workflow fallback" do
     job = Factories.job
     legacy = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
