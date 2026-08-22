@@ -697,6 +697,15 @@ module Api
           render json: chat_payload(chat_session.reload, message: "#{label} detached.")
         end
 
+        def close_preview_panel
+          chat_session = find_chat_session
+          panel = chat_session.preview_panels.find(params[:panel_id])
+          title = panel.title
+          PreviewPanel::Service.new(panel).close!
+
+          render json: chat_payload(chat_session.reload, message: "#{title} closed.")
+        end
+
         def create_bookmark
           chat_session = find_chat_session
           message = params[:message_id].present? ? chat_session.messages.find(params[:message_id]) : chat_session.messages.order(:created_at, :id).last

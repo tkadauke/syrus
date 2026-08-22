@@ -24,6 +24,19 @@ module ChatSerialization
     end
   end
 
+  def preview_panels_json(chat_session)
+    base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
+    chat_session.preview_panels.where(state: "open").with_attached_files.order(:created_at, :id).map do |panel|
+      {
+        id: panel.id,
+        title: panel.title,
+        file_count: panel.files.size,
+        url: panel.preview_url(base_domain),
+        app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}"
+      }
+    end
+  end
+
   def chat_payload(chat_session, message: nil)
     PerformanceLogging.phase("chat_payload", chat_id: chat_session.id) do
       PerformanceLogging.phase("chat_payload.preload", chat_id: chat_session.id) { preload_chat_payload_associations(chat_session) }
@@ -52,6 +65,7 @@ module ChatSerialization
         queued_messages: PerformanceLogging.phase("chat_payload.queued_messages", chat_id: chat_session.id) { chat_session.queued_messages_payload },
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         video_walkthroughs: PerformanceLogging.phase("chat_payload.video_walkthroughs", chat_id: chat_session.id) { video_walkthroughs_json(chat_session) },
+        preview_panels: PerformanceLogging.phase("chat_payload.preview_panels", chat_id: chat_session.id) { preview_panels_json(chat_session) },
         attachment_groups: PerformanceLogging.phase("chat_payload.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
         attachment_results: PerformanceLogging.phase("chat_payload.attachment_results", chat_id: chat_session.id) { attachment_results_for_payload(chat_session).map { |record| attachable_result_json(record) } },
