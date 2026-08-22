@@ -9,6 +9,7 @@ module SyrusClaudeAgent
         version:         SyrusClaudeAgent::VERSION,
         description:     "Runs workflow and chat turns through Claude.",
         homepage:        "https://github.com/tkadauke/syrus",
+        icon_url:        "/plugin-icons/claude_agent.svg",
         author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,

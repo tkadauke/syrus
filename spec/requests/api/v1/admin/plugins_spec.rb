@@ -30,6 +30,17 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole).to include("name" => "api-plugin", "version" => "2.0.0")
   end
 
+  it "falls back to the SPQR eagle icon when the manifest has no icon_url" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "api-iconless-plugin", version: "1.0.0")
+
+    get "/api/v1/admin/plugins", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").sole).to include("icon_url" => "/plugin-icons/spqr_eagle.svg")
+  end
+
   it "filters plugins by a full text search query" do
     admin_token
     Syrus::PluginRegistry.reset!

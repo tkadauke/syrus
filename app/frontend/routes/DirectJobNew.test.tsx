@@ -57,6 +57,25 @@ function renderRoute(payload = formPayload()) {
   )
 }
 
+describe("DirectJobNew agent provider icon", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders the selected provider's icon at the expected size", async () => {
+    renderRoute(formPayload({
+      selected_agent_provider: "claude",
+      configured_agent_providers: [
+        { value: "claude", label: "Claude" },
+        { value: "codex", label: "Codex" }
+      ]
+    }))
+
+    const select = await screen.findByRole("combobox", { name: "Agent" })
+    const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
+    expect(icon).toBeInTheDocument()
+    expect(icon).toHaveClass("h-4", "w-4")
+  })
+})
+
 describe("DirectJobNew template selection", () => {
   let mockConfirm: ReturnType<typeof vi.fn>
 
