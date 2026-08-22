@@ -21,5 +21,4 @@ class CloseNoChangeNeededJobs < ActiveRecord::Migration[8.1]
     # Intentionally irreversible: no_change_needed is a retired semi-terminal
     # representation for the same successful "no changes" outcome.
   end
-
 end
