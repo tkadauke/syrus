@@ -33,6 +33,7 @@ RSpec.describe RetryWorkflowEnqueuer do
   it "creates and starts a retry workflow" do
     finish_current_run!
 
+    expect(WorkUnits::Launcher).to receive(:start!).once.and_call_original
     expect {
       result = described_class.call(job: job)
       expect(result).to be_success

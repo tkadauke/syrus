@@ -1499,6 +1499,8 @@ Completed slices:
 - Provider-admission wakeups now resume provider-blocked queued workflows
   through `WorkUnits::Launcher.start!` while keeping auto-retry wakeup behavior
   unchanged.
+- Retry workflow enqueue now preserves create-under-lock/start-after-lock
+  behavior while routing the start through `WorkUnits::Launcher.start!`.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

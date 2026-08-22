@@ -47,7 +47,7 @@ class RetryWorkflowEnqueuer
 
     return failure_result if failure_result
 
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
     Result.new(workflow: workflow, error: nil, circuit: nil)
   end
 
