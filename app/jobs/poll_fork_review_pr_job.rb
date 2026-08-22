@@ -182,8 +182,8 @@ class PollForkReviewPrJob < ApplicationJob
       "pr_feedback_source_handle" => source_handle,
       "pr_review_comment_ids" => qualifying_records.map(&:id)
     }
-    workflow = WorkUnits::Launcher.instantiate(kind: "pr_comment", job: @job, artifacts: artifacts)
-    StepDispatcher.start_workflow(workflow)
+    result = WorkUnits::Launcher.create_and_start!(kind: "pr_comment", job: @job, artifacts: artifacts)
+    workflow = result.workflow
 
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
 

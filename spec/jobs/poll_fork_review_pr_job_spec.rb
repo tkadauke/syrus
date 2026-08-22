@@ -160,6 +160,8 @@ RSpec.describe PollForkReviewPrJob do
         described_class.perform_now(job.id)
       }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
 
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.work_unit).to be_present
       record = PrReviewComment.last
       expect(record.pr_type).to eq("fork_review")
       expect(record.attributed_to).to eq("external")

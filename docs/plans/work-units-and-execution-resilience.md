@@ -1485,6 +1485,9 @@ Completed slices:
 - Job lifecycle initial starts and the manual direct-Job start endpoint now
   route first-run creation through `WorkUnits::Launcher.start!`, preserving
   direct-job prompt rendering and skill-launch blank prompts.
+- Fork-review PR feedback follow-ups now use
+  `WorkUnits::Launcher.create_and_start!`, preserving the review-comment
+  handling audit link to the created Workflow.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
