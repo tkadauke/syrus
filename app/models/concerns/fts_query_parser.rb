@@ -23,13 +23,24 @@ module FtsQueryParser
         else
           next_quote_index = query.index('"', index) || query.length
           query[index...next_quote_index].to_s.split.each do |token|
-            tokens << (token.include?("-") ? quote_fts_phrase(token) : token)
+            tokens << (bareword_fts_token?(token) ? token : quote_fts_phrase(token))
           end
           index = next_quote_index
         end
       end
 
       tokens.join(" ")
+    end
+
+    # FTS5's enhanced query syntax gives special meaning to punctuation like
+    # `:` (column filter), `=`/`<`/`>` (comparisons in some builds), `/`,
+    # `(`, `)`, `*`, and `-` (exclusion) outside of a quoted phrase. Real log
+    # messages are full of tokens like "SolidCable::TrimJob", "job_id=42", or
+    # "/api/v1/app/...", which raised SQLite3::SQLException on a raw MATCH.
+    # Quoting anything but plain alphanumeric/underscore words sidesteps the
+    # query-syntax parser entirely and searches the token as a literal phrase.
+    def bareword_fts_token?(token)
+      token.match?(/\A[[:alnum:]_]+\z/)
     end
 
     def quote_fts_phrase(value)

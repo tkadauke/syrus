@@ -60,4 +60,24 @@ RSpec.describe FtsQueryParser do
   it "quotes a token that contains a hyphen even when mixed with plain tokens" do
     expect(parse("alpha non-breaking beta")).to eq('alpha "non-breaking" beta')
   end
+
+  it "quotes a token containing a colon so FTS5 doesn't parse it as a column filter" do
+    expect(parse("SolidCable::TrimJob")).to eq('"SolidCable::TrimJob"')
+  end
+
+  it "quotes a token containing an equals sign" do
+    expect(parse("job_id=42")).to eq('"job_id=42"')
+  end
+
+  it "quotes a token containing a slash" do
+    expect(parse("/api/v1/app/performance_events")).to eq('"/api/v1/app/performance_events"')
+  end
+
+  it "quotes a token containing parentheses" do
+    expect(parse("(retrying)")).to eq('"(retrying)"')
+  end
+
+  it "quotes a token containing an asterisk" do
+    expect(parse("wildcard*")).to eq('"wildcard*"')
+  end
 end
