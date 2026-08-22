@@ -68,7 +68,7 @@ export function RepositoryDetailRoute() {
             </PanelMessage>
           ) : null}
           {issues.isError ? <PanelMessage tone="error">{errorMessage(issues.error, "Unable to load GitHub issues.")}</PanelMessage> : null}
-          {issues.isSuccess ? <RepositoryIssues payload={issues.data} prefix={prefix} /> : null}
+          {issues.isSuccess ? <RepositoryIssues isRefreshing={issues.isFetching} onRefresh={() => { void issues.refetch() }} payload={issues.data} prefix={prefix} /> : null}
         </>
       )}
     </main>

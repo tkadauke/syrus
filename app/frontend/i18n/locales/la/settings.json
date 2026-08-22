@@ -259,6 +259,8 @@
     "view_on_github": "In GitHub videre",
     "state_open": "Apertum",
     "state_closed": "Clausum",
+    "refresh": "Renovare",
+    "refreshing": "Renovans...",
     "close_selected": "Selecta claudere",
     "delegate_selected": "Selecta delegare",
     "col_issue": "Quaestio",
