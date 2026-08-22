@@ -260,5 +260,9 @@
   "repository_tabs_aria": "Tabulae repositorii",
   "title_uncommitted": "Mutationes codicis non commissae",
   "title_scratchpad": "Habet res in tabula",
-  "title_turn_active": "Vicis colloquii activa"
+  "title_turn_active": "Vicis colloquii activa",
+  "plugin_repo_tabs": {
+    "unavailable_heading": "Pagina non praesto",
+    "unavailable_body": "Haec tabula repositorii non praesto est. Insertum quod eam praebet fortasse infirmatum vel deest."
+  }
 }

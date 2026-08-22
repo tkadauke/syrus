@@ -62,7 +62,7 @@ module Api
         private
 
         def find_repository
-          Current.user.repositories.find(params[:repository_id])
+          Repository.accessible_to(Current.user).find(params[:repository_id])
         end
 
         def repository_json(repository)

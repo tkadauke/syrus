@@ -346,7 +346,7 @@ module Api
         end
 
         def find_repository
-          Current.user.repositories.find(params[:repository_id])
+          Repository.accessible_to(Current.user).find(params[:repository_id])
         end
 
         def find_task

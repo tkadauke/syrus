@@ -260,5 +260,9 @@
   "repository_tabs_aria": "Repository-Tabs",
   "title_uncommitted": "Nicht committete Coding-Änderungen",
   "title_scratchpad": "Hat Scratchpad-Einträge",
-  "title_turn_active": "Chat-Runde aktiv"
+  "title_turn_active": "Chat-Runde aktiv",
+  "plugin_repo_tabs": {
+    "unavailable_heading": "Seite nicht verfügbar",
+    "unavailable_body": "Dieser Repository-Tab ist nicht verfügbar. Das Plugin, das ihn bereitstellt, ist möglicherweise deaktiviert oder fehlt."
+  }
 }

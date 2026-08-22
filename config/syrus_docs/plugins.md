@@ -12,6 +12,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `ci_log_parser`
 - `preview_provider`
 - `admin_page`
+- `repo_page_tab`
 - `chat_mcp_tool_set`
 - `source_control_provider`
 - `prompt_injector`
@@ -837,6 +838,65 @@ bottom of the sidebar below the named sections. Omit `group_id` (or set it to
 Built-in workflow MCP tools are core app functionality, not a plugin. Optional
 or installation-specific MCP tools should be contributed through plugin
 `mcp_tool_set` providers.
+
+### Repo-page-tab plugins
+
+`repo_page_tab` mirrors `admin_page` for the repository detail page's tab bar,
+with one difference: an admin page is instance-wide, but a repository tab's
+visibility can vary by repository and by user, so the provider contract is a
+method, not a static attribute:
+
+```ruby
+def self.repo_page_tabs(repository:, user:)
+  # return [] to hide the tab for this repository/user pair
+  [
+    {
+      id: "git_history.git_history",
+      label: "Git History",
+      label_key: "git_history:nav_git_history",
+      path: "/repositories/#{repository.id}/plugin/git_history",
+      paths: [ "/repositories/#{repository.id}/plugin/git_history" ],
+      component: "git_history/GitHistory",
+      order: 40
+    }
+  ]
+end
+```
+
+`Repositories::PluginRepoTabsPayload` calls every registered `repo_page_tab`
+provider with the current `repository:` and `user: Current.user`, normalizes
+the descriptors (same shape as `admin_page`: `id`, `label`, `label_key`,
+`path`, `paths`, `component`, `order`, optional `badge`), and:
+
+- Backs `GET /api/v1/app/repositories/:repository_id/plugin_tabs`, which the
+  frontend route resolver (`app/frontend/pluginRepoPageTabs.tsx`, mirroring
+  `pluginAdminPages.tsx`) uses to find and lazy-render the right plugin
+  component for the current repository and path.
+- Feeds `RepositoryTabsSerialization#repository_tabs_json`, so every one of
+  the six repository-scoped controllers (`repositories`, `repository_tests`,
+  `insight_suggestions`, `repository_documents`, `scheduled_tasks`, and the
+  dedicated plugin-tabs endpoint itself) shows the plugin's tab in the shared
+  tab bar automatically — no per-controller wiring needed.
+
+Repo-page-tab plugins should declare:
+
+- `repo_page_tab` provider metadata implementing
+  `self.repo_page_tabs(repository:, user:)`.
+- install-time `frontend.routes` metadata mapping component keys such as
+  `git_history/GitHistory` to plugin frontend files under
+  `app/frontend/repo_tabs/` (a distinct glob convention from admin pages'
+  `app/frontend/routes/` to avoid key collisions).
+- install-time `frontend.i18n` metadata listing plugin locale files.
+- install-time `routes` metadata for API routes (served the same way as
+  admin-page plugin API routes) and, if the tab needs a hard-reload-safe SPA
+  route, a `spa#show` entry whose `path` can include `:repository_id` —the
+  host's `repositories/:repository_id/plugin/*path` route accepts any
+  plugin-declared `spa#show` path shape via `PluginRouteResolver.spa_route_declared?`,
+  not just exact literal paths like the admin `admin/*path` route.
+
+Repo-page viewing itself (the repository detail page and its five sibling tab
+endpoints) is available to both the repository owner and any
+`RepositoryMembership` collaborator — see `Repository.accessible_to`.
 
 ## Adding a plugin
 
