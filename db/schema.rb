@@ -11,6 +11,7 @@
 # It's strongly recommended that you check this file into your version control system.
 
 ActiveRecord::Schema[8.1].define(version: 2026_08_22_173241) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2174,6 +2175,95 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_173241) do
     t.index ["step_id"], name: "index_work_engine_reconciler_activity_events_on_step_id"
     t.index ["workflow_id", "occurred_at"], name: "index_reconciler_activity_on_workflow_and_occurred_at"
     t.index ["workflow_id"], name: "index_work_engine_reconciler_activity_events_on_workflow_id"
+  end
+
+  create_table "work_intents", force: :cascade do |t|
+    t.bigint "actor_id"
+    t.datetime "cancelled_at"
+    t.datetime "created_at", null: false
+    t.string "delivery_track", limit: 128
+    t.string "idempotency_key", limit: 255
+    t.string "kind", limit: 64, null: false
+    t.string "priority", limit: 32
+    t.bigint "repository_id"
+    t.datetime "requested_at", null: false
+    t.datetime "satisfied_at"
+    t.bigint "scope_id"
+    t.string "scope_type", limit: 64, null: false
+    t.bigint "source_id"
+    t.string "source_ref", limit: 255
+    t.string "source_remote_kind", limit: 64
+    t.bigint "source_repository_id"
+    t.string "source_type", limit: 64
+    t.string "state", limit: 32, null: false
+    t.bigint "superseded_by_work_intent_id"
+    t.string "target_ref", limit: 255
+    t.string "target_remote_kind", limit: 64
+    t.bigint "target_repository_id"
+    t.datetime "updated_at", null: false
+    t.json "wait_details"
+    t.string "wait_reason", limit: 64
+    t.datetime "wait_until"
+    t.index ["idempotency_key"], name: "idx_work_intents_idempotency", unique: true
+    t.index ["kind", "state", "repository_id"], name: "idx_work_intents_kind_state_repo"
+    t.index ["scope_type", "scope_id", "state"], name: "idx_work_intents_scope_state"
+    t.index ["superseded_by_work_intent_id"], name: "idx_work_intents_superseded_by"
+  end
+
+  create_table "work_unit_locks", force: :cascade do |t|
+    t.datetime "acquired_at", null: false
+    t.datetime "created_at", null: false
+    t.string "lock_key", limit: 255, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "work_unit_id", null: false
+    t.index ["lock_key"], name: "idx_work_unit_locks_lock_key", unique: true
+    t.index ["work_unit_id"], name: "idx_work_unit_locks_unit"
+  end
+
+  create_table "work_unit_members", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_id", null: false
+    t.string "role", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "work_unit_id", null: false
+    t.index ["job_id", "role"], name: "idx_work_unit_members_job_role"
+    t.index ["work_unit_id", "job_id", "role"], name: "idx_work_unit_members_unique", unique: true
+  end
+
+  create_table "work_units", force: :cascade do |t|
+    t.bigint "blocked_by_user_id"
+    t.json "blocked_details"
+    t.string "blocked_reason", limit: 64
+    t.datetime "blocked_until"
+    t.datetime "created_at", null: false
+    t.string "delivery_track", limit: 128
+    t.datetime "finished_at"
+    t.string "kind", limit: 64, null: false
+    t.bigint "parent_work_unit_id"
+    t.boolean "pause_requested", default: false, null: false
+    t.bigint "preempted_by_work_unit_id"
+    t.string "preemption_reason", limit: 64
+    t.bigint "repository_id"
+    t.bigint "scope_id"
+    t.string "scope_type", limit: 64, null: false
+    t.string "source_ref", limit: 255
+    t.string "source_remote_kind", limit: 64
+    t.bigint "source_repository_id"
+    t.datetime "started_at"
+    t.string "state", limit: 32, null: false
+    t.string "target_ref", limit: 255
+    t.string "target_remote_kind", limit: 64
+    t.bigint "target_repository_id"
+    t.datetime "updated_at", null: false
+    t.bigint "work_intent_id", null: false
+    t.bigint "workflow_id"
+    t.index ["blocked_reason", "blocked_until"], name: "idx_work_units_blocked_wakeup"
+    t.index ["kind", "state", "repository_id"], name: "idx_work_units_kind_state_repo"
+    t.index ["parent_work_unit_id"], name: "idx_work_units_parent"
+    t.index ["preempted_by_work_unit_id"], name: "idx_work_units_preempted_by"
+    t.index ["scope_type", "scope_id", "state"], name: "idx_work_units_scope_state"
+    t.index ["work_intent_id", "state"], name: "idx_work_units_intent_state"
+    t.index ["workflow_id"], name: "idx_work_units_workflow"
   end
 
   create_table "worker_host_health_samples", force: :cascade do |t|
