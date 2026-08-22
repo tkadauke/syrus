@@ -138,7 +138,7 @@ export function isGradeDisplayStep(step: JobStep) {
 }
 
 function isNamedLoop(steps: JobStep[]) {
-  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review" || isGradeDisplayStep(step))
+  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review")
 }
 
 export function displayStepItemKey(item: DisplayStepItem) {
