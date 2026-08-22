@@ -808,7 +808,7 @@ describe("JobDetailView", () => {
   })
 
   it("shows the detected plugin set on a workflow card", () => {
-    renderJobDetail(jobPayload({
+    const { container } = renderJobDetail(jobPayload({
       workflows: [ workflow({ id: 4, slug: "WF-4", artifacts: { detected_plugins: [ "ruby", "syrus-rails", "javascript" ] } }) ],
       workflows_pagination: workflowPagination(1)
     }), { activeTab: "workflows" })
@@ -817,6 +817,12 @@ describe("JobDetailView", () => {
     expect(screen.getByText("ruby")).toBeInTheDocument()
     expect(screen.getByText("syrus-rails")).toBeInTheDocument()
     expect(screen.getByText("javascript")).toBeInTheDocument()
+
+    const rubyIcon = container.querySelector('img[src="/plugin-icons/ruby.svg"]')
+    expect(rubyIcon).toBeInTheDocument()
+    expect(rubyIcon).toHaveClass("h-3.5", "w-3.5")
+    expect(container.querySelector('img[src="/plugin-icons/syrus-rails.svg"]')).toBeInTheDocument()
+    expect(container.querySelector('img[src="/plugin-icons/javascript.svg"]')).toBeInTheDocument()
   })
 
   it("omits the detected plugin line when nothing was detected", () => {

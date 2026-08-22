@@ -163,7 +163,9 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("form_agent_label")}>
               <div className="flex items-center gap-2">
-                {values.agentProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider)} /> : null}
+                {values.agentProvider || selectedRepository?.default_agent_provider ? (
+                  <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")} />
+                ) : null}
                 <select
                   className={inputClass()}
                   name="agent_provider"
