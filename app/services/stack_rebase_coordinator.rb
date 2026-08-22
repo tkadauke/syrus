@@ -54,7 +54,7 @@ class StackRebaseCoordinator
     return if automatic_rebase_deferred_until_epic_materialized?(child)
 
     workflow = RebaseWorkflowSelector.instantiate(job: child, base_branch: child.effective_base_branch)
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
   end
 
   def automatic_rebase_deferred_until_epic_materialized?(child)

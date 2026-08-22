@@ -56,7 +56,7 @@ RSpec.describe StackRebaseCoordinator do
       job.workflows.update_all(state: "succeeded")
     end
     dispatched = []
-    allow(StepDispatcher).to receive(:start_workflow) { |workflow| dispatched << workflow }
+    allow(WorkUnits::Launcher).to receive(:start!) { |workflow| dispatched << workflow }
 
     described_class.parent_amended(parent)
 
@@ -77,7 +77,7 @@ RSpec.describe StackRebaseCoordinator do
       parent_job: child
     )
     dispatched = []
-    allow(StepDispatcher).to receive(:start_workflow) { |workflow| dispatched << workflow }
+    allow(WorkUnits::Launcher).to receive(:start!) { |workflow| dispatched << workflow }
 
     described_class.parent_amended(parent)
 

@@ -1501,6 +1501,8 @@ Completed slices:
   unchanged.
 - Retry workflow enqueue now preserves create-under-lock/start-after-lock
   behavior while routing the start through `WorkUnits::Launcher.start!`.
+- Automatic rebase, merge-state-triggered rebase, and stack-rebase cascade
+  dispatch now start maintenance workflows through `WorkUnits::Launcher.start!`.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

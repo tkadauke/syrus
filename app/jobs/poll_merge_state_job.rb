@@ -161,7 +161,7 @@ class PollMergeStateJob < ApplicationJob
     workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: @pr)
     audit("auto_merge: dispatching rebase #{workflow.slug} before merge")
     Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} needs rebase before merge-state evaluation")
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
   end
 
   # An approved Job that's behind/dirty but far back in the landing

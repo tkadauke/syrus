@@ -28,6 +28,8 @@ RSpec.describe PollRebaseJob do
       expect {
         described_class.perform_now(job.id)
       }.to change { job.runs.where(trigger_kind: "rebase").count }.by(1)
+
+      expect(job.workflows.where(trigger_kind: "rebase").last.work_unit).to be_present
     end
 
     it "stores the live PR base on the rebase workflow" do
@@ -56,7 +58,9 @@ RSpec.describe PollRebaseJob do
       }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
 
       expect(job.workflows.where(trigger_kind: "rebase")).to be_empty
-      expect(job.workflows.where(trigger_kind: "stack_rebase").last.steps.pluck(:kind)).to eq(
+      workflow = job.workflows.where(trigger_kind: "stack_rebase").last
+      expect(workflow.work_unit).to be_present
+      expect(workflow.steps.pluck(:kind)).to eq(
         %w[ stack_auto_rebase stack_agent_rebase stack_force_push ]
       )
     end

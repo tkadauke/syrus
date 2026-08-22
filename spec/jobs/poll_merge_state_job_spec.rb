@@ -452,6 +452,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
       expect {
         described_class.perform_now(job.id)
       }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+      expect(job.workflows.where(trigger_kind: "stack_rebase").last.work_unit).to be_present
     end
 
     it "dispatches stack rebase when there is no prior blocked cancel" do
@@ -460,6 +461,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
       expect {
         described_class.perform_now(job.id)
       }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+      expect(job.workflows.where(trigger_kind: "stack_rebase").last.work_unit).to be_present
     end
 
     it "does not automatically stack rebase while an Epic child has not produced a PR branch" do

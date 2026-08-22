@@ -79,7 +79,7 @@ class PollRebaseJob < ApplicationJob
 
     Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{pr_number} unmergeable; instantiating rebase workflow")
     workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: pr)
-    StepDispatcher.start_workflow(workflow)
+    WorkUnits::Launcher.start!(workflow)
   end
 
   def persist_mergeability(pr)
