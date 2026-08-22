@@ -83,23 +83,27 @@ RSpec.describe Workflows::Initial do
     it "inserts an implement/visual_review loop before the grader retry chain" do
       workflow = described_class.instantiate(job: job)
 
+      # The first `implement` is the always-present top-level step; the
+      # second is the visual_review loop's own leading implement (untouched
+      # by this fix — see Workflows::Initial's class comment).
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement visual_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+        %w[ prepare implement implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
       )
     end
 
-    it "gives the visual_review loop its own loop_id, distinct from the grader retry chain" do
+    it "gives the visual_review loop its own loop_id, distinct from the top-level implement" do
       workflow = described_class.instantiate(job: job)
 
       review_step = workflow.steps.find_by!(kind: "visual_review")
       implement_steps = workflow.steps.order(:position).select { |s| s.kind == "implement" }
 
-      vr_implement    = implement_steps.find { |s| s.loop_id == review_step.loop_id }
-      retry_implement = implement_steps.find { |s| s.loop_id != review_step.loop_id }
+      top_level_implement = implement_steps.find { |s| s.loop_id.nil? }
+      vr_implement        = implement_steps.find { |s| s.loop_id == review_step.loop_id }
 
+      expect(top_level_implement).not_to be_nil
       expect(vr_implement).not_to be_nil
-      expect(retry_implement).not_to be_nil
-      expect(vr_implement.position).to be < retry_implement.position
+      expect(vr_implement.loop_id).not_to be_nil
+      expect(top_level_implement.position).to be < vr_implement.position
     end
 
     context "and adversarial review is also enabled" do
@@ -113,9 +117,74 @@ RSpec.describe Workflows::Initial do
         workflow = described_class.instantiate(job: job)
 
         expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-          %w[ prepare implement adversarial_review implement visual_review implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+          %w[ prepare implement adversarial_review implement visual_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
         )
       end
+    end
+  end
+
+  context "when adversarial review is enabled" do
+    before do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+        RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
+      )
+    end
+
+    it "puts implement top-level and starts the adversarial_review loop with the review step alone" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare implement adversarial_review format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+      )
+    end
+
+    it "gives the top-level implement no loop_id, and the review step its own loop_id" do
+      workflow = described_class.instantiate(job: job)
+
+      implement = workflow.steps.find_by!(kind: "implement")
+      review = workflow.steps.find_by!(kind: "adversarial_review")
+
+      expect(implement.loop_id).to be_nil
+      expect(review.loop_id).not_to be_nil
+    end
+  end
+
+  context "when adversarial review and a configured grade loop are both enabled" do
+    before do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+        RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
+      )
+    end
+
+    it "materializes a check-first retry_until node with implement only in the repair list" do
+      workflow = described_class.instantiate(job: job)
+
+      grade_node = workflow.chain_template.find { |node| node["type"] == "retry_until" }
+      expect(grade_node).to include(
+        "repair_first" => false,
+        "repair" => %w[ implement ],
+        "check" => %w[ format generate grader_fanout grader_collect ]
+      )
+    end
+  end
+
+  context "when adversarial review is enabled but no grade loop is configured" do
+    before do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+        RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
+      )
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: false, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "does not add a second implement step for the unconfigured grade loop" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare implement adversarial_review coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+      )
+      expect(workflow.steps.where(kind: "implement").count).to eq(1)
     end
   end
 
