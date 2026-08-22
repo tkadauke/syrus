@@ -337,6 +337,7 @@ describe("AppChromeV2", () => {
     })
 
     renderAppChrome(<LocationProbe />, {
+      bootstrap: bootstrapPayload({ team_user_count: 2 }),
       initialEntries: ["/app-shell/dashboard/jobs"],
       queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
       routeWrapper: true
@@ -360,6 +361,7 @@ describe("AppChromeV2", () => {
     vi.spyOn(chatsApi, "createGroupChat").mockRejectedValue(new Error("boom"))
 
     renderAppChrome(<LocationProbe />, {
+      bootstrap: bootstrapPayload({ team_user_count: 2 }),
       initialEntries: ["/app-shell/dashboard/jobs"],
       queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
       routeWrapper: true
@@ -371,6 +373,12 @@ describe("AppChromeV2", () => {
 
     expect(await screen.findByText("Unable to start chat.")).toBeInTheDocument()
     expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
+
+  it("hides the New group chat button on single-user instances", () => {
+    renderAppChrome()
+
+    expect(screen.queryByRole("button", { name: "New group chat" })).not.toBeInTheDocument()
   })
 })
 
