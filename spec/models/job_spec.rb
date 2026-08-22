@@ -1214,6 +1214,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         .and change { job.runs.count }.by(1)
 
       expect(job.workflows.first.trigger_kind).to eq("initial")
+      expect(job.workflows.first.work_unit).to be_present
       expect(job.runs.first.prompt).to include("do a thing")
     end
 

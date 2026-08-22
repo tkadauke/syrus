@@ -30,7 +30,8 @@ module Api
             user: job.user,
             repository_ids: [ job.repository_id ]
           ).to_s
-          run = StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
+          result = WorkUnits::Launcher.start!(workflow, prompt: rendered_prompt)
+          run = result.run
 
           if run
             render_job(job.reload, message: "Initial workflow enqueued.", changed: [ "workflows", "runs" ], tab: "workflows")

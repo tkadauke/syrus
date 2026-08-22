@@ -26,6 +26,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
       .and have_enqueued_job(RunJob)
 
     expect(response).to have_http_status(:ok)
+    expect(direct.workflows.last.work_unit).to be_present
     expect(parse_body).to include("message" => "Initial workflow enqueued.")
     expect(parse_body.dig("job", "runs_count")).to eq(1)
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))

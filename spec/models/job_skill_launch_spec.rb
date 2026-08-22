@@ -64,6 +64,7 @@ RSpec.describe Job do
 
       workflow = job.reload.workflows.last
       expect(workflow.trigger_kind).to eq("skill")
+      expect(workflow.work_unit).to be_present
       expect(workflow.artifact("skill_name")).to eq("investigate")
       expect(workflow.artifact("skill_args")).to eq({ "question" => "What does the widget do?" })
     end

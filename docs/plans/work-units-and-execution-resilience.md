@@ -1482,6 +1482,9 @@ Completed slices:
   tasks and blank prompts for skill tasks while retaining WorkUnit ownership.
 - Automatic and manual agent-insight workflow starts now use
   `WorkUnits::Launcher.create_and_start!` instead of direct dispatcher calls.
+- Job lifecycle initial starts and the manual direct-Job start endpoint now
+  route first-run creation through `WorkUnits::Launcher.start!`, preserving
+  direct-job prompt rendering and skill-launch blank prompts.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

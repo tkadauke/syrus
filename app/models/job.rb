@@ -1160,7 +1160,7 @@ class Job < ApplicationRecord
 
   # Issue Jobs auto-instantiate Workflows::Initial on create. The
   # workflow lays out the implement → summarize → test_plan → pr_open chain;
-  # StepDispatcher.start_workflow creates the first Run. RunJob still
+  # WorkUnits::Launcher.start! creates the first Run. RunJob still
   # auto-enqueues via Run's after_create_commit, so background work
   # waits for the surrounding transaction to commit. Same
   # observable behavior as the v0 single-Run flow, but each
@@ -1187,7 +1187,7 @@ class Job < ApplicationRecord
         repository_ids: [ repository_id ]
       ).to_s
     end
-    StepDispatcher.start_workflow(workflow, prompt: prompt)
+    WorkUnits::Launcher.start!(workflow, prompt: prompt)
   end
 
   def enqueue_search_index_after_create
