@@ -1457,6 +1457,12 @@ Initial launcher coverage should include:
 - CI failure dispatch;
 - retry/rebase dispatch.
 
+Completed slices:
+
+- `WorkUnits::Launcher.create_and_start!` now owns the create-plus-dispatch
+  funnel, and CI-failure dispatch uses it instead of instantiating then starting
+  the Workflow in the poller.
+
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
 

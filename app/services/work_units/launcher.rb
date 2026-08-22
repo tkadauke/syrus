@@ -1,5 +1,7 @@
 module WorkUnits
   class Launcher
+    Result = Data.define(:workflow, :run)
+
     def self.instantiate(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, **options)
       new(
         kind: kind,
@@ -11,6 +13,20 @@ module WorkUnits
         source_id: source_id,
         options: options
       ).instantiate
+    end
+
+    def self.create_and_start!(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, **options)
+      workflow = instantiate(
+        kind: kind,
+        job: job,
+        artifacts: artifacts,
+        agent_provider: agent_provider,
+        idempotency_key: idempotency_key,
+        source_type: source_type,
+        source_id: source_id,
+        **options
+      )
+      Result.new(workflow: workflow, run: StepDispatcher.start_workflow(workflow))
     end
 
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:)

@@ -112,6 +112,15 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.steps.pluck(:kind)).to eq(%w[prepare summarize])
   end
 
+  it "can create and start a workflow through the same funnel" do
+    result = described_class.create_and_start!(kind: "manual_visual_review", job: job)
+
+    expect(result.workflow).to be_persisted
+    expect(result.workflow.work_unit).to have_attributes(kind: "manual_visual_review")
+    expect(result.run).to be_queued
+    expect(result.run.step).to eq(result.workflow.first_step)
+  end
+
   it "snapshots merge train members from the merge train artifact" do
     epic = Factories.epic(user: user, repository: repository)
     first = Factories.job_record(user: user, repository: repository, epic: epic)

@@ -558,20 +558,19 @@ class PollPullRequestJob < ApplicationJob
       "head_sha"      => head_sha,
       "failed_checks" => failed_checks
     }
-    workflow = WorkUnits::Launcher.instantiate(
+    result = WorkUnits::Launcher.create_and_start!(
       kind: "ci_failure",
       job: @job,
       artifacts: artifacts,
       agent_provider: @agent_provider
     )
-    run = StepDispatcher.start_workflow(workflow)
-    unless run
-      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: created CiFailure workflow ##{workflow.id} for #{head_sha[0..6]} but start was deferred")
+    unless result.run
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: created CiFailure workflow ##{result.workflow.id} for #{head_sha[0..6]} but start was deferred")
       return
     end
 
     @job.update!(last_ci_handled_sha: head_sha)
-    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: enqueued CiFailure workflow ##{workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: enqueued CiFailure workflow ##{result.workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
   end
 
   def no_effective_ci_repair?(head_sha, detail)
