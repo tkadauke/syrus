@@ -880,6 +880,7 @@ module WorkEngine
         next unless job.state.in?(%w[running landing])
         active_workflows = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
         next if active_workflows.any?
+        next if job.landing? && active_epic_wide_workflow_for_job?(job)
 
         if job.landing?
           next unless landing_slot_orphaned?(job)

@@ -132,6 +132,16 @@ module WorkEngine
           end
         end
 
+        def active_epic_wide_workflow_for_job?(job)
+          return false unless job&.epic_id
+
+          Workflow
+            .active
+            .epic_wide
+            .where(job_id: job.epic.jobs.select(:id))
+            .exists?
+        end
+
         def retry_cancelled_workflow(job, latest, retry_reason:)
           artifacts = latest.artifacts.to_h.deep_dup.merge(
             "retry_reason" => retry_reason,
@@ -726,6 +736,7 @@ module WorkEngine
           return skipped("Job no longer exists") unless job
           return skipped("Job is #{job.state}, not landing") unless job.landing?
           return skipped("Job has active workflow") if job.workflows.active.exists?
+          return skipped("Job is owned by an active Epic-wide workflow") if active_epic_wide_workflow_for_job?(job)
           return skipped("Job cannot transition to approved") unless job.may_defer_landing?
 
           with_transition_reason do
@@ -919,15 +930,6 @@ module WorkEngine
 
         private
 
-        def active_epic_wide_workflow_for_job?(job)
-          return false unless job.epic_id
-
-          Workflow
-            .active
-            .epic_wide
-            .where(job_id: job.epic.jobs.select(:id))
-            .exists?
-        end
       end
 
       class RetryJobAfterCancelledWorkflow < Base
@@ -988,15 +990,6 @@ module WorkEngine
           workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
         end
 
-        def active_epic_wide_workflow_for_job?(job)
-          return false unless job.epic_id
-
-          Workflow
-            .active
-            .epic_wide
-            .where(job_id: job.epic.jobs.select(:id))
-            .exists?
-        end
       end
 
       class CloseCompletedInfrastructureJob < Base

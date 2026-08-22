@@ -2096,6 +2096,43 @@ RSpec.describe WorkEngine::Reconciler do
     expect(job.reload).to be_approved
   end
 
+  it "does not auto-defer a landing merge-train member owned by a sibling workflow" do
+    AppSetting.current.update!(merge_train_enabled: true)
+    epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+    first = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      epic: epic,
+      state: "landing",
+      issue_number: 301,
+      pr_number: 401,
+      branch_name: "syrus/issue-301"
+    )
+    second = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      epic: epic,
+      state: "landing",
+      issue_number: 302,
+      pr_number: 402,
+      branch_name: "syrus/issue-302"
+    )
+    train = MergeTrain.create!(epic: epic, repository: job.repository, base_branch: job.repository.default_branch)
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+    train_workflow = Workflows::MergeTrain.instantiate(job: second, artifacts: { "merge_train_id" => train.id })
+    train_workflow.update!(state: "queued")
+
+    result = reconcile(job_id: first.id)
+
+    expect(kind(result, :landing_job_without_active_workflow)).to be_nil
+
+    executed = reconcile_and_execute(job_id: first.id)
+
+    expect(plan(executed, :defer_orphaned_landing_job)).to be_nil
+    expect(first.reload).to be_landing
+  end
+
   it "waits for landing workflows queued without a first Run while admission backoff is active" do
     landing_job = Factories.job_record(
       user: job.user,
