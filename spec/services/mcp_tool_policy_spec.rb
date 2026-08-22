@@ -431,14 +431,22 @@ RSpec.describe McpToolPolicy do
   end
 
   describe "output matches today's tools_for_session" do
+    # Plugin-provided chat_mcp_tool_set tools (e.g. PreviewTools::ChatToolSet) are layered onto
+    # the sidecar's normal-tier chat_tools_for by Mcp::Sidecar.plugin_tools_for, same as
+    # plugin_workflow_tools_for is layered on separately from McpToolPolicy on the workflow
+    # surface -- McpToolPolicy itself only ever sees the core (non-plugin) registry tools.
+    def non_plugin_tool_names(session, tier:)
+      Mcp::Sidecar.chat_tools(session, tier: tier).map(&:tool_name) -
+        Mcp::Sidecar.plugin_tools_for(session, tier: tier).map(&:tool_name)
+    end
+
     it "produces identical essential tool set as the sidecar for a planning session" do
       session = chat_session
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_essential = Mcp::Sidecar.chat_tools(session, tier: :essential).map(&:tool_name)
 
-      expect(policy_tools).to include(*sidecar_essential)
+      expect(policy_tools).to include(*non_plugin_tool_names(session, tier: :essential))
     end
 
     it "produces identical deferred tool set as the sidecar for a planning session" do
@@ -446,9 +454,8 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_deferred = Mcp::Sidecar.chat_tools(session, tier: :deferred).map(&:tool_name)
 
-      expect(policy_tools).to include(*sidecar_deferred)
+      expect(policy_tools).to include(*non_plugin_tool_names(session, tier: :deferred))
     end
   end
 end
