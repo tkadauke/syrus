@@ -1574,6 +1574,13 @@ For every new concrete attempt, write:
 Start with merge trains and job bundles because they are the clearest mismatch:
 one Workflow attached to one Job but semantically owning multiple Jobs.
 
+Completed slices:
+
+- Active legacy Workflows without WorkUnit ownership are now backfilled
+  continuously by `WorkUnitsBackfillActiveWorkflowsJob` in bounded
+  low-priority batches, so a deploy can converge existing queued/running
+  Workflows into the shadow intent/unit model without relying on new launches.
+
 ### Phase 4: Scheduler Reads Intents And Units
 
 Make scheduling and UI read WorkIntents and WorkUnits first.

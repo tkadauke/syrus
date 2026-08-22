@@ -66,6 +66,10 @@ default: &default
     class: ReapStaleRunsJob
     queue: control_plane
     schedule: every minute
+  backfill_active_work_units:
+    class: WorkUnitsBackfillActiveWorkflowsJob
+    queue: low_priority_maintenance
+    schedule: every minute
   refresh_data_root_disk_usage:
     class: DataRootDiskUsageRefreshJob
     queue: cleanup

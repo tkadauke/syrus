@@ -64,6 +64,16 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "backfills active WorkUnit shadow records frequently in a maintenance queue" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("backfill_active_work_units")).to include(
+      "class" => "WorkUnitsBackfillActiveWorkflowsJob",
+      "queue" => "low_priority_maintenance",
+      "schedule" => "every minute"
+    )
+  end
+
   it "assigns every recurring task to an isolated app queue" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
     allowed_queues = %w[control_plane polling indexing cleanup low_priority_maintenance]
