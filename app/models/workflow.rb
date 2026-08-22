@@ -283,15 +283,11 @@ class Workflow < ApplicationRecord
   end
 
   def sync_work_unit_running!
-    return unless work_unit
-
-    work_unit.mark_running!
+    WorkUnits::WorkflowLifecycle.started!(self)
   end
 
   def sync_work_unit_terminal!(state)
-    return unless work_unit
-
-    work_unit.mark_terminal!(state)
+    WorkUnits::WorkflowLifecycle.terminal!(self, state: state)
   end
 
   # When a workflow fails, drive the Job into :failed so the operator
