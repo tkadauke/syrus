@@ -22,6 +22,36 @@ class WorkIntent < ApplicationRecord
     requested? && wait_reason.blank? && wait_until.blank?
   end
 
+  def wait!(reason:, wait_until: nil, details: {})
+    update!(
+      state: "waiting",
+      wait_reason: reason,
+      wait_until: wait_until,
+      wait_details: details || {}
+    )
+  end
+
+  def request!
+    update!(
+      state: "requested",
+      wait_reason: nil,
+      wait_until: nil,
+      wait_details: {}
+    )
+  end
+
+  def satisfy!
+    update!(state: "satisfied", satisfied_at: satisfied_at || Time.current)
+  end
+
+  def fail!
+    update!(state: "failed")
+  end
+
+  def cancel!
+    update!(state: "cancelled", cancelled_at: cancelled_at || Time.current)
+  end
+
   STATES.each do |state_name|
     define_method("#{state_name}?") { state == state_name }
   end
