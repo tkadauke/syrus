@@ -1781,6 +1781,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     attachments: [],
     typed_artifacts: [],
     coverage: null,
+    sccache: null,
     summary: null,
     test_plan: null,
     has_test_results: false,
