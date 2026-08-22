@@ -78,5 +78,43 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       include("sidecar_mode" => "stdio", "calls" => 2, "errors" => 1)
     )
     expect(body["unused_advertised_tools"]).to include("submit_summary")
+
+    expect(body["provider_breakdown"]).to contain_exactly(
+      include("provider" => "claude", "calls" => 2, "errors" => 1)
+    )
+    expect(body["server_breakdown"]).to contain_exactly(
+      include("server_name" => "syrus-mcp-sidecar", "calls" => 1, "errors" => 0),
+      include("server_name" => "syrus-chat-sidecar", "calls" => 1, "errors" => 1)
+    )
+
+    workflow = run.workflow
+    recent_calls = body["recent_calls"]
+    expect(recent_calls.size).to eq(2)
+
+    workflow_call = recent_calls.find { |row| row["tool_name"] == "read_live_state" }
+    expect(workflow_call).to include(
+      "surface" => "workflow",
+      "status" => "completed",
+      "error" => false,
+      "job_id" => job.id,
+      "job_path" => "/jobs/#{job.id}",
+      "workflow_id" => workflow.id,
+      "workflow_path" => "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}",
+      "run_id" => run.id,
+      "run_path" => "/admin/runs/#{run.id}/transcript",
+      "chat_session_id" => nil,
+      "chat_path" => nil
+    )
+
+    chat_call = recent_calls.find { |row| row["tool_name"] == "repo_info" }
+    expect(chat_call).to include(
+      "surface" => "chat",
+      "status" => "failed",
+      "error" => true,
+      "job_id" => nil,
+      "job_path" => nil,
+      "chat_session_id" => chat.id,
+      "chat_path" => "/chats/#{chat.id}"
+    )
   end
 end
