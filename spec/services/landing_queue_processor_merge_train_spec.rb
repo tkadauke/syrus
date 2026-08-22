@@ -135,7 +135,6 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
 
       expect(MergeTrainDispatcher).to have_received(:try_dispatch!).with(epic)
     end
-
   end
 
   describe EpicLandingRetrier do

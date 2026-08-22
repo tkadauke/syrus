@@ -188,7 +188,7 @@ module GraderCommandSpans
 
       two = command[index, 2]
       return two if two == "&&" || two == "||"
-      return ";" if command[index] == ";"
+      ";" if command[index] == ";"
     end
 
     def excerpt(value)
