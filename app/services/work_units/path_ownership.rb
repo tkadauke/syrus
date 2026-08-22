@@ -25,6 +25,7 @@ module WorkUnits
     ].freeze
 
     RECONCILER_PATHS = %w[
+      epic_wide_workflow
       orphaned_queued_runs
       paused_units
       stale_runs

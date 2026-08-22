@@ -133,13 +133,7 @@ module WorkEngine
         end
 
         def active_epic_wide_workflow_for_job?(job)
-          return false unless job&.epic_id
-
-          Workflow
-            .active
-            .epic_wide
-            .where(job_id: job.epic.jobs.select(:id))
-            .exists?
+          WorkEngine::RuntimeOwnership.active_epic_wide_workflow_for_job?(job)
         end
 
         def retry_cancelled_workflow(job, latest, retry_reason:)

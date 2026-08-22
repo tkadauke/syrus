@@ -46,10 +46,12 @@ RSpec.describe WorkUnits::PathOwnership do
     set_feature("work_units_reconciler", false)
 
     expect(described_class.for("stale_runs")).to be_legacy
+    expect(described_class.for("epic_wide_workflow")).to be_legacy
 
     set_feature("work_units_reconciler", true)
 
     expect(described_class.for("stale_runs")).to be_work_unit
+    expect(described_class.for("epic_wide_workflow")).to be_work_unit
   end
 
   it "raises for unknown paths instead of silently choosing an owner" do
