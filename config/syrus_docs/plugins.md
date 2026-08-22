@@ -991,3 +991,11 @@ Bundled plugins:
   that wants a screenshot to survive as a durable, operator-visible artifact
   calls the core `submit_visual_artifact` MCP tool (see
   `config/syrus_docs/typed_artifacts.md`) to persist it.
+- `preview_tools` — default-enabled. Provides `:chat_mcp_tool_set`
+  (`PreviewTools::ChatToolSet`): `write_preview_file`/`edit_preview_file`
+  (jailed to a `PreviewPanel`'s own scratch directory) plus
+  `show_preview`/`close_preview`, letting a planning-mode chat agent build
+  and preview an HTML/CSS/JS mockup or interactive widget page without
+  touching the attached repository checkout. Unavailable in Coding Mode and
+  Local Mode, which already have real Write/Edit tools. See
+  `config/syrus_docs/preview_panels.md`.
