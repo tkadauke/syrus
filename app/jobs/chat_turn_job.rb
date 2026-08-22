@@ -82,7 +82,7 @@ class ChatTurnJob < ApplicationJob
 
     @chat.broadcast_controls if provider.provider == "codex"
 
-    result = with_chat_mcp_config do |mcp_config|
+    result = with_chat_mcp_config(provider) do |mcp_config|
       with_git_askpass_env do |agent_env|
         provider_with_turn_context(provider, attachment_context, agent_env).invoke(
           workspace_path: workspace_path,
@@ -582,30 +582,129 @@ class ChatTurnJob < ApplicationJob
     end
   end
 
-  def with_chat_mcp_config
+  # Claude resumed sessions derive MCP tool prefixes from the configured
+  # command basename (stdio) or config key (http), so both transports keep
+  # the same two server keys -- "syrus-chat-sidecar" / "syrus-chat-deferred-sidecar" --
+  # regardless of which one #chat_mcp_transport_decision picks for this turn.
+  def with_chat_mcp_config(provider)
+    decision = chat_mcp_transport_decision(provider)
     Tempfile.create([ "syrus-chat-mcp-#{@chat.id}-", ".json" ]) do |f|
-      # Claude resumed sessions derive MCP tool prefixes from the configured
-      # command basename, so the server key and launcher basename must stay
-      # aligned even though the two launchers share implementation code.
-      f.write({
-        mcpServers: {
-          "syrus-chat-sidecar" => {
-            type: "stdio",
-            command: Rails.root.join("bin/syrus-chat-sidecar").to_s,
-            env: sidecar_env(tool_tier: "essential", server_name: "syrus-chat-sidecar"),
-            alwaysLoad: true
-          },
-          "syrus-chat-deferred-sidecar" => {
-            type: "stdio",
-            command: Rails.root.join("bin/syrus-chat-deferred-sidecar").to_s,
-            env: sidecar_env(tool_tier: "deferred", server_name: "syrus-chat-deferred-sidecar"),
-            alwaysLoad: false
-          }
-        }
-      }.to_json)
+      f.write({ mcpServers: chat_mcp_servers(decision) }.to_json)
       f.flush
       yield f.path
     end
+  end
+
+  def chat_mcp_servers(decision)
+    {
+      "syrus-chat-sidecar" => chat_mcp_server_config(decision, tier: "essential", always_load: true),
+      "syrus-chat-deferred-sidecar" => chat_mcp_server_config(decision, tier: "deferred", always_load: false)
+    }
+  end
+
+  def chat_mcp_server_config(decision, tier:, always_load:)
+    if decision&.persistent?
+      persistent_chat_server_config(decision, tier: tier, always_load: always_load)
+    else
+      stdio_chat_server_config(tier: tier, always_load: always_load)
+    end
+  end
+
+  def stdio_chat_server_config(tier:, always_load:)
+    server_name = tier == "deferred" ? "syrus-chat-deferred-sidecar" : "syrus-chat-sidecar"
+    command = tier == "deferred" ? "bin/syrus-chat-deferred-sidecar" : "bin/syrus-chat-sidecar"
+    {
+      type: "stdio",
+      command: Rails.root.join(command).to_s,
+      env: sidecar_env(tool_tier: tier, server_name: server_name),
+      alwaysLoad: always_load
+    }
+  end
+
+  # Points claude at PersistentMcpDaemon's HTTP transport instead of spawning
+  # a stdio subprocess. The signed McpInvocationContext token travels as a
+  # header (claude builds the JSON-RPC body itself, so there's no config
+  # surface to set `_meta` directly) -- the daemon bridges the header into
+  # `_meta` on its side (see PersistentMcpDaemon#inject_invocation_context).
+  # Codex chat never reaches this path (see #chat_mcp_transport_decision):
+  # ChatProviders::Codex#mcp_servers_for reads every configured entry as a
+  # stdio server (`.fetch("command")`), so an http-type entry would crash it.
+  def persistent_chat_server_config(decision, tier:, always_load:)
+    {
+      type: "http",
+      url: persistent_chat_mcp_url,
+      headers: { PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER => mint_chat_invocation_context_token(decision, tier: tier) },
+      alwaysLoad: always_load
+    }
+  end
+
+  def persistent_chat_mcp_url
+    "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}"
+  end
+
+  def mint_chat_invocation_context_token(decision, tier:)
+    McpInvocationContext.issue_for_chat(
+      @chat,
+      worker_id: decision.daemon_identity["worker_id"],
+      current_message: @user_message,
+      tier: tier,
+      provider: @chat.effective_chat_provider
+    )
+  end
+
+  # Memoized per turn. `nil` when the feature is off -- callers use that as
+  # the "behave exactly as before, log nothing" signal, matching
+  # AgentProviders::Base#mcp_transport_decision's workflow-side convention.
+  def chat_mcp_transport_decision(provider)
+    return @chat_mcp_transport_decision if defined?(@chat_mcp_transport_decision)
+
+    @chat_mcp_transport_decision = compute_chat_mcp_transport_decision(provider)
+  end
+
+  def compute_chat_mcp_transport_decision(provider)
+    return nil unless Feature.persistent_mcp_sidecar_enabled?
+
+    decision = ChatMcpTransportSelector.select
+    decision = provider_unsupported_decision(provider) if decision.persistent? && !persistent_transport_supported?(provider)
+    log_chat_mcp_transport_decision!(decision)
+    decision
+  end
+
+  # Only Claude chat sessions have persistent (http) MCP transport wiring --
+  # see ChatProviders::Claude#invoke vs. ChatProviders::Codex#mcp_servers_for
+  # above.
+  def persistent_transport_supported?(provider)
+    provider.provider == "claude"
+  end
+
+  def provider_unsupported_decision(provider)
+    ChatMcpTransportSelector::Decision.new(
+      transport: :stdio,
+      reason: "provider_unsupported: #{provider.provider} has no persistent MCP HTTP transport wiring yet",
+      daemon_identity: nil
+    )
+  end
+
+  # Records where existing chat diagnostics already surface it: the chat's
+  # `artifacts` column (inspectable the same way SubmitArtifactTool's
+  # typed_artifacts are, see ChatSession#artifact) and a Rails log line --
+  # warn-level specifically for a stdio fallback so "feature enabled with
+  # daemon failure" is greppable via read_syrus_logs, not just via manual
+  # inspection.
+  def log_chat_mcp_transport_decision!(decision)
+    @chat.set_artifact!("mcp_transport", {
+      "transport" => decision.transport.to_s,
+      "reason" => decision.reason,
+      "checked_at" => Time.current.utc.iso8601
+    }.compact)
+
+    if decision.persistent?
+      Rails.logger.info("[ChatTurnJob] mcp_transport=persistent chat_id=#{@chat.id} daemon_worker_id=#{decision.daemon_identity&.dig('worker_id')}")
+    else
+      Rails.logger.warn("[ChatTurnJob] mcp_transport=stdio chat_id=#{@chat.id} reason=#{decision.reason}")
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[ChatTurnJob] failed to record mcp transport decision for chat ##{@chat.id}: #{e.class}: #{e.message}")
   end
 
   def sidecar_env(tool_tier:, server_name:)
@@ -658,13 +757,16 @@ class ChatTurnJob < ApplicationJob
       return if tool_name.blank?
 
       flush_current_assistant_content!
-      McpToolUsageRecorder.record_chat_tool_call(
-        chat_session: @chat,
-        tool_name: tool_name,
-        tool_use_id: tool_use_id,
-        tool_input: tool_input,
-        provider: @chat.effective_chat_provider
-      ) if mcp_tool_name?(tool_name)
+      if mcp_tool_name?(tool_name) && record_transcript_mcp_usage?
+        McpToolUsageRecorder.record_chat_tool_call(
+          chat_session: @chat,
+          tool_name: tool_name,
+          tool_use_id: tool_use_id,
+          tool_input: tool_input,
+          provider: @chat.effective_chat_provider,
+          sidecar_mode: "stdio"
+        )
+      end
       @chat.messages.create!(
         role: "tool_use",
         tool_name: tool_name,
@@ -680,14 +782,15 @@ class ChatTurnJob < ApplicationJob
       return if tool_name.blank? && tool_use_id.blank? && tool_result_content.blank?
 
       flush_current_assistant_content!
-      if mcp_tool_name?(tool_name) || mcp_tool_result_id?(tool_use_id)
+      if record_transcript_mcp_usage? && (mcp_tool_name?(tool_name) || mcp_tool_result_id?(tool_use_id))
         McpToolUsageRecorder.record_chat_tool_result(
           chat_session: @chat,
           tool_name: tool_name,
           tool_use_id: tool_use_id,
           content: tool_result_content,
           error: tool_result_error == true,
-          provider: @chat.effective_chat_provider
+          provider: @chat.effective_chat_provider,
+          sidecar_mode: "stdio"
         )
       end
       anchor_pending_action_to_tool_call!(tool_use_id, tool_result_content) unless tool_result_error == true
@@ -709,6 +812,18 @@ class ChatTurnJob < ApplicationJob
 
       create_message!("system", system_content_for(chunk, mcp_servers: mcp_servers))
     end
+  end
+
+  # Persistent-mode calls are recorded authoritatively at the daemon's own
+  # dispatch boundary (PersistentMcpDaemon::ChatToolDispatch), which sees
+  # every call/result synchronously and can capture rejections (invalid
+  # invocation context, tier/role authorization) that never make it into
+  # this transcript as a clean tool_call/tool_result pair. Recording again
+  # here from the transcript would double-count the same call under a
+  # different (transcript-derived) tool_use_id, so this transcript path
+  # stays the source of truth only for stdio-mode turns.
+  def record_transcript_mcp_usage?
+    !@chat_mcp_transport_decision&.persistent?
   end
 
   def mcp_tool_name?(tool_name)

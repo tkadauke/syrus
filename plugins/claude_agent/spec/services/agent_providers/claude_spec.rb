@@ -218,6 +218,97 @@ RSpec.describe AgentProviders::Claude do
     end
   end
 
+  describe "MCP transport selection" do
+    def set_feature(enabled)
+      Feature.find_or_create_by!(slug: "persistent_mcp_sidecar") do |feature|
+        feature.category = "Labs"
+        feature.name = "Persistent MCP sidecar"
+      end.update!(enabled: enabled)
+      Feature.clear_enabled_cache!("persistent_mcp_sidecar")
+    end
+
+    def success_result
+      AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                  is_error: false, outcome: "success",
+                                  final_text: nil, session_id: nil)
+    end
+
+    def run_and_capture_config
+      mcp_config = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        mcp_config = JSON.parse(File.read(kwargs[:mcp_config]))
+        success_result
+      }
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { }, max_turns: 7)
+      mcp_config
+    end
+
+    def health_url
+      "http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::HEALTH_PATH}"
+    end
+
+    after { Feature.clear_enabled_cache!("persistent_mcp_sidecar") }
+
+    it "builds the existing stdio config and records no new diagnostics when the feature is disabled" do
+      set_feature(false)
+
+      mcp_config = run_and_capture_config
+
+      expect(mcp_config.dig("mcpServers", "syrus-mcp-sidecar", "type")).to eq("stdio")
+      expect(run.step.reload.details).not_to have_key("mcp_transport")
+      expect(run.job_logs.pluck(:chunk).join("\n")).not_to include("[mcp_transport]")
+    end
+
+    it "falls back to stdio with an actionable reason and records diagnostics when the daemon is unreachable" do
+      set_feature(true)
+      stub_request(:get, health_url).to_raise(Errno::ECONNREFUSED)
+
+      mcp_config = run_and_capture_config
+
+      expect(mcp_config.dig("mcpServers", "syrus-mcp-sidecar", "type")).to eq("stdio")
+      details = run.step.reload.details["mcp_transport"]
+      expect(details["transport"]).to eq("stdio")
+      expect(details["reason"]).to match(/\Adaemon_unreachable: /)
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("[mcp_transport] transport=stdio reason=daemon_unreachable")
+    end
+
+    it "falls back to stdio when the daemon is healthy but not yet capable of dispatching workflow tools" do
+      set_feature(true)
+      stub_request(:get, health_url).to_return(
+        status: 200,
+        body: { status: "ok", identity: { worker_id: "w-1" }, capabilities: [] }.to_json
+      )
+
+      mcp_config = run_and_capture_config
+
+      expect(mcp_config.dig("mcpServers", "syrus-mcp-sidecar", "type")).to eq("stdio")
+      expect(run.step.reload.details.dig("mcp_transport", "reason")).to match(/\Adaemon_incompatible: /)
+    end
+
+    it "routes to the persistent daemon over HTTP with a signed invocation-context header when compatible" do
+      set_feature(true)
+      stub_request(:get, health_url).to_return(
+        status: 200,
+        body: { status: "ok", identity: { worker_id: "w-1" }, capabilities: [ "workflow_tools" ] }.to_json
+      )
+
+      mcp_config = run_and_capture_config
+
+      server = mcp_config.dig("mcpServers", "syrus-mcp-sidecar")
+      expect(server["type"]).to eq("http")
+      expect(server["url"]).to eq("http://#{PersistentMcpDaemon.host}:#{PersistentMcpDaemon.port}#{PersistentMcpDaemon::MCP_PATH}")
+
+      token = server.dig("headers", PersistentMcpDaemon::INVOCATION_CONTEXT_HEADER)
+      resolved = McpInvocationContext.resolve(token, worker_id: "w-1")
+      expect(resolved.tool_context.run.id).to eq(run.id)
+
+      details = run.step.reload.details["mcp_transport"]
+      expect(details["transport"]).to eq("persistent")
+      expect(details["reason"]).to be_nil
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("[mcp_transport] transport=persistent daemon_worker_id=w-1")
+    end
+  end
+
   describe "#run_once" do
     it "uses a tmpdir without MCP or resume state" do
       received = nil

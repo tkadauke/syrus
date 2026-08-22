@@ -38,5 +38,15 @@ RSpec.describe "API: /api/v1/admin/mcp_tool_usage", type: :request do
       "server_name" => "syrus-mcp-sidecar",
       "calls" => 1
     )
+    expect(body["provider_breakdown"]).to be_an(Array)
+    expect(body["server_breakdown"]).to contain_exactly(
+      include("server_name" => "syrus-mcp-sidecar", "calls" => 1)
+    )
+    expect(body["recent_calls"].first).to include(
+      "tool_name" => "read_live_state",
+      "surface" => "workflow",
+      "job_path" => "/jobs/#{run.job.id}",
+      "run_path" => "/admin/runs/#{run.id}/transcript"
+    )
   end
 end

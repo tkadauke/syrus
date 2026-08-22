@@ -133,6 +133,19 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".persistent_mcp_sidecar_enabled?" do
+    it "is false when the row is absent and follows the row when present" do
+      Feature.where(slug: "persistent_mcp_sidecar").delete_all
+      expect(Feature.persistent_mcp_sidecar_enabled?).to eq(false)
+
+      feature = Feature.create!(slug: "persistent_mcp_sidecar", category: "Labs", name: "Persistent MCP sidecar", enabled: true)
+      expect(Feature.persistent_mcp_sidecar_enabled?).to eq(true)
+
+      feature.update!(enabled: false)
+      expect(Feature.persistent_mcp_sidecar_enabled?).to eq(false)
+    end
+  end
+
   describe ".coding_mode_enabled?" do
     it "returns the flag value in advanced mode" do
       Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
