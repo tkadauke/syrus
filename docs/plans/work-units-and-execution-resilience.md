@@ -1470,6 +1470,9 @@ Completed slices:
   result instead of starting the Workflow in the service.
 - Manual CI repair reruns now use the launcher create-plus-dispatch result while
   preserving the existing deferred-start error path.
+- External PR ingest, external PR feedback, and external PR ingest retry now use
+  the launcher create-plus-dispatch result instead of direct `StepDispatcher`
+  calls in their poll/retry services.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

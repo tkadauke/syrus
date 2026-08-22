@@ -524,6 +524,7 @@ RSpec.describe PollExternalPrJob do
         .to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }.by(1)
 
       workflow = external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").last
+      expect(workflow.work_unit).to have_attributes(kind: "external_pr_feedback")
       expect(workflow.artifact("pr_comments")).not_to be_empty
     end
 

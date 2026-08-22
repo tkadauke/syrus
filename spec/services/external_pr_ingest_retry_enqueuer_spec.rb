@@ -39,6 +39,7 @@ RSpec.describe ExternalPrIngestRetryEnqueuer do
       result = described_class.call(job: job)
       expect(result).to be_success
       expect(result.workflow.trigger_kind).to eq("external_pr_ingest")
+      expect(result.workflow.work_unit).to have_attributes(kind: "external_pr_ingest")
     }.to change { job.workflows.where(trigger_kind: "external_pr_ingest").count }.by(1)
       .and have_enqueued_job(RunJob)
 

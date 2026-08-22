@@ -90,6 +90,7 @@ RSpec.describe PollExternalOpenPrsJob do
 
       workflow = Workflow.last
       expect(workflow.trigger_kind).to eq("external_pr_ingest")
+      expect(workflow.work_unit).to have_attributes(kind: "external_pr_ingest")
     end
 
     it "ingests multiple PRs in one pass" do

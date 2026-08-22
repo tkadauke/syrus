@@ -185,13 +185,13 @@ class PollExternalPrJob < ApplicationJob
       "pr_feedback_source_handle" => source_handle,
       "pr_review_comment_ids" => qualifying_records.map(&:id)
     }
-    workflow = WorkUnits::Launcher.instantiate(
+    result = WorkUnits::Launcher.create_and_start!(
       kind: "external_pr_feedback",
       job: @job,
       artifacts: artifacts,
       agent_provider: @job.workflow_agent_provider
     )
-    StepDispatcher.start_workflow(workflow)
+    workflow = result.workflow
 
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
   end
