@@ -44,6 +44,16 @@ RSpec.describe Mcp::Tools::RenameChatTool do
     expect(chat_session.reload.title).to eq("Weekly triage")
   end
 
+  it "clears a failed-generation fallback flag so ChatTitleJob will not later overwrite the rename" do
+    chat_session.update!(title: repository.name, title_auto_fallback: true)
+
+    response = call_tool(name: "Release planning")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(chat_session.reload.title).to eq("Release planning")
+    expect(chat_session.title_auto_fallback).to eq(false)
+  end
+
   it "rejects blank names" do
     response = call_tool(name: "  ")
 

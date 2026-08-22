@@ -28,7 +28,7 @@ module Mcp::Tools
           return Mcp::Tools.invalid("name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer")
         end
 
-        chat_session.update!(title: name)
+        chat_session.rename!(name)
 
         Mcp::Tools.success(
           session_id: chat_session.id,

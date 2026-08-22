@@ -380,6 +380,17 @@ RSpec.describe ChatSession do
     end
   end
 
+  describe "#rename!" do
+    it "clears the failed-generation fallback flag so ChatTitleJob does not overwrite an explicit rename" do
+      session = described_class.create!(repository: repo, user: repo.user, title: repo.name, title_auto_fallback: true)
+
+      session.rename!("Calendar planning")
+
+      expect(session.reload.title).to eq("Calendar planning")
+      expect(session.title_auto_fallback).to eq(false)
+    end
+  end
+
   describe "React app events" do
     it "does not broadcast a header update for the initial repository attachment" do
       expect(AppEvents).not_to receive(:broadcast)
