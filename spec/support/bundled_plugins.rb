@@ -160,6 +160,8 @@ RSpec.configure do |config|
 
     AdminMysql.register! unless registered_names.include?("admin_mysql")
 
+    GitHistory.register! unless registered_names.include?("git_history")
+
     unless registered_names.include?("tailscale")
       Syrus::PluginRegistry.register(
         name:            "tailscale",
