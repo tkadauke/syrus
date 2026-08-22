@@ -276,6 +276,7 @@ class StepDispatcher
       artifacts.delete("start_blocked_details")
     end
     workflow.update!(artifacts: artifacts)
+    record_work_unit_blocked!(workflow, reason, blocked_until: now + backoff, details: details)
   end
 
   def self.record_admission_decision!(workflow, decision)
@@ -331,6 +332,48 @@ class StepDispatcher
       "pause_details"
     )
     workflow.update!(artifacts: cleared)
+    clear_work_unit_blocked!(workflow, reason)
+  end
+
+  def self.record_work_unit_blocked!(workflow, reason, blocked_until:, details: nil)
+    unit = workflow.work_unit
+    return unless unit&.active?
+
+    unit.block!(
+      reason: work_unit_blocked_reason_for(reason),
+      blocked_until: blocked_until,
+      details: work_unit_blocked_details(reason, details)
+    )
+  end
+
+  def self.clear_work_unit_blocked!(workflow, reason)
+    unit = workflow.work_unit
+    return unless unit&.blocked?
+    return unless unit.blocked_details.to_h["start_blocked_reason"] == reason
+
+    unit.unblock!
+  end
+
+  def self.work_unit_blocked_reason_for(reason)
+    case reason
+    when MANUAL_PAUSE_REASON
+      "manual_pause"
+    when PROVIDER_AVAILABILITY_BLOCK_REASON
+      "provider_availability"
+    when ADMISSION_BLOCK_REASON, "landing start blocked: workflow admission budget"
+      "admission_control"
+    when PAUSE_REASON_RESOURCE_SAFETY
+      "resource_safety"
+    when MAIN_HEALTH_BLOCK_REASON
+      "main_branch_health"
+    else
+      "preempted"
+    end
+  end
+
+  def self.work_unit_blocked_details(reason, details)
+    payload = details.is_a?(Hash) ? details : {}
+    payload.merge("start_blocked_reason" => reason)
   end
 
   def self.parse_artifact_time(value)
@@ -395,6 +438,7 @@ class StepDispatcher
     ).merge(extra_artifacts)
     artifacts["start_blocked_details"] = details if details.present?
     workflow.update!(artifacts: artifacts)
+    record_work_unit_blocked!(workflow, reason, blocked_until: now + backoff, details: details)
     WorkflowPhaseAdmissionJob.set(wait: backoff, priority: workflow.job.solid_queue_priority).perform_later(workflow.id)
     schedule_landing_queue_recheck!(workflow, backoff)
     nil
@@ -549,6 +593,7 @@ class StepDispatcher
       artifacts.delete("start_blocked_details")
     end
     workflow.update!(artifacts: artifacts)
+    record_work_unit_blocked!(workflow, reason, blocked_until: now + backoff, details: details)
   end
 
   def self.record_manual_pause!(workflow, step: nil)
@@ -574,6 +619,7 @@ class StepDispatcher
       "start_blocked_details" => details
     ).except("pause_next_check_at", "start_blocked_next_check_at")
     workflow.update!(artifacts: artifacts)
+    record_work_unit_blocked!(workflow, MANUAL_PAUSE_REASON, blocked_until: nil, details: details)
   end
 
   def self.append_phase_deferral_log!(workflow, step, admission)

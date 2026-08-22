@@ -14,6 +14,29 @@ RSpec.describe StepDispatcher do
     s2.update!(next_step_id: s3.id)
   end
 
+  def attach_work_unit(workflow, state: "queued")
+    intent = WorkIntent.create!(
+      kind: workflow.trigger_kind,
+      state: "requested",
+      repository: workflow.job.repository,
+      scope_type: "job",
+      scope_id: workflow.job_id,
+      actor: workflow.job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: workflow.trigger_kind,
+      state: state,
+      repository: workflow.job.repository,
+      scope_type: "job",
+      scope_id: workflow.job_id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: workflow.job, role: "primary")
+    unit
+  end
+
   describe ".start_workflow" do
     it "creates a Run on the first step" do
       expect {
@@ -107,6 +130,7 @@ RSpec.describe StepDispatcher do
     end
 
     it "does not create the first Run while the job is manually paused" do
+      unit = attach_work_unit(workflow)
       job.pause_manually!(by_user: job.user)
 
       expect {
@@ -117,6 +141,15 @@ RSpec.describe StepDispatcher do
       expect(workflow.artifact("pause_kind")).to eq("manual")
       expect(workflow.artifact("start_blocked_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
       expect(workflow.artifact("start_blocked_next_check_at")).to be_nil
+      expect(unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "manual_pause",
+        blocked_until: nil
+      )
+      expect(unit.blocked_details).to include(
+        "reason" => StepDispatcher::MANUAL_PAUSE_REASON,
+        "start_blocked_reason" => StepDispatcher::MANUAL_PAUSE_REASON
+      )
     end
 
     it "still preserves manual pause when workflow admission control is disabled" do
@@ -132,6 +165,7 @@ RSpec.describe StepDispatcher do
     end
 
     it "does not create the first Run when provider usage is below the user's provider threshold" do
+      unit = attach_work_unit(workflow)
       workflow.update!(agent_provider: "codex")
       job.user.update!(
         provider_availability_pause_thresholds: { "codex" => 10 },
@@ -158,6 +192,15 @@ RSpec.describe StepDispatcher do
         "provider" => "codex",
         "threshold_percent" => 10,
         "remaining_percent" => 9.0
+      )
+      expect(unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "provider_availability"
+      )
+      expect(unit.blocked_until).to be_present
+      expect(unit.blocked_details).to include(
+        "provider" => "codex",
+        "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
       )
       expect(enqueued_jobs.map { |entry| entry[:job] }).to include(WorkflowPhaseAdmissionJob)
     end
@@ -465,6 +508,7 @@ RSpec.describe StepDispatcher do
         approved_via: "operator"
       )
       auto_merge = Workflows::AutoMerge.instantiate(job: landing_job)
+      unit = attach_work_unit(auto_merge)
       first_step = auto_merge.first_step
       delay_until = 10.minutes.from_now
       decision = WorkflowAdmissionBudget::Decision.new(
@@ -492,6 +536,15 @@ RSpec.describe StepDispatcher do
       expect(auto_merge.artifact("workflow_admission_decision")).to include(
         "action" => "delay_until",
         "reason" => "predicted_budget_pressure_high"
+      )
+      expect(unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "admission_control"
+      )
+      expect(unit.blocked_until).to be_within(2.seconds).of(delay_until)
+      expect(unit.blocked_details).to include(
+        "action" => "delay_until",
+        "start_blocked_reason" => "landing start blocked: workflow admission budget"
       )
       expect(landing_job.reload).to be_landing
       expect(landing_job.landing_failure_reason).to be_nil
@@ -636,6 +689,7 @@ RSpec.describe StepDispatcher do
     end
 
     it "resumes a manually paused workflow after unpause" do
+      unit = attach_work_unit(workflow, state: "running")
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
       job.pause_manually!(by_user: job.user)
@@ -648,6 +702,11 @@ RSpec.describe StepDispatcher do
       expect(job.reload.manual_paused?).to be(false)
       expect(workflow.reload.artifact("pause_reason")).to be_nil
       expect(workflow.artifact("start_blocked_reason")).to be_nil
+      expect(unit.reload).to have_attributes(
+        state: "queued",
+        blocked_reason: nil,
+        blocked_details: {}
+      )
     end
 
     it "creates a Run on the next runnable step" do
