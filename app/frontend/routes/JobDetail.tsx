@@ -380,9 +380,10 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             initialPreview={payload.preview}
             queryKeyPrefix="job"
             entityId={payload.job.id}
-            previewPath={payload.paths.app_preview_path}
             previewLogsPath={payload.paths.app_preview_logs_path}
+            previewPath={payload.paths.app_preview_path}
             queryKey={queryKey}
+            repositoryId={payload.repository.id}
           />
 
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">

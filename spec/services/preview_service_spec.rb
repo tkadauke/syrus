@@ -153,7 +153,7 @@ RSpec.describe PreviewService do
 
       expect {
         service.send(:await_health_check, env, 28_009, "/up")
-      }.to raise_error(RuntimeError, /not reachable at preview:28009/)
+      }.to raise_error(PreviewService::NotReachableError, /not reachable at preview:28009/)
     end
 
     it "does not require a second health check when the proxy target is loopback" do
@@ -216,6 +216,19 @@ RSpec.describe PreviewService do
       service.send(:poll_starting_environments)
       expect(env.reload.state).to eq("failed")
       expect(env.error_message).to eq("checkout failed")
+      expect(env.error_reason).to be_nil
+    end
+
+    it "tags the failure with error_reason not_reachable when the proxy target can't reach the app" do
+      env = create_env(workspace_path: "/nonexistent/path")
+      service = described_class.new
+      allow(PreviewWorkspace).to receive(:prepare!).with(env)
+        .and_raise(PreviewService::NotReachableError, "preview process is healthy on 127.0.0.1:28009 but is not reachable at preview:28009; configure the preview start command to bind to 0.0.0.0")
+
+      service.send(:poll_starting_environments)
+      expect(env.reload.state).to eq("failed")
+      expect(env.error_reason).to eq("not_reachable")
+      expect(env.error_message).to include("configure the preview start command to bind to 0.0.0.0")
     end
 
     it "stores the configured internal host for the web proxy target" do

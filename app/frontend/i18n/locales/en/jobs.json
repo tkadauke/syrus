@@ -576,5 +576,9 @@
   "preview_logs_empty": "No preview logs found.",
   "preview_logs_missing": "missing",
   "preview_logs_empty_content": "(empty)",
-  "preview_logs_close": "Close"
+  "preview_logs_close": "Close",
+  "preview_fix_button": "Fix preview",
+  "preview_fix_job_title": "Fix preview: not reachable from the preview proxy",
+  "preview_fix_prompt": "Syrus's preview feature diagnosed this repository's preview process as unreachable:\n\n\"{{error_message}}\"\n\nThe app starts and passes its own local health check, but is not reachable from the network host Syrus's preview proxy uses to reach it. This almost always means the preview start command binds its server to 127.0.0.1/localhost only instead of all interfaces.\n\nPlease fix this repository's preview start command (in .syrus.yml's `preview.start`, or the equivalent dev-server start script) so the app binds to 0.0.0.0 while still listening on the port Syrus provides. Common fixes: pass a `-b 0.0.0.0` / `--host 0.0.0.0` flag to the server command, or change a hardcoded 127.0.0.1/localhost bind host in code or config to 0.0.0.0. Verify the fix doesn't regress normal local usage.",
+  "preview_fix_error": "Could not create a job to fix the preview."
 }

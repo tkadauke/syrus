@@ -1479,6 +1479,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
   create_table "preview_environments", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "error_message"
+    t.string "error_reason"
     t.datetime "expires_at"
     t.string "internal_host"
     t.integer "job_id"
