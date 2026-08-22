@@ -72,6 +72,7 @@ class ChatSession < ApplicationRecord
           as: :resumable,
           class_name: "ProviderSession"
   has_one :whiteboard, dependent: :destroy
+  has_many :preview_panels, dependent: :destroy
   has_one :linked_job, class_name: "Job", foreign_key: :linked_chat_id, inverse_of: :linked_chat, dependent: :nullify
   has_one :local_daemon_session, dependent: :destroy
 
