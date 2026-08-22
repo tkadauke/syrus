@@ -1,10 +1,13 @@
 class CreateWorkflowWarnings < ActiveRecord::Migration[8.1]
   def up
     create_table :workflow_warnings, if_not_exists: true do |t|
-      t.references :job,         null: false, foreign_key: true, index: true
-      t.references :workflow,    null: false, foreign_key: true, index: true
-      t.references :step,        null: true,  foreign_key: true, index: true
-      t.references :created_job, null: true,  foreign_key: { to_table: :jobs }
+      # Syrus does not enforce database-level foreign keys (see
+      # config/initializers/foreign_keys.rb) — app associations and
+      # reconciler-style cleanup own referential integrity instead.
+      t.references :job,         null: false, index: true
+      t.references :workflow,    null: false, index: true
+      t.references :step,        null: true,  index: true
+      t.references :created_job, null: true,  index: true
 
       t.string :kind,     null: false
       t.string :severity, null: false, default: "medium"
