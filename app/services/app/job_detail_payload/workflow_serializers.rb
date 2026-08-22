@@ -36,6 +36,26 @@ module App
         )
       end
 
+      def current_intent_json
+        intent = current_work_intent_for_job
+        return nil unless intent
+
+        {
+          id: intent.id,
+          kind: intent.kind,
+          state: intent.state,
+          scope_type: intent.scope_type,
+          scope_id: intent.scope_id,
+          wait_reason: intent.wait_reason,
+          wait_until: iso8601(intent.wait_until),
+          wait_details: intent.wait_details.presence,
+          execution_status: intent_execution_status(intent),
+          requested_at: iso8601(intent.requested_at),
+          satisfied_at: iso8601(intent.satisfied_at),
+          cancelled_at: iso8601(intent.cancelled_at)
+        }
+      end
+
       def work_unit_json(unit, member)
         workflow = unit.workflow
         {
@@ -69,6 +89,26 @@ module App
             .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
             .first
         end
+      end
+
+      def current_work_intent_for_job
+        @current_work_intent_for_job ||= begin
+          active_work_unit_member_for_job&.work_unit&.work_intent || latest_job_scoped_work_intent
+        end
+      end
+
+      def latest_job_scoped_work_intent
+        WorkIntent
+          .where(scope_type: "job", scope_id: @job.id, state: %w[requested waiting])
+          .order(created_at: :desc, id: :desc)
+          .first
+      end
+
+      def intent_execution_status(intent)
+        return "active" if intent.work_units.where(state: %w[queued blocked running]).exists?
+        return "blocked" if intent.waiting?
+
+        intent.state
       end
 
       def work_unit_members_for_job

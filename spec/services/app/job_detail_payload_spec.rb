@@ -654,6 +654,50 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#workflows_json" do
+    it "includes the active work intent in the default job detail payload" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "initial")
+
+      payload = payload_for(job)
+
+      expect(payload.fetch(:current_intent)).to include(
+        id: unit.work_intent_id,
+        kind: "initial",
+        state: "requested",
+        scope_type: "job",
+        scope_id: job.id,
+        execution_status: "active"
+      )
+    end
+
+    it "includes a waiting job-scoped intent even when no work unit exists yet" do
+      job = Factories.job_record(user: user, repository: repo)
+      intent = WorkIntent.create!(
+        kind: "initial",
+        state: "waiting",
+        repository: repo,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: user,
+        wait_reason: "dependency",
+        wait_details: { "blocked_by_job_ids" => [ 9 ] },
+        source_type: "spec"
+      )
+
+      payload = payload_for(job)
+
+      expect(payload.fetch(:active_work)).to be_nil
+      expect(payload.fetch(:current_intent)).to include(
+        id: intent.id,
+        kind: "initial",
+        state: "waiting",
+        wait_reason: "dependency",
+        wait_details: include("blocked_by_job_ids" => [ 9 ]),
+        execution_status: "blocked"
+      )
+    end
+
     it "includes work units involving the job even when the workflow is attached to another job" do
       epic = Factories.epic(user: user, repository: repo)
       first = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)

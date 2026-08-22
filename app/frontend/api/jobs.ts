@@ -512,6 +512,21 @@ export type JobWorkUnit = {
   finished_at: string | null
 }
 
+export type JobWorkIntent = {
+  id: number
+  kind: string
+  state: string
+  scope_type: string
+  scope_id: number | null
+  wait_reason: string | null
+  wait_until: string | null
+  wait_details: Record<string, unknown> | null
+  execution_status: string
+  requested_at: string | null
+  satisfied_at: string | null
+  cancelled_at: string | null
+}
+
 export type JobStep = {
   id: number
   kind: string
@@ -799,6 +814,7 @@ export type JobDetailPayload = {
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
+  current_intent?: JobWorkIntent | null
   active_work?: JobWorkUnit | null
   work_units?: JobWorkUnit[]
   workflows: JobWorkflow[]
