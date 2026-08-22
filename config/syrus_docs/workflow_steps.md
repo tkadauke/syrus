@@ -170,6 +170,25 @@ another agent turn. See [`plugins.md`](plugins.md#autofix_command) for the
 `:autofix_command` extension point contract and the bundled providers `format`
 falls back to.
 
+None of `format`, `generate`, or the `grader_fanout`/`grader_collect` check
+phase is materialized as a Step by default. `Workflows::Base.grader_retry_loop`
+resolves `RepoGradeLoopPlan.for_job(job)` before the workspace is cloned
+(mirrors `RepoAdversarialReviewPlan`/`RepoVisualReviewPlan` — reads
+`.syrus.yml` from the repository's default branch through GitHub) to decide
+whether the repository's `.syrus.yml` actually configures `formatters:`,
+`generated:`, or `grade:`. A freshly onboarded repository with no
+`.syrus.yml` yet gets a bare `implement`/`respond` step and no grade loop at
+all — nothing to hide, since no Step rows are created. As soon as any one of
+the three is configured, the whole grade loop materializes together: the
+agent step, whichever of `format`/`generate` are actually configured, and
+`grader_fanout`/`grader_collect` (the check phase always appears once the
+loop exists, even if only `formatters:` or `generated:` triggered it — there
+is no way to retry without a check). This gating only applies to the
+autofix-enabled call sites (`initial`, `retry`, `pr_comment`,
+`chat_feedback`); `ci_failure`, `skill`, `main_branch_repair`, and
+`external_pr_feedback` always materialize their grader check unconditionally,
+since grading is the entire point of those repair loops.
+
 ## Review and quality steps
 
 ### adversarial_review

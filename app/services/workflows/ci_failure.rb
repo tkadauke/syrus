@@ -16,7 +16,7 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
-        grader_retry_loop(:analyze_and_fix),
+        grader_retry_loop(job, :analyze_and_fix),
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
       )

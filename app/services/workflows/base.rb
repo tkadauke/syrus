@@ -147,10 +147,33 @@ module Workflows
     # main_branch_repair/external_pr_feedback (repair loops with different
     # repair semantics) aren't affected by a change scoped to
     # initial/retry/pr_comment/chat_feedback.
-    def self.grader_retry_loop(agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false)
+    #
+    # For those autofix call sites, format/generate/grader Steps are only
+    # materialized when the repository's `.syrus.yml` actually configures
+    # them (RepoGradeLoopPlan, read pre-clone the same way
+    # RepoAdversarialReviewPlan/RepoVisualReviewPlan are) — none of the
+    # three is configured by default, so a freshly onboarded repo with no
+    # `.syrus.yml` yet gets a bare agent step with no grade loop at all. As
+    # soon as any one of them is configured, the whole grade loop (the agent
+    # step, whichever of format/generate are configured, and
+    # grader_fanout/grader_collect together) is materialized.
+    def self.grader_retry_loop(job, agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false)
+      return unconditional_grader_retry_loop(agent_step, max_iterations: max_iterations) unless autofix
+
+      plan = RepoGradeLoopPlan.for_job(job)
+      return agent_step unless plan.any_configured?
+
+      repair = [ agent_step ]
+      repair << :format if plan.format_configured
+      repair << :generate if plan.generate_configured
+
+      Workflows::RetryUntil.new(max_iterations: max_iterations, repair: repair, check: [ :grader_fanout, :grader_collect ])
+    end
+
+    def self.unconditional_grader_retry_loop(agent_step, max_iterations:)
       Workflows::RetryUntil.new(
         max_iterations: max_iterations,
-        repair: autofix ? [ agent_step, :format, :generate ] : [ agent_step ],
+        repair: [ agent_step ],
         check: [ :grader_fanout, :grader_collect ]
       )
     end

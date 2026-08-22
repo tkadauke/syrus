@@ -83,6 +83,9 @@ RSpec.describe WorkflowAdmissionBudget do
   before do
     set_feature("work_units_landing", false)
     set_feature("work_units_scheduler", false)
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
     seed_low_cost_profiles
   end
 
