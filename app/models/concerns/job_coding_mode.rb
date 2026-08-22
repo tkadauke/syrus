@@ -52,7 +52,12 @@ module JobCodingMode
     release_from_coding!
     save!
 
-    workflow = Workflows::CodingHandoff.instantiate(job: self, artifacts: handoff_artifacts, agent_provider: agent_provider)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "coding_handoff",
+      job: self,
+      artifacts: handoff_artifacts,
+      agent_provider: agent_provider
+    )
     StepDispatcher.start_workflow(workflow)
     workflow
   end

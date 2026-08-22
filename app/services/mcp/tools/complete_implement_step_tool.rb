@@ -66,8 +66,8 @@ module Mcp::Tools
           end
         end
 
-        workflow_class = chat_session.local? ? Workflows::LocalModeHandoff : Workflows::CodingHandoff
-        workflow = workflow_class.instantiate(job: job)
+        work_kind = chat_session.local? ? "local_mode_handoff" : "coding_handoff"
+        workflow = WorkUnits::Launcher.instantiate(kind: work_kind, job: job)
         StepDispatcher.start_workflow(workflow)
 
         Mcp::Tools.success(

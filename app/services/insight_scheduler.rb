@@ -15,7 +15,7 @@ class InsightScheduler
         issue_title: "Insight analysis: #{repository.slug}",
         owner_user: user
       )
-      workflow = Workflows::AgentInsight.instantiate(job: j)
+      workflow = WorkUnits::Launcher.instantiate(kind: "agent_insight", job: j)
       StepDispatcher.start_workflow(workflow)
       j
     end

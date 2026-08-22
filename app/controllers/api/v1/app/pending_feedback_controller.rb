@@ -167,20 +167,20 @@ module Api
             workflow.artifact("feedback_source").to_h["pr_review_comment_id"].to_i == comment.id
         end
 
-        RETRY_TEMPLATES = {
-          "pr_comment" => Workflows::PrFeedback,
-          "external_pr_feedback" => Workflows::ExternalPrFeedback
+        RETRY_WORK_KINDS = {
+          "pr_comment" => "pr_comment",
+          "external_pr_feedback" => "external_pr_feedback"
         }.freeze
-        private_constant :RETRY_TEMPLATES
+        private_constant :RETRY_WORK_KINDS
 
         def retry_feedback_handling(job, comment)
           original = comment.handling_workflow
-          template = RETRY_TEMPLATES[original&.trigger_kind]
-          if template
+          work_kind = RETRY_WORK_KINDS[original&.trigger_kind]
+          if work_kind
             artifacts = original.artifacts.to_h.deep_dup
             artifacts["pr_feedback_iteration"] = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
             artifacts["pr_review_comment_ids"] = Array(artifacts["pr_review_comment_ids"]).map(&:to_i).presence || [ comment.id ]
-            workflow = template.instantiate(job: job, artifacts: artifacts)
+            workflow = WorkUnits::Launcher.instantiate(kind: work_kind, job: job, artifacts: artifacts)
             StepDispatcher.start_workflow(workflow)
             ChatFeedbackSubmission::Result.new(workflow: workflow, error: nil)
           else

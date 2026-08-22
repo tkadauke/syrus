@@ -29,7 +29,8 @@ class MainGraderWorkflowJob < ApplicationJob
         issue_number: nil
       )
 
-      workflow = Workflows::MainGrader.instantiate(
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "main_grader",
         job: job,
         artifacts: { "main_sha" => sha }
       )

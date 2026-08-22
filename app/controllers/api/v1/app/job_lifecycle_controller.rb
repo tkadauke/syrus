@@ -22,7 +22,7 @@ module Api
           end
 
           workflow = job.workflows.where(state: "queued", trigger_kind: "initial").order(:created_at).first ||
-                     Workflows::Initial.instantiate(job: job)
+                     WorkUnits::Launcher.instantiate(kind: "initial", job: job)
           rendered_prompt = Prompts::DirectJob.new(
             prompt: job.issue_body.to_s,
             epic: job.epic,
