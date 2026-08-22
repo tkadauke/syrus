@@ -136,6 +136,22 @@ class Feature < ApplicationRecord
     enabled?(:persistent_mcp_sidecar)
   end
 
+  def self.work_units_shadow_mode_enabled?
+    enabled?(:work_units_shadow_mode)
+  end
+
+  def self.work_units_scheduler_enabled?
+    enabled?(:work_units_scheduler)
+  end
+
+  def self.work_units_landing_enabled?
+    enabled?(:work_units_landing)
+  end
+
+  def self.work_units_reconciler_enabled?
+    enabled?(:work_units_reconciler)
+  end
+
   private
 
   def clear_request_enabled_cache
