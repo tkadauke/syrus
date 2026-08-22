@@ -1,5 +1,7 @@
 module WorkDefinitions
   class Base
+    LANDING_LOCK_KINDS = %w[auto_merge external_pr_merge merge_train landing_validation merge_train_validation].freeze
+
     class_attribute :kind, instance_accessor: false
     class_attribute :workflow_trigger_kind, instance_accessor: false
     class_attribute :runtime_role, instance_accessor: false
@@ -39,7 +41,7 @@ module WorkDefinitions
     private
 
     def landing_lock?
-      kind.in?(%w[auto_merge external_pr_merge merge_train landing_validation merge_train_validation])
+      kind.in?(LANDING_LOCK_KINDS)
     end
   end
 end

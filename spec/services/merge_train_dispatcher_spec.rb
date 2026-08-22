@@ -116,6 +116,17 @@ RSpec.describe MergeTrainDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does nothing when another active work unit owns the repository landing lock" do
+    approved_child(1)
+    landing_owner = Factories.job_record(user: user, repository: repository, issue_number: 99, state: "approved", pr_number: 999)
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_owner)
+    workflow.work_unit.update!(state: "running")
+
+    expect(described_class.blocker_reason(epic)).to eq("#{landing_owner.slug} is already landing for #{repository.slug}")
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+  end
+
   it "does not dispatch a second train when the Epic already has an active train" do
     approved_child(1)
     active_train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master", state: "grading")
