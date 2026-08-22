@@ -309,7 +309,7 @@
       },
       "persistent_mcp_sidecar": {
         "name": "Persistenter MCP-Sidecar",
-        "description": "Aktiviert das Grundgerüst eines persistenten, worker-lokalen MCP-Sidecar-Daemons, der einmal starten und einen rein lokalen MCP-Transport samt Health-Check bereitstellen kann. Es ist noch kein Workflow- oder Chat-Agent damit verbunden; solange deaktiviert, nutzen Agenten weiterhin die üblichen Stdio-Sidecars pro Run/Sitzung."
+        "description": "Aktiviert einen persistenten, worker-lokalen MCP-Sidecar-Daemon, der einmal startet und einen rein lokalen MCP-Transport samt Health-Check bereitstellt. Chat-Turns können ihre MCP-Tool-Aufrufe dorthin leiten, mit automatischem Fallback auf Stdio; Workflow-Agent-Läufe nutzen ihn noch nicht und verwenden weiterhin den Stdio-Sidecar pro Run. Solange deaktiviert, nutzen alle Agenten weiterhin die üblichen Stdio-Sidecars pro Run/Sitzung."
       }
     }
   },

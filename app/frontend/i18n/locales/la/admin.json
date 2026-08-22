@@ -309,7 +309,7 @@
       },
       "persistent_mcp_sidecar": {
         "name": "Adiutor MCP Persistens",
-        "description": "Activat exemplar rudimentale daemonis adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportum MCP solum localem cum indicio salutis praebere. Nullus adhuc agens laboris vel colloquii ei connexus est; quo desactivato, agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
+        "description": "Activat daemonem adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportum MCP solum localem cum indicio salutis praebere potest. Vices colloquii vocationes instrumentorum MCP ad eum dirigere possunt, cum reditu automatico ad stdio; cursus agentis laboris eo nondum utuntur et adiutore stdio per cursum semper utuntur. Quo desactivato, omnes agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
       }
     }
   },
