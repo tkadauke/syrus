@@ -531,6 +531,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.string "suggested_next_step"
     t.string "system_kind"
     t.string "title"
+    t.boolean "title_auto_fallback", default: false, null: false
     t.string "trigger_policy", default: "speak_when_spoken_to", null: false
     t.boolean "turn_in_flight", default: false, null: false
     t.datetime "updated_at", null: false

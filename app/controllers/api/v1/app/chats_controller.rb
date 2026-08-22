@@ -304,7 +304,7 @@ module Api
             user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!
           end
-          if chat_session.title.blank? && (title_message = first_user_message(chat_session))
+          if (chat_session.title.blank? || chat_session.title_auto_fallback?) && (title_message = first_user_message(chat_session))
             enqueue_chat_title(chat_session, title_message)
           end
           enqueue_chat_turn(chat_session, user_message) if turn_triggered
@@ -405,7 +405,7 @@ module Api
             return
           end
 
-          chat_session.update!(title: name)
+          chat_session.rename!(name)
 
           render json: chat_payload(chat_session.reload, message: "Chat renamed.")
         end
@@ -517,7 +517,9 @@ module Api
           unless chat_session.turn_in_flight? || chat_session.agent_busy?
             turn_triggered = chat_session.should_trigger_agent?(text)
             user_message = promote_queued_message(chat_session, queued_message, trigger_turn: turn_triggered)
-            enqueue_chat_title(chat_session, user_message) if chat_session.title.blank? && user_message == first_user_message(chat_session)
+            if (chat_session.title.blank? || chat_session.title_auto_fallback?) && (title_message = first_user_message(chat_session))
+              enqueue_chat_title(chat_session, title_message)
+            end
             enqueue_chat_turn(chat_session, user_message) if turn_triggered
             notice = "Message sent."
           end

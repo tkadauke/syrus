@@ -8,7 +8,7 @@ class ChatTitleJob < ApplicationJob
 
   def perform(chat_session_id, user_message_id)
     chat_session = ChatSession.includes(:user, :attached_repositories).find(chat_session_id)
-    return if chat_session.title.present?
+    return if chat_session.title.present? && !chat_session.title_auto_fallback?
 
     user_message = chat_session.messages.where(role: "user").find(user_message_id)
     chat_provider = chat_session.pin_chat_provider!(broadcast: false)
@@ -19,7 +19,11 @@ class ChatTitleJob < ApplicationJob
       runner: self.class.agent_runner
     ).call
 
-    chat_session.update!(title: generated.success? ? generated.title : fallback_title(chat_session))
+    if generated.success?
+      chat_session.update!(title: generated.title, title_auto_fallback: false)
+    else
+      chat_session.update!(title: fallback_title(chat_session), title_auto_fallback: true)
+    end
   end
 
   private
