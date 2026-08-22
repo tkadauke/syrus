@@ -120,6 +120,7 @@
   "preview_see_more": "See more",
 
   "view_in_chat": "View in Chat",
+  "back_to_dashboard": "Back to dashboard",
 
   "furthest_behind_one": "furthest behind: {{count}} commit",
   "furthest_behind_other": "furthest behind: {{count}} commits",
