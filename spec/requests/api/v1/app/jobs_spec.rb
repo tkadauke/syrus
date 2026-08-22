@@ -402,6 +402,36 @@ RSpec.describe "App API job detail", type: :request do
     expect(parse_body.dig("job", "total_cost_usd")).to eq(0.34)
   end
 
+  it "returns nil sccache stats when no workflow ever captured a snapshot" do
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["sccache"]).to be_nil
+  end
+
+  it "returns the latest sccache compiler-cache stats capture in the job detail payload" do
+    workflow = job.latest_workflow
+    run = job.initial_run
+    Workflow::SccacheArtifact.record!(
+      workflow,
+      run: run,
+      step_kind: "grader",
+      label: "coverage",
+      stats: { "cache_hits" => 9, "cache_misses" => 3, "cache_size" => 209_715_200 }
+    )
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["sccache"]).to include(
+      "workflow_id" => workflow.id,
+      "run_id" => run.id,
+      "step_kind" => "grader",
+      "label" => "coverage",
+      "summary" => include("hits" => 9, "misses" => 3, "hit_rate" => 75.0, "cache_size" => 209_715_200)
+    )
+  end
+
   it "omits the heavyweight workflow graph from the default job detail payload" do
     get "/api/v1/app/jobs/#{job.id}"
 
