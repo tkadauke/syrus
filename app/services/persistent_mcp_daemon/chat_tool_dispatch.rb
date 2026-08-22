@@ -53,6 +53,23 @@ module PersistentMcpDaemon::ChatToolDispatch
     def call(*args, server_context: nil, **kwargs, &block)
       daemon_identity = server_context&.[](:identity)
 
+      # #wrap prepends this module onto the shared, globally-referenced tool
+      # CLASS (McpToolRegistry.tools(surface: :chat) returns the same
+      # constants every caller uses), not a daemon-local copy, so the same
+      # class object stays wrapped for the life of the process. In
+      # production that's harmless -- only PersistentMcpDaemon#mcp_server
+      # ever builds an MCP::Server whose server_context carries :identity,
+      # and it runs in its own dedicated process (bin/syrus-mcp-daemon),
+      # never alongside a stdio Mcp::Sidecar dispatch. But a single test
+      # process runs both: once any spec boots a PersistentMcpDaemon, these
+      # tool classes stay wrapped for every later spec in that worker,
+      # including ones that build a plain MCP::Server directly (stdio-style,
+      # no :identity) and expect the tool to behave unwrapped. Bypass to the
+      # real tool when this call did not actually arrive through this
+      # daemon's own server -- the invocation-context/tiering enforcement
+      # below only makes sense for daemon-routed calls in the first place.
+      return super(*args, server_context: server_context, **kwargs, &block) if daemon_identity.blank?
+
       begin
         resolved = PersistentMcpDaemon::ChatContextResolver.resolve(server_context)
       rescue McpInvocationContext::InvalidContext => e
