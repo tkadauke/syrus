@@ -65,7 +65,6 @@ module Mcp::Tools
         Rails.logger.error("[Mcp::Tools::SubmitSummaryTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
-
     end
   end
 end
