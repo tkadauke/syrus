@@ -10,6 +10,7 @@ import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
+import { ChevronIcon } from "../components/ChevronIcon"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -136,6 +137,10 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
     return (
       <>
         <header className="space-y-3">
+          <Link className="inline-flex items-center gap-1 text-sm text-gray-500 hover:underline dark:text-gray-400" to={withRoutePrefix(payload.paths.dashboard_epics_path, prefix)}>
+            <ChevronIcon className="h-4 w-4 rotate-180" />
+            {t("back_to_dashboard")}
+          </Link>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{payload.epic.title}</h1>
             <SimpleEpicStatusPill status={payload.epic.simple_status} />

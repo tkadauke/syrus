@@ -110,6 +110,37 @@ describe("EpicDetail simple mode", () => {
     expect(screen.queryByText("PR #12")).not.toBeInTheDocument()
     expect(screen.queryByText("EPIC-3")).not.toBeInTheDocument()
   })
+
+  it("renders a back-to-dashboard link pointing at dashboard_epics_path", () => {
+    const payload = detailPayload({ review_ready: true, simple_status: "ready_for_your_review" })
+    payload.simple_mode = true
+    payload.paths.dashboard_epics_path = "/dashboard/epics"
+
+    renderDetail(payload)
+
+    const link = screen.getByRole("link", { name: "Back to dashboard" })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute("href", "/dashboard/epics")
+    expect(screen.getByRole("button", { name: "Looks Good" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Something's Wrong" })).toBeInTheDocument()
+  })
+
+  it("prefixes the back-to-dashboard link when inside app-shell", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const payload = detailPayload()
+    payload.simple_mode = true
+    payload.paths.dashboard_epics_path = "/dashboard/epics"
+
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <EpicDetail payload={payload} prefix="/app-shell" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByRole("link", { name: "Back to dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/epics")
+  })
 })
 
 describe("EpicDetail origin_chat link", () => {
