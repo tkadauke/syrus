@@ -164,6 +164,23 @@ RSpec.describe StepDispatcher do
       expect(workflow.artifact("start_blocked_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
     end
 
+    it "uses work unit pause requests when the scheduler path owns manual pause" do
+      Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
+        feature.category = "Operations"
+        feature.name = "Work units scheduler"
+      end.update!(enabled: true)
+      unit = attach_work_unit(workflow)
+      unit.request_pause!
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+
+      expect(job.reload.manual_paused?).to be false
+      expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
+      expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
+    end
+
     it "does not create the first Run when provider usage is below the user's provider threshold" do
       unit = attach_work_unit(workflow)
       workflow.update!(agent_provider: "codex")

@@ -213,6 +213,10 @@ class StepDispatcher
   START_BLOCKED_BACKOFF = 5.minutes
 
   def self.manually_paused?(workflow)
+    if WorkUnits::PathOwnership.work_unit_owned?("manual_pause") && workflow.work_unit
+      return workflow.work_unit.pause_requested?
+    end
+
     workflow.job.manual_paused?
   end
 
