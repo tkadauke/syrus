@@ -172,6 +172,7 @@
   "landing_queue": "In landing queue",
   "landing_queue_position": "In landing queue: position #{{position}}",
   "landing_queue_waiting_for": "Waiting for:",
+  "landing_queue_enable_auto_merge": "Enable auto-merge in repository settings",
   "landing_failed": "Landing failed: {{reason}}",
   "admission_breakdown_title": "Admission budget blocked",
   "admission_breakdown_category_hard_host_pressure": "A worker host is at a hard resource limit.",

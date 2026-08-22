@@ -17,6 +17,7 @@ export type JobRepository = {
   landing_paused: boolean
   main_branch_repair_blocks_work: boolean
   repository_path: string
+  edit_repository_path: string
 }
 
 export type PendingFeedbackComment = {

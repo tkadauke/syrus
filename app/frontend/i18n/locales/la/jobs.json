@@ -167,6 +167,7 @@
   "landing_queue": "In ordine imponendi",
   "landing_queue_position": "In ordine imponendi: locus #{{position}}",
   "landing_queue_waiting_for": "Exspectatur:",
+  "landing_queue_enable_auto_merge": "Fusionem automaticam in configurationibus repositorii activa",
   "landing_failed": "Impositio defecit: {{reason}}",
   "admission_breakdown_title": "Praesumptio census cursus obstructa",
   "admission_breakdown_category_hard_host_pressure": "Hospes operarius ad limitem certum pervenit.",
