@@ -251,6 +251,25 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(tab_keys).not_to include("insights")
   end
 
+  it "allows a RepositoryMembership collaborator to view repository-scoped scheduled tasks" do
+    collaborator = Factories.user(email_address: "collaborator@example.com")
+    repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "404s viewing repository-scoped scheduled tasks for a user who is neither the owner nor a member" do
+    unrelated_user = Factories.user(email_address: "unrelated@example.com")
+    sign_in_as(unrelated_user)
+
+    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "enables and disables repository-scoped tasks" do
     sign_in_as(user)
     task = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)

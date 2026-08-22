@@ -122,7 +122,7 @@ module Api
         end
 
         def find_repository
-          repo = Current.user.repositories.find_by(id: params[:repository_id])
+          repo = Repository.accessible_to(Current.user).find_by(id: params[:repository_id])
           unless repo
             render_error("not_found", "Repository not found.", status: :not_found)
             return nil

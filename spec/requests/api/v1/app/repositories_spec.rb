@@ -512,6 +512,60 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(tab_keys).not_to include("github_issues", "scheduled_tasks")
   end
 
+  describe "repo_page_tab plugin tabs" do
+    after { Syrus::PluginRegistry.reset! }
+
+    def register_repo_page_tab_provider
+      provider = Class.new do
+        include Syrus::Plugin::RepoPageTab
+
+        def self.repo_page_tabs(repository:, user:)
+          [ { id: "git_history.git_history", label: "Git History", path: "/repositories/#{repository.id}/plugin/git_history" } ]
+        end
+      end
+      Syrus::PluginRegistry.register(name: "tab-plugin", version: "0.1.0", provides: { repo_page_tab: provider })
+    end
+
+    it "includes a registered repo_page_tab provider's tabs for the repository owner" do
+      register_repo_page_tab_provider
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["tabs"]).to include(
+        include("key" => "git_history.git_history", "label" => "Git History")
+      )
+    end
+
+    it "includes a registered repo_page_tab provider's tabs for a RepositoryMembership collaborator" do
+      register_repo_page_tab_provider
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+      collaborator = Factories.user(email_address: "collaborator@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["tabs"]).to include(
+        include("key" => "git_history.git_history", "label" => "Git History")
+      )
+    end
+
+    it "404s for an unrelated user, so plugin tabs never leak to them" do
+      register_repo_page_tab_provider
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+      unrelated_user = Factories.user(email_address: "unrelated@example.com")
+      sign_in_as(unrelated_user)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   it "does not serve GitHub Issues in simple mode" do
     sign_in_as(user)
     AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
