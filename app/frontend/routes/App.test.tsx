@@ -10992,7 +10992,14 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("button", { name: /Prepare workspace/i })).toBeInTheDocument()
-    const grade = screen.getByRole("button", { name: /Grade/i })
+    // A single-iteration grade loop is presented the same way as
+    // adversarial/visual review loops: a named "Grade loop" group that must
+    // be expanded before the nested Grade step becomes visible.
+    const gradeLoop = screen.getByRole("button", { name: /Grade loop/i })
+    fireEvent.click(gradeLoop)
+    expect(screen.getByText("Iteration 1")).toBeInTheDocument()
+
+    const grade = screen.getByRole("button", { name: /Grade(?! loop)/i })
     expect(within(grade).getAllByText(/failed/i).length).toBeGreaterThan(0)
     expect(within(grade).getByText("1 failed")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Push/i })).toBeInTheDocument()
