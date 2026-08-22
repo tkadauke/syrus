@@ -1477,6 +1477,9 @@ Completed slices:
   starts through `WorkUnits::Launcher.start!`, preserving their existing
   create-under-lock/start-after-commit boundary while removing direct dispatcher
   calls from the landing services.
+- Scheduled task fires now route their prompt-specific starts through
+  `WorkUnits::Launcher.start!`, preserving rendered prompts for freeform cron
+  tasks and blank prompts for skill tasks while retaining WorkUnit ownership.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

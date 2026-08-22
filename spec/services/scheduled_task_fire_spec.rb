@@ -33,6 +33,7 @@ RSpec.describe ScheduledTaskFire do
       expect(run.trigger_kind).to eq("initial")
       expect(run.prompt).to include("scheduled maintenance task")
       expect(run.prompt).to include("Write missing tests")
+      expect(run.workflow.work_unit).to be_present
     end
 
     it "keeps Depends-on text in the rendered prompt without parsing dependencies" do
@@ -154,6 +155,7 @@ RSpec.describe ScheduledTaskFire do
 
         workflow = job.workflows.last
         expect(workflow.trigger_kind).to eq("skill")
+        expect(workflow.work_unit).to be_present
         expect(workflow.artifact("skill_name")).to eq("investigate")
         expect(workflow.artifact("skill_args")).to eq({ "question" => "What changed recently?" })
       end
