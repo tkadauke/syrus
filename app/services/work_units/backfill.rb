@@ -88,7 +88,7 @@ module WorkUnits
     end
 
     def create_locks!(unit)
-      definition.lock_keys_for(job: job, member_jobs: member_jobs).each do |lock_key|
+      definition.lock_keys_for(job: job, member_jobs: member_jobs, artifacts: workflow.artifacts.to_h).each do |lock_key|
         unit.work_unit_locks.create!(lock_key: lock_key)
       end
     end

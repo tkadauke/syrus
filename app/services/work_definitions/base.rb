@@ -48,7 +48,7 @@ module WorkDefinitions
     def preemption_policy = WorkUnits::PreemptionPolicies::None.new
     def retry_policy = WorkUnits::RetryPolicies::Operator.new
 
-    def lock_keys_for(job:, member_jobs:)
+    def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
       keys << "epic:#{job.epic_id}" if scope == "epic" && job.epic_id.present?
       keys << "repository:#{job.repository_id}" if scope == "repository" && job.repository_id.present?

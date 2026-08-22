@@ -86,6 +86,19 @@ RSpec.describe WorkDefinitions do
     expect(definition.members_for(job: second, artifacts: { "prefetch_merge_train_member_job_ids" => [ first.id, second.id ] })).to eq([ first, second ])
   end
 
+  it "declares landing locks for landing definitions" do
+    job = Factories.job_record
+    landing_kinds = WorkDefinitions::Base::LANDING_LOCK_KINDS
+
+    landing_kinds.each do |kind|
+      definition = described_class.for(kind)
+
+      expect(definition.lock_keys_for(job: job, member_jobs: [ job ], artifacts: {})).to include(
+        "landing:repository:#{job.repository_id}"
+      )
+    end
+  end
+
   it "marks infrastructure workflows explicitly" do
     expect(described_class.for("main_grader")).to be_infrastructure
     expect(described_class.for("agent_insight")).to be_infrastructure
