@@ -450,7 +450,7 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.keys).to contain_exactly("workflows", "workflows_pagination", "feature_flags", "actions", "paths")
+    expect(body.keys).to contain_exactly("workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
     first_run = body["workflows"].flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run).to include(
       "job_log_count" => 2,
