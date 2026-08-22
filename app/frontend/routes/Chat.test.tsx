@@ -473,7 +473,20 @@ describe("simple mode chat transcript", () => {
   it("omits the context tab from the workspace DOM", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "context")
-    mockChatRouteFetch()
+    mockChatRouteFetch(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "user",
+          tool_name: null,
+          content: { text: "Screenshot." },
+          text: "Screenshot.",
+          bookmarkable: true,
+          attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+        }
+      ]
+    }))
 
     renderRoute()
 
@@ -2484,7 +2497,7 @@ describe("chat message image attachments", () => {
     expect(screen.getByRole("dialog", { name: "mockup.jpg" })).toBeInTheDocument()
   })
 
-  it("shows an empty media tab state when no images have been shared", async () => {
+  it("hides the media tab and falls back to another tab when no media has been shared", async () => {
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     window.localStorage.setItem("syrus.chat.workspace.tab", "media")
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -2498,10 +2511,12 @@ describe("chat message image attachments", () => {
 
     renderRoute()
 
-    expect(await screen.findByText("No media shared yet.")).toBeInTheDocument()
+    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
+    expect(within(workspace).queryByRole("button", { name: "Media" })).not.toBeInTheDocument()
+    expect(screen.queryByText("No media shared yet.")).not.toBeInTheDocument()
   })
 
-  it("includes media in the mobile chat tab list", async () => {
+  it("includes media in the mobile chat tab list once there is something to show", async () => {
     mockMobileViewport()
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -2509,7 +2524,20 @@ describe("chat message image attachments", () => {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
 
-      return Promise.resolve(jsonResponse(chatPayload()))
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "user",
+            tool_name: null,
+            content: { text: "Screenshot." },
+            text: "Screenshot.",
+            bookmarkable: true,
+            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+          }
+        ]
+      })))
     })
 
     renderRoute()

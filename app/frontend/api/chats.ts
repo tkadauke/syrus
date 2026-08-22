@@ -53,6 +53,8 @@ export type ChatRecord = {
   confirmed_proposal_count?: number
   linked_direct_job_count?: number
   scratchpad_items_count?: number
+  whiteboard_snapshot_count?: number
+  typed_artifact_count?: number
   coding_checkout_uncommitted?: boolean
   coding_checkout_branch?: string | null
   chat_effort?: string | null
