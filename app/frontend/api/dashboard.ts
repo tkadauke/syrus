@@ -611,7 +611,7 @@ function dashboardSectionSearch(search: string, section: "chrome" | "rows") {
   return next ? `?${next}` : ""
 }
 
-function dashboardSubjectFromPath(pathname: string): DashboardSubject | null {
+export function dashboardSubjectFromPath(pathname: string): DashboardSubject | null {
   if (pathname.endsWith("/dashboard/jobs")) return "job"
   if (pathname.endsWith("/dashboard/workflows")) return "workflow"
   if (pathname.endsWith("/dashboard/epics")) return "epic"

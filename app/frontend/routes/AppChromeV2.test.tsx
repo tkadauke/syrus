@@ -201,6 +201,42 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("highlights the clicked sidebar dashboard tab immediately, before the new subject's data finishes loading", async () => {
+    let resolveEpicsFetch: (value: Response) => void = () => {}
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
+        if (url.searchParams.get("subject") === "epic") {
+          return new Promise((resolve) => { resolveEpicsFetch = resolve })
+        }
+        return Promise.resolve(jsonResponse(dashboardChromePayload({ subject: "job" })))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/dashboard/jobs"]
+    })
+
+    const jobsTab = await screen.findByRole("link", { name: "Jobs" })
+    const epicsTab = screen.getByRole("link", { name: "Epics" })
+    await waitFor(() => expect(jobsTab.className).toMatch(/bg-blue-50/))
+    expect(epicsTab.className).not.toMatch(/bg-blue-50/)
+
+    fireEvent.click(epicsTab)
+
+    await waitFor(() => expect(epicsTab.className).toMatch(/bg-blue-50/))
+    expect(jobsTab.className).not.toMatch(/bg-blue-50/)
+
+    resolveEpicsFetch(jsonResponse(dashboardChromePayload({ subject: "epic" })))
+  })
+
   it("reuses an existing unstarted chat without creating a chat", async () => {
     const createEmptyChat = vi.spyOn(chatsApi, "createEmptyChat")
     const fetchNewChat = vi.spyOn(chatsApi, "fetchNewChat")
@@ -1325,6 +1361,52 @@ function moreChatsPayload(overrides: Partial<MoreChatsPayload> = {}): MoreChatsP
     chats: [],
     has_more: false,
     ...overrides
+  }
+}
+
+function dashboardChromePayload(overrides: { subject: "job" | "epic" | "workflow" }) {
+  return {
+    subject: overrides.subject,
+    view: "list",
+    page: 1,
+    per_page: 25,
+    counts: { jobs: 1, epics: 0, workflows: 0 },
+    preferences: {
+      sort: { column: "created_at", direction: "desc" },
+      visible_columns: [],
+      kanban_lanes: [],
+      ownership_scope: "team",
+      owner_user_id: null,
+      owner_id: null,
+      raw: {}
+    },
+    controls: {
+      views: ["list"],
+      ownership_scopes: [],
+      owners: [],
+      sort_columns: [],
+      sort_directions: [],
+      columns: { required: [], optional: [] },
+      kanban_lanes: [],
+      filter_schema: [],
+      filter_suggestions: []
+    },
+    filter: null,
+    landing_queue: { visible: false, paused: false, toggle_path: "/api/v1/app/dashboard/landing_pause" },
+    ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
+    ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
+    smart_folders: [],
+    active_smart_folder_id: null,
+    setup: null,
+    paths: {
+      dashboard_path: "/dashboard",
+      dashboard_jobs_path: "/dashboard/jobs",
+      dashboard_epics_path: "/dashboard/epics",
+      dashboard_workflows_path: "/dashboard/workflows",
+      new_epic_path: "/epics/new",
+      new_job_path: "/jobs/new",
+      app_dashboard_path: "/api/v1/app/dashboard"
+    }
   }
 }
 
