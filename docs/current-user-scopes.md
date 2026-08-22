@@ -78,6 +78,7 @@ per-user/private:
   - app/controllers/api/v1/app/users_controller.rb
   - app/controllers/api/v1/app/video_walkthroughs_controller.rb
   - app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
+  - app/controllers/api/v1/app/workflow_warnings_controller.rb
   - app/controllers/api/v1/app/workflows_controller.rb
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
@@ -190,6 +191,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/users_controller.rb` | per-user/private | Invite-picker listing excludes the current user and, when scoping to a chat, excludes that chat's existing participants found through `Current.user.accessible_chat_sessions`. No admin gate — Syrus has no team/org scoping, so any authenticated user may see the flat instance user list. |
 | `app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |
 | `app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Lists and loads snapshots only through `Current.user.chat_sessions`. |
+| `app/controllers/api/v1/app/workflow_warnings_controller.rb` | per-user/private | Warnings are found through jobs scoped to `Current.user.jobs`; filing a fix Job creates it as `Current.user`. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile browsing excludes private credential data while using the current user for viewer-sensitive profile payloads. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup status is computed for the signed-in user's credentials, repositories, and first-run progress. |
