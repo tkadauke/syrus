@@ -1101,6 +1101,54 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: "Stats without units" })).toHaveAttribute("src", "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1")
   })
 
+  it("renders a one-iteration visual review loop as a named grouped phase", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 10,
+          artifacts: {
+            visual_review_iterations: [{ iteration: 1, verdict: "approved", critique: "Looks clean.", artifacts: [] }]
+          },
+          steps: [
+            step({ id: 15, kind: "implement", display_name: "Implement", position: 1, loop_id: "visual_review", iteration: 1, runs: [ run({ id: 35 }) ] }),
+            step({ id: 16, kind: "visual_review", display_name: "Visual review", position: 2, loop_id: "visual_review", iteration: 1, runs: [ run({ id: 36 }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Visual review/ }))
+
+    expect(screen.queryByRole("button", { name: /^Loop\b/ })).not.toBeInTheDocument()
+    expect(screen.getByText("Iteration 1")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Implement/ })).toBeInTheDocument()
+  })
+
+  it("renders a one-iteration adversarial review loop as a named grouped phase", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 11,
+          artifacts: {
+            adversarial_review_iterations: [{ iteration: 1, verdict: "approved", critique: "Looks clean." }]
+          },
+          steps: [
+            step({ id: 17, kind: "implement", display_name: "Implement", position: 1, loop_id: "adversarial_review", iteration: 1, runs: [ run({ id: 37 }) ] }),
+            step({ id: 18, kind: "adversarial_review", display_name: "Adversarial review", position: 2, loop_id: "adversarial_review", iteration: 1, runs: [ run({ id: 38 }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Adversarial review/ }))
+
+    expect(screen.queryByRole("button", { name: /^Loop\b/ })).not.toBeInTheDocument()
+    expect(screen.getByText("Iteration 1")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Implement/ })).toBeInTheDocument()
+  })
+
   it("renders an auto-approval note with source and grader step link when approval_evidence is present", () => {
     renderJobDetail(jobPayload({
       job: {

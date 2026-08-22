@@ -221,6 +221,8 @@
   "workflow_divergence_local": "Local",
   "loop_iteration": "Iteration {{n}}",
   "loop_grade_name": "Grade loop",
+  "loop_adversarial_review_name": "Adversarial review",
+  "loop_visual_review_name": "Visual review",
   "loop_name": "Loop",
   "loop_iteration_count_one": "{{count}} iteration",
   "loop_iteration_count_other": "{{count}} iterations",

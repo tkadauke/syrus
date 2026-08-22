@@ -217,6 +217,8 @@
   "workflow_divergence_local": "Locale",
   "loop_iteration": "Iteratio {{n}}",
   "loop_grade_name": "Circuitus probandi",
+  "loop_adversarial_review_name": "Recensio adversaria",
+  "loop_visual_review_name": "Recensio visualis",
   "loop_name": "Circuitus",
   "loop_iteration_count_one": "{{count}} iteratio",
   "loop_iteration_count_other": "{{count}} iterationes",

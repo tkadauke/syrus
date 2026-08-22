@@ -76,7 +76,7 @@ export function workflowStepItems(steps: JobStep[]): WorkflowStepItem[] {
 
     const loopSteps = steps.filter((candidate) => candidate.loop_id === step.loop_id)
     const iterations = loopIterations(loopSteps)
-    if (iterations.length <= 1) {
+    if (iterations.length <= 1 && !isNamedLoop(loopSteps)) {
       items.push(...displayStepItems(loopSteps))
       continue
     }
@@ -135,6 +135,10 @@ export function loopIterations(steps: JobStep[]) {
 export function isGradeDisplayStep(step: JobStep) {
   return step.kind === "grader_fanout" || step.kind === "grader" || step.kind === "grader_collect" || step.kind === "grade"
     || step.kind === "preflight_grader_fanout" || step.kind === "preflight_grader" || step.kind === "preflight_grader_collect"
+}
+
+function isNamedLoop(steps: JobStep[]) {
+  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review" || isGradeDisplayStep(step))
 }
 
 export function displayStepItemKey(item: DisplayStepItem) {
@@ -204,6 +208,8 @@ export function gradeSummaryCounts(summaries: GradeSummary[]) {
 export function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["t"]) {
   const kinds = item.iterations.flatMap((iteration) => iteration.steps.map((step) => step.kind))
   if (kinds.some((kind) => kind === "grade" || kind === "grader" || kind.startsWith("grader_"))) return t("loop_grade_name")
+  if (kinds.includes("visual_review")) return t("loop_visual_review_name")
+  if (kinds.includes("adversarial_review")) return t("loop_adversarial_review_name")
   return t("loop_name")
 }
 

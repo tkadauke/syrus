@@ -115,7 +115,7 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
       ) : null}
       <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
         {stepItems.map((item, index) => item.type === "loop" ? (
-          <LoopGroup command={command} item={item} key={item.loopId} payload={payload} workflowArtifacts={workflow.artifacts} />
+          <LoopGroup command={command} item={item} key={item.loopId} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
         ) : (
           <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
         ))}
@@ -178,30 +178,22 @@ function BranchDivergencePanel({
   )
 }
 
-function LoopGroup({ item, payload, command, workflowArtifacts }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
+function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
 
   return (
-    <section className="border-b border-gray-200 last:border-b-0 dark:border-gray-700">
-      <button
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-violet-50 px-3 py-2 text-left hover:bg-violet-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-violet-950/30 dark:hover:bg-violet-950/50"
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{loopDisplayName(item, t)}</span>
-          <SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {status ? <StatusPill state={status} /> : null}
-          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
-        </span>
-      </button>
+    <WorkflowGroup
+      numberLabel={numberLabel}
+      onToggle={() => setOpen((current) => !current)}
+      open={open}
+      pills={<SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>}
+      status={status}
+      title={loopDisplayName(item, t)}
+    >
       {open ? (
-        <div className="space-y-3 border-t border-violet-100 bg-white p-3 dark:border-violet-900/60 dark:bg-gray-950">
+        <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
           {item.iterations.map((iteration) => (
             <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={iteration.iteration}>
               <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
@@ -214,7 +206,7 @@ function LoopGroup({ item, payload, command, workflowArtifacts }: { item: LoopSt
           ))}
         </div>
       ) : null}
-    </section>
+    </WorkflowGroup>
   )
 }
 
@@ -232,27 +224,22 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
   const summaries = gradeSummaries(item)
 
   return (
-    <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
-      <button
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-violet-50/50 px-3 py-2 text-left hover:bg-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-violet-950/20 dark:hover:bg-violet-950/40"
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{item.preflight ? t("preflight_grade_label") : t("grade_label")}</span>
+    <WorkflowGroup
+      numberLabel={numberLabel}
+      onToggle={() => setOpen((current) => !current)}
+      open={open}
+      pills={(
+        <>
           {item.graders.length > 0 ? <SmallPill>{t("grade_check_count", { count: item.graders.length })}</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          {status ? <StatusPill state={status} /> : null}
-          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
-        </span>
-      </button>
+        </>
+      )}
+      status={status}
+      title={item.preflight ? t("preflight_grade_label") : t("grade_label")}
+    >
       {open ? (
-        <div className="border-t border-violet-100 bg-violet-50/20 p-3 dark:border-violet-900/60 dark:bg-violet-950/10">
-          <div className="overflow-hidden rounded border border-violet-100 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+          <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
             {phases.map((phase, index) => (
               <StepCard
                 command={command}
@@ -268,7 +255,31 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
           </div>
         </div>
       ) : null}
-    </div>
+    </WorkflowGroup>
+  )
+}
+
+function WorkflowGroup({ title, numberLabel, pills, status, open, onToggle, children }: { title: string; numberLabel: number | string; pills?: ReactNode; status: string | null; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <section className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
+      <button
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 bg-gray-50 px-3 py-2 text-left hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-800/80 dark:hover:bg-gray-800"
+        onClick={onToggle}
+        type="button"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
+          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{title}</span>
+          {pills}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {status ? <StatusPill state={status} /> : null}
+          <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{open ? "−" : "+"}</span>
+        </span>
+      </button>
+      {children}
+    </section>
   )
 }
 
