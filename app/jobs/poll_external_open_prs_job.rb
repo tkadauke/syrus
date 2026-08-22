@@ -46,7 +46,7 @@ class PollExternalOpenPrsJob < ApplicationJob
         issue_title: pr.title
       )
 
-      workflow = Workflows::ExternalPrIngest.instantiate(job: job)
+      workflow = WorkUnits::Launcher.instantiate(kind: "external_pr_ingest", job: job)
       StepDispatcher.start_workflow(workflow)
       Rails.logger.info("[PollExternalOpenPrsJob] ingested external PR ##{pr.number} for #{@slug} (fork=#{fork_pr})")
     end

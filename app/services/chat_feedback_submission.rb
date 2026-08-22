@@ -27,7 +27,8 @@ class ChatFeedbackSubmission
       "pr_feedback_auto" => false
     }
     artifacts = base_artifacts.merge(extra_artifacts)
-    workflow = Workflows::ChatFeedback.instantiate(
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "chat_feedback",
       job: job,
       artifacts: artifacts
     )

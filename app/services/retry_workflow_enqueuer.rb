@@ -137,7 +137,7 @@ class RetryWorkflowEnqueuer
     checkpoint_resume = RunCheckpointResume.call(job: job, agent_provider: agent_provider, artifacts: artifacts)
     return checkpoint_resume.workflow if checkpoint_resume.success?
 
-    Workflows::Retry.instantiate(job: job, artifacts: artifacts, agent_provider: agent_provider)
+    WorkUnits::Launcher.instantiate(kind: "retry", job: job, artifacts: artifacts, agent_provider: agent_provider)
   end
 
   def failure(message, circuit: nil)

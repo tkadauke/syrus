@@ -150,7 +150,7 @@ module WorkEngine
           )
 
           if Workflow::TriggerKind.feedback_kind_for(latest.trigger_kind)
-            workflow = Workflow::TriggerKind.template_for(latest.trigger_kind).instantiate(job: job, artifacts: artifacts)
+            workflow = WorkUnits::Launcher.instantiate(kind: latest.trigger_kind, job: job, artifacts: artifacts)
             StepDispatcher.start_workflow(workflow)
             RetryWorkflowEnqueuer::Result.new(workflow: workflow, error: nil, circuit: nil)
           else

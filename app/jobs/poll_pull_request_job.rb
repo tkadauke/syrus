@@ -330,7 +330,12 @@ class PollPullRequestJob < ApplicationJob
       "pr_feedback_source_handle" => source_handle,
       "pr_review_comment_ids" => qualifying_records.map(&:id)
     }
-    workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "pr_comment",
+      job: @job,
+      artifacts: artifacts,
+      agent_provider: @agent_provider
+    )
     StepDispatcher.start_workflow(workflow)
 
     qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
@@ -548,7 +553,12 @@ class PollPullRequestJob < ApplicationJob
       "head_sha"      => head_sha,
       "failed_checks" => failed_checks
     }
-    workflow = Workflows::CiFailure.instantiate(job: @job, artifacts: artifacts, agent_provider: @agent_provider)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: "ci_failure",
+      job: @job,
+      artifacts: artifacts,
+      agent_provider: @agent_provider
+    )
     run = StepDispatcher.start_workflow(workflow)
     unless run
       Rails.logger.info("[PollPullRequestJob] #{@job.slug}: created CiFailure workflow ##{workflow.id} for #{head_sha[0..6]} but start was deferred")

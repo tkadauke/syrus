@@ -24,7 +24,7 @@ class ExternalPrIngestRetryEnqueuer
         if state_error
           failure_result = failure(state_error)
         else
-          workflow = Workflows::ExternalPrIngest.instantiate(job: job)
+          workflow = WorkUnits::Launcher.instantiate(kind: "external_pr_ingest", job: job)
         end
       end
     end
