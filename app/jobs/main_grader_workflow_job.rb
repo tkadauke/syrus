@@ -35,7 +35,7 @@ class MainGraderWorkflowJob < ApplicationJob
         artifacts: { "main_sha" => sha }
       )
 
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
     end
   end
 

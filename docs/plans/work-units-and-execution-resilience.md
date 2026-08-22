@@ -1488,6 +1488,9 @@ Completed slices:
 - Fork-review PR feedback follow-ups now use
   `WorkUnits::Launcher.create_and_start!`, preserving the review-comment
   handling audit link to the created Workflow.
+- Main-grader workflow creation now starts through
+  `WorkUnits::Launcher.start!`, keeping the main-SHA artifact while moving
+  first-run creation behind the launcher boundary.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

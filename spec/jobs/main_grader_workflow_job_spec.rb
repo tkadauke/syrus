@@ -30,6 +30,7 @@ RSpec.describe MainGraderWorkflowJob do
 
     workflow = Workflow.last
     expect(workflow.trigger_kind).to eq("main_grader")
+    expect(workflow.work_unit).to be_present
     expect(workflow.artifact("main_sha")).to eq(sha)
   end
 
@@ -40,8 +41,8 @@ RSpec.describe MainGraderWorkflowJob do
     expect(step_kinds).to eq(%w[ prepare grader_fanout grader_collect ])
   end
 
-  it "calls StepDispatcher.start_workflow" do
-    expect(StepDispatcher).to receive(:start_workflow).once
+  it "starts the workflow through the work unit launcher" do
+    expect(WorkUnits::Launcher).to receive(:start!).once.and_call_original
     described_class.perform_now(repository.id, sha)
   end
 
