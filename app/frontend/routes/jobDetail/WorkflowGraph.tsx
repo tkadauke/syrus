@@ -15,7 +15,7 @@ import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
-import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
+import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
 import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
@@ -191,29 +191,40 @@ function LoopGroup({ item, payload, command, numberLabel, workflowArtifacts }: {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
+  const summaries = loopGradeSummaries(item)
+  const soleGrade = loopSoleGradeItem(item)
 
   return (
     <WorkflowGroup
       numberLabel={numberLabel}
       onToggle={() => setOpen((current) => !current)}
       open={open}
-      pills={<SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>}
+      pills={(
+        <>
+          <SmallPill>{t("loop_iteration_count", { count: item.iterations.length })}</SmallPill>
+          {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
+        </>
+      )}
       status={status}
       title={loopDisplayName(item, t)}
     >
       {open ? (
-        <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-          {item.iterations.map((iteration) => (
-            <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={iteration.iteration}>
-              <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                {t("loop_iteration", { n: iteration.iteration })}
-              </div>
-              {iteration.items.map((stepItem, index) => (
-                <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflowArtifacts} />
-              ))}
-            </section>
-          ))}
-        </div>
+        soleGrade ? (
+          <GradePhasesList command={command} payload={payload} phases={gradePhases(soleGrade, t)} workflowArtifacts={workflowArtifacts} />
+        ) : (
+          <div className="space-y-3 border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+            {item.iterations.map((iteration) => (
+              <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={iteration.iteration}>
+                <div className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                  {t("loop_iteration", { n: iteration.iteration })}
+                </div>
+                {iteration.items.map((stepItem, index) => (
+                  <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflowArtifacts} />
+                ))}
+              </section>
+            ))}
+          </div>
+        )
       ) : null}
     </WorkflowGroup>
   )
@@ -246,25 +257,29 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
       status={status}
       title={item.preflight ? t("preflight_grade_label") : t("grade_label")}
     >
-      {open ? (
-        <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-          <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-            {phases.map((phase, index) => (
-              <StepCard
-                command={command}
-                displayName={phase.displayName}
-                key={phase.step.id}
-                metadataLabel={phase.metadataLabel}
-                numberLabel={index + 1}
-                payload={payload}
-                step={phase.step}
-                workflowArtifacts={workflowArtifacts}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
+      {open ? <GradePhasesList command={command} payload={payload} phases={phases} workflowArtifacts={workflowArtifacts} /> : null}
     </WorkflowGroup>
+  )
+}
+
+function GradePhasesList({ phases, payload, command, workflowArtifacts }: { phases: ReturnType<typeof gradePhases>; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
+  return (
+    <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
+      <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        {phases.map((phase, index) => (
+          <StepCard
+            command={command}
+            displayName={phase.displayName}
+            key={phase.step.id}
+            metadataLabel={phase.metadataLabel}
+            numberLabel={index + 1}
+            payload={payload}
+            step={phase.step}
+            workflowArtifacts={workflowArtifacts}
+          />
+        ))}
+      </div>
+    </div>
   )
 }
 
