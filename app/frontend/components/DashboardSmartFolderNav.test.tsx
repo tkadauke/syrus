@@ -360,6 +360,30 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
   })
 
+  it("shows the All epics link for the epic subject when there are multiple users", () => {
+    renderNav([], {
+      payload: { subject: "epic", ownership: { scope: "team", owner_id: null, team_user_count: 2, badges_visible: true } }
+    })
+
+    expect(screen.getByRole("link", { name: "All epics" })).toBeInTheDocument()
+  })
+
+  it("hides the All epics link for the epic subject on a single-user instance", () => {
+    renderNav([], {
+      payload: { subject: "epic", ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false } }
+    })
+
+    expect(screen.queryByRole("link", { name: "All epics" })).not.toBeInTheDocument()
+  })
+
+  it("does not affect the All jobs/All workflows links on a single-user instance", () => {
+    renderNav([], {
+      payload: { subject: "workflow", ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false } }
+    })
+
+    expect(screen.getByRole("link", { name: "All workflows" })).toBeInTheDocument()
+  })
+
   it("compares selected folder filters independent of object key order", () => {
     renderNav([
       folder({
