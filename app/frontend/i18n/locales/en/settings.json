@@ -103,7 +103,10 @@
     "saving": "Saving...",
     "create_task": "Create task",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "field_repository": "Repository",
+    "repository_placeholder": "Choose a repository",
+    "repository_continue": "Continue"
   },
   "cron_templates": {
     "loading": "Loading templates...",

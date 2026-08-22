@@ -103,7 +103,10 @@
     "saving": "Wird gespeichert...",
     "create_task": "Aufgabe erstellen",
     "save": "Speichern",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "field_repository": "Repository",
+    "repository_placeholder": "Repository auswählen",
+    "repository_continue": "Weiter"
   },
   "cron_templates": {
     "loading": "Vorlagen werden geladen...",
