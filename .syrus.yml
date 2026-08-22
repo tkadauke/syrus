@@ -34,6 +34,19 @@ preview:
     - SYRUS_DATABASE_PASSWORD
     - SYRUS_SQLITE
 
+visual_review:
+  enabled: true
+  rounds: 1
+  when_files_changed:
+    - "app/frontend/**/*"
+    - "app/views/**/*"
+  seed_notes: |
+    Log in as demo@syrus.local / password. Dashboard, Job/Epic detail,
+    and chat are seeded. Live-updating panels (Job/Workflow progress,
+    streaming transcripts) render as a static snapshot in preview because
+    no background worker runs there by design — do not flag static
+    progress as a defect.
+
 hooks:
   post_checkout:
     - bundle check || bundle install --jobs 4
