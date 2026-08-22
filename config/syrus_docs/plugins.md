@@ -58,6 +58,56 @@ runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
 
+## Plugin icons (`icon_url`)
+
+A manifest can set `icon_url:` to the path of a static SVG asset, e.g.:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "claude_agent", version: "1.0.0",
+  icon_url: "/plugin-icons/claude_agent.svg",
+  provides: { agent_provider: AgentProviders::Claude }
+)
+```
+
+`Admin::PluginsPayload` always emits a non-null `icon_url` in the Admin →
+Plugins JSON payload: the manifest's own value when set, otherwise
+`/plugin-icons/spqr_eagle.svg` — an SPQR-style Roman legionary standard, the
+same fallback the frontend's plugin icon lookup (`app/frontend/lib/pluginIcon.ts`)
+falls back to for any plugin name it doesn't recognize. A plugin with no
+natural brand mark (internal tooling, a connectivity daemon, etc.) is expected
+to leave `icon_url` unset rather than invent one.
+
+Icons are committed static SVGs under `public/plugin-icons/`, following the
+same convention as the top-level Syrus brand icon (`public/icon.png`,
+`app/frontend/lib/brandIcon.ts`): one small lookup, plain `<img>` rendering, no
+bespoke component per icon, no runtime fetching or generation. They render at
+Admin → Plugins, in the agent/chat provider selectors, and next to a
+Workflow's detected-plugins list.
+
+Format is SVG only — plugin icons only ever render small and inline, so a
+single normalized vector file per plugin is sufficient and stays crisp at any
+size; there is no multi-size raster set to generate or maintain.
+
+Source real marks rather than fetching them at runtime, to avoid a licensing,
+availability, or CDN-uptime dependency on some third party at request time.
+Bundled plugins use [Simple Icons](https://simpleicons.org) (CC0-licensed,
+already vector) for `ruby`, `syrus-rails`, `javascript`, `python`, `django`,
+`go`, `github_source`, `discord`, and `linear_source`, and each provider's own
+official mark where one is reasonably available under a CC0/Simple-Icons-style
+license for `claude_agent`. Plugins without a suitable sourced mark (including
+`codex_agent`, since no OpenAI/Codex mark is currently published through
+Simple Icons) fall back to the SPQR eagle like any other unset `icon_url`.
+
+`bin/process-plugin-icon SOURCE OUTPUT [--padding=FRACTION]` is an author-time
+tool (uses the already-present `image_processing`/`ruby-vips` gems) that
+normalizes a newly sourced icon's viewBox and padding so it sits consistently
+next to the rest of the set, and rasterizes a raster-only source into an
+embedded normalized SVG as a fallback. It is run by hand when adding or
+updating an icon; it is never invoked by a workflow agent and has no presence
+in the worker Docker image, the same way `public/icon.png` is a checked-in
+static asset rather than something generated at runtime.
+
 ## Plugin dependencies (`depends_on`)
 
 A plugin manifest can declare `depends_on: ["other_plugin_name"]` — an array of

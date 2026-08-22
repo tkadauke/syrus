@@ -1,5 +1,7 @@
 module Admin
   class PluginsPayload
+    FALLBACK_ICON_URL = "/plugin-icons/spqr_eagle.svg"
+
     def initialize(query: nil)
       @query = query
     end
@@ -44,6 +46,7 @@ module Admin
           category: manifest.category,
           description: manifest.description.presence || spec&.summary || metadata[:description],
           homepage: manifest.homepage.presence || spec&.homepage || metadata[:homepage],
+          icon_url: manifest.icon_url.presence || metadata[:icon_url].presence || FALLBACK_ICON_URL,
           author: author_for(spec, metadata),
           source: source_for(spec, metadata),
           frontend: metadata[:frontend].presence || {},

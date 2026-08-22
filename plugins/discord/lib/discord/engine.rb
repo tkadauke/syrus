@@ -7,6 +7,7 @@ module SyrusDiscord
         version:         SyrusDiscord::VERSION,
         description:     "Links Discord accounts and delivers/receives chat messages over a Gateway DM listener.",
         homepage:        "https://github.com/tkadauke/syrus",
+        icon_url:        "/plugin-icons/discord.svg",
         author:          "Thomas Kadauke",
         default_enabled: false,
         disableable:     true,

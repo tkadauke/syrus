@@ -11,6 +11,7 @@ import { updateRecentChatCache } from "../../lib/chatCache"
 import { closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
+import { providerIconSrc } from "../../lib/pluginIcon"
 import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
@@ -554,6 +555,7 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
   const providerOptions = payload.chat.chat_provider_options || []
   const configuredExplicitOptions = providerOptions.filter((option) => option.configured)
   const showProviderSelector = configuredExplicitOptions.length > 1
+  const selectedProvider = payload.chat.chat_provider || payload.chat.effective_chat_provider || ""
   const provider = useMutation({
     mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
     onSuccess: () => {
@@ -590,19 +592,22 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
           {showProviderSelector ? (
             <label className="block">
               <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-              <select
-                aria-label={t("aria_chat_provider")}
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:disabled:bg-gray-800"
-                disabled={provider.isPending}
-                onChange={(event) => provider.mutate(event.target.value)}
-                value={payload.chat.chat_provider || payload.chat.effective_chat_provider || ""}
-              >
-                {providerOptions.map((option) => (
-                  <option disabled={!option.configured} key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                {selectedProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(selectedProvider)} /> : null}
+                <select
+                  aria-label={t("aria_chat_provider")}
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:disabled:bg-gray-800"
+                  disabled={provider.isPending}
+                  onChange={(event) => provider.mutate(event.target.value)}
+                  value={selectedProvider}
+                >
+                  {providerOptions.map((option) => (
+                    <option disabled={!option.configured} key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
                 <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
                 <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />

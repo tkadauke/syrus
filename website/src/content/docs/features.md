@@ -969,9 +969,14 @@ flow, while Linear can poll a team and optional label filter.
 ## Plugin Visibility
 
 Admins can open **Admin → Plugins** to inspect the plugin registry without
-checking the Gemfile. The page lists each registered plugin's version,
-enabled state, default enabled policy, disableability, category, extension
-point classes, and basic author/source metadata when available. Disableable
+checking the Gemfile. Each plugin shows its own icon — a real brand mark for
+plugins like Ruby, Rails, JavaScript, Python, Django, Go, GitHub, Discord,
+Linear, and Claude, and a shared SPQR-eagle placeholder for plugins with no
+natural mark of their own — the same icons also appear in agent/chat provider
+pickers and next to a Workflow's detected-language list. The page lists each
+registered plugin's version, enabled state, default enabled policy,
+disableability, category, extension point classes, and basic author/source
+metadata when available. Disableable
 installed plugins can be toggled live for new requests and sidecars. Installing
 or removing plugins still requires changing the Gemfile and restarting Syrus.
 A search box filters the list by name, description, and category — a simple

@@ -15,6 +15,7 @@ import {
 } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
+import { providerIconSrc } from "../lib/pluginIcon"
 
 type DirectJobFormState = {
   repositoryId: string
@@ -161,17 +162,20 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("form_agent_label")}>
-              <select
-                className={inputClass()}
-                name="agent_provider"
-                onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
-                value={values.agentProvider}
-              >
-                <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
-                {payload.configured_agent_providers.map((provider) => (
-                  <option key={provider.value} value={provider.value}>{provider.label}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                {values.agentProvider ? <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider)} /> : null}
+                <select
+                  className={inputClass()}
+                  name="agent_provider"
+                  onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
+                  value={values.agentProvider}
+                >
+                  <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
+                  {payload.configured_agent_providers.map((provider) => (
+                    <option key={provider.value} value={provider.value}>{provider.label}</option>
+                  ))}
+                </select>
+              </div>
             </Field>
           ) : null}
         </div>

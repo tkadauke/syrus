@@ -190,6 +190,25 @@ describe("ChatSettingsDialog", () => {
 
     await waitFor(() => expect(switchChatProvider).toHaveBeenCalledWith("/api/v1/app/chats/1/switch_provider", "codex"))
   })
+
+  it("renders the selected provider's icon at the expected size", () => {
+    const payload = makePayload({
+      chat_provider: "claude",
+      effective_chat_provider: "claude",
+      effective_chat_provider_label: "Claude",
+      chat_provider_options: [
+        { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+        { value: "codex", label: "Codex", configured: true, effective_provider: "codex", effective_label: "Codex" }
+      ]
+    })
+
+    renderDialog(payload)
+
+    const select = screen.getByLabelText("Chat provider")
+    const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
+    expect(icon).toBeInTheDocument()
+    expect(icon).toHaveClass("h-4", "w-4")
+  })
 })
 
 describe("ChatWorkspacePanel context attachments", () => {

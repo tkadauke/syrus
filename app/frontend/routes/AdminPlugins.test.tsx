@@ -51,6 +51,35 @@ describe("AdminPlugins", () => {
     expect(within(list).getByText("OpenAI")).toBeInTheDocument()
   })
 
+  it("renders the plugin icon at the expected size", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "codex_agent",
+          display_name: "Codex Agent",
+          disable_blockers: [],
+          version: "1.2.3",
+          enabled: true,
+          disableable: true,
+          default_enabled: true,
+          description: null,
+          homepage: null,
+          icon_url: "/plugin-icons/spqr_eagle.svg",
+          author: null,
+          source: null,
+          extension_points: []
+        }
+      ]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    const list = await screen.findByRole("region", { name: "Registered plugins" })
+    const icon = list.querySelector('img[src="/plugin-icons/spqr_eagle.svg"]')
+    expect(icon).toBeInTheDocument()
+    expect(icon).toHaveClass("h-5", "w-5")
+  })
+
   it("does not render the source path", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       plugins: [
