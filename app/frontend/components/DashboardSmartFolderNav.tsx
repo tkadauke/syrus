@@ -13,7 +13,7 @@ import { errorMessage } from "../lib/errorMessage"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
+type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "ownership" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardSmartFolderPayload; prefix: string; search: string }) {
   const { t } = useT("nav")
@@ -141,7 +141,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   return (
     <aside aria-label={t("smart_folders_panel_aria")} className="space-y-2">
       <nav aria-label={t("smart_folders_aria")} className="space-y-1">
-        {payload.subject === "job" ? null : allJobsLink}
+        {allSubjectLinkVisible(payload) ? allJobsLink : null}
         {primaryFolders.map((folder) => <SmartFolderLink folder={folderWithActive(folder, activeSmartFolderId)} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
         {moreFolders.length > 0 ? (
           <details className="space-y-1" open={moreFolders.some((folder) => folder.id === activeSmartFolderId || folder.active) || undefined}>
@@ -544,6 +544,13 @@ function subjectPath(subject: DashboardSubject) {
   if (subject === "workflow") return "/dashboard/workflows"
 
   return "/dashboard/epics"
+}
+
+function allSubjectLinkVisible(payload: DashboardSmartFolderPayload) {
+  if (payload.subject === "job") return false
+  if (payload.subject === "epic" && payload.ownership.team_user_count <= 1) return false
+
+  return true
 }
 
 function allSubjectLabel(subject: DashboardSubject, t: (key: string, options?: Record<string, unknown>) => string) {
