@@ -78,5 +78,4 @@ class RepositoryBareClone
       )
     end
   end
-
 end

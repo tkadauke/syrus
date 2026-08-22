@@ -431,10 +431,10 @@ class PollPullRequestJob < ApplicationJob
 
   def cache_pr_checks_state(head_sha, detail)
     state = if detail[:any_failed?] then "failing"
-             elsif detail[:pending?] then "pending"
-             elsif detail[:all_passed?] then "passing"
-             else "unknown"
-             end
+    elsif detail[:pending?] then "pending"
+    elsif detail[:all_passed?] then "passing"
+    else "unknown"
+    end
     return if pr_checks_cache_fresh?(head_sha, state)
 
     attrs = { pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current }
@@ -611,5 +611,4 @@ class PollPullRequestJob < ApplicationJob
   def enrich_failed_check(check)
     CiRepair::CheckEnricher.call(check)
   end
-
 end
