@@ -1530,9 +1530,13 @@ Completed slices:
 - Work-engine repair execution now routes workflow-start repairs through
   `WorkUnits::Launcher.start!`, covering cancelled feedback workflow retries,
   queued Workflows missing first Runs, and stale dependency-block clears.
+- The launch-funnel architecture spec now guards both workflow-template
+  instantiation and workflow starts, so production app code cannot introduce new
+  direct `Workflows::* .instantiate` or `StepDispatcher.start_workflow` call
+  sites outside `WorkUnits::Launcher`.
 
-Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
-outside the launcher, workflow tests, and factories.
+Keep the guard spec in place so new direct `Workflows::* .instantiate` and
+`StepDispatcher.start_workflow` call sites cannot appear outside the launcher.
 
 Before shadow tables are trusted, every production workflow creation path must
 either go through the launcher or be explicitly marked legacy in diagnostics.

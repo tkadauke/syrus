@@ -1,11 +1,15 @@
 require "rails_helper"
 
 RSpec.describe "workflow launch funnel" do
-  DIRECT_LAUNCH_PATTERNS = [
+  DIRECT_CREATE_PATTERNS = [
     /Workflows::[A-Za-z0-9_:]+\.instantiate/,
     /Workflow::TriggerKind\.template_for\([^)]*\)\.instantiate/,
     /\btemplate\.instantiate\(job:/,
     /\bworkflow_class\.instantiate\(/
+  ].freeze
+
+  DIRECT_START_PATTERNS = [
+    /\bStepDispatcher\.start_workflow\(/
   ].freeze
 
   ALLOWED_FILES = %w[
@@ -19,18 +23,25 @@ RSpec.describe "workflow launch funnel" do
 
       lines = File.readlines(path)
       matches = lines.filter_map.with_index(1) do |line, number|
-        next unless DIRECT_LAUNCH_PATTERNS.any? { |pattern| line.match?(pattern) }
+        pattern =
+          if DIRECT_CREATE_PATTERNS.any? { |candidate| line.match?(candidate) }
+            "direct workflow creation"
+          elsif DIRECT_START_PATTERNS.any? { |candidate| line.match?(candidate) }
+            "direct workflow start"
+          end
+        next unless pattern
 
-        "#{relative_path}:#{number}: #{line.strip}"
+        "#{relative_path}:#{number}: #{pattern}: #{line.strip}"
       end
       matches.presence
     end.flatten
 
     expect(offenders).to be_empty, <<~MESSAGE
-      Production workflow creation must go through WorkUnits::Launcher so
-      WorkIntent/WorkUnit shadow records cannot be missed. Move direct
-      Workflows::* .instantiate calls behind the launcher or add an explicit
-      exception here with a migration note.
+      Production workflow creation and starts must go through
+      WorkUnits::Launcher so WorkIntent/WorkUnit shadow records cannot be
+      missed. Move direct Workflows::* .instantiate or
+      StepDispatcher.start_workflow calls behind the launcher, or add an
+      explicit exception here with a migration note.
 
       #{offenders.join("\n")}
     MESSAGE
