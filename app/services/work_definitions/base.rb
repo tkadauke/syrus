@@ -43,7 +43,7 @@ module WorkDefinitions
       [ job ]
     end
 
-    def intent_gates = []
+    def intent_gates = [ WorkIntents::Gates::Dependency ]
     def unit_gates = [ WorkUnits::Gates::ManualPause ]
     def preemption_policy = WorkUnits::PreemptionPolicies::None.new
     def retry_policy = WorkUnits::RetryPolicies::Operator.new
