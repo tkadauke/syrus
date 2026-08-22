@@ -101,6 +101,14 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
       expect(body["user"]["id"]).to eq(user.webauthn_id)
     end
 
+    it "requires user verification during registration" do
+      sign_in_as(user)
+
+      get "/api/v1/app/passkeys/registration_options"
+
+      expect(parse_body.dig("authenticatorSelection", "userVerification")).to eq("required")
+    end
+
     it "creates a PasskeyChallenge record for the user" do
       sign_in_as(user)
 
@@ -269,6 +277,12 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
       get "/api/v1/app/passkeys/authentication_options"
 
       expect(response).not_to have_http_status(:unauthorized)
+    end
+
+    it "requires user verification during authentication" do
+      get "/api/v1/app/passkeys/authentication_options"
+
+      expect(parse_body["userVerification"]).to eq("required")
     end
 
     it "creates a PasskeyChallenge with no user" do
