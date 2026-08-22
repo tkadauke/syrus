@@ -15,14 +15,20 @@ class EpicWorkflowLock
   end
 
   def active_epic_wide_workflows
-    return Workflow.none unless epic
+    return [] unless epic
 
-    Workflow
-      .active
-      .epic_wide
-      .where(job_id: epic.jobs.select(:id))
-      .where.not(id: workflow.id)
+    unit_workflows = WorkUnits::Ownership
+      .active_units_for_epic(epic, kinds: Workflow::EPIC_WIDE_TRIGGER_KINDS)
+      .filter_map(&:workflow)
+    legacy_workflows = WorkUnits::Ownership
+      .legacy_active_epic_workflows(epic, kinds: Workflow::EPIC_WIDE_TRIGGER_KINDS)
       .order(:created_at, :id)
+      .to_a
+
+    (unit_workflows + legacy_workflows)
+      .uniq(&:id)
+      .reject { |candidate| candidate.id == workflow.id }
+      .sort_by { |candidate| [ candidate.created_at || Time.zone.at(0), candidate.id || 0 ] }
   end
 
   def blocking_workflow

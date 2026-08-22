@@ -46,6 +46,28 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kinds_by_job_id([ second.id ])).to eq(second.id => "merge_train")
   end
 
+  it "filters active membership by work unit kind" do
+    job = Factories.job
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+    feedback = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+    attach_work_unit(retry_workflow, member_jobs: [ job ], kind: "retry")
+    attach_work_unit(feedback, member_jobs: [ job ], kind: "chat_feedback")
+
+    expect(described_class.active_for_job_kind?(job, "retry")).to be true
+    expect(described_class.active_for_job_kind?(job, "merge_train")).to be false
+    expect(described_class.active_units_by_job_id([ job.id ], kinds: "chat_feedback")[job.id].workflow).to eq(feedback)
+  end
+
+  it "reports active epic scoped units" do
+    epic = Factories.epic
+    job = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 101)
+    workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "running")
+    attach_work_unit(workflow, member_jobs: [ job ], kind: "merge_train")
+
+    expect(described_class.active_for_epic?(epic, kinds: "merge_train")).to be true
+    expect(described_class.active_for_epic?(epic, kinds: "retry")).to be false
+  end
+
   it "prefers work unit ownership over stale direct workflow fallback" do
     job = Factories.job
     legacy = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

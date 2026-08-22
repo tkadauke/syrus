@@ -121,7 +121,7 @@ class SmartRetryEnqueuer
   end
 
   def duplicate_active_retry_workflow?
-    job.workflows.active.where(trigger_kind: "retry").exists?
+    WorkUnits::Ownership.active_for_job_kind?(job, "retry")
   end
 
   def closed_job_message

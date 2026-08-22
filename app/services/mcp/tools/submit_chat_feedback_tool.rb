@@ -88,7 +88,7 @@ module Mcp::Tools
       end
 
       def active_chat_feedback_workflow?(job)
-        job.workflows.where(trigger_kind: "chat_feedback", state: %w[queued running]).exists?
+        WorkUnits::Ownership.active_for_job_kind?(job, "chat_feedback")
       end
 
       def validate_media_refs(chat_session, media_refs)

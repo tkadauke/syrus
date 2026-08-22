@@ -813,6 +813,32 @@ RSpec.describe Job do
         expect(job.active_feedback_workflow?).to be true
       end
 
+      it "is true when a feedback work unit owns the job" do
+        job = Factories.job
+        workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+        intent = WorkIntent.create!(
+          kind: "chat_feedback",
+          state: "requested",
+          repository: job.repository,
+          scope_type: "job",
+          scope_id: job.id,
+          actor: job.user,
+          source_type: "spec"
+        )
+        unit = WorkUnit.create!(
+          work_intent: intent,
+          kind: "chat_feedback",
+          state: "running",
+          repository: job.repository,
+          scope_type: "job",
+          scope_id: job.id,
+          workflow: workflow
+        )
+        unit.work_unit_members.create!(job: job, role: "primary")
+
+        expect(job.active_feedback_workflow?).to be true
+      end
+
       it "is false when the only feedback workflow is terminal" do
         job = Factories.job
         Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "failed")

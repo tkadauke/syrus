@@ -22,6 +22,29 @@ RSpec.describe RetryWorkflowEligibility do
     wf
   end
 
+  def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: workflow.job.repository,
+      scope_type: "job",
+      scope_id: workflow.job_id,
+      actor: workflow.job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: workflow.job.repository,
+      scope_type: "job",
+      scope_id: workflow.job_id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: workflow.job, role: "primary")
+    unit
+  end
+
   describe "#call" do
     it "is eligible for a failed job with a prior initial workflow run" do
       job = make_job
@@ -173,6 +196,30 @@ RSpec.describe RetryWorkflowEligibility do
         result = described_class.call(job: job, workflow: retry_wf)
 
         expect(result).to be_eligible
+      end
+
+      it "does not count the provided retry workflow's work unit as a duplicate retry" do
+        job = make_job
+        make_started_workflow(job)
+        retry_wf = make_workflow(job, trigger_kind: "retry", state: "queued")
+        attach_work_unit(retry_wf, kind: "retry", state: "queued")
+
+        result = described_class.call(job: job, workflow: retry_wf)
+
+        expect(result).to be_eligible
+      end
+
+      it "counts another retry workflow's work unit as a duplicate retry" do
+        job = make_job
+        make_started_workflow(job)
+        retry_wf = make_workflow(job, trigger_kind: "retry", state: "failed")
+        other_retry_wf = make_workflow(job, trigger_kind: "retry", state: "queued")
+        attach_work_unit(other_retry_wf, kind: "retry", state: "queued")
+
+        result = described_class.call(job: job, workflow: retry_wf)
+
+        expect(result).not_to be_eligible
+        expect(result.code).to eq("duplicate_retry")
       end
     end
   end

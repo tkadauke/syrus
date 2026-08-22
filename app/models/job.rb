@@ -744,7 +744,7 @@ class Job < ApplicationRecord
   # a Job whose PR still shows a stale GitHub APPROVED review while a fix
   # for that same feedback is actively in flight.
   def active_feedback_workflow?
-    workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values, state: Workflow::TriggerKind::ACTIVE_STATES).exists?
+    WorkUnits::Ownership.active_for_job_kind?(self, Workflow::TriggerKind.feedback_values)
   end
 
   def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
