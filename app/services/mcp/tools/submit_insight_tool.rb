@@ -266,7 +266,6 @@ module Mcp::Tools
 
         scope.find_by(user_id: run.job.user_id, scope: "repository", scope_id: run.job.repository_id)
       end
-
     end
   end
 end
