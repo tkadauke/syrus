@@ -26,12 +26,22 @@ module WorkUnits
         return result
       end
 
-      work_unit.unblock! if work_unit.blocked?
+      work_unit.unblock! if work_unit.blocked? && managed_blocked_reason?(work_unit.blocked_reason)
       GateResult.pass
     end
 
     private
 
     attr_reader :work_unit, :gates
+
+    def managed_blocked_reason?(reason)
+      managed_blocked_reasons.include?(reason)
+    end
+
+    def managed_blocked_reasons
+      @managed_blocked_reasons ||= gates.filter_map do |gate|
+        gate.const_get(:REASON) if gate.const_defined?(:REASON, false)
+      end
+    end
   end
 end

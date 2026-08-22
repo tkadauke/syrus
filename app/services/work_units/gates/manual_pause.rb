@@ -1,6 +1,8 @@
 module WorkUnits
   module Gates
     class ManualPause
+      REASON = "manual_pause"
+
       def self.call(work_unit) = new(work_unit).call
 
       def initialize(work_unit)
@@ -11,7 +13,7 @@ module WorkUnits
         return GateResult.pass unless work_unit.pause_requested?
 
         GateResult.block(
-          reason: "manual_pause",
+          reason: REASON,
           details: { "pause_requested" => true }
         )
       end

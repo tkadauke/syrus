@@ -18,13 +18,23 @@ RSpec.describe WorkUnits::Scheduler do
     expect(unit.blocked_details).to include("load" => "high")
   end
 
-  it "unblocks a blocked unit when all gates pass" do
+  it "unblocks a blocked unit when its owning gate passes" do
     unit.block!(reason: "manual_pause", details: { "pause_requested" => true })
+    unit.clear_pause!
 
-    result = described_class.evaluate!(unit, gates: [])
+    result = described_class.evaluate!(unit)
 
     expect(result).to be_pass
     expect(unit.reload).to have_attributes(state: "queued", blocked_reason: nil)
+  end
+
+  it "does not unblock a unit blocked by a reason outside the evaluated gates" do
+    unit.block!(reason: "admission_control", details: { "pressure" => "high" })
+
+    result = described_class.evaluate!(unit)
+
+    expect(result).to be_pass
+    expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "admission_control")
   end
 
   it "uses manual pause as the first built-in gate" do
