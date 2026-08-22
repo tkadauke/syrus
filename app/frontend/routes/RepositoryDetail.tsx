@@ -100,7 +100,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
-          <RepositoryThroughputPanel repositoryId={payload.repository.id} />
+          {payload.simple_mode ? null : <RepositoryThroughputPanel repositoryId={payload.repository.id} />}
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </div>
         <div className="space-y-6">
