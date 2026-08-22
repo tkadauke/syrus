@@ -25,6 +25,11 @@ module WorkDefinitions
       Workflow::TriggerKind.template_for(workflow_trigger_kind)
     end
 
+    def intent_gates = []
+    def unit_gates = []
+    def preemption_policy = WorkUnits::PreemptionPolicies::None.new
+    def retry_policy = WorkUnits::RetryPolicies::Operator.new
+
     def lock_keys_for(job:, member_jobs:)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
       keys << "epic:#{job.epic_id}" if scope == "epic" && job.epic_id.present?

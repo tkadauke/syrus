@@ -38,6 +38,22 @@ RSpec.describe WorkDefinitions do
     expect(child_definitions).to all(have_attributes(parent_kind: be_present))
   end
 
+  it "requires every work definition to declare scheduler policy hooks" do
+    described_class.registry.each_value do |definition_class|
+      definition = definition_class.new
+
+      expect(definition.intent_gates).to respond_to(:each)
+      expect(definition.unit_gates).to respond_to(:each)
+      expect(definition.lock_keys_for(job: Factories.job_record, member_jobs: [])).to respond_to(:each)
+      expect(definition.preemption_policy).to respond_to(:mode)
+      expect(definition.preemption_policy).to respond_to(:checkpoint?)
+      expect(definition.preemption_policy).to respond_to(:resume_strategy)
+      expect(definition.retry_policy).to respond_to(:automatic?)
+      expect(definition.retry_policy).to respond_to(:continuation?)
+      expect(definition.retry_policy).to respond_to(:new_attempt?)
+    end
+  end
+
   it "marks infrastructure workflows explicitly" do
     expect(described_class.for("main_grader")).to be_infrastructure
     expect(described_class.for("agent_insight")).to be_infrastructure
