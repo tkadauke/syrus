@@ -23,7 +23,7 @@ import { chatDisplayTitle, snapshotKindLabel, diffLineClass, secondaryButton, er
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
-import { newestPins, useChatPins } from "./pins"
+import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
@@ -71,7 +71,8 @@ export function ChatWorkspacePanel({
   simpleMode?: boolean
 }) {
   const { t } = useT("chat")
-  const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode), [payload, simpleMode])
+  const hasPins = useHasPins(payload.chat.id, queryKey[2])
+  const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode, hasPins), [payload, simpleMode, hasPins])
 
   useEffect(() => {
     if (!tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
