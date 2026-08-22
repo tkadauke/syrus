@@ -38,7 +38,7 @@ class LandingValidationPrefetcher
       end
     end
 
-    StepDispatcher.start_workflow(workflow_to_start) if workflow_to_start
+    WorkUnits::Launcher.start!(workflow_to_start) if workflow_to_start
     workflow_to_start
   rescue StandardError => e
     Rails.logger.warn("[LandingValidationPrefetcher] prefetch dispatch failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")

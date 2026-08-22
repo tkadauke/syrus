@@ -43,7 +43,7 @@ RSpec.describe LandingValidationPrefetcher do
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: source_path.to_s).and_return("source-head\n")
     allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: source_path.to_s).and_return("source-tree\n")
     allow(GithubClient).to receive(:for).and_return(double("GithubClient", pull_request: pr("candidate-head", "main")))
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
   end
 
   after do
@@ -73,7 +73,8 @@ RSpec.describe LandingValidationPrefetcher do
       "predicted_base_tree_sha" => "source-tree",
       "prefetch_candidate_head_sha" => "candidate-head"
     )
-    expect(StepDispatcher).to have_received(:start_workflow).with(prefetch)
+    expect(prefetch.work_unit).to be_present
+    expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
   it "dispatches a merge_train_validation workflow for the next eligible Epic landing unit" do
@@ -104,7 +105,8 @@ RSpec.describe LandingValidationPrefetcher do
       "predicted_base_tree_sha" => "source-tree",
       "predicted_base_ref" => repository.default_branch
     )
-    expect(StepDispatcher).to have_received(:start_workflow).with(prefetch)
+    expect(prefetch.work_unit).to be_present
+    expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
   it "lets a successful merge_train workflow prefetch the next ordinary landing unit" do
@@ -146,7 +148,8 @@ RSpec.describe LandingValidationPrefetcher do
       "predicted_base_ref" => repository.default_branch
     )
     expect(prefetch.artifacts["prefetch_merge_train_member_job_ids"]).to match_array([ first.id, second.id ])
-    expect(StepDispatcher).to have_received(:start_workflow).with(prefetch)
+    expect(prefetch.work_unit).to be_present
+    expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
   it "lets a successful epicless job-bundle merge_train workflow prefetch the next ordinary landing unit" do

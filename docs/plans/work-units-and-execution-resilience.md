@@ -1522,6 +1522,9 @@ Completed slices:
   `WorkUnits::Launcher.start!`.
 - The operator job `rebase` command now starts its selected rebase Workflow
   through `WorkUnits::Launcher.start!`, preserving the returned Run payload.
+- Speculative landing-validation prefetch now starts validation Workflows
+  through `WorkUnits::Launcher.start!` after transactional eligibility checks,
+  preserving the existing source Workflow artifact link.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
