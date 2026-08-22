@@ -131,6 +131,15 @@ RSpec.describe "Dockerfile" do
     expect(app_stage).not_to include("sccache")
   end
 
+  it "packages the full whisper.cpp runtime, not just the CLI binary" do
+    whisper_stage = stage("whisper-build", "app")
+
+    expect(dockerfile).to include('LD_LIBRARY_PATH="/opt/whisper.cpp/lib:/opt/whisper.cpp/lib64"')
+    expect(whisper_stage).to include("-DCMAKE_INSTALL_PREFIX=/opt/whisper.cpp")
+    expect(whisper_stage).to include("cmake --install /tmp/whisper-cpp-src/build --config Release")
+    expect(whisper_stage).to include("ln -sf /opt/whisper.cpp/bin/whisper-cli /opt/whisper.cpp/whisper-cli")
+  end
+
   it "seeds /opt/mise from /opt/mise-seed on first boot via the entrypoint" do
     worker_deps = worker_deps_stage
     entrypoint = Rails.root.join("bin/docker-entrypoint").read

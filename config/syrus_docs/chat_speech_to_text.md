@@ -35,7 +35,7 @@ binary/model (e.g. bare-metal installs or a custom model):
 
 ```
 SYRUS_STT_PROVIDER=whisper_cpp
-SYRUS_STT_WHISPER_CPP_EXECUTABLE=/opt/whisper.cpp/build/bin/whisper-cli
+SYRUS_STT_WHISPER_CPP_EXECUTABLE=/opt/whisper.cpp/whisper-cli
 SYRUS_STT_WHISPER_CPP_MODEL=/models/ggml-base.en.bin
 SYRUS_STT_BACKEND_STREAMING=false
 ```

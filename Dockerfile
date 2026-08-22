@@ -54,6 +54,7 @@ ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \
+    LD_LIBRARY_PATH="/opt/whisper.cpp/lib:/opt/whisper.cpp/lib64" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
     RAILS_LOG_TO_STDOUT="1"
 
@@ -151,9 +152,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       apt-get update -qq && \
       apt-get install --no-install-recommends -y build-essential cmake && \
       git clone --branch "$WHISPER_CPP_VERSION" --depth 1 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper-cpp-src && \
-      cmake -S /tmp/whisper-cpp-src -B /tmp/whisper-cpp-src/build -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=OFF -DWHISPER_BUILD_EXAMPLES=ON && \
+      cmake -S /tmp/whisper-cpp-src -B /tmp/whisper-cpp-src/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/opt/whisper.cpp \
+        -DGGML_CUDA=OFF \
+        -DWHISPER_BUILD_EXAMPLES=ON && \
       cmake --build /tmp/whisper-cpp-src/build --config Release -j"$(nproc)" && \
-      cp /tmp/whisper-cpp-src/build/bin/whisper-cli /opt/whisper.cpp/whisper-cli && \
+      cmake --install /tmp/whisper-cpp-src/build --config Release && \
+      if [ -x /opt/whisper.cpp/bin/whisper-cli ]; then \
+        ln -sf /opt/whisper.cpp/bin/whisper-cli /opt/whisper.cpp/whisper-cli; \
+      else \
+        cp /tmp/whisper-cpp-src/build/bin/whisper-cli /opt/whisper.cpp/whisper-cli; \
+      fi && \
       curl -fsSL -o "/opt/whisper.cpp/models/${WHISPER_CPP_MODEL}" "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${WHISPER_CPP_MODEL}" && \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/whisper-cpp-src; \
     fi
