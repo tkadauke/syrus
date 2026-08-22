@@ -4,18 +4,22 @@ Adversarial review adds an independent critic agent to the implementation loop. 
 
 ## How it works
 
-When adversarial review is enabled (rounds > 0), Syrus inserts a bounded loop before the grader step chain:
+When adversarial review is enabled (rounds > 0), Syrus inserts a bounded loop before the grader step chain. In the `initial` workflow, `implement` always runs first as a top-level step — implementation happens regardless of whether adversarial review or a grade loop are configured — so the loop itself is `review_first`:
 
 ```
-implement → adversarial_review → implement → adversarial_review → ... → graders
+implement → adversarial_review → implement → adversarial_review → ... → implement → graders
+            ^ iteration 1         ^ iteration 2 (repair + review) ...   ^ final iteration (repair only)
 ```
 
-Each iteration:
+- **Iteration 1** is `adversarial_review` alone, reviewing the top-level `implement`'s diff directly — there's no need to re-implement before the very first look.
+- **Iterations 2 through (rounds − 1)** pair a repair `implement` with another `adversarial_review`, same as before.
+- **The final iteration** (iteration `rounds`, reached only if the review budget runs out) is a repair `implement` with no trailing review. There's no iteration left to act on further feedback, so running the reviewer again would just be a no-op — the loop exits straight to grading once that last repair finishes.
 
-1. **implement** — the agent writes or revises the code and commits.
-2. **adversarial_review** — a fresh agent (in a new session) reads the issue and the diff from the last `implement` step, then calls `submit_adversarial_review` with a verdict and findings. Any workspace changes the reviewer makes are discarded — the reviewer is read-only.
+Each `adversarial_review` call: a fresh agent (in a new session) reads the issue and the diff from the last `implement` step, then calls `submit_adversarial_review` with a verdict and findings. Any workspace changes the reviewer makes are discarded — the reviewer is read-only.
 
-The loop runs for the configured number of rounds. After all rounds complete, the grader chain runs on the final committed state.
+The loop runs for at most the configured number of rounds. After it exits (by approval or by exhausting the budget), the grader chain runs on the final committed state. In `initial` that grader chain is itself check-first — see [`workflow_steps.md`](workflow_steps.md) — so it doesn't re-implement again before grading; it only adds a repair `implement` back in if a grader iteration actually fails.
+
+In the feedback workflows (`pr_comment`, `chat_feedback`), the agent step (`respond`) has no top-level run to review first, so the loop keeps its original uniform shape instead: `respond → adversarial_review → respond → adversarial_review → ...`, with `respond` on every iteration including the first.
 
 ## Verdicts
 
@@ -41,6 +45,8 @@ AppSetting.current.update!(adversarial_review_rounds: 2)
 ```
 
 Rounds range: 0–10. Default is 0 (disabled).
+
+In `initial`, `rounds: 1` reviews the top-level `implement` exactly once. If that review comes back `needs_work`, there's no budget left for a repair iteration — the workflow proceeds to grading with the reviewer's feedback recorded but unaddressed. Set `rounds: 2` or higher to guarantee at least one repair pass.
 
 ### Per-repo (.syrus.yml)
 
@@ -69,7 +75,7 @@ The adversarial reviewer resumes its session from the previous `adversarial_revi
 
 ## Which workflows include adversarial review
 
-Adversarial review runs in `initial`, `retry`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` workflows when rounds > 0. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
+Adversarial review runs in `initial`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` workflows when rounds > 0. It is not currently wired into `retry`. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
 
 ### Feedback workflows (pr_comment, chat_feedback, external_pr_feedback)
 

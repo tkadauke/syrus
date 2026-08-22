@@ -1,11 +1,16 @@
 module Workflows
   # Issue → PR.
   #
-  # When adversarial review is enabled, insert a bounded
-  # implement/reviewer loop before the normal grade retry loop:
+  # `implement` is always a top-level step: implementation happens
+  # regardless of whether adversarial review or a grade loop are
+  # configured for this repository. The optional loops that follow only
+  # decide whether (and how) that work gets revised:
   #
-  #   prepare → loop(implement, adversarial_review)
-  #     → retry_until(implement, grader_fanout, grader_collect) → ...
+  #   prepare → implement
+  #     → [loop(adversarial_review first, then implement ⇄ adversarial_review)]
+  #     → [loop(implement, visual_review)]
+  #     → retry_until(format, generate, graders; repair: implement)
+  #     → ...
   #
   # prepare reads `.syrus.yml` (or auto-detects from lockfiles)
   # and runs deterministic setup like `bundle install` so the
@@ -13,6 +18,20 @@ module Workflows
   # runs the agent end-to-end (multi-turn) on the prepared
   # workspace, makes commits, but does NOT call submit_summary
   # — that's a separate phase.
+  #
+  # The adversarial review loop is `review_first`: iteration 1 reviews the
+  # top-level implement's diff directly (no redundant re-implement first).
+  # Iterations 2..(rounds - 1) pair a repair `implement` with another
+  # review. The final iteration (rounds, once reached) is a repair
+  # `implement` only — with no review budget left to act on further
+  # feedback, running another review would just be a no-op. See
+  # Workflows::Loop and StepDispatcher#enqueue_next_loop_iteration!.
+  #
+  # The grade retry loop is `repair_first: false`: the top-level implement
+  # (or the adversarial loop's last repair, if that ran) already produced
+  # the work to grade, so iteration 1 runs the non-implement grading
+  # pipeline (format/generate/graders) directly against it. `implement`
+  # only comes back as a repair step once a grader iteration fails.
   #
   # grader_fanout reads `.syrus.yml` from the workspace and
   # materializes one `grader` Step per configured grader between
@@ -37,9 +56,10 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
-        adversarial_review_loop(job, agent_step: :implement),
+        :implement,
+        adversarial_review_loop(job, agent_step: :implement, review_first: true),
         visual_review_loop(job, agent_step: :implement),
-        grader_retry_loop(job, :implement, autofix: true),
+        grader_retry_loop(job, :implement, autofix: true, repair_first: false),
         "coverage_analyze",
         "dependency_audit",
         initial_pr_finish_steps
