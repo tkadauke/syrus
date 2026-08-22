@@ -194,23 +194,27 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
           <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
         </>
       )}
-      <DashboardTour />
+      <DashboardTour simpleMode={payload.simple_mode} />
     </main>
   )
 }
 
-export function DashboardTour() {
+export function DashboardTour({ simpleMode = false }: { simpleMode?: boolean }) {
   const { run, handleJoyrideCallback } = useTour("dashboard")
   const { t } = useT("tours")
 
   const steps = [
-    {
-      target: "[data-tour='dashboard-filter-bar']",
-      title: t("dashboard.filter_chips_title"),
-      content: t("dashboard.filter_chips_content"),
-      placement: "bottom" as const,
-      disableBeacon: true,
-    },
+    ...(simpleMode
+      ? []
+      : [
+          {
+            target: "[data-tour='dashboard-filter-bar']",
+            title: t("dashboard.filter_chips_title"),
+            content: t("dashboard.filter_chips_content"),
+            placement: "bottom" as const,
+            disableBeacon: true,
+          }
+        ]),
     {
       target: "[data-tour='dashboard-view-switcher']",
       title: t("dashboard.view_switcher_title"),
@@ -219,14 +223,14 @@ export function DashboardTour() {
     },
     {
       target: "[data-tour='dashboard-create-actions']",
-      title: t("dashboard.create_actions_title"),
-      content: t("dashboard.create_actions_content"),
+      title: simpleMode ? t("dashboard.create_actions_title_simple") : t("dashboard.create_actions_title"),
+      content: simpleMode ? t("dashboard.create_actions_content_simple") : t("dashboard.create_actions_content"),
       placement: "bottom-end" as const,
     },
     {
       target: "[data-tour='dashboard-table']",
-      title: t("dashboard.job_row_title"),
-      content: t("dashboard.job_row_content"),
+      title: simpleMode ? t("dashboard.job_row_title_simple") : t("dashboard.job_row_title"),
+      content: simpleMode ? t("dashboard.job_row_content_simple") : t("dashboard.job_row_content"),
       placement: "top" as const,
     },
   ]
