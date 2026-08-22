@@ -4,6 +4,12 @@ require "ostruct"
 RSpec.describe Workflows do
   let(:job) { Factories.job }
 
+  before do
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
+  end
+
   describe ".for(trigger_kind:)" do
     it "returns the right template class for each known trigger_kind" do
       expect(described_class.for(trigger_kind: "initial")).to    eq(Workflows::Initial)

@@ -25,7 +25,7 @@ module Workflows
       prepare_then(
         job,
         adversarial_review_loop(job, agent_step: :respond),
-        grader_retry_loop(:respond),
+        grader_retry_loop(job, :respond),
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
       )

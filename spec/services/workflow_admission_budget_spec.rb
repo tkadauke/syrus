@@ -81,6 +81,9 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   before do
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
     seed_low_cost_profiles
   end
 

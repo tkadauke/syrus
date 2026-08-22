@@ -22,7 +22,7 @@ module Workflows
         job,
         adversarial_review_loop(job, agent_step: :respond),
         visual_review_loop(job, agent_step: :respond),
-        grader_retry_loop(:respond, autofix: true),
+        grader_retry_loop(job, :respond, autofix: true),
         feedback_finish_steps
       )
     end
