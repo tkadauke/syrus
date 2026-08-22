@@ -17,7 +17,7 @@ module PendingActions
       progress!("Creating rebase workflow for #{job.slug}...")
       workflow = RebaseWorkflowSelector.instantiate(job: job)
       progress!("Starting #{workflow.slug}...")
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
       nil
     end
 

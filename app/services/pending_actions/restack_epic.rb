@@ -46,7 +46,7 @@ module PendingActions
           base_branch: root.effective_base_branch
         )
         progress!("Starting #{workflow.slug}...")
-        StepDispatcher.start_workflow(workflow)
+        WorkUnits::Launcher.start!(workflow)
         workflow
       end
       progress!("Recording repair audit...")

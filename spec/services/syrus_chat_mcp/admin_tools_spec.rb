@@ -326,7 +326,7 @@ RSpec.describe "Mcp::Tools admin tools" do
 
   it "confirms force_rebase by dispatching a rebase workflow with audit snapshots" do
     job = Factories.job_record(user: admin, repository: repository, state: "approved", branch_name: "syrus/direct-2265", pr_number: 2265)
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
 
     response = call_tool(admin_session, "force_rebase", { job_id: job.id, reason: "Bypass queue position." })
     action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
@@ -338,7 +338,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     workflow = action.reload.result
     expect(workflow).to have_attributes(job: job, trigger_kind: "rebase")
     expect(workflow.artifact("repair_action")).to eq("force_rebase")
-    expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
     expect(action.before_snapshot).to include("jobs")
     expect(action.after_snapshot).to include("jobs")
   end
@@ -365,7 +365,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 41, state: "approved", branch_name: "syrus/root", pr_number: 41)
     child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 42, state: "approved", branch_name: "syrus/child", pr_number: 42)
     JobDependency.create!(job: child, depends_on_job: root, source: "manual")
-    allow(StepDispatcher).to receive(:start_workflow)
+    allow(WorkUnits::Launcher).to receive(:start!)
 
     response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, reason: "Repair stale stack topology." })
     action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
@@ -379,7 +379,7 @@ RSpec.describe "Mcp::Tools admin tools" do
     expect(workflow).to have_attributes(job: root, trigger_kind: "stack_rebase")
     expect(workflow.artifact("repair_action")).to eq("restack_epic")
     expect(workflow.artifact(StackRebasePlan::STACK_ARTIFACT).map { |entry| entry["job_id"] }).to eq([ root.id, child.id ])
-    expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
   it "confirms force_landing_recheck through the recheck service" do

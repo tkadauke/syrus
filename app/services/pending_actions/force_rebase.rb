@@ -26,7 +26,7 @@ module PendingActions
         }
       )
       progress!("Starting #{workflow.slug}...")
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
       progress!("Recording repair audit...")
       audit!(job, workflow)
       workflow

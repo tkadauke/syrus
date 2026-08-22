@@ -315,6 +315,7 @@ RSpec.describe ChatPendingAction do
     }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
 
     workflow = job.workflows.where(trigger_kind: "rebase").last
+    expect(workflow.work_unit).to be_present
     expect(workflow.first_step.runs.count).to eq(1)
   end
 
