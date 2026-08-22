@@ -1225,7 +1225,7 @@ module Api
           chat_session.update_columns(coding_relay_address: nil, coding_relay_token: nil)
         end
 
- 
+
         def proposal_update_params
           params.require(:proposal).permit(:title, :body, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
         end
@@ -1427,7 +1427,6 @@ module Api
 
           CLAUDE_CHAT_MODELS
         end
-
       end
     end
   end

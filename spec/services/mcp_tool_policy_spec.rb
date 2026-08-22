@@ -236,7 +236,6 @@ RSpec.describe McpToolPolicy do
       )
       expect(described_class.for(context)).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
     end
-
   end
 
   describe "chat planner role" do
