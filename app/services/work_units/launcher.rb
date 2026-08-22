@@ -15,7 +15,7 @@ module WorkUnits
       ).instantiate
     end
 
-    def self.create_and_start!(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, **options)
+    def self.create_and_start!(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, before_start: nil, **options)
       workflow = instantiate(
         kind: kind,
         job: job,
@@ -26,6 +26,7 @@ module WorkUnits
         source_id: source_id,
         **options
       )
+      before_start&.call(workflow)
       Result.new(workflow: workflow, run: StepDispatcher.start_workflow(workflow))
     end
 

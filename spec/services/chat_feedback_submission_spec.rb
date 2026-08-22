@@ -24,6 +24,7 @@ RSpec.describe ChatFeedbackSubmission do
     result = described_class.call(job: job, feedback: "One more thing.", allowed_states: %w[implemented approved])
 
     expect(result).to be_success
+    expect(result.workflow.work_unit).to have_attributes(kind: "chat_feedback")
     expect(job.reload).to be_implemented
   end
 

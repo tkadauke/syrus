@@ -121,6 +121,26 @@ RSpec.describe WorkUnits::Launcher do
     expect(result.run.step).to eq(result.workflow.first_step)
   end
 
+  it "runs a callback after workflow creation and before dispatch" do
+    state = []
+    allow(StepDispatcher).to receive(:start_workflow) do |workflow|
+      state << [ :start, workflow.id ]
+      workflow.first_step.runs.last
+    end
+
+    result = described_class.create_and_start!(
+      kind: "manual_visual_review",
+      job: job,
+      before_start: ->(workflow) { state << [ :before_start, workflow.id ] }
+    )
+
+    expect(result.workflow).to be_persisted
+    expect(state).to eq([
+      [ :before_start, result.workflow.id ],
+      [ :start, result.workflow.id ]
+    ])
+  end
+
   it "snapshots merge train members from the merge train artifact" do
     epic = Factories.epic(user: user, repository: repository)
     first = Factories.job_record(user: user, repository: repository, epic: epic)

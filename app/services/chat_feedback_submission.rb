@@ -27,15 +27,15 @@ class ChatFeedbackSubmission
       "pr_feedback_auto" => false
     }
     artifacts = base_artifacts.merge(extra_artifacts)
-    workflow = WorkUnits::Launcher.instantiate(
+    result = WorkUnits::Launcher.create_and_start!(
       kind: "chat_feedback",
       job: job,
-      artifacts: artifacts
+      artifacts: artifacts,
+      before_start: ->(_) do
+        Job::ApprovalUnapprover.call(job: job.reload, user: job.user) if job.may_unapprove?
+      end
     )
-    if job.may_unapprove?
-      Job::ApprovalUnapprover.call(job: job.reload, user: job.user)
-    end
-    StepDispatcher.start_workflow(workflow)
+    workflow = result.workflow
 
     Result.new(workflow: workflow, error: nil)
   end

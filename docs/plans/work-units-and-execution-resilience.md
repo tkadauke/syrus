@@ -1464,6 +1464,8 @@ Completed slices:
   the Workflow in the poller.
 - PR feedback dispatch now uses the same create-plus-dispatch funnel and retains
   WorkUnit ownership on the created `pr_comment` Workflow.
+- Chat feedback submission now uses the same funnel, preserving the existing
+  unapprove-before-dispatch behavior through the launcher boundary.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
