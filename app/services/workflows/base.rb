@@ -124,11 +124,18 @@ module Workflows
       prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
     end
 
-    def self.adversarial_review_loop(job, agent_step:)
+    # `review_first:` models a loop whose iteration 1 reviews work an
+    # `agent_step` already produced outside the loop (see Workflows::Loop),
+    # rather than pairing a fresh agent_step with the review on every
+    # iteration. Only Initial uses this today: its top-level `implement`
+    # step runs unconditionally before this loop is ever consulted, so
+    # iteration 1 has something to review already. Other call sites (whose
+    # agent_step only ever runs inside this loop) keep the default.
+    def self.adversarial_review_loop(job, agent_step:, review_first: false)
       rounds = adversarial_review_rounds(job)
       return nil unless rounds.positive?
 
-      Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ])
+      Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ], review_first: review_first)
     end
 
     def self.visual_review_loop(job, agent_step:)
@@ -157,17 +164,34 @@ module Workflows
     # soon as any one of them is configured, the whole grade loop (the agent
     # step, whichever of format/generate are configured, and
     # grader_fanout/grader_collect together) is materialized.
-    def self.grader_retry_loop(job, agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false)
+    #
+    # `repair_first:` (default true) mirrors Workflows::RetryUntil#repair_first:
+    # the agent_step runs on every iteration including the first. Only
+    # Initial passes `repair_first: false` — its top-level `implement` step
+    # already ran before this loop, so the first grading pass should run the
+    # non-implement pipeline (format/generate/graders) directly against
+    # that work; agent_step is only added back in as a repair once a grader
+    # fails. Other call sites have no guaranteed agent step before this loop
+    # (e.g. PrFeedback's `respond` may only ever run here), so they keep
+    # agent_step on iteration 1.
+    def self.grader_retry_loop(job, agent_step, max_iterations: AppSetting.grade_max_iterations, autofix: false, repair_first: true)
       return unconditional_grader_retry_loop(agent_step, max_iterations: max_iterations) unless autofix
 
       plan = RepoGradeLoopPlan.for_job(job)
-      return agent_step unless plan.any_configured?
+      return (repair_first ? agent_step : nil) unless plan.any_configured?
 
-      repair = [ agent_step ]
-      repair << :format if plan.format_configured
-      repair << :generate if plan.generate_configured
+      autofix_steps = []
+      autofix_steps << :format if plan.format_configured
+      autofix_steps << :generate if plan.generate_configured
 
-      Workflows::RetryUntil.new(max_iterations: max_iterations, repair: repair, check: [ :grader_fanout, :grader_collect ])
+      repair, check =
+        if repair_first
+          [ [ agent_step ] + autofix_steps, [ :grader_fanout, :grader_collect ] ]
+        else
+          [ [ agent_step ], autofix_steps + [ :grader_fanout, :grader_collect ] ]
+        end
+
+      Workflows::RetryUntil.new(max_iterations: max_iterations, repair_first: repair_first, repair: repair, check: check)
     end
 
     def self.unconditional_grader_retry_loop(agent_step, max_iterations:)

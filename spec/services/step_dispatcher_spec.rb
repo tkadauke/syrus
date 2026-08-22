@@ -1514,6 +1514,174 @@ RSpec.describe StepDispatcher do
     end
   end
 
+  describe "review_first adversarial loop (Workflows::Initial shape: top-level implement, check-first grade loop)" do
+    it "starts the loop with adversarial_review alone, reviewing the top-level implement" do
+      review_workflow = workflow_with_review_first_adversarial_loop(max_iterations: 2)
+
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      expect(review_workflow.steps.where(loop_id: review.loop_id, iteration: 1).pluck(:kind)).to eq(%w[ adversarial_review ])
+      expect(review_workflow.steps.where(loop_id: review.loop_id).to_a).to eq([ review ])
+    end
+
+    it "pairs implement with adversarial_review on the next iteration when the budget allows another review after it" do
+      review_workflow = workflow_with_review_first_adversarial_loop(max_iterations: 3)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs work", "verdict" => "needs_work" }
+      ])
+
+      described_class.advance_from(review)
+
+      new_steps = review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).order(:position).to_a
+      expect(new_steps.map(&:kind)).to eq(%w[ implement adversarial_review ])
+    end
+
+    it "materializes a final repair-only iteration (no trailing review) once the review budget is exhausted" do
+      review_workflow = workflow_with_review_first_adversarial_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs work", "verdict" => "needs_work" }
+      ])
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { review_workflow.steps.count }.by(1)
+
+      new_steps = review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).order(:position).to_a
+      expect(new_steps.map(&:kind)).to eq(%w[ implement ])
+      expect(new_steps.first.next_step).to eq(grader_fanout)
+    end
+
+    it "runs the final repair implement and proceeds straight to grading, with no further review" do
+      review_workflow = workflow_with_review_first_adversarial_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs work", "verdict" => "needs_work" }
+      ])
+      described_class.advance_from(review)
+      final_repair = review_workflow.reload.steps.find_by!(kind: "implement", loop_id: review.loop_id, iteration: 2)
+
+      expect {
+        described_class.advance_from(final_repair)
+      }.to change { grader_fanout.reload.runs.count }.by(1)
+
+      expect(review_workflow.reload.steps.where(kind: "adversarial_review", iteration: 2)).to be_empty
+    end
+
+    it "advances straight to the check-first grade loop when the reviewer approves, without skipping a grading step" do
+      review_workflow = workflow_with_review_first_adversarial_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "LGTM", "verdict" => "approved" }
+      ])
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { grader_fanout.reload.runs.count }.by(1)
+
+      expect(review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2)).to be_empty
+      expect(grader_fanout.reload).to be_queued
+      expect(review_workflow.steps.find_by!(kind: "grader_collect")).to be_queued
+    end
+
+    it "still skips a genuinely redundant agent step when one follows the loop (e.g. the visual_review loop's own implement)" do
+      review_workflow = workflow_with_review_first_adversarial_loop_followed_by_visual_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      visual_implement = review_workflow.steps.find_by!(kind: "implement", loop_id: "visual-loop")
+      visual_review = review_workflow.steps.find_by!(kind: "visual_review")
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "LGTM", "verdict" => "approved" }
+      ])
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { visual_review.reload.runs.count }.by(1)
+
+      expect(visual_implement.reload).to be_skipped
+      expect(visual_implement.details).to include("skip_reason" => "adversarial_review_approved")
+    end
+
+    it "does not run an implement repair before the first grading pass" do
+      review_workflow = workflow_with_review_first_adversarial_loop(max_iterations: 1)
+
+      expect(review_workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare implement adversarial_review grader_fanout grader_collect ]
+      )
+      expect(review_workflow.steps.where(kind: "implement").count).to eq(1)
+    end
+  end
+
+  def workflow_with_review_first_adversarial_loop_followed_by_visual_review_loop(max_iterations:)
+    Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      chain_template: [
+        { "type" => "step", "kind" => "prepare" },
+        { "type" => "step", "kind" => "implement" },
+        { "type" => "loop", "max_iterations" => max_iterations, "steps" => %w[ implement adversarial_review ], "review_first" => true },
+        { "type" => "loop", "max_iterations" => 1, "steps" => %w[ implement visual_review ] },
+        {
+          "type" => "retry_until",
+          "max_iterations" => 1,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        }
+      ]
+    ).tap do |wf|
+      prepare = Step.create!(workflow: wf, kind: "prepare", position: 0)
+      implement = Step.create!(workflow: wf, kind: "implement", position: 1)
+      review = Step.create!(workflow: wf, kind: "adversarial_review", position: 2, iteration: 1, loop_id: "review-loop")
+      visual_implement = Step.create!(workflow: wf, kind: "implement", position: 3, iteration: 1, loop_id: "visual-loop")
+      visual_review = Step.create!(workflow: wf, kind: "visual_review", position: 4, iteration: 1, loop_id: "visual-loop")
+      grader_fanout = Step.create!(workflow: wf, kind: "grader_fanout", position: 5, iteration: 1, loop_id: "grade-loop")
+      grader_collect = Step.create!(workflow: wf, kind: "grader_collect", position: 6, iteration: 1, loop_id: "grade-loop")
+      prepare.update!(next_step_id: implement.id)
+      implement.update!(next_step_id: review.id)
+      review.update!(next_step_id: visual_implement.id)
+      visual_implement.update!(next_step_id: visual_review.id)
+      visual_review.update!(next_step_id: grader_fanout.id)
+      grader_fanout.update!(next_step_id: grader_collect.id)
+    end
+  end
+
+  def workflow_with_review_first_adversarial_loop(max_iterations:)
+    Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      chain_template: [
+        { "type" => "step", "kind" => "prepare" },
+        { "type" => "step", "kind" => "implement" },
+        { "type" => "loop", "max_iterations" => max_iterations, "steps" => %w[ implement adversarial_review ], "review_first" => true },
+        {
+          "type" => "retry_until",
+          "max_iterations" => 1,
+          "repair" => %w[ implement ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        }
+      ]
+    ).tap do |wf|
+      prepare = Step.create!(workflow: wf, kind: "prepare", position: 0)
+      implement = Step.create!(workflow: wf, kind: "implement", position: 1)
+      review = Step.create!(workflow: wf, kind: "adversarial_review", position: 2, iteration: 1, loop_id: "review-loop")
+      grader_fanout = Step.create!(workflow: wf, kind: "grader_fanout", position: 3, iteration: 1, loop_id: "grade-loop")
+      grader_collect = Step.create!(workflow: wf, kind: "grader_collect", position: 4, iteration: 1, loop_id: "grade-loop")
+      prepare.update!(next_step_id: implement.id)
+      implement.update!(next_step_id: review.id)
+      review.update!(next_step_id: grader_fanout.id)
+      grader_fanout.update!(next_step_id: grader_collect.id)
+    end
+  end
+
   describe "Step#after_update_commit advance integration" do
     it "fires StepDispatcher.advance_from when a step transitions to succeeded" do
       run = s1.runs.create!(job: job, trigger_kind: "initial")
