@@ -764,6 +764,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "title")).to eq("Release planning")
   end
 
+  it "clears a failed-generation fallback flag on rename so ChatTitleJob will not later overwrite it" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: repository.name, title_auto_fallback: true, last_message_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: "Release planning" }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.title).to eq("Release planning")
+    expect(chat.title_auto_fallback).to eq(false)
+  end
+
   it "does not rename an enabled supervisor chat" do
     Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
     sign_in_as(user)
@@ -2733,6 +2744,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(chat.messages.last.content).to eq("text" => "Start now")
   end
 
+  it "retries title generation from a queued message when the stored title is a failed-generation fallback" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: repository.name, title_auto_fallback: true, last_message_at: Time.current)
+    first = chat.messages.create!(role: "user", content: { "text" => "Build the calendar" }, created_at: 1.hour.ago, skip_turn_trigger: true)
+
+    post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "continue" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatTitleJob).to have_been_enqueued.with(chat.id, first.id)
+  end
+
   it "does not return another user's private chat payload or messages" do
     sign_in_as(user)
     other_user = Factories.user
@@ -4697,6 +4719,28 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(ChatTitleJob).to have_been_enqueued.with(chat.id, first.id)
+  end
+
+  it "retries title generation on the next message when the stored title is a failed-generation fallback" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: repository.name, title_auto_fallback: true, last_message_at: 1.day.ago)
+    first = chat.messages.create!(role: "user", content: { "text" => "Build the calendar" }, created_at: 1.hour.ago)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "continue" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatTitleJob).to have_been_enqueued.with(chat.id, first.id)
+  end
+
+  it "does not re-trigger title generation on the next message once a real title is stored" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Calendar planning", last_message_at: 1.day.ago)
+    chat.messages.create!(role: "user", content: { "text" => "Build the calendar" }, created_at: 1.hour.ago)
+
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "continue" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatTitleJob).not_to have_been_enqueued
   end
 
   it "returns a validation error for blank chat messages" do
