@@ -1,16 +1,12 @@
 module WorkUnits
   class Scheduler
-    DEFAULT_GATES = [
-      Gates::ManualPause
-    ].freeze
-
-    def self.evaluate!(work_unit, gates: DEFAULT_GATES)
+    def self.evaluate!(work_unit, gates: nil)
       new(work_unit, gates: gates).evaluate!
     end
 
     def initialize(work_unit, gates:)
       @work_unit = work_unit
-      @gates = gates
+      @gates = gates || work_unit.definition.unit_gates
     end
 
     def evaluate!

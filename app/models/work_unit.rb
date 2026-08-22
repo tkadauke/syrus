@@ -42,6 +42,10 @@ class WorkUnit < ApplicationRecord
     queued? || blocked? || running?
   end
 
+  def definition
+    WorkDefinitions.for(kind)
+  end
+
   def block!(reason:, blocked_until: nil, details: {}, user: nil)
     update!(
       state: "blocked",

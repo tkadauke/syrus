@@ -23,6 +23,12 @@ RSpec.describe WorkUnit do
     expect(unit.errors[:blocked_reason]).to be_present
   end
 
+  it "resolves its work definition from kind" do
+    unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
+
+    expect(unit.definition).to be_a(WorkDefinitions::Initial)
+  end
+
   it "can point at a child validation unit without changing the parent attempt" do
     parent = described_class.create!(work_intent: intent, kind: "auto_merge", state: "running", scope_type: "job", scope_id: 123)
     child = described_class.create!(work_intent: intent, kind: "landing_validation", state: "queued", scope_type: "job",

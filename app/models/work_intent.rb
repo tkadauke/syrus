@@ -56,6 +56,10 @@ class WorkIntent < ApplicationRecord
     define_method("#{state_name}?") { state == state_name }
   end
 
+  def definition
+    WorkDefinitions.for(kind)
+  end
+
   private
 
   def set_requested_at

@@ -45,4 +45,15 @@ RSpec.describe WorkUnits::Scheduler do
     expect(result).to be_blocked
     expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
   end
+
+  it "uses the work unit definition's gates by default" do
+    stub_definition = instance_double(WorkDefinitions::Initial, unit_gates: [])
+    allow(unit).to receive(:definition).and_return(stub_definition)
+    unit.request_pause!
+
+    result = described_class.evaluate!(unit)
+
+    expect(result).to be_pass
+    expect(unit.reload).to have_attributes(state: "queued", blocked_reason: nil)
+  end
 end

@@ -17,6 +17,12 @@ RSpec.describe WorkIntent do
     expect(intent.errors[:wait_reason]).to be_present
   end
 
+  it "resolves its work definition from kind" do
+    intent = described_class.create!(kind: "initial", state: "requested", scope_type: "job", scope_id: 123)
+
+    expect(intent.definition).to be_a(WorkDefinitions::Initial)
+  end
+
   it "waits and returns to requested with typed domain reason details" do
     intent = described_class.create!(kind: "initial", state: "requested", scope_type: "job", scope_id: 123)
 
