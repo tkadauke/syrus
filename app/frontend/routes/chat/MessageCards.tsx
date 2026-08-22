@@ -30,7 +30,7 @@ import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 // and ToolGroup are the entry points the message stream renders. Depends only on
 // leaf modules and shared UI imports; unused header imports were pruned.
 
-export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, onNotice }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; onNotice: (message: string | null) => void }) {
+export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, payload, pendingActionIds, prefix, queryKey, readOnly = false, retryText = null, retrying = false, onNotice, onRetry }: { animateIn?: boolean; item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; pendingActionIds: Set<number>; prefix: string; queryKey: ChatQueryKey; readOnly?: boolean; retryText?: string | null; retrying?: boolean; onNotice: (message: string | null) => void; onRetry?: (text: string) => void }) {
   const { t } = useT("chat")
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
@@ -92,7 +92,15 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
   }
 
   if (item.role === "system") {
-    return <SystemMessage item={item.system || { tone: "neutral", label: "System", body: item.text }} prefix={prefix} />
+    return (
+      <SystemMessage
+        item={item.system || { tone: "neutral", label: "System", body: item.text }}
+        prefix={prefix}
+        retryText={!readOnly ? retryText : null}
+        retrying={retrying}
+        onRetry={onRetry}
+      />
+    )
   }
 
   return <StructuredTool tool={item.tool} fallback={item.text} />
@@ -452,7 +460,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
   )
 }
 
-function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: string }) {
+function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
   const { t } = useT("chat")
   const colors = {
     success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
@@ -461,6 +469,11 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
     neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
   const [expanded, setExpanded] = useState(false)
+  const canRetry = item.tone === "error" && Boolean(retryText) && Boolean(onRetry)
+
+  function handleRetry() {
+    if (retryText && onRetry) onRetry(retryText)
+  }
 
   if (item.prominent) {
     return (
@@ -468,11 +481,18 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
         <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${colors[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
           <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
           <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
-          {item.cta ? (
-            <Link className="mt-2 inline-block font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
-              {item.cta.label}
-            </Link>
-          ) : null}
+          <div className="mt-2 flex items-center gap-3">
+            {item.cta ? (
+              <Link className="inline-block font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
+                {item.cta.label}
+              </Link>
+            ) : null}
+            {canRetry ? (
+              <button className="inline-block font-medium underline hover:no-underline disabled:opacity-60" disabled={retrying} onClick={handleRetry} type="button">
+                {retrying ? t("system_message_retrying") : t("system_message_retry")}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     )
@@ -487,6 +507,11 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
           <Link className="shrink-0 font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
           </Link>
+        ) : null}
+        {canRetry ? (
+          <button className="shrink-0 font-medium underline hover:no-underline disabled:opacity-60" disabled={retrying} onClick={handleRetry} type="button">
+            {retrying ? t("system_message_retrying") : t("system_message_retry")}
+          </button>
         ) : null}
         <button
           aria-expanded={expanded}

@@ -44,6 +44,8 @@
   "show_system_messages_other": "Monstra {{count}} nuntios systematis occultos",
   "system_message_show_details": "Monstra particularia nuntii systematis",
   "system_message_hide_details": "Occulta particularia nuntii systematis",
+  "system_message_retry": "Iterum nunc conare",
+  "system_message_retrying": "Iterum conans…",
   "switching_to_provider": "Ad {{provider}} transitur…",
   "queue_followup": "Nuntium sequentem in agmen da...",
   "ask_repository": "De hoc receptaculo quaere...",

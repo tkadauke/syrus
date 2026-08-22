@@ -44,6 +44,8 @@
   "show_system_messages_other": "{{count}} ausgeblendete Systemnachrichten anzeigen",
   "system_message_show_details": "Details der Systemnachricht anzeigen",
   "system_message_hide_details": "Details der Systemnachricht ausblenden",
+  "system_message_retry": "Jetzt erneut versuchen",
+  "system_message_retrying": "Wird erneut versucht…",
   "switching_to_provider": "Wechsle zu {{provider}}…",
   "queue_followup": "Folgenachricht in die Warteschlange stellen...",
   "ask_repository": "Über dieses Repository fragen...",

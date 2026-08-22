@@ -100,7 +100,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
-import { appendSearch, visualViewportHeight, chatDisplayTitle, formatCurrency, formatTokenCount, isSupervisorChat, primaryButton, secondaryButton, withRoutePrefix } from "./chat/utils"
+import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, isSupervisorChat, primaryButton, secondaryButton, withRoutePrefix } from "./chat/utils"
 import { PendingActionCard } from "./chat/ProposalCards"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
@@ -111,7 +111,7 @@ import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
 import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey } from "./chat/messageStreamItems"
 import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
-import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage } from "./chat/messageDisplay"
+import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
 import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth, workspaceTabClass } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
@@ -428,6 +428,8 @@ type OlderMessageRequester = (options: { preserveScroll: boolean }) => boolean
 function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const location = useLocation()
   const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
   const simpleMode = useSimpleMode()
   const streamRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
@@ -453,12 +455,24 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const oldestId = oldestMessageId(displayedMessages)
   const payloadMessageIdsSignature = payload.messages.map((message) => message.id).join("|")
   const visibleItemsSignature = chatStreamItemsSignature(streamItems)
+  const retryTextMap = useMemo(() => retryTextByMessageId(displayedMessages), [displayedMessages])
   const loadOlder = useMutation({
     mutationFn: (before: number) => fetchChatMessages(payload.paths.app_messages_path, before),
     onSuccess: (page) => {
       setOlderMessages((current) => mergeChatMessages(page.messages, current))
       setHasMoreOlder(page.has_more_older)
     }
+  })
+  const retryTurn = useMutation({
+    mutationFn: (messageText: string) => agentActive
+      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText)
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
+      onNotice(null)
+    },
+    onError: (error) => onNotice(errorMessage(error, "Retry failed."))
   })
 
   const scrollToBottom = useCallback(() => {
@@ -620,7 +634,19 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         ) : item.type === "tool_group" ? (
           <ToolGroup item={item} key={renderItemKey(item)} simpleMode={simpleMode} />
         ) : (
-          <ChatMessage animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)} item={item} key={renderItemKey(item)} payload={payload} pendingActionIds={pendingActionIds} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+          <ChatMessage
+            animateIn={shouldAnimateMessageEntrance(item.id, entranceBaselineMessageIdRef.current)}
+            item={item}
+            key={renderItemKey(item)}
+            payload={payload}
+            pendingActionIds={pendingActionIds}
+            prefix={prefix}
+            queryKey={queryKey}
+            retryText={retryTextMap.get(item.id) ?? null}
+            retrying={retryTurn.isPending}
+            onNotice={onNotice}
+            onRetry={(text) => retryTurn.mutate(text)}
+          />
         ))}
         {agentQuestions.length > 0 ? <AgentQuestions questions={agentQuestions} queryKey={queryKey} onNotice={onNotice} /> : null}
         {payload.switching_provider ? <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} /> : agentActive ? <AgentActivityIndicator running={payload.agent_busy} /> : null}
