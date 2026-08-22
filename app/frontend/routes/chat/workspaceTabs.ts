@@ -5,7 +5,7 @@
 // Reads the shared workspace constants and the whiteboard element helper;
 // lifting the WorkspaceTab/MobileChatTab types here lets the workspace panel
 // components move out of the 6k-line Chat.tsx next.
-import type { ChatPayload } from "../../api/chats"
+import type { ChatPayload, ChatPreviewPanel } from "../../api/chats"
 import {
   CHAT_WORKSPACE_COLLAPSED_KEY,
   CHAT_WORKSPACE_DEFAULT_WIDTH,
@@ -16,14 +16,33 @@ import {
 } from "./constants"
 import { codingFilesTabVisible, jobsTabVisible } from "./utils"
 
-export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs"
+// Unlike every other workspace tab kind (a hardcoded singleton), preview
+// panels are multi-instance: one tab per open PreviewPanel, keyed by id
+// rather than a fixed name.
+export type PreviewTab = `preview:${number}`
+export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab
 export type MobileChatTab = "chat" | WorkspaceTab
+
+export function previewTabId(panelId: number): PreviewTab {
+  return `preview:${panelId}`
+}
+
+export function isPreviewTab(tab: WorkspaceTab): tab is PreviewTab {
+  return tab.startsWith("preview:")
+}
+
+export function previewPanelIdFromTab(tab: WorkspaceTab): number | null {
+  if (!isPreviewTab(tab)) return null
+
+  const id = Number(tab.slice("preview:".length))
+  return Number.isFinite(id) ? id : null
+}
 
 export function workspaceTabClass(active: boolean) {
   return `border-b-2 px-3 py-2 ${active ? "border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"}`
 }
 
-export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string) {
+export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = []) {
   if (tab === "whiteboard") return t("tab_whiteboard")
   if (tab === "context") return t("tab_context")
   if (tab === "media") return t("tab_media")
@@ -31,12 +50,17 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string)
   if (tab === "files") return t("tab_files")
   if (tab === "diff") return t("tab_diff")
   if (tab === "jobs") return t("tab_jobs")
+  if (isPreviewTab(tab)) {
+    const panelId = previewPanelIdFromTab(tab)
+    const panel = previewPanels.find((candidate) => candidate.id === panelId)
+    return panel?.title || t("tab_preview")
+  }
 
   return t("tab_chat")
 }
 
-export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string) {
-  return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t)
+export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = []) {
+  return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels)
 }
 
 export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false): WorkspaceTab[] {
@@ -47,7 +71,8 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false)
     "pinned",
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),
-    ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : [])
+    ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : []),
+    ...payload.preview_panels.map((panel) => previewTabId(panel.id))
   ] as WorkspaceTab[]
 }
 

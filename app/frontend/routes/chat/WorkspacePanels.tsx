@@ -8,7 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { createWhiteboardSnapshot, fetchChatMedia, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
@@ -29,7 +29,7 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
 import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
-import { availableWorkspaceTabs, defaultWorkspaceTab, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { availableWorkspaceTabs, defaultWorkspaceTab, isPreviewTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 import { diffGutterClass, diffMarkerClass, parseUnifiedDiff } from "../jobDetail/diffRendering"
 
 
@@ -71,7 +71,17 @@ export function ChatWorkspacePanel({
   simpleMode?: boolean
 }) {
   const { t } = useT("chat")
+  const queryClient = useQueryClient()
   const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode), [payload, simpleMode])
+  const activePreviewPanel = isPreviewTab(activeTab)
+    ? payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null
+    : null
+  const closePreviewPanel = useMutation({
+    mutationFn: (path: string) => closeChatPreviewPanel(path),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+    }
+  })
 
   useEffect(() => {
     if (!tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
@@ -81,16 +91,43 @@ export function ChatWorkspacePanel({
     <aside aria-label={t("aria_chat_workspace")} className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
         <nav aria-label={t("aria_workspace_tabs")} className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          {tabs.map((tab) => (
-            <button
-              className={workspaceTabClass(activeTab === tab)}
-              key={tab}
-              onClick={() => onSelectTab(tab)}
-              type="button"
-            >
-              {workspaceTabLabel(tab, t)}
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            if (!isPreviewTab(tab)) {
+              return (
+                <button
+                  className={workspaceTabClass(activeTab === tab)}
+                  key={tab}
+                  onClick={() => onSelectTab(tab)}
+                  type="button"
+                >
+                  {workspaceTabLabel(tab, t)}
+                </button>
+              )
+            }
+
+            const panel = payload.preview_panels.find((candidate) => previewTabId(candidate.id) === tab)
+            if (!panel) return null
+
+            return (
+              <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
+                <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={panel.title} type="button">
+                  {panel.title}
+                </button>
+                <button
+                  aria-label={t("aria_close_preview_panel", { title: panel.title })}
+                  className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                  disabled={closePreviewPanel.isPending}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    closePreviewPanel.mutate(panel.app_close_path)
+                  }}
+                  type="button"
+                >
+                  <CloseIcon className="h-3 w-3" />
+                </button>
+              </span>
+            )
+          })}
           {onToggleCollapse ? (
             <button
               aria-label={t("aria_close_workspace")}
@@ -108,7 +145,8 @@ export function ChatWorkspacePanel({
           ) : null}
         </nav>
       )}
-      <div className={`min-h-0 flex-1 ${activeTab === "whiteboard" ? "overflow-hidden p-3" : activeTab === "files" ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
+      <div className={`min-h-0 flex-1 ${activeTab === "whiteboard" ? "overflow-hidden p-3" : activeTab === "files" || activePreviewPanel ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
+        {activePreviewPanel ? <PreviewPanelFrame panel={activePreviewPanel} /> : null}
         {activeTab === "whiteboard" ? (
           <WhiteboardBoundary>
             <WhiteboardPanel fullscreen={fullscreen} onToggleFullscreen={onToggleWhiteboardFullscreen} payload={payload} />
@@ -122,6 +160,22 @@ export function ChatWorkspacePanel({
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
       </div>
     </aside>
+  )
+}
+
+// Origin isolation (the panel's own preview-panel-<id> subdomain, enforced by
+// PreviewProxyMiddleware) is the real security boundary; sandbox is
+// defense-in-depth on top of it. Never add allow-same-origin — combined with
+// allow-scripts that would let framed content reach for the parent origin.
+function PreviewPanelFrame({ panel }: { panel: ChatPreviewPanel }) {
+  return (
+    <iframe
+      className="h-full w-full border-0"
+      referrerPolicy="no-referrer"
+      sandbox="allow-scripts"
+      src={panel.url}
+      title={panel.title}
+    />
   )
 }
 
