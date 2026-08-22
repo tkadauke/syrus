@@ -45,6 +45,7 @@ module App
       def smart_folder_visible?(folder, count)
         return true unless folder.builtin?
         return true if active_smart_folder&.id == folder.id
+        return false if folder.builtin_key == "epics_claimable" && team_user_count <= 1
         return count.to_i.positive? if folder.visibility == :when_present
 
         true

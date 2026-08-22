@@ -839,6 +839,31 @@ RSpec.describe App::DashboardPayload do
     end
   end
 
+  describe "epics_claimable smart folder visibility on single-user instances" do
+    it "hides the claimable folder when there is only one user" do
+      result = call(subject: "epic")
+
+      expect(result[:smart_folders].map { |f| f[:key] }).not_to include("epics_claimable")
+    end
+
+    it "shows the claimable folder when there are multiple users" do
+      Factories.user
+
+      result = call(subject: "epic")
+
+      expect(result[:smart_folders].map { |f| f[:key] }).to include("epics_claimable")
+    end
+
+    it "still shows the claimable folder when it is the currently active folder, even for a single user" do
+      SmartFolder.ensure_builtins_for_subject!("epic")
+      claimable_folder = SmartFolder.for_subject("epic").builtin.find { |f| f.builtin_key == "epics_claimable" }
+
+      result = call(subject: "epic", smart_folder_id: claimable_folder.id)
+
+      expect(result[:smart_folders].map { |f| f[:key] }).to include("epics_claimable")
+    end
+  end
+
   describe "fast built-in smart folder counts" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 
