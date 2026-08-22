@@ -1491,6 +1491,9 @@ Completed slices:
 - Main-grader workflow creation now starts through
   `WorkUnits::Launcher.start!`, keeping the main-SHA artifact while moving
   first-run creation behind the launcher boundary.
+- Queued workflow continuation starts from dependency unblock and start-block
+  rechecks now route through `WorkUnits::Launcher.start!` rather than calling
+  `StepDispatcher` directly.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

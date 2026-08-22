@@ -47,7 +47,7 @@ module JobLifecycle
 
     workflows.where(state: "queued").find_each do |workflow|
       workflow.association(:job).target = self
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
     end
     true
   end
@@ -58,7 +58,7 @@ module JobLifecycle
     rechecked = false
     workflows.where(state: "queued").find_each do |workflow|
       workflow.association(:job).target = self
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
       rechecked = true
     end
     rechecked

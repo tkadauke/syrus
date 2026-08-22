@@ -2080,6 +2080,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
       prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
 
+      expect(WorkUnits::Launcher).to receive(:start!).once.and_call_original
       expect {
         prerequisite.mark_implemented!
         prerequisite.save!
