@@ -103,7 +103,10 @@
     "saving": "Servatur...",
     "create_task": "Munus creare",
     "save": "Servare",
-    "cancel": "Abrogare"
+    "cancel": "Abrogare",
+    "field_repository": "Repositorium",
+    "repository_placeholder": "Repositorium eligere",
+    "repository_continue": "Pergere"
   },
   "cron_templates": {
     "loading": "Exemplaria onerantia...",

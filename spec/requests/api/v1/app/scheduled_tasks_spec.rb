@@ -171,6 +171,22 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(body["recent_jobs"]).to contain_exactly(include("id" => job.id, "job_path" => job_path(job)))
   end
 
+  it "lists the current user's active repositories for the top-level create picker" do
+    sign_in_as(user)
+    repository
+    archived_repo = Factories.repository(user: user, owner: "acme", name: "archived")
+    archived_repo.archive!
+    other_repo = Factories.repository(user: other_user)
+
+    get "/api/v1/app/scheduled_tasks/new"
+
+    expect(response).to have_http_status(:ok)
+    slugs = parse_body["repositories"].map { |r| r["slug"] }
+    expect(slugs).to include("acme/widgets")
+    expect(slugs).not_to include(archived_repo.slug)
+    expect(response.body).not_to include(other_repo.slug)
+  end
+
   it "returns repository-scoped form defaults from a cron template" do
     sign_in_as(user)
     template = Factories.cron_template(user: user, name: "Template task", prompt: "Keep tidy.")

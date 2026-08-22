@@ -116,6 +116,10 @@ export type RepositoryScheduledTasksPayload = {
   message?: string
 }
 
+export type ScheduledTaskRepositoryOptionsPayload = {
+  repositories: ScheduledTaskRepository[]
+}
+
 export type ScheduledTaskFormPayload = {
   task: ScheduledTaskInput & { id: number | null; cron_template_id: number | null }
   repository: ScheduledTaskRepository
@@ -148,6 +152,10 @@ export function fetchScheduledTask(id: string) {
 export function fetchNewScheduledTaskForm(repositoryId: string, fromTemplate?: string | null) {
   const query = fromTemplate ? `?${new URLSearchParams({ from_template: fromTemplate }).toString()}` : ""
   return getJson<ScheduledTaskFormPayload>(`/api/v1/app/repositories/${repositoryId}/scheduled_tasks/new${query}`)
+}
+
+export function fetchScheduledTaskRepositoryOptions() {
+  return getJson<ScheduledTaskRepositoryOptionsPayload>("/api/v1/app/scheduled_tasks/new")
 }
 
 export function fetchRepositoryScheduledTasks(repositoryId: string) {
