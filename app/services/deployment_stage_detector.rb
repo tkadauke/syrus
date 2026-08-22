@@ -35,8 +35,17 @@ class DeploymentStageDetector
   attr_reader :repository, :deployment_stages, :jobs
 
   def pending_stages_for(job)
-    detected = job.deployment_stage_statuses.pluck(:stage_name)
+    detected = detected_stage_names_by_job_id[job.id] || []
     deployment_stages.reject { |stage| detected.include?(stage.name) }
+  end
+
+  def detected_stage_names_by_job_id
+    @detected_stage_names_by_job_id ||= JobDeploymentStageStatus
+      .where(job_id: jobs.map(&:id))
+      .pluck(:job_id, :stage_name)
+      .each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(job_id, stage_name), hash|
+        hash[job_id] << stage_name
+      end
   end
 
   def resolve_tag(stage)
