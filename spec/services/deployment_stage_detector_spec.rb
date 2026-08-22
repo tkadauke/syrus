@@ -56,6 +56,21 @@ RSpec.describe DeploymentStageDetector do
     expect(job.deployment_stage_statuses.sole).to have_attributes(stage_name: "staging", tag_sha: "merge-sha")
   end
 
+  it "batches the detected-stage lookup instead of querying once per job" do
+    other_job = Factories.job_record(repository: repository, landed_sha: "merge-sha", state: "closed")
+    JobDeploymentStageStatus.create!(job: job, stage_name: "staging", reached_at: 1.day.ago, tag_sha: "old")
+    JobDeploymentStageStatus.create!(job: other_job, stage_name: "staging", reached_at: 1.day.ago, tag_sha: "old")
+    expect(client).not_to receive(:list_tags)
+
+    query_count = 0
+    counter = ->(*, payload) { query_count += 1 if payload[:sql].match?(/\ASELECT/i) && payload[:sql].include?("job_deployment_stage_statuses") }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      described_class.new(repository: repository, deployment_stages: [ staging ], jobs: [ job, other_job ], client: client).call
+    end
+
+    expect(query_count).to eq(1)
+  end
+
   it "reuses commit comparison results for jobs landed at the same SHA" do
     other_job = Factories.job_record(repository: repository, landed_sha: "merge-sha", state: "closed")
     allow(client).to receive(:list_tags).with(repository.slug).and_return([
