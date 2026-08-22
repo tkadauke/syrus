@@ -53,6 +53,7 @@ module Prompts
         Use the full tool access available to inspect files, run commands, and probe behavior.
         Look for bugs, missing edge cases, regressions, unclear behavior, weak tests, and maintainability issues.
         Do not make code changes; any edits you make are ephemeral and will not be committed.
+        Do not start builds, test suites, graders, linters, or other expensive verification commands. Review by reading code, diffs, tests, and configuration, then give your verdict from that evidence; deterministic verification belongs to Syrus grader steps.
       TEXT
     end
 

@@ -77,6 +77,11 @@ RSpec.describe Prompts::AdversarialReview do
     expect(prompt).to include("Do not wait on long background commands")
   end
 
+  it "tells reviewers not to run builds or tests" do
+    expect(prompt).to include("Do not start builds, test suites, graders, linters")
+    expect(prompt).to include("deterministic verification belongs to Syrus grader steps")
+  end
+
   context "with criteria" do
     let(:criteria) { [ "Verify all endpoints enforce authentication", "No internal state in errors" ] }
 
