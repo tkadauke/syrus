@@ -333,7 +333,7 @@ class McpToolRegistry
         workflow(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
           AgentRole::WORKFLOW_VISUAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
-        ], mutation: true),
+        ], mutation: true)
       ]
     end
 
