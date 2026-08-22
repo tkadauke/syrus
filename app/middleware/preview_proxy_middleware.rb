@@ -32,10 +32,15 @@ class PreviewProxyMiddleware
     @app = app
     @base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
     @host_pattern = /\Apreview-(\d+)\.#{Regexp.escape(@base_domain)}(?::\d+)?\z/
+    @panel_host_pattern = /\Apreview-panel-(\d+)\.#{Regexp.escape(@base_domain)}(?::\d+)?\z/
   end
 
   def call(env)
     host = env["HTTP_HOST"].to_s
+
+    panel_match = @panel_host_pattern.match(host)
+    return serve_panel(env, panel_match[1].to_i) if panel_match
+
     match = @host_pattern.match(host)
     return @app.call(env) unless match
 
@@ -164,5 +169,33 @@ class PreviewProxyMiddleware
       </html>
     HTML
     [503, { "Content-Type" => "text/html; charset=utf-8" }, [body]]
+  end
+
+  # Streams an attached PreviewPanel file directly instead of proxying to
+  # a spawned process — panels have no running server behind them.
+  def serve_panel(env, panel_id)
+    panel = PreviewPanel.find_by(id: panel_id, state: "open")
+    return panel_not_found_response unless panel
+
+    path = Rack::Request.new(env).path
+    attachment = panel.file_for(path)
+    return panel_not_found_response unless attachment
+
+    content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
+    headers = { "Content-Type" => content_type, "Content-Security-Policy" => PREVIEW_CSP }
+    [200, headers, [attachment.download]]
+  end
+
+  def panel_not_found_response
+    body = <<~HTML
+      <!DOCTYPE html>
+      <html>
+        <head><title>Preview Not Found</title></head>
+        <body>
+          <p>Preview panel not found.</p>
+        </body>
+      </html>
+    HTML
+    [404, { "Content-Type" => "text/html; charset=utf-8" }, [body]]
   end
 end

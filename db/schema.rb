@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_22_025745) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_22_173241) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1480,6 +1480,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_025745) do
     t.index ["state"], name: "index_preview_environments_on_state"
   end
 
+  create_table "preview_panels", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.string "state", default: "open", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id"], name: "index_preview_panels_on_chat_session_id"
+    t.index ["state"], name: "index_preview_panels_on_state"
+  end
+
   create_table "provider_availability_evidences", force: :cascade do |t|
     t.string "account_id", limit: 128
     t.integer "chat_message_id"
@@ -2364,4 +2374,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_025745) do
   end
 
   add_foreign_key "admin_build_cache_clear_requests", "users"
+  add_foreign_key "preview_panels", "chat_sessions"
 end
