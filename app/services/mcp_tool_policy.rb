@@ -150,7 +150,18 @@ class McpToolPolicy
     tools = apply_coding_filter(tools)
     tools = apply_local_mode_filter(tools)
     tools = apply_supervisor_filter(tools)
-    tools
+    tools + plugin_chat_tools
+  end
+
+  # Chat MCP tool set plugins (Syrus::PluginRegistry provider: :chat_mcp_tool_set)
+  # are resolved dynamically per chat_session/tier by Mcp::Sidecar; mirror that
+  # here so this policy stays a true superset of what the sidecar actually
+  # serves for non-evaluator chat sessions.
+  def plugin_chat_tools
+    return [] unless @context.chat_session
+
+    Mcp::Sidecar.plugin_tools_for(@context.chat_session, tier: :essential) +
+      Mcp::Sidecar.plugin_tools_for(@context.chat_session, tier: :deferred)
   end
 
   def chat_evaluator_tools
