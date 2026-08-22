@@ -3,7 +3,8 @@ class RebaseWorkflowSelector
 
   def self.instantiate(job:, artifacts: nil, agent_provider: nil, pr: nil, base_branch: nil)
     if stack_rebase?(job)
-      Workflows::StackRebase.instantiate(
+      WorkUnits::Launcher.instantiate(
+        kind: "stack_rebase",
         job: job,
         artifacts: artifacts,
         agent_provider: agent_provider,
@@ -11,7 +12,8 @@ class RebaseWorkflowSelector
         base_branch: base_branch
       )
     else
-      Workflows::Rebase.instantiate(
+      WorkUnits::Launcher.instantiate(
+        kind: "rebase",
         job: job,
         artifacts: artifacts,
         agent_provider: agent_provider,

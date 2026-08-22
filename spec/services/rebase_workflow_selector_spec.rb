@@ -64,6 +64,7 @@ RSpec.describe RebaseWorkflowSelector do
 
       expect(workflow).to be_a(Workflow)
       expect(workflow.trigger_kind).to eq("rebase")
+      expect(workflow.work_unit).to have_attributes(kind: "rebase", scope_type: "job", scope_id: job.id)
     end
 
     it "instantiates a StackRebase workflow when the job has open stack descendants" do
@@ -73,6 +74,7 @@ RSpec.describe RebaseWorkflowSelector do
 
       expect(workflow).to be_a(Workflow)
       expect(workflow.trigger_kind).to eq("stack_rebase")
+      expect(workflow.work_unit).to have_attributes(kind: "stack_rebase")
     end
 
     it "instantiates a StackRebase workflow for a leaf job with an open parent branch" do
@@ -82,6 +84,7 @@ RSpec.describe RebaseWorkflowSelector do
 
       expect(workflow).to be_a(Workflow)
       expect(workflow.trigger_kind).to eq("stack_rebase")
+      expect(workflow.work_unit).to have_attributes(kind: "stack_rebase")
     end
   end
 
