@@ -50,6 +50,11 @@ module WorkUnits
         legacy_active_workflow_job_ids(ids, kinds: kinds).to_set
     end
 
+    def self.all_active_job_ids(kinds: nil)
+      all_active_unit_job_ids(kinds: kinds).to_set |
+        legacy_active_workflow_job_ids(nil, kinds: kinds).to_set
+    end
+
     def self.active_trigger_kinds_by_job_id(job_ids)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?
@@ -112,10 +117,15 @@ module WorkUnits
 
     def self.legacy_active_workflow_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      return [] if ids.empty?
-
-      scope = Workflow.active.where(job_id: ids)
+      scope = Workflow.active
+      scope = scope.where(job_id: ids) if ids.any?
       scope = scope.where(trigger_kind: Array(kinds).map(&:to_s)) if kinds.present?
+      scope.distinct.pluck(:job_id)
+    end
+
+    def self.all_active_unit_job_ids(kinds: nil)
+      scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: ACTIVE_STATES })
+      scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       scope.distinct.pluck(:job_id)
     end
 

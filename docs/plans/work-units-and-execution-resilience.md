@@ -1618,6 +1618,13 @@ once in job detail:
 - raw `job.workflows` remains available for debugging but not for active-state
   derivation.
 
+Completed slices:
+
+- `Job.without_active_workflows` now uses `WorkUnits::Ownership` instead of only
+  `Workflow.active_job_ids`, so dashboard and smart-folder scopes exclude Jobs
+  owned by active WorkUnits, including cross-job WorkUnit membership, while
+  retaining legacy Workflow fallback during migration.
+
 ### Phase 5: Reconciler Simplification
 
 Rewrite reconciler checks around Intent and Unit invariants:

@@ -432,6 +432,33 @@ RSpec.describe Job do
       )
     end
 
+    it "excludes jobs owned by an active work unit even when their direct workflow is not active" do
+      primary = Factories.job_record(issue_number: 21, issue_title: "Primary")
+      member = Factories.job_record(repository: primary.repository, issue_number: 22, issue_title: "Member")
+      idle = Factories.job_record(repository: primary.repository, issue_number: 23, issue_title: "Ready")
+      workflow = Workflow.create!(job: primary, trigger_kind: "merge_train", state: "running")
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "requested",
+        repository: primary.repository,
+        scope_type: "job",
+        scope_id: primary.id
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "merge_train",
+        state: "running",
+        repository: primary.repository,
+        scope_type: "job",
+        scope_id: primary.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: primary, role: "primary")
+      unit.work_unit_members.create!(job: member, role: "member")
+
+      expect(described_class.where(id: [ primary.id, member.id, idle.id ]).without_active_workflows).to contain_exactly(idle)
+    end
+
     it "includes every job when nothing is active" do
       idle = Factories.job_record(issue_number: 11, issue_title: "Ready")
       terminal = Factories.job_record(repository: idle.repository, issue_number: 12, issue_title: "Done")
