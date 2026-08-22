@@ -10,7 +10,7 @@ import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { ArtifactsTab, FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
-import { StepAdversarialReviewPanel } from "./jobDetail/WorkflowGraph"
+import { StepAdversarialReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   return {
@@ -1065,6 +1065,42 @@ describe("JobDetailView", () => {
     expect(screen.getByText("all").tagName).toBe("STRONG")
   })
 
+  it("shows a Review button in the visual review run row and renders the captured verdict", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 9,
+          artifacts: {
+            visual_review_iterations: [{
+              iteration: 1,
+              verdict: "needs_work",
+              critique: "The screenshot shows missing weight units.",
+              artifacts: [{
+                type: "visual_review_screenshot_run_34_1",
+                title: "Stats without units",
+                image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1",
+                content_type: "image/jpeg",
+                byte_size: 5678,
+                created_at: "2026-08-22T12:00:00Z"
+              }]
+            }]
+          },
+          steps: [
+            step({ id: 14, kind: "visual_review", display_name: "Visual review", runs: [ run({ id: 34, job_log_count: 0 }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Visual review/ }))
+    fireEvent.click(within(screen.getByText(/Run #34/).closest("div.rounded")! as HTMLElement).getByRole("button", { name: "Review" }))
+
+    expect(screen.getByRole("heading", { name: "Visual review" })).toBeInTheDocument()
+    expect(screen.getByText("The screenshot shows missing weight units.")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Stats without units" })).toHaveAttribute("src", "/api/v1/app/workflows/9/visual_artifact?type=visual_review_screenshot_run_34_1")
+  })
+
   it("renders an auto-approval note with source and grader step link when approval_evidence is present", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -1226,6 +1262,62 @@ describe("StepAdversarialReviewPanel", () => {
 
     expect(screen.getByText("Round 1")).toBeInTheDocument()
     expect(screen.getByText("Round 2")).toBeInTheDocument()
+  })
+})
+
+describe("StepVisualReviewPanel", () => {
+  it("renders critique as markdown", () => {
+    render(
+      <StepVisualReviewPanel
+        iterations={[{ iteration: 1, verdict: "approved", critique: "**Clean** layout with `stable` spacing.", artifacts: [] }]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Clean").tagName).toBe("STRONG")
+    expect(screen.getByText("stable").tagName).toBe("CODE")
+  })
+
+  it("shows verdict badges for visual review rounds", () => {
+    render(
+      <StepVisualReviewPanel
+        iterations={[
+          { iteration: 1, verdict: "needs_work", critique: "Numbers need units.", artifacts: [] },
+          { iteration: 2, verdict: "approved", critique: "Units are visible.", artifacts: [] }
+        ]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Round 1")).toBeInTheDocument()
+    expect(screen.getByText("Needs work")).toBeInTheDocument()
+    expect(screen.getByText("Round 2")).toBeInTheDocument()
+    expect(screen.getByText("Approved")).toBeInTheDocument()
+  })
+
+  it("renders linked screenshots captured by that visual review run", () => {
+    render(
+      <StepVisualReviewPanel
+        iterations={[{
+          iteration: 1,
+          verdict: "needs_work",
+          critique: "The dashboard hero is blank.",
+          artifacts: [{
+            type: "visual_review_screenshot_run_99_1",
+            title: "Blank dashboard",
+            image_url: "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1",
+            content_type: "image/jpeg",
+            byte_size: 1234,
+            created_at: "2026-08-22T12:00:00Z"
+          }]
+        }]}
+        onClose={() => {}}
+      />
+    )
+
+    const image = screen.getByRole("img", { name: "Blank dashboard" })
+    expect(image).toHaveAttribute("src", "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1")
+    expect(screen.getByRole("link", { name: "Blank dashboard" })).toHaveAttribute("href", "/api/v1/app/workflows/5/visual_artifact?type=visual_review_screenshot_run_99_1")
   })
 })
 

@@ -26,7 +26,8 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
       {
         "iteration" => run.step.iteration,
         "critique" => "No visual issues found.",
-        "verdict" => "approved"
+        "verdict" => "approved",
+        "artifacts" => []
       }
     ])
   end
@@ -40,7 +41,47 @@ RSpec.describe Mcp::Tools::SubmitVisualReviewTool do
 
     expect(run.workflow.reload.artifact("visual_review_iterations")).to eq([
       { "iteration" => 1, "critique" => "First pass.", "verdict" => "needs_work" },
-      { "iteration" => run.step.iteration, "critique" => "Second pass is clean.", "verdict" => "approved" }
+      { "iteration" => run.step.iteration, "critique" => "Second pass is clean.", "verdict" => "approved", "artifacts" => [] }
+    ])
+  end
+
+  it "records visual screenshots from the same run on the review iteration" do
+    run.workflow.set_artifact!("typed_artifacts", [
+      {
+        "type" => "visual_review_screenshot_run_#{run.id}_1",
+        "original_type" => "visual_review_screenshot",
+        "title" => "Mobile layout",
+        "created_at" => "2026-08-22T12:00:00Z",
+        "payload" => {
+          "run_id" => run.id,
+          "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
+          "content_type" => "image/jpeg",
+          "byte_size" => 1234
+        }
+      },
+      {
+        "type" => "visual_review_screenshot_run_999_1",
+        "original_type" => "visual_review_screenshot",
+        "title" => "Different run",
+        "payload" => {
+          "run_id" => 999,
+          "image_url" => "/other"
+        }
+      }
+    ])
+
+    call(verdict: "approved")
+
+    artifact = run.workflow.reload.artifact("visual_review_iterations").last
+    expect(artifact["artifacts"]).to eq([
+      {
+        "type" => "visual_review_screenshot_run_#{run.id}_1",
+        "title" => "Mobile layout",
+        "image_url" => "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot_run_#{run.id}_1",
+        "content_type" => "image/jpeg",
+        "byte_size" => 1234,
+        "created_at" => "2026-08-22T12:00:00Z"
+      }
     ])
   end
 

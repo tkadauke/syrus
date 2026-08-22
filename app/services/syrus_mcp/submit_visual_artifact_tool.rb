@@ -19,11 +19,9 @@ module SyrusMcp
     description <<~DESC
       Stores a base64-encoded image (e.g. a browser screenshot) as a typed
       artifact on the current Workflow, persisted via ActiveStorage. type is
-      a free-form string identifier; if a registered :artifact_renderer maps
-      it to the :image_diff renderer, the job detail UI's Artifacts tab
-      displays the image directly. If an entry with the same type already
-      exists, it is replaced (both the typed_artifacts entry and the stored
-      image blob).
+      a free-form string identifier; visual-review screenshots are persisted
+      under run-scoped internal artifact types so later review iterations do
+      not overwrite earlier evidence.
     DESC
 
     input_schema(
@@ -72,16 +70,23 @@ module SyrusMcp
         end
 
         workflow = run.workflow
-        filename = "#{artifact_type.parameterize.presence || 'visual-artifact'}.#{EXTENSIONS.fetch(mime_type, 'png')}"
-        workflow.attach_visual_artifact!(type: artifact_type, data: image_data, content_type: mime_type, filename: filename)
+        stored_type = stored_artifact_type(workflow, run, artifact_type)
+        filename = "#{stored_type.parameterize.presence || 'visual-artifact'}.#{EXTENSIONS.fetch(mime_type, 'png')}"
+        workflow.attach_visual_artifact!(type: stored_type, data: image_data, content_type: mime_type, filename: filename)
 
         workflow.set_typed_artifact!(
-          type: artifact_type,
+          type: stored_type,
           title: artifact_title,
+          original_type: artifact_type,
+          renderer_type: :image_diff,
           payload: {
             "content_type" => mime_type,
             "byte_size"    => image_data.bytesize,
-            "image_url"    => "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=#{CGI.escape(artifact_type)}"
+            "image_url"    => "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=#{CGI.escape(stored_type)}",
+            "run_id"       => run.id,
+            "step_id"      => run.step_id,
+            "iteration"    => run.step&.iteration,
+            "original_type" => artifact_type
           }
         )
 
@@ -105,6 +110,16 @@ module SyrusMcp
         Base64.strict_decode64(Mcp::Tools.utf8(image_base64).strip)
       rescue ArgumentError
         nil
+      end
+
+      def stored_artifact_type(workflow, run, artifact_type)
+        base = artifact_type.parameterize(separator: "_").presence || "visual_artifact"
+        existing_count = Array(workflow.artifact("typed_artifacts")).count do |entry|
+          entry.is_a?(Hash) &&
+            entry["original_type"] == artifact_type &&
+            entry.dig("payload", "run_id").to_i == run.id
+        end
+        "#{base}_run_#{run.id}_#{existing_count + 1}"
       end
     end
   end

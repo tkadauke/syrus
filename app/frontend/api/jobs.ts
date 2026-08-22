@@ -394,6 +394,22 @@ export type JobAdversarialReviewIteration = {
   verdict: "needs_work" | "approved"
 }
 
+export type JobVisualReviewArtifact = {
+  type: string
+  title: string | null
+  image_url: string | null
+  content_type: string | null
+  byte_size: number | null
+  created_at: string | null
+}
+
+export type JobVisualReviewIteration = {
+  iteration: number
+  critique: string
+  verdict: "needs_work" | "approved" | "skipped"
+  artifacts: JobVisualReviewArtifact[]
+}
+
 export type LandingQueueBlockerJob = {
   id: number
   title: string

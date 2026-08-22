@@ -413,7 +413,7 @@ module App
           title: entry["title"],
           payload: entry["payload"],
           created_at: entry["created_at"],
-          renderer_type: renderer_map[entry["type"]]
+          renderer_type: entry["renderer_type"].presence || renderer_map[entry["type"]] || renderer_map[entry["original_type"]]
         }
       end
     end

@@ -561,13 +561,15 @@ class Workflow < ApplicationRecord
   # Shared replace-on-type write for the 'typed_artifacts' array, used by
   # both SyrusMcp::SubmitArtifactTool and SyrusMcp::SubmitVisualArtifactTool
   # so the idempotent-replace semantics live in one place.
-  def set_typed_artifact!(type:, title:, payload:)
+  def set_typed_artifact!(type:, title:, payload:, original_type: nil, renderer_type: nil)
     entry = {
       "type"       => type,
       "title"      => title,
       "payload"    => payload,
       "created_at" => Time.current.iso8601
     }
+    entry["original_type"] = original_type if original_type.present?
+    entry["renderer_type"] = renderer_type.to_s if renderer_type.present?
     updated = Array(artifact("typed_artifacts")).reject { |e| e["type"] == type }
     updated << entry
     set_artifact!("typed_artifacts", updated)

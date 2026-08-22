@@ -47,7 +47,8 @@ module Mcp::Tools
         iterations << {
           "iteration" => run.step.iteration,
           "critique" => normalized_critique,
-          "verdict" => normalized_verdict
+          "verdict" => normalized_verdict,
+          "artifacts" => visual_artifacts_for_run(workflow, run)
         }
         workflow.set_artifact!("visual_review_iterations", iterations)
         Mcp::Tools.write_log(run, "[mcp] submit_visual_review received: #{normalized_verdict}")
@@ -56,6 +57,26 @@ module Mcp::Tools
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::SubmitVisualReviewTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
+      end
+
+      def visual_artifacts_for_run(workflow, run)
+        Array(workflow.artifact("typed_artifacts")).filter_map do |entry|
+          next unless entry.is_a?(Hash)
+
+          payload = entry["payload"]
+          next unless payload.is_a?(Hash)
+          next unless payload["run_id"].to_i == run.id
+          next unless entry["original_type"] == "visual_review_screenshot" || payload["original_type"] == "visual_review_screenshot"
+
+          {
+            "type" => entry["type"],
+            "title" => entry["title"],
+            "image_url" => payload["image_url"],
+            "content_type" => payload["content_type"],
+            "byte_size" => payload["byte_size"],
+            "created_at" => entry["created_at"]
+          }
+        end
       end
     end
   end

@@ -11,7 +11,7 @@ class TypedArtifactRenderer
       typed.filter_map do |entry|
         next unless entry.is_a?(Hash)
 
-        renderer_type = artifact_renderer_map[entry["type"]]
+        renderer_type = entry["renderer_type"].presence || artifact_renderer_map[entry["type"]] || artifact_renderer_map[entry["original_type"]]
         renderer_type ? entry.merge("renderer_type" => renderer_type) : entry
       end
     end

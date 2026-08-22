@@ -11,13 +11,13 @@ import { StatusPill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { buttonClass } from "../../lib/buttonClasses"
-import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
 import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill } from "./components"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
-import { stepArtifactAdversarialReview, stepArtifactTestPlan } from "./stepArtifacts"
+import { stepArtifactAdversarialReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
 
@@ -343,6 +343,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
     : null
   const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
   const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
+  const visualReviewArtifact = step.kind === "visual_review" ? stepArtifactVisualReview(artifacts.visual_review_iterations) : null
 
   return (
     <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
@@ -393,6 +394,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
                   stepTestPlanArtifact={idx === 0 ? testPlanArtifact : null}
+                  stepVisualReviewArtifact={idx === 0 ? visualReviewArtifact : null}
                 />
               ))}
             </div>
@@ -460,6 +462,56 @@ export function StepAdversarialReviewPanel({ iterations, onClose }: { iterations
                 )}
               </div>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+export function StepVisualReviewPanel({ iterations, onClose }: { iterations: JobVisualReviewIteration[]; onClose: () => void }) {
+  const { t } = useT("jobs")
+  const lastIndex = iterations.length - 1
+  return (
+    <section className={artifactPanelClass()}>
+      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_visual_review")}</ArtifactPanelHeader>
+      <div className="divide-y divide-gray-200 overflow-auto max-md:min-h-0 max-md:flex-1 dark:divide-gray-700">
+        {iterations.map((iteration, index) => {
+          const isFinal = index === lastIndex
+          const isApproved = iteration.verdict === "approved"
+          const isSkipped = iteration.verdict === "skipped"
+          const verdictLabel = isApproved
+            ? t("visual_review_verdict_approved")
+            : isSkipped
+              ? t("visual_review_verdict_skipped")
+              : t("visual_review_verdict_needs_work")
+          const badgeClass = isApproved || isSkipped
+            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300"
+            : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"
+          return (
+            <div className="p-3" key={iteration.iteration}>
+              <div className="flex items-center gap-2">
+                <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                  {t("visual_review_round", { n: iteration.iteration })}
+                </h5>
+                <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs ${isFinal ? "font-semibold" : "font-medium"} ${isFinal ? badgeClass : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+                  {verdictLabel}
+                </span>
+              </div>
+              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
+              {iteration.artifacts.length > 0 ? (
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {iteration.artifacts.map((artifact) => artifact.image_url ? (
+                    <figure className="rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
+                      <a href={artifact.image_url} rel="noreferrer" target="_blank">
+                        <img alt={artifact.title || t("visual_review_screenshot_alt")} className="max-h-80 w-full rounded object-contain" src={artifact.image_url} />
+                      </a>
+                      {artifact.title ? <figcaption className="mt-2 text-xs text-gray-500 dark:text-gray-400">{artifact.title}</figcaption> : null}
+                    </figure>
+                  ) : null)}
+                </div>
+              ) : null}
             </div>
           )
         })}
@@ -575,10 +627,10 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
   )
 }
 
-function RunRow({ run, payload, command, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null }) {
+function RunRow({ run, payload, command, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null, stepVisualReviewArtifact = null }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null; stepVisualReviewArtifact?: JobVisualReviewIteration[] | null }) {
   const { t } = useT("jobs")
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
-  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | null>(null)
+  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "visual_review" | null>(null)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
@@ -600,7 +652,7 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
     setArtifactView((current) => current === view ? null : view)
   }
 
-  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review") {
+  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review" | "visual_review") {
     setGradeLogOpen(false)
     setArtifactView((current) => current === view ? null : view)
   }
@@ -661,6 +713,11 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
               {t("step_btn_adversarial_review")}
             </button>
           ) : null}
+          {stepVisualReviewArtifact !== null ? (
+            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("visual_review")} type="button">
+              {t("step_btn_visual_review")}
+            </button>
+          ) : null}
           {run.agent_diff_present ? (
             <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("diff")} type="button">
               {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
@@ -691,6 +748,9 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
       ) : null}
       {artifactView === "adversarial_review" && stepAdversarialReviewArtifact ? (
         <StepAdversarialReviewPanel iterations={stepAdversarialReviewArtifact} onClose={() => setArtifactView(null)} />
+      ) : null}
+      {artifactView === "visual_review" && stepVisualReviewArtifact ? (
+        <StepVisualReviewPanel iterations={stepVisualReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
       {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, t("run_grade_log_error"))}</p> : null}
       {gradeLogOpen && gradeLog.data ? (

@@ -27,13 +27,15 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
     entries = run.workflow.reload.artifact("typed_artifacts")
     expect(entries.size).to eq(1)
-    expect(entries.first).to include("type" => "visual_review_screenshot", "title" => "Homepage after fix")
+    expect(entries.first).to include("original_type" => "visual_review_screenshot", "title" => "Homepage after fix", "renderer_type" => "image_diff")
+    expect(entries.first["type"]).to match(/\Avisual_review_screenshot_run_#{run.id}_1\z/)
   end
 
   it "attaches the decoded image bytes to the workflow" do
     call
 
-    attachment = run.workflow.reload.visual_artifact_for("visual_review_screenshot")
+    stored_type = run.workflow.reload.artifact("typed_artifacts").first["type"]
+    attachment = run.workflow.visual_artifact_for(stored_type)
     expect(attachment).to be_present
     expect(attachment.download).to eq(png_bytes)
     expect(attachment.content_type).to eq("image/png")
@@ -45,13 +47,18 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     entries = run.workflow.reload.artifact("typed_artifacts")
     expect(entries.size).to eq(1)
     entry = entries.first
-    expect(entry).to include("type" => "visual_review_screenshot", "title" => "Homepage after fix")
+    expect(entry).to include("original_type" => "visual_review_screenshot", "title" => "Homepage after fix", "renderer_type" => "image_diff")
+    expect(entry["type"]).to match(/\Avisual_review_screenshot_run_#{run.id}_1\z/)
     expect(entry["payload"]).to include(
       "content_type" => "image/png",
-      "byte_size"    => png_bytes.bytesize
+      "byte_size"    => png_bytes.bytesize,
+      "run_id"       => run.id,
+      "step_id"      => run.step_id,
+      "iteration"    => run.step.iteration,
+      "original_type" => "visual_review_screenshot"
     )
     expect(entry["payload"]["image_url"]).to eq(
-      "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=visual_review_screenshot"
+      "/api/v1/app/workflows/#{run.workflow.id}/visual_artifact?type=#{entry["type"]}"
     )
     expect(entry["created_at"]).to be_present
   end
@@ -59,28 +66,34 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
   it "defaults content_type to image/png when omitted" do
     call(content_type: nil)
 
-    attachment = run.workflow.reload.visual_artifact_for("visual_review_screenshot")
+    stored_type = run.workflow.reload.artifact("typed_artifacts").first["type"]
+    attachment = run.workflow.visual_artifact_for(stored_type)
     expect(attachment.content_type).to eq("image/png")
   end
 
   it "accepts image/jpeg and image/webp content types" do
     call(content_type: "image/jpeg")
-    expect(run.workflow.reload.visual_artifact_for("visual_review_screenshot").content_type).to eq("image/jpeg")
+    stored_type = run.workflow.reload.artifact("typed_artifacts").first["type"]
+    expect(run.workflow.visual_artifact_for(stored_type).content_type).to eq("image/jpeg")
   end
 
-  it "replaces the entry and purges the previous blob when called again with the same type" do
+  it "keeps each screenshot from the same run instead of replacing earlier evidence" do
     call(title: "First shot")
-    first_attachment = run.workflow.reload.visual_artifact_for("visual_review_screenshot")
-    first_blob_id = first_attachment.blob.id
+    first_entry = run.workflow.reload.artifact("typed_artifacts").first
+    first_blob_id = run.workflow.visual_artifact_for(first_entry["type"]).blob.id
 
     call(title: "Second shot")
 
     workflow = run.workflow.reload
     entries = workflow.artifact("typed_artifacts")
-    expect(entries.size).to eq(1)
-    expect(entries.first["title"]).to eq("Second shot")
-    expect(workflow.visual_artifacts.count).to eq(1)
-    expect(ActiveStorage::Blob.exists?(first_blob_id)).to be(false)
+    expect(entries.size).to eq(2)
+    expect(entries.map { |entry| entry["title"] }).to eq([ "First shot", "Second shot" ])
+    expect(entries.map { |entry| entry["type"] }).to eq([
+      "visual_review_screenshot_run_#{run.id}_1",
+      "visual_review_screenshot_run_#{run.id}_2"
+    ])
+    expect(workflow.visual_artifacts.count).to eq(2)
+    expect(ActiveStorage::Blob.exists?(first_blob_id)).to be(true)
   end
 
   it "accumulates entries with different types" do
@@ -88,7 +101,11 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     call(type: "login_screenshot", title: "Login")
 
     entries = run.workflow.reload.artifact("typed_artifacts")
-    expect(entries.map { |e| e["type"] }).to contain_exactly("home_screenshot", "login_screenshot")
+    expect(entries.map { |e| e["original_type"] }).to contain_exactly("home_screenshot", "login_screenshot")
+    expect(entries.map { |e| e["type"] }).to contain_exactly(
+      "home_screenshot_run_#{run.id}_1",
+      "login_screenshot_run_#{run.id}_1"
+    )
     expect(run.workflow.visual_artifacts.count).to eq(2)
   end
 
