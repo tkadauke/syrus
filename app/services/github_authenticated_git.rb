@@ -22,7 +22,7 @@ class GithubAuthenticatedGit
     refresh_succeeded = false
 
     begin
-      return yield app_url
+      yield app_url
     rescue GitRunner::GitError => original_error
       raise unless git_auth_failure?(original_error)
 
@@ -32,7 +32,7 @@ class GithubAuthenticatedGit
         result = yield app_url
         refresh_succeeded = true
         log&.call("github_auth: refreshed GitHub App installation token for #{repository.slug} #{operation_type}", kind: "system")
-        return result
+        result
       rescue GitRunner::GitError => retry_error
         raise unless git_auth_failure?(retry_error)
 
