@@ -39,6 +39,13 @@ RSpec.describe WorkUnits::Launcher do
     expect(unit.work_unit_members.map { |member| [ member.job_id, member.role ] }).to eq([[ job.id, "primary" ]])
   end
 
+  it "creates shadow ownership for normal initial jobs" do
+    workflow = described_class.instantiate(kind: "initial", job: job)
+
+    expect(workflow.work_unit).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
+    expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
+  end
+
   it "passes artifacts and agent provider through to the workflow template" do
     workflow = described_class.instantiate(
       kind: "ci_failure",

@@ -1166,14 +1166,18 @@ class Job < ApplicationRecord
   # observable behavior as the v0 single-Run flow, but each
   # phase is now its own attemptable step.
   def create_initial_run
-    template = if skill_launch?
-      Workflows::Skill
+    work_kind = if skill_launch?
+      "skill"
     elsif main_branch_repair?
-      Workflows::MainBranchRepair
+      "main_branch_repair"
     else
-      Workflows::Initial
+      "initial"
     end
-    workflow = template.instantiate(job: self, artifacts: skill_launch? ? skill_workflow_artifacts : nil)
+    workflow = WorkUnits::Launcher.instantiate(
+      kind: work_kind,
+      job: self,
+      artifacts: skill_launch? ? skill_workflow_artifacts : nil
+    )
     prompt = if direct? && !skill_launch?
       Prompts::DirectJob.new(
         prompt: issue_body.to_s,

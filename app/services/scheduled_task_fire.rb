@@ -68,7 +68,7 @@ class ScheduledTaskFire
     )
     job.advance_after_triage! if job.may_advance_after_triage?
 
-    workflow = Workflows::Initial.instantiate(job: job)
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
     job
   end
@@ -99,7 +99,7 @@ class ScheduledTaskFire
     )
     job.advance_after_triage! if job.may_advance_after_triage?
 
-    workflow = Workflows::Skill.instantiate(job: job, artifacts: job.skill_workflow_artifacts)
+    workflow = WorkUnits::Launcher.instantiate(kind: "skill", job: job, artifacts: job.skill_workflow_artifacts)
     StepDispatcher.start_workflow(workflow, prompt: nil)
     job
   end
