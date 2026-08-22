@@ -206,7 +206,7 @@ class MainHealthChangedService
       .where(state: "queued")
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
       .find_each do |workflow|
-        StepDispatcher.start_workflow(workflow)
+        WorkUnits::Launcher.start!(workflow)
       end
   end
 
@@ -276,7 +276,7 @@ class MainHealthChangedService
         job: job,
         artifacts: { "repair_reason" => "main branch recovered; PR checks were failing against the broken base" }
       )
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
       rebased += 1
     end
 

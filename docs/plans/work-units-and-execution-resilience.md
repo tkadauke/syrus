@@ -1517,6 +1517,9 @@ Completed slices:
 - Operator `reenqueue_work` repair now starts queued Workflows that are missing
   their first Run through `WorkUnits::Launcher.start!`; existing queued Run
   re-enqueue behavior remains unchanged.
+- Main-health recovery now restarts previously blocked queued Workflows and
+  dispatches recovery rebases for PRs with stale failing CI through
+  `WorkUnits::Launcher.start!`.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

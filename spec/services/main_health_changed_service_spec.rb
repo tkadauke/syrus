@@ -740,10 +740,10 @@ RSpec.describe MainHealthChangedService do
         blocked_workflow.steps.create!(kind: "prepare", position: 0, iteration: 1)
         repository.update!(landing_paused: true)
 
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
         described_class.on_health_change!(repository)
 
-        expect(StepDispatcher).to have_received(:start_workflow).with(blocked_workflow)
+        expect(WorkUnits::Launcher).to have_received(:start!).with(blocked_workflow)
       end
 
       it "emits a main_inconclusive notification" do
@@ -796,18 +796,18 @@ RSpec.describe MainHealthChangedService do
         )
         blocked_workflow.steps.create!(kind: "prepare", position: 0, iteration: 1)
 
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
         described_class.recovered!(repository)
-        expect(StepDispatcher).to have_received(:start_workflow).with(blocked_workflow)
+        expect(WorkUnits::Launcher).to have_received(:start!).with(blocked_workflow)
       end
 
       it "does not call start_workflow for queued workflows that already have runs" do
         Factories.job(repository: repository)
         # The job's workflow has a run on its first step — it was never blocked.
 
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
         described_class.recovered!(repository)
-        expect(StepDispatcher).not_to have_received(:start_workflow)
+        expect(WorkUnits::Launcher).not_to have_received(:start!)
       end
 
       it "does not call start_workflow for queued workflows on other repositories" do
@@ -821,9 +821,9 @@ RSpec.describe MainHealthChangedService do
         )
         other_blocked.steps.create!(kind: "prepare", position: 0, iteration: 1)
 
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
         described_class.recovered!(repository)
-        expect(StepDispatcher).not_to have_received(:start_workflow)
+        expect(WorkUnits::Launcher).not_to have_received(:start!)
       end
     end
 
@@ -976,7 +976,7 @@ RSpec.describe MainHealthChangedService do
 
         rebase_workflow = instance_double(Workflow)
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(rebase_workflow)
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
 
         described_class.recovered!(repository)
 
@@ -984,7 +984,7 @@ RSpec.describe MainHealthChangedService do
           job: failing_job,
           artifacts: hash_including("repair_reason")
         )
-        expect(StepDispatcher).to have_received(:start_workflow).with(rebase_workflow)
+        expect(WorkUnits::Launcher).to have_received(:start!).with(rebase_workflow)
       end
 
       it "does not rebase Jobs whose pr_checks_state is not failing" do
@@ -1053,7 +1053,7 @@ RSpec.describe MainHealthChangedService do
         end
 
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
 
         described_class.recovered!(repository)
 
@@ -1069,7 +1069,7 @@ RSpec.describe MainHealthChangedService do
           pr_checks_state: "failing"
         )
         allow(RebaseWorkflowSelector).to receive(:instantiate).and_return(instance_double(Workflow))
-        allow(StepDispatcher).to receive(:start_workflow)
+        allow(WorkUnits::Launcher).to receive(:start!)
 
         described_class.recovered!(repository)
 
