@@ -39,12 +39,16 @@ RSpec.describe WorkDefinitions do
   end
 
   it "requires every work definition to declare scheduler policy hooks" do
+    job = Factories.job_record
+
     described_class.registry.each_value do |definition_class|
       definition = definition_class.new
 
       expect(definition.intent_gates).to respond_to(:each)
       expect(definition.unit_gates).to respond_to(:each)
-      expect(definition.lock_keys_for(job: Factories.job_record, member_jobs: [])).to respond_to(:each)
+      expect(definition.scope_for(job: job, artifacts: {})).to have_attributes(type: be_present)
+      expect(definition.members_for(job: job, artifacts: {})).to respond_to(:each)
+      expect(definition.lock_keys_for(job: job, member_jobs: [])).to respond_to(:each)
       expect(definition.preemption_policy).to respond_to(:mode)
       expect(definition.preemption_policy).to respond_to(:checkpoint?)
       expect(definition.preemption_policy).to respond_to(:resume_strategy)
@@ -52,6 +56,34 @@ RSpec.describe WorkDefinitions do
       expect(definition.retry_policy).to respond_to(:continuation?)
       expect(definition.retry_policy).to respond_to(:new_attempt?)
     end
+  end
+
+  it "resolves merge train members from the train artifact through the definition" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository)
+    first = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 101)
+    second = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 102)
+    train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "main")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+
+    definition = described_class.for("merge_train")
+
+    expect(definition.scope_for(job: second, artifacts: { "merge_train_id" => train.id })).to have_attributes(type: "epic", id: epic.id)
+    expect(definition.members_for(job: second, artifacts: { "merge_train_id" => train.id })).to eq([ first, second ])
+  end
+
+  it "resolves merge train validation members from the prefetch artifact through the definition" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository)
+    first = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 101)
+    second = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 102)
+
+    definition = described_class.for("merge_train_validation")
+
+    expect(definition.members_for(job: second, artifacts: { "prefetch_merge_train_member_job_ids" => [ first.id, second.id ] })).to eq([ first, second ])
   end
 
   it "marks infrastructure workflows explicitly" do

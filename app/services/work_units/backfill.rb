@@ -94,48 +94,19 @@ module WorkUnits
     end
 
     def member_jobs
-      @member_jobs ||= merge_train_member_jobs.presence ||
-        prefetch_merge_train_member_jobs.presence ||
-        [ job ]
-    end
-
-    def merge_train_member_jobs
-      return [] unless definition.kind == "merge_train"
-
-      train_id = workflow.artifact("merge_train_id")
-      return [] if train_id.blank?
-
-      train = MergeTrain.includes(members: :job).find_by(id: train_id)
-      return [] unless train
-
-      train.members.sort_by(&:position).map(&:job)
-    end
-
-    def prefetch_merge_train_member_jobs
-      return [] unless definition.kind == "merge_train_validation"
-
-      ids = Array(workflow.artifact("prefetch_merge_train_member_job_ids")).map(&:to_i).select(&:positive?)
-      return [] if ids.blank?
-
-      jobs_by_id = Job.where(id: ids).index_by(&:id)
-      ids.filter_map { |id| jobs_by_id[id] }
+      @member_jobs ||= definition.members_for(job: job, artifacts: workflow.artifacts.to_h)
     end
 
     def scope_type
-      definition.scope.presence || "job"
+      scope.type
     end
 
     def scope_id
-      case scope_type
-      when "job"
-        job.id
-      when "epic"
-        job.epic_id
-      when "repository"
-        job.repository_id
-      else
-        job.id
-      end
+      scope.id
+    end
+
+    def scope
+      @scope ||= definition.scope_for(job: job, artifacts: workflow.artifacts.to_h)
     end
 
     def idempotency_key

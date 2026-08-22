@@ -70,6 +70,16 @@ module WorkDefinitions
     self.workflow_trigger_kind = "merge_train"
     self.runtime_role = "first_class"
     self.scope = "epic"
+
+    def members_for(job:, artifacts: {}, **)
+      train_id = artifacts.to_h["merge_train_id"]
+      return super if train_id.blank?
+
+      train = ::MergeTrain.includes(:members).find_by(id: train_id)
+      return super unless train
+
+      train.members.includes(:job).order(:position).map(&:job)
+    end
   end
 
   class MergeTrainValidation < Base
@@ -78,6 +88,14 @@ module WorkDefinitions
     self.runtime_role = "child"
     self.scope = "epic"
     self.parent_kind = "merge_train"
+
+    def members_for(job:, artifacts: {}, **)
+      ids = Array(artifacts.to_h["prefetch_merge_train_member_job_ids"]).map(&:to_i).select(&:positive?)
+      return super if ids.blank?
+
+      jobs_by_id = Job.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| jobs_by_id[id] }
+    end
   end
 
   class Retry < Base

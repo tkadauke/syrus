@@ -1,5 +1,6 @@
 module WorkDefinitions
   class Base
+    Scope = Data.define(:type, :id)
     LANDING_LOCK_KINDS = %w[auto_merge external_pr_merge merge_train landing_validation merge_train_validation].freeze
 
     class_attribute :kind, instance_accessor: false
@@ -23,6 +24,23 @@ module WorkDefinitions
 
     def workflow_template
       Workflow::TriggerKind.template_for(workflow_trigger_kind)
+    end
+
+    def scope_for(job:, artifacts: {}, **)
+      case scope
+      when "job"
+        Scope.new(type: "job", id: job.id)
+      when "epic"
+        Scope.new(type: "epic", id: job.epic_id)
+      when "repository"
+        Scope.new(type: "repository", id: job.repository_id)
+      else
+        Scope.new(type: scope, id: job.id)
+      end
+    end
+
+    def members_for(job:, artifacts: {}, **)
+      [ job ]
     end
 
     def intent_gates = []

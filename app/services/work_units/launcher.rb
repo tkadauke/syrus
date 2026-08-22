@@ -22,6 +22,8 @@ module WorkUnits
       @source_type = source_type
       @source_id = source_id
       @options = options
+      @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
+      @member_jobs = @definition.members_for(job: job, artifacts: payload_artifacts, **options)
     end
 
     def instantiate
@@ -105,48 +107,15 @@ module WorkUnits
     end
 
     def scope_type
-      definition.scope
+      scope.type
     end
 
     def scope_id
-      case definition.scope
-      when "job"
-        job.id
-      when "epic"
-        job.epic_id
-      when "repository"
-        job.repository_id
-      else
-        job.id
-      end
+      scope.id
     end
 
     def member_jobs
-      merge_train_member_jobs.presence ||
-        prefetch_merge_train_member_jobs.presence ||
-        [ job ]
-    end
-
-    def merge_train_member_jobs
-      return [] unless definition.kind == "merge_train"
-
-      train_id = payload_artifacts["merge_train_id"]
-      return [] if train_id.blank?
-
-      train = MergeTrain.includes(:members).find_by(id: train_id)
-      return [] unless train
-
-      train.members.includes(:job).order(:position).map(&:job)
-    end
-
-    def prefetch_merge_train_member_jobs
-      return [] unless definition.kind == "merge_train_validation"
-
-      ids = Array(payload_artifacts["prefetch_merge_train_member_job_ids"]).map(&:to_i).select(&:positive?)
-      return [] if ids.blank?
-
-      jobs_by_id = Job.where(id: ids).index_by(&:id)
-      ids.filter_map { |id| jobs_by_id[id] }
+      @member_jobs
     end
 
     def payload_artifacts
@@ -163,6 +132,10 @@ module WorkUnits
         artifacts: raw_artifacts,
         agent_provider: agent_provider
       }.merge(options)
+    end
+
+    def scope
+      @scope
     end
   end
 end
