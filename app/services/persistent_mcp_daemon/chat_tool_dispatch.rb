@@ -21,29 +21,64 @@ require "mcp"
 # tier-scoped list; the SECURITY boundary (which tools a given chat turn can
 # actually invoke) is unaffected because it is enforced here, not by list
 # visibility.
+#
+# #wrap must NOT mutate the tool class itself (e.g. via
+# `tool.singleton_class.prepend`): that class object is the exact same one
+# McpToolRegistry and Mcp::Sidecar hand to every OTHER caller in this
+# process -- including stdio chat dispatch and every spec that calls a tool
+# directly with a plain server_context Hash. An earlier version prepended
+# the invocation-context requirement onto the tool class itself, which made
+# it permanently reject any direct, non-daemon call for the rest of the
+# process once a single PersistentMcpDaemon had built its tool list -- a
+# correctness bug in production (a shared process could serve both
+# transports) that showed up in tests as unrelated chat tool specs failing
+# whenever they ran after a persistent-daemon spec in the same worker. So
+# #wrap instead builds a standalone dispatch proxy subclass and leaves the
+# original tool untouched.
 module PersistentMcpDaemon::ChatToolDispatch
+  # MCP::Tool.inherited resets exactly these ivars to nil on every
+  # subclassing (see the `mcp` gem's Tool.inherited); re-copied from the
+  # original tool so the proxy keeps its name/description/schema/etc.
+  # without redeclaring any of it.
+  COPIED_IVARS = %i[
+    @name_value @title_value @description_value @icons_value
+    @input_schema_value @output_schema_value @annotations_value @meta_value
+  ].freeze
+
   class << self
-    # Idempotent: safe to call for the same tool class more than once. Layers
-    # ON TOP of Mcp::Sidecar.authorize_tool (prepended first) so tools that
-    # read Mcp::Tools::AuthorizationSupport.current_server_context still see
-    # the resolved chat_session/current_message this module reconstructs,
-    # not the raw (chat_session-less) server_context the daemon's static
-    # MCP::Server was built with.
+    # Idempotent: safe to call for the same tool class more than once --
+    # returns the same proxy subclass instead of building a new one each
+    # time.
     def wrap(tool)
       Mcp::Sidecar.authorize_tool(tool)
-      tool.singleton_class.prepend(Dispatch) unless tool.singleton_class < Dispatch
-      tool
+      proxies[tool] ||= build_proxy(tool)
     end
-  end
 
-  module Dispatch
-    def call(*args, server_context: nil, **kwargs, &block)
+    def dispatch(tool, *args, server_context:, **kwargs, &block)
       resolved = PersistentMcpDaemon::ChatContextResolver.resolve(server_context)
-      return Mcp::Tools.not_authorized unless resolved.allowed_tools.include?(self)
+      return Mcp::Tools.not_authorized unless resolved.allowed_tools.include?(tool)
 
-      super(*args, server_context: resolved.server_context, **kwargs, &block)
+      tool.call(*args, server_context: resolved.server_context, **kwargs, &block)
     rescue McpInvocationContext::InvalidContext => e
       Mcp::Tools.unauthorized("invocation context #{e.class.name.demodulize}: #{e.message}")
+    end
+
+    private
+
+    def proxies
+      @proxies ||= {}
+    end
+
+    def build_proxy(tool)
+      Class.new(tool) do
+        PersistentMcpDaemon::ChatToolDispatch::COPIED_IVARS.each do |ivar|
+          instance_variable_set(ivar, tool.instance_variable_get(ivar))
+        end
+
+        define_singleton_method(:call) do |*args, server_context: nil, **kwargs, &block|
+          PersistentMcpDaemon::ChatToolDispatch.dispatch(tool, *args, server_context: server_context, **kwargs, &block)
+        end
+      end
     end
   end
 end
