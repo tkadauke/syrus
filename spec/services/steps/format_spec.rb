@@ -64,8 +64,19 @@ RSpec.describe Steps::Format do
     end
   end
 
-  describe "no .syrus.yml formatters: key (fallback to plugin defaults)" do
-    it "no-ops cleanly when no autofix commands are registered" do
+  describe "no .syrus.yml formatters: key (absent — the safe default)" do
+    it "runs no commands at all, even when plugin autofix providers are registered" do
+      register_autofix_provider("echo fixed")
+      expect(handler).not_to receive(:commit_agent_changes)
+
+      expect { handler.call }.not_to raise_error
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("no formatters: key in .syrus.yml")
+      expect(chunks).not_to include("fixed")
+    end
+
+    it "no-ops cleanly when no autofix commands are registered either" do
       expect(handler).not_to receive(:commit_agent_changes)
 
       expect { handler.call }.not_to raise_error
@@ -73,8 +84,11 @@ RSpec.describe Steps::Format do
       chunks = run.reload.job_logs.pluck(:chunk).join("\n")
       expect(chunks).to include("no applicable formatters")
     end
+  end
 
+  describe "formatters: [] (explicit opt-in to plugin defaults)" do
     it "runs every registered plugin command and commits the result" do
+      write_syrus_yml("formatters: []\n")
       register_autofix_provider("echo fixed")
       expect(handler).to receive(:commit_agent_changes).with("Format: apply deterministic formatting")
 
@@ -86,6 +100,7 @@ RSpec.describe Steps::Format do
     end
 
     it "runs commands from multiple plugins" do
+      write_syrus_yml("formatters: []\n")
       register_autofix_provider("echo first")
       register_autofix_provider("echo second")
 
@@ -97,6 +112,7 @@ RSpec.describe Steps::Format do
     end
 
     it "soft-fails a failing command instead of raising, and still commits" do
+      write_syrus_yml("formatters: []\n")
       register_autofix_provider("some-fixer")
       fake_runner = instance_double(ProcessRunner, run: failure_result)
       allow(ProcessRunner).to receive(:new).and_return(fake_runner)
@@ -125,6 +141,7 @@ RSpec.describe Steps::Format do
     end
 
     it "runs commands with workspace-local dependency env, mirroring Prepare" do
+      write_syrus_yml("formatters: []\n")
       register_autofix_provider("bundle exec rubocop -a")
       captured_env = nil
       fake_runner = instance_double(ProcessRunner, run: success_result)
