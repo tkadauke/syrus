@@ -1,0 +1,1615 @@
+# Work Units And Execution Resilience
+
+Syrus has accumulated too many execution states across Jobs, Workflows, Steps,
+Runs, landing queues, epics, provider availability, admission control, and the
+reconciler. The system works, but too much of it works by inference: a service
+looks at several partially-overlapping state machines and guesses what must have
+happened. That makes every new workflow type create new degenerate states.
+
+This plan proposes a smaller model centered on explicit Work Intents and Work
+Units. It should be implemented before delivery tracks and promotion, but it
+must preserve room for that plan
+(`docs/plans/delivery-tracks-and-promotion.md`).
+
+## Problem
+
+`Job#state` currently carries several different meanings:
+
+- product lifecycle: triage, implementation complete, approved, closed;
+- runtime execution: queued, running, landing, paused;
+- recovery posture: failed, retryable, blocked, waiting for operator.
+
+Those are different concepts. Combining them creates states that are hard to
+reason about:
+
+- a Job can be `failed` while a CI repair workflow is running;
+- a Job can be `landing` without an active Workflow directly attached to it
+  because a merge train is attached to a sibling Job;
+- a Job can be `running` even though it is paused by admission control;
+- a cancelled Workflow can mean operator cancel, benign skip, supersession, or
+  invalidated work.
+
+The reconciler then has to classify many symptoms and guess which repair is safe.
+That turns the reconciler into a second scheduler.
+
+## Goals
+
+- Separate product lifecycle from runtime execution.
+- Make work ownership explicit for Jobs, Epics, repositories, delivery tracks,
+  and refs.
+- Separate desired work from concrete execution attempts.
+- Make blocked, paused, and preempted states first-class runtime states.
+- Reduce the number of reconciler classifications by enforcing a smaller set of
+  invariants.
+- Keep delivery tracks, promotion, hotfix sync, and upstream export natural
+  future extensions.
+- Preserve existing behavior during migration.
+
+## Non-Goals
+
+- Replacing delivery tracks in this plan.
+- Rewriting every workflow template at once.
+- Removing Job/Workflow/Step/Run immediately.
+- Fully solving release-train or multi-upstream branch policy.
+
+## Target Concepts: WorkIntent And WorkUnit
+
+A Work Intent is durable desired work. It answers:
+
+```text
+What should Syrus eventually do?
+```
+
+A Work Unit is a concrete execution attempt for an intent. It answers:
+
+```text
+What is Syrus currently doing, or trying to execute, for that intent?
+```
+
+This mirrors the useful Step/Run split:
+
+```text
+Desired work        Actual attempt
+-------------       --------------
+WorkIntent          WorkUnit
+Step                Run
+```
+
+For a regular landing request:
+
+```text
+WorkIntent: "land JOB-10"
+  WorkUnit #1: first landing attempt
+    Workflow WF-100
+  WorkUnit #2: retry after branch changed
+    Workflow WF-101
+  WorkUnit #3: final successful attempt
+    Workflow WF-102
+```
+
+The initial invariant should be:
+
+```text
+Intent : Unit : Workflow = 1 : N : N
+```
+
+That is, one Intent can have many Units over time, and each Unit has exactly one
+Workflow once instantiated. Later exceptions may exist, such as a blocked Unit
+with no Workflow yet or a ref-movement Unit coordinating child Units, but those
+should not be part of the first migration.
+
+Continuations do not create new Work Units. If a concrete attempt is still the
+same logical attempt, the existing Unit remains the runtime owner and records the
+continuation in its Workflow/Step/Run trace:
+
+- retry failed step;
+- resume failed agent session;
+- auto-retry a transient step failure while the attempt remains valid;
+- unpause after admission control, provider availability, resource pressure, or
+  manual pause clears.
+
+New attempts do create new Work Units for the same Intent:
+
+- retry implementation from scratch;
+- rebuild a merge train after member/base refs changed;
+- restart an attempt after the workspace/session is gone;
+- resume from a durable checkpoint by creating a new checkpoint-resume Workflow;
+- any retry where the old execution context is no longer trustworthy.
+
+In short: `retry failed step`, `resume`, and `unpause` continue the same
+WorkUnit; `retry implementation` is a new WorkUnit for the same WorkIntent.
+
+## WorkIntent
+
+Examples:
+
+- implement JOB-10;
+- address PR feedback on JOB-10;
+- land JOB-10;
+- land EPIC-20 as a merge train;
+- rebase JOB-10;
+- repair main branch;
+- promote `develop -> main`;
+- export JOB-10 upstream.
+
+Responsibilities:
+
+- idempotency and deduplication;
+- durable requested work;
+- priority and source/actor;
+- target scope;
+- requested work kind;
+- policy context;
+- supersession relationship;
+- operator cancellation;
+- domain eligibility such as "waiting for dependency."
+
+WorkIntent should be persisted from the beginning. We already know the concept
+needs durable identity for idempotency, retries, delivery tracks, ref movement,
+and audit. Starting with only an interface would require touching the same call
+sites twice. The guardrail is to keep the table narrow and non-runtime so it
+does not become Job state v2.
+
+WorkIntent state must change only from scheduler/domain decisions, not from
+Workflow callbacks. Runtime failure belongs on WorkUnit/Workflow/Step/Run. The
+Intent can become `failed` only when the desired work itself cannot proceed
+without operator or domain action.
+
+Proposed shape:
+
+```text
+work_intents
+  id
+  kind
+  state
+  repository_id
+  scope_type
+  scope_id
+  delivery_track
+  source_repository_id
+  source_remote_kind
+  source_ref
+  target_repository_id
+  target_remote_kind
+  target_ref
+  priority
+  actor_id
+  source_type
+  source_id
+  idempotency_key
+  wait_reason
+  wait_until
+  wait_details
+  superseded_by_work_intent_id
+  requested_at
+  satisfied_at
+  cancelled_at
+```
+
+Lifecycle:
+
+```text
+requested
+  -> waiting       # domain/policy not eligible yet
+  -> satisfied     # desired outcome achieved
+  -> cancelled     # no longer wanted
+  -> failed        # cannot proceed without operator/action
+```
+
+`ready` and `active` are derived, not persisted:
+
+- ready = `requested` and intent gates currently pass;
+- active = has a non-terminal WorkUnit.
+
+A dependency-blocked implementation is usually an Intent state:
+
+```text
+WorkIntent(kind: initial, state: waiting, wait_reason: dependency)
+```
+
+No WorkUnit is required until the dependency clears because there is no concrete
+execution attempt yet.
+
+## WorkUnit
+
+A Work Unit is the scheduler-owned runtime object for one attempt. It represents
+concrete work that can be queued, blocked, running, completed, failed, or
+cancelled.
+
+Examples:
+
+- WF-100 initial implementation attempt for JOB-10;
+- WF-101 retry attempt for JOB-10;
+- WF-102 merge train attempt for EPIC-20;
+- WF-103 promotion attempt from `develop` to `main`.
+
+Responsibilities:
+
+- runtime execution state;
+- Workflow attachment;
+- member Jobs;
+- locks;
+- runtime gates;
+- leases / worker ownership;
+- blocked runtime reasons;
+- pause and preemption;
+- retry/rebuild policy for this attempt;
+- terminal outcome of this attempt.
+
+Proposed shape:
+
+```text
+work_units
+  id
+  work_intent_id
+  kind
+  state
+  repository_id
+  scope_type
+  scope_id
+  delivery_track
+  parent_work_unit_id
+  source_repository_id
+  source_remote_kind
+  source_ref
+  target_repository_id
+  target_remote_kind
+  target_ref
+  workflow_id
+  blocked_reason
+  blocked_until
+  blocked_by_user_id
+  blocked_details
+  pause_requested
+  preempted_by_work_unit_id
+  preemption_reason
+  started_at
+  finished_at
+
+work_unit_members
+  work_unit_id
+  job_id
+  role
+```
+
+`scope_type` should not be limited to Job. Initial values can be:
+
+- `job`
+- `epic`
+- `repository`
+- `delivery_track`
+- `ref_movement`
+
+`role` can start with:
+
+- `primary`
+- `member`
+- `dependency`
+- `repair_target`
+- `exported_job`
+
+This makes merge trains explicit: every member Job belongs to the merge train
+Work Unit even if the underlying Workflow row is attached to only one tip Job.
+
+WorkUnit membership is an immutable snapshot for the attempt. Definition methods
+such as `members_for` may query live Jobs/Epics only while creating the Unit.
+After creation, scheduling, UI, and reconciliation must read
+`work_unit_members`. Later Epic membership changes, approval changes, or branch
+changes should preempt/rebuild the Unit or create a new Unit, not mutate the
+membership underneath an active attempt.
+
+Locks should be concrete rows, not inferred predicates. Acquire all Unit locks
+inside one database transaction by inserting unique lock-key rows such as
+`job:<id>`, `epic:<id>`, `landing:<repository_id>:<target_ref>`, and
+`ref:<repository_id>:<ref>`. A conflict blocks or preempts according to the
+WorkDefinition policy. Terminal Unit cleanup releases the rows. The reconciler
+may release locks only for terminal or stale-dead Units after proving ownership
+from the Unit state, not by guessing from Job state.
+
+## Relationship To Jobs, Epics, And Workflows
+
+A Job can have many Intents over its lifetime:
+
+```text
+JOB-10
+  WorkIntent: initial implementation
+  WorkIntent: PR feedback
+  WorkIntent: landing
+  WorkIntent: upstream export
+```
+
+An Intent can have many Units over time:
+
+```text
+WorkIntent: land JOB-10
+  WorkUnit #1 failed: branch diverged
+  WorkUnit #2 blocked: main branch health
+  WorkUnit #3 succeeded
+```
+
+A Unit belongs to one Intent. Initially, each Unit should have one Workflow. The
+Workflow remains the step trace for that attempt.
+
+Rule of thumb:
+
+- ask "should this work still happen?" -> WorkIntent;
+- ask "is Syrus currently able/running/paused/retrying this attempt?" ->
+  WorkUnit;
+- ask "which steps/logs/artifacts happened?" -> Workflow;
+- ask "did this concrete step command/agent invocation run?" -> Run.
+
+## Runtime State
+
+Work Intents should own desired-work state:
+
+```text
+requested | waiting | satisfied | failed | cancelled
+```
+
+Work Units should own execution-attempt state:
+
+```text
+queued | blocked | running | succeeded | failed | cancelled
+```
+
+Jobs should keep product lifecycle state. The UI can still show apparent states
+such as `Landing`, `Paused`, or `Running feedback`, but those should be derived
+from the active Work Unit plus Job lifecycle facts.
+
+## What Moves Out Of Job And Epic
+
+The main thing moving out of Job and Epic is runtime execution state.
+
+Job should stop being the source of truth for:
+
+- whether work is queued, running, landing, or paused;
+- active workflow ownership;
+- admission/provider/main-health/dependency blocked reasons;
+- retry and preemption posture;
+- which workflow owns the Job right now;
+- why the Job is not progressing;
+- landing queue membership and position as runtime facts.
+
+Those facts should come from WorkUnit and WorkUnitMember.
+
+Job should keep:
+
+- product lifecycle;
+- issue and PR identity;
+- selected delivery track;
+- owner, priority, provider, credential, and repository settings;
+- dependency and approval facts;
+- durable completion result such as PR merged, no changes, external PR closed,
+  or operator-cancelled.
+
+Epic should stop being the source of truth for:
+
+- active merge-train ownership;
+- active stack-rebase ownership;
+- Epic-wide workflow locks;
+- "this Epic is currently landing/rebasing" runtime status;
+- "blocked by active Epic-wide workflow" runtime status.
+
+Epic should keep:
+
+- grouping and ordering of child Jobs;
+- product state for the feature/batch;
+- dependency structure;
+- Epic-level review and approval semantics.
+
+The split is:
+
+```text
+Job/Epic:    what the user wants and whether it is accepted/done
+WorkIntent: durable requested work for that product object
+WorkUnit:   concrete execution attempt for an Intent
+```
+
+## Blocked And Paused
+
+Pause mechanisms should share one WorkUnit runtime representation. Domain-level
+waiting, such as an unsatisfied dependency before any attempt is eligible, should
+live on WorkIntent instead.
+
+WorkIntent wait reasons:
+
+- `dependency`
+- `approval`
+- `epic_not_ready`
+- `policy_not_eligible`
+
+WorkUnit blocked reasons:
+
+- `admission_control`
+- `provider_availability`
+- `manual_pause`
+- `main_branch_health`
+- `resource_safety`
+- `auto_retry_backoff`
+- `preempted`
+
+Behavior:
+
+- admission control: auto-resume when capacity changes or `blocked_until`
+  arrives;
+- provider availability: auto-resume when availability/quota recovers;
+- manual pause: resume only by explicit user action;
+- main branch health: follow repository policy;
+- resource safety: auto-resume when pressure clears;
+- auto-retry backoff: auto-resume when `blocked_until` arrives;
+- preempted: auto-resume only if the preempting work is done and this unit is
+  still valid.
+
+Manual pause should not kill the current step. It should set
+`pause_requested = true`; after the current run finishes, the Work Unit moves to
+`blocked(manual_pause)` before scheduling the next step. If no run is active,
+it blocks immediately.
+
+Auto-retry backoff for the same attempt belongs on WorkUnit. It is not
+WorkIntent `waiting`, because the desired work is still eligible and the current
+attempt is simply delayed. If retry policy chooses a fresh workflow, that is a
+new WorkUnit for the same Intent.
+
+## Scheduler And Gates
+
+Requested work should be represented as a WorkIntent, not as implicit Job state.
+Concrete attempts should be represented as WorkUnits.
+
+For example, if a Job is waiting on a dependency:
+
+```text
+Job lifecycle: open / approved / implemented
+WorkIntent(kind: initial or landing): waiting
+wait_reason: dependency
+wait_details: { blocked_by_job_ids: [9] }
+WorkUnit: none yet
+```
+
+If a Job is approved for landing but repository policy pauses landing while the
+main branch is broken:
+
+```text
+Job lifecycle: approved
+WorkIntent(kind: landing): requested
+WorkUnit(kind: landing): blocked
+blocked_reason: main_branch_health
+blocked_details: { repository_id: 2, main_health_state: "broken" }
+```
+
+The decision should belong to scheduler layers, not to Job, the UI, or the
+reconciler.
+
+Intent scheduling decides whether desired work is eligible to attempt:
+
+```ruby
+WorkIntentScheduler.evaluate!(intent)
+```
+
+It evaluates domain/policy gates:
+
+```ruby
+intent_gates = [
+  DependencyIntentGate,
+  ApprovalIntentGate,
+  EpicReadinessIntentGate,
+  PolicyEligibilityIntentGate
+]
+
+intent_gates.each do |gate|
+  result = gate.call(intent)
+  if result.waiting?
+    intent.wait!(
+      reason: result.reason,
+      wait_until: result.retry_at,
+      details: result.details
+    )
+    return
+  end
+end
+
+intent.create_or_resume_unit!
+```
+
+Unit scheduling decides whether a concrete attempt can currently execute:
+
+```ruby
+WorkScheduler.evaluate!(work_unit)
+```
+
+The Unit scheduler evaluates runtime gates in a consistent order:
+
+```ruby
+unit_gates = [
+  MainBranchHealthGate,
+  ProviderAvailabilityGate,
+  ManualPauseGate,
+  AdmissionControlGate,
+  EpicLockGate
+]
+
+gates.each do |gate|
+  result = gate.call(work_unit)
+  if result.blocked?
+    work_unit.block!(
+      reason: result.reason,
+      blocked_until: result.retry_at,
+      details: result.details
+    )
+    return
+  end
+work_unit.enqueue_or_start_next_step!
+```
+
+Different causes share one runtime shape:
+
+```text
+state = blocked
+blocked_reason = <typed reason>
+```
+
+Intent gates own domain wakeup paths:
+
+- dependency gate: recheck when a dependency closes, changes approval state, or
+  dependency overrides change;
+- approval gate: recheck when approvals change;
+- Epic readiness gate: recheck when Epic child state changes.
+
+Unit gates own runtime wakeup paths:
+
+- main branch health gate: recheck when repository main-health state changes;
+- provider availability gate: recheck when quota/availability probes update or
+  `blocked_until` arrives;
+- manual pause gate: recheck only after explicit user unpause;
+- admission control gate: recheck when capacity changes, a WorkUnit finishes,
+  or `blocked_until` arrives;
+- Epic lock gate: recheck when the blocking Epic-wide WorkUnit finishes or is
+  cancelled.
+
+The reconciler should not decide whether dependency or main-health policy allows
+execution. It should verify scheduler invariants:
+
+- waiting Intent has a valid typed reason and wakeup path;
+- requested Intent whose gates pass has or is eligible to create a WorkUnit;
+- Intent with non-terminal Units has exactly the expected current Unit;
+- Intent with only terminal Units is either satisfied, failed, cancelled, or
+  waiting for an allowed retry/rebuild;
+- blocked WorkUnit has a valid typed reason;
+- blocked reason has a wakeup path;
+- queued WorkUnit has or will get a next Run;
+- running WorkUnit has a live Run/lease;
+- terminal WorkUnit has no active descendants and has released ownership.
+
+This pulls most of today's `StepDispatcher.start_workflow` gate logic into one
+explicit scheduler layer while preserving the ability to explain every blocked
+Job from one Intent or WorkUnit row.
+
+## Workflow Creation Funnel
+
+Current code calls `Workflows::* .instantiate` directly from many places:
+pollers, landing queue dispatch, merge-train dispatch, rebase selection, retry
+services, pending actions, MCP tools, and controllers. WorkIntent/WorkUnit cannot
+be introduced safely by shadow-writing from every scattered call site. One missed
+call site would silently corrupt ownership.
+
+Before Intent/Unit tables become broadly authoritative, new workflow creation
+must go through one gateway:
+
+```ruby
+WorkUnits::Launcher.create_and_start!(kind:, source:, context:)
+```
+
+The launcher is responsible for:
+
+- finding or creating the idempotent WorkIntent;
+- creating the WorkUnit attempt;
+- resolving the WorkDefinition;
+- resolving scope and members;
+- acquiring required persisted locks when needed;
+- instantiating the existing `Workflows::*` template;
+- linking WorkUnit and Workflow;
+- starting the scheduler.
+
+Migration rule:
+
+- new code must not call `Workflows::* .instantiate` directly;
+- existing direct calls move behind the launcher one at a time;
+- add a spec/search guard that allows direct instantiate only inside the
+  launcher, workflow template tests, and factory helpers.
+
+## Callback Strangler
+
+Current AASM callbacks propagate state across the execution graph:
+
+- Workflow start/succeed/fail/cancel/reopen mutates Job state;
+- Step success/failure/cancel advances or fails the Workflow;
+- Run failure/cancel cascades to Step and Workflow;
+- callback side effects enqueue retries, classify failures, wake admission, and
+  emit activity.
+
+If WorkUnit starts mutating the same state independently, we will create a
+double-write source-of-truth problem.
+
+Migration rule:
+
+- do not let callbacks and the WorkUnit scheduler independently decide product
+  or runtime state;
+- first wrap existing callback behavior behind orchestration services without
+  changing semantics;
+- then move propagation responsibility one edge at a time;
+- eventually, Workflow/Step/Run callbacks should report execution facts to the
+  orchestration layer, and WorkUnit should own runtime attempt state.
+
+During migration, WorkUnit can observe Workflow transitions. It should not become
+authoritative for a path until callback propagation for that path is routed
+through the same orchestration service.
+
+The first concrete edge to move should be Workflow terminal propagation:
+Workflow terminal result -> WorkUnit terminal outcome through one service.
+Existing Job state updates can remain compatibility projections behind that
+service until the relevant UI and scheduler reads have moved to WorkUnit.
+
+## Persisted Lock Minimum
+
+Computed ownership is a good first step for read paths, but landing needs a
+transactional lock early. Today `Job#state = landing` is the effective
+repository-wide landing mutex. Removing or ignoring it before replacing that
+mutex would allow duplicate landing attempts.
+
+Minimum persisted locks for migrated landing paths:
+
+- one active landing WorkUnit per `repository_id + target_ref`;
+- one active WorkUnit per Job lock;
+- one active Epic-wide WorkUnit per Epic;
+- one active job-bundle/merge-train WorkUnit per repository landing slot.
+
+Physical locks should be introduced only for paths that need race protection.
+Other scopes can start with computed locks through WorkOwnership until semantics
+settle.
+
+## Preemption
+
+Preemption should not look like failure.
+
+There are two modes.
+
+### Soft Preemption
+
+Use when the work remains valid and can resume later.
+
+Examples:
+
+- a lower-priority Work Unit yields to urgent work;
+- the operator manually pauses work after the current step;
+- resource pressure prevents starting the next step.
+
+Behavior:
+
+- let the current run finish when safe;
+- do not start the next step;
+- set `state = blocked`;
+- set `blocked_reason = preempted`;
+- optionally set `preempted_by_work_unit_id`.
+
+### Hard Preemption
+
+Use when the current work is no longer valid.
+
+Examples:
+
+- newer feedback supersedes older feedback;
+- branch changed under a landing attempt;
+- Job closed;
+- merge train invalidated by member/base changes.
+
+Behavior:
+
+- cancel active descendants;
+- set `state = cancelled`;
+- record a typed cancellation/preemption reason;
+- point to the replacing Work Unit when one exists.
+
+Workflow policy should declare:
+
+```ruby
+preemption_policy:
+  mode: :none | :soft | :hard
+  checkpoint: true/false
+  resume_strategy: :same_step | :new_workflow | :rebuild
+```
+
+## Ownership And Locks
+
+The first implementation does not need a physical lock table, but the design
+should be lock-shaped from the start.
+
+Conceptual locks:
+
+```text
+work_unit_locks
+  work_unit_id
+  lock_type
+  lock_key
+```
+
+Possible locks:
+
+- `job:123`
+- `epic:45`
+- `repo:2:ref:main`
+- `repo:2:track:default`
+- `repo:2:landing_queue`
+
+Examples:
+
+- a landing Work Unit locks its Job and target ref/queue;
+- a merge train Work Unit locks the Epic and every member Job;
+- a promotion Work Unit locks its source/target refs;
+- a hotfix sync Work Unit locks the target development track;
+- a repair Work Unit may or may not block other work depending repository
+  policy.
+
+Runtime code should ask one ownership API:
+
+```ruby
+WorkOwnership.active_for_job?(job)
+WorkOwnership.active_for_epic?(epic)
+WorkOwnership.active_for_repository_ref?(repository, ref)
+WorkOwnership.landing_owner_for(job)
+WorkOwnership.can_start?(scope:, kind:)
+```
+
+No caller should hand-roll checks with `job.workflows.active`,
+`job.any_active_run?`, or special-case "active Epic-wide workflow for this Job".
+
+## UI And API Projection
+
+WorkUnit must not be discoverable only through Workflow. That would preserve the
+same bug class this plan is meant to remove. The application API should expose
+active and recent work through WorkUnitMember, and desired/pending work through
+WorkIntent.
+
+For a Job detail response, the API should expose an `active_work` projection:
+
+```json
+{
+  "state": "approved",
+  "apparent_state": "landing",
+  "current_intent": {
+    "id": 77,
+    "kind": "landing",
+    "state": "requested",
+    "execution_status": "active",
+    "label": "Landing"
+  },
+  "active_work": {
+    "id": 123,
+    "kind": "merge_train",
+    "state": "running",
+    "label": "Epic merge train",
+    "role": "member",
+    "scope": { "type": "epic", "id": 254 },
+    "workflow_id": 19955,
+    "workflow_attached_job_id": 3538,
+    "blocked_reason": null,
+    "started_at": "...",
+    "current_step": {
+      "kind": "grader",
+      "label": "rspec",
+      "state": "running"
+    }
+  }
+}
+```
+
+For paused work:
+
+```json
+{
+  "state": "approved",
+  "apparent_state": "paused",
+  "current_intent": {
+    "kind": "landing",
+    "state": "requested",
+    "execution_status": "blocked"
+  },
+  "active_work": {
+    "kind": "landing",
+    "state": "blocked",
+    "blocked_reason": "provider_availability",
+    "blocked_until": "...",
+    "label": "Paused: Codex availability"
+  }
+}
+```
+
+For dependency-waiting work before an execution attempt exists:
+
+```json
+{
+  "state": "implemented",
+  "apparent_state": "blocked",
+  "current_intent": {
+    "kind": "landing",
+    "state": "waiting",
+    "wait_reason": "dependency",
+    "label": "Waiting on dependency",
+    "wait_details": { "blocked_by_job_ids": [9] }
+  },
+  "active_work": null
+}
+```
+
+For manual pause:
+
+```json
+{
+  "apparent_state": "paused",
+  "active_work": {
+    "state": "blocked",
+    "blocked_reason": "manual_pause",
+    "label": "Paused manually",
+    "can_unpause": true
+  }
+}
+```
+
+Dashboard smart folders should use WorkUnitMember for:
+
+- In progress;
+- Paused;
+- Landing queue;
+- queue status text;
+- row badges;
+- retry/preemption availability.
+
+They should use WorkIntent for domain waiting states such as dependencies,
+approval waits, or Epic readiness.
+
+The row can still show latest Workflow badges, but active work must come from
+WorkUnit ownership.
+
+## Job Workflows Tab
+
+The current workflow-first diagnostics UI is valuable and should not lose
+information. WorkUnit should be a layer above the existing Workflow trace.
+
+Current mental model:
+
+```text
+Job
+  Workflows
+    Steps
+      Runs
+```
+
+Target mental model:
+
+```text
+Job
+  Work Intents involving this Job
+    Work Units / attempts
+      Workflow trace, if this Work Unit has one
+        Steps
+          Runs
+```
+
+For ordinary one-Job workflows, this should look almost the same as today. The
+WorkUnit wrapper can be visually small:
+
+```text
+Initial implementation · requested · active attempt
+  Attempt 1 · running · Workflow WF-20001
+    Prepare workspace
+    Implement
+    Adversarial review
+    Grade
+    Open PR
+```
+
+For Epic-wide work, it should become clearer. On a merge-train member Job whose
+Workflow is attached to a different tip Job, the tab should show:
+
+```text
+Epic merge train · requested · active attempt
+  Attempt 1 · running · member
+  Scope: EPIC-254
+  Workflow WF-19955 attached to JOB-3538
+  Current step: Grade / rspec
+```
+
+Then render the same expandable steps, runs, logs, artifacts, grader output,
+review results, screenshots, and retry controls underneath.
+
+The tab should have:
+
+1. Current Desired Work: requested or waiting WorkIntents involving the Job.
+2. Attempts / Work History: WorkUnits involving the Job, newest first.
+3. Workflow Trace: today's existing Workflow/Step/Run UI nested under each
+   WorkUnit attempt.
+
+During migration, the tab should also show legacy Workflows attached directly to
+the Job that do not yet have a WorkUnit. Once every Workflow has a WorkUnit, the
+legacy fallback can disappear.
+
+Actions should attach to the correct layer:
+
+- cancel desired work: WorkIntent action;
+- retry failed step: Workflow/Step action that continues the same WorkUnit;
+- rebuild merge train: WorkUnit action;
+- pause/unpause: WorkUnit action;
+- cancel active work: WorkUnit action;
+- retry implementation: WorkIntent action that creates a new WorkUnit;
+- open logs/artifacts: Run/Step action;
+- explain why not progressing: WorkUnit action.
+
+That keeps the diagnostic depth while making ownership and safe actions clearer.
+
+Add UI/API invariants for this tab:
+
+- a merge-train member Job shows the active train WorkUnit even when the
+  underlying Workflow is attached to another Job;
+- a WorkUnit with no Workflow yet shows its blocked/waiting reason;
+- legacy Workflows still render during migration;
+- every Workflow involving the Job appears exactly once;
+- retry/resume/preemption controls are shown from the layer that actually owns
+  the action.
+
+## Reconciler Role
+
+The reconciler should become an invariant enforcer, not a broad classifier of
+domain intent.
+
+Target responsibilities:
+
+1. Recheck waiting Intents whose domain condition may now be satisfied.
+2. Create or resume Units for requested Intents whose gates pass.
+3. Expire stale running attempts or leases.
+4. Enqueue missing work for queued Work Units.
+5. Fold terminal Unit/Workflow results back into their Intent.
+6. Release locks/ownership for terminal Work Units.
+7. Recheck blocked Work Units whose runtime unblock condition may now be
+   satisfied.
+
+Examples of classifications that should eventually disappear:
+
+- landing Job without active Workflow;
+- queued Job cancelled without active Workflow;
+- failed Job with running workflow;
+- active workflow attached to one Job but semantically owning siblings.
+
+Those become impossible or explicit once desired work and execution ownership
+are recorded separately.
+
+## Work Definitions And Workflow Templates
+
+Intent and Unit need work-kind-specific behavior, but that behavior should not
+live in `case kind` branches. Model work-kind semantics as a class hierarchy with
+one definition class per kind. The same definition owns both Intent eligibility
+and Unit runtime semantics for that kind.
+
+Proposed shape:
+
+```ruby
+class WorkDefinition
+  def self.for(kind)
+    "WorkDefinitions::#{kind.camelize}".constantize.new
+  end
+
+  def workflow_trigger_kind = raise NotImplementedError
+  def workflow_template = Workflow::TriggerKind.template_for(workflow_trigger_kind)
+
+  def scope_for(context:) = raise NotImplementedError
+  def members_for(context:) = []
+  def intent_gates = []
+  def unit_gates = []
+  def locks_for(work_unit) = []
+  def preemption_policy = WorkUnits::PreemptionPolicies::None.new
+  def retry_policy = WorkUnits::RetryPolicies::Operator.new
+  def label = self.class.name.demodulize.titleize
+end
+```
+
+Example:
+
+```ruby
+module WorkDefinitions
+  class Initial < WorkDefinition
+    def workflow_trigger_kind = "initial"
+
+    def scope_for(context:)
+      WorkUnitScope.job(context.fetch(:job))
+    end
+
+    def members_for(context:)
+      [WorkUnitMemberSpec.primary(context.fetch(:job))]
+    end
+
+    def locks_for(work_unit)
+      [WorkUnitLockSpec.job(work_unit.primary_job)]
+    end
+
+    def intent_gates
+      [
+        WorkIntentGates::Dependency,
+        WorkIntentGates::Approval,
+        WorkIntentGates::PolicyEligibility
+      ]
+    end
+
+    def unit_gates
+      [
+        WorkUnitGates::ManualPause,
+        WorkUnitGates::ProviderAvailability,
+        WorkUnitGates::AdmissionControl
+      ]
+    end
+
+    def preemption_policy
+      WorkUnits::PreemptionPolicies::SoftAfterCurrentStep.new
+    end
+
+    def retry_policy
+      WorkUnits::RetryPolicies::ResumeStepOrNewWorkflow.new
+    end
+  end
+end
+```
+
+Merge train:
+
+```ruby
+module WorkDefinitions
+  class MergeTrain < WorkDefinition
+    def workflow_trigger_kind = "merge_train"
+
+    def scope_for(context:)
+      WorkUnitScope.epic(context.fetch(:epic))
+    end
+
+    def members_for(context:)
+      context.fetch(:epic).jobs.approved.map { |job| WorkUnitMemberSpec.member(job) }
+    end
+
+    def locks_for(work_unit)
+      [
+        WorkUnitLockSpec.epic(work_unit.scope),
+        WorkUnitLockSpec.landing_queue(work_unit.repository)
+      ] + work_unit.jobs.map { |job| WorkUnitLockSpec.job(job) }
+    end
+
+    def intent_gates
+      [
+        WorkIntentGates::AllEpicMembersApproved,
+        WorkIntentGates::PolicyEligibility
+      ]
+    end
+
+    def unit_gates
+      [
+        WorkUnitGates::MainBranchHealth,
+        WorkUnitGates::ProviderAvailability,
+        WorkUnitGates::AdmissionControl
+      ]
+    end
+
+    def preemption_policy
+      WorkUnits::PreemptionPolicies::HardRebuildOnMemberOrBranchChange.new
+    end
+
+    def retry_policy
+      WorkUnits::RetryPolicies::RebuildUnit.new
+    end
+  end
+end
+```
+
+Scheduler code should stay generic:
+
+```ruby
+definition = intent.definition
+
+definition.intent_gates.each do |gate_class|
+  result = gate_class.new.call(intent)
+  return wait(intent, result) if result.waiting?
+end
+
+unit = intent.current_or_new_unit
+definition = unit.definition
+
+definition.unit_gates.each do |gate_class|
+  result = gate_class.new.call(work_unit)
+  return block(work_unit, result) if result.blocked?
+end
+
+locks = definition.locks_for(work_unit)
+```
+
+No new type-switches should be introduced for normal behavior.
+
+### Boundary With `Workflows::*`
+
+This must not create a second workflow-assembly system. Syrus already has
+`Workflow::TriggerKind` and `Workflows::*` templates that assemble the step
+chain. That remains the execution-plan layer.
+
+The split should be:
+
+```text
+WorkDefinitions::* decides whether/when/where work may run
+Workflows::*      decides what steps run once it does
+Steps::*          decides how each step performs
+Policy objects    decide repo/project-specific choices
+```
+
+Do not move step chains into WorkUnit definitions. These stay in `Workflows::*`:
+
+```text
+initial:     prepare -> implement -> review loops -> grade -> summarize -> pr_open
+merge_train: assemble -> build -> reconcile -> prepare -> grade -> land
+```
+
+Work definitions should point to the existing workflow template:
+
+```ruby
+def workflow_template
+  Workflow::TriggerKind.template_for(workflow_trigger_kind)
+end
+```
+
+Examples of correct placement:
+
+- "merge train has assemble/build/reconcile/land" belongs in
+  `Workflows::MergeTrain`;
+- "merge train owns all approved Epic Jobs" belongs in
+  `WorkDefinitions::MergeTrain`;
+- "merge train cannot start until all members are approved" belongs in a gate
+  referenced by `WorkDefinitions::MergeTrain`;
+- "merge train targets `develop` vs `main`" belongs in delivery policy;
+- "merge_train_build failure rebuilds the unit" belongs in WorkUnit retry policy
+  or Step repair semantics, but not both.
+
+Because this creates two related class hierarchies, add a deterministic
+validation spec:
+
+- every `Workflow::TriggerKind` is classified with
+  `runtime_role: first_class | child | infrastructure | legacy`;
+- every first-class trigger kind has a corresponding `WorkDefinitions::*`
+  definition;
+- every child trigger kind declares its parent WorkUnit relationship or why it
+  is legacy-only;
+- every `WorkDefinitions::*#workflow_trigger_kind` exists in
+  `Workflow::TriggerKind`;
+- every Work definition's template class can instantiate a Workflow;
+- every Work definition declares scope, intent gates, unit gates, locks,
+  preemption policy, and retry policy;
+- delivery/ref-movement Work definitions either map to a Workflow template
+  or are explicitly non-workflow units.
+
+This keeps the hierarchies in sync without scattering runtime behavior across
+unvalidated parallel registries.
+
+Speculative validation workflows, such as landing-validation prefetch and
+merge-train validation, should be modeled as child/derived WorkUnits, not as
+new user-facing Intents. They need `parent_work_unit_id` so cancellation,
+debugging, and preemption remain attached to the landing attempt that spawned
+them.
+
+Infrastructure workflows, such as main graders or agent insights, may still have
+Intents and Units, but their WorkDefinitions should be explicitly marked
+infrastructure so UI and scheduler policies do not pretend they are normal
+operator-requested work.
+
+Initial trigger-kind classification should start from the current registry:
+
+- `first_class`: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`,
+  `rebase`, `stack_rebase`, `auto_merge`, `external_pr_merge`, `merge_train`,
+  `retry`, `manual_visual_review`, `manual`, `resume`, `coding_handoff`,
+  `local_mode_handoff`, `main_branch_repair`, `manual_agentic_run`,
+  `external_pr_ingest`, `external_pr_feedback`, `skill`;
+- `child`: `landing_validation`, `merge_train_validation`;
+- `infrastructure`: `main_grader`, `agent_insight`;
+- `legacy`: `replay`, unless it still has a live production entry point.
+
+The classification spec should fail when a new trigger kind is added without a
+runtime role.
+
+### `Workflow::TriggerKind` Authority During Migration
+
+`Workflow::TriggerKind` currently owns template lookup, labels/styles, retry
+labels, feedback-kind grouping, and Epic-wide classification. WorkDefinition
+will own runtime semantics: scope, members, locks, gates, preemption, and retry
+policy.
+
+During migration:
+
+- `Workflow::TriggerKind` remains the compatibility registry for template lookup
+  and existing UI labels;
+- WorkDefinition becomes authoritative for scheduling/runtime semantics;
+- helper concepts such as `epic_wide?`, feedback grouping, and retry labels
+  should move to WorkDefinition or presentation objects once the corresponding
+  call sites migrate;
+- do not add new runtime semantics to `Workflow::TriggerKind`.
+
+The end state should be:
+
+```text
+WorkDefinition: runtime/scheduling authority
+Workflow::TriggerKind: template lookup compatibility, then potentially reduced
+Presenter/UI: labels, colors, retry button text
+```
+
+### Step Failure To Unit Policy
+
+`Step::Kind` already declares step-local repair semantics. WorkDefinition retry
+policy must not duplicate or contradict it.
+
+Precedence:
+
+1. `Step::Kind` classifies the failed step category, e.g. agentic,
+   publication, rebuild, deterministic idempotent, operator review.
+2. WorkDefinition decides the unit-level response to that category, e.g. resume
+   step, create a new Unit, rebuild a merge train, or require operator review.
+3. Reconciler and retry services execute that decision. They should not choose a
+   separate response by switching on trigger kind.
+
+This means a step such as `merge_train_build` can say "this failure requires a
+rebuild category", while `WorkDefinitions::MergeTrain` decides what rebuilding a
+train means for the whole Unit.
+
+## Workflow, Step, And Run
+
+Do not collapse these immediately, but the long-term direction should be:
+
+- Workflow: immutable execution plan and template instance.
+- Step: planned node in the Workflow.
+- StepAttempt or Run: actual execution attempt for a Step.
+
+Step state should eventually be derived from attempts or be a projection updated
+from one place. Today Step and Run both have queued/running/succeeded/failed
+states, and callbacks propagate failures in several directions. That creates
+state drift. Work Units reduce the blast radius first; Step/Run simplification
+can come after.
+
+## Compatibility With Delivery Tracks
+
+This plan should land before delivery tracks, but it must not conflict with
+them.
+
+The delivery plan needs runtime units for:
+
+- ordinary landing into a selected track;
+- promotion from one ref/track to another;
+- hotfix sync from release back to development;
+- per-job upstream export;
+- branch upstream export;
+- PR ingestion and branch export review.
+
+Those all fit naturally as Work Units as long as WorkUnit is not job-only.
+
+Epicless job bundles also need first-class coverage. Today `JobBundleDispatcher`
+uses `MergeTrain`/`MergeTrainMember` with `epic_id: nil`, which is a semantic
+mismatch. Add `job_bundle` as a WorkDefinition/WorkUnit kind even if it reuses
+`Workflows::MergeTrain` internally during migration.
+
+Important compatibility rules:
+
+- WorkIntent/WorkUnit must support repository-aware source and target ref
+  endpoints, not only plain strings. A future-proof shape is:
+
+  ```text
+  source_repository_id
+  source_remote_kind
+  source_ref
+  target_repository_id
+  target_remote_kind
+  target_ref
+  ```
+
+  Plain `source_ref` / `target_ref` strings are acceptable only as a temporary
+  local-repository shortcut.
+- Landing must not mean "merge into repository default branch"; it means
+  "execute this unit's selected policy against its resolved target ref."
+- Branch, grader phase, approval behavior, and transport must come from policy
+  objects, not from hardcoded workflow kinds.
+- Jobs should not gain many new delivery states; delivery posture should be
+  derived from concrete delivery facts plus active Work Units.
+
+Future delivery actions can then look like:
+
+```text
+WorkUnit(kind: promotion, scope: repository/track, source_ref: develop, target_ref: main)
+WorkUnit(kind: hotfix_sync, scope: repository/track, source_ref: main, target_ref: develop)
+WorkUnit(kind: upstream_export, scope: job, source_ref: syrus/job-123, target_ref: upstream/main)
+WorkUnit(kind: merge_train, scope: epic)
+```
+
+## Rollout Gates
+
+This migration is deep enough to need feature gates, but not one flag per
+workflow type. Use a small number of subsystem gates, and make each gate an
+ownership handoff: for any migrated path, exactly one implementation is allowed
+to enqueue, repair, pause, cancel, or reconcile that work.
+
+The proposed gates:
+
+1. `work_units_shadow_mode`
+   - dual-writes WorkIntent/WorkUnit data and logs divergences;
+   - does not own scheduling or repair decisions;
+   - safe to keep on early because existing Job/Workflow behavior remains the
+     source of truth.
+2. `work_units_scheduler`
+   - enables WorkUnit ownership for lower-risk single-Job runtime paths and
+     continuations: retry, resume, manual pause/unpause, admission-control
+     pause, and provider-availability pause;
+   - initial implementation can graduate behind this gate later, after the
+     continuation paths prove the ownership model;
+   - legacy code for those paths remains present but is no longer the owner
+     while the flag is on.
+3. `work_units_landing`
+   - enables WorkUnit ownership for landing queue, auto-merge, merge trains,
+     stack rebases, landing locks, and Epic-wide landing ownership;
+   - separate from the basic scheduler gate because the blast radius is much
+     larger.
+4. `work_units_reconciler`
+   - lets reconciler invariant modules act from WorkIntent/WorkUnit state for
+     paths whose ownership has graduated;
+   - legacy classifications remain active for unmigrated paths;
+   - should be enabled only after the relevant scheduler/landing paths have
+     been observed in production.
+
+Do not gate the schema, models, definitions, or observational UI. Do not make
+dual-write optional once it is stable; optional dual-write would create partial
+production data and make debugging worse.
+
+Because flags should be reversible, deletion of old behavior must lag behind
+path migration. The migration shape is:
+
+1. extract the old behavior behind a path-owned adapter;
+2. add the WorkUnit-backed implementation behind the same interface;
+3. make the gate choose exactly one implementation for that path;
+4. after a bake period, permanently enable the WorkUnit implementation and
+   delete the legacy adapter for that path.
+
+So "delete as we go" means "delete after each path graduates", not "delete the
+legacy behavior the moment the new code is introduced." Until graduation, direct
+legacy calls should still be removed or isolated so the old and new schedulers
+cannot both act on the same work.
+
+Maintain a migration matrix for every path before enabling behavior:
+
+```text
+path | legacy owner | WorkUnit owner | adapter | gate | forbidden direct calls | graduation checks
+```
+
+Examples of paths:
+
+- retry/resume failed step;
+- auto-retry transient failure;
+- manual pause/unpause;
+- provider/admission pause;
+- initial implementation;
+- PR/chat feedback;
+- CI failure repair;
+- single-job landing;
+- merge train;
+- stack rebase;
+- speculative landing validation;
+- main branch repair/main grader.
+
+Each adapter must have tests proving the flag selects exactly one owner. For a
+flagged-on path, direct legacy calls should be unreachable through the production
+entry points; for a flagged-off path, WorkUnit code may observe but must not act.
+
+## Incremental Plan
+
+### Phase 1: WorkOwnership And WorkDefinition Facades
+
+Create single ownership and definition abstractions before making tables
+authoritative.
+
+Initial implementation can read the current Workflow/Job/Epic data. The point is
+to stop spreading active-work inference across the app.
+
+Move these callers first:
+
+- dashboard apparent state;
+- landing queue;
+- CI failure dispatch;
+- feedback dispatch;
+- retry eligibility;
+- StepDispatcher start guards;
+- WorkEngine reconciler;
+- Epic-wide workflow lock checks.
+
+Add invariant specs:
+
+- merge-train members are owned by the active train even if the Workflow belongs
+  to one member Job;
+- CI failure does not start for a Job owned by active landing;
+- feedback supersession is represented as typed preemption, not ordinary
+  failure;
+- manually paused work does not schedule the next step.
+
+Also add WorkDefinition classes mapped to existing `Workflow::TriggerKind` values
+and validation specs, but do not move step assembly out of `Workflows::*`.
+
+### Phase 2: Workflow Launcher Funnel
+
+Introduce `WorkUnits::Launcher.create_and_start!` and migrate direct workflow
+creation call sites through it one by one.
+
+The launcher funnel can be broad before behavior changes, but ownership should
+not migrate in this order. First route workflow creation through one place so
+shadow tables and diagnostics are reliable.
+
+Initial launcher coverage should include:
+
+- merge train dispatch;
+- job bundle dispatch;
+- ordinary landing;
+- feedback dispatch;
+- CI failure dispatch;
+- retry/rebase dispatch.
+
+Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
+outside the launcher, workflow tests, and factories.
+
+Before shadow tables are trusted, every production workflow creation path must
+either go through the launcher or be explicitly marked legacy in diagnostics.
+Behavioral ownership should then graduate in the rollout-gate order:
+continuations first, initial/single-Job scheduling next, landing/merge trains
+after that.
+
+### Phase 3: Shadow Intent And Unit Tables
+
+Add `work_intents`, `work_units`, and `work_unit_members`.
+
+Populate them from the launcher, not from scattered call sites. Backfill active
+workflows. Keep existing Job/Workflow behavior as the source of truth during this
+phase.
+
+For every requested piece of work, write:
+
+- WorkIntent kind;
+- scope;
+- repository;
+- source/actor;
+- idempotency key;
+- wait reason, if domain eligibility blocks it.
+
+For every new concrete attempt, write:
+
+- WorkUnit kind;
+- WorkIntent link;
+- scope;
+- member Jobs;
+- repository;
+- selected track/ref metadata if known;
+- workflow link.
+
+Start with merge trains and job bundles because they are the clearest mismatch:
+one Workflow attached to one Job but semantically owning multiple Jobs.
+
+### Phase 4: Scheduler Reads Intents And Units
+
+Make scheduling and UI read WorkIntents and WorkUnits first.
+
+Use WorkIntents for:
+
+- requested work detection;
+- dependency/approval/Epic-readiness waits;
+- deduplication and supersession;
+- "should this work still happen?" decisions.
+
+Use WorkUnits for:
+
+- active work detection;
+- blocked/paused display;
+- landing ownership;
+- Epic-wide locking;
+- job "In progress" / "Paused" / "Landing queue" apparent states;
+- retry and preemption eligibility.
+
+`Job#state = landing` can remain as a denormalized projection during migration,
+but should no longer be the source of truth for whether a Job has a landing
+intent or active landing unit.
+
+For each migrated path, the API must guarantee every Workflow appears exactly
+once in job detail:
+
+- under a WorkUnit if it has membership;
+- under "Legacy workflows" otherwise;
+- cross-job WorkUnit membership can show a Workflow attached to another Job;
+- raw `job.workflows` remains available for debugging but not for active-state
+  derivation.
+
+### Phase 5: Reconciler Simplification
+
+Rewrite reconciler checks around Intent and Unit invariants:
+
+- waiting Intent has a valid typed reason and wakeup path;
+- requested Intent whose gates pass has a Unit or is eligible to create one;
+- Intent with non-terminal Units points at active/recent Units;
+- queued WorkUnit has a runnable next attempt or is blocked with a reason;
+- running WorkUnit has a live lease or active descendant;
+- terminal Workflow has no active descendants;
+- terminal WorkUnit has released locks;
+- blocked WorkUnit has a valid retry/wakeup path.
+
+Delete obsolete classifications once the new invariants cover them.
+
+Initial deletion/replacement targets:
+
+- `landing_job_without_active_workflow` for WorkUnit-backed landing members;
+- Epic-wide active workflow conflict repairs once WorkUnit locks cover them;
+- approved Job start-blocked detection once Intent/Unit blocked reasons are
+  authoritative for that path;
+- queued Jobs cancelled by Epic workflow conflict once hard preemption is
+  represented on the WorkUnit;
+- ad hoc active-work checks in PR/CI pollers once WorkOwnership covers the path.
+
+Every migrated path should delete or disable at least one matching inference or
+reconciler special case. Otherwise this becomes additive complexity.
+Here, "disable" means unreachable behind the same path adapter with flag tests;
+physical deletion waits until rollback is no longer needed.
+
+Concrete Phase 5 graduation targets:
+
+- after WorkUnit-backed landing, remove/disable legacy
+  `landing_job_without_active_workflow`;
+- after WorkUnit-backed merge trains, remove/disable merge-train sibling
+  ownership inference from Job state;
+- after WorkUnit-backed pause/admission, remove/disable approved-Job
+  start-blocked inference for those reasons;
+- after WorkUnit-backed CI failure dispatch, remove/disable CI repair checks
+  that infer active landing from unrelated Workflow rows.
+
+### Phase 6: Work Definition Policies
+
+Have each Work definition declare:
+
+```ruby
+scope: :job | :epic | :repository | :delivery_track | :ref_movement
+locks: [...]
+intent_gates: [...]
+unit_gates: [...]
+preemption_policy: ...
+retry_policy: :resume_step | :new_workflow | :rebuild_unit | :operator
+blocks_ci_failure: true/false
+publication_steps: [...]
+```
+
+Dispatcher, retry, and reconciler logic should read these policies instead of
+branching on trigger-kind names.
+
+### Phase 7: Callback Strangler Completion
+
+Move Workflow/Step/Run callback propagation behind orchestration services and
+make WorkUnit the runtime owner for migrated paths.
+
+Do not let both Workflow callbacks and WorkUnit scheduler independently mutate
+Job lifecycle/runtime projections.
+
+### Phase 8: Step/Run Simplification
+
+After WorkUnits are stable, simplify the Step/Run relationship:
+
+- keep Step as plan node;
+- make Run/StepAttempt the execution attempt;
+- derive visible Step state from latest attempt or update it only in one place.
+
+This should remove many terminal-descendant and active-run drift repairs.
+
+## Success Criteria
+
+- The UI can explain why a Job is not progressing from one Intent or WorkUnit
+  record.
+- The reconciler no longer needs special logic for merge-train sibling ownership.
+- Manual pause, provider pause, admission pause, and preemption share one
+  blocked-state model.
+- A failed Job with active repair work is either impossible or explicitly shown
+  as "failed, repair running" from WorkUnit data.
+- Delivery tracks can add promotion/hotfix/upstream WorkUnit kinds without
+  expanding Job state.
+- Reconciler classifications decrease over time rather than increasing with each
+  new workflow type.
