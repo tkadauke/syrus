@@ -262,6 +262,8 @@
     "view_on_github": "Auf GitHub ansehen",
     "state_open": "Offen",
     "state_closed": "Geschlossen",
+    "refresh": "Aktualisieren",
+    "refreshing": "Wird aktualisiert…",
     "close_selected": "Ausgewählte schließen",
     "delegate_selected": "Ausgewählte delegieren",
     "col_issue": "GitHub-Issue",

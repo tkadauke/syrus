@@ -23,7 +23,7 @@ type IssueCommand =
   | { kind: "bulk"; bulkAction: "close" | "delegate"; issueNumbers: number[] }
   | { kind: "comment"; issueNumber: number; commentBody: string }
 
-export function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayload; prefix: string }) {
+export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: { isRefreshing: boolean; onRefresh: () => void; payload: RepositoryIssuesPayload; prefix: string }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
@@ -95,9 +95,19 @@ export function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssue
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "GitHub issue command failed.")}</PanelMessage> : null}
 
       <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-1">
-          <Link className={stateFilterClass(payload.state === "open")} to={withRoutePrefix(payload.state_paths.open, prefix)}>{t('repository.state_open')}</Link>
-          <Link className={stateFilterClass(payload.state === "closed")} to={withRoutePrefix(payload.state_paths.closed, prefix)}>{t('repository.state_closed')}</Link>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <Link className={stateFilterClass(payload.state === "open")} to={withRoutePrefix(payload.state_paths.open, prefix)}>{t('repository.state_open')}</Link>
+            <Link className={stateFilterClass(payload.state === "closed")} to={withRoutePrefix(payload.state_paths.closed, prefix)}>{t('repository.state_closed')}</Link>
+          </div>
+          <button
+            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
+            disabled={isRefreshing}
+            onClick={onRefresh}
+            type="button"
+          >
+            {isRefreshing ? t('repository.refreshing') : t('repository.refresh')}
+          </button>
         </div>
         {payload.issues.length > 0 ? (
           <div className="flex flex-wrap justify-end gap-2">
