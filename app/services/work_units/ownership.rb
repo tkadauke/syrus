@@ -22,6 +22,14 @@ module WorkUnits
       active_unit_for_lock_key(lock_key, kinds: kinds).present?
     end
 
+    def self.active_ci_failure_blocking_unit_for_job(job)
+      active_units_for_job(job).find { |unit| unit.definition.blocks_ci_failure? }
+    end
+
+    def self.ci_failure_blocked_for_job?(job)
+      active_ci_failure_blocking_unit_for_job(job).present?
+    end
+
     def self.active_unit_for_lock_key(lock_key, kinds: nil)
       key = lock_key.to_s
       return nil if key.blank?
@@ -56,17 +64,32 @@ module WorkUnits
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?
 
+      active_unit_members_for_job_ids(ids, kinds: kinds)
+        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .each_with_object({}) do |member, result|
+          result[member.job_id] ||= member.work_unit
+        end
+    end
+
+    def self.active_units_for_job(job, kinds: nil)
+      return [] unless job
+
+      active_unit_members_for_job_ids([ job.id ], kinds: kinds)
+        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .map(&:work_unit)
+        .uniq
+    end
+
+    def self.active_unit_members_for_job_ids(job_ids, kinds: nil)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return WorkUnitMember.none if ids.empty?
+
       scope = WorkUnitMember
         .joins(:work_unit)
         .includes(work_unit: :workflow)
         .where(job_id: ids, work_units: { state: ACTIVE_STATES })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
-
       scope
-        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
-        .each_with_object({}) do |member, result|
-          result[member.job_id] ||= member.work_unit
-        end
     end
 
     def self.active_units_for_epic(epic, kinds: nil)

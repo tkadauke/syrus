@@ -1421,6 +1421,12 @@ Move these callers first:
 - WorkEngine reconciler;
 - Epic-wide workflow lock checks.
 
+Completed slices:
+
+- WorkDefinition now exposes `blocks_ci_failure?`, landing/ref-mutating
+  definitions opt into it, and `PollPullRequestJob` suppresses CI repair through
+  WorkUnit ownership before falling back to legacy `Job#landing?`.
+
 Add invariant specs:
 
 - merge-train members are owned by the active train even if the Workflow belongs

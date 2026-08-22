@@ -520,6 +520,11 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def landing_workflow_active?
+    if (unit = WorkUnits::Ownership.active_ci_failure_blocking_unit_for_job(@job))
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while #{unit.kind} work unit ##{unit.id} is active")
+      return true
+    end
+
     return false unless @job.landing?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while landing is active")

@@ -88,6 +88,35 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_for_lock_key?("job:#{job.id}", kinds: "merge_train")).to be false
   end
 
+  it "reports active work units whose definitions block CI repair" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "auto_merge")
+
+    expect(described_class.active_ci_failure_blocking_unit_for_job(job)).to eq(unit)
+    expect(described_class.ci_failure_blocked_for_job?(job)).to be true
+  end
+
+  it "does not treat ordinary job work as a CI repair blocker" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+    attach_work_unit(workflow, member_jobs: [ job ], kind: "retry")
+
+    expect(described_class.active_ci_failure_blocking_unit_for_job(job)).to be_nil
+    expect(described_class.ci_failure_blocked_for_job?(job)).to be false
+  end
+
+  it "blocks CI repair for epic-wide units on member jobs" do
+    epic = Factories.epic
+    first = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 101)
+    second = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 102)
+    workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ first, second ], kind: "merge_train")
+
+    expect(described_class.active_ci_failure_blocking_unit_for_job(second)).to eq(unit)
+    expect(described_class.ci_failure_blocked_for_job?(second)).to be true
+  end
+
   it "ignores released locks and terminal units" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")

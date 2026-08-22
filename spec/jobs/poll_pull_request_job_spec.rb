@@ -877,6 +877,37 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_ci_handled_sha).to be_nil
     end
 
+    it "does not create a ci_failure workflow while a CI-blocking WorkUnit owns the job" do
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+      intent = WorkIntent.create!(
+        kind: "auto_merge",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "auto_merge",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+      expect(job.reload.last_ci_handled_sha).to be_nil
+    end
+
     it "respects the cap (3 ci_failure workflows in the last 24h)" do
       3.times { Workflow.create!(job: job, trigger_kind: "ci_failure", state: "succeeded", created_at: 30.minutes.ago) }
       stub_check_runs(sha, [

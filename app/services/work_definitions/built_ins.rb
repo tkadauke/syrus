@@ -1,6 +1,10 @@
 module WorkDefinitions
   BuiltIns = Module.new
 
+  module BlocksCiFailure
+    def blocks_ci_failure? = true
+  end
+
   class Initial < Base
     self.kind = "initial"
     self.workflow_trigger_kind = "initial"
@@ -30,6 +34,8 @@ module WorkDefinitions
   end
 
   class Rebase < Base
+    include BlocksCiFailure
+
     self.kind = "rebase"
     self.workflow_trigger_kind = "rebase"
     self.runtime_role = "first_class"
@@ -37,6 +43,8 @@ module WorkDefinitions
   end
 
   class StackRebase < Base
+    include BlocksCiFailure
+
     self.kind = "stack_rebase"
     self.workflow_trigger_kind = "stack_rebase"
     self.runtime_role = "first_class"
@@ -44,6 +52,8 @@ module WorkDefinitions
   end
 
   class AutoMerge < Base
+    include BlocksCiFailure
+
     self.kind = "auto_merge"
     self.workflow_trigger_kind = "auto_merge"
     self.runtime_role = "first_class"
@@ -51,6 +61,8 @@ module WorkDefinitions
   end
 
   class LandingValidation < Base
+    include BlocksCiFailure
+
     self.kind = "landing_validation"
     self.workflow_trigger_kind = "landing_validation"
     self.runtime_role = "child"
@@ -59,6 +71,8 @@ module WorkDefinitions
   end
 
   class ExternalPrMerge < Base
+    include BlocksCiFailure
+
     self.kind = "external_pr_merge"
     self.workflow_trigger_kind = "external_pr_merge"
     self.runtime_role = "first_class"
@@ -66,6 +80,8 @@ module WorkDefinitions
   end
 
   class MergeTrain < Base
+    include BlocksCiFailure
+
     self.kind = "merge_train"
     self.workflow_trigger_kind = "merge_train"
     self.runtime_role = "first_class"
@@ -83,6 +99,8 @@ module WorkDefinitions
   end
 
   class MergeTrainValidation < Base
+    include BlocksCiFailure
+
     self.kind = "merge_train_validation"
     self.workflow_trigger_kind = "merge_train_validation"
     self.runtime_role = "child"
