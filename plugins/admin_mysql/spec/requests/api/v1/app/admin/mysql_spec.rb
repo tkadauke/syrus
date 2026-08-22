@@ -34,5 +34,4 @@ RSpec.describe "API: /api/v1/app/admin/mysql", type: :request do
     page_ids = parse_body.fetch("pages").map { |page| page.fetch("id") }
     expect(page_ids).not_to include("admin_mysql.mysql")
   end
-
 end

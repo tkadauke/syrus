@@ -106,7 +106,7 @@ module AgentProviders
       ClaudeUsageProbe.refresh_for(user: user) if user.claude_oauth_token.present?
     end
 
-    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil, on_session_id: ->(_) {})
+    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, disallowed_tools: nil, on_session_id: ->(_) { })
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
