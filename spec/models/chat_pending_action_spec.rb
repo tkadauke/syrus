@@ -635,6 +635,31 @@ RSpec.describe ChatPendingAction do
     expect(reenqueue_action.reload.result).to eq(retry_run)
   end
 
+  it "starts queued workflows without runs through confirmed re-enqueue repair actions" do
+    admin = Factories.user(admin: true)
+    repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: repository)
+    job = Factories.job_record(user: admin, repository: repository, state: "queued")
+    workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider)
+    workflow.steps.create!(kind: "implement", position: 0, iteration: 1)
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
+
+    reenqueue_action = admin_session.pending_actions.create!(
+      action: "reenqueue_work",
+      payload: { "job_id" => job.id, "workflow_id" => workflow.id },
+      reason: "Workflow is queued but never received its first Run.",
+      requested_by: "agent"
+    )
+
+    expect {
+      reenqueue_action.confirm!
+    }.to have_enqueued_job(RunJob)
+    result = reenqueue_action.reload.result
+    expect(result).to be_a(Run)
+    expect(result.workflow).to eq(workflow)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
+  end
+
   it "rejects mismatched repository and chat session" do
     other_repo = Factories.repository(user: user)
     action = described_class.new(

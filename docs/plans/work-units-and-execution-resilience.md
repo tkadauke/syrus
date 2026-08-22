@@ -1514,6 +1514,9 @@ Completed slices:
 - Pending-feedback retry redispatch now starts retained `pr_comment` and
   `external_pr_feedback` workflows through `WorkUnits::Launcher.start!`, while
   keeping freeform chat-feedback retries on the existing submission service.
+- Operator `reenqueue_work` repair now starts queued Workflows that are missing
+  their first Run through `WorkUnits::Launcher.start!`; existing queued Run
+  re-enqueue behavior remains unchanged.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

@@ -50,7 +50,7 @@ module PendingActions
       first_step = workflow.first_step
       raise ArgumentError, "#{workflow.slug} has no first Step." unless first_step
 
-      StepDispatcher.start_workflow(workflow).tap do |started_run|
+      WorkUnits::Launcher.start!(workflow).run.tap do |started_run|
         raise ArgumentError, "#{workflow.slug} remained blocked and did not start." unless started_run
       end
     end
