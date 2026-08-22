@@ -473,6 +473,14 @@ export type ChatWalkthroughMedia = {
   created_at: string
 }
 
+export type ChatPreviewPanel = {
+  id: number
+  title: string
+  file_count: number
+  url: string
+  app_close_path: string
+}
+
 export type CodingFilesPayload = {
   files: string[]
   checkout_branch: string | null
@@ -519,6 +527,7 @@ export type ChatPayload = {
   queued_messages: ChatQueuedMessage[]
   scratchpad_items: ChatScratchpadItem[]
   video_walkthroughs: ChatWalkthroughMedia[]
+  preview_panels: ChatPreviewPanel[]
   attachment_groups?: {
     repositories: ChatAttachmentRow[]
     epics: ChatAttachmentRow[]
@@ -954,6 +963,10 @@ export function attachChatRepository(path: string, slug: string) {
 }
 
 export function deleteChatAttachment(path: string) {
+  return deleteJson<ChatPayload>(path)
+}
+
+export function closeChatPreviewPanel(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
