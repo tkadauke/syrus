@@ -46,10 +46,13 @@ class SyrusYml
   # target set and its self-gate (empty slice of the diff → no-op).
   #
   # `Config#formatters` is tri-state: `nil` when the `formatters:` key is
-  # absent (Steps::Format falls back to plugin-provided `:autofix_command`
-  # defaults), `false` when explicitly disabled (`formatters: false`/`off` —
-  # no formatting at all, including plugin defaults), or an `Array` of
-  # `FormatterStep` when explicitly configured.
+  # absent (Steps::Format runs no formatting at all — the safe default),
+  # `false` when explicitly disabled (`formatters: false`/`off` — no
+  # formatting at all, including plugin defaults), or an `Array` of
+  # `FormatterStep` when explicitly configured — an empty `Array`
+  # (`formatters: []`) is the opt-in signal for Steps::Format to fall back
+  # to plugin-provided `:autofix_command` defaults, while a populated
+  # `Array` runs those explicit commands instead.
   FormatterStep = Data.define(:command, :files)
   # Deterministic codegen: derives checked-in `generates` outputs from `sources`
   # inputs. `codegen_ignore` marks an output committed for human reasons but

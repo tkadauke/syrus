@@ -125,15 +125,18 @@ Agentic. Operator-triggered free-form step; prompt is supplied at dispatch time.
 Non-agentic. Runs `.syrus.yml`'s `formatters:` commands, each scoped to its
 own `files:` glob intersected with this iteration's diff (`git diff
 --name-only <base>...HEAD`) — a formatter whose glob matches nothing in the
-diff is skipped. With no `formatters:` key at all, falls back to the
-deterministic formatter/linter-autocorrect commands language plugins
-register under the `:autofix_command` extension point (Ruby's `bundle exec
-rubocop -a`, JavaScript's `npx eslint --fix .`/`npx prettier --write .`,
-Go's `gofmt -w .`, Python's `ruff format .`/`black .`), each gated on the
-plugin detecting its own config signal in the repo (e.g. Ruby only offers
-`rubocop -a` when `.rubocop.yml` is present) and on the diff being
-non-empty. `formatters: false` (or `off`) explicitly disables formatting
-altogether, including the plugin defaults. Commits any resulting changes. A
+diff is skipped. With no `formatters:` key at all, no formatting runs at
+all — the safe default, since a repo that never configured formatting
+should never receive unsolicited autocorrect commits. An explicit
+`formatters: []` (a blank array) opts into the deterministic
+formatter/linter-autocorrect commands language plugins register under the
+`:autofix_command` extension point (Ruby's `bundle exec rubocop -a`,
+JavaScript's `npx eslint --fix .`/`npx prettier --write .`, Go's `gofmt -w
+.`, Python's `ruff format .`/`black .`), each gated on the plugin detecting
+its own config signal in the repo (e.g. Ruby only offers `rubocop -a` when
+`.rubocop.yml` is present) and on the diff being non-empty. `formatters:
+false` (or `off`) explicitly disables formatting altogether, including the
+plugin defaults. Commits any resulting changes. A
 command failing is always soft — logged as a warning and skipped, the same
 non-fatal posture `prepare`'s auto-detected commands use — since a broken
 formatter must never block the workflow the way an explicit `.syrus.yml`

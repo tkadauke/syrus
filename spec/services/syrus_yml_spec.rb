@@ -695,7 +695,7 @@ RSpec.describe SyrusYml do
       expect(config.formatters.last.files).to eq([ "**/*.ts", "**/*.tsx" ])
     end
 
-    it "defaults to nil when absent (Steps::Format falls back to plugin defaults)" do
+    it "defaults to nil when absent (Steps::Format runs no formatting at all)" do
       expect(parse("grade: []").formatters).to be_nil
     end
 
@@ -716,7 +716,7 @@ RSpec.describe SyrusYml do
       expect(parse("formatters: off").formatters).to be(false)
     end
 
-    it "treats an explicit empty array as configured-but-empty, not a fallback trigger" do
+    it "parses an explicit empty array as [], distinct from the nil used for an absent key" do
       expect(parse("formatters: []").formatters).to eq([])
     end
   end

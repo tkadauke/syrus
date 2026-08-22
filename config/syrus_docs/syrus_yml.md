@@ -214,9 +214,9 @@ formatters:
 
 Each entry's `command` runs only when this iteration's diff (`git diff --name-only <base>...HEAD`) touches at least one file matching its `files` glob (same `File::FNM_DOTMATCH` semantics as a grader's `when_files_changed`); an entry whose glob matches nothing is skipped. `command` and `files` are both required.
 
-Omitting `formatters:` entirely falls back to the `:autofix_command` plugin providers bundled with Syrus's language plugins (RuboCop, ESLint/Prettier, gofmt, ruff/black — see [`plugins.md`](plugins.md#autofix_command)), each gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
+Omitting `formatters:` entirely runs no formatting at all — this is the safe default. To opt into Syrus's plugin-provided defaults (RuboCop, ESLint/Prettier, gofmt, ruff/black — see [`plugins.md`](plugins.md#autofix_command)), set `formatters: []` (an explicit blank array): each applicable plugin default then runs, gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
 
-Set `formatters: false` (or `off`) to disable formatting altogether for this repository, including the plugin defaults.
+Set `formatters: false` (or `off`) to disable formatting altogether for this repository, including the plugin defaults. This is mostly redundant with omitting the key, but it lets an operator record the choice explicitly and is future-proofed against any later change to what "absent" means.
 
 ## generated
 

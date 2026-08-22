@@ -137,10 +137,13 @@ Key steps:
   `ci_failure`, `skill`, or any landing/maintenance workflow) — they rerun on
   every repair iteration, not just once. Both are diff-scoped: a command only
   runs when `git diff --name-only <base>...HEAD` touches the files/sources it
-  cares about. `format` runs `.syrus.yml`'s `formatters:` array when present;
-  with no `formatters:` key it falls back to the `:autofix_command` plugin
-  providers (RuboCop, ESLint/Prettier, gofmt, ruff/black); `formatters: false`
-  (or `off`) disables both. `generate` runs `.syrus.yml`'s `generated:` array
+  cares about. `format` runs `.syrus.yml`'s `formatters:` array when it is a
+  non-empty array (explicit commands); with no `formatters:` key at all, no
+  formatting runs — the safe default, since a repo that never opted in
+  should never receive unsolicited autocorrect commits. `formatters: []` (an
+  explicit blank array) is the opt-in signal to fall back to the
+  `:autofix_command` plugin providers (RuboCop, ESLint/Prettier, gofmt,
+  ruff/black) instead; `formatters: false` (or `off`) disables both. `generate` runs `.syrus.yml`'s `generated:` array
   the same diff-scoped way (no plugin-provided fallback — codegen is too
   repo-specific to guess), skipping `codegen_ignore` entries; `generated:
   false`/`off` disables it. Both commit whatever they change and never fail
