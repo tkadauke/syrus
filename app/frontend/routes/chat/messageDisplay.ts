@@ -3,6 +3,7 @@
 // Pure predicates and formatters over the render items: image-attachment data
 // URLs, gathering image attachments, low-priority/proposal-outcome system
 // message checks, agent-active detection, counting incoming visible messages,
+// mapping a system message to the user text that should be resent on retry,
 // and the relative message timestamp. Read only the chat API types plus the
 // shared contentRecord util and renderMessage builder.
 import type { ChatMessageItem, ChatPayload, ChatRenderItem } from "../../api/chats"
@@ -39,6 +40,23 @@ export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { t
 
 export function isAgentActive(payload: ChatPayload) {
   return payload.agent_busy || payload.turn_in_flight || payload.switching_provider
+}
+
+// The text a "Retry now" button under an error system message should resend:
+// the nearest preceding user message, so retrying replays the same turn that
+// failed instead of requiring the operator to retype it.
+export function retryTextByMessageId(messages: ChatMessageItem[]) {
+  const map = new Map<number, string>()
+  let lastUserText: string | null = null
+  for (const message of messages) {
+    if (message.role === "user") {
+      lastUserText = message.text
+    } else if (message.role === "system" && lastUserText) {
+      map.set(message.id, lastUserText)
+    }
+  }
+
+  return map
 }
 
 export function countIncomingVisibleMessages(messages: ChatMessageItem[], previousMaxMessageId: number, showSystemMessages: boolean) {

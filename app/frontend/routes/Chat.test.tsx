@@ -485,6 +485,99 @@ describe("simple mode chat transcript", () => {
   })
 })
 
+describe("error system message retry", () => {
+  it("resends the user message that triggered a failed turn when Retry now is clicked", async () => {
+    const failedTurnPayload = chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 20,
+          role: "user",
+          content: { text: "does syrus have that feature?" },
+          text: "does syrus have that feature?",
+          bookmarkable: true
+        },
+        {
+          type: "message",
+          id: 21,
+          role: "system",
+          content: { text: "Claude authentication failed. Refresh the Claude OAuth token in Credentials, then send the message again." },
+          text: "Claude authentication failed. Refresh the Claude OAuth token in Credentials, then send the message again.",
+          bookmarkable: false
+        }
+      ]
+    })
+    const retriedPayload = chatPayload({
+      messages: [
+        ...failedTurnPayload.messages,
+        {
+          type: "message",
+          id: 22,
+          role: "assistant",
+          content: { text: "Yes, here's how." },
+          text: "Yes, here's how.",
+          bookmarkable: true
+        }
+      ]
+    })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(retriedPayload))
+      }
+
+      return Promise.resolve(jsonResponse(failedTurnPayload))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retry now" }))
+
+    await screen.findByText("Yes, here's how.")
+
+    const retryCall = fetchMock.mock.calls.find(([reqInput, reqInit]) => String(reqInput) === "/api/v1/app/chats/8/message" && (reqInit as RequestInit | undefined)?.method === "POST")
+    expect(retryCall).toBeDefined()
+    expect(JSON.parse(String((retryCall![1] as RequestInit).body))).toEqual({ chat_message: { text: "does syrus have that feature?" } })
+  })
+
+  it("does not show Retry now under a non-error system message", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 20,
+          role: "user",
+          content: { text: "hello" },
+          text: "hello",
+          bookmarkable: true
+        },
+        {
+          type: "message",
+          id: 21,
+          role: "system",
+          content: {
+            text: "MCP unavailable",
+            mcp_health: [
+              { name: "syrus-chat-sidecar", status: "unavailable", available_tools: [], pending_tools: [], unavailable_tools: ["submit_summary"] }
+            ]
+          },
+          text: "MCP unavailable",
+          bookmarkable: false
+        }
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByTestId("system-message-summary")).toHaveTextContent(/MCP unavailable/)
+    expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
+  })
+})
+
 describe("chat compose drafts", () => {
   beforeEach(() => {
     window.localStorage.clear()
