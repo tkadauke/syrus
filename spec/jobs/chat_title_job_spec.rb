@@ -32,6 +32,7 @@ RSpec.describe ChatTitleJob do
 
     expect(chat.reload.title).to eq("Habit Tracker")
     expect(chat).not_to be_title_pending
+    expect(chat.title_auto_fallback).to eq(false)
     expect(chat.chat_provider).to eq("claude")
   end
 
@@ -71,5 +72,30 @@ RSpec.describe ChatTitleJob do
     described_class.perform_now(chat.id, message.id)
 
     expect(chat.reload.title).to eq("widgets")
+    expect(chat.title_auto_fallback).to eq(true)
+  end
+
+  it "retries generation when the stored title is a previous failed-generation fallback" do
+    chat.update!(title: "widgets", title_auto_fallback: true)
+    ChatTitleJob.agent_runner = ->(**_) { result('{"title":"Habit Tracker"}') }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(chat.reload.title).to eq("Habit Tracker")
+    expect(chat.title_auto_fallback).to eq(false)
+  end
+
+  it "does not overwrite a real title even if generation would succeed again" do
+    chat.update!(title: "Existing title", title_auto_fallback: false)
+    called = false
+    ChatTitleJob.agent_runner = ->(**_) {
+      called = true
+      result('{"title":"Replacement"}')
+    }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(chat.reload.title).to eq("Existing title")
+    expect(called).to eq(false)
   end
 end

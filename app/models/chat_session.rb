@@ -164,6 +164,13 @@ class ChatSession < ApplicationRecord
     title.blank? && ChatMessage.where(chat_session_id: id, role: "user").exists?
   end
 
+  # An explicit rename (user-initiated or via the rename_chat MCP tool)
+  # always wins over an earlier failed-generation fallback, so clear the
+  # flag that would otherwise make ChatTitleJob eligible to overwrite it.
+  def rename!(new_title)
+    update!(title: new_title, title_auto_fallback: false)
+  end
+
   def supervisor_chat?
     system_kind == "supervisor"
   end
