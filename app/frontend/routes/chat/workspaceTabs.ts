@@ -72,12 +72,12 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels)
 }
 
-export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false): WorkspaceTab[] {
+export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false, hasPins = false): WorkspaceTab[] {
   return [
     "whiteboard",
     ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
     ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
-    "pinned",
+    ...(hasPins ? (["pinned"] as WorkspaceTab[]) : []),
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),
     ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : []),

@@ -2627,6 +2627,47 @@ describe("chat jobs tab", () => {
   })
 })
 
+describe("chat pinned tab", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    mockDesktopViewport()
+  })
+
+  function mockPinsFetch(pins: Array<Record<string, unknown>>, payload = chatPayload()) {
+    return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/pins") {
+        return Promise.resolve(jsonResponse({ pins }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+  }
+
+  it("does not show the Pinned tab when there are no pinned messages", async () => {
+    mockPinsFetch([])
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Pinned" })).not.toBeInTheDocument()
+    })
+  })
+
+  it("shows the Pinned tab when there is at least one pinned message", async () => {
+    mockPinsFetch([{ id: 1, chat_message_id: 9, text: "Discuss aqueducts.", role: "assistant" }])
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Pinned" })).toBeInTheDocument()
+  })
+})
+
 describe("chat attachment detach confirmation", () => {
   beforeEach(() => {
     window.localStorage.clear()
