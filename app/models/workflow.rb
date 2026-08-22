@@ -77,6 +77,7 @@ class Workflow < ApplicationRecord
     event :start do
       transitions from: :queued, to: :running, after: -> {
         self.started_at ||= Time.current
+        sync_work_unit_running!
         propagate_start_to_job!
       }
     end
@@ -92,6 +93,7 @@ class Workflow < ApplicationRecord
     event :succeed do
       transitions from: :running, to: :succeeded, after: -> {
         self.finished_at = Time.current
+        sync_work_unit_terminal!("succeeded")
         cleanup_workspace!
         propagate_succeed_to_job!
         cancel_superseded_retry_workflows!
@@ -112,6 +114,7 @@ class Workflow < ApplicationRecord
     event :fail do
       transitions from: [ :queued, :running ], to: :failed, after: -> {
         self.finished_at = Time.current
+        sync_work_unit_terminal!("failed")
         cancel_orphan_active_runs!
         propagate_fail_to_job!
         dispatch_hook(:after_fail)
@@ -130,6 +133,7 @@ class Workflow < ApplicationRecord
     event :cancel do
       transitions from: [ :queued, :running ], to: :cancelled, after: -> {
         self.finished_at = Time.current
+        sync_work_unit_terminal!("cancelled")
         cancel_active_descendants!
         propagate_cancel_to_job!
         cleanup_workspace!
@@ -146,6 +150,7 @@ class Workflow < ApplicationRecord
       transitions from: :failed, to: :running, guard: :latest_for_job?,
         after: -> {
           self.finished_at = nil
+          sync_work_unit_running!
           propagate_reopen_to_job!
         }
     end
@@ -275,6 +280,29 @@ class Workflow < ApplicationRecord
       job.start_running!
       job.save!
     end
+  end
+
+  def sync_work_unit_running!
+    return unless work_unit
+
+    work_unit.update!(
+      state: "running",
+      started_at: started_at || Time.current,
+      finished_at: nil,
+      blocked_reason: nil,
+      blocked_until: nil
+    )
+  end
+
+  def sync_work_unit_terminal!(state)
+    return unless work_unit
+
+    work_unit.update!(
+      state: state,
+      finished_at: finished_at || Time.current,
+      blocked_reason: nil,
+      blocked_until: nil
+    )
   end
 
   # When a workflow fails, drive the Job into :failed so the operator
