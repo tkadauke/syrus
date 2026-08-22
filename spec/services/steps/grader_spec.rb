@@ -210,6 +210,7 @@ RSpec.describe Steps::Grader do
       .with(name: "tests", command: "ruby -e 'exit 1'", workspace_path: @ws_path)
       .and_return(["[rspec failures from JSON output]\n", "MyTest fails\n"])
 
+    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
@@ -227,6 +228,7 @@ RSpec.describe Steps::Grader do
     augmentor = double("augmentor")
     expect(augmentor).not_to receive(:augment_grader_failure)
 
+    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:prepare_detector).and_call_original
