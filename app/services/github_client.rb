@@ -951,7 +951,7 @@ class GithubClient
     begin
       original_installation.invalidate_cached_token!
       refresh_installation_client!(original_installation)
-      return yield
+      yield
     rescue Octokit::Unauthorized, Octokit::NotFound => retry_error
       fallback_to_pat_after_installation_failure!(
         original_installation,
