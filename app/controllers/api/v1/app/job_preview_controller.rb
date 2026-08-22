@@ -69,7 +69,8 @@ module Api
             state: env.state,
             url: env.running? ? env.preview_url(PREVIEW_BASE_DOMAIN) : nil,
             expires_at: env.expires_at&.iso8601,
-            error_message: env.error_message
+            error_message: env.error_message,
+            error_reason: env.error_reason
           }
         end
 

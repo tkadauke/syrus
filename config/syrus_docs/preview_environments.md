@@ -112,6 +112,12 @@ Each preview server child process is recorded as a `SpawnedProcess` with `kind=p
 - TTL reset: each proxied request through `PreviewProxyMiddleware` resets `last_activity_at` and extends `expires_at`.
 - Failure: if the checkout, preview command resolution, port allocation, setup/seed/app start, or health check fails, the environment is marked `failed` with an error message. It must not remain indefinitely in `starting` or `seeding`.
 
+### Fix preview
+
+`PreviewEnvironment#error_reason` is an optional machine-readable tag alongside the free-text `error_message`, set only for failure modes the UI can offer a one-click remediation for. Today the only tagged reason is `not_reachable`: the app passed its local (`127.0.0.1`) health check but the internal proxy host (`INTERNAL_HOST`, e.g. `syrus-preview`) couldn't reach it — almost always because the preview start command binds only to `127.0.0.1`/`localhost` instead of `0.0.0.0`. `PreviewService::NotReachableError` is what `validate_proxy_reachability!` raises for this case; any other failure leaves `error_reason` `nil`.
+
+When a Job's preview is `failed` with `error_reason: "not_reachable"`, the Job detail Preview panel shows a "Fix preview" button next to the error message. Clicking it creates a new `direct` Job on the same repository with a pre-filled prompt describing the diagnosis and asking the agent to fix the repo's preview start command to bind to `0.0.0.0`, then navigates to that Job. No other failure reason currently offers this shortcut — the operator falls back to "View logs" and manual investigation.
+
 ## Production setup
 
 1. Set `SYRUS_PREVIEW_BASE_DOMAIN` to your domain.
