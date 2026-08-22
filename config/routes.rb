@@ -580,6 +580,7 @@ Rails.application.routes.draw do
   get "admin/stuck", to: "spa#show", as: :admin_stuck
   get "admin/processes", to: "spa#show", as: :admin_processes
   get "admin/processes/:id", to: "spa#show", as: :admin_process, constraints: { id: /\d+/ }
+  get "admin/mcp_tool_usage", to: "spa#show", as: :admin_mcp_tool_usage
   get "admin/runs/:run_id/transcript", to: "spa#show", as: :admin_run_transcript, constraints: { run_id: /\d+/ }
   get "admin/users", to: "spa#show", as: :admin_users
   get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
