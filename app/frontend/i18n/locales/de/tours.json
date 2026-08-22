@@ -12,8 +12,12 @@
     "view_switcher_content": "Wechseln Sie zwischen einer Tabellenansicht und einem Kanban-Board. Kanban gibt Ihnen einen schnellen Überblick über den Stand Ihrer Epics — und ermöglicht es Ihnen, Epics zwischen Rückstand, Bereit und In Bearbeitung zu verschieben.",
     "create_actions_title": "Neue Arbeit beginnen",
     "create_actions_content": "'Neuer Job' öffnet ein Schnellerstellungsformular; 'Neues Epic' gruppiert verwandte Jobs. Der empfohlene Weg zum Erstellen von Jobs und Epics ist über den Chat — beschreiben Sie dort Ihre Aufgabe und Syrus verwandelt sie in einen Pull Request.",
+    "create_actions_title_simple": "Neue Arbeit beginnen",
+    "create_actions_content_simple": "'Neues Feature' startet ein neues Vorhaben. Der empfohlene Weg ist über den Chat — beschreiben Sie dort, was Sie möchten, und Syrus verwandelt es in ein Feature, das Sie prüfen können.",
     "job_row_title": "Job anklicken, um einzutauchen",
-    "job_row_content": "Das Öffnen eines Jobs zeigt die vollständige Implementierungszeitleiste, den Pull-Request-Diff und ermöglicht es Ihnen, Feedback zu geben oder die Arbeit zu genehmigen."
+    "job_row_content": "Das Öffnen eines Jobs zeigt die vollständige Implementierungszeitleiste, den Pull-Request-Diff und ermöglicht es Ihnen, Feedback zu geben oder die Arbeit zu genehmigen.",
+    "job_row_title_simple": "Feature anklicken, um einzutauchen",
+    "job_row_content_simple": "Das Öffnen eines Features zeigt seinen Fortschritt. Sobald es fertig ist, können Sie es genehmigen oder Feedback geben, was eine weitere Arbeitsrunde startet."
   },
   "job_detail": {
     "timeline_title": "Implementierungs-Zeitleiste",

@@ -12,8 +12,12 @@
     "view_switcher_content": "Inter aspectum tabulae et tabulam Kanban commuta. Kanban tibi conspectum celerem de statu epicorum praebet — et permittit tibi epica inter Acervum, Paratum, et In Progressu trahere.",
     "create_actions_title": "Opus novum incipe",
     "create_actions_content": "'Novus Labor' formulam creationis celeris aperit; 'Novum Epicum' labores cognatos colligit. Via commendanda ad labores et epica creanda est per Colloquium — munus tuum ibi describe et Syrus id in petitionem trahendi convertit.",
+    "create_actions_title_simple": "Opus novum incipe",
+    "create_actions_content_simple": "'Novum Feature' opus novum incipit. Via commendanda est per Colloquium — ibi describe quid velis, et Syrus id in Feature convertet quod recensere possis.",
     "job_row_title": "Clicca laborem quemvis ut ingrediaris",
-    "job_row_content": "Labor apertus ostendit totam lineam temporis implementationis, differentiam petitionis trahendi, et permittit te iudicium dare vel opus approbare."
+    "job_row_content": "Labor apertus ostendit totam lineam temporis implementationis, differentiam petitionis trahendi, et permittit te iudicium dare vel opus approbare.",
+    "job_row_title_simple": "Clicca Feature quodvis ut ingrediaris",
+    "job_row_content_simple": "Feature apertum progressum suum ostendit. Cum paratum est, id approbare potes vel iudicium dare, quod novum gyrum operis incipit."
   },
   "job_detail": {
     "timeline_title": "Progressio implementationis",
