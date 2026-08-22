@@ -93,6 +93,7 @@ gem "admin_mysql",   path: "plugins/admin_mysql"
 gem "tailscale",     path: "plugins/tailscale"
 gem "discord",       path: "plugins/discord"
 gem "browser",       path: "plugins/browser"
+gem "preview_tools", path: "plugins/preview_tools"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
