@@ -293,4 +293,98 @@ RSpec.describe PreviewProxyMiddleware do
       expect(status).to eq(200)
     end
   end
+
+  describe "preview panel hosts" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    def create_panel(**attrs)
+      PreviewPanel.create!({ chat_session: chat_session, title: "Widget preview" }.merge(attrs))
+    end
+
+    it "streams the index.html attachment for the panel root path" do
+      panel = create_panel
+      panel.replace_files!("index.html" => "<h1>hello</h1>")
+
+      status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(headers["Content-Type"]).to eq("text/html")
+      expect(body.join).to eq("<h1>hello</h1>")
+    end
+
+    it "streams a nested file by its relative path" do
+      panel = create_panel
+      panel.replace_files!("index.html" => "<h1>hi</h1>", "css/app.css" => "body { color: red; }")
+
+      status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", path: "/css/app.css"))
+
+      expect(status).to eq(200)
+      expect(headers["Content-Type"]).to eq("text/css")
+      expect(body.join).to eq("body { color: red; }")
+    end
+
+    it "infers the content type from the file extension" do
+      panel = create_panel
+      panel.replace_files!("app.js" => "console.log('hi')")
+
+      _, headers, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", path: "/app.js"))
+
+      expect(headers["Content-Type"]).to eq("text/javascript")
+    end
+
+    it "applies the shared preview CSP" do
+      panel = create_panel
+      panel.replace_files!("index.html" => "<h1>hi</h1>")
+
+      _, headers, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(headers["Content-Security-Policy"]).to eq(described_class::PREVIEW_CSP)
+    end
+
+    it "returns 404 for an unknown panel id" do
+      status, _, body = middleware.call(env_for(host: "preview-panel-999999.lvh.me"))
+
+      expect(status).to eq(404)
+      expect(body.join).to include("not found")
+    end
+
+    it "returns 404 for a closed panel" do
+      panel = create_panel(state: "closed")
+      panel.replace_files!("index.html" => "<h1>hi</h1>")
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(404)
+    end
+
+    it "returns 404 for a path with no matching attachment" do
+      panel = create_panel
+      panel.replace_files!("index.html" => "<h1>hi</h1>")
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", path: "/missing.js"))
+
+      expect(status).to eq(404)
+    end
+
+    it "does not collide with the job preview host pattern" do
+      status, _, body = middleware.call(env_for(host: "preview-panel-abc.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(body).to eq(["upstream"])
+    end
+
+    it "respects a custom base domain configured via SYRUS_PREVIEW_BASE_DOMAIN" do
+      stub_const("ENV", ENV.to_h.merge("SYRUS_PREVIEW_BASE_DOMAIN" => "preview.example.com"))
+      custom_middleware = described_class.new(inner_app)
+      panel = create_panel
+      panel.replace_files!("index.html" => "<h1>custom domain</h1>")
+
+      status, _, body = custom_middleware.call(env_for(host: "preview-panel-#{panel.id}.preview.example.com"))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>custom domain</h1>")
+    end
+  end
 end
