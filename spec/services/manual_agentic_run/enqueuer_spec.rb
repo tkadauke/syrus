@@ -14,9 +14,7 @@ RSpec.describe ManualAgenticRun::Enqueuer do
   end
 
   it "starts an audited manual agentic workflow on the current PR branch" do
-    allow(StepDispatcher).to receive(:start_workflow) do |workflow|
-      workflow.first_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-    end
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
 
     result = described_class.call(
       job: job,
@@ -32,7 +30,8 @@ RSpec.describe ManualAgenticRun::Enqueuer do
     expect(result.workflow.artifact("manual_agentic_run_push")).to be(true)
     expect(result.workflow.artifact("manual_agentic_run_instructions")).to eq("Inspect the failing rspec check and update only tests.")
     expect(result.workflow.steps.pluck(:kind)).to include("prepare", "manual_agentic_run", "grader_fanout", "grader_collect", "summarize_amend", "push")
-    expect(StepDispatcher).to have_received(:start_workflow).with(result.workflow)
+    expect(result.workflow.work_unit).to be_present
+    expect(WorkUnits::Launcher).to have_received(:start!).with(result.workflow)
   end
 
   it "rejects pushing from a fresh checkout" do

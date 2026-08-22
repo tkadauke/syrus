@@ -35,7 +35,7 @@ module ManualAgenticRun
         artifacts: artifacts(base_result),
         agent_provider: @agent_provider
       )
-      run = StepDispatcher.start_workflow(workflow)
+      run = WorkUnits::Launcher.start!(workflow).run
       raise ArgumentError, "manual agentic run workflow start was deferred." unless run
 
       audit!(run, workflow, base_result)

@@ -1508,6 +1508,9 @@ Completed slices:
 - Coding and local-mode handoff workflows now start through
   `WorkUnits::Launcher.start!` after handoff state changes, covering both
   pending-action confirmation and direct MCP `complete_implement_step` calls.
+- Manual agentic repair runs now start through `WorkUnits::Launcher.start!`,
+  preserving base-selection artifacts and the existing audit log while giving
+  the workflow WorkUnit ownership.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
