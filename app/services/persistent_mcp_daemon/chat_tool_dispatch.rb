@@ -22,24 +22,44 @@ require "mcp"
 # actually invoke) is unaffected because it is enforced here, not by list
 # visibility.
 module PersistentMcpDaemon::ChatToolDispatch
+  # MCP::Tool.inherited resets these on every subclass (see mcp gem's
+  # tool.rb) so a bare `Class.new(tool)` loses its name/description/schema;
+  # #wrap copies them back explicitly instead of re-declaring through the
+  # tool_name/description/... DSL, which round-trips through type coercion
+  # (e.g. annotations expects snake_case kwargs but #to_h emits camelCase)
+  # that doesn't losslessly survive a copy.
+  METADATA_IVARS = %i[
+    @name_value @title_value @description_value @icons_value
+    @input_schema_value @output_schema_value @annotations_value @meta_value
+  ].freeze
+
   class << self
-    # Idempotent: safe to call for the same tool class more than once. Layers
-    # ON TOP of Mcp::Sidecar.authorize_tool (prepended first) so tools that
-    # read Mcp::Tools::AuthorizationSupport.current_server_context still see
-    # the resolved chat_session/current_message this module reconstructs,
-    # not the raw (chat_session-less) server_context the daemon's static
-    # MCP::Server was built with.
+    # Builds a daemon-only subclass of `tool` rather than mutating `tool`
+    # itself. `tool` is the SAME class object the stdio chat sidecars
+    # dispatch directly (McpToolRegistry.tools(surface: :chat)) -- prepending
+    # Dispatch onto `tool.singleton_class` in place would permanently require
+    # a signed McpInvocationContext token for every future call to that
+    # class, including stdio calls in the very same process (e.g. every
+    # other spec sharing an RSpec worker with one that boots this daemon).
+    # Subclassing keeps the daemon's context-resolution requirement scoped to
+    # dispatches that actually go through this daemon.
     def wrap(tool)
       Mcp::Sidecar.authorize_tool(tool)
-      tool.singleton_class.prepend(Dispatch) unless tool.singleton_class < Dispatch
-      tool
+
+      daemon_tool = Class.new(tool)
+      METADATA_IVARS.each { |ivar| daemon_tool.instance_variable_set(ivar, tool.instance_variable_get(ivar)) }
+      daemon_tool.singleton_class.prepend(Dispatch)
+      daemon_tool
     end
   end
 
   module Dispatch
     def call(*args, server_context: nil, **kwargs, &block)
       resolved = PersistentMcpDaemon::ChatContextResolver.resolve(server_context)
-      return Mcp::Tools.not_authorized unless resolved.allowed_tools.include?(self)
+      # `self` here is the daemon-only subclass #wrap created, not the
+      # original tool class ChatContextResolver's allowed_tools list names --
+      # `<=` (subclass-or-equal) matches across that wrap instead of identity.
+      return Mcp::Tools.not_authorized unless resolved.allowed_tools.any? { |allowed_tool| self <= allowed_tool }
 
       super(*args, server_context: resolved.server_context, **kwargs, &block)
     rescue McpInvocationContext::InvalidContext => e

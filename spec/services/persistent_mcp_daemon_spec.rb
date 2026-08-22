@@ -191,6 +191,23 @@ RSpec.describe PersistentMcpDaemon do
         expect(result["isError"]).to be true
         expect(result.dig("content", 0, "text")).to match(/Unauthorized: invocation context Expired/)
       end
+
+      it "does not require an invocation context for the underlying tool class's ordinary stdio dispatch" do
+        # Regression test: PersistentMcpDaemon::ChatToolDispatch.wrap must not
+        # mutate the shared McpToolRegistry tool classes in place. Booting
+        # this daemon's #mcp_server (via #call above) wraps every
+        # surface: :chat tool; if #wrap prepended its Dispatch module onto
+        # the real tool class instead of a daemon-only subclass, the stdio
+        # chat sidecar path (which calls the SAME class directly, with a
+        # plain {chat_session:, ...} server_context and no signed token)
+        # would start failing right here, in-process, after this daemon ran.
+        token = McpInvocationContext.issue_for_chat(chat, worker_id: worker_id, tier: "essential")
+        call_tool("list_jobs", token: token)
+
+        response = Mcp::Tools::ListJobsTool.call(server_context: { chat_session: chat, current_message: Mcp::Tools::CurrentMessage.new(chat) })
+
+        expect(response.error?).to be false
+      end
     end
 
     it "returns 404 for unknown paths" do
