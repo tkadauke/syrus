@@ -425,7 +425,7 @@ module App
     def evidence_summary_if_not_older_than(evidence, current)
       return unless evidence
       current_time = parse_observed_at(current&.dig(:observed_at) || current&.dig("observed_at"))
-      return evidence.summary if current_time.blank? || evidence.observed_at >= current_time
+      evidence.summary if current_time.blank? || evidence.observed_at >= current_time
     end
 
     def parse_observed_at(value)

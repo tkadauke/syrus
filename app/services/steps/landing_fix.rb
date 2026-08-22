@@ -29,6 +29,5 @@ module Steps
 
       append_grade_failure_feedback(prompt)
     end
-
   end
 end
