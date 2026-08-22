@@ -12,6 +12,9 @@ RSpec.describe Workflows::Initial do
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
       RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     )
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
   end
 
   it "materializes the standard chain with coverage_analyze always present" do
@@ -20,6 +23,54 @@ RSpec.describe Workflows::Initial do
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
       %w[ prepare implement format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
     )
+  end
+
+  context "when formatters, generated, and grade are all unconfigured" do
+    before do
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: false, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "materializes a bare implement step with no format/generate/grader steps at all" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare implement coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+      )
+    end
+  end
+
+  context "when only formatters is configured" do
+    before do
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: false, graders_configured: false, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "shows format but not generate, and still shows the grade loop's grader_fanout/grader_collect" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare implement format grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+      )
+    end
+  end
+
+  context "when only grade is configured" do
+    before do
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: true, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "shows grader_fanout/grader_collect without format or generate" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare implement grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open review_plan ]
+      )
+    end
   end
 
   context "when visual review is enabled" do

@@ -218,6 +218,8 @@ Omitting `formatters:` entirely runs no formatting at all — this is the safe d
 
 Set `formatters: false` (or `off`) to disable formatting altogether for this repository, including the plugin defaults. This is mostly redundant with omitting the key, but it lets an operator record the choice explicitly and is future-proofed against any later change to what "absent" means.
 
+In `initial`/`retry`/`pr_comment`/`chat_feedback` workflows, the `format` step (like `generated` and the `grade`/grader check below) is only shown as a Step at all when it — or one of the other two — is actually configured. None of the three is configured by default, so a freshly onboarded repository's workflow view shows a bare implement/respond step with no grade loop. As soon as any one of `formatters:`, `generated:`, or `grade:` is set, the whole loop (the agent step, whichever of `format`/`generate` apply, and the grader check) appears together.
+
 ## generated
 
 Configures the `generate` step: a deterministic codegen pass that runs immediately after `format`, using the same diff-scoped, every-iteration shape.
