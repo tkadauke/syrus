@@ -47,6 +47,35 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
   end
 
+  it "creates a fresh intent and unit for repeated non-idempotent launches" do
+    first = described_class.instantiate(kind: "manual_visual_review", job: job)
+    second = described_class.instantiate(kind: "manual_visual_review", job: job)
+
+    expect(second).not_to eq(first)
+    expect(second.work_unit).not_to eq(first.work_unit)
+    expect(second.work_unit.work_intent).not_to eq(first.work_unit.work_intent)
+  end
+
+  it "reuses the active workflow for an idempotent launch" do
+    first = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: "manual-visual-review:#{job.id}")
+    second = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: "manual-visual-review:#{job.id}")
+
+    expect(second).to eq(first)
+    expect(WorkIntent.where(idempotency_key: "manual-visual-review:#{job.id}").count).to eq(1)
+    expect(first.work_unit.work_intent.work_units.count).to eq(1)
+  end
+
+  it "creates a new unit for the same idempotent intent after the prior unit is terminal" do
+    first = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: "manual-visual-review:#{job.id}")
+    first.work_unit.mark_terminal!("failed")
+
+    second = described_class.instantiate(kind: "manual_visual_review", job: job, idempotency_key: "manual-visual-review:#{job.id}")
+
+    expect(second).not_to eq(first)
+    expect(second.work_unit.work_intent).to eq(first.work_unit.work_intent)
+    expect(second.work_unit).not_to eq(first.work_unit)
+  end
+
   it "passes artifacts and agent provider through to the workflow template" do
     workflow = described_class.instantiate(
       kind: "ci_failure",
