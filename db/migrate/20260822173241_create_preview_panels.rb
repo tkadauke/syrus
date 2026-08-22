@@ -8,6 +8,6 @@ class CreatePreviewPanels < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :preview_panels, :state, if_not_exists: true
+    add_index :preview_panels, :state unless index_exists?(:preview_panels, :state)
   end
 end
