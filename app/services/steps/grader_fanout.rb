@@ -238,6 +238,5 @@ module Steps
     def grader_phase
       LandingGraderPlan.phase_for(trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
-
   end
 end

@@ -62,7 +62,6 @@ module Admin
         value.to_s == "all"
       end
       private_class_method :all_state_param?
-
     end
   end
 end
