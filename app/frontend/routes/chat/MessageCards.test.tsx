@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatMessage, resolveWorkspaceFileLink, ToolGroup } from "./MessageCards"
-import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
+import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, ChatToolGroupItem } from "../../api/chats"
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
@@ -131,7 +131,7 @@ function renderMessage(text: string, payload = makePayload(), options: { pinnabl
   )
 }
 
-function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload()) {
+function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload(), extra: { readOnly?: boolean; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
@@ -143,10 +143,23 @@ function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }
           prefix=""
           queryKey={["chats", "122", ""] as const}
           onNotice={() => {}}
+          {...extra}
         />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function systemMessageItem(system: ChatSystemMessage, overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}): Extract<ChatRenderItem, { type: "message" }> {
+  return {
+    type: "message",
+    id: 7,
+    role: "system",
+    text: system.body,
+    bookmarkable: false,
+    system,
+    ...overrides
+  }
 }
 
 beforeEach(() => {
@@ -183,6 +196,76 @@ describe("sender attribution", () => {
 
     expect(screen.getByText("Ave.")).toBeInTheDocument()
     expect(screen.queryByText("Marcus Cato")).not.toBeInTheDocument()
+  })
+})
+
+describe("system message retry", () => {
+  it("shows a Retry now button under a non-prominent error system message and resends the given text", () => {
+    const onRetry = vi.fn()
+    renderChatMessageItem(
+      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
+      makePayload(),
+      { retryText: "does syrus have that feature?", onRetry }
+    )
+
+    const button = screen.getByRole("button", { name: "Retry now" })
+    fireEvent.click(button)
+
+    expect(onRetry).toHaveBeenCalledWith("does syrus have that feature?")
+  })
+
+  it("shows a Retry now button under a prominent error system message", () => {
+    const onRetry = vi.fn()
+    renderChatMessageItem(
+      systemMessageItem({ tone: "error", label: "Agent error", body: "Agent turn failed.", prominent: true }),
+      makePayload(),
+      { retryText: "please retry this", onRetry }
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry now" }))
+
+    expect(onRetry).toHaveBeenCalledWith("please retry this")
+  })
+
+  it("does not render Retry now for non-error tones even when retry text is available", () => {
+    renderChatMessageItem(
+      systemMessageItem({ tone: "warning", label: "MCP unavailable", body: "MCP unavailable: syrus-chat-sidecar down." }),
+      makePayload(),
+      { retryText: "hello", onRetry: vi.fn() }
+    )
+
+    expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
+  })
+
+  it("does not render Retry now when there is no retry text to resend", () => {
+    renderChatMessageItem(
+      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
+      makePayload(),
+      { retryText: null, onRetry: vi.fn() }
+    )
+
+    expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
+  })
+
+  it("does not render Retry now in a read-only stream even with retry text available", () => {
+    renderChatMessageItem(
+      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
+      makePayload(),
+      { readOnly: true, retryText: "hello", onRetry: vi.fn() }
+    )
+
+    expect(screen.queryByRole("button", { name: "Retry now" })).not.toBeInTheDocument()
+  })
+
+  it("disables the button and labels it Retrying… while a retry is in flight", () => {
+    renderChatMessageItem(
+      systemMessageItem({ tone: "error", label: "Claude auth", body: "Claude authentication failed." }),
+      makePayload(),
+      { retryText: "hello", retrying: true, onRetry: vi.fn() }
+    )
+
+    const button = screen.getByRole("button", { name: "Retrying…" })
+    expect(button).toBeDisabled()
   })
 })
 

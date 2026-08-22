@@ -44,6 +44,8 @@
   "show_system_messages_other": "Show {{count}} hidden system messages",
   "system_message_show_details": "Show system message details",
   "system_message_hide_details": "Hide system message details",
+  "system_message_retry": "Retry now",
+  "system_message_retrying": "Retrying…",
   "switching_to_provider": "Switching to {{provider}}…",
   "queue_followup": "Queue a follow-up message...",
   "ask_repository": "Ask about this repository...",
