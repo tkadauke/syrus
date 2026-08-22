@@ -208,7 +208,7 @@ module App
       def active_workflow_job_ids
         @active_workflow_job_ids ||= begin
           job_ids = current_landing_queue_jobs.map(&:id)
-          job_ids.empty? ? Set.new : Workflow.active.where(job_id: job_ids).pluck(:job_id).to_set
+          WorkUnits::Ownership.active_job_ids(job_ids)
         end
       end
 

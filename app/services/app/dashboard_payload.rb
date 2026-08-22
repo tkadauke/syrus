@@ -662,15 +662,7 @@ module App
     end
 
     def active_workflow_trigger_kinds_by_job_id(job_ids)
-      return {} if job_ids.empty?
-
-      Workflow
-        .where(job_id: job_ids, state: %w[queued running])
-        .select(:job_id, :trigger_kind, :created_at, :id)
-        .order(:job_id, created_at: :desc, id: :desc)
-        .each_with_object({}) do |workflow, map|
-          map[workflow.job_id] ||= workflow.trigger_kind
-        end
+      WorkUnits::Ownership.active_trigger_kinds_by_job_id(job_ids)
     end
 
     def total_pages(total)
