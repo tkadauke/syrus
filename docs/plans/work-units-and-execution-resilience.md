@@ -1496,6 +1496,9 @@ Completed slices:
   `StepDispatcher` directly.
 - Urgent-job release now resumes held queued workflows through
   `WorkUnits::Launcher.start!`.
+- Provider-admission wakeups now resume provider-blocked queued workflows
+  through `WorkUnits::Launcher.start!` while keeping auto-retry wakeup behavior
+  unchanged.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

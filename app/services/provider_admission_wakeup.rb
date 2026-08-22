@@ -51,7 +51,7 @@ class ProviderAdmissionWakeup
   def wake_workflows
     workflows.map do |workflow|
       clear_provider_start_block!(workflow)
-      StepDispatcher.start_workflow(workflow)
+      WorkUnits::Launcher.start!(workflow)
       workflow.id
     end
   end

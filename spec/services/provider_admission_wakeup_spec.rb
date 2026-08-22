@@ -81,6 +81,27 @@ RSpec.describe ProviderAdmissionWakeup do
       expect(result.provider).to eq("claude")
     end
 
+    it "wakes provider-blocked queued workflows through the work unit launcher" do
+      queued_job = Factories.job_record(user: job.user, repository: job.repository, agent_provider: "claude", state: "queued")
+      queued_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: queued_job)
+      queued_workflow.update!(
+        agent_provider: "claude",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON,
+          "pause_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
+        }
+      )
+      allow(ProviderCircuitBreaker).to receive(:call).and_return(closed_circuit)
+
+      expect(WorkUnits::Launcher).to receive(:start!).with(queued_workflow).once.and_call_original
+
+      result = described_class.call(provider: "claude")
+
+      expect(result.workflow_ids).to eq([ queued_workflow.id ])
+      expect(queued_workflow.reload.artifact("start_blocked_reason")).to be_nil
+      expect(queued_workflow.first_step.runs.count).to eq(1)
+    end
+
     it "is a no-op when the provider circuit is still open" do
       pending_attempt
       allow(ProviderCircuitBreaker).to receive(:call).and_return(open_circuit)
