@@ -965,6 +965,51 @@ describe("JobDetailView", () => {
     expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveTextContent("\u001b[32m")
   })
 
+  it("shows start/finish timestamps and duration in the run row", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 6,
+          steps: [
+            step({
+              id: 20,
+              runs: [ run({
+                id: 40,
+                started_at: "2026-07-01T10:00:00Z",
+                finished_at: "2026-07-01T10:05:30Z"
+              }) ]
+            })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByText("Started")).toBeInTheDocument()
+    expect(screen.getByText("finished")).toBeInTheDocument()
+    expect(screen.getByText("(5m 30s)")).toBeInTheDocument()
+  })
+
+  it("shows a not-started placeholder when a run has no started_at", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 7,
+          steps: [
+            step({ id: 21, runs: [ run({ id: 41, started_at: null, finished_at: null }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByText("Not started yet")).toBeInTheDocument()
+  })
+
   it("shows a Summary button in the run row for summarize steps and renders summary as markdown", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       job_id: 1, run_id: 30, agent_diff: null, agent_diff_bytes: 0, logs_count: 1,
