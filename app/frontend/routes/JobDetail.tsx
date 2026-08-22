@@ -346,7 +346,21 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
       {payload.landing_queue_entry ? (
         <PanelMessage>
           {payload.landing_queue_entry.position ? t("landing_queue_position", { position: payload.landing_queue_entry.position }) : t("landing_queue")}
-          {payload.landing_queue_entry.blocked_reason ? ` (${translateBlockedReason(payload.landing_queue_entry.blocked_reason, t)})` : ""}
+          {payload.landing_queue_entry.blocked_reason ? (
+            <>
+              {" ("}
+              {translateBlockedReason(payload.landing_queue_entry.blocked_reason, t)}
+              {payload.landing_queue_entry.blocked_reason.key === "auto_merge_not_enabled" ? (
+                <>
+                  {" — "}
+                  <Link className="font-medium text-blue-700 underline hover:no-underline" to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}>
+                    {t("landing_queue_enable_auto_merge")}
+                  </Link>
+                </>
+              ) : null}
+              {")"}
+            </>
+          ) : ""}
           {payload.landing_queue_entry.waiting_for_jobs.length > 0 ? (
             <>
               {" "}

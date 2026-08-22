@@ -293,7 +293,8 @@ module App
         main_health: repository.main_health,
         landing_paused: repository.landing_paused?,
         main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
-        repository_path: repository_path(repository)
+        repository_path: repository_path(repository),
+        edit_repository_path: edit_repository_path(repository)
       }
     end
 

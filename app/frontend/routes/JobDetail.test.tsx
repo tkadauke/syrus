@@ -438,7 +438,7 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: false },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
@@ -452,7 +452,7 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: true },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
@@ -466,7 +466,7 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: false },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "inconclusive", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
@@ -480,13 +480,27 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: false },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false
       }
     }))
 
     expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
+  })
+
+  it("shows a clickable link to repository settings when the landing queue is blocked by disabled auto-merge", () => {
+    renderJobDetail(jobPayload({
+      landing_queue_entry: {
+        position: 3,
+        blocked_reason: { key: "auto_merge_not_enabled" },
+        waiting_for_jobs: []
+      }
+    }))
+
+    expect(screen.getByText(/Auto-merge not enabled for repository/)).toBeInTheDocument()
+    const link = screen.getByRole("link", { name: "Enable auto-merge in repository settings" })
+    expect(link).toHaveAttribute("href", "/app-shell/repositories/2/edit#auto-merge")
   })
 
   it("opens the overflow menu aligned to the right-0 edge when the menu fits within the scroll container", () => {
@@ -2019,6 +2033,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       review_policy: "self",
       feedback_policy: "confirm",
       repository_path: "/repositories/2",
+      edit_repository_path: "/repositories/2/edit",
       main_health: "unknown",
       landing_paused: false,
       main_branch_repair_blocks_work: true
