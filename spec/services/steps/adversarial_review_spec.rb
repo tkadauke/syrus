@@ -64,11 +64,12 @@ RSpec.describe Steps::AdversarialReview do
 
   it "calls run_agent without using the change-step commit path" do
     expect(handler).not_to receive(:perform_agentic_change_step)
-    expect(handler).to receive(:run_agent) do |prompt: nil, required_mcp_tools: nil, disallowed_tools: nil, **|
+    expect(handler).to receive(:run_agent) do |prompt: nil, max_turns: nil, required_mcp_tools: nil, disallowed_tools: nil, **|
       expect(prompt).to include("submit_adversarial_review")
       expect(prompt).to include("Changed files from the latest succeeded implement step")
       expect(prompt).to include("app.rb")
       expect(prompt).not_to include("puts 'review me'")
+      expect(max_turns).to eq(35)
       expect(required_mcp_tools).to eq(%w[submit_adversarial_review])
       expect(disallowed_tools).to eq(%w[ReportFindings])
       workflow.set_artifact!("adversarial_review_iterations", [
@@ -102,9 +103,7 @@ RSpec.describe Steps::AdversarialReview do
   end
 
   it "skips review after repeated failed reviewer attempts" do
-    2.times do
-      Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
-    end
+    Run.create!(job: job, step: review_step, trigger_kind: "initial", state: "failed")
     allow(handler).to receive(:run_agent)
 
     expect { handler.call }.not_to raise_error

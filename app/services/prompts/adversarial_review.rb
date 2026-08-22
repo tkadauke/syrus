@@ -151,6 +151,8 @@ module Prompts
 
         The verdict is recorded for future workflow control but is not acted on yet.
 
+        Do not wait on long background commands or optional long-running builds before calling this tool. If you have enough evidence to decide, submit the review immediately; if verification is inconclusive but you found no concrete blocker, use verdict "approved" and mention the incomplete verification in the critique.
+
         Do not call `ReportFindings` or any other generic findings-reporting tool — this step is only complete once `submit_adversarial_review` has been called.
       TEXT
     end

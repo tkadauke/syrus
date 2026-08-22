@@ -74,6 +74,7 @@ RSpec.describe Prompts::AdversarialReview do
   it "includes submit_adversarial_review tool instructions" do
     expect(prompt).to include("submit_adversarial_review")
     expect(prompt).to include("exact name shown in your tool list")
+    expect(prompt).to include("Do not wait on long background commands")
   end
 
   context "with criteria" do
