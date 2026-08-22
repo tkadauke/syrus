@@ -204,13 +204,13 @@ function throughputPayload() {
   }
 }
 
-function renderRoute() {
+function renderRoute(payloadOverrides = {}) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = String(input)
     if (url === THROUGHPUT_PATH) {
       return Promise.resolve(jsonResponse(throughputPayload()))
     }
-    return Promise.resolve(jsonResponse(repositoryDetailPayload()))
+    return Promise.resolve(jsonResponse({ ...repositoryDetailPayload(), ...payloadOverrides }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -263,6 +263,13 @@ describe("RepositoryDetailRoute archive", () => {
 
     expect(await screen.findByText("0 Syrus-authored, 0 observed")).toBeInTheDocument()
     expect(screen.getAllByText("none").length).toBeGreaterThan(0)
+  })
+
+  it("hides the throughput section in simple mode", async () => {
+    renderRoute({ simple_mode: true })
+
+    await screen.findByRole("heading", { name: "acme/widgets" })
+    expect(screen.queryByText("Throughput")).not.toBeInTheDocument()
   })
 
   it("opens confirm dialog instead of window.confirm when archiving a repository", async () => {
