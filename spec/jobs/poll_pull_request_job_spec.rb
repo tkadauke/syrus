@@ -273,6 +273,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
 
       wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.work_unit).to have_attributes(kind: "pr_comment", state: "queued")
       comments = wf.artifact("pr_comments")
       expect(comments.size).to eq(2)
       expect(comments.map { |c| c["body"] }).to contain_exactly(

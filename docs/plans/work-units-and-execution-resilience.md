@@ -1462,6 +1462,8 @@ Completed slices:
 - `WorkUnits::Launcher.create_and_start!` now owns the create-plus-dispatch
   funnel, and CI-failure dispatch uses it instead of instantiating then starting
   the Workflow in the poller.
+- PR feedback dispatch now uses the same create-plus-dispatch funnel and retains
+  WorkUnit ownership on the created `pr_comment` Workflow.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
