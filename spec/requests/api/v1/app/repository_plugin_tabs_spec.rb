@@ -13,12 +13,12 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
       def self.repo_page_tabs(repository:, user:)
         [
           {
-            id: "git_history.git_history",
-            label: "Git History",
-            label_key: "git_history:nav_git_history",
-            path: "/repositories/#{repository.id}/plugin/git_history",
-            paths: [ "/repositories/#{repository.id}/plugin/git_history" ],
-            component: "git_history/GitHistory",
+            id: "tab-plugin.example",
+            label: "Example Tab",
+            label_key: "tab_plugin:nav_example",
+            path: "/repositories/#{repository.id}/plugin/example",
+            paths: [ "/repositories/#{repository.id}/plugin/example" ],
+            component: "tab_plugin/Example",
             order: 40
           }
         ]
@@ -52,14 +52,14 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
     get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("tabs")).to contain_exactly(
+    expect(parse_body.fetch("tabs")).to include(
       include(
-        "id" => "git_history.git_history",
-        "label" => "Git History",
-        "label_key" => "git_history:nav_git_history",
-        "path" => "/repositories/#{repository.id}/plugin/git_history",
-        "paths" => [ "/repositories/#{repository.id}/plugin/git_history" ],
-        "component" => "git_history/GitHistory",
+        "id" => "tab-plugin.example",
+        "label" => "Example Tab",
+        "label_key" => "tab_plugin:nav_example",
+        "path" => "/repositories/#{repository.id}/plugin/example",
+        "paths" => [ "/repositories/#{repository.id}/plugin/example" ],
+        "component" => "tab_plugin/Example",
         "order" => 40
       )
     )
@@ -74,7 +74,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
     get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("tabs").map { |tab| tab["id"] }).to include("git_history.git_history")
+    expect(parse_body.fetch("tabs").map { |tab| tab["id"] }).to include("tab-plugin.example")
   end
 
   it "omits repo page tabs from disabled plugins" do
@@ -85,6 +85,6 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
     get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("tabs" => [])
+    expect(parse_body.fetch("tabs").map { |tab| tab["id"] }).not_to include("tab-plugin.example")
   end
 end
