@@ -84,6 +84,7 @@ RSpec.describe "App API job run commands", type: :request do
     workflow = job.workflows.where(trigger_kind: "rebase").last
     expect(response).to have_http_status(:ok)
     expect(workflow.first_step.runs.last).to be_present
+    expect(workflow.work_unit).to be_present
     expect(parse_body).to include("message" => "Rebase workflow enqueued.")
     expect(parse_body.dig("workflow", "id")).to eq(workflow.id)
   end

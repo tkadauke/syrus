@@ -1520,6 +1520,8 @@ Completed slices:
 - Main-health recovery now restarts previously blocked queued Workflows and
   dispatches recovery rebases for PRs with stale failing CI through
   `WorkUnits::Launcher.start!`.
+- The operator job `rebase` command now starts its selected rebase Workflow
+  through `WorkUnits::Launcher.start!`, preserving the returned Run payload.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

@@ -74,7 +74,7 @@ module Api
             agent_provider: agent_provider,
             pr: rebase_pull_request_snapshot(job)
           )
-          run = StepDispatcher.start_workflow(workflow)
+          run = WorkUnits::Launcher.start!(workflow).run
 
           notice = agent_provider.present? ? "Rebase workflow enqueued with #{agent_provider.titleize}." : "Rebase workflow enqueued."
           notice = "Cancelled the running workflow. #{notice}" if superseded_active_workflow
