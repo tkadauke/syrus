@@ -81,4 +81,23 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.kind).to eq("checkpoint_resume")
     expect(workflow.steps.pluck(:kind)).to eq(%w[prepare summarize])
   end
+
+  it "snapshots merge train members from the merge train artifact" do
+    epic = Factories.epic(user: user, repository: repository)
+    first = Factories.job_record(user: user, repository: repository, epic: epic)
+    second = Factories.job_record(user: user, repository: repository, epic: epic)
+    train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "main")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+
+    workflow = described_class.instantiate(
+      kind: "merge_train",
+      job: second,
+      artifacts: { "merge_train_id" => train.id }
+    )
+
+    expect(workflow.work_unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
+      [[ first.id, "primary" ], [ second.id, "member" ]]
+    )
+  end
 end

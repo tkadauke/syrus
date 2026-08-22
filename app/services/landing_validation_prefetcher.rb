@@ -51,7 +51,11 @@ class LandingValidationPrefetcher
 
   TargetUnit = Data.define(:kind, :key, :jobs, :artifacts) do
     def instantiate(seed_artifacts)
-      workflow_class.instantiate(job: workflow_job, artifacts: seed_artifacts.merge(artifacts))
+      WorkUnits::Launcher.instantiate(
+        kind: work_definition_kind,
+        job: workflow_job,
+        artifacts: seed_artifacts.merge(artifacts)
+      )
     end
 
     def still_eligible?
@@ -73,8 +77,8 @@ class LandingValidationPrefetcher
 
     private
 
-    def workflow_class
-      kind == "merge_train" ? Workflows::MergeTrainValidation : Workflows::LandingValidation
+    def work_definition_kind
+      kind == "merge_train" ? "merge_train_validation" : "landing_validation"
     end
 
     def workflow_job

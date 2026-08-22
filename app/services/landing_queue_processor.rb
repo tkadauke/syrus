@@ -536,8 +536,8 @@ class LandingQueueProcessor
       job.landing_failure_reason = nil
       job.start_landing!
       job.save!
-      workflow_class = job.external_pr? ? Workflows::ExternalPrMerge : Workflows::AutoMerge
-      workflow = workflow_class.instantiate(job: job)
+      work_kind = job.external_pr? ? "external_pr_merge" : "auto_merge"
+      workflow = WorkUnits::Launcher.instantiate(kind: work_kind, job: job)
       audit(job, "landing_queue: dispatching #{workflow.trigger_kind} #{workflow.slug}")
       WorkflowActivity.landing_workflow_dispatched!(job, workflow)
       landed = true

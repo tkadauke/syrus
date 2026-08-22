@@ -31,15 +31,7 @@ module WorkUnits
 
     private
 
-    attr_reader :definition, :job, :artifacts, :agent_provider, :options
-
-    def instantiate_arguments
-      {
-        job: job,
-        artifacts: artifacts,
-        agent_provider: agent_provider
-      }.merge(options)
-    end
+    attr_reader :definition, :job, :agent_provider, :options
 
     def create_intent!
       WorkIntent.create!(
@@ -92,7 +84,47 @@ module WorkUnits
     end
 
     def member_jobs
-      [ job ]
+      merge_train_member_jobs.presence ||
+        prefetch_merge_train_member_jobs.presence ||
+        [ job ]
+    end
+
+    def merge_train_member_jobs
+      return [] unless definition.kind == "merge_train"
+
+      train_id = payload_artifacts["merge_train_id"]
+      return [] if train_id.blank?
+
+      train = MergeTrain.includes(:members).find_by(id: train_id)
+      return [] unless train
+
+      train.members.includes(:job).order(:position).map(&:job)
+    end
+
+    def prefetch_merge_train_member_jobs
+      return [] unless definition.kind == "merge_train_validation"
+
+      ids = Array(payload_artifacts["prefetch_merge_train_member_job_ids"]).map(&:to_i).select(&:positive?)
+      return [] if ids.blank?
+
+      jobs_by_id = Job.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| jobs_by_id[id] }
+    end
+
+    def payload_artifacts
+      @artifacts || {}
+    end
+
+    def raw_artifacts
+      @artifacts
+    end
+
+    def instantiate_arguments
+      {
+        job: job,
+        artifacts: raw_artifacts,
+        agent_provider: agent_provider
+      }.merge(options)
     end
   end
 end

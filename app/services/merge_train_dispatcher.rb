@@ -48,7 +48,8 @@ class MergeTrainDispatcher
         MergeTrainMember.create!(merge_train: train, job: job, position: index)
       end
 
-      workflow = Workflows::MergeTrain.instantiate(
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: "merge_train",
         job: members.last,
         artifacts: { "merge_train_id" => train.id }
       )
