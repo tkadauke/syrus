@@ -228,6 +228,7 @@ RSpec.describe Steps::Prepare do
         prepare:
           - echo first
       YAML
+      allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
 
       handler.call
 
