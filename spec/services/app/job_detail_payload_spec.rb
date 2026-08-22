@@ -26,6 +26,34 @@ RSpec.describe App::JobDetailPayload do
     queries
   end
 
+  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil)
+    primary = member_jobs.first
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: primary.repository,
+      scope_type: primary.epic_id.present? ? "epic" : "job",
+      scope_id: primary.epic_id.presence || primary.id,
+      actor: primary.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: primary.repository,
+      scope_type: intent.scope_type,
+      scope_id: intent.scope_id,
+      workflow: workflow,
+      blocked_reason: blocked_reason,
+      blocked_details: blocked_reason ? { "source" => "spec" } : {}
+    )
+    member_jobs.each_with_index do |job, index|
+      unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
+    end
+    unit
+  end
+
   describe "#attachments" do
     it "uses the authenticated app proxy URL for uploaded files" do
       job = Factories.job_record(user: user, repository: repo)
@@ -626,6 +654,32 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#workflows_json" do
+    it "includes work units involving the job even when the workflow is attached to another job" do
+      epic = Factories.epic(user: user, repository: repo)
+      first = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
+      second = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 102)
+      workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
+      unit = attach_work_unit(workflow, member_jobs: [ first, second ], kind: "merge_train")
+
+      payload = workflows_payload_for(second)
+
+      expect(payload.fetch(:workflows)).to be_empty
+      expect(payload.fetch(:work_units)).to contain_exactly(
+        include(
+          id: unit.id,
+          kind: "merge_train",
+          state: "running",
+          workflow_id: workflow.id,
+          workflow_trigger_kind: "merge_train",
+          workflow_state: "running",
+          workflow_attached_job_id: first.id,
+          member_role: "member",
+          scope_type: "epic",
+          scope_id: epic.id
+        )
+      )
+    end
+
     it "includes generic WorkflowWarning rows on the owning step, redacted" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial")

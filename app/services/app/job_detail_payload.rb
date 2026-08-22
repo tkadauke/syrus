@@ -73,6 +73,7 @@ module App
     def workflows_payload
       PerformanceLogging.phase("job_workflows_payload", job_id: @job.id, page: workflows_page) do
         {
+          work_units: PerformanceLogging.phase("job_workflows.work_units", job_id: @job.id, page: workflows_page) { work_units_json },
           workflows: PerformanceLogging.phase("job_workflows.workflows", job_id: @job.id, page: workflows_page) { workflows_json },
           workflows_pagination: workflows_pagination_json,
           feature_flags: feature_flags_json,

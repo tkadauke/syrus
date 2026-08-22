@@ -21,6 +21,48 @@ module App
         end
       end
 
+      def work_units_json
+        work_unit_members_for_job.map do |member|
+          work_unit_json(member.work_unit, member)
+        end
+      end
+
+      def work_unit_json(unit, member)
+        workflow = unit.workflow
+        {
+          id: unit.id,
+          kind: unit.kind,
+          state: unit.state,
+          work_intent_id: unit.work_intent_id,
+          workflow_id: unit.workflow_id,
+          workflow_slug: workflow&.slug,
+          workflow_trigger_kind: workflow&.trigger_kind,
+          workflow_state: workflow&.state,
+          workflow_attached_job_id: workflow&.job_id,
+          member_role: member.role,
+          scope_type: unit.scope_type,
+          scope_id: unit.scope_id,
+          blocked_reason: unit.blocked_reason,
+          blocked_until: iso8601(unit.blocked_until),
+          blocked_details: unit.blocked_details.presence,
+          created_at: iso8601(unit.created_at),
+          started_at: iso8601(unit.started_at),
+          finished_at: iso8601(unit.finished_at)
+        }
+      end
+
+      def work_unit_members_for_job
+        @work_unit_members_for_job ||= PerformanceLogging.phase("job_detail.work_units.query", job_id: @job.id) do
+          WorkUnitMember
+            .joins(:work_unit)
+            .includes(work_unit: [ :workflow, :work_intent ])
+            .where(job_id: @job.id)
+            .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+            .limit(50)
+            .to_a
+        end
+      end
+
       def workflow_json(workflow)
         PerformanceLogging.phase("job_detail.workflow.serialize", job_id: @job.id, workflow_id: workflow.id) do
           steps = ordered_steps_for(workflow)
