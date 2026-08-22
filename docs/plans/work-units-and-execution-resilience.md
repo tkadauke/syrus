@@ -1511,6 +1511,9 @@ Completed slices:
 - Manual agentic repair runs now start through `WorkUnits::Launcher.start!`,
   preserving base-selection artifacts and the existing audit log while giving
   the workflow WorkUnit ownership.
+- Pending-feedback retry redispatch now starts retained `pr_comment` and
+  `external_pr_feedback` workflows through `WorkUnits::Launcher.start!`, while
+  keeping freeform chat-feedback retries on the existing submission service.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.

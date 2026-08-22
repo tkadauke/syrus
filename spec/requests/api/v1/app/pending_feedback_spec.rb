@@ -259,6 +259,7 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(response).to have_http_status(:created)
       new_workflow = Workflow.find(parse_body["workflow"]["id"])
       expect(new_workflow.trigger_kind).to eq("external_pr_feedback")
+      expect(new_workflow.work_unit).to be_present
       expect(comment.reload.handling_state).to eq("active")
       expect(comment.actioned_by).to eq("operator:retry")
     end
