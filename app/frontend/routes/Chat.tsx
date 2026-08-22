@@ -281,6 +281,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     queued_messages: [],
     scratchpad_items: [],
     video_walkthroughs: [],
+    preview_panels: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],
@@ -802,7 +803,7 @@ function ChatWorkspace({
               onClick={() => selectMobileTab(tab)}
               type="button"
             >
-              {mobileChatTabLabel(tab, t)}
+              {mobileChatTabLabel(tab, t, payload.preview_panels)}
             </button>
           ))}
         </nav>
