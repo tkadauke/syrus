@@ -26,6 +26,13 @@ RSpec.describe "workflow launch funnel" do
       matches.presence
     end.flatten
 
-    expect(offenders).to eq([])
+    expect(offenders).to be_empty, <<~MESSAGE
+      Production workflow creation must go through WorkUnits::Launcher so
+      WorkIntent/WorkUnit shadow records cannot be missed. Move direct
+      Workflows::* .instantiate calls behind the launcher or add an explicit
+      exception here with a migration note.
+
+      #{offenders.join("\n")}
+    MESSAGE
   end
 end
