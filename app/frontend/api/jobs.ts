@@ -723,6 +723,7 @@ export type PreviewEnvironmentRecord = {
   url: string | null
   expires_at: string | null
   error_message: string | null
+  error_reason: "not_reachable" | null
 }
 
 export type PreviewStatusPayload = {

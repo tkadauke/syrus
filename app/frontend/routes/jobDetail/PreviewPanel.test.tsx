@@ -1,6 +1,7 @@
 import { jsonResponse } from "../../testSupport"
 import { render, screen, waitFor, act, fireEvent, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PreviewPanel, PreviewStopModal } from "./PreviewPanel"
 import type { PreviewEnvironmentRecord } from "../../api/jobs"
@@ -16,23 +17,27 @@ function preview(overrides: Partial<PreviewEnvironmentRecord> = {}): PreviewEnvi
     url: "http://preview-42.lvh.me",
     expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     error_message: null,
+    error_reason: null,
     ...overrides
   }
 }
 
 function renderPanel(props: Partial<Parameters<typeof PreviewPanel>[0]> = {}) {
   render(
-    <QueryClientProvider client={client()}>
-      <PreviewPanel
-        jobId={42}
-        previewPath="/api/v1/app/jobs/42/preview"
-        previewLogsPath="/api/v1/app/jobs/42/preview/logs"
-        canStart={true}
-        initialPreview={null}
-        queryKey={["jobs", "42", "detail", ""] as const}
-        {...props}
-      />
-    </QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={client()}>
+        <PreviewPanel
+          jobId={42}
+          repositoryId={7}
+          previewPath="/api/v1/app/jobs/42/preview"
+          previewLogsPath="/api/v1/app/jobs/42/preview/logs"
+          canStart={true}
+          initialPreview={null}
+          queryKey={["jobs", "42", "detail", ""] as const}
+          {...props}
+        />
+      </QueryClientProvider>
+    </MemoryRouter>
   )
 }
 
@@ -41,16 +46,19 @@ describe("PreviewPanel", () => {
 
   it("renders nothing when canStart is false and no preview exists", () => {
     const { container } = render(
-      <QueryClientProvider client={client()}>
-        <PreviewPanel
-          jobId={42}
-          previewPath="/api/v1/app/jobs/42/preview"
-          previewLogsPath="/api/v1/app/jobs/42/preview/logs"
-          canStart={false}
-          initialPreview={null}
-          queryKey={["jobs", "42", "detail", ""] as const}
-        />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={client()}>
+          <PreviewPanel
+            jobId={42}
+            repositoryId={7}
+            previewPath="/api/v1/app/jobs/42/preview"
+            previewLogsPath="/api/v1/app/jobs/42/preview/logs"
+            canStart={false}
+            initialPreview={null}
+            queryKey={["jobs", "42", "detail", ""] as const}
+          />
+        </QueryClientProvider>
+      </MemoryRouter>
     )
     expect(container.firstChild).toBeNull()
   })
@@ -113,6 +121,62 @@ describe("PreviewPanel", () => {
       initialPreview: preview({ state: "failed", url: null, expires_at: null, error_message: "No preview provider found." })
     })
     expect(screen.getByText("No preview provider found.")).toBeInTheDocument()
+  })
+
+  it("does not show a Fix preview button for failures without a not_reachable reason", () => {
+    renderPanel({
+      initialPreview: preview({ state: "failed", url: null, expires_at: null, error_message: "No preview provider found." })
+    })
+    expect(screen.queryByRole("button", { name: "Fix preview" })).not.toBeInTheDocument()
+  })
+
+  it("shows a Fix preview button when the failure is diagnosed as not reachable", () => {
+    renderPanel({
+      initialPreview: preview({
+        state: "failed",
+        url: null,
+        expires_at: null,
+        error_message: "preview process is healthy on 127.0.0.1:28009 but is not reachable at syrus-preview:28009; configure the preview start command to bind to 0.0.0.0",
+        error_reason: "not_reachable"
+      })
+    })
+    expect(screen.getByRole("button", { name: "Fix preview" })).toBeInTheDocument()
+  })
+
+  it("creates a direct job scoped to the repository and navigates there when Fix preview is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        message: "Direct job created.",
+        create_more: false,
+        redirect_to: "/jobs/99",
+        job: { id: 99, title: "Fix preview", state: "queued", repository: { id: 7 }, job_path: "/jobs/99" }
+      }, 201)
+    )
+
+    renderPanel({
+      repositoryId: 7,
+      initialPreview: preview({
+        state: "failed",
+        url: null,
+        expires_at: null,
+        error_message: "preview process is healthy on 127.0.0.1:28009 but is not reachable at syrus-preview:28009; configure the preview start command to bind to 0.0.0.0",
+        error_reason: "not_reachable"
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Fix preview" }))
+
+    await waitFor(() => {
+      expect(window.fetch).toHaveBeenCalledWith(
+        "/api/v1/app/jobs",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+
+    const call = (window.fetch as ReturnType<typeof vi.fn>).mock.calls.find(([input]) => String(input) === "/api/v1/app/jobs")
+    const formData = call?.[1]?.body as FormData
+    expect(formData.get("repository_id")).toBe("7")
+    expect(String(formData.get("prompt"))).toContain("is not reachable at syrus-preview:28009")
   })
 
   it("loads preview logs in a modal on demand", async () => {

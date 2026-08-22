@@ -60,6 +60,17 @@ RSpec.describe "App API job preview", type: :request do
       get preview_path(job), as: :json
 
       expect(parse_body.dig("preview", "error_message")).to eq("No preview provider found.")
+      expect(parse_body.dig("preview", "error_reason")).to be_nil
+    end
+
+    it "returns the error_reason for failures diagnosed as not reachable" do
+      create_preview_env(job, state: "failed",
+                          error_message: "preview process is healthy on 127.0.0.1:28009 but is not reachable at preview:28009; configure the preview start command to bind to 0.0.0.0",
+                          error_reason: "not_reachable")
+
+      get preview_path(job), as: :json
+
+      expect(parse_body.dig("preview", "error_reason")).to eq("not_reachable")
     end
 
     it "does not expose another user's job" do
