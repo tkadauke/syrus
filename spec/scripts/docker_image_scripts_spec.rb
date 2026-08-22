@@ -198,6 +198,8 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).to include('kubectl patch cronjob "$MYSQL_BACKUP_CRONJOB"')
     expect(deploy).to include('active mysql backup still running')
     expect(deploy).to include('wait_for_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"')
+    expect(deploy).to include("set +e\n    KUBECONFIG=\"$kubeconfig\" kubectl rollout status")
+    expect(deploy).to include("status=$?\n    set -e")
     expect(deploy).to include('diagnose_rollout_target_full "$label" "$kubeconfig" "$namespace" "$target"')
     expect(deploy).to include('kubectl describe pods')
     expect(deploy).to include('kubectl logs')

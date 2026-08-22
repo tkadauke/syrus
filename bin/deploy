@@ -326,8 +326,10 @@ wait_for_rollout_target() {
   while true; do
     status_log="$(mktemp)"
     local status
+    set +e
     KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$target" --timeout="${poll_seconds}s" >"$status_log" 2>&1
     status=$?
+    set -e
     if [ "$status" -eq 0 ]; then
       cat "$status_log"
       rm -f "$status_log"
