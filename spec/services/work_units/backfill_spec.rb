@@ -6,6 +6,7 @@ RSpec.describe WorkUnits::Backfill do
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }
 
   it "creates intent, unit, member, and lock rows for an active legacy workflow" do
+    job.update!(branch_name: "syrus/job-#{job.id}")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago)
 
     result = described_class.workflow!(workflow)
@@ -19,6 +20,10 @@ RSpec.describe WorkUnits::Backfill do
       scope_type: "job",
       scope_id: job.id,
       workflow: workflow,
+      source_repository: repository,
+      source_ref: job.branch_name,
+      target_repository: repository,
+      target_ref: repository.default_branch,
       started_at: workflow.started_at
     )
     expect(unit.work_intent).to have_attributes(
@@ -29,7 +34,11 @@ RSpec.describe WorkUnits::Backfill do
       scope_id: job.id,
       idempotency_key: "workflow:#{workflow.id}",
       source_type: "workflow_backfill",
-      source_id: workflow.id
+      source_id: workflow.id,
+      source_repository: repository,
+      source_ref: job.branch_name,
+      target_repository: repository,
+      target_ref: repository.default_branch
     )
     expect(unit.work_unit_members.map { |member| [ member.job_id, member.role ] }).to eq([[ job.id, "primary" ]])
     expect(unit.work_unit_locks.pluck(:lock_key)).to eq([ "job:#{job.id}" ])

@@ -1580,6 +1580,10 @@ Completed slices:
   continuously by `WorkUnitsBackfillActiveWorkflowsJob` in bounded
   low-priority batches, so a deploy can converge existing queued/running
   Workflows into the shadow intent/unit model without relying on new launches.
+- `WorkDefinitions::Base#ref_metadata_for` now centralizes the selected
+  delivery-track and source/target repository/ref snapshot. `WorkUnits::Launcher`
+  and the legacy active-workflow backfill both persist that metadata onto
+  `WorkIntent` and `WorkUnit` rows.
 
 ### Phase 4: Scheduler Reads Intents And Units
 

@@ -61,6 +61,7 @@ module WorkUnits
         intent.source_type = "workflow_backfill"
         intent.source_id = workflow.id
         intent.requested_at = workflow.created_at || Time.current
+        intent.assign_attributes(ref_metadata.attributes)
       end
     end
 
@@ -74,7 +75,8 @@ module WorkUnits
         scope_id: scope_id,
         workflow: workflow,
         started_at: workflow.started_at,
-        finished_at: workflow.finished_at
+        finished_at: workflow.finished_at,
+        **ref_metadata.attributes
       )
     end
 
@@ -107,6 +109,10 @@ module WorkUnits
 
     def scope
       @scope ||= definition.scope_for(job: job, artifacts: workflow.artifacts.to_h)
+    end
+
+    def ref_metadata
+      @ref_metadata ||= definition.ref_metadata_for(job: job, artifacts: workflow.artifacts.to_h)
     end
 
     def idempotency_key

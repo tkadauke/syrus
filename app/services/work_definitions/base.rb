@@ -1,6 +1,27 @@
 module WorkDefinitions
   class Base
     Scope = Data.define(:type, :id)
+    RefMetadata = Data.define(
+      :delivery_track,
+      :source_repository,
+      :source_remote_kind,
+      :source_ref,
+      :target_repository,
+      :target_remote_kind,
+      :target_ref
+    ) do
+      def attributes
+        {
+          delivery_track: delivery_track,
+          source_repository: source_repository,
+          source_remote_kind: source_remote_kind,
+          source_ref: source_ref,
+          target_repository: target_repository,
+          target_remote_kind: target_remote_kind,
+          target_ref: target_ref
+        }
+      end
+    end
     LANDING_LOCK_KINDS = %w[auto_merge external_pr_merge merge_train landing_validation merge_train_validation].freeze
 
     class_attribute :kind, instance_accessor: false
@@ -43,6 +64,18 @@ module WorkDefinitions
       [ job ]
     end
 
+    def ref_metadata_for(job:, artifacts: {}, **options)
+      RefMetadata.new(
+        delivery_track: artifacts.to_h["delivery_track"],
+        source_repository: source_repository_for(job),
+        source_remote_kind: "repository",
+        source_ref: source_ref_for(job, artifacts: artifacts, **options),
+        target_repository: target_repository_for(job),
+        target_remote_kind: "repository",
+        target_ref: target_ref_for(job, artifacts: artifacts, **options)
+      )
+    end
+
     def intent_gates = [ WorkIntents::Gates::Dependency ]
     def unit_gates = [ WorkUnits::Gates::ManualPause ]
     def preemption_policy = WorkUnits::PreemptionPolicies::None.new
@@ -66,6 +99,28 @@ module WorkDefinitions
 
     def landing_lock?
       kind.in?(LANDING_LOCK_KINDS)
+    end
+
+    def source_repository_for(job)
+      job.respond_to?(:effective_pr_repository) ? job.effective_pr_repository : job.repository
+    end
+
+    def target_repository_for(job)
+      job.respond_to?(:effective_target_repository) ? job.effective_target_repository : job.repository
+    end
+
+    def source_ref_for(job, artifacts: {}, **)
+      artifacts.to_h["source_ref"].presence ||
+        artifacts.to_h["head_ref"].presence ||
+        artifacts.to_h["branch_name"].presence ||
+        (job.branch_name if job.respond_to?(:branch_name))
+    end
+
+    def target_ref_for(job, artifacts: {}, **options)
+      options[:base_branch].presence ||
+        artifacts.to_h["target_ref"].presence ||
+        artifacts.to_h["base_branch"].presence ||
+        target_repository_for(job)&.default_branch
     end
   end
 end

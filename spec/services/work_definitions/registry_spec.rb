@@ -49,6 +49,12 @@ RSpec.describe WorkDefinitions do
       expect(definition.scope_for(job: job, artifacts: {})).to have_attributes(type: be_present)
       expect(definition.members_for(job: job, artifacts: {})).to respond_to(:each)
       expect(definition.lock_keys_for(job: job, member_jobs: [])).to respond_to(:each)
+      expect(definition.ref_metadata_for(job: job, artifacts: {})).to have_attributes(
+        source_repository: job.effective_pr_repository,
+        source_remote_kind: "repository",
+        target_repository: job.effective_target_repository,
+        target_remote_kind: "repository"
+      )
       expect(definition.preemption_policy).to respond_to(:mode)
       expect(definition.preemption_policy).to respond_to(:checkpoint?)
       expect(definition.preemption_policy).to respond_to(:resume_strategy)

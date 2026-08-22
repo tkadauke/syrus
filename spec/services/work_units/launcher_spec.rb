@@ -100,6 +100,38 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("syrus/parent")
   end
 
+  it "snapshots known ref metadata onto the intent and unit" do
+    job.update!(branch_name: "syrus/job-#{job.id}")
+
+    workflow = described_class.instantiate(
+      kind: "rebase",
+      job: job,
+      artifacts: { "delivery_track" => "default" },
+      base_branch: "syrus/parent"
+    )
+    unit = workflow.work_unit
+    intent = unit.work_intent
+
+    expect(intent).to have_attributes(
+      delivery_track: "default",
+      source_repository: repository,
+      source_remote_kind: "repository",
+      source_ref: job.branch_name,
+      target_repository: repository,
+      target_remote_kind: "repository",
+      target_ref: "syrus/parent"
+    )
+    expect(unit).to have_attributes(
+      delivery_track: "default",
+      source_repository: repository,
+      source_remote_kind: "repository",
+      source_ref: job.branch_name,
+      target_repository: repository,
+      target_remote_kind: "repository",
+      target_ref: "syrus/parent"
+    )
+  end
+
   it "can use a specialized template while recording an existing workflow trigger kind" do
     workflow = described_class.instantiate(
       kind: "checkpoint_resume",

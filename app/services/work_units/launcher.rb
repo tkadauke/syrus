@@ -45,6 +45,7 @@ module WorkUnits
       @options = options
       @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
       @member_jobs = @definition.members_for(job: job, artifacts: payload_artifacts, **options)
+      @ref_metadata = @definition.ref_metadata_for(job: job, artifacts: payload_artifacts, **options)
     end
 
     def instantiate
@@ -65,7 +66,7 @@ module WorkUnits
 
     private
 
-    attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options
+    attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options, :ref_metadata
 
     def find_or_create_intent!
       return WorkIntent.create!(intent_attributes) if idempotency_key.blank?
@@ -86,7 +87,7 @@ module WorkUnits
         actor: job.user,
         source_type: source_type,
         source_id: source_id
-      }
+      }.merge(ref_metadata.attributes)
     end
 
     def active_workflow_for(intent)
@@ -108,7 +109,8 @@ module WorkUnits
         state: "queued",
         repository: job.repository,
         scope_type: scope_type,
-        scope_id: scope_id
+        scope_id: scope_id,
+        **ref_metadata.attributes
       )
     end
 
