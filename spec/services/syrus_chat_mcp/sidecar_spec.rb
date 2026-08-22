@@ -102,8 +102,12 @@ RSpec.describe Mcp::Sidecar do
         rename_chat
         suggest_next_step
         ask_user_question
+        write_preview_file
+        edit_preview_file
+        show_preview
+        close_preview
       ])
-      expect(tool_names.size).to eq(24)
+      expect(tool_names.size).to eq(28)
       expect(tool_names).not_to include("complete_implement_step")
     end
 
