@@ -12,6 +12,12 @@ module PluginRouteDispatch
 
     request.path_parameters.merge!(route.params)
     request.path_parameters.delete(:plugin_route)
+    # #params memoizes into this header on first access; PluginRoutesController's
+    # own before_actions (auth/session resume) already read params before we
+    # get here, so without clearing it the redispatched controller would see
+    # the stale pre-merge path_parameters (missing any dynamic segments the
+    # matched route declared, e.g. :repository_id) instead of route.params.
+    request.delete_header("action_dispatch.request.parameters")
 
     controller_class.dispatch(action_name, request, response)
   end
