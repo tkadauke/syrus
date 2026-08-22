@@ -267,3 +267,55 @@ describe("ScheduledTaskFormRoute cadence preview", () => {
     })
   })
 })
+
+describe("ScheduledTaskFormRoute top-level repository picker", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function renderTopLevelNewForm() {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url === "/api/v1/app/scheduled_tasks/new") {
+        return Promise.resolve(jsonResponse({
+          repositories: [
+            { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+            { id: 2, slug: "acme/gadgets", repository_path: "/repositories/2" }
+          ]
+        }))
+      }
+      if (url.startsWith("/api/v1/app/repositories/1/scheduled_tasks/new")) {
+        return Promise.resolve(jsonResponse(newFormPayload()))
+      }
+      return Promise.reject(new Error(`unexpected fetch ${url}`))
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/scheduled_tasks/new"]}>
+          <Routes>
+            <Route element={<ScheduledTaskFormRoute mode="new" />} path="/app-shell/scheduled_tasks/new" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  it("gates the new-task form behind a mandatory repository pick", async () => {
+    renderTopLevelNewForm()
+
+    const select = await screen.findByLabelText("Repository")
+    expect(screen.queryByRole("button", { name: "Create task" })).not.toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: "1" } })
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }))
+
+    expect(await screen.findByRole("button", { name: "Create task" })).toBeInTheDocument()
+  })
+
+  it("disables Continue until a repository is picked", async () => {
+    renderTopLevelNewForm()
+
+    const continueButton = await screen.findByRole("button", { name: "Continue" })
+    expect(continueButton).toBeDisabled()
+  })
+})

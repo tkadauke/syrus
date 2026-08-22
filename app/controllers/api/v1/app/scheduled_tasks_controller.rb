@@ -29,6 +29,10 @@ module Api
           render json: scheduled_task_form_payload(task, repository: repository, from_template: from_template)
         end
 
+        def new_repository_options
+          render json: { repositories: available_repositories.map { |repository| repository_json(repository) } }
+        end
+
         def repository_index
           repository = find_repository
           render json: repository_scheduled_tasks_payload(repository)
@@ -347,6 +351,10 @@ module Api
 
         def find_repository
           Current.user.repositories.find(params[:repository_id])
+        end
+
+        def available_repositories
+          Current.user.repositories.active.order(:owner, :name)
         end
 
         def find_task

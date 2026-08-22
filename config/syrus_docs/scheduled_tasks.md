@@ -2,6 +2,10 @@
 
 `ScheduledTask` lets operators attach recurring or one-shot agent prompts to a repository. The agent runs on schedule without requiring a GitHub issue.
 
+## Creating tasks
+
+Tasks are usually created from a repository's Schedules tab (`/repositories/:id/scheduled_tasks/new`), which is already scoped to that repository. The top-level `/scheduled_tasks` index also has a "New scheduled task" button; since that page isn't scoped to any repository, it presents a mandatory repository picker first (`GET /api/v1/app/scheduled_tasks/new` lists the operator's active repositories) and, once a repository is chosen, hands off to the same per-repository form and `createScheduledTask(repositoryId, ...)` submit path used by the repo-scoped flow.
+
 ## Task kinds
 
 ### cron

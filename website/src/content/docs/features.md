@@ -364,6 +364,12 @@ between the two. A skill-based task still creates a `cron` Job and follows
 the same pileup and auto-pause behavior; only the source of the agent's
 instructions differs.
 
+New tasks can be created from a repository's Schedules tab, or from the
+top-level Schedules page's "New scheduled task" button. The top-level entry
+point isn't scoped to a repository, so it asks the operator to pick one
+first; after that, the rest of the form is identical to the repository-scoped
+flow.
+
 ## Chats
 
 Chats are operator conversations that can start with or without repository
