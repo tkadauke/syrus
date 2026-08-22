@@ -145,7 +145,7 @@ module WorkEngine
 
           if Workflow::TriggerKind.feedback_kind_for(latest.trigger_kind)
             workflow = WorkUnits::Launcher.instantiate(kind: latest.trigger_kind, job: job, artifacts: artifacts)
-            StepDispatcher.start_workflow(workflow)
+            WorkUnits::Launcher.start!(workflow)
             RetryWorkflowEnqueuer::Result.new(workflow: workflow, error: nil, circuit: nil)
           else
             RetryWorkflowEnqueuer.call(
@@ -381,7 +381,7 @@ module WorkEngine
           return skipped("Workflow has no first Step") unless first
           return skipped("First Step already has a Run") if first.runs.exists?
 
-          run = StepDispatcher.start_workflow(workflow)
+          run = WorkUnits::Launcher.start!(workflow).run
           run ? success("started Workflow ##{workflow.id} with Run ##{run.id}") : skipped("workflow start remained blocked")
         end
       end
@@ -414,7 +414,7 @@ module WorkEngine
           return skipped("Dependencies are still not ready for execution") unless workflow.job.dependencies_satisfied_for_execution?
 
           StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
-          run = StepDispatcher.start_workflow(workflow.reload)
+          run = WorkUnits::Launcher.start!(workflow.reload).run
           run ? success("cleared stale dependency block and started Workflow ##{workflow.id} with Run ##{run.id}") : skipped("workflow start remained blocked")
         end
       end

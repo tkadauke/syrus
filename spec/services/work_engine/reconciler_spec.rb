@@ -572,6 +572,7 @@ RSpec.describe WorkEngine::Reconciler do
     cancelled.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
     first_step.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
     child.update_columns(state: "queued")
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
 
     retry_count = child.workflows.where(trigger_kind: "retry").count
     expect {
@@ -592,6 +593,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(retry_workflow.artifact("cancelled_workflow_id")).to eq(cancelled.id)
     expect(retry_workflow.artifact("cancelled_trigger_kind")).to eq("chat_feedback")
     expect(retry_workflow.state).to be_in(%w[queued running])
+    expect(WorkUnits::Launcher).to have_received(:start!).with(retry_workflow)
   end
 
   it "retries a queued Job whose latest implementation workflow was cancelled without active replacement work" do
@@ -1914,12 +1916,14 @@ RSpec.describe WorkEngine::Reconciler do
       }
     )
     step.update_columns(state: "queued")
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
 
     result = reconcile_and_execute(workflow_id: workflow.id)
 
     expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
     expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
     expect(step.runs.count).to eq(1)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
   it "classifies main-health start blocks with the matching wait-only action" do
@@ -2285,11 +2289,13 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_next_check_at" => 1.minute.ago.iso8601
       }
     )
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
 
     result = reconcile_and_execute(workflow_id: auto_merge.id)
 
     expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: auto_merge.id)
     expect(auto_merge.first_step.runs.count).to eq(1)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(auto_merge)
     expect(auto_merge.reload).to be_queued
     expect(landing_job.reload).to be_landing
     expect(landing_job.landing_failure_reason).to be_nil

@@ -1527,6 +1527,9 @@ Completed slices:
   preserving the existing source Workflow artifact link.
 - Auto-merge control now starts inline rebase Workflows through
   `WorkUnits::Launcher.start!` when landing discovers the PR needs a rebase.
+- Work-engine repair execution now routes workflow-start repairs through
+  `WorkUnits::Launcher.start!`, covering cancelled feedback workflow retries,
+  queued Workflows missing first Runs, and stale dependency-block clears.
 
 Add a guard spec that prevents new direct `Workflows::* .instantiate` call sites
 outside the launcher, workflow tests, and factories.
