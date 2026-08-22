@@ -581,7 +581,6 @@ RSpec.describe VideoWalkthroughAnalysisJob do
       expect(walkthrough.file.blob.id).not_to eq(original_blob.id)
       expect(ActiveStorage::Blob.exists?(original_blob.id)).to be false
     end
-
   end
 
   describe "queue" do

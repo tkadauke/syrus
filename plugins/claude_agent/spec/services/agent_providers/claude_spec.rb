@@ -173,7 +173,7 @@ RSpec.describe AgentProviders::Claude do
                                     final_text: nil, session_id: "sid-live-abc")
       }
 
-      adapter.run(prompt: "do it", log_sink: ->(*, **) {}, max_turns: 5)
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { }, max_turns: 5)
 
       expect(run.reload.live_session_id).to eq("sid-live-abc")
     end
