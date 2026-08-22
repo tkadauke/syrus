@@ -33,7 +33,7 @@ RSpec.describe McpToolRegistry do
     end
 
     it "uses explicit MCP tool names for anonymous tool classes" do
-      tool = MCP::Tool.define(name: "plugin_ping", description: "Ping.", input_schema: {}) {}
+      tool = MCP::Tool.define(name: "plugin_ping", description: "Ping.", input_schema: {}) { }
       entry = described_class::Entry.new(
         tool: tool,
         surface: :chat,

@@ -85,7 +85,7 @@ RSpec.describe ClaudeInvocation do
         received_callback = kwargs[:on_session_id]
         result_fixture
       }
-      callback = ->(_) {}
+      callback = ->(_) { }
       described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x",
                           runner: runner, on_session_id: callback).run
       expect(received_callback).to eq(callback)
@@ -284,7 +284,7 @@ RSpec.describe ClaudeInvocation do
         prompt: "x",
         oauth_token: "x",
         model: "claude-sonnet-4",
-        log_sink: ->(_l, **_) {}
+        log_sink: ->(_l, **_) { }
       )
       event = {
         type: "assistant",
@@ -317,7 +317,7 @@ RSpec.describe ClaudeInvocation do
         prompt: "x",
         oauth_token: "x",
         model: "claude-sonnet-4",
-        log_sink: ->(_l, **_) {}
+        log_sink: ->(_l, **_) { }
       )
       event = {
         type: "assistant",
@@ -1070,7 +1070,7 @@ RSpec.describe ClaudeInvocation do
       end
 
       described_class.new(workspace_path, prompt: "x", oauth_token: "x",
-                          log_sink: ->(_msg, **) {},
+                          log_sink: ->(_msg, **) { },
                           resume_session_id: sid).run
 
       expect(file_existed_at_spawn).to be true

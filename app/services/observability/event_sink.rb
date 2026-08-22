@@ -229,6 +229,5 @@ module Observability
     def event_identity(event)
       [ event["occurred_at"], event["event"], event["request_id"], event["phase"], event["name"], event["message"] ]
     end
-
   end
 end

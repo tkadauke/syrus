@@ -88,10 +88,10 @@ class LandingQueueRecheck
 
     detail = client.check_runs_detail_for(pr_repository.slug, head_sha)
     state = if detail[:any_failed?] then "failing"
-            elsif detail[:pending?] then "pending"
-            elsif detail[:all_passed?] then "passing"
-            else "unknown"
-            end
+    elsif detail[:pending?] then "pending"
+    elsif detail[:all_passed?] then "passing"
+    else "unknown"
+    end
     @job.update_columns(pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current)
     true
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
