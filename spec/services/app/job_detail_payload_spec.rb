@@ -446,6 +446,108 @@ RSpec.describe App::JobDetailPayload do
     end
   end
 
+  describe "#sccache" do
+    it "returns nil when no workflow ever captured an sccache stats snapshot" do
+      job = Factories.job_record(repository: repo)
+      Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+
+      expect(payload_for(job)[:sccache]).to be_nil
+    end
+
+    it "returns the latest capture with a normalized stats summary" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        artifacts: {
+          "sccache_stats" => [
+            {
+              "run_id" => 1,
+              "step_kind" => "prepare",
+              "label" => "cmake --build .",
+              "iteration" => 1,
+              "captured_at" => "2026-08-20T10:00:00Z",
+              "stats" => { "cache_hits" => 5, "cache_misses" => 2, "cache_size" => 104_857_600 }
+            },
+            {
+              "run_id" => 2,
+              "step_kind" => "grader",
+              "label" => "coverage",
+              "iteration" => 2,
+              "captured_at" => "2026-08-20T10:05:00Z",
+              "stats" => { "cache_hits" => 9, "cache_misses" => 3, "cache_size" => 209_715_200 }
+            }
+          ]
+        }
+      )
+
+      expect(payload_for(job)[:sccache]).to eq(
+        workflow_id: workflow.id,
+        run_id: 2,
+        step_kind: "grader",
+        label: "coverage",
+        iteration: 2,
+        captured_at: "2026-08-20T10:05:00Z",
+        summary: {
+          hits: 9,
+          misses: 3,
+          hit_rate: 75.0,
+          cache_size: 209_715_200,
+          max_cache_size: nil,
+          cache_location: nil
+        }
+      )
+    end
+
+    it "picks the capture with the latest captured_at across workflows, not the newest workflow" do
+      job = Factories.job_record(repository: repo)
+      newer_workflow_stale_capture = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "running",
+        created_at: 1.hour.ago,
+        artifacts: {
+          "sccache_stats" => [
+            { "run_id" => 3, "step_kind" => "prepare", "label" => "cmake", "iteration" => 1, "captured_at" => "2026-08-20T09:00:00Z", "stats" => { "cache_hits" => 1, "cache_misses" => 1 } }
+          ]
+        }
+      )
+      older_workflow_fresh_capture = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        created_at: 2.hours.ago,
+        artifacts: {
+          "sccache_stats" => [
+            { "run_id" => 4, "step_kind" => "grader", "label" => "coverage", "iteration" => 1, "captured_at" => "2026-08-20T11:00:00Z", "stats" => { "cache_hits" => 8, "cache_misses" => 0 } }
+          ]
+        }
+      )
+
+      expect(payload_for(job)[:sccache]).to include(workflow_id: older_workflow_fresh_capture.id)
+      expect(payload_for(job)[:sccache][:workflow_id]).not_to eq(newer_workflow_stale_capture.id)
+    end
+
+    it "returns nil-valued summary fields when the raw stats hash is unrecognizable" do
+      job = Factories.job_record(repository: repo)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        artifacts: {
+          "sccache_stats" => [
+            { "run_id" => 1, "step_kind" => "prepare", "label" => "cmake", "iteration" => 1, "captured_at" => "2026-08-20T10:00:00Z", "stats" => "sccache: error: server startup failed" }
+          ]
+        }
+      )
+
+      expect(payload_for(job)[:sccache][:summary]).to eq(
+        hits: nil, misses: nil, hit_rate: nil, cache_size: nil, max_cache_size: nil, cache_location: nil
+      )
+    end
+  end
+
   describe "#summary_json" do
     it "prefers canonical metadata summaries from succeeded workflows over run summaries" do
       job = Factories.job(repository: repo)

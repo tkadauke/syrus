@@ -54,6 +54,24 @@ RSpec.describe Steps::Grader do
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
 
+  describe "sccache stats capture" do
+    it "records a workflow artifact entry named after the grader when sccache reports stats" do
+      allow(SccacheStatsCapture).to receive(:capture).and_return({ "compile_requests" => 5 })
+
+      handler.call
+
+      entries = workflow.reload.artifact("sccache_stats")
+      expect(entries.size).to eq(1)
+      expect(entries.first).to include("step_kind" => "grader", "label" => "tests", "stats" => { "compile_requests" => 5 })
+    end
+
+    it "does not record an artifact when sccache isn't installed" do
+      handler.call
+
+      expect(workflow.reload.artifact("sccache_stats")).to be_nil
+    end
+  end
+
   it "streams grader output through the shared buffered log sink" do
     fake_result = ProcessRunner::Result.new(
       exit_status: 0, timed_out: false, stopped: false,

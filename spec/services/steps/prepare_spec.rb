@@ -191,6 +191,50 @@ RSpec.describe Steps::Prepare do
     expect(chunks).not_to include("all commands completed successfully")
   end
 
+  describe "PREP_ENV_FORWARD" do
+    it "forwards sccache's S3 backend env vars so the worker-image compiler masquerade reaches the shared bucket" do
+      expect(Steps::Prepare::PREP_ENV_FORWARD).to include(
+        "SCCACHE_BUCKET", "SCCACHE_ENDPOINT", "SCCACHE_REGION", "SCCACHE_S3_KEY_PREFIX",
+        "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"
+      )
+    end
+
+    it "never forwards SCCACHE_BASEDIRS — it would let coverage builds cache-hit across workspaces" do
+      expect(Steps::Prepare::PREP_ENV_FORWARD).not_to include("SCCACHE_BASEDIRS")
+    end
+  end
+
+  describe "sccache stats capture" do
+    it "records a workflow artifact entry per prepare command when sccache reports stats" do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        prepare:
+          - echo first
+      YAML
+      allow(SccacheStatsCapture).to receive(:capture).and_return({ "compile_requests" => 3 })
+
+      handler.call
+
+      entries = workflow.reload.artifact("sccache_stats")
+      expect(entries.size).to eq(1)
+      expect(entries.first).to include(
+        "step_kind" => "prepare",
+        "label" => "echo first",
+        "stats" => { "compile_requests" => 3 }
+      )
+    end
+
+    it "does not record an artifact when sccache isn't installed" do
+      File.write(@ws_path.join(".syrus.yml"), <<~YAML)
+        prepare:
+          - echo first
+      YAML
+
+      handler.call
+
+      expect(workflow.reload.artifact("sccache_stats")).to be_nil
+    end
+  end
+
   describe "plugin detection" do
     it "records the detected plugin set as a workflow artifact readable by a later step" do
       File.write(@ws_path.join("Gemfile"), "")
