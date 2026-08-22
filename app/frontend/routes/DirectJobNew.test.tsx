@@ -74,6 +74,20 @@ describe("DirectJobNew agent provider icon", () => {
     expect(icon).toBeInTheDocument()
     expect(icon).toHaveClass("h-4", "w-4")
   })
+
+  it("falls back to the repository's default provider icon when no explicit provider is selected", async () => {
+    renderRoute(formPayload({
+      selected_agent_provider: null,
+      configured_agent_providers: [
+        { value: "claude", label: "Claude" },
+        { value: "codex", label: "Codex" }
+      ]
+    }))
+
+    const select = await screen.findByRole("combobox", { name: "Agent" })
+    const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
+    expect(icon).toBeInTheDocument()
+  })
 })
 
 describe("DirectJobNew template selection", () => {
