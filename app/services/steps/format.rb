@@ -10,12 +10,13 @@ module Steps
   # file in this iteration's diff; an entry whose glob matches nothing is
   # skipped. `formatters: false` (or `off`) explicitly opts the repo out of
   # formatting altogether, including the plugin defaults below. With no
-  # `formatters:` key at all, this falls back to the `:autofix_command`
-  # plugin providers (Ruby's `rubocop -a`, JavaScript's `eslint --fix`/
-  # `prettier --write`, Go's `gofmt -w`, Python's `ruff format`/`black`) —
-  # every applicable one, gated on this iteration's diff being non-empty
-  # (plugin providers don't declare their own file globs the way explicit
-  # `.syrus.yml` formatters do).
+  # `formatters:` key at all, no formatting runs at all — that is the safe
+  # default. An explicit `formatters: []` (a blank array) is the opt-in
+  # signal for the `:autofix_command` plugin providers (Ruby's `rubocop -a`,
+  # JavaScript's `eslint --fix`/`prettier --write`, Go's `gofmt -w`,
+  # Python's `ruff format`/`black`) — every applicable one, gated on this
+  # iteration's diff being non-empty (plugin providers don't declare their
+  # own file globs the way explicit `.syrus.yml` formatters do).
   class Format < Base
     include DiffScopedAutofix
 
@@ -44,13 +45,16 @@ module Steps
       formatters = config&.formatters
 
       case formatters
+      when nil
+        log("[format] no formatters: key in .syrus.yml — skipping (set formatters: [] to opt into plugin defaults)")
+        []
       when false
         log("[format] formatters explicitly disabled in .syrus.yml")
         []
+      when []
+        plugin_default_commands
       when Array
         explicit_commands(formatters, files)
-      else
-        plugin_default_commands
       end
     end
 

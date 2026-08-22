@@ -624,11 +624,12 @@ which deterministic formatter/linter-autocorrect shell command to run in the
 workspace after the agentic step (`implement`/`respond`) and before the
 grader retry loop's check phase, so a style-only grader failure the tool
 could resolve for free doesn't cost the agent a full turn to notice and fix
-by hand. Only used as a fallback when the repo's `.syrus.yml` has no
-explicit `formatters:` key — an explicit `formatters:` array (or an explicit
-`formatters: false`/`off` disable) takes over entirely and this extension
-point is not consulted. Present in `initial`, `retry`, `pr_comment`, and
-`chat_feedback` workflows only.
+by hand. Only used when the repo's `.syrus.yml` explicitly opts in with a
+blank `formatters: []` — this is the opt-in signal for plugin defaults. A
+repo with no `formatters:` key at all runs no formatting; a populated
+`formatters:` array (or an explicit `formatters: false`/`off` disable)
+takes over entirely and this extension point is not consulted. Present in
+`initial`, `retry`, `pr_comment`, and `chat_feedback` workflows only.
 
 Include `Syrus::Plugin::AutofixCommand` and implement the class method:
 
@@ -658,7 +659,7 @@ Syrus::PluginRegistry.register(
 )
 ```
 
-When no explicit `formatters:` config applies, `Steps::Format` runs every
+When `formatters: []` opts into plugin defaults, `Steps::Format` runs every
 applicable command from every enabled plugin (union across plugins, ordered
 by `prepare_priority` same as `:prepare_detector`) that this iteration's
 diff is non-empty for, commits any resulting changes, and never fails the
