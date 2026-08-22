@@ -94,7 +94,7 @@ import { fetchBootstrap, readInitialBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "../components/CloseIcon"
 import { GearIcon } from "../components/GearIcon"
 import { PinIcon } from "../components/PinIcon"
-import { newestPins, useChatPins } from "./chat/pins"
+import { newestPins, useChatPins, useHasPins } from "./chat/pins"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -712,7 +712,8 @@ function ChatWorkspace({
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("chat")
   const simpleMode = useSimpleMode()
-  const availableTabs = availableWorkspaceTabs(payload, simpleMode)
+  const hasPins = useHasPins(payload.chat.id, queryKey[2])
+  const availableTabs = availableWorkspaceTabs(payload, simpleMode, hasPins)
   const expanded = activeTab === "whiteboard" && whiteboardFullscreen
 
   useEffect(() => {

@@ -23,7 +23,7 @@ import { chatDisplayTitle, snapshotKindLabel, diffLineClass, secondaryButton, er
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
-import { newestPins, useChatPins } from "./pins"
+import { newestPins, useChatPins, useHasPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
@@ -72,7 +72,8 @@ export function ChatWorkspacePanel({
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
-  const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode), [payload, simpleMode])
+  const hasPins = useHasPins(payload.chat.id, queryKey[2])
+  const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode, hasPins), [payload, simpleMode, hasPins])
   const activePreviewPanel = isPreviewTab(activeTab)
     ? payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null
     : null
