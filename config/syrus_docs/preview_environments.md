@@ -1,13 +1,15 @@
 # Preview Environments
 
-Preview environments let operators and reviewers access a live, running copy of the target application for testing before approving a PR. The web process handles subdomain-based routing to the preview service.
+Preview environments let operators and reviewers access a live, running copy of the target application for testing before approving a PR, or a live copy of a repository's current default branch with no Job involved at all. The web process handles subdomain-based routing to the preview service.
+
+`PreviewEnvironment` belongs to exactly one of `job` or `repository` (never both, never neither) — Job-scoped previews are the PR-review case above; repository-scoped previews (`job_id` nil, `repository_id` set) are the job-less "Preview main" case, started from the repository detail page. Both flow through the same `PreviewWorkspace`/`PreviewService`/`PreviewProxyMiddleware` machinery; a repository-scoped preview simply clones the repository's default branch with no revision override, since there is no Job to derive a branch/SHA from.
 
 ## URL routing
 
-Preview environments are accessed via subdomains, not paths:
+Preview environments are accessed via subdomains, not paths, keyed on the `PreviewEnvironment` id (not the Job id — a Job can accumulate several preview environments over its lifetime, and a repository-scoped preview has no Job id to key off at all):
 
 ```
-http://preview-{job_id}.{SYRUS_PREVIEW_BASE_DOMAIN}
+http://preview-{preview_environment_id}.{SYRUS_PREVIEW_BASE_DOMAIN}
 ```
 
 Path-based proxying is intentionally not used — it causes CSRF failures, broken absolute URL generation, and broken redirects in most web frameworks.
@@ -40,7 +42,7 @@ The middleware is inserted at position 0 (first in the stack) so preview subdoma
 For each incoming request:
 
 1. The `Host` header is matched against `preview-(\d+).{base_domain}`.
-2. If matched, Syrus looks up a `PreviewEnvironment` with that `job_id` in `running` state.
+2. If matched, Syrus looks up a `PreviewEnvironment` with that id in `running` state, regardless of whether it's job-scoped or repository-scoped.
 3. If found: the request is reverse-proxied to the preview app at `internal_host:port`, and `last_activity_at` / `expires_at` are refreshed to extend the TTL.
 4. If not found (environment not running, never started, or expired): a 503 response is returned with a message directing the user to the Syrus UI.
 5. If the host doesn't match the preview pattern: the request falls through to the normal Rails application.
@@ -115,11 +117,17 @@ repository's default branch (always present, non-shallow) and checks out
 `job.landed_sha` directly rather than passing `--branch job.branch_name`. Every
 other previewable state keeps cloning by branch name (`revision: :head`).
 
-Each preview server child process is recorded as a `SpawnedProcess` with `kind=preview`, including `pid`, `pgid`, command, workdir, and preview/job identifiers in `resource_attribution`. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
+Each preview server child process is recorded as a `SpawnedProcess` with `kind=preview`, including `pid`, `pgid`, command, workdir, and preview/job/repository identifiers in `resource_attribution`. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
+
+### Repository-scoped previews ("Preview main")
+
+The repository detail page offers a "Preview main" action independent of any Job — useful for checking the current default branch works before filing new work, or just to poke at a repo's running app. It creates a `PreviewEnvironment` with `job_id` nil and `repository_id` set to the repository. `PreviewWorkspace` treats a nil Job the same as the post-land `:commit_sha` case for clone purposes: it clones the repository's default branch (`:head` revision, no override) since there's no Job branch/SHA to check out instead. Authentication for the clone falls back to `Repository#user` (the same fallback `PullRequestOpener` and `ForkSyncService` use for repo-level Git operations with no Job in scope) since there's no Job user to borrow credentials from.
+
+`GET/POST/DELETE /api/v1/app/repositories/:repository_id/preview` (and `.../preview/logs`) mirror the job-scoped `/api/v1/app/jobs/:job_id/preview` endpoints one-for-one — same `PreviewEnvironment` states, same TTL/health-check/log-tailing behavior — just scoped by `repository_id` instead of `job_id`. A repository can have at most one active repository-scoped preview at a time, independent of (and not conflicting with) any active job-scoped previews for Jobs under that repository.
 
 ## Lifecycle
 
-- Start: operator clicks "Start Preview" in the Syrus UI for an implemented, approved, or landing Job, or for a closed Job that has landed (see "Post-land previews" above) → preview service creates a fresh preview checkout, runs setup/seed commands, then spawns the app.
+- Start: operator clicks "Start Preview" on a Job detail page for an implemented, approved, or landing Job, or for a closed Job that has landed (see "Post-land previews" above); or clicks "Preview main" on a repository detail page for any non-archived repository (see "Repository-scoped previews" above) → preview service creates a fresh preview checkout, runs setup/seed commands, then spawns the app.
 - Inactivity TTL: 10 minutes of no proxied traffic causes the preview service to stop the environment.
 - TTL reset: each proxied request through `PreviewProxyMiddleware` resets `last_activity_at` and extends `expires_at`.
 - Failure: if the checkout, preview command resolution, port allocation, setup/seed/app start, or health check fails, the environment is marked `failed` with an error message. It must not remain indefinitely in `starting` or `seeding`.

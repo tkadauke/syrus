@@ -16,8 +16,19 @@ RSpec.describe PreviewEnvironment, type: :model do
       expect(build_env).to be_valid
     end
 
-    it "requires job" do
+    it "requires exactly one of job or repository" do
       expect(build_env(job: nil)).not_to be_valid
+    end
+
+    it "rejects both job and repository present at once" do
+      env = build_env(repository: job.repository)
+      expect(env).not_to be_valid
+      expect(env.errors[:base]).to include("must belong to exactly one of job or repository")
+    end
+
+    it "is valid with only a repository (no job)" do
+      env = build_env(job: nil, repository: job.repository)
+      expect(env).to be_valid
     end
 
     it "requires state" do
@@ -59,7 +70,7 @@ RSpec.describe PreviewEnvironment, type: :model do
       create_env
       second = build_env
       expect(second).not_to be_valid
-      expect(second.errors[:job]).to include("already has an active preview environment")
+      expect(second.errors[:base]).to include("already has an active preview environment")
     end
 
     it "allows a new preview when the existing one is stopped" do
@@ -83,6 +94,38 @@ RSpec.describe PreviewEnvironment, type: :model do
         create_env(state: active_state)
         expect(build_env).not_to be_valid
       end
+    end
+  end
+
+  describe "uniqueness constraint: only one active preview per repository (no job)" do
+    def build_repo_env(**attrs)
+      described_class.new({ job: nil, repository: job.repository, workspace_path: "/tmp/workspace" }.merge(attrs))
+    end
+
+    def create_repo_env(**attrs)
+      described_class.create!({ job: nil, repository: job.repository, workspace_path: "/tmp/workspace" }.merge(attrs))
+    end
+
+    it "allows creating a repository-scoped preview when none is active" do
+      expect { create_repo_env }.not_to raise_error
+    end
+
+    it "prevents a second active repository-scoped preview for the same repository" do
+      create_repo_env
+      second = build_repo_env
+      expect(second).not_to be_valid
+      expect(second.errors[:base]).to include("already has an active preview environment")
+    end
+
+    it "allows a job-scoped preview and a repository-scoped preview for the same repository at once" do
+      create_env
+      expect { create_repo_env }.not_to raise_error
+    end
+
+    it "allows active repository-scoped previews for different repositories" do
+      other_repository = Factories.repository
+      create_repo_env
+      expect { create_repo_env(repository: other_repository) }.not_to raise_error
     end
   end
 
@@ -201,11 +244,28 @@ RSpec.describe PreviewEnvironment, type: :model do
   end
 
   describe "#preview_url" do
-    it "constructs a subdomain-based URL" do
-      env = build_env
-      env.job = Factories.job
+    it "constructs a subdomain-based URL keyed on the preview environment id" do
+      env = create_env
       url = env.preview_url("syrus.example.com")
-      expect(url).to eq("http://preview-#{env.job_id}.syrus.example.com")
+      expect(url).to eq("http://preview-#{env.id}.syrus.example.com")
+    end
+
+    it "keys off the preview environment id for repository-scoped previews too" do
+      env = described_class.create!(job: nil, repository: job.repository, workspace_path: "/tmp/workspace")
+      url = env.preview_url("syrus.example.com")
+      expect(url).to eq("http://preview-#{env.id}.syrus.example.com")
+    end
+  end
+
+  describe "#effective_repository" do
+    it "resolves through the job for job-scoped previews" do
+      env = create_env
+      expect(env.effective_repository).to eq(job.repository)
+    end
+
+    it "resolves directly for repository-scoped previews" do
+      env = described_class.create!(job: nil, repository: job.repository, workspace_path: "/tmp/workspace")
+      expect(env.effective_repository).to eq(job.repository)
     end
   end
 

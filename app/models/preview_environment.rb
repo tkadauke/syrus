@@ -9,11 +9,13 @@ class PreviewEnvironment < ApplicationRecord
   DEFAULT_PORT_MAX = 29_999
   DEFAULT_TTL_MINUTES = 10
 
-  belongs_to :job
+  belongs_to :job, optional: true
+  belongs_to :repository, optional: true
 
   validates :state, presence: true, inclusion: { in: STATES }
   validates :error_message, absence: true, unless: :failed?
-  validate :only_one_active_per_job, on: :create
+  validate :exactly_one_owner
+  validate :only_one_active_per_owner, on: :create
 
   scope :active, -> { where(state: ACTIVE_STATES) }
   scope :expired, -> { where(state: "running").where("expires_at IS NOT NULL AND expires_at <= ?", Time.current) }
@@ -46,7 +48,11 @@ class PreviewEnvironment < ApplicationRecord
   end
 
   def active? = ACTIVE_STATES.include?(state)
-  def preview_url(base_domain) = "http://preview-#{job_id}.#{base_domain}"
+  def preview_url(base_domain) = "http://preview-#{id}.#{base_domain}"
+
+  # Job-scoped previews resolve the repository through the Job; a
+  # repository-scoped preview (no Job) carries repository_id directly.
+  def effective_repository = job&.repository || repository
 
   def touch_activity!
     update_columns(last_activity_at: Time.current, expires_at: DEFAULT_TTL_MINUTES.minutes.from_now)
@@ -54,9 +60,16 @@ class PreviewEnvironment < ApplicationRecord
 
   private
 
-  def only_one_active_per_job
-    if PreviewEnvironment.where(job_id: job_id, state: ACTIVE_STATES).exists?
-      errors.add(:job, "already has an active preview environment")
+  def exactly_one_owner
+    return if job_id.present? ^ repository_id.present?
+
+    errors.add(:base, "must belong to exactly one of job or repository")
+  end
+
+  def only_one_active_per_owner
+    scope = job_id.present? ? PreviewEnvironment.where(job_id: job_id) : PreviewEnvironment.where(repository_id: repository_id, job_id: nil)
+    if scope.where(state: ACTIVE_STATES).exists?
+      errors.add(:base, "already has an active preview environment")
     end
   end
 end

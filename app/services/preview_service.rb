@@ -156,8 +156,12 @@ class PreviewService
   # A closed, landed Job's branch is typically already deleted by the time an
   # operator starts a post-land preview — clone by the merged commit SHA
   # instead of the (gone) branch name. Every other previewable state still
-  # has a live branch to check out directly.
+  # has a live branch to check out directly. A repository-scoped preview (no
+  # Job) has no revision to resolve at all — PreviewWorkspace's :head default
+  # already clones the repository's default branch in that case.
   def workspace_revision_for(job)
+    return :head unless job
+
     job.closed? && job.landed_sha.present? ? :commit_sha : :head
   end
 
@@ -187,6 +191,7 @@ class PreviewService
       resource_attribution: {
         "preview_environment_id" => preview_environment.id,
         "job_id" => preview_environment.job_id,
+        "repository_id" => preview_environment.repository_id,
         "port" => port
       }
     )

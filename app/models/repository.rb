@@ -70,6 +70,7 @@ class Repository < ApplicationRecord
   has_many :chat_pending_actions, dependent: :destroy
   has_many :main_branch_health_checks, dependent: :destroy
   has_many :insight_suggestions, dependent: :destroy
+  has_many :preview_environments, dependent: :destroy
   has_one :insight_schedule_config, dependent: :destroy
 
   validates :owner, presence: true, format: { with: GITHUB_NAME }

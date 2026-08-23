@@ -16,6 +16,7 @@ import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEm
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
+import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, fetchRepositoryThroughputMetrics, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryThroughputConfidence, type RepositoryThroughputDuration, type RepositoryThroughputMetricsPayload, type RepositoryThroughputRate, type RepositoryThroughputWindow, type RepositoryThroughputWindowKey } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
@@ -105,6 +106,15 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
         </div>
         <div className="space-y-6">
           <RepositoryDetailsCard payload={payload} prefix={prefix} />
+          <PreviewPanel
+            canStart={!payload.repository.archived}
+            initialPreview={payload.preview}
+            queryKeyPrefix="repository"
+            entityId={payload.repository.id}
+            previewPath={payload.paths.app_preview_path}
+            previewLogsPath={payload.paths.app_preview_logs_path}
+            queryKey={queryKey}
+          />
           <CoverageSparkline repositoryId={payload.repository.id} />
           <CredentialNotice payload={payload} />
         </div>

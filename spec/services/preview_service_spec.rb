@@ -190,6 +190,11 @@ RSpec.describe PreviewService do
       service = described_class.new
       expect(service.send(:workspace_revision_for, closed_job)).to eq(:head)
     end
+
+    it "returns :head for a repository-scoped preview (no job)" do
+      service = described_class.new
+      expect(service.send(:workspace_revision_for, nil)).to eq(:head)
+    end
   end
 
   describe "#poll_starting_environments" do
@@ -238,6 +243,32 @@ RSpec.describe PreviewService do
 
       expect(env.reload.internal_host).to eq("preview")
       expect(env.port).to eq(28_008)
+    end
+
+    it "prepares a repository-scoped workspace (no job) with the :head revision" do
+      env = PreviewEnvironment.create!(repository: job.repository, workspace_path: "/nonexistent/path", state: "starting")
+      service = described_class.new
+      allow(PreviewWorkspace).to receive(:prepare!).with(env, revision: :head).and_return(workspace_path)
+      source = instance_double(PreviewCommandSource,
+        resolve: PreviewCommandSource::Config.new(
+          start_command_for: ->(port:) { "echo #{port}" },
+          setup_commands: [],
+          seed_command: nil,
+          health_check_path: "/",
+          log_paths: [],
+          env: {},
+          unset_env: []
+        ))
+      allow(PreviewCommandSource).to receive(:new).and_return(source)
+      allow(service).to receive(:allocate_port).and_return(28_012)
+      allow(service).to receive(:spawn_app).and_return(
+        PreviewService::ChildProcess.new(pid: 12_345, environment_id: env.id, port: 28_012)
+      )
+      allow(service).to receive(:await_health_check)
+
+      service.send(:poll_starting_environments)
+
+      expect(PreviewWorkspace).to have_received(:prepare!).with(env, revision: :head)
     end
 
     it "marks the environment failed when seed exits non-zero and does not spawn the app" do
