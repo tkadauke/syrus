@@ -65,6 +65,30 @@ module WorkUnits
       result.merge(legacy_active_workflow_trigger_kinds_by_job_id(remaining_ids))
     end
 
+    def self.active_trigger_kind_lists_by_job_id(job_ids)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return {} if ids.empty?
+
+      result = Hash.new { |hash, key| hash[key] = [] }
+      WorkUnitMember
+        .joins(:work_unit)
+        .left_outer_joins(work_unit: :workflow)
+        .where(job_id: ids, work_units: { state: ACTIVE_STATES })
+        .pluck("work_unit_members.job_id", "work_units.kind", "workflows.trigger_kind")
+        .each do |job_id, unit_kind, workflow_trigger_kind|
+          result[job_id] << (workflow_trigger_kind.presence || unit_kind)
+        end
+
+      Workflow
+        .where(job_id: ids, state: ACTIVE_STATES)
+        .pluck(:job_id, :trigger_kind)
+        .each do |job_id, trigger_kind|
+          result[job_id] << trigger_kind
+        end
+
+      result.transform_values { |trigger_kinds| trigger_kinds.compact.map(&:to_s).uniq }
+    end
+
     def self.active_units_by_job_id(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?

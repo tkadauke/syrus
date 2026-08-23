@@ -669,7 +669,7 @@ class LandingQueueProcessor
   end
 
   def active_landing_workflow_for_job?(job)
-    job.workflows.active.where(trigger_kind: WorkDefinitions.landing_workflow_kinds).exists?
+    WorkUnits::Ownership.active_for_job_kind?(job, WorkDefinitions.landing_workflow_kinds)
   end
 
   def merge_train_for_epic_child?(job)
@@ -903,11 +903,7 @@ class LandingQueueProcessor
     @active_trigger_kinds_by_job_id = if job_ids.empty?
       {}
     else
-      Workflow.active
-        .where(job_id: job_ids)
-        .pluck(:job_id, :trigger_kind)
-        .group_by(&:first)
-        .transform_values { |rows| rows.map(&:second) }
+      WorkUnits::Ownership.active_trigger_kind_lists_by_job_id(job_ids)
     end
   end
 
@@ -916,7 +912,7 @@ class LandingQueueProcessor
       return Array(@active_trigger_kinds_by_job_id[job.id])
     end
 
-    job.workflows.active.pluck(:trigger_kind)
+    WorkUnits::Ownership.active_trigger_kind_lists_by_job_id([ job.id ]).fetch(job.id, [])
   end
 
   def merged?(job)

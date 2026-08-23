@@ -25,6 +25,29 @@ RSpec.describe LandingQueueProcessor do
     end
   end
 
+  def active_work_unit_for(job, kind:, state: "running", workflow: nil)
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   it "lands an approved stack parent before its child" do
     child = queue_job(issue_number: 2, approved_at: 2.minutes.ago)
     parent = queue_job(issue_number: 1, approved_at: 1.minute.ago)
@@ -876,9 +899,29 @@ RSpec.describe LandingQueueProcessor do
       expect(entry.blocked_reason).to eq({ key: "ci_failure_in_progress", params: { slug: job.slug } })
     end
 
+    it "blocks a job with active ci_failure WorkUnit ownership with a specific message" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      active_work_unit_for(job, kind: "ci_failure")
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq({ key: "ci_failure_in_progress", params: { slug: job.slug } })
+    end
+
     it "blocks a job with a non-ci_failure active workflow using the generic reason" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq({ key: "active_workflow" })
+    end
+
+    it "blocks a job with non-ci_failure active WorkUnit ownership using the generic reason" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      active_work_unit_for(job, kind: "chat_feedback")
 
       expect(described_class.call).to be_nil
       expect(job.reload).to be_approved

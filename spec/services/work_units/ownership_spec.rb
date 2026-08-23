@@ -46,6 +46,19 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kinds_by_job_id([ second.id ])).to eq(second.id => "merge_train")
   end
 
+  it "reports every active trigger kind from WorkUnit membership and legacy workflows" do
+    job = Factories.job_record(issue_number: 151)
+    workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+    attach_work_unit(workflow, member_jobs: [ job ], kind: "pr_comment")
+    attach_work_unit(nil, member_jobs: [ job ], kind: "ci_failure")
+    Workflow.create!(job: job, trigger_kind: "manual", state: "queued")
+
+    result = described_class.active_trigger_kind_lists_by_job_id([ job.id ])
+
+    expect(result.keys).to eq([ job.id ])
+    expect(result[job.id]).to contain_exactly("pr_comment", "ci_failure", "manual")
+  end
+
   it "reports all active job ids from work unit membership and legacy workflows" do
     work_unit_job = Factories.job_record(issue_number: 201)
     legacy_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 202)
