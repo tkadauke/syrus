@@ -1,6 +1,20 @@
 require "rails_helper"
 
 RSpec.describe WorkUnits::Ownership do
+  before do
+    set_feature("work_units_scheduler", false)
+    set_feature("work_units_landing", false)
+    set_feature("work_units_reconciler", false)
+  end
+
+  def set_feature(slug, enabled)
+    Feature.find_or_create_by!(slug: slug) do |feature|
+      feature.category = "Operations"
+      feature.name = slug.humanize
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!(slug)
+  end
+
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running")
     primary = member_jobs.first
     intent = WorkIntent.create!(
@@ -33,6 +47,39 @@ RSpec.describe WorkUnits::Ownership do
 
     expect(described_class.active_job_ids([ job.id ])).to include(job.id)
     expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq(job.id => "initial")
+  end
+
+  it "hides scheduler-owned legacy workflow fallbacks after the scheduler path moves to work units" do
+    set_feature("work_units_scheduler", true)
+    job = Factories.job_record
+    Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+
+    expect(described_class.active_job_ids([ job.id ])).not_to include(job.id)
+    expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq({})
+    expect(described_class.active_trigger_kind_lists_by_job_id([ job.id ])).to eq({})
+  end
+
+  it "hides landing-owned legacy workflow fallbacks after the landing path moves to work units" do
+    set_feature("work_units_landing", true)
+    job = Factories.job_record
+    Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+
+    expect(described_class.active_job_ids([ job.id ], kinds: "auto_merge")).not_to include(job.id)
+    expect(described_class.active_workflow_ids([ job.id ], kinds: "auto_merge")).to be_empty
+  end
+
+  it "keeps legacy fallbacks for paths whose ownership gate is still disabled" do
+    set_feature("work_units_scheduler", true)
+    set_feature("work_units_landing", false)
+    scheduler_job = Factories.job_record(issue_number: 411)
+    landing_job = Factories.job_record(repository: scheduler_job.repository, issue_number: 412)
+    Workflow.create!(job: scheduler_job, trigger_kind: "initial", state: "running")
+    Workflow.create!(job: landing_job, trigger_kind: "auto_merge", state: "running")
+
+    expect(described_class.active_job_ids([ scheduler_job.id, landing_job.id ])).to contain_exactly(landing_job.id)
+    expect(described_class.active_trigger_kind_lists_by_job_id([ scheduler_job.id, landing_job.id ])).to eq(
+      landing_job.id => [ "auto_merge" ]
+    )
   end
 
   it "uses work unit membership to report active epic-wide work on member jobs" do

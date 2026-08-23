@@ -4,7 +4,14 @@ module WorkUnits
   class Ownership
     ACTIVE_STATES = %w[queued blocked running].freeze
     RUNNABLE_STATES = %w[queued running].freeze
-
+    LANDING_OWNED_KINDS = %w[
+      auto_merge
+      external_pr_merge
+      landing_validation
+      merge_train
+      merge_train_validation
+      stack_rebase
+    ].freeze
     def self.active_for_job?(job)
       active_job_ids([ job.id ]).include?(job.id)
     end
@@ -102,8 +109,7 @@ module WorkUnits
           result[job_id] << (workflow_trigger_kind.presence || unit_kind)
         end
 
-      Workflow
-        .where(job_id: ids, state: ACTIVE_STATES)
+      legacy_active_workflows_scope(ids)
         .pluck(:job_id, :trigger_kind)
         .each do |job_id, trigger_kind|
           result[job_id] << trigger_kind
@@ -214,16 +220,12 @@ module WorkUnits
       return Workflow.none unless epic
 
       scope = Workflow.active.where(job_id: epic.jobs.select(:id))
-      scope = scope.where(trigger_kind: Array(kinds).map(&:to_s)) if kinds.present?
-      scope
+      legacy_active_workflows_scope(nil, kinds: kinds, base_scope: scope)
     end
 
     def self.legacy_active_workflow_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      scope = Workflow.active
-      scope = scope.where(job_id: ids) if ids.any?
-      scope = scope.where(trigger_kind: Array(kinds).map(&:to_s)) if kinds.present?
-      scope.distinct.pluck(:job_id)
+      legacy_active_workflows_scope(ids, kinds: kinds).distinct.pluck(:job_id)
     end
 
     def self.all_active_unit_job_ids(kinds: nil)
@@ -254,9 +256,7 @@ module WorkUnits
       workflow_states = Array(states).map(&:to_s) & %w[queued running]
       return [] if workflow_states.empty?
 
-      scope = Workflow.where(state: workflow_states)
-      scope = scope.where(job_id: ids) if ids.any?
-      scope = scope.where(trigger_kind: Array(kinds).map(&:to_s)) if kinds.present?
+      scope = legacy_active_workflows_scope(ids, kinds: kinds, base_scope: Workflow.where(state: workflow_states))
       scope = scope.where(agent_provider: agent_provider.to_s) if agent_provider.present?
       scope.distinct.pluck(:id)
     end
@@ -265,13 +265,37 @@ module WorkUnits
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?
 
-      Workflow
-        .where(job_id: ids, state: ACTIVE_STATES)
+      legacy_active_workflows_scope(ids)
         .select(:job_id, :trigger_kind, :created_at, :id)
         .order(:job_id, created_at: :desc, id: :desc)
         .each_with_object({}) do |workflow, result|
           result[workflow.job_id] ||= workflow.trigger_kind
         end
+    end
+
+    def self.legacy_active_workflows_scope(job_ids = nil, kinds: nil, base_scope: Workflow.active)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      requested_kinds = Array(kinds).map(&:to_s).presence
+      visible_kinds = legacy_visible_trigger_kinds(requested_kinds)
+      return Workflow.none if visible_kinds.empty?
+
+      scope = base_scope
+      scope = scope.where(job_id: ids) if ids.any?
+      scope.where(trigger_kind: visible_kinds)
+    end
+
+    def self.legacy_visible_trigger_kinds(kinds = nil)
+      requested = Array(kinds).map(&:to_s).presence || Workflow::TriggerKind.values
+      requested.select { |kind| legacy_fallback_visible_for_trigger_kind?(kind) }.uniq
+    end
+
+    def self.legacy_fallback_visible_for_trigger_kind?(kind)
+      kind = kind.to_s
+      return true if kind == "replay"
+      return false unless Workflow::TriggerKind.values.include?(kind)
+      return !WorkUnits::PathOwnership.work_unit_owned?("landing_queue") if LANDING_OWNED_KINDS.include?(kind)
+
+      !WorkUnits::PathOwnership.work_unit_owned?("retry")
     end
   end
 end

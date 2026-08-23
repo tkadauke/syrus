@@ -1735,6 +1735,12 @@ Completed slices:
   for managed waiting Intents whose current gates pass. This gives dependency
   waits a durable recovery path when the domain event that should have woken the
   Intent was missed, without repeatedly logging Intents whose gates still block.
+- Active-work ownership helpers now hide legacy active Workflow fallbacks for
+  trigger kinds whose path has moved to WorkUnits. Scheduler-owned Workflow
+  rows stop contributing to active/runnable/current-trigger answers when
+  `work_units_scheduler` is enabled, and landing-owned Workflow rows do the
+  same behind `work_units_landing`, while still preserving fallbacks for paths
+  whose gates remain disabled.
 
 ### Phase 6: Work Definition Policies
 
