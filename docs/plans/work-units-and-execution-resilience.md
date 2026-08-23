@@ -1792,6 +1792,13 @@ Completed slices:
   WorkDefinitions use maintenance-scoped locks (`maintenance:rebase:*`) rather
   than the primary `job:*` locks so recovery rebases can coexist with the active
   workflow they are repairing while still preventing duplicate rebase races.
+- Dependency wakeups now flow through `WorkIntents::JobWakeup`. The service
+  re-evaluates current WorkIntent gates, records unresolved dependencies as a
+  typed `waiting/dependency` Intent instead of leaving only Job-level implicit
+  state, clears managed dependency waits when the gate passes, and then starts
+  queued Workflows through the WorkUnit launcher. Legacy queued Workflows
+  without WorkUnit ownership still start through the same service during the
+  migration window.
 
 ### Phase 8: Step/Run Simplification
 

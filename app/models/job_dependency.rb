@@ -68,7 +68,7 @@ class JobDependency < ApplicationRecord
   def execution_dependency_satisfied?
     return dependency_succeeded? if satisfaction_mode == "closed"
 
-    dependency_succeeded? || same_epic_dependency_ready_for_execution?
+    dependency_succeeded? || dependency_ready_for_execution?
   end
 
   def referenced_epic
@@ -117,9 +117,8 @@ class JobDependency < ApplicationRecord
     depends_on_job.approved? || depends_on_job.landing?
   end
 
-  def same_epic_dependency_ready_for_execution?
-    return false if job&.epic_id.blank?
-    return false unless depends_on_job&.epic_id == job.epic_id
+  def dependency_ready_for_execution?
+    return false unless depends_on_job
 
     depends_on_job.implemented? &&
       depends_on_job.pr_number.present? &&

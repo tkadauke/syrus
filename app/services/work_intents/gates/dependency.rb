@@ -12,7 +12,7 @@ module WorkIntents
       def call
         return GateResult.pass unless job
 
-        unsatisfied = job.unsatisfied_dependencies.to_a
+        unsatisfied = job.dependencies.includes(:depends_on_job, :depends_on_epic).reject(&:execution_dependency_satisfied?)
         return GateResult.pass if unsatisfied.empty?
 
         GateResult.wait(

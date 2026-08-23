@@ -249,6 +249,24 @@ RSpec.describe JobDependency do
 
       expect(dependency).not_to be_dependency_succeeded
     end
+
+    it "treats an implemented open-PR dependency as ready for execution without treating it as finally satisfied" do
+      prerequisite = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 10,
+        state: "implemented",
+        branch_name: "syrus/parent",
+        pr_number: 10
+      )
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+      dependent = Factories.job_record(user: user, repository: repository, issue_number: 11, state: "queued")
+
+      dependency = described_class.create!(job: dependent, depends_on_job: prerequisite, source: "manual")
+
+      expect(dependency).to be_execution_dependency_satisfied
+      expect(dependency).not_to be_dependency_succeeded
+    end
   end
 
   describe "linear chain enforcement within an epic" do
