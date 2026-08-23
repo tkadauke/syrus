@@ -955,7 +955,7 @@ module WorkEngine
     end
 
     def stale_auto_retry_attempt_for(workflow)
-      return nil unless workflow&.trigger_kind == "retry" && workflow.queued?
+      return nil unless retry_workflow_attempt?(workflow) && workflow.queued?
 
       @stale_auto_retry_attempts ||= {}
       return @stale_auto_retry_attempts[workflow.id] if @stale_auto_retry_attempts.key?(workflow.id)
@@ -1088,6 +1088,15 @@ module WorkEngine
       return false unless unit&.kind
 
       WorkDefinitions.for(unit.kind).active_repair_work?
+    rescue WorkDefinitions::UnknownKind
+      false
+    end
+
+    def retry_workflow_attempt?(workflow)
+      return false unless workflow
+
+      definition = WorkDefinitions.for(workflow.work_unit&.kind || workflow.trigger_kind)
+      definition.retry_workflow_attempt?
     rescue WorkDefinitions::UnknownKind
       false
     end

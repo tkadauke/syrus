@@ -135,6 +135,18 @@ RSpec.describe RetryWorkflowEligibility do
       expect(result.code).to eq("duplicate_retry")
     end
 
+    it "uses WorkDefinition retry-attempt policy when checking duplicate retry work" do
+      job = make_job
+      make_started_workflow(job)
+      active = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(active, kind: "checkpoint_resume", state: "queued")
+
+      result = described_class.call(job: job)
+
+      expect(result).not_to be_eligible
+      expect(result.code).to eq("duplicate_retry")
+    end
+
     it "is ineligible when the PR is already current and passing" do
       job = make_job(
         pr_number: 77,

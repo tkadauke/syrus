@@ -224,6 +224,10 @@ RSpec.describe WorkDefinitions do
       "manual",
       "manual_agentic_run"
     )
+    expect(described_class.retry_workflow_attempt_kinds).to contain_exactly(
+      "retry",
+      "checkpoint_resume"
+    )
   end
 
   it "resolves merge train members from the train artifact through the definition" do

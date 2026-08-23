@@ -9,6 +9,10 @@ module WorkDefinitions
     def active_repair_work? = true
   end
 
+  module RetryWorkflowAttempt
+    def retry_workflow_attempt? = true
+  end
+
   module OpensReviewPullRequest
     def self.included(base)
       base.review_publication_step_kinds = %w[pr_open]
@@ -206,6 +210,7 @@ module WorkDefinitions
 
   class Retry < Base
     include ActiveRepairWork
+    include RetryWorkflowAttempt
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
@@ -218,6 +223,7 @@ module WorkDefinitions
 
   class CheckpointResume < Base
     include ActiveRepairWork
+    include RetryWorkflowAttempt
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable

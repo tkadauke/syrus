@@ -49,12 +49,20 @@ class RetryWorkflowEligibility
 
   def duplicate_active_retry_workflow?
     job.active_runtime_workflows.any? do |active_workflow|
-      active_workflow.trigger_kind == "retry" && active_workflow.id != workflow&.id
+      retry_workflow_attempt?(active_workflow) && active_workflow.id != workflow&.id
     end
   end
 
   def workflow_superseded?
-    workflow&.trigger_kind == "retry" && workflow.superseded_by_newer_successful_publication?
+    retry_workflow_attempt?(workflow) && workflow.superseded_by_newer_successful_publication?
+  end
+
+  def retry_workflow_attempt?(candidate)
+    return false unless candidate
+
+    WorkDefinitions.for(candidate.work_unit&.kind || candidate.trigger_kind).retry_workflow_attempt?
+  rescue WorkDefinitions::UnknownKind
+    false
   end
 
   def pr_ready?

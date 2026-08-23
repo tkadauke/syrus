@@ -518,7 +518,7 @@ module WorkEngine
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
-          return skipped("Workflow is #{workflow.trigger_kind}, not retry") unless workflow.trigger_kind == "retry"
+          return skipped("Workflow is #{workflow.trigger_kind}, not retry") unless retry_workflow_attempt?(workflow)
 
           attempt_id = workflow.artifact("auto_retry_attempt_id")
           attempt = AutoRetryAttempt.find_by(id: attempt_id)
@@ -552,6 +552,13 @@ module WorkEngine
              .where(state: "succeeded")
              .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, source.id)
              .exists?
+        end
+
+        def retry_workflow_attempt?(workflow)
+          definition = WorkDefinitions.for(workflow.work_unit&.kind || workflow.trigger_kind)
+          definition.retry_workflow_attempt?
+        rescue WorkDefinitions::UnknownKind
+          false
         end
 
         def branch_divergence_recovered_by_current_pr_branch?(workflow)
