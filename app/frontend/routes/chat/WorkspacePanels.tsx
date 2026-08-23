@@ -2,7 +2,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ErrorInfo, MouseEvent as ReactMouseEvent, ReactNode } from "react"
-import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
@@ -30,7 +30,8 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
 import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
-import { availableWorkspaceTabs, defaultWorkspaceTab, isPreviewTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { availableWorkspaceTabs, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { diffGutterClass, diffMarkerClass, parseUnifiedDiff } from "../jobDetail/diffRendering"
 
 
@@ -101,7 +102,7 @@ export function ChatWorkspacePanel({
                   onClick={() => onSelectTab(tab)}
                   type="button"
                 >
-                  {workspaceTabLabel(tab, t)}
+                  {workspaceTabLabel(tab, t, [], payload.workspace_tabs)}
                 </button>
               )
             }
@@ -159,8 +160,26 @@ export function ChatWorkspacePanel({
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
         {activeTab === "diff" && payload.local_tunnel_connected ? <LocalDiffPanel /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
+        {isPluginTab(activeTab) ? <PluginWorkspaceTabPanel activeTab={activeTab} payload={payload} /> : null}
       </div>
     </aside>
+  )
+}
+
+function PluginWorkspaceTabPanel({ activeTab, payload }: { activeTab: WorkspaceTab; payload: ChatPayload }) {
+  const { t } = useT("chat")
+  const tabId = pluginTabIdFromTab(activeTab)
+  const pluginTab = payload.workspace_tabs.find((candidate) => candidate.id === tabId)
+  const Component = pluginWorkspaceTabComponentFor(pluginTab?.component)
+
+  if (!pluginTab || !Component) {
+    return <PanelMessage>{t("plugin_tab_unavailable")}</PanelMessage>
+  }
+
+  return (
+    <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
+      <Component payload={payload} />
+    </Suspense>
   )
 }
 

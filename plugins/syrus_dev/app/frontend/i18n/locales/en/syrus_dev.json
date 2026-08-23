@@ -3,6 +3,8 @@
   "nav_performance": "Performance",
   "nav_operational_logs": "Logs",
   "section_label": "Admin",
+  "workspace_tab_demo_label": "Workspace Tab Demo",
+  "workspace_tab_demo_body": "This tab is rendered by a plugin (syrus_dev) via the :workspace_tab extension point, in chat \"{{chat}}\".",
   "performance": {
     "heading": "Performance",
     "loading": "Loading performance logs...",

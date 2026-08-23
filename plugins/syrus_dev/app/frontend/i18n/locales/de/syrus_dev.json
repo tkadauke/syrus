@@ -3,6 +3,8 @@
   "nav_performance": "Performance",
   "nav_operational_logs": "Logs",
   "section_label": "Administration",
+  "workspace_tab_demo_label": "Arbeitsbereich-Tab-Demo",
+  "workspace_tab_demo_body": "Dieser Tab wird von einem Plugin (syrus_dev) über den :workspace_tab-Erweiterungspunkt gerendert, im Chat \"{{chat}}\".",
   "performance": {
     "heading": "Performance",
     "loading": "Performance-Logs werden geladen...",

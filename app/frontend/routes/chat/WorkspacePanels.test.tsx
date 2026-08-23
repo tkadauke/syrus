@@ -55,6 +55,7 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
     scratchpad_items: [],
     video_walkthroughs: [],
     preview_panels: [],
+    workspace_tabs: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],
@@ -579,5 +580,47 @@ describe("ChatWorkspacePanel preview panels", () => {
     await waitFor(() => {
       expect(closeChatPreviewPanel).toHaveBeenCalledWith("/api/v1/app/chats/1/preview_panels/7")
     })
+  })
+})
+
+describe("ChatWorkspacePanel plugin tabs", () => {
+  function payloadWithPluginTab(): ChatPayload {
+    return {
+      ...makePayload(),
+      workspace_tabs: [
+        { id: "syrus_dev.workspace_tab_demo", label: "Workspace Tab Demo", label_key: "syrus_dev:workspace_tab_demo_label", component: "syrus_dev/WorkspaceTabDemo", order: 100 }
+      ]
+    }
+  }
+
+  it("renders a tab button for each plugin-declared tab", () => {
+    renderWorkspacePanel(payloadWithPluginTab(), { activeTab: "files" })
+
+    expect(screen.getByRole("button", { name: "Workspace Tab Demo" })).toBeInTheDocument()
+  })
+
+  it("lazily mounts the declared plugin component when its tab is active", async () => {
+    renderWorkspacePanel(payloadWithPluginTab(), { activeTab: "plugin:syrus_dev.workspace_tab_demo" as WorkspaceTab })
+
+    expect(await screen.findByText(/syrus_dev/)).toBeInTheDocument()
+  })
+
+  it("shows an unavailable message for a tab whose component cannot be resolved", async () => {
+    const payload: ChatPayload = {
+      ...makePayload(),
+      workspace_tabs: [
+        { id: "missing.tab", label: "Missing", label_key: null, component: "missing/Nope", order: 0 }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "plugin:missing.tab" as WorkspaceTab })
+
+    expect(await screen.findByText("This tab is not available.")).toBeInTheDocument()
+  })
+
+  it("does not render a plugin tab button once the workspace_tabs list is empty", () => {
+    renderWorkspacePanel(makePayload(), { activeTab: "files" })
+
+    expect(screen.queryByRole("button", { name: "Workspace Tab Demo" })).not.toBeInTheDocument()
   })
 })
