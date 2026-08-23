@@ -291,6 +291,7 @@ Rails.application.routes.draw do
             get :throughput_metrics
             post :run_insight_analysis
           end
+          resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
         end
         get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
         get "repositories/:repository_id/tests", to: "repository_tests#index"
@@ -517,6 +518,7 @@ Rails.application.routes.draw do
     # the per-repo controller was pure duplication of the top-level chat flow.
     get "documents", to: "spa#show", as: :documents
     get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
+    get "memberships", to: "spa#show", as: :memberships
   end
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job

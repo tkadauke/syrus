@@ -1237,7 +1237,7 @@ RSpec.describe Epic do
 
     it "accepts an Epic when the creator is a collaborator member" do
       collaborator = Factories.user(email_address: "collab@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
 
       epic = Epic.new(user: collaborator, repository: repository, title: "Invited collaborator work")
 
@@ -1275,7 +1275,7 @@ RSpec.describe Epic do
     it "includes Epics on repositories where the user is a collaborator" do
       owner = Factories.user(email_address: "owner@example.com")
       shared_repo = Factories.repository(user: owner, owner: "shared", name: "code")
-      shared_repo.repository_memberships.create!(user: user, role: "collaborator")
+      shared_repo.repository_memberships.create!(user: user, role: "read")
       shared_epic = Factories.epic(user: owner, repository: shared_repo)
 
       expect(described_class.accessible_to(user)).to include(shared_epic)

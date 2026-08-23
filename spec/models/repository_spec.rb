@@ -80,19 +80,24 @@ RSpec.describe Repository do
     let(:repo) { Repository.create!(user: owner, owner: "acme", name: "widgets") }
     let(:member) { Factories.user(agent_provider: "claude") }
 
-    it "returns membership agent_provider when the user has one set" do
-      repo.repository_memberships.create!(user: member, role: "collaborator", agent_provider: "codex")
+    it "returns membership agent_provider when the user has one set on a write-tier membership" do
+      repo.repository_memberships.create!(user: member, role: "write", agent_provider: "codex")
       expect(repo.effective_agent_provider(user: member)).to eq("codex")
+    end
+
+    it "ignores a read-tier membership's agent_provider override" do
+      repo.repository_memberships.create!(user: member, role: "read", agent_provider: "codex")
+      expect(repo.effective_agent_provider(user: member)).to eq("claude")
     end
 
     it "falls back to repo-level agent_provider when membership has none" do
       repo.update!(agent_provider: "codex")
-      repo.repository_memberships.create!(user: member, role: "collaborator")
+      repo.repository_memberships.create!(user: member, role: "read")
       expect(repo.effective_agent_provider(user: member)).to eq("codex")
     end
 
     it "falls back to the user's default agent_provider when both membership and repo have none" do
-      repo.repository_memberships.create!(user: member, role: "collaborator")
+      repo.repository_memberships.create!(user: member, role: "read")
       expect(repo.effective_agent_provider(user: member)).to eq("claude")
     end
 
@@ -102,7 +107,7 @@ RSpec.describe Repository do
     end
 
     it "normalizes blank membership agent_provider to nil and falls through" do
-      repo.repository_memberships.create!(user: member, role: "collaborator", agent_provider: "")
+      repo.repository_memberships.create!(user: member, role: "write", agent_provider: "")
       expect(repo.effective_agent_provider(user: member)).to eq("claude")
     end
   end
@@ -184,21 +189,21 @@ RSpec.describe Repository do
     it "can have multiple members through memberships" do
       repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
       collaborator = Factories.user
-      repo.repository_memberships.create!(user: collaborator, role: "collaborator")
+      repo.repository_memberships.create!(user: collaborator, role: "read")
 
       expect(repo.members).to include(owner, collaborator)
     end
 
     it "enforces unique membership per user per repository" do
       repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
-      dup = repo.repository_memberships.build(user: owner, role: "collaborator")
+      dup = repo.repository_memberships.build(user: owner, role: "read")
       expect(dup).not_to be_valid
       expect(dup.errors[:user_id]).to be_present
     end
 
     it "rejects unknown roles" do
       repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
-      bad = repo.repository_memberships.build(user: owner, role: "admin")
+      bad = repo.repository_memberships.build(user: owner, role: "superadmin")
       expect(bad).not_to be_valid
       expect(bad.errors[:role]).to be_present
     end
