@@ -143,6 +143,32 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     )
   end
 
+  it "flags legacy_epics_visible only in simple mode while the user can still reach a non-terminal Epic" do
+    user = Factories.user
+    repo = Factories.repository(user: user)
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+    expect(parse_body.dig("app", "legacy_epics_visible")).to eq(false)
+
+    AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
+    get api_v1_app_bootstrap_path
+    expect(parse_body.dig("app", "legacy_epics_visible")).to eq(false)
+
+    epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+    get api_v1_app_bootstrap_path
+    expect(parse_body.dig("app", "legacy_epics_visible")).to eq(true)
+
+    epic.update!(state: "done")
+    get api_v1_app_bootstrap_path
+    expect(parse_body.dig("app", "legacy_epics_visible")).to eq(false)
+
+    AppSetting.current.update!(mode: "advanced")
+    epic.update!(state: "backlog")
+    get api_v1_app_bootstrap_path
+    expect(parse_body.dig("app", "legacy_epics_visible")).to eq(false)
+  end
+
   it "returns provider availability as user-level bootstrap state" do
     user = Factories.user(
       codex_usage_status: "ok",

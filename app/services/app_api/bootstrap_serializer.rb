@@ -67,8 +67,20 @@ module AppApi
         bug_report_mode: user ? BugReports::Router.mode_for(user: user)&.to_s : nil,
         report_issue_repo_slug: AppSetting.report_issue_repo_slug,
         mode: AppSetting.mode,
-        mode_configured: AppSetting.mode_configured?
+        mode_configured: AppSetting.mode_configured?,
+        legacy_epics_visible: legacy_epics_visible?
       }
+    end
+
+    # Simple mode replaced the epic-only dashboard with a job-centric one;
+    # pre-existing epics get a conditional nav entry instead of a migration.
+    # Only surface it while the user can still reach an unfinished legacy
+    # epic — once every epic they can see is done/archived, hide the entry.
+    def legacy_epics_visible?
+      return false unless user
+      return false unless AppSetting.simple?
+
+      Epic.accessible_to(user).non_terminal.exists?
     end
 
     def setup_status_payload

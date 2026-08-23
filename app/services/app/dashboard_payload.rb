@@ -207,7 +207,11 @@ module App
     end
 
     def subject
-      return "job" if AppSetting.simple?
+      # Simple mode's primary dashboard is job-centric, but the legacy
+      # Epics nav entry links here with an explicit ?subject=epic to reach
+      # the unchanged epic-list rendering for pre-existing epics. Any other
+      # (or absent) subject still forces the job-centric default.
+      return normalize_subject(params[:subject]) == "epic" ? "epic" : "job" if AppSetting.simple?
 
       @subject ||= normalize_subject(params[:subject]) ||
                    normalize_subject(params[:dashboard_subject]) ||

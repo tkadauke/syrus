@@ -110,6 +110,24 @@ describe("EpicDetail simple mode", () => {
     expect(screen.queryByText("PR #12")).not.toBeInTheDocument()
     expect(screen.queryByText("EPIC-3")).not.toBeInTheDocument()
   })
+
+  it("shows a banner explaining this is a legacy multi-step feature", () => {
+    const payload = detailPayload({ title: "Checkout polish" })
+    payload.simple_mode = true
+
+    renderDetail(payload)
+
+    expect(screen.getByRole("status")).toHaveTextContent(/older, multi-step feature/i)
+    expect(screen.getByRole("status")).toHaveTextContent(/individual tasks on the main dashboard/i)
+  })
+})
+
+describe("EpicDetail advanced mode", () => {
+  it("does not show the legacy-feature banner", () => {
+    renderDetail(detailPayload({ title: "Checkout polish" }))
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
 })
 
 describe("EpicDetail origin_chat link", () => {

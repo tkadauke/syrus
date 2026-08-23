@@ -144,6 +144,10 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             {t("updated_relative", { time: formatRelativeDate(new Date(payload.epic.updated_at)) })}
           </p>
 
+          <div className="rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200" role="status">
+            {t("legacy_epic_banner")}
+          </div>
+
           {payload.epic.review_ready ? (
             <div className="flex flex-wrap items-center gap-2">
               <button
