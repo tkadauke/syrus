@@ -17,6 +17,23 @@ RSpec.describe "syrus:prepare_search" do
     expect(OperationalLogIndex.available?).to be(true)
   end
 
+  it "backfills a freshly created table from primary-DB events instead of leaving it empty" do
+    event = OperationalLogEvent.create!(
+      occurred_at: 1.minute.ago,
+      level: "error",
+      role: "worker",
+      hostname: "host-a",
+      source: "spec",
+      message: "grader failed",
+      context: {}
+    )
+
+    Rake::Task["syrus:prepare_search"].invoke
+
+    results = OperationalLogIndex.search(since: 1.hour.ago)
+    expect(results.map { |row| row[:operational_log_event_id] }).to eq([ event.id ])
+  end
+
   it "rebuilds and repopulates a table whose column set drifted from a stale pre-existing schema" do
     stale_event = OperationalLogEvent.create!(
       occurred_at: 1.minute.ago,
