@@ -145,7 +145,7 @@ module Filters
           active = scope.where(manual_paused: false)
           active.where(state: "running").where.not(id: paused_job_ids)
                 .or(active.open_threads.where(id: unpaused_running_workflow_job_ids))
-                .or(active.where(id: runnable_repair_work_job_ids))
+                .or(active.where(id: running_repair_work_job_ids))
         end
 
         def apply_paused
@@ -273,8 +273,9 @@ module Filters
           @active_repair_work_job_ids ||= WorkUnits::Ownership.all_active_job_ids(kinds: WorkDefinitions.active_repair_work_kinds).to_a
         end
 
-        def runnable_repair_work_job_ids
-          @runnable_repair_work_job_ids ||= WorkUnits::Ownership.all_runnable_job_ids(kinds: WorkDefinitions.active_repair_work_kinds).to_a
+        def running_repair_work_job_ids
+          @running_repair_work_job_ids ||= running_work_unit_job_ids(kinds: WorkDefinitions.active_repair_work_kinds) |
+            active_workflow_job_ids(trigger_kind: WorkDefinitions.workflow_trigger_kinds_for(WorkDefinitions.active_repair_work_kinds))
         end
 
         def paused_workflow_job_ids

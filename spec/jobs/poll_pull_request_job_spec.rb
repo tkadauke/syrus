@@ -36,7 +36,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
     WorkUnits::TerminalWorkflowSync.for_job(target)
   end
 
-  def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef")
+  def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef", base_sha: "base000000000000000000000000000000000000")
     stub_request(:get, pr_url).with(query: hash_including({})).to_return(
       status: 200, headers: { "Content-Type" => "application/json" },
       body: {
@@ -44,7 +44,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
         state: state,
         merged: merged,
         labels: labels.map { |n| { name: n } },
-        head: { sha: head_sha, ref: "syrus/issue-42-#{job.id}" }
+        head: { sha: head_sha, ref: "syrus/issue-42-#{job.id}" },
+        base: { sha: base_sha, ref: repository.default_branch }
       }.to_json
     )
   end
@@ -680,12 +681,22 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
   describe "ci_failure dispatch" do
     let(:sha) { "abc1234567890000000000000000000000000000" }
+    let(:base_sha) { "base123456789000000000000000000000000000" }
 
     before do
-      stub_pr(head_sha: sha)
+      stub_pr(head_sha: sha, base_sha: base_sha)
       stub_reviews([])
       stub_issue_comments([])
       stub_review_comments([])
+      repository.update!(
+        last_health_checked_sha: base_sha,
+        last_ci_evaluated_sha: base_sha,
+        last_graded_sha: base_sha,
+        ci_health: "healthy",
+        grader_health: "healthy"
+      )
+      allow_any_instance_of(RepositoryBareClone).to receive(:sync!).and_return(true)
+      allow_any_instance_of(RepositoryBareClone).to receive(:commits_behind).and_return(0)
       job.update!(state: "implemented")
       job.approve!(via: "operator")
     end
@@ -722,7 +733,68 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(context["error_block"]).not_to include("................................................................")
       expect(context["full_log_url"]).to eq("https://github.com/acme/widgets/runs/100")
       expect(wf.artifact("head_sha")).to eq(sha)
+      expect(wf.artifact("base_sha")).to eq(base_sha)
       expect(job.reload.last_ci_handled_sha).to eq(sha)
+    end
+
+    it "dispatches a rebase instead of CI repair when the PR is behind its base" do
+      allow_any_instance_of(RepositoryBareClone).to receive(:commits_behind).and_return(3)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+
+      expect(job.workflows.where(trigger_kind: "ci_failure").count).to eq(0)
+      expect(job.reload.last_ci_handled_sha).to be_nil
+      expect(job.commits_behind_base).to eq(3)
+    end
+
+    it "does not dispatch CI repair until the base SHA has known healthy main-branch evidence" do
+      repository.update!(last_health_checked_sha: "older", last_ci_evaluated_sha: "older", last_graded_sha: "older")
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id)
+
+      expect(job.workflows.where(trigger_kind: "ci_failure").count).to eq(0)
+    end
+
+    it "does not run parallel autonomous CI repairs for the same repository base SHA" do
+      other = Factories.job_record(repository: repository, issue_number: 43, state: "approved")
+      workflow = Workflow.create!(job: other, trigger_kind: "ci_failure", state: "running", artifacts: { "base_sha" => base_sha })
+      intent = WorkIntent.create!(
+        kind: "ci_failure",
+        state: "requested",
+        repository: repository,
+        scope_type: "job",
+        scope_id: other.id
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "ci_failure",
+        state: "running",
+        repository: repository,
+        scope_type: "job",
+        scope_id: other.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: other, role: "primary")
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
     end
 
     it "uses an explicitly selected agent provider for CI-failure workflows" do

@@ -420,6 +420,8 @@ class PollPullRequestJob < ApplicationJob
     return if pending_ci_failure_run?
     return if provider_circuit_open?("ci_failure")
     return unless detail[:any_failed?]
+    return if ci_repair_base_not_ready?(head_sha)
+    return if active_ci_repair_for_same_base?
 
     enqueue_ci_failure_run(head_sha, detail[:failed_checks])
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
@@ -552,10 +554,109 @@ class PollPullRequestJob < ApplicationJob
     true
   end
 
+  def ci_repair_base_not_ready?(head_sha)
+    return false if @manual
+    return false if @job.main_branch_repair?
+
+    base_sha = pr_base_sha
+    unless base_sha
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because PR base SHA is unknown")
+      PollMergeStateJob.perform_later(@job.id)
+      return true
+    end
+
+    distance = commits_behind_base(head_sha: head_sha, base_sha: base_sha)
+    if distance.nil?
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because commits-behind could not be verified")
+      PollMergeStateJob.perform_later(@job.id)
+      return true
+    end
+
+    @job.update_column(:commits_behind_base, distance) if @job.commits_behind_base != distance
+    if distance.positive?
+      dispatch_rebase_before_ci_repair(distance)
+      return true
+    end
+
+    return false if clean_base_health_known?(base_sha)
+
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because base #{base_sha[0, 7]} is not known healthy")
+    PollMainBranchHealthJob.perform_later(@job.repository_id)
+    true
+  end
+
+  def pr_base_sha
+    @pr&.base&.sha.to_s.presence
+  end
+
+  def commits_behind_base(head_sha:, base_sha:)
+    pr_repo = @job.effective_pr_repository
+    bare_clone = RepositoryBareClone.new(pr_repo)
+    bare_clone.sync!(user: @job.user)
+    bare_clone.commits_behind(head_sha: head_sha, base_sha: base_sha)
+  rescue StandardError => e
+    Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: commits-behind check skipped before ci_failure: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def dispatch_rebase_before_ci_repair(distance)
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because PR is #{distance} commits behind base; dispatching rebase first")
+    return if RebaseWorkflowSelector.active_for_stack?(@job)
+    return if @job.dependencies_failed_for_execution?
+    return unless @job.dependencies_satisfied_for_execution?
+    return unless @job.ready_for_execution?
+
+    workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: @pr)
+    WorkUnits::Launcher.start!(workflow)
+  rescue WorkUnits::Launcher::LockConflict => e
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: rebase before ci_failure already locked by WorkUnit ##{e.work_unit.id}")
+  end
+
+  def clean_base_health_known?(base_sha)
+    repository = @job.repository
+    return true if repository.last_health_checked_sha == base_sha && repository.main_health == "healthy"
+
+    MainBranchHealthCheck
+      .where(repository: repository, sha: base_sha)
+      .where(ci_health: %w[healthy not_configured], grader_health: "healthy")
+      .exists?
+  end
+
+  def active_ci_repair_for_same_base?
+    return false if @manual
+    return false if @job.main_branch_repair?
+
+    base_sha = pr_base_sha
+    return false unless base_sha
+
+    if active_ci_failure_workflows_for_repository.any? { |workflow| workflow.job_id != @job.id && workflow.artifact("base_sha") == base_sha }
+      Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because another active CI repair is already handling base #{base_sha[0, 7]}")
+      return true
+    end
+
+    false
+  end
+
+  def active_ci_failure_workflows_for_repository
+    unit_workflow_ids = WorkUnit
+      .where(repository: @job.repository, kind: "ci_failure", state: WorkUnits::Ownership::ACTIVE_STATES)
+      .where.not(workflow_id: nil)
+      .pluck(:workflow_id)
+
+    legacy_ids = Workflow
+      .joins(:job)
+      .where(jobs: { repository_id: @job.repository_id })
+      .where(trigger_kind: "ci_failure", state: %w[queued running])
+      .pluck(:id)
+
+    Workflow.where(id: (unit_workflow_ids + legacy_ids).uniq).includes(:job)
+  end
+
   def enqueue_ci_failure_run(head_sha, failed_checks)
     failed_checks = failed_checks.map { |check| enrich_failed_check(check) }
     artifacts = {
       "head_sha"      => head_sha,
+      "base_sha"      => pr_base_sha,
       "failed_checks" => failed_checks
     }
     result = WorkUnits::Launcher.create_and_start!(

@@ -67,6 +67,30 @@ RSpec.describe "Filters::Chips" do
     unit
   end
 
+  def create_queued_work_unit_for(primary_job, member_jobs: [ primary_job ], kind: "initial")
+    workflow = Workflow.create!(job: primary_job, trigger_kind: kind, state: "queued")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: primary_job.repository,
+      scope_type: "job",
+      scope_id: primary_job.id
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: "queued",
+      repository: primary_job.repository,
+      scope_type: "job",
+      scope_id: primary_job.id,
+      workflow: workflow
+    )
+    member_jobs.each_with_index do |job, index|
+      unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
+    end
+    unit
+  end
+
   def set_feature(slug, enabled)
     Feature.find_or_create_by!(slug: slug) do |feature|
       feature.category = "Operations"
@@ -205,6 +229,7 @@ RSpec.describe "Filters::Chips" do
       work_unit_owner = Factories.job_record(repository: repo, issue_number: 15, state: "running")
       work_unit_member = Factories.job_record(repository: repo, issue_number: 16, state: "approved")
       work_unit_repairing = Factories.job_record(repository: repo, issue_number: 17, state: "failed")
+      queued_repairing = Factories.job_record(repository: repo, issue_number: 18, state: "approved")
       Factories.job_record(repository: repo, issue_number: 7, state: "approved")
 
       Workflow.create!(job: queued_rebase, trigger_kind: "rebase", state: "queued")
@@ -226,6 +251,7 @@ RSpec.describe "Filters::Chips" do
       create_blocked_work_unit_for(blocked_work_unit)
       create_running_work_unit_for(work_unit_owner, member_jobs: [ work_unit_owner, work_unit_member ], kind: "merge_train")
       create_running_work_unit_for(work_unit_repairing, kind: "ci_failure")
+      create_queued_work_unit_for(queued_repairing, kind: "ci_failure")
 
       expect(run(field: "attention", op: "is", value: "in_progress")).to contain_exactly(
         running,
@@ -240,6 +266,7 @@ RSpec.describe "Filters::Chips" do
         work_unit_repairing
       )
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(manually_paused_running)
+      expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(queued_repairing)
     end
 
     it "in_progress: ignores legacy landing workflows after landing ownership moves to WorkUnits" do
