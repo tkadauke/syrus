@@ -137,13 +137,12 @@ export function isGradeDisplayStep(step: JobStep) {
     || step.kind === "preflight_grader_fanout" || step.kind === "preflight_grader" || step.kind === "preflight_grader_collect"
 }
 
-// Grade loops are deliberately excluded: a single-iteration grade loop
-// already collapses into its own "Grade" grouped item (see displayStepItems),
-// so wrapping that in an outer loop container too would be redundant. Only
-// adversarial/visual review loops need a named, non-collapsing wrapper at
-// one iteration, since those steps aren't grouped by anything else.
+// A single-iteration loop still gets a named, non-collapsing wrapper for
+// grade/adversarial/visual review loops, so the loop container is always
+// present once its steps are grouped by loop_id (e.g. "Grade loop" wrapping
+// the single "Grade" grouped item from displayStepItems).
 function isNamedLoop(steps: JobStep[]) {
-  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review")
+  return steps.some((step) => step.kind === "adversarial_review" || step.kind === "visual_review" || isGradeDisplayStep(step))
 }
 
 export function displayStepItemKey(item: DisplayStepItem) {
