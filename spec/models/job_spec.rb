@@ -676,6 +676,80 @@ RSpec.describe Job do
       expect(job).not_to be_active_runtime_work
     end
 
+    it "cancels WorkUnit-owned active workflows when closing the job" do
+      owner = Factories.job_record(state: "running")
+      member = Factories.job_record(user: owner.user, repository: owner.repository, state: "running")
+      workflow = Workflow.create!(
+        job: owner,
+        trigger_kind: "merge_train",
+        state: "running",
+        started_at: 5.minutes.ago
+      )
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "requested",
+        repository: owner.repository,
+        scope_type: "job",
+        scope_id: owner.id,
+        actor: owner.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "merge_train",
+        state: "running",
+        repository: owner.repository,
+        scope_type: "job",
+        scope_id: owner.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: owner, role: "primary")
+      unit.work_unit_members.create!(job: member, role: "member")
+
+      member.cancel_active_runs_and_close!("cancelled")
+
+      expect(member.reload).to be_closed
+      expect(workflow.reload).to be_cancelled
+      expect(unit.reload).to be_cancelled
+    end
+
+    it "preempts WorkUnit-owned active workflows before manual rebase" do
+      owner = Factories.job_record(state: "running")
+      member = Factories.job_record(user: owner.user, repository: owner.repository, state: "running")
+      workflow = Workflow.create!(
+        job: owner,
+        trigger_kind: "pr_comment",
+        state: "running",
+        started_at: 5.minutes.ago
+      )
+      intent = WorkIntent.create!(
+        kind: "pr_comment",
+        state: "requested",
+        repository: owner.repository,
+        scope_type: "job",
+        scope_id: owner.id,
+        actor: owner.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "pr_comment",
+        state: "running",
+        repository: owner.repository,
+        scope_type: "job",
+        scope_id: owner.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: owner, role: "primary")
+      unit.work_unit_members.create!(job: member, role: "member")
+
+      expect(member.cancel_active_workflows_for_rebase!).to eq(true)
+
+      expect(workflow.reload).to be_cancelled
+      expect(workflow.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_REBASE_REASON)
+      expect(unit.reload).to be_cancelled
+    end
+
     it "approves an implemented job with approval metadata" do
       job = Factories.job
       job.update!(state: "implemented")

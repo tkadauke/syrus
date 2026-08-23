@@ -781,7 +781,7 @@ class Job < ApplicationRecord
   end
 
   def cancel_active_execution!
-    workflows.active.find_each do |workflow|
+    active_runtime_workflows.each do |workflow|
       workflow.cancel! if workflow.may_cancel?
       workflow.save!
     end
@@ -810,7 +810,7 @@ class Job < ApplicationRecord
   # anything was cancelled.
   def cancel_active_workflows_for_rebase!
     cancelled = false
-    workflows.active.find_each do |workflow|
+    active_runtime_workflows.each do |workflow|
       next if workflow.landing_workflow? || workflow.coding_handoff_workflow? ||
               workflow.local_mode_handoff_workflow? || workflow.infrastructure_workflow?
       next unless workflow.may_cancel?
@@ -824,6 +824,18 @@ class Job < ApplicationRecord
       cancelled = true
     end
     cancelled
+  end
+
+  def active_runtime_workflows
+    WorkUnits::TerminalWorkflowSync.for_job(self)
+
+    direct_workflows = workflows.active.to_a
+    unit_workflows = WorkUnits::Ownership
+      .active_units_for_job(self)
+      .filter_map(&:workflow)
+      .select { |workflow| workflow.state.in?(%w[queued running]) }
+
+    (direct_workflows + unit_workflows).uniq
   end
 
   def mark_externally_implemented!(number)
