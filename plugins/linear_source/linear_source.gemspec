@@ -3,7 +3,7 @@ require_relative "lib/linear_source/version"
 Gem::Specification.new do |spec|
   spec.name    = "linear_source"
   spec.version = SyrusLinearSource::VERSION
-  spec.authors = [""]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Syrus plugin: Linear input source"
 
   spec.files         = Dir["lib/**/*", "app/**/*"]
