@@ -144,6 +144,21 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(AppSetting.current.reload.proactive_rebase_commit_threshold).to eq(50)
   end
 
+  it "exposes and updates the WorkUnit debug visibility setting" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/settings"
+    expect(parse_body.dig("settings", "show_work_unit_debug")).to be false
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { show_work_unit_debug: true }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.show_work_unit_debug).to be true
+    expect(parse_body.dig("settings", "show_work_unit_debug")).to be true
+  end
+
   it "exposes and updates the rebase failure cooldown" do
     sign_in_as(admin)
 

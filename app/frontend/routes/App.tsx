@@ -25,6 +25,7 @@ import { AdminPlugins } from "./AdminPlugins"
 import { AdminQueueRoute } from "./AdminQueue"
 import { AdminReconcilerActivity } from "./AdminReconcilerActivity"
 import { AdminWorkflowActivity } from "./AdminWorkflowActivity"
+import { AdminWorkUnits } from "./AdminWorkUnits"
 import { AdminProcessDetail, AdminProcessesIndex } from "./AdminProcesses"
 import { AdminMcpToolUsage } from "./AdminMcpToolUsage"
 import { AdminSettings } from "./AdminSettings"
@@ -93,6 +94,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/queue/:tab", element: <AdminQueueRoute /> },
   { path: "/admin/stuck", element: <AdminStuck /> },
   { path: "/admin/activity", element: <AdminWorkflowActivity /> },
+  { path: "/admin/work_units", element: <AdminWorkUnits /> },
   { path: "/admin/reconciler_activity", element: <AdminReconcilerActivity /> },
   { path: "/admin/browser_errors", element: <AdminBrowserErrors /> },
   { path: "/admin/backend_exceptions", element: <AdminBackendExceptions /> },

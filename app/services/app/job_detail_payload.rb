@@ -58,9 +58,9 @@ module App
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
-          current_intent: PerformanceLogging.phase("job_detail.current_intent", job_id: @job.id) { current_intent_json },
-          active_work: PerformanceLogging.phase("job_detail.active_work", job_id: @job.id) { active_work_json },
-          work_units: [],
+          current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.current_intent", job_id: @job.id) { current_intent_json } : nil,
+          active_work: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.active_work", job_id: @job.id) { active_work_json } : nil,
+          work_units: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.work_units", job_id: @job.id) { work_units_json } : [],
           workflows: [],
           workflows_pagination: PerformanceLogging.phase("job_detail.workflows_pagination", job_id: @job.id) { workflows_pagination_json },
           feature_flags: feature_flags_json,
@@ -76,8 +76,8 @@ module App
     def workflows_payload
       PerformanceLogging.phase("job_workflows_payload", job_id: @job.id, page: workflows_page) do
         {
-          current_intent: PerformanceLogging.phase("job_workflows.current_intent", job_id: @job.id, page: workflows_page) { current_intent_json },
-          work_units: PerformanceLogging.phase("job_workflows.work_units", job_id: @job.id, page: workflows_page) { work_units_json },
+          current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_workflows.current_intent", job_id: @job.id, page: workflows_page) { current_intent_json } : nil,
+          work_units: work_unit_debug_enabled? ? PerformanceLogging.phase("job_workflows.work_units", job_id: @job.id, page: workflows_page) { work_units_json } : [],
           workflows: PerformanceLogging.phase("job_workflows.workflows", job_id: @job.id, page: workflows_page) { workflows_json },
           workflows_pagination: workflows_pagination_json,
           feature_flags: feature_flags_json,
@@ -111,8 +111,14 @@ module App
       {
         terminal: Feature.terminal_enabled?,
         coding_mode: Feature.coding_mode_enabled?,
-        local_mode: Feature.local_mode_enabled?
+        local_mode: Feature.local_mode_enabled?,
+        work_unit_debug: work_unit_debug_enabled?
       }
+    end
+
+    def work_unit_debug_enabled?
+      @work_unit_debug_enabled = AppSetting.show_work_unit_debug? unless defined?(@work_unit_debug_enabled)
+      @work_unit_debug_enabled
     end
 
     def job_provider_setting_options

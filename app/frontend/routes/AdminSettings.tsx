@@ -110,6 +110,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
   const [maxConcurrentAgentRuns, setMaxConcurrentAgentRuns] = useState(String(payload.settings.max_concurrent_agent_runs))
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
+  const [showWorkUnitDebug, setShowWorkUnitDebug] = useState(payload.settings.show_work_unit_debug)
   const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
   const [workflowAdmissionControlEnabled, setWorkflowAdmissionControlEnabled] = useState(payload.settings.workflow_admission_control_enabled)
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
@@ -121,6 +122,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       video_storage_budget_mb: Number(videoBudgetMb),
       max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
       proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
+      show_work_unit_debug: showWorkUnitDebug,
       rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
       workflow_admission_control_enabled: workflowAdmissionControlEnabled,
       workflow_admission_policy: workflowAdmissionPolicy,
@@ -139,11 +141,12 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setVideoBudgetMb(String(payload.settings.video_storage_budget_mb))
     setMaxConcurrentAgentRuns(String(payload.settings.max_concurrent_agent_runs))
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
+    setShowWorkUnitDebug(payload.settings.show_work_unit_debug)
     setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
     setMode(payload.settings.mode)
-  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.mode])
+  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.show_work_unit_debug, payload.settings.rebase_failure_cooldown_minutes, payload.settings.workflow_admission_control_enabled, payload.settings.workflow_admission_policy, payload.settings.mode])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -226,6 +229,22 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           type="number"
           value={proactiveRebaseThreshold}
         />
+      </div>
+
+      <div className="flex items-start gap-3">
+        <input
+          id="admin-settings-show-work-unit-debug"
+          checked={showWorkUnitDebug}
+          className="mt-1 rounded border-gray-400"
+          onChange={(event) => setShowWorkUnitDebug(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-show-work-unit-debug">{t("settings.show_work_unit_debug_label")}</label>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+            {t("settings.show_work_unit_debug_help")}
+          </span>
+        </span>
       </div>
 
       <div>

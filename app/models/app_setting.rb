@@ -88,6 +88,10 @@ class AppSetting < ApplicationRecord
     current.proactive_rebase_commit_threshold
   end
 
+  def self.show_work_unit_debug?
+    current.show_work_unit_debug
+  end
+
   def self.rebase_failure_cooldown_minutes
     current.rebase_failure_cooldown_minutes
   end

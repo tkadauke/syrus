@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_22_193000) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -95,6 +94,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_193000) do
     t.integer "rebase_failure_cooldown_minutes", default: 60, null: false
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
     t.boolean "runs_paused", default: false, null: false
+    t.boolean "show_work_unit_debug", default: false, null: false
     t.boolean "signups_open", default: false, null: false
     t.string "telegram_bot_handle"
     t.text "telegram_bot_token"
@@ -2466,4 +2466,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_193000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "admin_build_cache_clear_requests", "users"
+
+  # Virtual tables defined in this database.
+  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end

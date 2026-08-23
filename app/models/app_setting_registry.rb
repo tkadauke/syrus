@@ -238,6 +238,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :show_work_unit_debug,
+      type: :boolean,
+      default: false,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Shows WorkIntent and WorkUnit debugging panels on user-facing Job workflow tabs. Admin Work Units remains visible regardless of this setting.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false
+    ),
+    Definition.new(
       key: :mode,
       type: :string,
       default: "advanced",

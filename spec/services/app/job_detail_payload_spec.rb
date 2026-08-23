@@ -157,6 +157,7 @@ RSpec.describe App::JobDetailPayload do
       expect(payload[:start_blocked_next_check_at]).to eq(next_check.iso8601)
       expect(payload[:start_blocked_details]).to eq("reason" => "worker_host_pressure_high")
 
+      AppSetting.current.update!(show_work_unit_debug: true)
       active_work = payload_for(job).fetch(:active_work)
       expect(active_work).to include(
         kind: "manual_visual_review",
@@ -754,6 +755,10 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#workflows_json" do
+    before do
+      AppSetting.current.update!(show_work_unit_debug: true)
+    end
+
     it "includes the active work intent in the default job detail payload" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

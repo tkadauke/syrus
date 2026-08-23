@@ -461,10 +461,11 @@ RSpec.describe "App API job detail", type: :request do
     body = parse_body
     expect(body["workflows"]).to eq([])
     expect(body["work_units"]).to eq([])
-    expect(body.dig("workflows_pagination", "total_workflows")).to eq(0)
+    expect(body.dig("workflows_pagination", "total_workflows")).to eq(1)
   end
 
   it "returns active work from the current WorkUnit without loading the workflow graph" do
+    AppSetting.current.update!(show_work_unit_debug: true)
     bare_job = Factories.job_record(
       user: user,
       repository: repo,
@@ -493,6 +494,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "returns active Epic-wide work for member jobs whose workflow is attached elsewhere" do
+    AppSetting.current.update!(show_work_unit_debug: true)
     epic = Factories.epic(user: user, repository: repo)
     first = Factories.job_record(user: user, repository: repo, epic: epic)
     second = Factories.job_record(user: user, repository: repo, epic: epic)
@@ -534,6 +536,28 @@ RSpec.describe "App API job detail", type: :request do
       "job_log_count" => 2,
       "rate_limited" => true
     )
+    expect(body["current_intent"]).to be_nil
+    expect(body["work_units"]).to eq([])
+    expect(body.dig("feature_flags", "work_unit_debug")).to be false
+  end
+
+  it "returns WorkUnit diagnostics on live workflow refreshes only when enabled" do
+    AppSetting.current.update!(show_work_unit_debug: true)
+    run = job.initial_run
+    unit = run.workflow.work_unit
+    unless unit
+      intent = WorkIntent.create!(kind: "initial", state: "requested", repository: repo, scope_type: "job", scope_id: job.id, actor: user)
+      unit = WorkUnit.create!(work_intent: intent, workflow: run.workflow, kind: "initial", state: "queued", repository: repo, scope_type: "job", scope_id: job.id)
+    end
+    unit.work_unit_members.find_or_create_by!(job: job) { |member| member.role = "primary" }
+
+    get "/api/v1/app/jobs/#{job.id}/workflows"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["current_intent"]).to include("id" => unit.work_intent_id, "kind" => "initial")
+    expect(body["work_units"]).to include(include("id" => unit.id, "workflow" => include("id" => run.workflow.id)))
+    expect(body.dig("feature_flags", "work_unit_debug")).to be true
   end
 
   it "links cron job details back to their scheduled task" do

@@ -50,6 +50,7 @@ module Api
                 # 0 = unlimited (bounded only by per-pod JOB_CONCURRENCY).
                 max_concurrent_agent_runs: setting.max_concurrent_agent_runs,
                 proactive_rebase_commit_threshold: setting.proactive_rebase_commit_threshold,
+                show_work_unit_debug: setting.show_work_unit_debug,
                 rebase_failure_cooldown_minutes: setting.rebase_failure_cooldown_minutes,
                 workflow_admission_control_enabled: setting.workflow_admission_control_enabled,
                 workflow_admission_policy: setting.workflow_admission_policy,

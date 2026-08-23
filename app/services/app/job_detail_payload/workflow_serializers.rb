@@ -249,9 +249,9 @@ module App
       end
 
       def workflows_scope
-        @job.workflows
-            .where.not(id: all_work_unit_workflow_ids_for_job)
-            .reorder(created_at: :desc, id: :desc)
+        scope = @job.workflows
+        scope = scope.where.not(id: all_work_unit_workflow_ids_for_job) if work_unit_debug_enabled?
+        scope.reorder(created_at: :desc, id: :desc)
       end
 
       def total_workflows
@@ -308,6 +308,8 @@ module App
       end
 
       def work_unit_workflows_for_job
+        return [] unless work_unit_debug_enabled?
+
         @work_unit_workflows_for_job ||= work_unit_members_for_job.filter_map { |member| member.work_unit.workflow }
       end
 
@@ -316,6 +318,8 @@ module App
       end
 
       def all_work_unit_workflow_ids_for_job
+        return [] unless work_unit_debug_enabled?
+
         @all_work_unit_workflow_ids_for_job ||= PerformanceLogging.phase("job_detail.work_units.workflow_ids", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)
