@@ -582,7 +582,8 @@ module WorkEngine
         next if step_runs.any? { |run| run.queued? || run.running? }
         next unless step_runs.all?(&:terminal?)
 
-        terminal_run = latest_terminal_run(step_runs)
+        projection = Steps::StateProjection.for(step, runs: step_runs)
+        terminal_run = projection.latest_terminal_run
         next unless terminal_run
 
         issue(
@@ -2103,10 +2104,6 @@ module WorkEngine
 
       step_runs = runs.select { |run| run.step_id == step.id }
       step_runs.any? && step_runs.all?(&:terminal?)
-    end
-
-    def latest_terminal_run(step_runs)
-      step_runs.select(&:terminal?).max_by { |run| [ run.finished_at || run.updated_at || run.created_at || Time.zone.at(0), run.id || 0 ] }
     end
 
     def start_blocked?(workflow)

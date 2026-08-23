@@ -639,38 +639,13 @@ module WorkEngine
 
           step_runs = step.runs.to_a
           return skipped("Step has no Runs") if step_runs.empty?
-          return skipped("Step still has active Runs") if step_runs.any? { |run| run.queued? || run.running? }
-
-          run = latest_terminal_run(step_runs)
-          return skipped("Step has no terminal Run") unless run
 
           with_transition_reason do
-            case run.state
-            when "succeeded"
-              return skipped("Step cannot transition to succeeded") unless step.may_succeed?
-
-              step.succeed!
-            when "failed"
-              return skipped("Step cannot transition to failed") unless step.may_fail?
-
-              step.fail!
-            when "cancelled"
-              return skipped("Step cannot transition to cancelled") unless step.may_cancel?
-
-              step.cancel!
-            else
-              return skipped("Run is #{run.state}, not terminal")
-            end
-            step.save!
+            @sync_result = Steps::StateSynchronizer.from_latest_terminal_run!(step, runs: step_runs)
           end
+          return skipped(@sync_result.reason) unless @sync_result.synchronized?
 
-          success("reconciled Step ##{step.id} to #{step.state} from Run ##{run.id}")
-        end
-
-        private
-
-        def latest_terminal_run(step_runs)
-          step_runs.select(&:terminal?).max_by { |run| [ run.finished_at || run.updated_at || run.created_at || Time.zone.at(0), run.id || 0 ] }
+          success(@sync_result.reason)
         end
       end
 

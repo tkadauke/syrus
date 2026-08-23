@@ -2001,6 +2001,10 @@ Completed slices:
   persisted Step state as drift diagnostics. Job workflow JSON, WorkUnit current
   step summaries, merge-train status, and grader conclusion caching use the
   projection instead of each hand-rolling Step/Run precedence.
+- Step repair from terminal Run state now goes through
+  `Steps::StateSynchronizer`, and the reconciler uses the same projection when
+  planning active-Step/terminal-Run drift repairs. This removes another
+  hand-rolled Step/Run terminal precedence rule from WorkEngine.
 
 ## Success Criteria
 
