@@ -56,3 +56,53 @@ describe("LegacyEpicsBanner", () => {
 
   }
 }
+
+function simpleEpicItem(overrides: Partial<DashboardEpicItem>): DashboardEpicItem {
+  return {
+    type: "epic",
+    id: 9,
+    number: 9,
+    display_number: "EPIC-9",
+    title: "Legacy checkout revamp",
+    description: "",
+    state: "in_progress",
+    simple_status: "working_on_it",
+    stuck: false,
+    all_jobs_closed: false,
+    owner: null,
+    owned_by_current_user: false,
+    claimable: false,
+    owner_badge: null,
+    claimed_at: null,
+    auto_approve_mode: "off",
+    owner_user_id: null,
+    owner_status: "unclaimed",
+    jobs_count: 2,
+    landed_jobs_count: 0,
+    job_state_counts: {},
+    max_commits_behind_base: null,
+    created_at: null,
+    updated_at: "2026-07-30T12:00:00Z",
+    done_at: null,
+    archived_at: null,
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    paths: {
+      epic_path: "/epics/9",
+      edit_epic_path: "/epics/9/edit",
+      app_state_path: "/api/v1/app/epics/9/state",
+      app_claim_path: "/api/v1/app/epics/9/claim",
+      app_unclaim_path: "/api/v1/app/epics/9/unclaim"
+    },
+    ...overrides
+  }
+}
+
+function simpleEpicsDashboardPayload(): DashboardPayload {
+  const base = simpleDashboardPayload()
+  return {
+    ...base,
+    subject: "epic",
+    counts: { jobs: 0, epics: 1, workflows: 0 },
+    items: [simpleEpicItem({})]
+  }
+}
