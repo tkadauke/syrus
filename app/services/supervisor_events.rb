@@ -27,7 +27,7 @@ class SupervisorEvents
         dedupe_key: dedupe_key
       )
 
-      supervisor_events = User.where(admin: true).find_each.filter_map do |admin|
+      supervisor_events = User.admin.find_each.filter_map do |admin|
         chat = SupervisorChat.ensure_for!(admin)
         publish_for_chat!(
           chat,

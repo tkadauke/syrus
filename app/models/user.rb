@@ -130,8 +130,16 @@ class User < ApplicationRecord
     "external_pr_feedback" => true
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
+  # Deliberately not an `enum :global_role` — that macro validates the
+  # underlying column's SQL type at model-schema-load time, which blows up
+  # any older migration that references `User` while replaying migrations
+  # from an empty database (the column doesn't exist yet at that point in
+  # history). Plain validation + a scope gets the same behavior lazily.
+  GLOBAL_ROLES = %w[ admin user ].freeze
 
   enum :role, { developer: "developer", product_owner: "product_owner" }
+
+  scope :admin, -> { where(global_role: "admin") }
 
   encrypts :claude_oauth_token
   encrypts :codex_api_key
@@ -169,6 +177,7 @@ class User < ApplicationRecord
   validates :chat_provider, inclusion: { in: -> { User.chat_providers } }, allow_nil: true
   validates :theme, presence: true, inclusion: { in: THEMES }
   validates :locale, presence: true, inclusion: { in: LOCALES }
+  validates :global_role, presence: true, inclusion: { in: GLOBAL_ROLES }
   validates :first_name, :last_name, length: { maximum: 80 }
   validates :github_handle, length: { maximum: 100 }
   validates :profile_bio, length: { maximum: 1000 }
@@ -188,7 +197,7 @@ class User < ApplicationRecord
   after_create :seed_default_cron_templates
 
   def admin?
-    admin
+    global_role == "admin"
   end
 
   def display_name
@@ -854,7 +863,7 @@ class User < ApplicationRecord
 
   def promote_first_user_to_admin
     @first_user = User.count.zero?
-    self.admin = true if @first_user
+    self.global_role = "admin" if @first_user
   end
 
   # A new Syrus installation should start with a useful set of Cron
