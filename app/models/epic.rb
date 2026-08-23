@@ -479,12 +479,9 @@ class Epic < ApplicationRecord
   end
 
   def close_child_jobs_on_archive!
-    jobs.find_each do |job|
+    Job.where(epic_id: id).to_a.each do |job|
       next if job.closed?
-      job.workflows.active.find_each do |workflow|
-        workflow.cancel! if workflow.may_cancel?
-        workflow.save!
-      end
+      job.cancel_active_execution!
       job.close_with_reason!("epic_archived")
     end
   end

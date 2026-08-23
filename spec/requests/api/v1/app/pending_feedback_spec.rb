@@ -296,7 +296,7 @@ RSpec.describe "App API pending feedback", type: :request do
       workflow = Workflow.create!(
         job: job,
         trigger_kind: "chat_feedback",
-        state: "failed",
+        state: "running",
         artifacts: { "feedback_source" => { "pr_review_comment_id" => comment.id } }
       )
       intent = WorkIntent.create!(

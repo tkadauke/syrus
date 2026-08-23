@@ -1011,6 +1011,45 @@ RSpec.describe Epic do
     expect(job.workflows.first).to be_cancelled
   end
 
+  it "cancels WorkUnit-owned child workflows when the Epic is archived" do
+    epic = described_class.create!(user: user, repository: repository, title: "Retire train", state: "in_progress")
+    owner = Factories.job_record(user: user, repository: repository, issue_number: 24, epic: epic, state: "running")
+    member = Factories.job_record(user: user, repository: repository, issue_number: 25, epic: epic, state: "running")
+    workflow = Workflow.create!(
+      job: owner,
+      trigger_kind: "merge_train",
+      state: "running",
+      started_at: 5.minutes.ago
+    )
+    intent = WorkIntent.create!(
+      kind: "merge_train",
+      state: "requested",
+      repository: repository,
+      scope_type: "epic",
+      scope_id: epic.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "merge_train",
+      state: "running",
+      repository: repository,
+      scope_type: "epic",
+      scope_id: epic.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: owner, role: "primary")
+    unit.work_unit_members.create!(job: member, role: "member")
+
+    epic.archive!
+
+    expect(owner.reload.closure_reason).to eq("epic_archived")
+    expect(member.reload.closure_reason).to eq("epic_archived")
+    expect(workflow.reload).to be_cancelled
+    expect(unit.reload).to be_cancelled
+  end
+
   it "closes child Jobs in any open state when the Epic is archived" do
     epic = described_class.create!(user: user, repository: repository, title: "Mothball", state: "ready")
     queued_job = Factories.job_record(user: user, repository: repository, issue_number: 21, epic: epic, state: "queued")

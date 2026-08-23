@@ -48,12 +48,9 @@ class RetryWorkflowEligibility
   end
 
   def duplicate_active_retry_workflow?
-    active = WorkUnits::Ownership.active_units_by_job_id([ job.id ], kinds: "retry")[job.id]
-    return true if active && active.workflow_id != workflow&.id
-
-    scope = job.workflows.active.where(trigger_kind: "retry")
-    scope = scope.where.not(id: workflow.id) if workflow
-    scope.exists?
+    job.active_runtime_workflows.any? do |active_workflow|
+      active_workflow.trigger_kind == "retry" && active_workflow.id != workflow&.id
+    end
   end
 
   def workflow_superseded?
