@@ -24,6 +24,9 @@ gem "jbuilder"
 # State machines for Job and friends [https://github.com/aasm/aasm]
 gem "aasm"
 
+# Policy objects for Repository/Job/Epic access rules [https://github.com/varvet/pundit]
+gem "pundit"
+
 # GitHub API client [https://github.com/octokit/octokit.rb]
 gem "octokit", "~> 10.0"
 
