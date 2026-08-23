@@ -659,6 +659,66 @@ RSpec.describe WorkEngine::Reconciler do
     expect(lock.reload).not_to be_active
   end
 
+  it "cancels active child WorkUnits left behind by terminal parents" do
+    target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 451)
+    parent_intent = WorkIntent.create!(
+      kind: "auto_merge",
+      state: "requested",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      actor: target.user,
+      source_type: "spec"
+    )
+    parent = WorkUnit.create!(
+      work_intent: parent_intent,
+      kind: "auto_merge",
+      state: "succeeded",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      finished_at: 5.minutes.ago
+    )
+    child_intent = WorkIntent.create!(
+      kind: "landing_validation",
+      state: "requested",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      actor: target.user,
+      source_type: "spec"
+    )
+    child_workflow = Workflow.create!(job: target, trigger_kind: "landing_validation", state: "running")
+    child = WorkUnit.create!(
+      work_intent: child_intent,
+      kind: "landing_validation",
+      state: "running",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      workflow: child_workflow,
+      parent_work_unit: parent
+    )
+    child.work_unit_members.create!(job: target, role: "primary")
+
+    result = reconcile_and_execute(job_id: target.id)
+
+    expect(kind(result, :terminal_work_unit_active_children)).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_terminal_work_unit_active_children"
+    )
+    expect(plan(result, :cancel_terminal_work_unit_active_children)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkUnit",
+      target_id: parent.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled 1 active child WorkUnit(s) for terminal parent ##{parent.id}")
+    expect(parent.reload).to be_succeeded
+    expect(child.reload).to be_cancelled
+    expect(child_workflow.reload).to be_cancelled
+  end
+
   it "cancels active WorkUnits that never attached a Workflow" do
     intent = WorkIntent.create!(
       kind: "initial",

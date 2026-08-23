@@ -170,7 +170,7 @@ module WorkEngine
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
       @workflows = scoped_workflows.includes(:job, :steps).to_a
       @work_intents = scoped_work_intents.includes(:work_units).to_a
-      @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, :work_unit_members, :workflow).to_a
+      @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, :work_unit_members, :workflow, :parent_work_unit).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
       workflow_steps = @workflows.flat_map(&:steps)
       missing_run_step_ids = @runs.filter_map(&:step_id) - workflow_steps.map(&:id)
@@ -194,6 +194,7 @@ module WorkEngine
       issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
+      issues.concat(classify_active_child_work_units_with_terminal_parents)
       issues.concat(classify_stale_auto_retry_workflows)
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_jobs_without_active_workflows)
@@ -898,6 +899,30 @@ module WorkEngine
             work_intent_wait_reason: intent.wait_reason
           },
           explanation: "Succeeded WorkUnit ##{unit.id} completed WorkIntent ##{intent.id}, but the intent is still #{intent.state}."
+        )
+      end
+    end
+
+    def classify_active_child_work_units_with_terminal_parents
+      active_children_by_parent = work_units
+        .select(&:active?)
+        .select { |unit| unit.parent_work_unit&.terminal? }
+        .group_by(&:parent_work_unit)
+
+      active_children_by_parent.map do |parent, children|
+        issue(
+          kind: :terminal_work_unit_active_children,
+          severity: :error,
+          affected_ids: ids_for(parent).merge(work_unit_ids: [ parent.id, *children.map(&:id) ]),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "cancel_terminal_work_unit_active_children",
+          evidence: {
+            parent_work_unit_id: parent.id,
+            parent_work_unit_state: parent.state,
+            child_work_unit_ids: children.map(&:id),
+            child_work_unit_states: children.map { |child| [ child.id, child.kind, child.state, child.workflow_id ] }
+          },
+          explanation: "Terminal WorkUnit ##{parent.id} still has active child WorkUnits; terminal parents cannot keep descendant runtime work alive."
         )
       end
     end

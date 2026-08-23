@@ -1746,6 +1746,11 @@ Completed slices:
   starting a fresh Unit/Workflow for persisted job-scoped desired work. This is
   deliberately explicit-scope only, so global or Workflow-scoped reconciles do
   not accidentally relaunch failed attempts in a loop.
+- Terminal parent WorkUnits now own their descendant invariant: the reconciler
+  detects active child WorkUnits below terminal parents and cancels those child
+  Workflows/Units while preserving the parent's terminal outcome. This gives
+  speculative validation and future ref-movement child Units a durable cleanup
+  path.
 
 ### Phase 6: Work Definition Policies
 

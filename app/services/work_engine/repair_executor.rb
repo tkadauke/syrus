@@ -725,6 +725,43 @@ module WorkEngine
         end
       end
 
+      class CancelTerminalWorkUnitActiveChildren < Base
+        def perform
+          parent = target_work_unit
+          return skipped("Parent WorkUnit no longer exists") unless parent
+          return skipped("Parent WorkUnit is #{parent.state}, not terminal") unless parent.terminal?
+
+          child_ids = Array(plan.preconditions["child_work_unit_ids"]).map(&:to_i).select(&:positive?)
+          children = WorkUnit.includes(:workflow, :work_unit_locks).where(id: child_ids, parent_work_unit_id: parent.id).to_a
+          active_children = children.select(&:active?)
+          return skipped("Parent WorkUnit has no active children") if active_children.empty?
+
+          active_children.each { |child| cancel_child_work_unit!(child) }
+
+          remaining_ids = WorkUnit.where(id: child_ids, parent_work_unit_id: parent.id, state: WorkUnits::Ownership::ACTIVE_STATES).pluck(:id)
+          if remaining_ids.any?
+            failure("active child WorkUnits remain for terminal parent ##{parent.id}: #{remaining_ids.inspect}")
+          else
+            success("cancelled #{active_children.size} active child WorkUnit(s) for terminal parent ##{parent.id}")
+          end
+        end
+
+        private
+
+        def cancel_child_work_unit!(child)
+          workflow = child.workflow
+          if workflow&.may_cancel?
+            with_transition_reason do
+              workflow.cancel!
+              workflow.save!
+            end
+            return
+          end
+
+          child.mark_terminal!("cancelled")
+        end
+      end
+
       class CancelActiveWorkUnitWithoutWorkflow < Base
         def perform
           unit = target_work_unit

@@ -1069,6 +1069,21 @@ module WorkEngine
         end
       end
 
+      class TerminalWorkUnitActiveChildren < Base
+        def plan
+          automatic_plan(
+            "cancel_terminal_work_unit_active_children",
+            primary_work_unit,
+            "The parent WorkUnit is terminal but child runtime work is still active, so cancel the children without changing the parent outcome.",
+            execution_steps: [ "Workflow#cancel!", "WorkUnit#mark_terminal!(cancelled)" ],
+            preconditions: {
+              parent_work_unit_state: %w[succeeded failed cancelled],
+              child_work_unit_ids: issue.evidence["child_work_unit_ids"]
+            }
+          )
+        end
+      end
+
       class ActiveWorkUnitWithoutWorkflow < Base
         def plan
           automatic_plan(
