@@ -33,16 +33,22 @@ class RebaseWorkflowSelector
   private_class_method :stack_member_with_parent?
 
   def self.active_for_stack?(job)
-    active_for_jobs([ job ]).exists?
+    active_for_jobs?([ job ])
+  end
+
+  def self.active_for_jobs?(jobs)
+    job_ids = related_job_ids_for(jobs)
+    return false if job_ids.empty?
+
+    WorkUnits::Ownership.active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS).exists? ||
+      active_legacy_workflows_for_job_ids(job_ids).exists?
   end
 
   def self.active_for_jobs(jobs)
     job_ids = related_job_ids_for(jobs)
     return Workflow.none if job_ids.empty?
 
-    runnable_active_scope(
-      Workflow.active.where(trigger_kind: TRIGGER_KINDS, job_id: job_ids)
-    )
+    active_workflows_for_job_ids(job_ids)
   end
 
   def self.active_merge_train_for_stack?(job)
@@ -57,13 +63,34 @@ class RebaseWorkflowSelector
   end
 
   def self.active_in_repository(repository)
-    runnable_active_scope(
-      Workflow.active
-              .where(trigger_kind: TRIGGER_KINDS)
-              .joins(:job)
-              .where(jobs: { repository_id: repository.id })
-    )
+    legacy_ids = runnable_active_scope(
+      Workflow.active.where(trigger_kind: TRIGGER_KINDS).joins(:job).where(jobs: { repository_id: repository.id })
+    ).pluck(:id)
+    unit_ids = WorkUnit
+      .where(state: WorkUnits::Ownership::ACTIVE_STATES, kind: TRIGGER_KINDS, repository_id: repository.id)
+      .where.not(workflow_id: nil)
+      .pluck(:workflow_id)
+
+    Workflow.where(id: (legacy_ids + unit_ids).uniq)
   end
+
+  def self.active_workflows_for_job_ids(job_ids)
+    legacy_ids = active_legacy_workflows_for_job_ids(job_ids).pluck(:id)
+    unit_ids = WorkUnits::Ownership
+      .active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS)
+      .joins(:work_unit)
+      .where.not(work_units: { workflow_id: nil })
+      .distinct
+      .pluck("work_units.workflow_id")
+
+    Workflow.where(id: (legacy_ids + unit_ids).uniq)
+  end
+  private_class_method :active_workflows_for_job_ids
+
+  def self.active_legacy_workflows_for_job_ids(job_ids)
+    runnable_active_scope(Workflow.active.where(trigger_kind: TRIGGER_KINDS, job_id: job_ids))
+  end
+  private_class_method :active_legacy_workflows_for_job_ids
 
   def self.runnable_active_scope(scope)
     scope.where(<<~SQL.squish, "running")

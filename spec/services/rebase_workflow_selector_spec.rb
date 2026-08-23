@@ -20,6 +20,29 @@ RSpec.describe RebaseWorkflowSelector do
     child
   end
 
+  def create_rebase_work_unit(job:, kind: "rebase", workflow: nil, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   describe ".stack_rebase?" do
     it "returns false when the job has no stack children" do
       expect(described_class.stack_rebase?(job)).to be false
@@ -98,6 +121,21 @@ RSpec.describe RebaseWorkflowSelector do
       workflow.update_columns(state: "running")
 
       expect(described_class.active_for_stack?(job)).to be true
+    end
+
+    it "returns true when a related Job is owned by an active rebase WorkUnit with a terminal workflow" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "failed", finished_at: Time.current)
+      create_rebase_work_unit(job: job, workflow: workflow)
+
+      expect(described_class.active_for_stack?(job)).to be true
+      expect(described_class.active_for_jobs([ job ])).to contain_exactly(workflow)
+    end
+
+    it "returns true when a related Job is owned by an active rebase WorkUnit before a workflow is linked" do
+      create_rebase_work_unit(job: job, kind: "stack_rebase", workflow: nil)
+
+      expect(described_class.active_for_stack?(job)).to be true
+      expect(described_class.active_for_jobs([ job ])).to be_empty
     end
   end
 

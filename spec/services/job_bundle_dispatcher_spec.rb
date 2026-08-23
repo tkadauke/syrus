@@ -96,6 +96,33 @@ RSpec.describe JobBundleDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does not dispatch while a rebase WorkUnit owns a bundle member before a workflow is linked" do
+    a = approved_job(1)
+    approved_job(2)
+    intent = WorkIntent.create!(
+      kind: "rebase",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: a.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "rebase",
+      state: "running",
+      repository: repository,
+      scope_type: "job",
+      scope_id: a.id
+    )
+    unit.work_unit_members.create!(job: a, role: "primary")
+
+    expect(described_class.blocker_reason(repository)).to eq("active rebase workflow must finish before the job bundle starts")
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+  end
+
   it "does not re-dispatch during the cooldown after a failed bundle" do
     approved_job(1)
     approved_job(2)

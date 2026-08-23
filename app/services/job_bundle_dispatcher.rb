@@ -34,7 +34,7 @@ class JobBundleDispatcher
       members = result.members.map { |job| job.tap(&:lock!) }
 
       raise ActiveRecord::Rollback if Job.landing.where(repository_id: @repository.id).exists?
-      raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs(members).exists?
+      raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
 
       train = MergeTrain.create!(
@@ -80,6 +80,9 @@ class JobBundleDispatcher
 
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)
       return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
+    end
+    if RebaseWorkflowSelector.active_for_jobs?(readiness.members)
+      return "active rebase workflow must finish before the job bundle starts"
     end
 
     nil

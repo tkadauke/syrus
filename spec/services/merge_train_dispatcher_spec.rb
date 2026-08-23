@@ -197,6 +197,33 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  it "does not dispatch while a rebase WorkUnit owns a train member before a workflow is linked" do
+    child = approved_child(1)
+    intent = WorkIntent.create!(
+      kind: "stack_rebase",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: child.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "stack_rebase",
+      state: "running",
+      repository: repository,
+      scope_type: "job",
+      scope_id: child.id
+    )
+    unit.work_unit_members.create!(job: child, role: "primary")
+
+    expect(described_class.blocker_reason(epic)).to eq("active rebase workflow must finish before the merge train starts")
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not create a train when an approved Epic stack has unresolved external blockers" do
     blocker = Factories.job_record(
       user: user,
