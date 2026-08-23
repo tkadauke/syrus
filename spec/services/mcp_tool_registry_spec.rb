@@ -13,6 +13,16 @@ RSpec.describe McpToolRegistry do
     described_class.tools_for_context(context, tier: tier).map(&:tool_name)
   end
 
+  # Chat-surface plugin tool sets (e.g. PreviewTools::ChatToolSet) are
+  # dynamically defined per session/tier and layered on top of the sidecar's
+  # output by Mcp::Sidecar.plugin_tools_for -- they never enter the static
+  # McpToolRegistry, so the registry-vs-sidecar equivalence checks below
+  # compare only the registry-backed portion of the sidecar's tool set.
+  def sidecar_registry_tool_names(session, tier:)
+    plugin_names = Mcp::Sidecar.plugin_tools_for(session, tier: tier).map { |tool| described_class.tool_name_for(tool) }
+    Mcp::Sidecar.chat_tool_names(session, tier: tier) - plugin_names
+  end
+
   def enable_feature(slug)
     Feature.find_or_create_by!(slug: slug.to_s) { |feature| feature.category = "Labs"; feature.name = slug.to_s.humanize }
            .update!(enabled: true)
@@ -55,8 +65,8 @@ RSpec.describe McpToolRegistry do
       session = chat_session
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
-      expect(tool_names_for(context, tier: :deferred)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :deferred))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :deferred)).to eq(sidecar_registry_tool_names(session, tier: :deferred))
     end
 
     it "keeps the admin chat tool set unchanged" do
@@ -64,7 +74,7 @@ RSpec.describe McpToolRegistry do
       session = chat_session(session_user: admin, session_repository: Factories.repository(user: admin))
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
       expect(tool_names_for(context, tier: :essential)).to include("admin_overview", "force_fail_job")
     end
 

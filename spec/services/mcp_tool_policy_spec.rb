@@ -13,6 +13,16 @@ RSpec.describe McpToolPolicy do
     ChatSession.create!({ user: user, repository: repository }.merge(attrs))
   end
 
+  # Chat-surface plugin tool sets (e.g. PreviewTools::ChatToolSet) are
+  # dynamically defined per session/tier and layered on top of the sidecar's
+  # output by Mcp::Sidecar.plugin_tools_for -- McpToolPolicy only knows about
+  # the static registry-backed tool classes, so the equivalence checks below
+  # compare only that registry-backed portion of the sidecar's tool set.
+  def sidecar_registry_tool_names(session, tier:)
+    plugin_names = Mcp::Sidecar.plugin_tools_for(session, tier: tier).map { |tool| McpToolRegistry.tool_name_for(tool) }
+    Mcp::Sidecar.chat_tools(session, tier: tier).map(&:tool_name) - plugin_names
+  end
+
   describe "workflow roles" do
     let(:run) { Factories.job.initial_run }
 
@@ -436,7 +446,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_essential = Mcp::Sidecar.chat_tools(session, tier: :essential).map(&:tool_name)
+      sidecar_essential = sidecar_registry_tool_names(session, tier: :essential)
 
       expect(policy_tools).to include(*sidecar_essential)
     end
@@ -446,7 +456,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_deferred = Mcp::Sidecar.chat_tools(session, tier: :deferred).map(&:tool_name)
+      sidecar_deferred = sidecar_registry_tool_names(session, tier: :deferred)
 
       expect(policy_tools).to include(*sidecar_deferred)
     end
