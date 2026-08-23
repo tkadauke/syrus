@@ -335,20 +335,15 @@ module App
           end
 
           legacy = Workflow.where(job_id: active_scope, state: %w[queued running])
+                  .includes(:work_unit)
                   .where("artifacts LIKE ?", '%"start_blocked_reason"%')
                   .reorder(id: :desc)
-                  .select(:job_id, :artifacts)
+                  .select(:id, :job_id, :artifacts)
                   .each_with_object({}) do |wf, map|
             next if map.key?(wf.job_id)
 
-            reason = wf.artifacts&.dig("start_blocked_reason")
-            map[wf.job_id] = {
-              reason: reason,
-              at: wf.artifacts&.dig("start_blocked_at"),
-              next_check_at: wf.artifacts&.dig("start_blocked_next_check_at"),
-              count: wf.artifacts&.dig("start_blocked_count"),
-              details: wf.artifacts&.dig("start_blocked_details")
-            } if reason.present?
+            data = WorkUnits::StartBlock.for(wf).data
+            map[wf.job_id] = data if data[:reason].present?
           end
           scoped_job_ids = job_ids.presence || legacy.keys
           legacy.merge(WorkUnits::Ownership.blocked_data_by_job_id(scoped_job_ids))

@@ -106,18 +106,19 @@ class StateTransition < ApplicationRecord
         "landing_queue_blocked_reason" => compact_reason_hash(subject.landing_queue_blocked_reason)
       }
     when Workflow
+      start_block = WorkUnits::StartBlock.for(subject)
       {
         "reason_key" => first_present(
           subject.failure_reason,
           subject.artifact("failure_reason"),
-          subject.artifact("start_blocked_reason"),
+          start_block.reason,
           subject.artifact("start_cancelled_reason"),
           subject.artifact("cancelled_reason"),
           subject.artifact("pause_reason")
         ),
         "failure_reason" => subject.failure_reason,
         "artifact_failure_reason" => subject.artifact("failure_reason"),
-        "start_blocked_reason" => subject.artifact("start_blocked_reason"),
+        "start_blocked_reason" => start_block.reason,
         "start_cancelled_reason" => subject.artifact("start_cancelled_reason"),
         "cancelled_reason" => subject.artifact("cancelled_reason"),
         "pause_reason" => subject.artifact("pause_reason"),

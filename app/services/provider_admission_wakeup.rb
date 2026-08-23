@@ -100,7 +100,9 @@ class ProviderAdmissionWakeup
   end
 
   def clear_provider_start_block!(workflow)
-    return unless workflow.artifact("start_blocked_reason").to_s.in?(%w[provider_circuit provider_usage_limit provider_availability])
+    start_block = WorkUnits::StartBlock.for(workflow)
+    provider_blocked = %w[provider_circuit provider_usage_limit provider_availability].include?(start_block.reason.to_s)
+    return unless provider_blocked
 
     workflow.update!(
       artifacts: workflow.artifacts.to_h.except(

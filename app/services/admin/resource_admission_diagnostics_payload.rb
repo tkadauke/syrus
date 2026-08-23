@@ -50,14 +50,30 @@ module Admin
     end
 
     def delayed_work
-      workflows = Workflow.where(state: "queued")
+      work_unit_workflows = WorkUnit
+        .joins(:workflow)
+        .where(state: "blocked", blocked_reason: "admission_control")
+        .where(workflows: { state: "queued" })
+        .where("work_units.updated_at >= ?", now - DELAYED_WINDOW)
+        .includes(workflow: [ :job, :work_unit ])
+        .order(updated_at: :desc)
+        .limit(DELAYED_LIMIT)
+        .map(&:workflow)
+
+      legacy_workflows = Workflow.where(state: "queued")
+        .includes(:work_unit)
         .includes(:job)
         .where("artifacts LIKE ?", "%#{StepDispatcher::ADMISSION_BLOCK_REASON}%")
         .where("updated_at >= ?", now - DELAYED_WINDOW)
         .order(updated_at: :desc)
         .limit(DELAYED_LIMIT)
 
-      workflows.select { |workflow| workflow.artifact("start_blocked_reason") == StepDispatcher::ADMISSION_BLOCK_REASON }
+      (work_unit_workflows + legacy_workflows.to_a)
+        .uniq(&:id)
+        .sort_by { |workflow| workflow.updated_at || Time.zone.at(0) }
+        .reverse
+        .first(DELAYED_LIMIT)
+        .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON) }
         .map { |workflow| serialize_delayed_workflow(workflow) }
     end
 
@@ -134,7 +150,8 @@ module Admin
     end
 
     def serialize_delayed_workflow(workflow)
-      details = workflow.artifact("start_blocked_details") || {}
+      start_block = WorkUnits::StartBlock.for(workflow)
+      details = start_block.details || {}
       {
         workflow_id: workflow.id,
         job_id: workflow.job_id,
@@ -143,7 +160,7 @@ module Admin
         action: details["action"],
         delay_until: details["delay_until"],
         delayed_at: workflow.artifact("start_blocked_at"),
-        next_check_at: workflow.artifact("start_blocked_next_check_at"),
+        next_check_at: start_block.next_check_at&.iso8601,
         job: job_payload(workflow.job),
         workflow_path: workflow_path(workflow),
         decision: compact_decision(details),

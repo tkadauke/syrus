@@ -59,11 +59,18 @@ module App
                                      .apply(jobs_base_scope)
                                      .where(state: "queued")
                                      .select(:id)
-          Workflow.where(job_id: queued_scope, state: "queued")
-                  .where("artifacts LIKE ?", '%"start_blocked_reason"%')
-                  .select(:job_id)
-                  .distinct
-                  .count
+          queued_job_ids = queued_scope.pluck(:id)
+          legacy_blocked_job_ids = if queued_job_ids.empty?
+            []
+          else
+            Workflow.where(job_id: queued_job_ids, state: "queued")
+                    .where("artifacts LIKE ?", '%"start_blocked_reason"%')
+                    .select(:job_id)
+                    .distinct
+                    .pluck(:job_id)
+          end
+          work_unit_blocked_job_ids = WorkUnits::Ownership.blocked_job_ids(queued_job_ids).to_a
+          (legacy_blocked_job_ids | work_unit_blocked_job_ids).size
         end
       end
 

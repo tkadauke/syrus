@@ -165,6 +165,32 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
     )
   end
 
+  it "surfaces delayed admission decisions stored only on WorkUnits" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued", issue_title: "WorkUnit delayed job")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.work_unit.block!(
+      reason: "admission_control",
+      blocked_until: now + 11.minutes,
+      details: {
+        "action" => "delay_until",
+        "reason" => "worker_host_pressure_high",
+        "delay_until" => (now + 11.minutes).iso8601,
+        "details" => { "decision_basis" => "ambient_pressure" }
+      }
+    )
+
+    delayed = described_class.new(now: now).as_json.fetch(:delayed_work).first
+
+    expect(delayed).to include(
+      workflow_id: workflow.id,
+      job_id: job.id,
+      reason: "worker_host_pressure_high",
+      action: "delay_until",
+      next_check_at: (now + 11.minutes).iso8601
+    )
+    expect(delayed.fetch(:details)).to include("decision_basis" => "ambient_pressure")
+  end
+
   it "surfaces low-confidence profiles and admission override audit entries" do
     profile
     job = Factories.job_record(user: user, repository: repository, state: "running", priority: "urgent")

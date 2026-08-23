@@ -38,6 +38,6 @@ class UrgentJobClosedJob < ApplicationJob
       .where(jobs: { repository_id: repository.id })
       .where(state: "queued")
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
-      .select { |workflow| workflow.artifact("start_blocked_reason") == StepDispatcher::URGENT_BLOCK_REASON }
+      .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::URGENT_BLOCK_REASON) }
   end
 end

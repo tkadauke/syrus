@@ -118,14 +118,15 @@ class ProviderCircuitInspector
       .limit(50)
     scope = scope.where(user_id: user.id) if user
     scope.map do |workflow|
+      start_block = WorkUnits::StartBlock.for(workflow)
       {
         workflow_id: workflow.id,
         job_id: workflow.job_id,
         job_slug: workflow.job&.slug,
         trigger_kind: workflow.trigger_kind,
-        start_blocked_reason: workflow.artifact("start_blocked_reason"),
-        start_blocked_details: workflow.artifact("start_blocked_details"),
-        next_check_at: workflow.artifact("start_blocked_next_check_at")
+        start_blocked_reason: start_block.reason,
+        start_blocked_details: start_block.details,
+        next_check_at: start_block.next_check_at&.iso8601
       }.compact
     end
   end

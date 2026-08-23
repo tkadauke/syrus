@@ -200,7 +200,7 @@ class ReconcileJobStatesJob < ApplicationJob
     def self.failed_landing_start_blocker_with_ready_pr?(job, latest_wf)
       return false unless latest_wf&.failed?
       return false unless latest_wf.landing_workflow?
-      return false unless LandingQueueReentry.landing_start_blocker?(latest_wf.failure_reason.presence || latest_wf.artifact("failure_reason") || latest_wf.artifact("start_blocked_reason"))
+      return false unless LandingQueueReentry.landing_start_blocker?(latest_wf.failure_reason.presence || latest_wf.artifact("failure_reason") || WorkUnits::StartBlock.for(latest_wf).reason)
       return false unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
       return false unless job.approved_at.present?
       return false unless job.pr_number.present?

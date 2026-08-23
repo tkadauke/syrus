@@ -324,7 +324,7 @@ module Api
         end
 
         def start_blocked_message(workflow)
-          reason = workflow.artifact("start_blocked_reason") || workflow.artifact("start_cancelled_reason")
+          reason = WorkUnits::StartBlock.for(workflow).reason || workflow.artifact("start_cancelled_reason")
           if reason.present?
             "Blocked: #{reason.to_s.tr('_', ' ')} — see job card for details."
           else

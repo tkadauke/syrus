@@ -780,16 +780,15 @@ module WorkEngine
       return false unless workflow.queued?
       return false unless workflow.first_step&.runs&.none?
 
-      case workflow.artifact("start_blocked_reason")
-      when StepDispatcher::MAIN_HEALTH_BLOCK_REASON
+      if WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
         # Follow-up workflows on implemented Jobs are allowed to sit queued
         # while main health is red. `classify_start_blocks` reports the real
         # blocker; surfacing this as generic state drift sends operators down
         # the wrong recovery path.
-        job.implemented?
-      else
-        false
+        return job.implemented?
       end
+
+      false
     end
 
     def classify_closed_jobs_with_active_workflows

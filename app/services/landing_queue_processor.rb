@@ -657,7 +657,7 @@ class LandingQueueProcessor
       .where(jobs: { repository_id: repository_id, state: "landing" })
       .where.not(jobs: { id: except_job_id })
       .reorder(:id)
-      .select { |workflow| workflow.artifact("start_blocked_reason") == start_blocked_reason }
+      .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(start_blocked_reason) }
   end
 
   def workflow_blocked_for_start_reason?(workflow, start_blocked_reason)

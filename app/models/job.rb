@@ -887,7 +887,7 @@ class Job < ApplicationRecord
     LandingQueueReentry.landing_start_blocker?(
       workflow.failure_reason.presence ||
         workflow.artifact("failure_reason") ||
-        workflow.artifact("start_blocked_reason")
+        WorkUnits::StartBlock.for(workflow).reason
     )
   end
 

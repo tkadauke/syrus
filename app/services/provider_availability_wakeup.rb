@@ -45,7 +45,7 @@ class ProviderAvailabilityWakeup
   def provider_paused_workflows
     @provider_paused_workflows ||= begin
       legacy_workflows = workflows.to_a.select do |workflow|
-        workflow.artifact("start_blocked_reason") == StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON ||
+        WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON) ||
           workflow.artifact("pause_reason") == StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
       end
       (work_unit_workflows + legacy_workflows).uniq(&:id)

@@ -255,9 +255,9 @@ class StepDispatcher
   end
 
   def self.start_blocked_backoff_active?(workflow, reason)
-    return false unless workflow.artifact("start_blocked_reason") == reason
+    return false unless WorkUnits::StartBlock.for(workflow).blocked_for?(reason)
 
-    next_check_at = parse_artifact_time(workflow.artifact("start_blocked_next_check_at"))
+    next_check_at = WorkUnits::StartBlock.for(workflow).next_check_at
     next_check_at.present? && next_check_at.future?
   end
 
@@ -319,7 +319,7 @@ class StepDispatcher
   end
 
   def self.clear_start_blocked!(workflow, reason)
-    return unless workflow.artifact("start_blocked_reason") == reason
+    return unless WorkUnits::StartBlock.for(workflow).blocked_for?(reason)
 
     cleared = (workflow.artifacts || {}).except(
       "start_blocked_reason",

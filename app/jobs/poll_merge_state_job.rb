@@ -269,7 +269,7 @@ class PollMergeStateJob < ApplicationJob
       .order(id: :desc)
       .first
     return false unless last_blocked
-    return false unless last_blocked.artifact("start_blocked_reason") == "stack_dependencies_not_ready"
+    return false unless WorkUnits::StartBlock.for(last_blocked).blocked_for?(StepDispatcher::STACK_BLOCK_REASON)
 
     blocked_at_str = last_blocked.artifact("start_blocked_at").to_s
     return false if blocked_at_str.blank?

@@ -171,6 +171,7 @@ module App
           else
             workflows = Workflow
               .where(trigger_kind: "merge_train", state: %w[ queued running ], job_id: Job.where(epic_id: epic_ids).select(:id))
+              .includes(:work_unit)
               .select(:job_id, :state, :artifacts, :created_at, :id)
               .order(created_at: :desc, id: :desc)
             epic_id_by_job_id = Job.where(epic_id: epic_ids).pluck(:id, :epic_id).to_h
@@ -181,7 +182,7 @@ module App
 
               data = (map[epic_id] ||= {})
               data[:active] = true
-              data[:start_blocked_reason] ||= workflow.artifact("start_blocked_reason") if workflow.queued?
+              data[:start_blocked_reason] ||= WorkUnits::StartBlock.for(workflow).reason if workflow.queued?
             end
           end
         end

@@ -27,6 +27,11 @@ RSpec.describe WorkUnits::StartBlock do
     expect(block.reason).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
     expect(block.details).to eq("reason" => "budget")
     expect(block.next_check_at).to be_within(2.seconds).of(artifact_next_check_at)
+    expect(block.data).to include(
+      reason: StepDispatcher::ADMISSION_BLOCK_REASON,
+      next_check_at: artifact_next_check_at.iso8601,
+      details: { "reason" => "budget" }
+    )
   end
 
   it "falls back to WorkUnit blocked state when workflow artifacts are absent" do
@@ -42,6 +47,11 @@ RSpec.describe WorkUnits::StartBlock do
     expect(block.reason).to eq("main_branch_health")
     expect(block.details).to include("repository_id" => repository.id)
     expect(block.next_check_at).to be_within(2.seconds).of(blocked_until)
+    expect(block.data).to include(
+      reason: "main_branch_health",
+      next_check_at: blocked_until.iso8601,
+      details: include("repository_id" => repository.id)
+    )
     expect(block.blocked_for?(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)).to be(true)
   end
 end

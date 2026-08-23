@@ -789,22 +789,17 @@ module App
 
     def workflow_for_start_blocked
       @workflow_for_start_blocked ||= @job.workflows
+        .includes(:work_unit)
         .where(state: %w[queued running])
         .where("artifacts LIKE ?", '%"start_blocked_reason"%')
         .reorder(created_at: :desc, id: :desc)
-        .detect { |wf| wf.artifact("start_blocked_reason").present? }
+        .detect { |wf| WorkUnits::StartBlock.for(wf).reason.present? }
     end
 
     def job_start_blocked_data
       @job_start_blocked_data ||= begin
         if (workflow = workflow_for_start_blocked)
-          {
-            reason: workflow.artifact("start_blocked_reason"),
-            at: workflow.artifact("start_blocked_at"),
-            next_check_at: workflow.artifact("start_blocked_next_check_at"),
-            count: workflow.artifact("start_blocked_count"),
-            details: workflow.artifact("start_blocked_details")
-          }
+          WorkUnits::StartBlock.for(workflow).data
         else
           WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
         end
@@ -826,7 +821,7 @@ module App
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && (
         workflow.artifact("pause_reason").present? ||
-          workflow.artifact("start_blocked_reason").present?
+          WorkUnits::StartBlock.for(workflow).reason.present?
       )
     end
 
