@@ -15,6 +15,7 @@ module Go
         version:          Go::VERSION,
         description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
         homepage:         "https://github.com/tkadauke/syrus",
+        author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/go.svg",
         prepare_priority: 40,
         provides: {

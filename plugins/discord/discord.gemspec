@@ -3,7 +3,7 @@ require_relative "lib/discord/version"
 Gem::Specification.new do |spec|
   spec.name    = "discord"
   spec.version = SyrusDiscord::VERSION
-  spec.authors = [""]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Syrus plugin: Discord platform delivery"
 
   spec.files         = Dir["lib/**/*", "app/**/*"]

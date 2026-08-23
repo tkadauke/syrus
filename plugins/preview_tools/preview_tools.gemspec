@@ -3,7 +3,7 @@ require_relative "lib/preview_tools/version"
 Gem::Specification.new do |spec|
   spec.name    = "preview_tools"
   spec.version = PreviewTools::VERSION
-  spec.authors = [""]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Syrus plugin: scratch-scoped preview write/edit tools for planning-mode chat"
   spec.description = "Adds a narrow write/edit tool pair, hard-jailed to a per-panel scratch " \
     "directory, plus show_preview/close_preview tools that upload the scratch directory to a " \
