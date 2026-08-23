@@ -32,6 +32,7 @@ RSpec.describe AppSettingRegistry do
       :discord_bot_token,
       :max_concurrent_agent_runs,
       :proactive_rebase_commit_threshold,
+      :show_work_unit_debug,
       :video_retention_days,
       :video_storage_budget_mb
     ])
