@@ -18,6 +18,28 @@ RSpec.describe JobStateRepair do
     Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude")
   end
 
+  def active_work_unit_for(job, kind: "initial")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: "running",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   describe ".reconcile!" do
     context "with an unknown mode" do
       it "raises ArgumentError" do
@@ -58,6 +80,15 @@ RSpec.describe JobStateRepair do
       it "raises when the job has an active workflow" do
         job = build_job("running", pr_number: 1)
         active_workflow_for(job)
+
+        expect { described_class.reconcile!(mode: :mark_implemented_from_ready_pr, job: job, reason: "fix") }
+          .to raise_error(ArgumentError, /still has active work/)
+      end
+
+      it "raises when the job has active WorkUnit ownership without an active workflow" do
+        job = build_job("running", pr_number: 1)
+        terminal_workflow_for(job)
+        active_work_unit_for(job)
 
         expect { described_class.reconcile!(mode: :mark_implemented_from_ready_pr, job: job, reason: "fix") }
           .to raise_error(ArgumentError, /still has active work/)

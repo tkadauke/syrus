@@ -140,6 +140,13 @@ module WorkEngine
           WorkEngine::RuntimeOwnership.active_landing_work_for_job?(job)
         end
 
+        def active_runtime_work_for_job?(job)
+          return false unless job
+
+          WorkUnits::TerminalWorkflowSync.for_job(job)
+          job.reload.active_runtime_work?
+        end
+
         def review_publication_step_kinds_for(workflow)
           WorkDefinitions.for(workflow.trigger_kind).review_publication_step_kinds
         rescue WorkDefinitions::UnknownKind
@@ -787,7 +794,7 @@ module WorkEngine
         def perform
           result = mark_worker_died!
           return result unless result.status == "applied"
-          return skipped("worker_died failure already created active replacement work") if target_job&.any_active_run?
+          return skipped("worker_died failure already created active replacement work") if active_runtime_work_for_job?(target_job)
 
           schedule_auto_retry!(retry_kind: "failed_step")
         end
@@ -797,7 +804,7 @@ module WorkEngine
         def perform
           result = mark_worker_died!
           return result unless result.status == "applied"
-          return skipped("worker_died failure already created active replacement work") if target_job&.any_active_run?
+          return skipped("worker_died failure already created active replacement work") if active_runtime_work_for_job?(target_job)
 
           schedule_auto_retry!(retry_kind: "retry_workflow")
         end
@@ -883,7 +890,7 @@ module WorkEngine
           return skipped("Job no longer exists") unless job
           return skipped("Job is #{job.state}, not implemented") unless job.implemented?
           return skipped("Job already has a tracked PR") if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
-          return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
+          return skipped("Job has active work") if active_runtime_work_for_job?(job)
 
           latest_workflow = job.latest_workflow
           return skipped("Latest Workflow is not terminal") unless latest_workflow && %w[succeeded failed cancelled].include?(latest_workflow.state)
@@ -908,7 +915,7 @@ module WorkEngine
           return skipped("Job is #{job.state}, not approved") unless job.approved?
           return skipped("Job already has a tracked PR") if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
           return skipped("Job is internal infrastructure") if job.infrastructure_job? || job.main_branch_repair?
-          return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
+          return skipped("Job has active work") if active_runtime_work_for_job?(job)
           return skipped("Job cannot transition to failed") unless job.may_force_fail?
 
           with_transition_reason do
@@ -924,7 +931,7 @@ module WorkEngine
           job = target_job
           return skipped("Job no longer exists") unless job
           return skipped("Job is #{job.state}, not queued") unless job.queued?
-          return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
+          return skipped("Job has active work") if active_runtime_work_for_job?(job)
 
           latest = job.latest_workflow
           return skipped("Latest Workflow is not cancelled") unless latest&.cancelled?
@@ -969,7 +976,7 @@ module WorkEngine
           job = target_job
           return skipped("Job no longer exists") unless job
           return skipped("Job is #{job.state}, not queued") unless job.queued?
-          return skipped("Job has active work") if job.any_active_run? || job.workflows.active.exists?
+          return skipped("Job has active work") if active_runtime_work_for_job?(job)
 
           latest = job.latest_workflow
           return skipped("Latest Workflow is not cancelled") unless latest&.cancelled?

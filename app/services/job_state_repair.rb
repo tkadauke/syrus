@@ -48,7 +48,7 @@ class JobStateRepair
     end
 
     def active_work?
-      job.any_active_run? || job.workflows.active.exists?
+      job.active_runtime_work?
     end
 
     def terminal_latest_workflow?

@@ -145,6 +145,28 @@ RSpec.describe WorkEngine::Reconciler do
     repair_job
   end
 
+  def active_work_unit_for(job, kind: "initial")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: "running",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   before do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
@@ -482,6 +504,34 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(execution).to have_attributes(status: "skipped", message: "Job is owned by active landing work")
     expect(job.reload).to be_landing
+  end
+
+  it "declines to fail an implemented missing-PR Job when active WorkUnit ownership appears after planning" do
+    implemented_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "implemented",
+      pr_number: nil,
+      external_pr_number: nil,
+      fork_review_pr_number: nil
+    )
+    active_work_unit_for(implemented_job)
+    stale_plan = WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "implemented_job_missing_pr",
+      action: "fail_implemented_job_missing_pr",
+      auto_executable: true,
+      target_type: "Job",
+      target_id: implemented_job.id,
+      affected_ids: { job_ids: [ implemented_job.id ] },
+      execution_steps: [ "Job#force_fail!" ],
+      preconditions: {},
+      reason: "stale plan computed before the WorkUnit was visible"
+    )
+
+    execution = WorkEngine::RepairExecutor::Policies::FailImplementedJobMissingPr.new(plan: stale_plan, now: Time.current).execute
+
+    expect(execution).to have_attributes(status: "skipped", message: "Job has active work")
+    expect(implemented_job.reload).to be_implemented
   end
 
   it "cancels active workflows on closed jobs in the global reconciliation scope" do
