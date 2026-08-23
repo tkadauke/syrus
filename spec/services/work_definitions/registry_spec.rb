@@ -62,7 +62,52 @@ RSpec.describe WorkDefinitions do
       expect(definition.retry_policy).to respond_to(:automatic?)
       expect(definition.retry_policy).to respond_to(:continuation?)
       expect(definition.retry_policy).to respond_to(:new_attempt?)
+      expect(definition.retry_policy).to respond_to(:rebuild_unit?)
       expect(definition.manages_own_job_lifecycle?).to be_in([ true, false ])
+    end
+  end
+
+  it "declares retry policies for workflow families" do
+    resume_failed_step_kinds = %w[
+      initial
+      pr_comment
+      chat_feedback
+      ci_failure
+      rebase
+      stack_rebase
+      auto_merge
+      external_pr_merge
+      retry
+      checkpoint_resume
+      manual_visual_review
+      manual
+      resume
+      coding_handoff
+      local_mode_handoff
+      main_branch_repair
+      manual_agentic_run
+      external_pr_ingest
+      external_pr_feedback
+      skill
+    ]
+
+    resume_failed_step_kinds.each do |kind|
+      policy = described_class.for(kind).retry_policy
+
+      expect(policy).to be_automatic
+      expect(policy).to be_continuation(Step.new(kind: "pr_open"))
+      expect(policy).not_to be_rebuild_unit(Step.new(kind: "merge_train_build"))
+    end
+
+    merge_train_policy = described_class.for("merge_train").retry_policy
+    expect(merge_train_policy).to be_automatic
+    expect(merge_train_policy).to be_continuation(Step.new(kind: "merge_train_reconcile"))
+    expect(merge_train_policy).to be_rebuild_unit(Step.new(kind: "merge_train_build"))
+    expect(merge_train_policy).to be_rebuild_unit(Step.new(kind: "merge_train_land"))
+
+    operator_only_kinds = described_class.registry.keys - resume_failed_step_kinds - [ "merge_train" ]
+    operator_only_kinds.each do |kind|
+      expect(described_class.for(kind).retry_policy).not_to be_automatic
     end
   end
 

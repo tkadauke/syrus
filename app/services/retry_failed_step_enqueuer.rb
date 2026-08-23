@@ -26,7 +26,8 @@ class RetryFailedStepEnqueuer
 
     failed_step = self.class.failed_step_for(workflow)
     return failure("No failed step to retry.") unless failed_step
-    return rebuild_merge_train if merge_train_rebuild_required?(failed_step)
+    return rebuild_merge_train if retry_policy.rebuild_unit?(failed_step)
+    return failure("Failed step requires a new workflow attempt.") unless retry_policy.continuation?(failed_step)
 
     workflow.reopen!
     workflow.save!
@@ -60,21 +61,8 @@ class RetryFailedStepEnqueuer
     parent_session_id
   end
 
-  # Merge-train steps that publish or mutate shared landing state
-  # (build the integration branch, land the atomic merge, rebase it)
-  # can't safely resume in place — a partial attempt there needs the
-  # full rebuild path (EpicLandingRetrier), which also re-approves any
-  # members MergeTrainFailureHandler reverted out of :landing. Plain
-  # agentic steps like merge_train_reconcile don't publish anything;
-  # they're as safe to resume/retry in place as `implement`, so they
-  # go through the normal single-step path below instead of discarding
-  # the whole train.
-  def merge_train_rebuild_required?(failed_step)
-    return false unless workflow.trigger_kind == "merge_train"
-
-    Step::Kind.fetch(failed_step.kind).repair_semantics != :agentic
-  rescue ArgumentError
-    true
+  def retry_policy
+    workflow.work_definition.retry_policy
   end
 
   def revive_cancelled_downstream_steps!(failed_step)

@@ -1734,6 +1734,11 @@ Completed slices:
   helpers, Epic-wide workflow locking, WorkUnit blocked-job filtering, and
   runtime ownership adapters consume these policy sets instead of local
   trigger-kind lists.
+- Work definitions now declare concrete retry policies. Ordinary retryable
+  workflows continue the failed step in place, while merge trains explicitly
+  continue safe agentic reconciliation steps and rebuild the train for
+  publication/rebuild steps. `RetryFailedStepEnqueuer` asks the WorkDefinition
+  retry policy instead of hard-coding merge-train trigger-kind behavior.
 
 ### Phase 7: Callback Strangler Completion
 

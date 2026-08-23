@@ -15,8 +15,13 @@ module WorkDefinitions
     def manages_own_job_lifecycle? = true
   end
 
+  module ResumesFailedSteps
+    def retry_policy = WorkUnits::RetryPolicies::ResumeStepOrNewWorkflow.new
+  end
+
   class Initial < Base
     include OpensReviewPullRequest
+    include ResumesFailedSteps
 
     self.kind = "initial"
     self.workflow_trigger_kind = "initial"
@@ -25,6 +30,8 @@ module WorkDefinitions
   end
 
   class PrComment < Base
+    include ResumesFailedSteps
+
     self.kind = "pr_comment"
     self.workflow_trigger_kind = "pr_comment"
     self.runtime_role = "first_class"
@@ -32,6 +39,8 @@ module WorkDefinitions
   end
 
   class ChatFeedback < Base
+    include ResumesFailedSteps
+
     self.kind = "chat_feedback"
     self.workflow_trigger_kind = "chat_feedback"
     self.runtime_role = "first_class"
@@ -39,6 +48,8 @@ module WorkDefinitions
   end
 
   class CiFailure < Base
+    include ResumesFailedSteps
+
     self.kind = "ci_failure"
     self.workflow_trigger_kind = "ci_failure"
     self.runtime_role = "first_class"
@@ -47,6 +58,7 @@ module WorkDefinitions
 
   class Rebase < Base
     include BlocksCiFailure
+    include ResumesFailedSteps
 
     self.kind = "rebase"
     self.workflow_trigger_kind = "rebase"
@@ -56,6 +68,7 @@ module WorkDefinitions
 
   class StackRebase < Base
     include BlocksCiFailure
+    include ResumesFailedSteps
 
     self.kind = "stack_rebase"
     self.workflow_trigger_kind = "stack_rebase"
@@ -65,6 +78,7 @@ module WorkDefinitions
 
   class AutoMerge < Base
     include BlocksCiFailure
+    include ResumesFailedSteps
 
     self.kind = "auto_merge"
     self.workflow_trigger_kind = "auto_merge"
@@ -85,6 +99,7 @@ module WorkDefinitions
 
   class ExternalPrMerge < Base
     include BlocksCiFailure
+    include ResumesFailedSteps
 
     self.kind = "external_pr_merge"
     self.workflow_trigger_kind = "external_pr_merge"
@@ -99,6 +114,8 @@ module WorkDefinitions
     self.workflow_trigger_kind = "merge_train"
     self.runtime_role = "first_class"
     self.scope = "epic"
+
+    def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
 
     def members_for(job:, artifacts: {}, **)
       train_id = artifacts.to_h["merge_train_id"]
@@ -132,6 +149,7 @@ module WorkDefinitions
 
   class Retry < Base
     include OpensReviewPullRequest
+    include ResumesFailedSteps
 
     self.kind = "retry"
     self.workflow_trigger_kind = "retry"
@@ -141,6 +159,7 @@ module WorkDefinitions
 
   class CheckpointResume < Base
     include OpensReviewPullRequest
+    include ResumesFailedSteps
 
     self.kind = "checkpoint_resume"
     self.workflow_trigger_kind = "retry"
@@ -151,6 +170,8 @@ module WorkDefinitions
   end
 
   class ManualVisualReview < Base
+    include ResumesFailedSteps
+
     self.kind = "manual_visual_review"
     self.workflow_trigger_kind = "manual_visual_review"
     self.runtime_role = "first_class"
@@ -165,6 +186,8 @@ module WorkDefinitions
   end
 
   class Manual < Base
+    include ResumesFailedSteps
+
     self.kind = "manual"
     self.workflow_trigger_kind = "manual"
     self.runtime_role = "first_class"
@@ -172,6 +195,8 @@ module WorkDefinitions
   end
 
   class Resume < Base
+    include ResumesFailedSteps
+
     self.kind = "resume"
     self.workflow_trigger_kind = "resume"
     self.runtime_role = "first_class"
@@ -180,6 +205,7 @@ module WorkDefinitions
 
   class CodingHandoff < Base
     include OpensReviewPullRequest
+    include ResumesFailedSteps
 
     self.kind = "coding_handoff"
     self.workflow_trigger_kind = "coding_handoff"
@@ -189,6 +215,7 @@ module WorkDefinitions
 
   class LocalModeHandoff < Base
     include OpensReviewPullRequest
+    include ResumesFailedSteps
 
     self.kind = "local_mode_handoff"
     self.workflow_trigger_kind = "local_mode_handoff"
@@ -206,6 +233,7 @@ module WorkDefinitions
   class MainBranchRepair < Base
     include OpensReviewPullRequest
     include ManagesOwnJobLifecycle
+    include ResumesFailedSteps
 
     self.kind = "main_branch_repair"
     self.workflow_trigger_kind = "main_branch_repair"
@@ -214,6 +242,8 @@ module WorkDefinitions
   end
 
   class ManualAgenticRun < Base
+    include ResumesFailedSteps
+
     self.kind = "manual_agentic_run"
     self.workflow_trigger_kind = "manual_agentic_run"
     self.runtime_role = "first_class"
@@ -228,6 +258,8 @@ module WorkDefinitions
   end
 
   class ExternalPrIngest < Base
+    include ResumesFailedSteps
+
     self.kind = "external_pr_ingest"
     self.workflow_trigger_kind = "external_pr_ingest"
     self.runtime_role = "first_class"
@@ -235,6 +267,8 @@ module WorkDefinitions
   end
 
   class ExternalPrFeedback < Base
+    include ResumesFailedSteps
+
     self.kind = "external_pr_feedback"
     self.workflow_trigger_kind = "external_pr_feedback"
     self.runtime_role = "first_class"
@@ -243,6 +277,7 @@ module WorkDefinitions
 
   class Skill < Base
     include OpensReviewPullRequest
+    include ResumesFailedSteps
 
     self.kind = "skill"
     self.workflow_trigger_kind = "skill"
