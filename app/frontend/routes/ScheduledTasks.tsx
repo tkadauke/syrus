@@ -20,6 +20,7 @@ import {
   fetchNewScheduledTaskForm,
   fetchScheduledTask,
   fetchScheduledTasks,
+  fetchScheduledTaskRepositoryOptions,
   fireScheduledTask,
   pauseScheduledTask,
   previewScheduledTaskSchedule,
@@ -29,6 +30,7 @@ import {
   type ScheduledTaskDetailPayload,
   type ScheduledTaskInput,
   type ScheduledTaskOptions,
+  type ScheduledTaskRepository,
   type ScheduledTasksIndexPayload,
   type ScheduledTaskRow
 } from "../api/scheduledTasks"
@@ -58,9 +60,12 @@ export function ScheduledTasksIndex() {
 
   return (
     <main aria-label={t("scheduled_tasks.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
+        </div>
+        <Link className={buttonClass("primary")} to={`${tasksBase(location.pathname)}/new`}>{t("scheduled_tasks.new_task")}</Link>
       </header>
 
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
@@ -102,10 +107,21 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const location = useLocation()
   const params = useParams()
   const id = params.id || ""
-  const repositoryId = params.repositoryId || ""
+  const routeRepositoryId = params.repositoryId || ""
+  const [pickedRepositoryId, setPickedRepositoryId] = useState("")
+  const repositoryId = routeRepositoryId || pickedRepositoryId
+  // The top-level /scheduled_tasks/new route has no :repositoryId param, so
+  // that entry point must gate the form behind a mandatory repository pick
+  // before it can even fetch the (per-repository) new-task form payload.
+  const needsRepositoryPick = mode === "new" && !routeRepositoryId
   const fromTemplate = new URLSearchParams(location.search).get("from_template")
   const basePath = tasksBase(location.pathname)
 
+  const repositoryOptions = useQuery({
+    queryKey: ["scheduled_tasks", "new_repository_options"],
+    queryFn: fetchScheduledTaskRepositoryOptions,
+    enabled: needsRepositoryPick && repositoryId.length === 0
+  })
   const form = useQuery({
     queryKey: ["scheduled_tasks", "new", repositoryId, fromTemplate],
     queryFn: () => fetchNewScheduledTaskForm(repositoryId, fromTemplate),
@@ -123,6 +139,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const options = form.data?.options || detail.data?.options || fallbackOptions
   const repository = form.data?.repository || detail.data?.task.repository
   const skillsRepositoryId = repository ? String(repository.id) : repositoryId
+  const showRepositoryPicker = needsRepositoryPick && repositoryId.length === 0
 
   return (
     <main aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} className="mx-auto max-w-3xl space-y-6 p-6">
@@ -133,21 +150,70 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
         ) : null}
       </header>
 
-      {loading ? <PanelMessage>{t("scheduled_tasks.loading_form")}</PanelMessage> : null}
-      {error ? <ScheduledTasksError error={error} /> : null}
-      {!loading && !error && initial ? (
-        <ScheduledTaskForm
-          basePath={basePath}
-          fromTemplate={fromTemplate}
-          id={Number(id)}
-          initial={initial}
-          mode={mode}
-          options={options}
-          repositoryId={repositoryId}
-          skillsRepositoryId={skillsRepositoryId}
+      {showRepositoryPicker ? (
+        <RepositoryPicker
+          error={repositoryOptions.error}
+          loading={repositoryOptions.isPending}
+          onSelect={setPickedRepositoryId}
+          repositories={repositoryOptions.data?.repositories || []}
         />
-      ) : null}
+      ) : (
+        <>
+          {loading ? <PanelMessage>{t("scheduled_tasks.loading_form")}</PanelMessage> : null}
+          {error ? <ScheduledTasksError error={error} /> : null}
+          {!loading && !error && initial ? (
+            <ScheduledTaskForm
+              basePath={basePath}
+              fromTemplate={fromTemplate}
+              id={Number(id)}
+              initial={initial}
+              mode={mode}
+              options={options}
+              repositoryId={repositoryId}
+              skillsRepositoryId={skillsRepositoryId}
+            />
+          ) : null}
+        </>
+      )}
     </main>
+  )
+}
+
+function RepositoryPicker({
+  repositories,
+  loading,
+  error,
+  onSelect
+}: {
+  repositories: ScheduledTaskRepository[]
+  loading: boolean
+  error: Error | null
+  onSelect: (repositoryId: string) => void
+}) {
+  const { t } = useT("settings")
+  const [value, setValue] = useState("")
+
+  if (loading) return <PanelMessage>{t("scheduled_tasks.loading_form")}</PanelMessage>
+  if (error) return <ScheduledTasksError error={error} />
+
+  return (
+    <form
+      className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (value) onSelect(value)
+      }}
+    >
+      <Field label={t("scheduled_tasks.field_repository")}>
+        <select className={inputClass()} onChange={(event) => setValue(event.target.value)} required value={value}>
+          <option value="">{t("scheduled_tasks.repository_placeholder")}</option>
+          {repositories.map((repository) => (
+            <option key={repository.id} value={repository.id}>{repository.slug}</option>
+          ))}
+        </select>
+      </Field>
+      <button className={buttonClass("primary")} disabled={!value} type="submit">{t("scheduled_tasks.repository_continue")}</button>
+    </form>
   )
 }
 
