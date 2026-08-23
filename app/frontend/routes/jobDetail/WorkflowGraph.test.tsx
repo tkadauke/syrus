@@ -92,11 +92,8 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Waiting on dependency")).toBeInTheDocument()
     expect(screen.getByText("Desired waiting")).toBeInTheDocument()
     expect(screen.getByText("Attempt blocked")).toBeInTheDocument()
-    expect(screen.getByText((_content, element) =>
-      Boolean(element?.matches("p") &&
-        element.textContent?.includes("\"blocked_by_job_ids\"") &&
-        element.textContent.includes("9"))
-    )).toBeInTheDocument()
+    expect(screen.getByText("Blocked by JOB-9.")).toBeInTheDocument()
+    expect(screen.getByText("Diagnostic details")).toBeInTheDocument()
     expect(screen.queryByText("No workflows yet.")).not.toBeInTheDocument()
   })
 
@@ -156,7 +153,7 @@ describe("WorkflowsTab", () => {
               blocked_reason: "auto_retry_backoff",
               blocked_label: "Auto-retry backoff",
               blocked_until: "2026-08-23T12:00:00Z",
-              blocked_details: { auto_retry_attempt_id: 5 },
+              blocked_details: { auto_retry_attempt_id: 5, reason: "auto_retry_backoff" },
               parent_work_unit_id: 77,
               parent_work_unit_kind: "auto_merge",
               parent_work_unit_label: "Auto-merge",
@@ -182,10 +179,71 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("child of WU-77")).toBeInTheDocument()
     expect(screen.getByText("preempted: terminal parent work unit")).toBeInTheDocument()
     expect(screen.getByText("by WU-79")).toBeInTheDocument()
-    expect(screen.getByText((_content, element) =>
-      Boolean(element?.matches("p") &&
-        element.textContent?.includes("\"auto_retry_attempt_id\"") &&
-        element.textContent.includes("5"))
-    )).toBeInTheDocument()
+    expect(screen.getByText("Automatic retry is waiting for its backoff window.")).toBeInTheDocument()
+    expect(screen.getByText("Diagnostic details")).toBeInTheDocument()
+  })
+
+  it("summarizes admission-control diagnostics instead of dumping telemetry JSON", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            work_units: [{
+              id: 38,
+              kind: "initial",
+              label: "Initial implementation: Admission control",
+              state: "blocked",
+              work_intent_id: 38,
+              workflow_id: 20071,
+              workflow_slug: "WF-20071",
+              workflow_trigger_kind: "initial",
+              workflow_state: "queued",
+              workflow_attached_job_id: 3593,
+              member_role: "primary",
+              scope_type: "job",
+              scope_id: 3593,
+              blocked_reason: "admission_control",
+              blocked_label: "Admission control",
+              blocked_until: "2026-08-23T19:41:05Z",
+              blocked_details: {
+                action: "delay_until",
+                reason: "predicted_budget_pressure_high",
+                job_priority: "medium",
+                trigger_kind: "initial",
+                active_run_count: 4,
+                healthy_worker_count: 4,
+                repository_active_workflow_count: 5,
+                candidate_high_cost: true,
+                fallback_reasons: ["insufficient_command_and_host_profile_samples"],
+                pressure: {
+                  host: { cpu_pressure: 18.2, io_pressure: 76, memory_used_percent: 23.2 },
+                  active: { workflow_count: 5, high_cost_count: 5 }
+                }
+              },
+              parent_work_unit_id: null,
+              parent_work_unit_kind: null,
+              parent_work_unit_label: null,
+              preemption_reason: null,
+              preempted_by_work_unit_id: null,
+              preempted_by_work_unit_kind: null,
+              preempted_by_work_unit_label: null,
+              workflow: null,
+              current_step: null,
+              created_at: null,
+              started_at: null,
+              finished_at: null
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Admission control predicts this would exceed the current worker budget.")).toBeInTheDocument()
+    expect(screen.getByText("Work: medium priority, initial workflow.")).toBeInTheDocument()
+    expect(screen.getByText("4 active runs; 4 healthy workers; 5 active workflows in this repository.")).toBeInTheDocument()
+    expect(screen.getByText("This workflow is predicted to be expensive.")).toBeInTheDocument()
+    expect(screen.getByText("Diagnostic details")).toBeInTheDocument()
   })
 })

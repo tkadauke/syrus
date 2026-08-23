@@ -74,7 +74,7 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
               <span>{intent.scope_type}{intent.scope_id ? ` ${intent.scope_id}` : ""}</span>
               {intent.wait_until ? <span>next check <RelativeTimestamp value={intent.wait_until} /></span> : null}
             </div>
-            {intent.wait_details ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{stringify(intent.wait_details)}</p> : null}
+            <WorkDiagnosticDetails details={intent.wait_details} />
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <TonePill tone="gray">Desired {humanize(intent.state)}</TonePill>
@@ -139,7 +139,7 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
             {unit.preempted_by_work_unit_id ? <span>by WU-{unit.preempted_by_work_unit_id}</span> : null}
             {unit.blocked_until ? <span>next check <RelativeTimestamp value={unit.blocked_until} /></span> : null}
           </div>
-          {unit.blocked_details ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{stringify(unit.blocked_details)}</p> : null}
+          <WorkDiagnosticDetails details={unit.blocked_details} />
         </div>
         <StatusPill state={unit.state} />
       </div>
@@ -150,6 +150,125 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
       ) : null}
     </div>
   )
+}
+
+function WorkDiagnosticDetails({ details }: { details: Record<string, unknown> | null | undefined }) {
+  if (!details) return null
+
+  const lines = workDiagnosticLines(details)
+  return (
+    <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+      {lines.length > 0 ? (
+        <ul className="list-disc space-y-1 pl-4">
+          {lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
+        </ul>
+      ) : null}
+      <details className="text-gray-500 dark:text-gray-400">
+        <summary className="cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Diagnostic details</summary>
+        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-[11px] leading-4 dark:bg-gray-950">{stringify(details)}</pre>
+      </details>
+    </div>
+  )
+}
+
+function workDiagnosticLines(details: Record<string, unknown>) {
+  const lines: string[] = []
+  const blockedJobIds = numberArray(details.blocked_by_job_ids)
+  const blockedEpicIds = numberArray(details.blocked_by_epic_ids)
+  if (blockedJobIds.length > 0) lines.push(`Blocked by ${blockedJobIds.map((id) => `JOB-${id}`).join(", ")}.`)
+  if (blockedEpicIds.length > 0) lines.push(`Blocked by ${blockedEpicIds.map((id) => `EPIC-${id}`).join(", ")}.`)
+
+  const reason = stringDetail(details.reason)
+  if (reason) lines.push(reasonSentence(reason))
+
+  const action = stringDetail(details.action)
+  const delayUntil = stringDetail(details.delay_until)
+  if (action === "delay_until" && delayUntil) lines.push(`Will check again at ${formatDiagnosticTime(delayUntil)}.`)
+  else if (delayUntil) lines.push(`Delayed until ${formatDiagnosticTime(delayUntil)}.`)
+
+  const activeRunCount = numberDetail(details.active_run_count)
+  const healthyWorkerCount = numberDetail(details.healthy_worker_count)
+  const repositoryActiveWorkflowCount = numberDetail(details.repository_active_workflow_count)
+  const jobPriority = stringDetail(details.job_priority)
+  const triggerKind = stringDetail(details.trigger_kind)
+  const highCost = booleanDetail(details.candidate_high_cost)
+  if (jobPriority || triggerKind) lines.push(`Work: ${[jobPriority && `${jobPriority} priority`, triggerKind && `${humanize(triggerKind)} workflow`].filter(Boolean).join(", ")}.`)
+  if (activeRunCount !== null || healthyWorkerCount !== null || repositoryActiveWorkflowCount !== null) {
+    lines.push([
+      activeRunCount !== null ? `${activeRunCount} active run${activeRunCount === 1 ? "" : "s"}` : null,
+      healthyWorkerCount !== null ? `${healthyWorkerCount} healthy worker${healthyWorkerCount === 1 ? "" : "s"}` : null,
+      repositoryActiveWorkflowCount !== null ? `${repositoryActiveWorkflowCount} active workflow${repositoryActiveWorkflowCount === 1 ? "" : "s"} in this repository` : null
+    ].filter(Boolean).join("; ") + ".")
+  }
+  if (highCost !== null) lines.push(highCost ? "This workflow is predicted to be expensive." : "This workflow is not predicted to be expensive.")
+
+  const fallbackReasons = stringArray(details.fallback_reasons).slice(0, 3)
+  if (fallbackReasons.length > 0) lines.push(`Prediction fallback: ${fallbackReasons.map(humanize).join(", ")}.`)
+
+  const pressure = objectDetail(details.pressure)
+  const pressureLine = pressureSummary(pressure)
+  if (pressureLine) lines.push(pressureLine)
+
+  return lines
+}
+
+function reasonSentence(reason: string) {
+  const labels: Record<string, string> = {
+    predicted_budget_pressure_high: "Admission control predicts this would exceed the current worker budget.",
+    resource_safety: "Resource safety is holding this work until capacity improves.",
+    manual_pause: "The job is manually paused.",
+    provider_availability: "The selected provider is below the configured availability threshold.",
+    auto_retry_backoff: "Automatic retry is waiting for its backoff window.",
+    dependency: "This work is waiting for dependencies."
+  }
+  return labels[reason] || `${humanize(reason)}.`
+}
+
+function pressureSummary(pressure: Record<string, unknown> | null) {
+  if (!pressure) return null
+  const host = objectDetail(pressure.host)
+  const active = objectDetail(pressure.active)
+  const hostBits = [
+    numberDetail(host?.cpu_pressure) !== null ? `CPU ${numberDetail(host?.cpu_pressure)}` : null,
+    numberDetail(host?.io_pressure) !== null ? `I/O ${numberDetail(host?.io_pressure)}` : null,
+    numberDetail(host?.memory_used_percent) !== null ? `memory ${numberDetail(host?.memory_used_percent)}%` : null
+  ].filter(Boolean)
+  const activeBits = [
+    numberDetail(active?.workflow_count) !== null ? `${numberDetail(active?.workflow_count)} active workflows` : null,
+    numberDetail(active?.high_cost_count) !== null ? `${numberDetail(active?.high_cost_count)} high-cost` : null
+  ].filter(Boolean)
+  if (hostBits.length === 0 && activeBits.length === 0) return null
+  return `Current pressure: ${[hostBits.join(", "), activeBits.join(", ")].filter(Boolean).join("; ")}.`
+}
+
+function formatDiagnosticTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+function stringDetail(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : null
+}
+
+function numberDetail(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function booleanDetail(value: unknown) {
+  return typeof value === "boolean" ? value : null
+}
+
+function objectDetail(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function numberArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is number => typeof item === "number" && Number.isFinite(item)) : []
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.length > 0) : []
 }
 
 function WorkflowsPagination({ payload, prefix }: { payload: JobDetailPayload; prefix: string }) {
