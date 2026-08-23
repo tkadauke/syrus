@@ -1763,6 +1763,13 @@ Completed slices:
   compatibility methods for the AASM callbacks and older callers. This starts
   the callback strangler by moving start/succeed/fail/cancel/reopen Job
   mutation rules behind a dedicated service without changing callback order.
+- Run callback propagation now lives in `Runs::LifecyclePropagation`. The
+  `Run` model still owns the AASM wiring, but cancellation cascades,
+  failed-run Step/Workflow propagation, failure classification, provider
+  evidence/broadcasts, terminal resource summaries, admission wakeups, and run
+  activity logging are routed through one orchestration service. That makes
+  Run terminal behavior auditable as one unit before WorkUnit becomes the
+  runtime owner for migrated paths.
 
 ### Phase 8: Step/Run Simplification
 

@@ -124,35 +124,15 @@ class Run < ApplicationRecord
 
   after_create_commit :enqueue_run_job
 
-  # Operator-initiated stop: when a Run is cancelled mid-flight via
-  # the Stop button, the chain can't continue (v1 has no intra-step
-  # retry). Cascade the cancel up to the Step and Workflow so the
-  # whole burst goes terminal — workspace teardown then fires via
-  # Workflow's terminal-state callback.
-  #
-  # Does NOT fire when the Run was cancelled by RunJob's pre-flight
-  # guard against an already-terminal Workflow — that path's
-  # workflow.may_cancel? is false (workflow is already
-  # succeeded/failed/cancelled), so this is a no-op there.
-  after_update_commit :cascade_cancel_to_workflow!,
+  after_update_commit :propagate_cancelled_run!,
                        if: :saved_change_to_state_to_cancelled?
-  after_update_commit :cascade_failure_to_step!,
+  after_update_commit :propagate_failed_run!,
                        if: :saved_change_to_state_to_failed?
-  after_update_commit :classify_failure!,
-                       if: :saved_change_to_state_to_failed?
-  after_update_commit :record_provider_failure_evidence!,
-                       if: :saved_change_to_state_to_failed?
-  after_update_commit :broadcast_provider_availability_after_failure!,
-                       if: :saved_change_to_state_to_failed?
-  after_update_commit :record_provider_success_evidence!,
+  after_update_commit :propagate_succeeded_run!,
                        if: :saved_change_to_state_to_succeeded?
-  after_update_commit :broadcast_provider_availability_after_success!,
-                       if: :saved_change_to_state_to_succeeded?
-  after_update_commit :refresh_resource_summary_after_completion!,
+  after_update_commit :propagate_terminal_run!,
                        if: :saved_change_to_state_to_terminal?
-  after_update_commit :wake_workflow_admission_after_completion!,
-                       if: :saved_change_to_state_to_terminal?
-  after_update_commit :record_workflow_activity_state_change!, if: :saved_change_to_state?
+  after_update_commit :propagate_run_state_change!, if: :saved_change_to_state?
 
   def saved_change_to_state_to_cancelled?
     saved_change_to_state? && state == "cancelled"
@@ -170,41 +150,28 @@ class Run < ApplicationRecord
     saved_change_to_state? && terminal?
   end
 
+  def propagate_cancelled_run!
+    Runs::LifecyclePropagation.cancelled!(self)
+  end
+
+  def propagate_failed_run!
+    Runs::LifecyclePropagation.failed!(self)
+  end
+
+  def propagate_succeeded_run!
+    Runs::LifecyclePropagation.succeeded!(self)
+  end
+
+  def propagate_terminal_run!
+    Runs::LifecyclePropagation.terminal!(self)
+  end
+
   def wake_workflow_admission_after_completion!
-    WorkflowAdmissionCapacityWakeupJob.perform_later if WorkflowAdmissionCapacityWakeup.deferred_sleepers_exist?
-  rescue StandardError => e
-    Rails.logger.warn("[WorkflowAdmissionCapacityWakeup] failed to enqueue after Run ##{id}: #{e.class}: #{e.message}")
-    nil
+    Runs::LifecyclePropagation.wake_workflow_admission!(self)
   end
 
-  def record_workflow_activity_state_change!
-    WorkflowActivity.run_state_changed!(self)
-  end
-
-  def cascade_cancel_to_workflow!
-    return unless step
-    if step.may_cancel?
-      step.cancel!
-      step.save!
-    end
-    return unless step.reload.cancelled?
-
-    wf = step.workflow
-    if wf.may_cancel?
-      wf.cancel!
-      wf.save!
-    end
-  end
-
-  def cascade_failure_to_step!
-    return unless step
-    return if retried_in_place_after_worker_died?
-
-    if step.may_fail?
-      step.fail!
-      step.save!
-    end
-    StepDispatcher.fail_from(step.reload) if step.failed?
+  def propagate_run_state_change!
+    Runs::LifecyclePropagation.state_changed!(self)
   end
 
   def initial?
@@ -282,33 +249,6 @@ class Run < ApplicationRecord
 
   private
 
-  def retried_in_place_after_worker_died?
-    return false if step.agentic?
-    return false if step.kind.in?(NON_IDEMPOTENT_IN_PLACE_RETRY_STEP_KINDS)
-
-    classification = RunFailureClassifier.classify(self)
-    return false unless classification.classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
-
-    prior_worker_died_count = step.runs
-      .where.not(id: id)
-      .where(state: "failed")
-      .joins(:run_failure_classification)
-      .where(run_failure_classifications: { classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION })
-      .count
-
-    return false unless prior_worker_died_count < WORKER_DIED_STEP_MAX_RETRIES
-
-    StepDispatcher.create_run_and_enqueue(step, step.workflow)
-    Rails.logger.info(
-      "[Run##{id}] worker_died in-place retry #{prior_worker_died_count + 1}/#{WORKER_DIED_STEP_MAX_RETRIES}: " \
-      "new run queued on step #{step.id} (#{step.kind})"
-    )
-    true
-  rescue StandardError => e
-    Rails.logger.warn("[Run##{id}] worker_died in-place retry failed: #{e.class}: #{e.message}")
-    false
-  end
-
   def default_user_from_job
     self.user ||= job&.user
   end
@@ -330,85 +270,6 @@ class Run < ApplicationRecord
 
   def job_for_progress_broadcast
     job
-  end
-
-  def classify_failure!
-    RunFailureClassifier.persist!(self)
-  rescue StandardError => e
-    Rails.logger.warn("[RunFailureClassifier] failed for Run ##{id}: #{e.class}: #{e.message}")
-    nil
-  end
-
-  def record_provider_failure_evidence!
-    return unless agent_provider == "codex"
-    return unless step.nil? || step.agentic?
-
-    text = [
-      agent_outcome,
-      run_failure_classification&.classification,
-      run_diagnostic&.error_class,
-      run_diagnostic&.error_message
-    ].compact.join(" ")
-    return if ProviderUsageLimit.inconclusive?(text)
-    return unless agent_outcome.to_s == ProviderUsageLimit::OUTCOME ||
-      run_failure_classification&.classification == ProviderUsageLimit::CLASSIFICATION ||
-      ProviderUsageLimit.detect?(text)
-
-    ProviderAvailabilityEvidence.record_codex_invocation_failure!(
-      run: self,
-      model: ProviderUsageLimit.extract_model(text),
-      message: text,
-      observed_at: finished_at || Time.current
-    )
-  rescue StandardError => e
-    Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record Codex failure for Run ##{id}: #{e.class}: #{e.message}")
-    nil
-  end
-
-  def record_provider_success_evidence!
-    return unless agent_provider == "codex"
-    return unless step.nil? || step.agentic?
-
-    ProviderAvailabilityEvidence.record_codex_success!(
-      user: user,
-      source: "run_success",
-      model: CodexInvocation.configured_model,
-      run: self,
-      observed_at: finished_at || Time.current,
-      details: {
-        outcome: agent_outcome,
-        workflow_id: workflow_id,
-        job_id: job_id,
-        step_kind: step&.kind
-      }
-    )
-  rescue StandardError => e
-    Rails.logger.warn("[ProviderAvailabilityEvidence] failed to record Codex success for Run ##{id}: #{e.class}: #{e.message}")
-    nil
-  end
-
-  def broadcast_provider_availability_after_failure!
-    return if agent_provider.blank?
-
-    availability = App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
-    retry_after = availability&.dig(:retry_after)
-    ProviderAvailabilityBroadcastJob.set(wait_until: Time.zone.parse(retry_after)).perform_later(user_id, agent_provider) if retry_after.present?
-  rescue StandardError => e
-    Rails.logger.warn("[ProviderAvailability] failed to broadcast for Run ##{id}: #{e.class}: #{e.message}")
-    nil
-  end
-
-  def broadcast_provider_availability_after_success!
-    return if agent_provider.blank?
-
-    App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
-  rescue StandardError => e
-    Rails.logger.warn("[ProviderAvailability] failed to broadcast success for Run ##{id}: #{e.class}: #{e.message}")
-    nil
-  end
-
-  def refresh_resource_summary_after_completion!
-    RunResourceSummary.refresh_for(self)
   end
 
   def enqueue_run_job

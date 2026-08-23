@@ -198,7 +198,7 @@ class RunJob < ApplicationJob
       @run.agent_outcome = "worker_died"
       @run.fail!
       @run.save!
-      # cascade_failure_to_step! may have created an in-place retry run when
+      # run failure propagation may have created an in-place retry run when
       # the worker_died budget isn't exhausted. Only fail the step explicitly
       # when no active retry run was queued by the callback.
       @step.reload
