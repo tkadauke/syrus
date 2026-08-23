@@ -26,6 +26,22 @@ RSpec.describe WorkUnits::WorkflowLifecycle do
     expect(workflow.work_unit.finished_at).to be_present
   end
 
+  it "lets typed cancellation refine the generic terminal workflow state" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+
+    WorkUnits::WorkflowCancellation.cancel!(
+      workflow,
+      reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+      artifacts: { "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON }
+    )
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON
+    )
+  end
+
   it "ignores legacy workflows without work units" do
     workflow = Workflows::ManualVisualReview.instantiate(job: job)
 

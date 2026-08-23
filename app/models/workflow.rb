@@ -375,9 +375,13 @@ class Workflow < ApplicationRecord
            "retry_cancelled_at" => Time.current.iso8601,
            "superseded_by_workflow_id" => id
          )
-         candidate.cancel! if candidate.may_cancel?
-         candidate.save!
-       end
+         WorkUnits::WorkflowCancellation.cancel!(
+           candidate,
+           reason: SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+           by_work_unit: work_unit,
+           artifacts: candidate.artifacts
+         )
+      end
     true
   end
 

@@ -309,12 +309,14 @@ class StepDispatcher
   end
 
   def self.cancel_unstartable_closed_job_workflow!(workflow)
-    workflow.artifacts = (workflow.artifacts || {}).merge(
-      "start_cancelled_reason" => "job_closed",
-      "start_cancelled_at" => Time.current.iso8601
+    WorkUnits::WorkflowCancellation.cancel!(
+      workflow,
+      reason: "job_closed",
+      artifacts: {
+        "start_cancelled_reason" => "job_closed",
+        "start_cancelled_at" => Time.current.iso8601
+      }
     )
-    workflow.cancel! if workflow.may_cancel?
-    workflow.save!
     Rails.logger.info("[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) cancelled: job #{workflow.job_id} is closed")
   end
 
@@ -361,27 +363,32 @@ class StepDispatcher
   def self.cancel_unstartable_rebase_workflow!(workflow, reason)
     return unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
 
-    workflow.artifacts = (workflow.artifacts || {}).merge(
-      "start_blocked_reason" => reason,
-      "start_blocked_at" => Time.current.iso8601
+    WorkUnits::WorkflowCancellation.cancel!(
+      workflow,
+      reason: reason,
+      artifacts: {
+        "start_blocked_reason" => reason,
+        "start_blocked_at" => Time.current.iso8601
+      }
     )
-    workflow.cancel! if workflow.may_cancel?
-    workflow.save!
     nil
   end
 
   def self.cancel_unstartable_epic_workflow_conflict!(workflow, blocking_workflow)
-    workflow.artifacts = (workflow.artifacts || {}).merge(
-      "start_cancelled_reason" => EPIC_WIDE_BLOCK_REASON,
-      "start_cancelled_at" => Time.current.iso8601,
-      "start_cancelled_details" => {
-        "blocking_workflow_id" => blocking_workflow.id,
-        "blocking_workflow_slug" => blocking_workflow.slug,
-        "blocking_trigger_kind" => blocking_workflow.trigger_kind
+    WorkUnits::WorkflowCancellation.cancel!(
+      workflow,
+      reason: EPIC_WIDE_BLOCK_REASON,
+      by_work_unit: blocking_workflow.work_unit,
+      artifacts: {
+        "start_cancelled_reason" => EPIC_WIDE_BLOCK_REASON,
+        "start_cancelled_at" => Time.current.iso8601,
+        "start_cancelled_details" => {
+          "blocking_workflow_id" => blocking_workflow.id,
+          "blocking_workflow_slug" => blocking_workflow.slug,
+          "blocking_trigger_kind" => blocking_workflow.trigger_kind
+        }
       }
     )
-    workflow.cancel! if workflow.may_cancel?
-    workflow.save!
     Rails.logger.info(
       "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) cancelled: " \
       "Epic-wide workflow #{blocking_workflow.id} (#{blocking_workflow.trigger_kind}) is already active"

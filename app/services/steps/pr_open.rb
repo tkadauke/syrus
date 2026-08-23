@@ -286,8 +286,11 @@ module Steps
         "message" => message
       }.compact)
       log("pr_open: #{workflow.slug} superseded; #{message}")
-      workflow.cancel! if workflow.may_cancel?
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+        artifacts: workflow.artifacts
+      )
       :superseded
     end
 

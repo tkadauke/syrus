@@ -260,8 +260,11 @@ class RunJob < ApplicationJob
       "retry_cancelled_reason" => eligibility.code,
       "retry_cancelled_at" => Time.current.iso8601
     )
-    @workflow.cancel! if @workflow.may_cancel?
-    @workflow.save!
+    WorkUnits::WorkflowCancellation.cancel!(
+      @workflow,
+      reason: eligibility.code,
+      artifacts: @workflow.artifacts
+    )
     ReconcileJobStatesJob.perform_later if eligibility.code.in?(%w[ pr_ready superseded ])
     true
   end

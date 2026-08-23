@@ -1926,6 +1926,13 @@ Completed slices:
   keeper WorkUnit when one exists. The legacy Workflow cancellation artifact is
   still written for compatibility, but WorkUnit state now records that this was
   preemption rather than an ordinary failed attempt.
+- Direct Workflow cancellation paths that represent unstartable work or
+  runtime supersession now go through `WorkUnits::WorkflowCancellation`.
+  StepDispatcher start-time cancellations, stale publication supersession,
+  retry eligibility cancellation, retry supersession, Epic block restoration,
+  and reconciler preemption repairs all preserve their existing Workflow
+  artifacts while refining attached WorkUnits with a typed
+  `preemption_reason`.
 - Generic requested-Intent launch now respects WorkDefinition ownership.
   Non-landing job-scoped Intents can be launched by the generic scheduler, and
   existing Intents with prior terminal Units can be rebuilt from their snapshots.

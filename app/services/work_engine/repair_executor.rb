@@ -683,8 +683,11 @@ module WorkEngine
               "cancelled_reason" => "job_closed",
               "cancelled_by_reconciler_at" => Time.current.iso8601
             )
-            workflow.cancel!
-            workflow.save!
+            WorkUnits::WorkflowCancellation.cancel!(
+              workflow,
+              reason: "job_closed",
+              artifacts: workflow.artifacts
+            )
           end
 
           success("cancelled Workflow ##{workflow.id} because Job ##{workflow.job_id} is closed")
@@ -892,13 +895,13 @@ module WorkEngine
                 "keeper_trigger_kind" => keeper.trigger_kind
               }
             )
-            workflow.cancel!
-            workflow.save!
+            WorkUnits::WorkflowCancellation.cancel!(
+              workflow,
+              reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+              by_work_unit: keeper.work_unit,
+              artifacts: workflow.artifacts
+            )
           end
-          workflow.work_unit&.preempt!(
-            reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
-            by_work_unit: keeper.work_unit
-          )
 
           success("cancelled superseded Workflow ##{workflow.id} because newer Workflow ##{keeper.id} is active")
         end
@@ -925,13 +928,13 @@ module WorkEngine
                 "keeper_trigger_kind" => keeper.trigger_kind
               }
             )
-            workflow.cancel!
-            workflow.save!
+            WorkUnits::WorkflowCancellation.cancel!(
+              workflow,
+              reason: EpicWorkflowLock::BLOCK_REASON,
+              by_work_unit: keeper.work_unit,
+              artifacts: workflow.artifacts
+            )
           end
-          workflow.work_unit&.preempt!(
-            reason: EpicWorkflowLock::BLOCK_REASON,
-            by_work_unit: keeper.work_unit
-          )
 
           success("cancelled Workflow ##{workflow.id} because Epic-wide Workflow ##{keeper.id} is active")
         end

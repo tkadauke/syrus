@@ -58,8 +58,14 @@ module JobLifecycle
 
     transaction do
       workflows.where(state: "queued").find_each do |workflow|
-        workflow.cancel!
-        workflow.save!
+        WorkUnits::WorkflowCancellation.cancel!(
+          workflow,
+          reason: EpicWorkflowLock::BLOCK_REASON,
+          artifacts: {
+            "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
+            "cancelled_by_epic_restore_at" => Time.current.iso8601
+          }
+        )
       end
 
       block_by_epic! if may_block_by_epic?
