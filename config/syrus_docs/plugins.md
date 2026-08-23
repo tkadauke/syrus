@@ -164,6 +164,89 @@ Postgres container, the repo's `config/database.yml` must use
 `adapter: sqlite3` for the `development` environment. Postgres preview
 environments are not yet supported.
 
+## `mcp_tool_set` / `chat_mcp_tool_set`
+
+Contributes MCP tools to workflow agents (`mcp_tool_set`) or chat agents
+(`chat_mcp_tool_set`). A plugin registers exactly one tool-set entrypoint per
+surface — include `Syrus::Plugin::McpToolSet` or `Syrus::Plugin::ChatMcpToolSet`
+and implement:
+
+| Method | Signature | Description |
+|---|---|---|
+| `.tool_definitions` | `() → [{name:, description:, input_schema:}, ...]` (chat: `(tier:)`) | Every tool this set can offer |
+| `.available_for?` | `(repository) → bool` (chat: `(chat_session, tier:)`) | Whether the set is offered at all |
+| `#handle` | `(tool_name, params, server_context) → MCP::Tool::Response` | Dispatch a call |
+
+Workflow tool sets may optionally implement `.available_for_context?(McpToolContext)`
+and `.tool_definitions(context:)` when availability depends on the agent role
+(e.g. only the `implement` step), not just the repository — see
+`AdminMysql::WorkflowToolSet` and `SyrusDev::WorkflowToolSet`.
+
+**One class per tool.** The entrypoint is a single class, but internally each
+non-trivial tool is its own `MCP::Tool` subclass in its own file — the same
+style core workflow/chat tools under `app/services/mcp/tools/` use — with
+`tool_name`, `description`, `input_schema`, and a `.call(server_context:, **params)`
+class method. The tool set holds a small `TOOL_CLASSES` array and dispatches
+by name instead of growing a `case` statement:
+
+```ruby
+# app/services/my_plugin/read_widget_tool.rb
+module MyPlugin
+  class ReadWidgetTool < MCP::Tool
+    tool_name "read_widget"
+    description "Reads a widget by id."
+    input_schema(type: "object", properties: { id: { type: "integer" } }, required: %w[id])
+
+    def self.call(server_context:, id:)
+      widget = Widget.find(id)
+      MCP::Tool::Response.new([ { type: "text", text: JSON.generate(widget.as_json) } ])
+    rescue StandardError => e
+      MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
+    end
+  end
+end
+
+# app/services/my_plugin/mcp_tool_set.rb
+module MyPlugin
+  class McpToolSet
+    include Syrus::Plugin::McpToolSet
+
+    TOOL_CLASSES = [ ReadWidgetTool ].freeze
+
+    def self.available_for?(_repository) = true
+
+    def self.tool_definitions
+      TOOL_CLASSES.map { |k| { name: k.tool_name, description: k.description_value, input_schema: k.input_schema_value.to_h } }
+    end
+
+    def handle(tool_name, params, server_context)
+      klass = TOOL_CLASSES.find { |k| k.tool_name == tool_name.to_s }
+      return MCP::Tool::Response.new([ { type: "text", text: "Unknown tool: #{tool_name}" } ], error: true) unless klass
+
+      symbolized = (params || {}).each_with_object({}) { |(k, v), h| h[k.to_sym] = v }
+      klass.call(**symbolized, server_context: server_context)
+    end
+  end
+end
+```
+
+`Sidecar` always calls `#handle` with a raw `params` hash whose keys may be
+strings (e.g. a JSON-decoded request or a test double) — symbolize before
+splatting into `.call`'s keyword arguments, as above.
+
+When several tools in one set share real logic (not just similar shape), pull
+it into a small shared module or base class instead of duplicating it per
+tool — `SyrusBrowser::BrowserTool` (a shared `MCP::Tool` base class for the
+five browser tools that proxy to the same upstream Playwright MCP session)
+and `PreviewTools::ToolSupport` (a mixin of response/panel-lookup helpers
+used by all four preview tools) are the two real examples in this codebase.
+Don't invent a shared abstraction for tools that don't actually share logic.
+
+This convention is followed by `syrus_dev` (`SyrusDev::WorkflowToolSet`,
+the original precedent), `syrus_rails` (`SyrusRails::McpToolSet`), `browser`
+(`SyrusBrowser::McpToolSet`), `admin_mysql` (`AdminMysql::ChatToolSet`,
+`AdminMysql::WorkflowToolSet`), and `preview_tools` (`PreviewTools::ChatToolSet`).
+
 ## `callbacks`
 
 Plugins that include `Syrus::Plugin::Callbacks` participate in the lifecycle
