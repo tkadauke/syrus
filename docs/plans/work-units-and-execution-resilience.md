@@ -1636,6 +1636,12 @@ Completed slices:
 - Dashboard and Job detail start-blocked metadata now fall back to blocked
   WorkUnit reason/details/next wakeup data, so WorkUnit-paused jobs explain
   why they are paused even when no legacy Workflow artifact exists.
+- Workflow start-block projection now preserves typed WorkUnit blocked reasons
+  for dependency failures, stack waits, fan-in base failures, not-ready Jobs,
+  urgent-job gating, Epic-wide workflow locks, provider availability, admission
+  control, and main-branch health instead of collapsing scheduler waits into
+  generic preemption; the shared blocked-reason UI labels cover the same
+  vocabulary.
 - The Job Workflows tab API now nests Workflow traces under WorkUnits and keeps
   the top-level Workflow list as the legacy fallback for direct workflows
   without WorkUnit ownership, so cross-job units such as merge-train member work

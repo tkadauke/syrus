@@ -5,6 +5,12 @@ class WorkUnit < ApplicationRecord
     provider_availability
     manual_pause
     main_branch_health
+    dependency_failed
+    stack_dependencies_not_ready
+    stack_fan_in_base_unavailable
+    job_not_ready_for_execution
+    urgent_job_active
+    epic_wide_workflow_active
     resource_safety
     auto_retry_backoff
     preempted

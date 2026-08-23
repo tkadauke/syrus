@@ -6,7 +6,13 @@ module WorkUnits
       "workflow_admission_budget" => "admission_control",
       "landing start blocked: workflow admission budget" => "admission_control",
       "resource_safety" => "resource_safety",
-      "main_branch_broken" => "main_branch_health"
+      "main_branch_broken" => "main_branch_health",
+      "dependency_failed" => "dependency_failed",
+      "stack_dependencies_not_ready" => "stack_dependencies_not_ready",
+      "stack_fan_in_base_unavailable" => "stack_fan_in_base_unavailable",
+      "job_not_ready_for_execution" => "job_not_ready_for_execution",
+      "urgent_job_active" => "urgent_job_active",
+      "epic_wide_workflow_active" => "epic_wide_workflow_active"
     }.freeze
 
     def self.record!(workflow, start_blocked_reason:, blocked_until:, details: nil)

@@ -23,6 +23,33 @@ RSpec.describe WorkUnit do
     expect(unit.errors[:blocked_reason]).to be_present
   end
 
+  it "accepts typed scheduler block reasons" do
+    expected_reasons = %w[
+      admission_control
+      provider_availability
+      manual_pause
+      main_branch_health
+      dependency_failed
+      stack_dependencies_not_ready
+      stack_fan_in_base_unavailable
+      job_not_ready_for_execution
+      urgent_job_active
+      epic_wide_workflow_active
+      resource_safety
+      auto_retry_backoff
+      preempted
+    ]
+
+    expect(described_class::BLOCKED_REASONS).to contain_exactly(*expected_reasons)
+
+    expected_reasons.each do |reason|
+      unit = described_class.new(work_intent: intent, kind: "initial", state: "blocked", scope_type: "job", scope_id: 123,
+                                 blocked_reason: reason)
+
+      expect(unit).to be_valid, "expected #{reason.inspect} to be a valid WorkUnit blocked reason"
+    end
+  end
+
   it "resolves its work definition from kind" do
     unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
 
