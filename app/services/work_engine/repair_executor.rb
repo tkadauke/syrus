@@ -147,6 +147,9 @@ module WorkEngine
         end
 
         def retry_cancelled_workflow(job, latest, retry_reason:)
+          WorkUnits::TerminalWorkflowSync.for_job(job)
+          WorkUnits::TerminalWorkflowSync.call(latest)
+
           artifacts = latest.artifacts.to_h.deep_dup.merge(
             "retry_reason" => retry_reason,
             "cancelled_workflow_id" => latest.id,
@@ -403,7 +406,7 @@ module WorkEngine
           return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
           return skipped("Workflow is not a landing workflow") unless workflow.landing_workflow?
           return skipped("Workflow first step already has a Run") if workflow.first_step&.runs&.exists?
-          return skipped("Workflow is not main-health blocked") unless workflow.artifact("start_blocked_reason") == StepDispatcher::MAIN_HEALTH_BLOCK_REASON
+          return skipped("Workflow is not main-health blocked") unless WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
 
           repair_job = Job.find_by(id: plan.preconditions["repair_job_id"])
           return skipped("Main repair Job no longer exists") unless repair_job
@@ -471,7 +474,7 @@ module WorkEngine
           return skipped("Job cannot transition to approved") unless workflow.job.may_defer_landing?
 
           reason = workflow.artifact("failure_reason").presence ||
-            workflow.artifact("start_blocked_reason").presence ||
+            WorkUnits::StartBlock.for(workflow).reason ||
             "landing start blocked: workflow admission budget"
           reason = "workflow admission budget" if reason == StepDispatcher::ADMISSION_BLOCK_REASON
           reason = "landing start blocked: #{reason}" unless LandingQueueReentry.landing_start_blocker?(reason)

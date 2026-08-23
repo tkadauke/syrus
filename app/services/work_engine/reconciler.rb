@@ -1832,15 +1832,15 @@ module WorkEngine
     end
 
     def start_block_reason(workflow)
-      workflow.artifact("start_blocked_reason").presence || workflow.work_unit&.blocked_reason
+      WorkUnits::StartBlock.for(workflow).reason
     end
 
     def start_block_details(workflow)
-      workflow.artifact("start_blocked_details").presence || workflow.work_unit&.blocked_details || {}
+      WorkUnits::StartBlock.for(workflow).details
     end
 
     def start_block_next_check_at(workflow)
-      parse_time(workflow.artifact("start_blocked_next_check_at")) || workflow.work_unit&.blocked_until
+      WorkUnits::StartBlock.for(workflow).next_check_at
     end
 
     def run_stale?(run)

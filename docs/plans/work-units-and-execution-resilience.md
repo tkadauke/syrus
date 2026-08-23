@@ -1717,6 +1717,11 @@ Completed slices:
   reasons before legacy Workflow artifact markers. Non-urgent work blocked
   behind urgent landing or repair work can be resumed/deferred based on
   WorkUnit state even when no serialized Workflow start-block artifact exists.
+- Start-block reason/details/next-check reads now go through a shared
+  WorkUnit-aware reader for landing queue, landing reentry, reconciler
+  classification, and repair execution. Main-health repair release and landing
+  backoff checks no longer require legacy Workflow start-block artifacts when
+  the WorkUnit carries the authoritative block.
 
 ### Phase 6: Work Definition Policies
 
@@ -1794,6 +1799,10 @@ Completed slices:
   success, failure, cancellation, and reopen side effects to one service while
   retaining public compatibility seams for workspace cleanup, descendant
   cancellation, WorkUnit sync, Job lifecycle propagation, and workflow hooks.
+- WorkEngine repair paths now explicitly normalize terminal Workflow ownership
+  before creating replacement work. If older code or a low-level repair made a
+  Workflow terminal without firing the callback, `WorkUnits::TerminalWorkflowSync`
+  folds the result into its active WorkUnit and releases locks before retrying.
 - WorkUnit locks now enforce the plan's "one active owner per lock key"
   invariant with a nullable unique `active_lock_key`. Active locks populate it,
   released historical locks clear it, and the migration releases duplicate

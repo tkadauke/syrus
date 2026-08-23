@@ -22,3 +22,25 @@ tell when the debt is still necessary and when it can be removed.
 - **Removal work:** Delete the recurring entry, `WorkUnitsBackfillActiveWorkflowsJob`,
   `WorkUnits::Backfill`, and their specs. Keep the launch-funnel architecture
   spec so the invariant remains enforced.
+
+## Work Units Legacy Scheduler And Reconciler Fallbacks
+
+- **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
+- **Owner area:** WorkIntent / WorkUnit migration
+- **Code:** legacy `Workflow` artifact reads, direct active-Workflow scans,
+  fallback ownership inference in reconciler/repair/wakeup paths, and
+  migration adapters that preserve pre-WorkUnit scheduler behavior.
+- **Why it exists:** WorkUnits are replacing brittle runtime inference
+  incrementally. During rollout, production may still contain active legacy
+  Workflows or rollback paths that rely on the old state/artifact shape, so
+  migrated services temporarily keep old reads as a safety fallback.
+- **Removal condition:** WorkUnit-backed scheduling, wakeups, repair execution,
+  and UI projections have been tested in production and have stayed stable for
+  a full operational window, with no active production path requiring direct
+  legacy Workflow ownership or start-block artifact inference.
+- **Removal work:** Delete the old brittle fallback implementation path by path:
+  remove legacy active-Workflow scans from ownership/admission/reconciler code,
+  remove direct `start_blocked_*` artifact inference once WorkUnit block state
+  is authoritative, delete migration-only compatibility specs, and keep only
+  tests that prove all runtime work enters through WorkIntent/WorkUnit
+  ownership.

@@ -56,15 +56,9 @@ class LandingQueueReentry
     workflow = candidate.workflows
       .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .reorder(id: :desc)
-      .detect { |wf| self.class.landing_start_blocker?(wf.artifact("start_blocked_reason")) }
-    next_check_at = parse_time(workflow&.artifact("start_blocked_next_check_at"))
+      .detect { |wf| WorkUnits::StartBlock.for(wf).landing_start_blocker? }
+    next_check_at = workflow ? WorkUnits::StartBlock.for(workflow).next_check_at : nil
 
     next_check_at.present? && next_check_at.future?
-  end
-
-  def parse_time(value)
-    Time.iso8601(value.to_s)
-  rescue ArgumentError, TypeError
-    nil
   end
 end

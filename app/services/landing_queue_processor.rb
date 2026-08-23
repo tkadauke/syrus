@@ -661,12 +661,11 @@ class LandingQueueProcessor
   end
 
   def workflow_blocked_for_start_reason?(workflow, start_blocked_reason)
-    workflow.artifact("start_blocked_reason") == start_blocked_reason ||
-      workflow.work_unit&.blocked_reason == work_unit_blocked_reason_for(start_blocked_reason)
+    WorkUnits::StartBlock.for(workflow).blocked_for?(start_blocked_reason)
   end
 
   def work_unit_blocked_reason_for(start_blocked_reason)
-    WorkUnits::WorkflowBlockProjection::REASON_MAP.fetch(start_blocked_reason.to_s, "preempted")
+    WorkUnits::StartBlock.work_unit_reason_for(start_blocked_reason)
   end
 
   def active_landing_workflow_for_job?(job)
@@ -823,8 +822,8 @@ class LandingQueueProcessor
     workflow = job.workflows
       .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .reorder(id: :desc)
-      .detect { |wf| LandingQueueReentry.landing_start_blocker?(wf.artifact("start_blocked_reason")) }
-    retry_after = parse_time(workflow&.artifact("start_blocked_next_check_at"))
+      .detect { |wf| WorkUnits::StartBlock.for(wf).landing_start_blocker? }
+    retry_after = workflow ? WorkUnits::StartBlock.for(workflow).next_check_at : nil
     retry_after if retry_after&.future?
   end
 
@@ -833,8 +832,8 @@ class LandingQueueProcessor
       .active
       .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .reorder(id: :desc)
-      .detect { |wf| LandingQueueReentry.landing_start_blocker?(wf.artifact("start_blocked_reason")) }
-    retry_after = parse_time(workflow&.artifact("start_blocked_next_check_at"))
+      .detect { |wf| WorkUnits::StartBlock.for(wf).landing_start_blocker? }
+    retry_after = workflow ? WorkUnits::StartBlock.for(workflow).next_check_at : nil
     retry_after if retry_after&.future?
   end
 

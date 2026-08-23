@@ -128,6 +128,23 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
+  def ready_main_repair_job!(repository)
+    repair_job = Factories.job_record(
+      user: repository.user,
+      repository: repository,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+      issue_body: "Restore main.",
+      pr_number: 2460,
+      priority: "urgent",
+      state: "implemented",
+      approved_at: 1.minute.ago
+    )
+    repair_job.approve!(via: "operator")
+    repair_job
+  end
+
   before do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
@@ -2428,19 +2445,7 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
     )
-    repair_job = Factories.job_record(
-      user: job.user,
-      repository: repository,
-      kind: "direct",
-      issue_number: nil,
-      issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
-      issue_body: "Restore main.",
-      pr_number: 2460,
-      priority: "urgent",
-      state: "implemented",
-      approved_at: 1.minute.ago
-    )
-    repair_job.approve!(via: "operator")
+    repair_job = ready_main_repair_job!(repository)
 
     result = reconcile_and_execute(workflow_id: auto_merge.id)
     issue = kind(result, :landing_start_blocked)
@@ -2456,6 +2461,55 @@ RSpec.describe WorkEngine::Reconciler do
       "main_repair_job_slug" => repair_job.slug
     )
     expect(plan(result, :release_landing_slot_for_main_repair)).to have_attributes(auto_executable: true, target_id: auto_merge.id)
+    expect(result.repair_executions.map(&:message)).to include(match(/dispatched WF-\d+ for #{repair_job.slug}/))
+    expect(auto_merge.reload).to be_failed
+    expect(landing_job.reload).to be_approved
+    expect(repair_job.reload).to be_landing
+  end
+
+  it "releases a WorkUnit-only main-health-blocked landing slot when a fix-main Job is ready" do
+    repository = job.repository
+    repository.update!(auto_merge_enabled: true, ci_health: "broken", landing_paused: true)
+    landing_job = Factories.job_record(
+      user: job.user,
+      repository: repository,
+      state: "landing",
+      issue_number: 2243,
+      pr_number: 2182,
+      branch_name: "syrus/issue-2243",
+      pr_checks_state: "passing",
+      github_mergeable_state: "clean",
+      github_mergeable: true,
+      local_mergeable: true,
+      local_mergeable_state: "clean",
+      commits_behind_base: 0,
+      approved_at: 2.minutes.ago,
+      approved_via: "operator"
+    )
+    auto_merge = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
+    auto_merge.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago, artifacts: {})
+    attach_work_unit(
+      auto_merge,
+      kind: "auto_merge",
+      blocked_reason: "main_branch_health",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "repository_id" => repository.id }
+    )
+    repair_job = ready_main_repair_job!(repository)
+
+    result = reconcile_and_execute(workflow_id: auto_merge.id)
+    issue = kind(result, :landing_start_blocked)
+
+    expect(issue).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "release_landing_slot_for_main_repair"
+    )
+    expect(issue.evidence).to include(
+      "start_blocked_reason" => "main_branch_health",
+      "main_repair_job_id" => repair_job.id,
+      "work_unit_blocked_reason" => "main_branch_health"
+    )
     expect(result.repair_executions.map(&:message)).to include(match(/dispatched WF-\d+ for #{repair_job.slug}/))
     expect(auto_merge.reload).to be_failed
     expect(landing_job.reload).to be_approved
