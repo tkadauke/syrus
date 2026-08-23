@@ -136,6 +136,10 @@ module WorkEngine
           WorkEngine::RuntimeOwnership.active_epic_wide_workflow_for_job?(job)
         end
 
+        def active_landing_work_for_job?(job)
+          WorkEngine::RuntimeOwnership.active_landing_work_for_job?(job)
+        end
+
         def retry_cancelled_workflow(job, latest, retry_reason:)
           artifacts = latest.artifacts.to_h.deep_dup.merge(
             "retry_reason" => retry_reason,
@@ -729,8 +733,7 @@ module WorkEngine
           job = target_job
           return skipped("Job no longer exists") unless job
           return skipped("Job is #{job.state}, not landing") unless job.landing?
-          return skipped("Job has active workflow") if job.workflows.active.exists?
-          return skipped("Job is owned by an active Epic-wide workflow") if active_epic_wide_workflow_for_job?(job)
+          return skipped("Job is owned by active landing work") if active_landing_work_for_job?(job)
           return skipped("Job cannot transition to approved") unless job.may_defer_landing?
 
           with_transition_reason do

@@ -387,6 +387,51 @@ RSpec.describe WorkEngine::Reconciler do
     expect(run.reload.state).to eq("queued")
   end
 
+  it "declines to defer a landing Job through the executor precondition re-check when active landing work exists" do
+    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units landing"
+    end.update!(enabled: true)
+    workflow.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+    job.update!(state: "landing", approved_at: 2.minutes.ago, approved_via: "operator")
+    intent = WorkIntent.create!(
+      kind: "auto_merge",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "auto_merge",
+      state: "blocked",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow,
+      blocked_reason: "admission_control"
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    stale_plan = WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "landing_job_without_active_workflow",
+      action: "defer_orphaned_landing_job",
+      auto_executable: true,
+      target_type: "Job",
+      target_id: job.id,
+      affected_ids: { job_ids: [ job.id ] },
+      execution_steps: [ "Job#defer_landing!" ],
+      preconditions: {},
+      reason: "stale plan computed before the landing WorkUnit was visible"
+    )
+
+    execution = WorkEngine::RepairExecutor::Policies::DeferOrphanedLandingJob.new(plan: stale_plan, now: Time.current).execute
+
+    expect(execution).to have_attributes(status: "skipped", message: "Job is owned by active landing work")
+    expect(job.reload).to be_landing
+  end
+
   it "cancels active workflows on closed jobs in the global reconciliation scope" do
     ensure_solid_queue_test_tables!
     workflow.update_columns(state: "running", started_at: 45.minutes.ago)
