@@ -448,6 +448,10 @@ class StepDispatcher
       return nil if step.terminal?
       return nil if step.runs.active.exists?
 
+      if check_phase_admission && work_unit_runtime_deferred?(step, workflow)
+        return nil
+      end
+
       if check_phase_admission && provider_availability_deferred?(step, workflow)
         return nil
       end
@@ -465,6 +469,27 @@ class StepDispatcher
         prompt: prompt
       )
     end
+  end
+
+  def self.work_unit_runtime_deferred?(step, workflow)
+    return false unless Feature.work_units_scheduler_enabled?
+
+    work_unit = workflow.work_unit
+    return false unless work_unit&.active?
+
+    result = WorkUnits::Scheduler.evaluate!(work_unit, step: step)
+    return false if result.pass?
+
+    if result.reason == WorkUnits::Gates::ManualPause::REASON
+      record_manual_pause!(workflow, step: step)
+    else
+      schedule_blocked_work_unit_recheck!(workflow, result)
+    end
+    true
+  end
+
+  def self.schedule_blocked_work_unit_recheck!(workflow, gate_result)
+    WorkUnits::Launcher.schedule_blocked_recheck!(workflow, gate_result)
   end
 
   def self.provider_availability_deferred?(step, workflow)

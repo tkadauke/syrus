@@ -1863,6 +1863,11 @@ Completed slices:
   queued Workflows through the WorkUnit launcher. Legacy queued Workflows
   without WorkUnit ownership still start through the same service during the
   migration window.
+- Mid-workflow Run creation now evaluates WorkUnit runtime gates with the
+  concrete next Step as context when `work_units_scheduler` is enabled. Manual
+  pause, provider availability, main-branch health, and admission/resource
+  blocks can pause a WorkUnit between steps with typed `blocked_reason` and
+  phase-step details instead of only gating the first Run.
 
 ### Phase 8: Step/Run Simplification
 

@@ -1,17 +1,18 @@
 module WorkUnits
   class Scheduler
-    def self.evaluate!(work_unit, gates: nil)
-      new(work_unit, gates: gates).evaluate!
+    def self.evaluate!(work_unit, gates: nil, **context)
+      new(work_unit, gates: gates, context: context).evaluate!
     end
 
-    def initialize(work_unit, gates:)
+    def initialize(work_unit, gates:, context: {})
       @work_unit = work_unit
       @gates = gates || work_unit.definition.unit_gates
+      @context = context
     end
 
     def evaluate!
       gates.each do |gate|
-        result = gate.call(work_unit)
+        result = gate.call(work_unit, **context)
         next if result.pass?
 
         work_unit.block!(
@@ -28,7 +29,7 @@ module WorkUnits
 
     private
 
-    attr_reader :work_unit, :gates
+    attr_reader :work_unit, :gates, :context
 
     def managed_blocked_reason?(reason)
       managed_blocked_reasons.include?(reason)

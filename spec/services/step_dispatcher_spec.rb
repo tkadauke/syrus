@@ -179,6 +179,8 @@ RSpec.describe StepDispatcher do
       expect(job.reload.manual_paused?).to be false
       expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
       expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
+    ensure
+      Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
     end
 
     it "does not create the first Run when provider usage is below the user's provider threshold" do
@@ -726,6 +728,72 @@ RSpec.describe StepDispatcher do
       )
     end
 
+    it "lets WorkUnit runtime gates block before creating the next Run" do
+      Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
+        feature.category = "Operations"
+        feature.name = "Work units scheduler"
+      end.update!(enabled: true)
+      unit = attach_work_unit(workflow, state: "running")
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      retry_at = 7.minutes.from_now
+      gate_result = WorkUnits::GateResult.block(
+        reason: WorkUnits::Gates::ProviderAvailability::REASON,
+        retry_at: retry_at,
+        details: {
+          "provider" => "codex",
+          "phase_step_id" => s2.id,
+          "phase_step_kind" => s2.kind,
+          "phase_step_position" => s2.position
+        }
+      )
+      allow(WorkUnits::Scheduler).to receive(:evaluate!).with(unit, step: s2) do
+        unit.block!(reason: gate_result.reason, blocked_until: gate_result.retry_at, details: gate_result.details)
+        gate_result
+      end
+
+      expect {
+        described_class.advance_from(s1)
+      }.not_to change { s2.runs.count }
+
+      expect(unit.reload).to have_attributes(
+        state: "blocked",
+        blocked_reason: "provider_availability"
+      )
+      expect(unit.blocked_details).to include(
+        "provider" => "codex",
+        "phase_step_id" => s2.id,
+        "phase_step_kind" => "summarize"
+      )
+      expect(enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }.last[:at]).to be_within(2.seconds).of(retry_at.to_f)
+    ensure
+      Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
+    end
+
+    it "records WorkUnit pause details when a pause request blocks the next Run" do
+      Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
+        feature.category = "Operations"
+        feature.name = "Work units scheduler"
+      end.update!(enabled: true)
+      unit = attach_work_unit(workflow, state: "running")
+      unit.request_pause!
+      workflow.update!(state: "running", started_at: 1.minute.ago)
+      s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect {
+        described_class.advance_from(s1)
+      }.not_to change { s2.runs.count }
+
+      expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
+      expect(workflow.artifact("start_blocked_details")).to include(
+        "phase_step_id" => s2.id,
+        "phase_step_kind" => "summarize"
+      )
+      expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
+    ensure
+      Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
+    end
+
     it "creates a Run on the next runnable step" do
       expect {
         described_class.advance_from(s1)
@@ -836,21 +904,20 @@ RSpec.describe StepDispatcher do
     it "cascades stack child rebases after a force-push workflow succeeds" do
       clear_enqueued_jobs
       job.update!(state: "implemented", pr_number: 42, branch_name: "syrus/issue-42-#{job.id}")
-      child = Factories.job(repository: job.repository, issue_number: 43).tap do |child_job|
+      child = Factories.job_record(repository: job.repository, issue_number: 43, state: "implemented").tap do |child_job|
         JobDependency.create!(job: child_job, depends_on_job: job, source: "manual")
         child_job.update!(
-          state: "implemented",
           parent_job: job,
           branch_name: "syrus/issue-43-#{child_job.id}",
           pr_number: 43
         )
-        child_job.workflows.update_all(state: "succeeded")
       end
       rebase = Workflow.create!(job: job, trigger_kind: "rebase")
       force_push = Step.create!(workflow: rebase, kind: "force_push", position: 0)
       rebase.start!
       rebase.save!
       force_push.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      Run.create!(job: job, step: force_push, trigger_kind: "rebase", agent_provider: "claude", state: "succeeded", head_sha: "parent-head")
 
       expect {
         described_class.advance_from(force_push)
@@ -858,27 +925,26 @@ RSpec.describe StepDispatcher do
 
       child_rebase = child.workflows.where(trigger_kind: "stack_rebase").last
       expect(child_rebase.artifact("rebase_base_branch")).to eq(job.branch_name)
-      expect(enqueued_jobs.any? { |entry| entry[:job] == RunJob }).to be(true)
+      expect(child_rebase.runs.where(state: "queued").count).to eq(1)
     end
 
     it "cascades stack child rebases after a recovered push workflow succeeds" do
       clear_enqueued_jobs
       job.update!(state: "implemented", pr_number: 42, branch_name: "syrus/issue-42-#{job.id}")
-      child = Factories.job(repository: job.repository, issue_number: 43).tap do |child_job|
+      child = Factories.job_record(repository: job.repository, issue_number: 43, state: "implemented").tap do |child_job|
         JobDependency.create!(job: child_job, depends_on_job: job, source: "manual")
         child_job.update!(
-          state: "implemented",
           parent_job: job,
           branch_name: "syrus/issue-43-#{child_job.id}",
           pr_number: 43
         )
-        child_job.workflows.update_all(state: "succeeded")
       end
       follow_up = Workflow.create!(job: job, trigger_kind: "pr_comment")
       push_after_rebase = Step.create!(workflow: follow_up, kind: "push_after_rebase", position: 0)
       follow_up.start!
       follow_up.save!
       push_after_rebase.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+      Run.create!(job: job, step: push_after_rebase, trigger_kind: "pr_comment", agent_provider: "claude", state: "succeeded", head_sha: "parent-head")
 
       expect {
         described_class.advance_from(push_after_rebase)
@@ -886,7 +952,7 @@ RSpec.describe StepDispatcher do
 
       child_rebase = child.workflows.where(trigger_kind: "stack_rebase").last
       expect(child_rebase.artifact("rebase_base_branch")).to eq(job.branch_name)
-      expect(enqueued_jobs.any? { |entry| entry[:job] == RunJob }).to be(true)
+      expect(child_rebase.runs.where(state: "queued").count).to eq(1)
     end
 
     it "advances a succeeded grade step to the post-loop step" do

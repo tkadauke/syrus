@@ -3,7 +3,7 @@ module WorkUnits
     class MainBranchHealth
       REASON = "main_branch_health"
 
-      def self.call(work_unit) = new(work_unit).call
+      def self.call(work_unit, **) = new(work_unit).call
 
       def initialize(work_unit)
         @work_unit = work_unit
