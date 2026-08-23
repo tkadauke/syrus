@@ -2009,6 +2009,10 @@ Completed slices:
   Step liveness while still treating active Runs as authoritative work. Terminal
   Workflow cleanup and idle checks therefore share the same Step/Run precedence
   as UI projection and repair planning.
+- Explicit completion repair (`RunCompletionReconciler`) now marks the Run
+  terminal and then delegates Step mutation to `Steps::StateSynchronizer`, so
+  "the external side effect already happened" repairs and generic WorkEngine
+  Step/Run drift repairs share one Step transition path.
 
 ## Success Criteria
 

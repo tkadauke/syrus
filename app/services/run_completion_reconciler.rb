@@ -46,10 +46,8 @@ class RunCompletionReconciler
 
     return unreconciled unless job.reload.pr_number.to_i == pr_number
 
-    run.succeed!
-    run.save!
-    step.succeed!
-    step.save!
+    mark_run_succeeded!
+    sync_step_from_run!
 
     # after_commit normally advances the workflow. Keep an explicit
     # backstop for reaper paths and tests where the callback may be delayed.
@@ -89,10 +87,8 @@ class RunCompletionReconciler
     pr = client.pull_request(job.repository.slug, pr_number, bypass_cache: true)
     return unreconciled unless pr[:merged]
 
-    run.succeed!
-    run.save!
-    step.succeed!
-    step.save!
+    mark_run_succeeded!
+    sync_step_from_run!
 
     StepDispatcher.advance_from(step.reload) if workflow.reload.running?
     finish_workflow_if_terminal!
@@ -110,10 +106,8 @@ class RunCompletionReconciler
     pr = client.pull_request(job.repository.slug, pr_number.to_i, bypass_cache: true)
     return unreconciled unless pr[:merged]
 
-    run.succeed!
-    run.save!
-    step.succeed!
-    step.save!
+    mark_run_succeeded!
+    sync_step_from_run!
 
     StepDispatcher.advance_from(step.reload) if workflow.reload.running?
     finish_workflow_if_terminal!
@@ -125,6 +119,16 @@ class RunCompletionReconciler
 
   def unreconciled
     Result.new(reconciled: false, reason: nil)
+  end
+
+  def mark_run_succeeded!
+    run.succeed!
+    run.save!
+  end
+
+  def sync_step_from_run!
+    sync = Steps::StateSynchronizer.from_latest_terminal_run!(step, runs: step.runs.to_a)
+    raise sync.reason unless sync.synchronized?
   end
 
   def finish_workflow_if_terminal!
