@@ -14,6 +14,7 @@ function jobItem(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
     title: `Job ${id}`,
     state: "approved",
     summary_state: "approved",
+    closure_reason: null,
     validity: "valid",
     priority: "medium",
     agent_provider: "codex",

@@ -91,7 +91,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
     ...(tabsHidden ? [] : [
-      { id: "dashboard", label: t("nav:dashboard"), to: simpleMode ? `${prefix}/dashboard/epics` : `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
+      { id: "dashboard", label: t("nav:dashboard"), to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
       { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
       { id: "repositories", label: t("nav:repositories"), to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
       ...(simpleMode ? [] : [{ id: "schedules", label: t("nav:schedules"), to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> }]),

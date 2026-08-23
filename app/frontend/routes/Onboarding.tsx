@@ -76,7 +76,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const steps = checklistSteps(setup, user, bootstrap?.app.mode_configured ?? false)
   const activeStep = steps.find((step) => !step.complete)
   const complete = !activeStep
-  const dashboardPath = bootstrap?.app.mode === "simple" ? "/dashboard/epics" : "/dashboard/jobs?view=list"
+  const dashboardPath = bootstrap?.app.mode === "simple" ? "/dashboard/jobs" : "/dashboard/jobs?view=list"
 
   return (
     <main aria-label={t("onboarding_aria")} className="mx-auto max-w-5xl space-y-6 p-6">

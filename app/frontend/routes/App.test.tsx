@@ -210,6 +210,45 @@ describe("App", () => {
     }
   })
 
+  it("keeps the simple-mode dashboard on /dashboard/jobs instead of redirecting away", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      app: { revision: "dev", revision_url: null, mode: "simple", mode_configured: true }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/dashboard")) {
+        return new Response(
+          JSON.stringify(dashboardPayload({ simple_mode: true, subject: "job", view: "list", items: [dashboardJobItem({ closure_reason: null })] })),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      }
+
+      return new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs"]}>
+            <App />
+            <LocationProbe />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      expect(await screen.findByRole("main", { name: "Dashboard" })).toBeInTheDocument()
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+      expect(await screen.findByText("Repair aqueduct")).toBeInTheDocument()
+    } finally {
+      script.remove()
+      fetchSpy.mockRestore()
+    }
+  })
+
   it("renders system alert banners from bootstrap data", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
