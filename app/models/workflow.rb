@@ -272,14 +272,7 @@ class Workflow < ApplicationRecord
   # Skips for auto_merge so Workflow#start on auto_merge doesn't
   # spuriously try to transition an :approved Job to :running.
   def propagate_start_to_job!
-    return if landing_workflow?
-    return if infrastructure_workflow?
-    return unless job.may_start_running?
-
-    StateTransition.with_source("propagate") do
-      job.start_running!
-      job.save!
-    end
+    Workflows::JobLifecyclePropagation.start!(self)
   end
 
   def sync_work_unit_running!
@@ -302,69 +295,11 @@ class Workflow < ApplicationRecord
   # closure_reason=no_changes. That makes the outcome terminal and lets
   # dependent Jobs proceed without operator acknowledgement.
   def propagate_fail_to_job!
-    return if landing_workflow?
-    return if coding_handoff_workflow?
-    return if local_mode_handoff_workflow?
-    return if external_pr_ingest_workflow?
-    return if infrastructure_workflow?
-    return if newer_active_workflow?
-
-    if no_changes_produced_failure?
-      return unless job.may_close?
-
-      StateTransition.with_source("propagate") do
-        job.close_with_reason!("no_changes")
-      end
-    else
-      return unless job.may_mark_failed?
-
-      StateTransition.with_source("propagate") do
-        job.mark_failed!
-        job.save!
-      end
-    end
+    Workflows::JobLifecyclePropagation.fail!(self)
   end
 
   def propagate_cancel_to_job!
-    return if landing_workflow?
-    return if coding_handoff_workflow?
-    return if local_mode_handoff_workflow?
-    return if infrastructure_workflow?
-    return if superseded_cancellation?
-
-    # A rebase (or stack_rebase) workflow cancelled before any run started
-    # should restore the job to :implemented when the job is stuck in
-    # :triaging. This state mismatch occurs after a close+reopen cycle
-    # from runaway workflow limits — the reopen event returns the job to
-    # :triaging even though it has an open PR. Without this rollback, the
-    # merge-state poller dispatches rebase workflows that are immediately
-    # cancelled, never advancing the job out of :triaging.
-    if %w[rebase stack_rebase].include?(trigger_kind) && runs.none? && job.triaging?
-      StateTransition.with_source("propagate") do
-        if job.may_restore_after_cancelled_rebase?
-          job.restore_after_cancelled_rebase!
-          job.save!
-        end
-      end
-      return
-    end
-
-    return unless job.running? && job.may_mark_failed?
-
-    StateTransition.with_source("propagate") do
-      job.mark_failed!
-      job.save!
-    end
-  end
-
-  def newer_active_workflow?
-    return false unless persisted?
-
-    cutoff = created_at || Time.zone.at(0)
-    job.workflows
-       .active
-       .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, id)
-       .exists?
+    Workflows::JobLifecyclePropagation.cancel!(self)
   end
 
   def superseded_cancellation?
@@ -372,13 +307,6 @@ class Workflow < ApplicationRecord
       SUPERSEDED_BY_REBASE_REASON,
       SUPERSEDED_BY_NEWER_WORKFLOW_REASON
     ])
-  end
-
-  def no_changes_produced_failure?
-    runs.where(state: "failed")
-        .joins(:run_diagnostic)
-        .where(run_diagnostics: { error_class: "Steps::Base::NoChangesProduced" })
-        .exists?
   end
 
   # When a workflow succeeds, the Job's state usually has already
@@ -400,41 +328,11 @@ class Workflow < ApplicationRecord
   #      because may_start_running? rejects :failed. Without the
   #      escape, the Job would silently stay :failed forever.
   def propagate_succeed_to_job!
-    return if landing_workflow?
-    return if infrastructure_workflow?
-    return if job.implemented? || job.approved? || job.landing? || job.closed?
-
-    StateTransition.with_source("propagate") do
-      if job.failed? && job.may_retry_after_failure?
-        job.retry_after_failure!
-        job.save!
-      end
-
-      if pr_publication_missing_after_success?
-        if job.may_mark_failed?
-          job.mark_failed!
-          job.save!
-        end
-        return
-      end
-
-      return unless job.may_mark_implemented?
-
-      job.mark_implemented!
-      job.save!
-    end
+    Workflows::JobLifecyclePropagation.succeed!(self)
   end
 
   def pr_publication_missing_after_success?
-    publication_step_kinds = work_definition.review_publication_step_kinds
-    return false if publication_step_kinds.empty?
-    return false unless steps.where(kind: publication_step_kinds).exists?
-    return false if steps.where(kind: publication_step_kinds, state: "succeeded").exists?
-    return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
-    return false if job.infrastructure_job?
-    return false if trigger_kind == "main_branch_repair" && artifact("preflight_passed")
-
-    true
+    Workflows::JobLifecyclePropagation.new(self).pr_publication_missing_after_success?
   end
 
   # Workflow#reopen drives :failed → :running for "Retry from failed
@@ -443,19 +341,7 @@ class Workflow < ApplicationRecord
   # first returns it to :queued; start_running! then makes the
   # dashboard reflect that work is active again.
   def propagate_reopen_to_job!
-    return if landing_workflow?
-
-    StateTransition.with_source("propagate") do
-      if job.failed? && job.may_retry_after_failure?
-        job.retry_after_failure!
-        job.save!
-      end
-
-      if job.may_start_running?
-        job.start_running!
-        job.save!
-      end
-    end
+    Workflows::JobLifecyclePropagation.reopen!(self)
   end
 
   def cancel_orphan_active_runs!

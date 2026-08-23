@@ -1741,6 +1741,11 @@ Completed slices:
   can keep skipping generic propagation without pretending to be infrastructure.
   The legacy callbacks still execute in the same order, but they no longer own
   local trigger-kind lists for these scheduler/runtime classifications.
+- Workflow callback Job-state propagation now lives in
+  `Workflows::JobLifecyclePropagation`, with `Workflow` retaining thin
+  compatibility methods for the AASM callbacks and older callers. This starts
+  the callback strangler by moving start/succeed/fail/cancel/reopen Job
+  mutation rules behind a dedicated service without changing callback order.
 
 ### Phase 8: Step/Run Simplification
 
