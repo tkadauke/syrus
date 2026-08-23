@@ -244,8 +244,13 @@ module WorkEngine
 
           workflow.retry_as_new_workflow_available? &&
             job.open? &&
-            !job.any_active_run? &&
+            !active_runtime_work_for_job?(job) &&
             !workflow.landing_workflow?
+        end
+
+        def active_runtime_work_for_job?(job)
+          WorkUnits::TerminalWorkflowSync.for_job(job)
+          job.reload.active_runtime_work?
         end
 
         def retry_after_for_retryable_failure

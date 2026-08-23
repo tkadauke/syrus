@@ -76,8 +76,7 @@ class ReconcileJobStatesJob < ApplicationJob
         # already recorded on the latest failed workflow, the PR is the source
         # of truth and the Job should be actionable for approval again.
         return nil unless recovered_branch_divergence_ready_pr?(job, latest_wf)
-        return nil if job.any_active_run?
-        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+        return nil if active_runtime_work?(job)
 
         new(job, target_state: "implemented",
                   reason: "latest workflow :failed but recovered branch divergence shows Job has a ready PR",
@@ -105,8 +104,7 @@ class ReconcileJobStatesJob < ApplicationJob
         # may_mark_implemented? guard raced with another transition).
         # Only act if the Job genuinely has no active work — don't
         # interfere with a brand-new workflow that just started.
-        return nil if job.any_active_run?
-        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+        return nil if active_runtime_work?(job)
 
         new(job, target_state: "implemented",
                   reason: "latest workflow :succeeded but Job stuck at :running",
@@ -117,8 +115,7 @@ class ReconcileJobStatesJob < ApplicationJob
         # the after-callback was skipped because the workflow row
         # was written through update_columns or a raw SQL update).
         # Only act if the Job has no other active work.
-        return nil if job.any_active_run?
-        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+        return nil if active_runtime_work?(job)
 
         new(job, target_state: "failed",
                   reason: "latest workflow :failed but Job stuck at :running",
@@ -131,8 +128,7 @@ class ReconcileJobStatesJob < ApplicationJob
         # surface it as failed so the normal Retry / Start-over actions
         # are available instead of leaving it in the dashboard's running
         # set forever.
-        return nil if job.any_active_run?
-        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+        return nil if active_runtime_work?(job)
 
         new(job, target_state: "failed",
                   reason: "latest workflow :cancelled but Job stuck at :running",
@@ -145,7 +141,7 @@ class ReconcileJobStatesJob < ApplicationJob
         # but the Job got bounced back to :queued without a new
         # workflow being instantiated. Treat the workflow's success
         # as the source of truth.
-        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+        return nil if active_runtime_work?(job)
 
         new(job, target_state: "implemented",
                   reason: "latest workflow :succeeded but Job stuck at :queued",
@@ -166,13 +162,19 @@ class ReconcileJobStatesJob < ApplicationJob
         # latest Workflow is no longer the source of truth; the ready
         # PR plus earlier successful publication is.
         return nil unless ready_pr_with_successful_publication?(job, latest_wf)
-        return nil if job.any_active_run?
-        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+        return nil if active_runtime_work?(job)
 
         new(job, target_state: "implemented",
                   reason: "latest workflow :cancelled but ready PR publication shows Job should be :implemented",
                   steps: %i[ start_running! mark_implemented! ])
       end
+    end
+
+    def self.active_runtime_work?(job)
+      return false unless job
+
+      WorkUnits::TerminalWorkflowSync.for_job(job)
+      job.reload.active_runtime_work?
     end
 
     def self.ready_pr_with_successful_publication?(job, latest_wf)

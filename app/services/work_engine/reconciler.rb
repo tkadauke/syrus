@@ -853,6 +853,8 @@ module WorkEngine
     def classify_unambiguous_job_state_drift
       jobs.filter_map do |job|
         next unless ReconcileJobStatesJob::RECONCILABLE_STATES.include?(job.state)
+        next if job.latest_workflow&.terminal? && active_runtime_work_for_job?(job)
+
         plan = ReconcileJobStatesJob::Plan.for(job)
         next unless plan
 
