@@ -1246,14 +1246,27 @@ module Api
         def current_steps_by_workflow_id(workflow_ids)
           return {} if workflow_ids.empty?
 
+          active_run_step_ids = Run
+            .where(state: Run::ACTIVE_STATES, step_id: Step.where(workflow_id: workflow_ids).select(:id))
+            .distinct
+            .pluck(:step_id)
           active_steps = Step.where(workflow_id: workflow_ids, state: %w[ queued running ])
+            .or(Step.where(id: active_run_step_ids))
+            .includes(:runs)
             .order(:workflow_id, :position, :id)
             .to_a
-          steps_by_workflow_id = active_steps.group_by(&:workflow_id).transform_values(&:first)
+          steps_by_workflow_id = active_steps
+            .group_by(&:workflow_id)
+            .transform_values do |steps|
+              steps.detect { |step| step.visible_state == "running" } ||
+                steps.detect { |step| step.visible_state == "queued" } ||
+                steps.first
+            end
           missing_workflow_ids = workflow_ids - steps_by_workflow_id.keys
           return steps_by_workflow_id if missing_workflow_ids.empty?
 
           last_steps = Step.where(workflow_id: missing_workflow_ids)
+            .includes(:runs)
             .order(:workflow_id, position: :desc, id: :desc)
             .to_a
           steps_by_workflow_id.merge(last_steps.group_by(&:workflow_id).transform_values(&:first))

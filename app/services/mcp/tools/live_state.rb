@@ -301,8 +301,7 @@ module Mcp::Tools
     end
 
     def active_step_for(candidate)
-      candidate.steps.active.order(:position).first ||
-        candidate.steps.order(position: :desc).first
+      candidate.current_step
     end
 
     def latest_run_for(candidate)

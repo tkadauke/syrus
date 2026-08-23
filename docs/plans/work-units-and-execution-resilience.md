@@ -2013,6 +2013,10 @@ Completed slices:
   terminal and then delegates Step mutation to `Steps::StateSynchronizer`, so
   "the external side effect already happened" repairs and generic WorkEngine
   Step/Run drift repairs share one Step transition path.
+- `Workflow#current_step` and `#current_iteration` now use projected Step state,
+  and repository detail / MCP live-state current-step lookups include active
+  Runs when Step rows drift. Operator-facing "currently running" captions now
+  share the same Step/Run precedence as workflow liveness and repair.
 
 ## Success Criteria
 

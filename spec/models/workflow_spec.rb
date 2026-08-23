@@ -130,6 +130,44 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "#current_step" do
+    it "uses an active Run to find the current Step when persisted Step state drifted terminal" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
+      stale_terminal = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "succeeded")
+      queued = Step.create!(workflow: workflow, kind: "summarize", position: 1, state: "queued")
+      Run.create!(job: job, step: stale_terminal, trigger_kind: "initial", state: "running")
+
+      expect(workflow.current_step).to eq(stale_terminal)
+      expect(workflow.current_step).not_to eq(queued)
+    end
+
+    it "skips a persisted running Step whose latest Run is terminal" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
+      stale_running = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+      queued = Step.create!(workflow: workflow, kind: "summarize", position: 1, state: "queued")
+      Run.create!(job: job, step: stale_running, trigger_kind: "initial", state: "succeeded")
+
+      expect(workflow.current_step).to eq(queued)
+    end
+  end
+
+  describe "#current_iteration" do
+    it "uses projected active Step state for loop iteration" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(
+        workflow: workflow,
+        kind: "implement",
+        position: 0,
+        state: "succeeded",
+        loop_id: "grade-loop",
+        iteration: 2
+      )
+      Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+
+      expect(workflow.current_iteration).to eq(2)
+    end
+  end
+
   describe "#landing_workflow?" do
     it "treats every trigger that owns landing state as a landing workflow" do
       expect(described_class::LANDING_TRIGGER_KINDS).to contain_exactly(*WorkDefinitions.landing_workflow_kinds)

@@ -91,6 +91,16 @@ RSpec.describe App::Presentation do
 
       expect(described_class.current_step_caption(job)).to eq("currently: Implement (workflow: initial)")
     end
+
+    it "uses projected Step state when the running Run and Step row drift" do
+      job = Factories.job_record
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "succeeded")
+      Step.create!(workflow: workflow, kind: "summarize", position: 1, state: "queued")
+      Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+
+      expect(described_class.current_step_caption(job)).to eq("currently: Implement (workflow: initial)")
+    end
   end
 
   describe "job URLs" do

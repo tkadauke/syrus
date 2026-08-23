@@ -197,8 +197,16 @@ class Workflow < ApplicationRecord
   end
 
   def step_state_projections
+    projected_steps.map(&:projection)
+  end
+
+  ProjectedStep = Data.define(:step, :projection)
+
+  def projected_steps
     loaded_steps = steps.includes(:runs).order(:position, :id).to_a
-    loaded_steps.map { |step| Steps::StateProjection.for(step, runs: step.runs.to_a) }
+    loaded_steps.map do |step|
+      ProjectedStep.new(step: step, projection: Steps::StateProjection.for(step, runs: step.runs.to_a))
+    end
   end
 
   # Cancel every still-active Step + Run under this Workflow. Called
@@ -455,17 +463,17 @@ class Workflow < ApplicationRecord
   end
 
   def current_step
-    steps.where(state: %w[ queued running ]).order(:position).first ||
-      steps.order(:position).last
+    entries = projected_steps
+    entries.find { |entry| entry.projection.active? }&.step || entries.last&.step
   end
 
   def current_iteration
-    steps.active
-         .where.not(loop_id: nil)
-         .group(:loop_id)
-         .maximum(:iteration)
-         .values
-         .max
+    projected_steps
+      .select { |entry| entry.projection.active? && entry.step.loop_id.present? }
+      .group_by { |entry| entry.step.loop_id }
+      .values
+      .filter_map { |entries| entries.map { |entry| entry.step.iteration }.compact.max }
+      .max
   end
 
   def trigger_kind_humanized
