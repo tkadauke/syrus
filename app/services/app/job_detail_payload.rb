@@ -626,7 +626,7 @@ module App
     def actions_json
       retry_actions = ::App::JobRetryActions.for(@job)
       {
-        can_start: @job.direct? && @job.open? && !@job.runs.exists?,
+        can_start: @job.direct? && @job.open? && !@job.runs.exists? && !@job.active_runtime_work?,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
         can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
@@ -637,7 +637,7 @@ module App
         can_retry_from_failed_step: retry_actions[:failed_step].present?,
         retry_failed_step_action: retry_actions[:failed_step],
         retry_implementation_action: retry_actions[:implementation],
-        can_restart: !@job.any_active_run? && !@job.cron? && !@job.no_change_needed? &&
+        can_restart: !@job.active_runtime_work? && !@job.cron? && !@job.no_change_needed? &&
           (
             (@job.closed? && @job.infrastructure?) ||
             (@job.failed? && retry_actions[:implementation].blank? && retry_actions[:failed_step].blank? && @job.landing_failure_reason.blank?)

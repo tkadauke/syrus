@@ -75,7 +75,7 @@ class SmartRetryEnqueuer
     return skipped(:closed, closed_job_message) if job.closed?
     return skipped(:no_change_needed, "Job has no changes to retry.") if job.no_change_needed?
     return skipped(:pr_ready, "PR is already current and checks are passing.") if pr_ready?
-    return skipped(:active_run, "A Run is already in progress - wait for it to finish.") if job.any_active_run?
+    return skipped(:active_run, "A Run is already in progress - wait for it to finish.") if job.active_runtime_work?
     return skipped(:duplicate_retry, "A retry workflow is already queued or running for this Job.") if duplicate_active_retry_workflow?
     return provider_circuit_skip if automatic? && provider_circuit.open?
 

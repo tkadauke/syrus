@@ -20,6 +20,7 @@ RSpec.describe "App API job run commands", type: :request do
     run.step.workflow.update_columns(state: "succeeded", finished_at: Time.current)
     run.step.update_columns(state: "succeeded", finished_at: Time.current)
     run.update_columns(state: "succeeded", finished_at: Time.current)
+    finish_work_units_for(job)
   end
 
   it "checks PR feedback for an open job with a PR" do
@@ -176,9 +177,16 @@ RSpec.describe "App API job run commands", type: :request do
     )
   end
 
+  def finish_work_units_for(job)
+    WorkUnit
+      .joins(:work_unit_members)
+      .where(work_unit_members: { job_id: job.id })
+      .find_each { |unit| unit.mark_terminal!("succeeded") }
+  end
+
   it "queues a manual visual review workflow for an implemented job" do
     stub_visual_review_plan(enabled: true)
-    job.initial_run.update_columns(state: "succeeded")
+    finish_initial_workflow!(job)
     job.update_columns(state: "implemented")
 
     expect {
@@ -206,7 +214,7 @@ RSpec.describe "App API job run commands", type: :request do
 
   it "rejects a manual visual review request when visual review is not configured" do
     stub_visual_review_plan(enabled: false)
-    job.initial_run.update_columns(state: "succeeded")
+    finish_initial_workflow!(job)
     job.update_columns(state: "implemented")
 
     expect {

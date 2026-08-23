@@ -14,7 +14,7 @@ class ResumeWorkflowEnqueuer
     return failure("Source Run not found.") unless source_run
     return failure("Source Run does not belong to this Job.") unless source_run.job_id == job.id
     return failure("Only failed or cancelled Runs are resumable.") unless source_run.failed? || source_run.cancelled?
-    return failure("A Run is already in progress - wait for it to finish.") if job.any_active_run?
+    return failure("A Run is already in progress - wait for it to finish.") if job.active_runtime_work?
 
     session = source_run.provider_session
     return failure("No agent session captured for that Run - try Retry instead.") unless session

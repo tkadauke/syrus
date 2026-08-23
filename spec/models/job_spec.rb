@@ -111,6 +111,33 @@ RSpec.describe Job do
 
       expect(job.reload).not_to be_visual_review_runnable
     end
+
+    it "rejects a job owned by an active WorkUnit even when no Run is active" do
+      job = Factories.job_record(state: "implemented")
+      workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "succeeded", finished_at: Time.current)
+      intent = WorkIntent.create!(
+        kind: "manual_visual_review",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "manual_visual_review",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      expect(job.reload).to be_active_runtime_work
+      expect(job).not_to be_visual_review_runnable
+    end
   end
 
   describe "fork base branch (fork -> upstream)" do

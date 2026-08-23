@@ -187,7 +187,11 @@ class Job < ApplicationRecord
   end
 
   def visual_review_runnable?
-    (implemented? || approved?) && !any_active_run?
+    (implemented? || approved?) && !active_runtime_work?
+  end
+
+  def active_runtime_work?
+    any_active_run? || WorkUnits::Ownership.active_for_job?(self)
   end
   # Materialized rather than a correlated NOT EXISTS — see
   # WorkUnits::Ownership.all_active_job_ids. The subquery form survives on its own, but the

@@ -9,6 +9,12 @@ RSpec.describe "App API job lifecycle commands", type: :request do
 
   def parse_body = JSON.parse(response.body)
   def app_job_path(job_record, action) = "/api/v1/app/jobs/#{job_record.id}/#{action}"
+  def finish_work_units_for(job_record)
+    WorkUnit
+      .joins(:work_unit_members)
+      .where(work_unit_members: { job_id: job_record.id })
+      .find_each { |unit| unit.mark_terminal!("succeeded") }
+  end
 
   it "starts an unstarted direct job" do
     direct = Job.create!(
@@ -65,6 +71,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
 
   it "retries a completed job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+    finish_work_units_for(job)
 
     expect {
       post app_job_path(job, "run_again"), params: { retry_context: "Try the marble route." }, as: :json
@@ -83,6 +90,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     job.update!(agent_provider: "claude")
     job.initial_run.tap { |run| run.update!(agent_provider: "claude"); run.start!; run.succeed!; run.save! }
     job.latest_workflow.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    finish_work_units_for(job)
 
     expect {
       post app_job_path(job, "run_again"), params: { agent_provider: "codex" }, as: :json
@@ -101,6 +109,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
   it "retries a completed job with bearer token auth when forgery protection is enabled", :skip_sign_in do
     token = user.generate_api_token!
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+    finish_work_units_for(job)
 
     previous_forgery_protection = ActionController::Base.allow_forgery_protection
     ActionController::Base.allow_forgery_protection = true
@@ -269,6 +278,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     )
     job.latest_workflow.update!(state: "succeeded")
     job.initial_run.update_columns(state: "succeeded")
+    finish_work_units_for(job)
 
     expect {
       post app_job_path(job, "approve"), as: :json
@@ -405,6 +415,7 @@ RSpec.describe "App API job lifecycle commands", type: :request do
       issue_title: "Repair the forum floor"
     )
     slugged_job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+    finish_work_units_for(slugged_job)
 
     expect {
       post "/api/v1/app/jobs/#{slugged_job[:slug]}/run_again", as: :json
