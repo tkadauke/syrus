@@ -125,7 +125,8 @@ RSpec.describe Workflow do
       lifecycle_owner_kinds = WorkDefinitions.registry.values
         .map(&:new)
         .select(&:manages_own_job_lifecycle?)
-        .map(&:kind)
+        .map(&:workflow_trigger_kind)
+        .uniq
 
       expect(described_class::INFRASTRUCTURE_TRIGGER_KINDS).to contain_exactly(*lifecycle_owner_kinds)
       lifecycle_owner_kinds.each do |trigger_kind|

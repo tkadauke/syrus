@@ -22,7 +22,15 @@ module WorkDefinitions
         }
       end
     end
-    LANDING_LOCK_KINDS = %w[auto_merge external_pr_merge merge_train landing_validation merge_train_validation].freeze
+    LANDING_LOCK_KINDS = %w[
+      auto_merge
+      external_pr_merge
+      merge_train
+      job_bundle
+      landing_validation
+      merge_train_validation
+      job_bundle_validation
+    ].freeze
 
     class_attribute :kind, instance_accessor: false
     class_attribute :workflow_trigger_kind, instance_accessor: false
@@ -30,9 +38,11 @@ module WorkDefinitions
     class_attribute :scope, instance_accessor: false
     class_attribute :parent_kind, instance_accessor: false
     class_attribute :review_publication_step_kinds, instance_accessor: false
+    class_attribute :display_label, instance_accessor: false
 
     self.parent_kind = nil
     self.review_publication_step_kinds = []
+    self.display_label = nil
 
     def self.inherited(subclass)
       super
@@ -44,6 +54,7 @@ module WorkDefinitions
     def runtime_role = self.class.runtime_role
     def scope = self.class.scope
     def parent_kind = self.class.parent_kind
+    def label = self.class.display_label.presence || Workflow::TriggerKind.label_for(workflow_trigger_kind)
     def review_publication_step_kinds = Array(self.class.review_publication_step_kinds).map(&:to_s)
 
     def workflow_template

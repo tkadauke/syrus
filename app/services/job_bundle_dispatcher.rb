@@ -51,7 +51,7 @@ class JobBundleDispatcher
       end
 
       workflow = WorkUnits::Launcher.instantiate(
-        kind: "merge_train",
+        kind: "job_bundle",
         job: members.last,
         artifacts: { "merge_train_id" => train.id }
       )

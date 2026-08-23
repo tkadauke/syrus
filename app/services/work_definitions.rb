@@ -17,7 +17,14 @@ module WorkDefinitions
   end
 
   def landing_workflow_kinds
-    @landing_workflow_kinds ||= kinds_matching { |definition| definition.landing_lock? && definition.first_class? }
+    @landing_workflow_kinds ||= definitions_matching { |definition| definition.landing_lock? && definition.first_class? }
+      .map(&:workflow_trigger_kind)
+      .uniq
+      .freeze
+  end
+
+  def landing_work_unit_kinds
+    @landing_work_unit_kinds ||= kinds_matching { |definition| definition.landing_lock? && definition.first_class? }
   end
 
   def epic_wide_kinds
@@ -79,6 +86,7 @@ module WorkDefinitions
       @registry
       @landing_lock_kinds
       @landing_workflow_kinds
+      @landing_work_unit_kinds
       @epic_wide_kinds
       @ci_failure_blocking_kinds
       @active_repair_work_kinds
@@ -105,10 +113,14 @@ module WorkDefinitions
   end
 
   def kinds_matching(&predicate)
+    definitions_matching(&predicate)
+      .map(&:kind)
+      .freeze
+  end
+
+  def definitions_matching(&predicate)
     registry.values
       .map(&:new)
       .select(&predicate)
-      .map(&:kind)
-      .freeze
   end
 end

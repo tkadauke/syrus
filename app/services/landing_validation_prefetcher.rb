@@ -68,6 +68,10 @@ class LandingValidationPrefetcher
         jobs.all?(&:approved?) &&
           jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
           WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for("merge_train")).empty?
+      when "job_bundle"
+        jobs.all?(&:approved?) &&
+          jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
+          WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for("job_bundle")).empty?
       else
         false
       end
@@ -76,7 +80,15 @@ class LandingValidationPrefetcher
     private
 
     def work_definition_kind
-      WorkDefinitions.landing_validation_child_kind_for(kind == "merge_train" ? "merge_train" : "auto_merge") ||
+      parent_kind =
+        case kind
+        when "merge_train", "job_bundle"
+          kind
+        else
+          "auto_merge"
+        end
+
+      WorkDefinitions.landing_validation_child_kind_for(parent_kind) ||
         raise(WorkDefinitions::Error, "no landing validation child definition for #{kind}")
     end
 
@@ -173,7 +185,7 @@ class LandingValidationPrefetcher
 
   def job_bundle_target(unit)
     return unless unit.jobs.all? { |member| ordinary_job_bundle_member?(member) }
-    return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("merge_train")).any?
+    return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("job_bundle")).any?
 
     repository = unit.jobs.first.repository
     result = JobBundleAssembler.call(repository)
@@ -181,12 +193,12 @@ class LandingValidationPrefetcher
     return unless (unit.job_ids - result.job_ids).empty?
 
     TargetUnit.new(
-      kind: "merge_train",
+      kind: "job_bundle",
       key: unit.key,
       jobs: result.members,
       artifacts: {
         "prefetch_landing_unit_key" => unit.key,
-        "prefetch_landing_unit_kind" => "merge_train",
+        "prefetch_landing_unit_kind" => "job_bundle",
         "prefetch_job_bundle_priority" => result.priority,
         "prefetch_merge_train_member_job_ids" => result.job_ids,
         "predicted_base_ref" => result.members.first.repository.default_branch

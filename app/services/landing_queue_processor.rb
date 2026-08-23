@@ -669,7 +669,7 @@ class LandingQueueProcessor
   end
 
   def active_landing_workflow_for_job?(job)
-    WorkUnits::Ownership.active_for_job_kind?(job, WorkDefinitions.landing_workflow_kinds)
+    WorkUnits::Ownership.active_for_job_kind?(job, WorkDefinitions.landing_work_unit_kinds)
   end
 
   def merge_train_for_epic_child?(job)

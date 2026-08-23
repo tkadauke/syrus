@@ -26,6 +26,11 @@ RSpec.describe JobBundleDispatcher do
 
     expect(workflow).to be_present
     expect(workflow.trigger_kind).to eq("merge_train")
+    expect(workflow.work_unit).to be_present
+    expect(workflow.work_unit.kind).to eq("job_bundle")
+    expect(workflow.work_unit.scope_type).to eq("repository")
+    expect(workflow.work_unit.scope_id).to eq(repository.id)
+    expect(workflow.work_unit.member_jobs).to contain_exactly(a, b)
     train = MergeTrain.last
     expect(train.epic_id).to be_nil
     expect(train.priority).to eq("medium")

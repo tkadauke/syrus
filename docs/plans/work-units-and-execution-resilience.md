@@ -1410,6 +1410,8 @@ Current migration matrix:
 | external_pr_merge | landing-style external PR Workflow rows | landing/ref WorkUnit for external PR merge | `LandingQueueProcessor`, `WorkUnits::Launcher`, `WorkUnits::WorkflowCancellation` | `work_units_landing` | direct external-pr merge Workflow start outside landing queue | external PR merge ownership appears in landing queue; closed/merged external PR cancellation stamps WorkUnit |
 | landing_queue | `Job#state = landing`, landing Workflow active checks | repository/ref landing lock WorkUnits and member rows | `LandingQueueProcessor`, `WorkUnits::Ownership`, `WorkUnitLock` | `work_units_landing` | hand-rolled `Workflow.active` landing ownership checks after gate on | no duplicate active landing locks; blocked landing reasons come from WorkUnits; queue reentry no longer needs legacy artifacts |
 | landing_validation | validation Workflow rows and landing validation artifacts | child WorkUnit under landing parent | `LandingValidationPrefetcher`, `WorkUnits::Launcher`, parent/child Unit invariant repair | `work_units_landing` | detached validation Workflows without parent Unit | child Units are cancelled when parent terminal; validation appears under parent landing attempt |
+| job_bundle | bundle-backed `MergeTrain` rows with `epic_id: nil` and `merge_train` Workflow semantics | repository-scoped `WorkIntent(kind: job_bundle)` / `WorkUnit(kind: job_bundle)` with member rows and landing locks | `JobBundleDispatcher`, `WorkUnits::Launcher`, `WorkUnits::Ownership` | `work_units_landing` | dispatching epicless bundles as `merge_train` WorkUnits | epicless bundles appear as job-bundle ownership while reusing merge-train Workflow steps; one repository landing lock covers the bundle |
+| job_bundle_validation | merge-train-validation Workflow rows for epicless bundle prefetch | child WorkUnit under a job-bundle parent | `LandingValidationPrefetcher`, `WorkUnits::Launcher`, child Unit invariant repair | `work_units_landing` | detached bundle validation Workflows or validations classified as Epic train children | validation child Units use `job_bundle_validation`; active bundle validation blocks duplicate bundle prefetch only for the bundle family |
 | merge_train | Epic/Job state and active epic-wide Workflow scans | Epic-scoped WorkIntent/WorkUnit with member rows and locks | `MergeTrainDispatcher`, `WorkUnits::Launcher`, `WorkUnits::Ownership` | `work_units_landing` | starting merge-train through generic scheduler; sibling ownership inferred only from Jobs | one active Epic-wide Unit per Epic; member Job workflow tabs show train owner; conflict preemption stamps WorkUnit |
 | merge_train_validation | validation Workflow rows under merge train | child WorkUnit under merge-train parent | `WorkUnits::Launcher`, child Unit reconciler invariant | `work_units_landing` | validation Workflows without parent Unit | validation child lifecycle follows parent train; no orphan validation Units after parent terminal |
 | stack_rebase | rebase Workflow rows and stack polling scans | maintenance WorkUnit with rebase-specific locks | `RebaseWorkflowSelector`, `WorkUnits::Launcher`, `WorkUnits::Ownership` | `work_units_landing` | direct stack rebase creation/start; CI-failure/landing blocking based only on Workflow rows | stack rebase active owner visible from WorkUnit; duplicate rebase locks rejected; preempted stack work is typed |
@@ -1855,6 +1857,11 @@ Completed slices:
   main branch health/repair work through definition policy instead of carrying
   its own `main_grader`/`main_branch_repair` list, while retry-workflow
   eligibility at run start uses the same retry-attempt policy as the reconciler.
+- Epicless job bundles now have first-class `job_bundle` and
+  `job_bundle_validation` WorkDefinitions. They reuse the existing merge-train
+  and merge-train-validation Workflow templates, but runtime ownership,
+  labels, locks, policy sets, and validation-family checks no longer pretend
+  they are Epic merge trains.
 
 ### Phase 7: Callback Strangler Completion
 

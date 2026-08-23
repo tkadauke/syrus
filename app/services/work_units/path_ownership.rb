@@ -22,6 +22,8 @@ module WorkUnits
       landing_validation
       merge_train
       merge_train_validation
+      job_bundle
+      job_bundle_validation
       stack_rebase
     ].freeze
 

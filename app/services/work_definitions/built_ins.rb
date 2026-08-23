@@ -201,6 +201,31 @@ module WorkDefinitions
     end
   end
 
+  class JobBundle < Base
+    include BlocksCiFailure
+    include LandingValidationPrefetchSource
+    include RequiresApproval
+    include RebuildOnPreempt
+
+    self.kind = "job_bundle"
+    self.workflow_trigger_kind = "merge_train"
+    self.runtime_role = "first_class"
+    self.scope = "repository"
+    self.display_label = "Job bundle"
+
+    def retry_policy = WorkUnits::RetryPolicies::MergeTrain.new
+
+    def members_for(job:, artifacts: {}, **)
+      train_id = artifacts.to_h["merge_train_id"]
+      return super if train_id.blank?
+
+      train = ::MergeTrain.includes(:members).find_by(id: train_id)
+      return super unless train&.epic_id.nil?
+
+      train.members.includes(:job).order(:position).map(&:job)
+    end
+  end
+
   class MergeTrainValidation < Base
     include BlocksCiFailure
     include LandingValidationChild
@@ -214,6 +239,29 @@ module WorkDefinitions
     self.runtime_role = "child"
     self.scope = "epic"
     self.parent_kind = "merge_train"
+
+    def members_for(job:, artifacts: {}, **)
+      ids = Array(artifacts.to_h["prefetch_merge_train_member_job_ids"]).map(&:to_i).select(&:positive?)
+      return super if ids.blank?
+
+      jobs_by_id = Job.where(id: ids).index_by(&:id)
+      ids.filter_map { |id| jobs_by_id[id] }
+    end
+  end
+
+  class JobBundleValidation < Base
+    include BlocksCiFailure
+    include LandingValidationChild
+    include RequiresApproval
+    include ManagesOwnJobLifecycle
+    include CancelPreemptable
+
+    self.kind = "job_bundle_validation"
+    self.workflow_trigger_kind = "merge_train_validation"
+    self.runtime_role = "child"
+    self.scope = "repository"
+    self.parent_kind = "job_bundle"
+    self.display_label = "Job bundle validation"
 
     def members_for(job:, artifacts: {}, **)
       ids = Array(artifacts.to_h["prefetch_merge_train_member_job_ids"]).map(&:to_i).select(&:positive?)

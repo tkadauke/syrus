@@ -99,13 +99,15 @@ RSpec.describe WorkDefinitions do
       expect(policy).not_to be_rebuild_unit(Step.new(kind: "merge_train_build"))
     end
 
-    merge_train_policy = described_class.for("merge_train").retry_policy
-    expect(merge_train_policy).to be_automatic
-    expect(merge_train_policy).to be_continuation(Step.new(kind: "merge_train_reconcile"))
-    expect(merge_train_policy).to be_rebuild_unit(Step.new(kind: "merge_train_build"))
-    expect(merge_train_policy).to be_rebuild_unit(Step.new(kind: "merge_train_land"))
+    %w[merge_train job_bundle].each do |kind|
+      merge_train_policy = described_class.for(kind).retry_policy
+      expect(merge_train_policy).to be_automatic
+      expect(merge_train_policy).to be_continuation(Step.new(kind: "merge_train_reconcile"))
+      expect(merge_train_policy).to be_rebuild_unit(Step.new(kind: "merge_train_build"))
+      expect(merge_train_policy).to be_rebuild_unit(Step.new(kind: "merge_train_land"))
+    end
 
-    operator_only_kinds = described_class.registry.keys - resume_failed_step_kinds - [ "merge_train" ]
+    operator_only_kinds = described_class.registry.keys - resume_failed_step_kinds - %w[merge_train job_bundle]
     operator_only_kinds.each do |kind|
       expect(described_class.for(kind).retry_policy).not_to be_automatic
     end
@@ -135,10 +137,12 @@ RSpec.describe WorkDefinitions do
       auto_merge
       external_pr_merge
       merge_train
+      job_bundle
     ]
     cancel_kinds = %w[
       landing_validation
       merge_train_validation
+      job_bundle_validation
       manual_visual_review
     ]
 
@@ -201,10 +205,18 @@ RSpec.describe WorkDefinitions do
       "auto_merge",
       "external_pr_merge",
       "merge_train",
+      "job_bundle",
       "landing_validation",
-      "merge_train_validation"
+      "merge_train_validation",
+      "job_bundle_validation"
     )
     expect(described_class.landing_workflow_kinds).to contain_exactly(*Workflow::LANDING_TRIGGER_KINDS)
+    expect(described_class.landing_work_unit_kinds).to contain_exactly(
+      "auto_merge",
+      "external_pr_merge",
+      "merge_train",
+      "job_bundle"
+    )
     expect(described_class.epic_wide_kinds).to contain_exactly(*Workflow::EPIC_WIDE_TRIGGER_KINDS)
     expect(described_class.ci_failure_blocking_kinds).to contain_exactly(
       "rebase",
@@ -212,8 +224,10 @@ RSpec.describe WorkDefinitions do
       "auto_merge",
       "external_pr_merge",
       "merge_train",
+      "job_bundle",
       "landing_validation",
-      "merge_train_validation"
+      "merge_train_validation",
+      "job_bundle_validation"
     )
     expect(described_class.active_repair_work_kinds).to contain_exactly(
       "pr_comment",
@@ -230,17 +244,22 @@ RSpec.describe WorkDefinitions do
     )
     expect(described_class.landing_validation_prefetch_source_kinds).to contain_exactly(
       "auto_merge",
-      "merge_train"
+      "merge_train",
+      "job_bundle"
     )
     expect(described_class.landing_validation_child_kinds).to contain_exactly(
       "landing_validation",
-      "merge_train_validation"
+      "merge_train_validation",
+      "job_bundle_validation"
     )
     expect(described_class.child_kinds_for("auto_merge")).to contain_exactly("landing_validation")
     expect(described_class.child_kinds_for("merge_train")).to contain_exactly("merge_train_validation")
+    expect(described_class.child_kinds_for("job_bundle")).to contain_exactly("job_bundle_validation")
     expect(described_class.family_kinds_for("merge_train")).to contain_exactly("merge_train", "merge_train_validation")
+    expect(described_class.family_kinds_for("job_bundle")).to contain_exactly("job_bundle", "job_bundle_validation")
     expect(described_class.landing_validation_child_kind_for("auto_merge")).to eq("landing_validation")
     expect(described_class.landing_validation_child_kind_for("merge_train")).to eq("merge_train_validation")
+    expect(described_class.landing_validation_child_kind_for("job_bundle")).to eq("job_bundle_validation")
     expect(described_class.agent_concurrency_exempt_kinds).to contain_exactly(
       "main_grader",
       "main_branch_repair"
@@ -274,6 +293,23 @@ RSpec.describe WorkDefinitions do
     expect(definition.members_for(job: second, artifacts: { "merge_train_id" => train.id })).to eq([ first, second ])
   end
 
+  it "resolves epicless job bundle members from the train artifact through the definition" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    first = Factories.job_record(user: user, repository: repository, issue_number: 101)
+    second = Factories.job_record(user: user, repository: repository, issue_number: 102)
+    train = MergeTrain.create!(repository: repository, base_branch: "main", priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+
+    definition = described_class.for("job_bundle")
+
+    expect(definition.label).to eq("Job bundle")
+    expect(definition.workflow_trigger_kind).to eq("merge_train")
+    expect(definition.scope_for(job: second, artifacts: { "merge_train_id" => train.id })).to have_attributes(type: "repository", id: repository.id)
+    expect(definition.members_for(job: second, artifacts: { "merge_train_id" => train.id })).to eq([ first, second ])
+  end
+
   it "resolves merge train validation members from the prefetch artifact through the definition" do
     user = Factories.user
     repository = Factories.repository(user: user)
@@ -283,6 +319,20 @@ RSpec.describe WorkDefinitions do
 
     definition = described_class.for("merge_train_validation")
 
+    expect(definition.members_for(job: second, artifacts: { "prefetch_merge_train_member_job_ids" => [ first.id, second.id ] })).to eq([ first, second ])
+  end
+
+  it "resolves job bundle validation members from the prefetch artifact through the definition" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    first = Factories.job_record(user: user, repository: repository, issue_number: 101)
+    second = Factories.job_record(user: user, repository: repository, issue_number: 102)
+
+    definition = described_class.for("job_bundle_validation")
+
+    expect(definition.label).to eq("Job bundle validation")
+    expect(definition.workflow_trigger_kind).to eq("merge_train_validation")
+    expect(definition.scope_for(job: second, artifacts: {})).to have_attributes(type: "repository", id: repository.id)
     expect(definition.members_for(job: second, artifacts: { "prefetch_merge_train_member_job_ids" => [ first.id, second.id ] })).to eq([ first, second ])
   end
 
@@ -315,7 +365,8 @@ RSpec.describe WorkDefinitions do
       "agent_insight",
       "main_branch_repair",
       "landing_validation",
-      "merge_train_validation"
+      "merge_train_validation",
+      "job_bundle_validation"
     )
   end
 end

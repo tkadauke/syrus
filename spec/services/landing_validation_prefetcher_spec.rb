@@ -178,7 +178,7 @@ RSpec.describe LandingValidationPrefetcher do
     }.to change { Workflow.where(trigger_kind: "landing_validation", job: candidate).count }.by(1)
   end
 
-  it "dispatches a merge_train_validation workflow for the next eligible epicless job-bundle landing unit" do
+  it "dispatches a job_bundle_validation workflow for the next eligible epicless job-bundle landing unit" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
     Feature.find_or_create_by!(slug: "epicless_job_bundling") do |feature|
       feature.category = "Labs"
@@ -195,7 +195,7 @@ RSpec.describe LandingValidationPrefetcher do
 
     prefetch = Workflow.where(trigger_kind: "merge_train_validation", job: second).last
     expect(prefetch.artifacts).to include(
-      "prefetch_landing_unit_kind" => "merge_train",
+      "prefetch_landing_unit_kind" => "job_bundle",
       "prefetch_job_bundle_priority" => "medium",
       "prefetch_source_head_sha" => "source-head",
       "predicted_base_sha" => "source-head",
@@ -204,6 +204,9 @@ RSpec.describe LandingValidationPrefetcher do
     )
     expect(prefetch.artifacts["prefetch_merge_train_member_job_ids"]).to match_array([ first.id, second.id ])
     expect(prefetch.work_unit).to be_present
+    expect(prefetch.work_unit.kind).to eq("job_bundle_validation")
+    expect(prefetch.work_unit.scope_type).to eq("repository")
+    expect(prefetch.work_unit.member_jobs).to contain_exactly(first, second)
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 

@@ -129,7 +129,7 @@ module App
 
       def work_definition_label(kind)
         definition = WorkDefinitions.for(kind)
-        Workflow::TriggerKind.label_for(definition.workflow_trigger_kind)
+        definition.label
       rescue WorkDefinitions::UnknownKind, KeyError
         kind.to_s.humanize
       end
