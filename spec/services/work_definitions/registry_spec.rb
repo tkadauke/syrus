@@ -44,6 +44,7 @@ RSpec.describe WorkDefinitions do
     described_class.registry.each_value do |definition_class|
       definition = definition_class.new
 
+      expect(definition.review_publication_step_kinds).to respond_to(:each)
       expect(definition.intent_gates).to respond_to(:each)
       expect(definition.unit_gates).to respond_to(:each)
       expect(definition.scope_for(job: job, artifacts: {})).to have_attributes(type: be_present)
@@ -61,6 +62,26 @@ RSpec.describe WorkDefinitions do
       expect(definition.retry_policy).to respond_to(:automatic?)
       expect(definition.retry_policy).to respond_to(:continuation?)
       expect(definition.retry_policy).to respond_to(:new_attempt?)
+    end
+  end
+
+  it "declares review publication steps only for workflows that open review PRs" do
+    expected_pr_openers = %w[
+      initial
+      retry
+      checkpoint_resume
+      coding_handoff
+      local_mode_handoff
+      main_branch_repair
+      skill
+    ]
+
+    expected_pr_openers.each do |kind|
+      expect(described_class.for(kind).review_publication_step_kinds).to eq(%w[pr_open])
+    end
+
+    (described_class.registry.keys - expected_pr_openers).each do |kind|
+      expect(described_class.for(kind).review_publication_step_kinds).to eq([])
     end
   end
 

@@ -140,6 +140,12 @@ module WorkEngine
           WorkEngine::RuntimeOwnership.active_landing_work_for_job?(job)
         end
 
+        def review_publication_step_kinds_for(workflow)
+          WorkDefinitions.for(workflow.trigger_kind).review_publication_step_kinds
+        rescue WorkDefinitions::UnknownKind
+          []
+        end
+
         def retry_cancelled_workflow(job, latest, retry_reason:)
           artifacts = latest.artifacts.to_h.deep_dup.merge(
             "retry_reason" => retry_reason,
@@ -876,8 +882,10 @@ module WorkEngine
 
           latest_workflow = job.latest_workflow
           return skipped("Latest Workflow is not terminal") unless latest_workflow && %w[succeeded failed cancelled].include?(latest_workflow.state)
-          return skipped("Latest Workflow did not include pr_open") unless latest_workflow.steps.where(kind: "pr_open").exists?
-          return skipped("Latest Workflow has a succeeded pr_open Step") if latest_workflow.steps.where(kind: "pr_open", state: "succeeded").exists?
+          review_publication_step_kinds = review_publication_step_kinds_for(latest_workflow)
+          return skipped("Latest Workflow has no review publication policy") if review_publication_step_kinds.empty?
+          return skipped("Latest Workflow did not include a review publication Step") unless latest_workflow.steps.where(kind: review_publication_step_kinds).exists?
+          return skipped("Latest Workflow has a succeeded review publication Step") if latest_workflow.steps.where(kind: review_publication_step_kinds, state: "succeeded").exists?
           return skipped("Job cannot transition to failed") unless job.may_force_fail?
 
           with_transition_reason do

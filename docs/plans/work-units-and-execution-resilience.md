@@ -1709,6 +1709,14 @@ publication_steps: [...]
 Dispatcher, retry, and reconciler logic should read these policies instead of
 branching on trigger-kind names.
 
+Completed slices:
+
+- Work definitions now declare `review_publication_step_kinds`, currently
+  `pr_open` for workflows that must publish a reviewable PR. The missing-PR
+  reconciler and executor paths consume that policy instead of hard-coding
+  `pr_open`, so non-PR-producing workflows are not misclassified and future
+  review-publication workflows have one declaration point.
+
 ### Phase 7: Callback Strangler Completion
 
 Move Workflow/Step/Run callback propagation behind orchestration services and

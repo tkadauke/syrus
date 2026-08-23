@@ -5,7 +5,15 @@ module WorkDefinitions
     def blocks_ci_failure? = true
   end
 
+  module OpensReviewPullRequest
+    def self.included(base)
+      base.review_publication_step_kinds = %w[pr_open]
+    end
+  end
+
   class Initial < Base
+    include OpensReviewPullRequest
+
     self.kind = "initial"
     self.workflow_trigger_kind = "initial"
     self.runtime_role = "first_class"
@@ -117,6 +125,8 @@ module WorkDefinitions
   end
 
   class Retry < Base
+    include OpensReviewPullRequest
+
     self.kind = "retry"
     self.workflow_trigger_kind = "retry"
     self.runtime_role = "first_class"
@@ -124,6 +134,8 @@ module WorkDefinitions
   end
 
   class CheckpointResume < Base
+    include OpensReviewPullRequest
+
     self.kind = "checkpoint_resume"
     self.workflow_trigger_kind = "retry"
     self.runtime_role = "first_class"
@@ -161,6 +173,8 @@ module WorkDefinitions
   end
 
   class CodingHandoff < Base
+    include OpensReviewPullRequest
+
     self.kind = "coding_handoff"
     self.workflow_trigger_kind = "coding_handoff"
     self.runtime_role = "first_class"
@@ -168,6 +182,8 @@ module WorkDefinitions
   end
 
   class LocalModeHandoff < Base
+    include OpensReviewPullRequest
+
     self.kind = "local_mode_handoff"
     self.workflow_trigger_kind = "local_mode_handoff"
     self.runtime_role = "first_class"
@@ -182,6 +198,8 @@ module WorkDefinitions
   end
 
   class MainBranchRepair < Base
+    include OpensReviewPullRequest
+
     self.kind = "main_branch_repair"
     self.workflow_trigger_kind = "main_branch_repair"
     self.runtime_role = "first_class"
@@ -217,6 +235,8 @@ module WorkDefinitions
   end
 
   class Skill < Base
+    include OpensReviewPullRequest
+
     self.kind = "skill"
     self.workflow_trigger_kind = "skill"
     self.runtime_role = "first_class"

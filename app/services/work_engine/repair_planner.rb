@@ -918,7 +918,7 @@ module WorkEngine
             preconditions: {
               job_state: "implemented",
               latest_workflow_state: issue.evidence["latest_workflow_state"],
-              latest_workflow_has_pr_open: true,
+              latest_workflow_has_review_publication_step: true,
               tracked_pr_present: false
             }
           )

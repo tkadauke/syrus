@@ -989,6 +989,24 @@ RSpec.describe WorkEngine::Reconciler do
     expect(orphaned.reload).to be_failed
   end
 
+  it "does not fail an implemented Job whose latest workflow has no review-publication policy" do
+    orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
+    manual_workflow = Workflow.create!(
+      job: orphaned,
+      trigger_kind: "manual",
+      state: "succeeded",
+      started_at: 10.minutes.ago,
+      finished_at: 5.minutes.ago
+    )
+    manual_workflow.steps.create!(kind: "manual", position: 0, state: "succeeded")
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :implemented_job_missing_pr)).to be_nil
+    expect(plan(result, :fail_implemented_job_missing_pr)).to be_nil
+    expect(orphaned.reload).to be_implemented
+  end
+
   it "does not promote a failed Job back to implemented when the succeeded Workflow never published a PR" do
     orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "failed")
     orphaned_workflow = Workflow.create!(

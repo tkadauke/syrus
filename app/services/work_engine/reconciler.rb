@@ -1049,8 +1049,10 @@ module WorkEngine
         latest_workflow = job.latest_workflow
         next unless latest_workflow
         next unless ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
-        next unless latest_workflow.steps.where(kind: "pr_open").exists?
-        next if latest_workflow.steps.where(kind: "pr_open", state: "succeeded").exists?
+        review_publication_step_kinds = review_publication_step_kinds_for(latest_workflow)
+        next if review_publication_step_kinds.empty?
+        next unless latest_workflow.steps.where(kind: review_publication_step_kinds).exists?
+        next if latest_workflow.steps.where(kind: review_publication_step_kinds, state: "succeeded").exists?
         next if job.workflows.active.exists?
         next if job.any_active_run?
 
@@ -1065,7 +1067,7 @@ module WorkEngine
             latest_workflow_id: latest_workflow.id,
             latest_workflow_state: latest_workflow.state,
             latest_workflow_trigger_kind: latest_workflow.trigger_kind,
-            pr_open_steps: latest_workflow.steps.where(kind: "pr_open").pluck(:id, :state),
+            review_publication_steps: latest_workflow.steps.where(kind: review_publication_step_kinds).pluck(:id, :kind, :state),
             pr_number: job.pr_number,
             external_pr_number: job.external_pr_number,
             fork_review_pr_number: job.fork_review_pr_number
@@ -2003,8 +2005,24 @@ module WorkEngine
     end
 
     def branch_diverged_pr_open_run?(run)
-      run.step&.kind == "pr_open" &&
+      review_publication_step?(run.workflow, run.step&.kind) &&
         run.run_failure_classification&.classification == "branch_diverged"
+    end
+
+    def review_publication_step?(workflow, step_kind)
+      return false unless workflow && step_kind
+
+      review_publication_step_kinds_for(workflow).include?(step_kind.to_s)
+    end
+
+    def review_publication_step_kinds_for(workflow)
+      work_definition_for(workflow)&.review_publication_step_kinds || []
+    end
+
+    def work_definition_for(workflow)
+      WorkDefinitions.for(workflow.trigger_kind)
+    rescue WorkDefinitions::UnknownKind
+      nil
     end
 
     # external_pr_ingest already retries deterministically within its own

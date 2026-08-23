@@ -29,8 +29,10 @@ module WorkDefinitions
     class_attribute :runtime_role, instance_accessor: false
     class_attribute :scope, instance_accessor: false
     class_attribute :parent_kind, instance_accessor: false
+    class_attribute :review_publication_step_kinds, instance_accessor: false
 
     self.parent_kind = nil
+    self.review_publication_step_kinds = []
 
     def self.inherited(subclass)
       super
@@ -42,9 +44,14 @@ module WorkDefinitions
     def runtime_role = self.class.runtime_role
     def scope = self.class.scope
     def parent_kind = self.class.parent_kind
+    def review_publication_step_kinds = Array(self.class.review_publication_step_kinds).map(&:to_s)
 
     def workflow_template
       Workflow::TriggerKind.template_for(workflow_trigger_kind)
+    end
+
+    def review_publication_step?(step_kind)
+      review_publication_step_kinds.include?(step_kind.to_s)
     end
 
     def scope_for(job:, artifacts: {}, **)
