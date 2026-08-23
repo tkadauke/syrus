@@ -228,6 +228,19 @@ RSpec.describe WorkDefinitions do
       "retry",
       "checkpoint_resume"
     )
+    expect(described_class.landing_validation_prefetch_source_kinds).to contain_exactly(
+      "auto_merge",
+      "merge_train"
+    )
+    expect(described_class.landing_validation_child_kinds).to contain_exactly(
+      "landing_validation",
+      "merge_train_validation"
+    )
+    expect(described_class.child_kinds_for("auto_merge")).to contain_exactly("landing_validation")
+    expect(described_class.child_kinds_for("merge_train")).to contain_exactly("merge_train_validation")
+    expect(described_class.family_kinds_for("merge_train")).to contain_exactly("merge_train", "merge_train_validation")
+    expect(described_class.landing_validation_child_kind_for("auto_merge")).to eq("landing_validation")
+    expect(described_class.landing_validation_child_kind_for("merge_train")).to eq("merge_train_validation")
   end
 
   it "resolves merge train members from the train artifact through the definition" do

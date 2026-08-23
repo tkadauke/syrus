@@ -13,6 +13,14 @@ module WorkDefinitions
     def retry_workflow_attempt? = true
   end
 
+  module LandingValidationPrefetchSource
+    def landing_validation_prefetch_source? = true
+  end
+
+  module LandingValidationChild
+    def landing_validation_child? = true
+  end
+
   module OpensReviewPullRequest
     def self.included(base)
       base.review_publication_step_kinds = %w[pr_open]
@@ -127,6 +135,7 @@ module WorkDefinitions
 
   class AutoMerge < Base
     include BlocksCiFailure
+    include LandingValidationPrefetchSource
     include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
@@ -139,6 +148,7 @@ module WorkDefinitions
 
   class LandingValidation < Base
     include BlocksCiFailure
+    include LandingValidationChild
     include RequiresApproval
     include ManagesOwnJobLifecycle
     include CancelPreemptable
@@ -164,6 +174,7 @@ module WorkDefinitions
 
   class MergeTrain < Base
     include BlocksCiFailure
+    include LandingValidationPrefetchSource
     include RequiresApproval
     include RequiresEpicReadiness
     include RebuildOnPreempt
@@ -188,6 +199,7 @@ module WorkDefinitions
 
   class MergeTrainValidation < Base
     include BlocksCiFailure
+    include LandingValidationChild
     include RequiresApproval
     include RequiresEpicReadiness
     include ManagesOwnJobLifecycle

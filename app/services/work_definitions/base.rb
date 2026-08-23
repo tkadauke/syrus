@@ -97,6 +97,8 @@ module WorkDefinitions
     def blocks_ci_failure? = false
     def active_repair_work? = false
     def retry_workflow_attempt? = false
+    def landing_validation_prefetch_source? = false
+    def landing_validation_child? = false
     def manages_own_job_lifecycle? = infrastructure?
     def landing_lock? = kind.in?(LANDING_LOCK_KINDS)
     def requires_approval? = false

@@ -1,9 +1,6 @@
 class LandingValidationPrefetcher
   ARTIFACT_WORKFLOW_ID = "landing_validation_prefetch_workflow_id".freeze
   ARTIFACT_DISPATCHED_AT = "landing_validation_prefetch_dispatched_at".freeze
-  SOURCE_TRIGGER_KINDS = %w[auto_merge merge_train].freeze
-  VALIDATION_TRIGGER_KINDS = %w[landing_validation merge_train_validation].freeze
-  MERGE_TRAIN_ACTIVE_TRIGGER_KINDS = %w[merge_train merge_train_validation].freeze
 
   def self.after_landing_graders_passed(workflow:)
     new(workflow).call
@@ -17,7 +14,7 @@ class LandingValidationPrefetcher
 
   def call
     return unless Feature.landing_validation_prefetch_enabled?
-    return unless workflow.trigger_kind.in?(SOURCE_TRIGGER_KINDS)
+    return unless landing_validation_prefetch_source?
     return if workflow.artifact(ARTIFACT_WORKFLOW_ID).present?
     return unless job&.landing?
 
@@ -66,11 +63,11 @@ class LandingValidationPrefetcher
         job.approved? &&
           !job.external_pr? &&
           job.pr_number.present? &&
-          !WorkUnits::Ownership.active_for_job_kind?(job, VALIDATION_TRIGGER_KINDS)
+          !WorkUnits::Ownership.active_for_job_kind?(job, landing_validation_child_kinds)
       when "merge_train"
         jobs.all?(&:approved?) &&
           jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
-          WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: MERGE_TRAIN_ACTIVE_TRIGGER_KINDS).empty?
+          WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for("merge_train")).empty?
       else
         false
       end
@@ -79,7 +76,12 @@ class LandingValidationPrefetcher
     private
 
     def work_definition_kind
-      kind == "merge_train" ? "merge_train_validation" : "landing_validation"
+      WorkDefinitions.landing_validation_child_kind_for(kind == "merge_train" ? "merge_train" : "auto_merge") ||
+        raise(WorkDefinitions::Error, "no landing validation child definition for #{kind}")
+    end
+
+    def landing_validation_child_kinds
+      WorkDefinitions.landing_validation_child_kinds
     end
 
     def workflow_job
@@ -130,7 +132,7 @@ class LandingValidationPrefetcher
     return unless AppSetting.merge_train_enabled?
     return unless unit.jobs.map(&:epic_id).compact.uniq.one?
     return unless unit.jobs.all? { |member| ordinary_merge_train_member?(member) }
-    return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: MERGE_TRAIN_ACTIVE_TRIGGER_KINDS).any?
+    return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("merge_train")).any?
 
     result = MergeTrainAssembler.call(unit.jobs.first.epic)
     return unless result.ready?
@@ -171,7 +173,7 @@ class LandingValidationPrefetcher
 
   def job_bundle_target(unit)
     return unless unit.jobs.all? { |member| ordinary_job_bundle_member?(member) }
-    return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: MERGE_TRAIN_ACTIVE_TRIGGER_KINDS).any?
+    return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("merge_train")).any?
 
     repository = unit.jobs.first.repository
     result = JobBundleAssembler.call(repository)
@@ -196,19 +198,19 @@ class LandingValidationPrefetcher
     ordinary_merge_candidate?(candidate) &&
       !(candidate.epic_id.present? && AppSetting.merge_train_enabled?) &&
       !(candidate.epic_id.nil? && LandingQueueProcessor.bundle_eligible_epicless_job?(candidate)) &&
-      !WorkUnits::Ownership.active_for_job_kind?(candidate, VALIDATION_TRIGGER_KINDS)
+      !WorkUnits::Ownership.active_for_job_kind?(candidate, WorkDefinitions.landing_validation_child_kinds)
   end
 
   def ordinary_merge_train_member?(candidate)
     ordinary_merge_candidate?(candidate) &&
       candidate.epic_id.present? &&
-      !WorkUnits::Ownership.active_for_job_kind?(candidate, VALIDATION_TRIGGER_KINDS)
+      !WorkUnits::Ownership.active_for_job_kind?(candidate, WorkDefinitions.landing_validation_child_kinds)
   end
 
   def ordinary_job_bundle_member?(candidate)
     ordinary_merge_candidate?(candidate) &&
       candidate.epic_id.nil? &&
-      !WorkUnits::Ownership.active_for_job_kind?(candidate, VALIDATION_TRIGGER_KINDS)
+      !WorkUnits::Ownership.active_for_job_kind?(candidate, WorkDefinitions.landing_validation_child_kinds)
   end
 
   def ordinary_merge_candidate?(candidate)
@@ -245,6 +247,13 @@ class LandingValidationPrefetcher
     return merge_train_base_ref if workflow.trigger_kind == "merge_train"
 
     job.effective_base_branch.presence || job.repository.default_branch
+  end
+
+  def landing_validation_prefetch_source?
+    work_definition = WorkDefinitions.for(workflow.trigger_kind)
+    work_definition.landing_validation_prefetch_source?
+  rescue WorkDefinitions::UnknownKind
+    false
   end
 
   def merge_train_base_ref

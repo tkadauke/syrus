@@ -36,6 +36,35 @@ module WorkDefinitions
     @retry_workflow_attempt_kinds ||= kinds_matching(&:retry_workflow_attempt?)
   end
 
+  def landing_validation_prefetch_source_kinds
+    @landing_validation_prefetch_source_kinds ||= kinds_matching(&:landing_validation_prefetch_source?)
+  end
+
+  def landing_validation_child_kinds
+    @landing_validation_child_kinds ||= kinds_matching(&:landing_validation_child?)
+  end
+
+  def child_kinds_for(parent_kind)
+    load_definitions
+    registry.values
+      .map(&:new)
+      .select { |definition| definition.parent_kind == parent_kind.to_s }
+      .map(&:kind)
+      .freeze
+  end
+
+  def family_kinds_for(kind)
+    [ kind.to_s, *child_kinds_for(kind) ].uniq.freeze
+  end
+
+  def landing_validation_child_kind_for(parent_kind)
+    load_definitions
+    registry.values
+      .map(&:new)
+      .find { |definition| definition.parent_kind == parent_kind.to_s && definition.landing_validation_child? }
+      &.kind
+  end
+
   def registry
     load_definitions
     @registry ||= WorkDefinitions::Base.descendants.index_by(&:kind).freeze
@@ -50,6 +79,8 @@ module WorkDefinitions
       @ci_failure_blocking_kinds
       @active_repair_work_kinds
       @retry_workflow_attempt_kinds
+      @landing_validation_prefetch_source_kinds
+      @landing_validation_child_kinds
     ].each do |ivar|
       remove_instance_variable(ivar) if instance_variable_defined?(ivar)
     end
