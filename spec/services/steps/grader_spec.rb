@@ -44,6 +44,12 @@ RSpec.describe Steps::Grader do
     @ws_path = WorkflowWorkspace.path_for(workflow)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
+
+    # Default to "sccache not installed" so tests outside the "sccache stats
+    # capture" describe block stay hermetic to whether the sandbox happens to
+    # have a real `sccache` binary on PATH (CI runner images commonly ship
+    # one preinstalled). Tests that care about the capture path override this.
+    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
   end
 
   it "writes grader output to the workspace file and durable JobLog rows" do

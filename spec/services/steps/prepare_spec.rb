@@ -224,6 +224,9 @@ RSpec.describe Steps::Prepare do
     end
 
     it "does not record an artifact when sccache isn't installed" do
+      # Stub explicitly rather than relying on the sandbox lacking a real
+      # `sccache` binary: CI runner images commonly ship one preinstalled.
+      allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
       File.write(@ws_path.join(".syrus.yml"), <<~YAML)
         prepare:
           - echo first

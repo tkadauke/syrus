@@ -6,10 +6,14 @@ RSpec.describe SccacheStatsCapture do
 
   describe ".capture" do
     it "returns nil when the sccache binary is not on PATH" do
-      # No stubbing: this sandbox genuinely has no `sccache` binary, so this
-      # exercises the real Errno::ENOENT path a non-C/C++ repo (or an image
-      # built before sccache existed) hits on every call.
-      expect(described_class.capture(env: env, chdir: chdir)).to be_nil
+      # Stub PATH explicitly rather than relying on the sandbox lacking a real
+      # `sccache` binary: CI runner images commonly ship one preinstalled for
+      # Rust/C++ toolchain caching, so an unstubbed PATH is not reliably empty.
+      # This still exercises the real Errno::ENOENT path a non-C/C++ repo (or
+      # an image built before sccache existed) hits on every call.
+      empty_path_env = { "PATH" => "" }
+
+      expect(described_class.capture(env: empty_path_env, chdir: chdir)).to be_nil
     end
 
     it "returns the parsed stats hash on a clean JSON success" do
