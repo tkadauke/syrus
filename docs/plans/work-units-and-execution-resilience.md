@@ -1938,6 +1938,10 @@ Completed slices:
   approval-driven retry cancellation. This removes another set of paths where a
   Workflow could be intentionally superseded while its WorkUnit only said
   generic `cancelled`.
+- Reconciler cleanup, landing defer, external-PR close, coding handoff takeover,
+  and runaway-protection cancellations also use typed WorkUnit cancellation.
+  The remaining plain Workflow cancellation calls are normal lifecycle cascades
+  or run/step stop paths, not independent ownership decisions.
 - Generic requested-Intent launch now respects WorkDefinition ownership.
   Non-landing job-scoped Intents can be launched by the generic scheduler, and
   existing Intents with prior terminal Units can be rebuilt from their snapshots.

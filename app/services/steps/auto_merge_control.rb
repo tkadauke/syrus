@@ -13,8 +13,14 @@ module Steps
       run.save!
       step.cancel! if step.may_cancel?
       step.save!
-      workflow.cancel! if workflow.may_cancel?
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "landing_deferred",
+        artifacts: {
+          "cancelled_reason" => "landing_deferred",
+          "cancelled_at" => Time.current.iso8601
+        }
+      )
     end
 
     def defer_landing_if_possible!

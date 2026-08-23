@@ -95,8 +95,14 @@ module Steps
       run.save!
       step.cancel! if step.may_cancel?
       step.save!
-      workflow.cancel! if workflow.may_cancel?
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "external_pr_closed",
+        artifacts: {
+          "cancelled_reason" => "external_pr_closed",
+          "cancelled_at" => Time.current.iso8601
+        }
+      )
     end
   end
 end

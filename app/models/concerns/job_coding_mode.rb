@@ -84,8 +84,14 @@ module JobCodingMode
     return false unless coding?
 
     workflows.where(trigger_kind: "initial", state: "queued").find_each do |wf|
-      wf.cancel! if wf.may_cancel?
-      wf.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        wf,
+        reason: "coding_handoff_takeover",
+        artifacts: {
+          "cancelled_reason" => "coding_handoff_takeover",
+          "cancelled_at" => Time.current.iso8601
+        }
+      )
     end
 
     release_from_coding! if may_release_from_coding?

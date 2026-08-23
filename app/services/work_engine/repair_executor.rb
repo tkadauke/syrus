@@ -530,8 +530,11 @@ module WorkEngine
               "retry_cancelled_reason" => "stale_auto_retry",
               "retry_cancelled_at" => Time.current.iso8601
             )
-            workflow.cancel! if workflow.may_cancel?
-            workflow.save!
+            WorkUnits::WorkflowCancellation.cancel!(
+              workflow,
+              reason: "stale_auto_retry",
+              artifacts: workflow.artifacts
+            )
             attempt.update!(skipped_reason: "source workflow was already superseded") if attempt.skipped_reason.blank?
           end
           WorkEngine::Reconciler.request(source: self.class.name, job: workflow.job)
@@ -762,13 +765,19 @@ module WorkEngine
           workflow = child.workflow
           if workflow&.may_cancel?
             with_transition_reason do
-              workflow.cancel!
-              workflow.save!
+              WorkUnits::WorkflowCancellation.cancel!(
+                workflow,
+                reason: "terminal_parent_work_unit",
+                artifacts: {
+                  "cancelled_reason" => "terminal_parent_work_unit",
+                  "cancelled_by_reconciler_at" => Time.current.iso8601
+                }
+              )
             end
             return
           end
 
-          child.mark_terminal!("cancelled")
+          child.preempt!(reason: "terminal_parent_work_unit")
         end
       end
 

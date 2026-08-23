@@ -944,8 +944,15 @@ class Job < ApplicationRecord
 
   def close_for_workflow_runaway!(reason, workflow, total:, failed_streak: nil)
     if workflow&.state.in?(%w[queued running]) && workflow.may_cancel?
-      workflow.cancel!
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "workflow_runaway",
+        artifacts: {
+          "cancelled_reason" => "workflow_runaway",
+          "cancelled_at" => Time.current.iso8601,
+          "workflow_runaway_reason" => reason
+        }
+      )
     end
 
     # Transition to :failed without closing, so the branch is preserved and
