@@ -75,84 +75,28 @@ class Workflow < ApplicationRecord
     state :running, :succeeded, :failed, :cancelled
 
     event :start do
-      transitions from: :queued, to: :running, after: -> {
-        self.started_at ||= Time.current
-        sync_work_unit_running!
-        propagate_start_to_job!
-      }
+      transitions from: :queued, to: :running,
+        after: -> { Workflows::LifecyclePropagation.started!(self) }
     end
 
-    # Each terminal transition stamps finished_at and triggers
-    # workspace cleanup. The workspace is per-Workflow (one shallow
-    # clone shared across the chain's Steps + Runs), so we tear it
-    # down exactly when the Workflow ends — not when each Run
-    # finishes (Runs come and go; the chain's Workflow owns the
-    # disk space). Trigger-kind-specific concerns (rebase →
-    # auto_merge handoff, pr_feedback → mark addressed) live on the
-    # `Workflows::*` template class via Workflows::Base#after_success.
     event :succeed do
-      transitions from: :running, to: :succeeded, after: -> {
-        self.finished_at = Time.current
-        sync_work_unit_terminal!("succeeded")
-        cleanup_workspace!
-        propagate_succeed_to_job!
-        cancel_superseded_retry_workflows!
-        dispatch_hook(:after_success)
-      }
+      transitions from: :running, to: :succeeded,
+        after: -> { Workflows::LifecyclePropagation.succeeded!(self) }
     end
 
-    # Workspace cleanup is INTENTIONALLY deferred on failure so the
-    # operator can use "Retry from failed step" without losing the
-    # prior succeeded steps' local-only state (e.g. implement's
-    # commit before summarize fails). WorkflowWorkspacePruneJob
-    # eventually cleans up via cleanup_workspace! if no retry
-    # arrives within the retention window.
-    #
-    # Exception: infrastructure workflows are never operator-retried;
-    # their workspace is cleaned up immediately on failure so they
-    # don't accumulate on the PVC between recurring check cycles.
     event :fail do
-      transitions from: [ :queued, :running ], to: :failed, after: -> {
-        self.finished_at = Time.current
-        sync_work_unit_terminal!("failed")
-        cancel_orphan_active_runs!
-        propagate_fail_to_job!
-        dispatch_hook(:after_fail)
-        cleanup_workspace! if infrastructure_workflow?
-      }
+      transitions from: [ :queued, :running ], to: :failed,
+        after: -> { Workflows::LifecyclePropagation.failed!(self) }
     end
 
-    # Cascading cancel: when the operator cancels a workflow, every
-    # active Step (queued/running) and every active Run on those Steps
-    # also moves to `cancelled`. Without the cascade, downstream
-    # Steps that were waiting for an upstream succeed (which now
-    # never comes) sit in `queued` forever — visible to the operator
-    # as a Job that "still has queued work" despite the workflow
-    # being marked cancelled. There is no dispatcher path that
-    # would advance them otherwise.
     event :cancel do
-      transitions from: [ :queued, :running ], to: :cancelled, after: -> {
-        self.finished_at = Time.current
-        sync_work_unit_terminal!("cancelled")
-        cancel_active_descendants!
-        propagate_cancel_to_job!
-        cleanup_workspace!
-        dispatch_hook(:after_cancel)
-      }
+      transitions from: [ :queued, :running ], to: :cancelled,
+        after: -> { Workflows::LifecyclePropagation.cancelled!(self) }
     end
 
-    # Operator-initiated reopen via "Retry from failed step." Lets
-    # the failed Step (and a fresh Run on it) pick up where the
-    # workflow left off, reusing the still-on-disk workspace. Guard:
-    # only the Job's latest workflow may be reopened — a superseded
-    # workflow's workspace was swept by the next workflow's setup.
     event :reopen do
       transitions from: :failed, to: :running, guard: :latest_for_job?,
-        after: -> {
-          self.finished_at = nil
-          sync_work_unit_running!
-          propagate_reopen_to_job!
-        }
+        after: -> { Workflows::LifecyclePropagation.reopened!(self) }
     end
   end
 

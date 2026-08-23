@@ -1774,6 +1774,11 @@ Completed slices:
   `Step` model keeps AASM wiring and the `suppress_cancel_cascade` guard, while
   chain advancement, auto-approval after grader success, failed-Step Workflow
   propagation, and downstream cancel fanout are centralized in one service.
+- Workflow transition side-effect ordering now lives in
+  `Workflows::LifecyclePropagation`. Workflow AASM events delegate start,
+  success, failure, cancellation, and reopen side effects to one service while
+  retaining public compatibility seams for workspace cleanup, descendant
+  cancellation, WorkUnit sync, Job lifecycle propagation, and workflow hooks.
 
 ### Phase 8: Step/Run Simplification
 
