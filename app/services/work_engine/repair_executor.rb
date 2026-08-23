@@ -1138,7 +1138,6 @@ module WorkEngine
         end
 
         private
-
       end
 
       class RetryJobAfterCancelledWorkflow < Base
@@ -1191,7 +1190,6 @@ module WorkEngine
         def cancelled_workflow_reason(workflow)
           workflow.artifact("start_cancelled_reason").presence || workflow.artifact("cancelled_reason")
         end
-
       end
 
       class CloseCompletedInfrastructureJob < Base
