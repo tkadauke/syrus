@@ -1939,9 +1939,14 @@ Completed slices:
   Workflow could be intentionally superseded while its WorkUnit only said
   generic `cancelled`.
 - Reconciler cleanup, landing defer, external-PR close, coding handoff takeover,
-  and runaway-protection cancellations also use typed WorkUnit cancellation.
-  The remaining plain Workflow cancellation calls are normal lifecycle cascades
-  or run/step stop paths, not independent ownership decisions.
+  operator stale-work repair, and runaway-protection cancellations also use
+  typed WorkUnit cancellation. The remaining plain Workflow cancellation calls
+  are normal lifecycle cascades or run/step stop paths, not independent
+  ownership decisions.
+- Reconciler repair plans now describe queued-workflow restart repairs as
+  `WorkUnits::Launcher.start!` executions. The executor was already using the
+  launcher; this removes stale operator-facing plan text that still referenced
+  `StepDispatcher.start_workflow`.
 - Generic requested-Intent launch now respects WorkDefinition ownership.
   Non-landing job-scoped Intents can be launched by the generic scheduler, and
   existing Intents with prior terminal Units can be rebuilt from their snapshots.

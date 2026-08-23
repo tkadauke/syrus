@@ -718,7 +718,7 @@ module WorkEngine
             "start_workflow",
             primary_workflow,
             "The workflow never created its first Run, so dispatching the first step is the narrowest repair.",
-            execution_steps: [ "StepDispatcher.start_workflow" ],
+            execution_steps: [ "WorkUnits::Launcher.start!" ],
             preconditions: { workflow_state: "queued", first_step_has_no_runs: true }
           )
         end
@@ -754,7 +754,7 @@ module WorkEngine
             "clear_stale_start_block_and_start_workflow",
             primary_workflow,
             "Current dependency resolution is satisfied, so the stale dependency start block can be cleared and the workflow can be dispatched.",
-            execution_steps: [ "StepDispatcher.clear_start_blocked!", "StepDispatcher.start_workflow" ],
+            execution_steps: [ "StepDispatcher.clear_start_blocked!", "WorkUnits::Launcher.start!" ],
             preconditions: {
               workflow_state: "queued",
               start_blocked_reason: StepDispatcher::STACK_BLOCK_REASON,
@@ -802,7 +802,7 @@ module WorkEngine
             "start_workflow",
             primary_workflow,
             "The landing workflow's start-block retry time has elapsed, so dispatching it lets StepDispatcher either start the first Run or refresh the current blocker.",
-            execution_steps: [ "StepDispatcher.start_workflow" ],
+            execution_steps: [ "WorkUnits::Launcher.start!" ],
             preconditions: {
               job_state: "landing",
               workflow_state: "queued",

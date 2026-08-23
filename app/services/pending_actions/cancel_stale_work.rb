@@ -60,13 +60,15 @@ module PendingActions
           next unless workflow.may_cancel?
 
           StateTransition.with_source("reconciler") do
-            workflow.artifacts = (workflow.artifacts || {}).merge(
-              "cancelled_reason" => "operator_stale_work_repair",
-              "cancelled_by_operator_repair_at" => Time.current.iso8601,
-              "operator_repair_reason" => reason
+            WorkUnits::WorkflowCancellation.cancel!(
+              workflow,
+              reason: "operator_stale_work_repair",
+              artifacts: {
+                "cancelled_reason" => "operator_stale_work_repair",
+                "cancelled_by_operator_repair_at" => Time.current.iso8601,
+                "operator_repair_reason" => reason
+              }
             )
-            workflow.cancel!
-            workflow.save!
           end
           cancelled[:workflows] << workflow.id
         end
