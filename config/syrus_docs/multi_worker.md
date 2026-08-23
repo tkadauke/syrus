@@ -38,10 +38,17 @@ Search schema is not part of the primary MySQL schema. It lives in
 `bin/rails syrus:prepare_search`. Container boot runs this task before web and
 worker processes start; local `bin/setup` runs it after `db:prepare`. The task
 is idempotent and also verifies the known FTS virtual tables after migration, so
-a recorded-but-missing table is recreated on the next deploy. New search/FTS
-tables must be added under `db/search_migrate`; if they are required even when
-an older schema version was recorded, add them to the task's required-table
-verification list too.
+a recorded-but-missing table is recreated on the next deploy. For tables backed
+by a durable primary-DB source of truth (`operational_log_fts`,
+`browser_error_fts` — see `SyrusSearchDatabaseTasks::REBUILD_HOOKS`), that
+(re)creation also replays recent primary-DB rows back into the fresh table, so
+a node that loses its local search volume (node-local `hostPath` eviction,
+fresh PVC, wiped disk) doesn't sit permanently empty until enough new events
+happen to trickle back in through live indexing — it self-heals to the current
+retention window on the very next boot. New search/FTS tables must be added
+under `db/search_migrate`; if they are required even when an older schema
+version was recorded, add them to the task's required-table verification list
+too.
 
 **The home worker MUST be a single pod** (`replicas: 1`, `strategy: Recreate`).
 Chat workspaces (`ChatWorkspace`, at
