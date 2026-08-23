@@ -260,5 +260,10 @@
   "repository_tabs_aria": "Repository-Tabs",
   "title_uncommitted": "Nicht committete Coding-Änderungen",
   "title_scratchpad": "Hat Scratchpad-Einträge",
-  "title_turn_active": "Chat-Runde aktiv"
+  "title_turn_active": "Chat-Runde aktiv",
+  "sidebar_pages": {
+    "loading": "Wird geladen...",
+    "unavailable_heading": "Seite nicht verfügbar",
+    "unavailable_body": "Diese Seite ist derzeit nicht verfügbar."
+  }
 }

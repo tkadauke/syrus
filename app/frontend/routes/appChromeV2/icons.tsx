@@ -112,3 +112,13 @@ export function HideIcon() {
     </svg>
   )
 }
+
+// Generic fallback for plugin-provided sidebar nav items whose icon
+// reference doesn't match a known built-in icon.
+export function PluginIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M12 4.75a2 2 0 0 1 2 2v.5h1.25a2 2 0 0 1 2 2V11h.5a2 2 0 1 1 0 4h-.5v1.75a2 2 0 0 1-2 2H13.5v-.5a1.5 1.5 0 1 0-3 0v.5H8.75a2 2 0 0 1-2-2V15H6a2 2 0 1 1 0-4h.75V9.25a2 2 0 0 1 2-2H10v-.5a2 2 0 0 1 2-2Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.5" />
+    </svg>
+  )
+}

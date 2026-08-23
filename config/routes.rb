@@ -38,6 +38,7 @@ Rails.application.routes.draw do
         post "event_actions/file_job", to: "event_actions#file_job"
         post "performance_events", to: "performance_events#create"
         post "report_issue", to: "report_issue#create"
+        get "sidebar_pages", to: "sidebar_pages#index"
         get "search", to: "search#index"
         post "filters/usage", to: "filters#usage"
         resources :tags, only: %i[ index create update destroy ]
