@@ -13,6 +13,17 @@ RSpec.describe McpToolRegistry do
     described_class.tools_for_context(context, tier: tier).map(&:tool_name)
   end
 
+  # Chat plugin tool sets (e.g. preview_tools' scratch-scoped write/edit/show_preview
+  # tools) are appended by Mcp::Sidecar on top of the statically-registered
+  # McpToolRegistry entries -- see Mcp::Sidecar.chat_tools_for and the "plugin chat
+  # MCP tool sets" coverage in spec/services/syrus_chat_mcp/sidecar_spec.rb. Registry
+  # parity checks below compare against the static core only, so plugin-provided
+  # names are excluded here.
+  def sidecar_tool_names_excluding_plugins(session, tier:)
+    plugin_names = Mcp::Sidecar.plugin_tools_for(session, tier: tier).map { |tool| McpToolRegistry.tool_name_for(tool) }
+    Mcp::Sidecar.chat_tool_names(session, tier: tier) - plugin_names
+  end
+
   def enable_feature(slug)
     Feature.find_or_create_by!(slug: slug.to_s) { |feature| feature.category = "Labs"; feature.name = slug.to_s.humanize }
            .update!(enabled: true)
@@ -55,8 +66,8 @@ RSpec.describe McpToolRegistry do
       session = chat_session
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
-      expect(tool_names_for(context, tier: :deferred)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :deferred))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_tool_names_excluding_plugins(session, tier: :essential))
+      expect(tool_names_for(context, tier: :deferred)).to eq(sidecar_tool_names_excluding_plugins(session, tier: :deferred))
     end
 
     it "keeps the admin chat tool set unchanged" do
@@ -64,7 +75,7 @@ RSpec.describe McpToolRegistry do
       session = chat_session(session_user: admin, session_repository: Factories.repository(user: admin))
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_tool_names_excluding_plugins(session, tier: :essential))
       expect(tool_names_for(context, tier: :essential)).to include("admin_overview", "force_fail_job")
     end
 

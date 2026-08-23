@@ -13,6 +13,16 @@ RSpec.describe McpToolPolicy do
     ChatSession.create!({ user: user, repository: repository }.merge(attrs))
   end
 
+  # Chat plugin tool sets (e.g. preview_tools' scratch-scoped write/edit/show_preview
+  # tools) are appended by Mcp::Sidecar on top of McpToolPolicy's static tool set --
+  # see Mcp::Sidecar.chat_tools_for and the "plugin chat MCP tool sets" coverage in
+  # spec/services/syrus_chat_mcp/sidecar_spec.rb. The policy parity checks below
+  # compare against the static core only, so plugin-provided names are excluded here.
+  def sidecar_tool_names_excluding_plugins(session, tier:)
+    plugin_names = Mcp::Sidecar.plugin_tools_for(session, tier: tier).map { |tool| McpToolRegistry.tool_name_for(tool) }
+    Mcp::Sidecar.chat_tools(session, tier: tier).map(&:tool_name) - plugin_names
+  end
+
   describe "workflow roles" do
     let(:run) { Factories.job.initial_run }
 
@@ -436,7 +446,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_essential = Mcp::Sidecar.chat_tools(session, tier: :essential).map(&:tool_name)
+      sidecar_essential = sidecar_tool_names_excluding_plugins(session, tier: :essential)
 
       expect(policy_tools).to include(*sidecar_essential)
     end
@@ -446,7 +456,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_deferred = Mcp::Sidecar.chat_tools(session, tier: :deferred).map(&:tool_name)
+      sidecar_deferred = sidecar_tool_names_excluding_plugins(session, tier: :deferred)
 
       expect(policy_tools).to include(*sidecar_deferred)
     end

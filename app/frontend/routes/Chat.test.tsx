@@ -4320,6 +4320,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       appState: {},
       files: {}
     },
+    preview_panels: [],
     paths: {
       credentials_path: "/credentials",
       repositories_path: "/repositories",
