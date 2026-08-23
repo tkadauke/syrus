@@ -25,7 +25,7 @@ class PreviewProxyMiddleware
     "PATCH"   => Net::HTTP::Patch,
     "DELETE"  => Net::HTTP::Delete,
     "HEAD"    => Net::HTTP::Head,
-    "OPTIONS" => Net::HTTP::Options,
+    "OPTIONS" => Net::HTTP::Options
   }.freeze
 
   def initialize(app)
