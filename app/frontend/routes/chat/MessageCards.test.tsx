@@ -55,6 +55,7 @@ function makePayload(): ChatPayload {
     scratchpad_items: [],
     video_walkthroughs: [],
     preview_panels: [],
+    workspace_tabs: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],

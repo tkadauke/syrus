@@ -195,6 +195,20 @@ click-to-navigate behavior. `ChatMessagePin` broadcasts `upsert_pin`/
 `remove_pin` app events (`changed: ["pins"]`) so the bar, panel, and toggle
 stay live for every participant.
 
+## Workspace panel tabs are plugin-extensible
+
+The right-side workspace panel's tab set (`WorkspaceTab` in
+`app/frontend/routes/chat/workspaceTabs.ts`, rendered by
+`WorkspacePanels.tsx`) is not a fixed list. Beyond the built-in singleton tabs
+(Whiteboard, Context, Media, Pinned, Files, Local Diff, Jobs) and the
+multi-instance preview panel tabs (`preview:<id>`, see `preview_panels.md`), a
+plugin can register additional tabs through the `:workspace_tab` extension
+point (`Syrus::Plugin::WorkspaceTab`) — declarative id/label/component
+metadata resolved into the chat payload's `workspace_tabs` array, rendered as
+`plugin:<id>` tabs backed by a lazily-loaded plugin React component. See
+`plugins.md`'s `` `workspace_tab` `` section for the full contract and the
+declarative-metadata-plus-glob-discovery design rationale.
+
 ## Media attachments
 
 `propose_job`, `propose_epic_with_jobs`, and `submit_chat_feedback` all accept

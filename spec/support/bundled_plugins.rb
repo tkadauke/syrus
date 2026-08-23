@@ -107,6 +107,9 @@ RSpec.configure do |config|
             "syrus_dev/AdminPerformance" => "app/frontend/routes/AdminPerformance.tsx",
             "syrus_dev/AdminOperationalLogs" => "app/frontend/routes/AdminOperationalLogs.tsx"
           },
+          workspace_tabs: {
+            "syrus_dev/WorkspaceTabDemo" => "app/frontend/workspaceTabs/WorkspaceTabDemo.tsx"
+          },
           i18n: [ "app/frontend/i18n/locales/*/syrus_dev.json" ]
         },
         routes: [
@@ -152,8 +155,9 @@ RSpec.configure do |config|
           }
         ],
         provides: {
-          admin_page:   SyrusDev::AdminPages,
-          mcp_tool_set: SyrusDev::WorkflowToolSet
+          admin_page:    SyrusDev::AdminPages,
+          mcp_tool_set:  SyrusDev::WorkflowToolSet,
+          workspace_tab: SyrusDev::WorkspaceTabs
         }
       )
     end

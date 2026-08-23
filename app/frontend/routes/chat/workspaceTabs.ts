@@ -5,7 +5,7 @@
 // Reads the shared workspace constants and the whiteboard element helper;
 // lifting the WorkspaceTab/MobileChatTab types here lets the workspace panel
 // components move out of the 6k-line Chat.tsx next.
-import type { ChatPayload, ChatPreviewPanel } from "../../api/chats"
+import type { ChatPayload, ChatPreviewPanel, ChatWorkspaceTab } from "../../api/chats"
 import {
   CHAT_WORKSPACE_COLLAPSED_KEY,
   CHAT_WORKSPACE_DEFAULT_WIDTH,
@@ -29,7 +29,11 @@ export function mediaTabVisible(payload: ChatPayload): boolean {
     (payload.chat.typed_artifact_count ?? 0) > 0
 }
 
-export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab
+// Plugin-provided tabs (see Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md)
+// are namespaced under "plugin:" so a plugin's own tab id can never collide
+// with one of the fixed core tab names below.
+export type PluginTab = `plugin:${string}`
+export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab | PluginTab
 export type MobileChatTab = "chat" | WorkspaceTab
 
 export function previewTabId(panelId: number): PreviewTab {
@@ -47,11 +51,23 @@ export function previewPanelIdFromTab(tab: WorkspaceTab): number | null {
   return Number.isFinite(id) ? id : null
 }
 
+export function pluginTabId(tabId: string): PluginTab {
+  return `plugin:${tabId}`
+}
+
+export function isPluginTab(tab: WorkspaceTab): tab is PluginTab {
+  return tab.startsWith("plugin:")
+}
+
+export function pluginTabIdFromTab(tab: WorkspaceTab): string | null {
+  return isPluginTab(tab) ? tab.slice("plugin:".length) : null
+}
+
 export function workspaceTabClass(active: boolean) {
   return `border-b-2 px-3 py-2 ${active ? "border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"}`
 }
 
-export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = []) {
+export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
   if (tab === "whiteboard") return t("tab_whiteboard")
   if (tab === "context") return t("tab_context")
   if (tab === "media") return t("tab_media")
@@ -64,12 +80,18 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string,
     const panel = previewPanels.find((candidate) => candidate.id === panelId)
     return panel?.title || t("tab_preview")
   }
+  if (isPluginTab(tab)) {
+    const tabId = pluginTabIdFromTab(tab)
+    const pluginTab = pluginTabs.find((candidate) => candidate.id === tabId)
+    if (pluginTab?.label_key) return t(pluginTab.label_key)
+    return pluginTab?.label || t("tab_plugin")
+  }
 
   return t("tab_chat")
 }
 
-export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = []) {
-  return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels)
+export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
+  return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels, pluginTabs)
 }
 
 export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false, hasPins = false): WorkspaceTab[] {
@@ -81,7 +103,8 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false,
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),
     ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : []),
-    ...payload.preview_panels.map((panel) => previewTabId(panel.id))
+    ...payload.preview_panels.map((panel) => previewTabId(panel.id)),
+    ...payload.workspace_tabs.map((tab) => pluginTabId(tab.id))
   ] as WorkspaceTab[]
 }
 

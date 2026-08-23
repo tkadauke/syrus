@@ -16911,6 +16911,7 @@ function chatPayload(overrides: {
     ],
     attachment_results: [],
     preview_panels: [],
+    workspace_tabs: [],
     whiteboard: {
       version: 2,
       elements: [{ id: "box-1", type: "rectangle" }],
