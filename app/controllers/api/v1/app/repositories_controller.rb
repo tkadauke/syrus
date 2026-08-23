@@ -593,9 +593,9 @@ module Api
             archived: repository.archived?,
             active_jobs_count: if defined?(@repository_index_open_job_counts)
               @repository_index_open_job_counts.fetch(repository.id, 0)
-                               else
+            else
               repository.jobs.open_threads.count
-                               end,
+            end,
             last_job: last_job && {
               id: last_job.id,
               title: last_job.issue_title.to_s,
