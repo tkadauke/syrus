@@ -1650,6 +1650,10 @@ Completed slices:
   `WorkUnits::Ownership.active_workflows_by_job_id`, so active member work in
   an Epic-wide WorkUnit suppresses stale "awaiting review" blockers and shows
   the current workflow/step even when the Workflow row belongs to another Job.
+- Dashboard attention presets now combine filtered legacy Workflow rows with
+  running WorkUnit membership for "In progress" and infrastructure-work
+  "Queued" exclusions, so WorkUnit-owned member work is visible without losing
+  the legacy paused-artifact filter during migration.
 
 ### Phase 5: Reconciler Simplification
 

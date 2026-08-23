@@ -43,6 +43,30 @@ RSpec.describe "Filters::Chips" do
     unit
   end
 
+  def create_running_work_unit_for(primary_job, member_jobs: [ primary_job ], kind: "initial")
+    workflow = Workflow.create!(job: primary_job, trigger_kind: kind, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: primary_job.repository,
+      scope_type: "job",
+      scope_id: primary_job.id
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: "running",
+      repository: primary_job.repository,
+      scope_type: "job",
+      scope_id: primary_job.id,
+      workflow: workflow
+    )
+    member_jobs.each_with_index do |job, index|
+      unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
+    end
+    unit
+  end
+
   describe "state" do
     it "filters by exact state" do
       queued_job = Factories.job(repository: repo, issue_number: 1)
@@ -165,6 +189,8 @@ RSpec.describe "Filters::Chips" do
       paused_running = Factories.job_record(repository: repo, issue_number: 12, state: "running")
       manually_paused_running = Factories.job_record(repository: repo, issue_number: 13, state: "running", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
       blocked_work_unit = Factories.job_record(repository: repo, issue_number: 14, state: "running")
+      work_unit_owner = Factories.job_record(repository: repo, issue_number: 15, state: "running")
+      work_unit_member = Factories.job_record(repository: repo, issue_number: 16, state: "approved")
       Factories.job_record(repository: repo, issue_number: 7, state: "approved")
 
       Workflow.create!(job: queued_rebase, trigger_kind: "rebase", state: "queued")
@@ -184,6 +210,7 @@ RSpec.describe "Filters::Chips" do
         artifacts: { "pause_reason" => "workflow_admission_budget" }
       )
       create_blocked_work_unit_for(blocked_work_unit)
+      create_running_work_unit_for(work_unit_owner, member_jobs: [ work_unit_owner, work_unit_member ], kind: "merge_train")
 
       expect(run(field: "attention", op: "is", value: "in_progress")).to contain_exactly(
         running,
@@ -192,7 +219,9 @@ RSpec.describe "Filters::Chips" do
         running_merge_train,
         running_retry,
         running_ci_failure,
-        old_running_workflow
+        old_running_workflow,
+        work_unit_owner,
+        work_unit_member
       )
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(manually_paused_running)
     end
@@ -258,6 +287,15 @@ RSpec.describe "Filters::Chips" do
 
       expect(run(field: "attention", op: "is", value: "in_progress")).to include(grader_running)
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(plain_queued)
+    end
+
+    it "queued: excludes queued jobs with running infrastructure WorkUnit membership" do
+      grader_running = Factories.job_record(repository: repo, issue_number: 35, state: "queued")
+      plain_queued = Factories.job_record(repository: repo, issue_number: 36, state: "queued")
+      create_running_work_unit_for(grader_running, kind: "main_grader")
+
+      expect(run(field: "attention", op: "is", value: "queued")).to contain_exactly(plain_queued)
+      expect(run(field: "attention", op: "is", value: "in_progress")).to include(grader_running)
     end
 
     it "inbox: returns only actionable review, repair, and idle feedback jobs" do

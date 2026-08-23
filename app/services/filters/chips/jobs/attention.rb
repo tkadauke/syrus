@@ -154,7 +154,7 @@ module Filters
 
         def apply_queued
           # Infrastructure workflows skip propagate_start_to_job!, leaving the job :queued while the workflow runs; exclude them so they appear in_progress instead.
-          running_infra_ids = active_workflow_job_ids(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
+          running_infra_ids = runtime_running_job_ids(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
           active = scope.where(manual_paused: false)
           active.where(state: "queued")
                .where.not(id: running_infra_ids)
@@ -260,7 +260,7 @@ module Filters
           active_ids = active_workflow_job_ids do |relation|
             relation.where("artifacts IS NULL OR NOT (artifacts LIKE ? OR artifacts LIKE ?)", '%"pause_reason"%', '%"start_blocked_reason"%')
           end
-          active_ids - blocked_work_unit_job_ids
+          (active_ids | running_work_unit_job_ids) - blocked_work_unit_job_ids
         end
 
         def paused_job_ids
@@ -284,6 +284,18 @@ module Filters
           relation = yield(relation) if block_given?
 
           relation.distinct.pluck(:job_id)
+        end
+
+        def runtime_running_job_ids(trigger_kind: nil, excluding_trigger_kind: nil)
+          active_workflow_job_ids(trigger_kind: trigger_kind, excluding_trigger_kind: excluding_trigger_kind) |
+            running_work_unit_job_ids(kinds: trigger_kind, excluding_kinds: excluding_trigger_kind)
+        end
+
+        def running_work_unit_job_ids(kinds: nil, excluding_kinds: nil)
+          scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: "running" })
+          scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
+          scope = scope.where.not(work_units: { kind: Array(excluding_kinds).map(&:to_s) }) if excluding_kinds.present?
+          scope.distinct.pluck(:job_id)
         end
 
         def awaiting_epic_ids
