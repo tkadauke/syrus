@@ -879,6 +879,7 @@ module WorkEngine
         next unless job.state.in?(%w[running landing])
         active_workflows = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
         next if active_workflows.any?
+        next if active_runtime_work_for_job?(job)
         next if job.landing? && active_landing_work_for_job?(job)
 
         if job.landing?
@@ -923,8 +924,7 @@ module WorkEngine
     def classify_queued_jobs_cancelled_by_epic_workflow_conflict
       jobs.filter_map do |job|
         next unless job.queued?
-        next if job.workflows.active.exists?
-        next if job.any_active_run?
+        next if active_runtime_work_for_job?(job)
 
         latest = job.latest_workflow
         next unless latest&.cancelled?
@@ -954,8 +954,7 @@ module WorkEngine
     def classify_queued_jobs_cancelled_without_active_workflow
       jobs.filter_map do |job|
         next unless job.queued?
-        next if job.workflows.active.exists?
-        next if job.any_active_run?
+        next if active_runtime_work_for_job?(job)
 
         latest = job.latest_workflow
         next unless recoverable_cancelled_workflow_for_queued_job?(job, latest)
@@ -986,7 +985,7 @@ module WorkEngine
       jobs.filter_map do |job|
         next unless job.approved?
         next unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
-        next if job.any_active_run?
+        next if active_runtime_work_for_job?(job)
 
         issue(
           kind: :approved_job_landing_start_blocked,
@@ -1014,8 +1013,7 @@ module WorkEngine
         next if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
         next if job.infrastructure_job?
         next if job.main_branch_repair?
-        next if job.workflows.active.exists?
-        next if job.any_active_run?
+        next if active_runtime_work_for_job?(job)
 
         issue(
           kind: :approved_job_missing_pr,
@@ -1052,8 +1050,7 @@ module WorkEngine
         next if review_publication_step_kinds.empty?
         next unless latest_workflow.steps.where(kind: review_publication_step_kinds).exists?
         next if latest_workflow.steps.where(kind: review_publication_step_kinds, state: "succeeded").exists?
-        next if job.workflows.active.exists?
-        next if job.any_active_run?
+        next if active_runtime_work_for_job?(job)
 
         issue(
           kind: :implemented_job_missing_pr,
@@ -1390,7 +1387,7 @@ module WorkEngine
         next if workflow&.artifact("branch_divergence_recovery").present?
         next unless divergence_current_pr_head?(job, divergence)
 
-        if workflow == job.latest_workflow && job.failed? && !job.any_active_run?
+        if workflow == job.latest_workflow && job.failed? && !active_runtime_work_for_job?(job)
           issue(
             kind: :branch_diverged_pr_open,
             severity: :warning,
@@ -1953,6 +1950,13 @@ module WorkEngine
 
     def active_landing_work_for_job?(job)
       WorkEngine::RuntimeOwnership.active_landing_work_for_job?(job)
+    end
+
+    def active_runtime_work_for_job?(job)
+      return false unless job
+
+      WorkUnits::TerminalWorkflowSync.for_job(job)
+      job.reload.active_runtime_work?
     end
 
     def recoverable_cancelled_workflow_for_queued_job?(job, workflow)

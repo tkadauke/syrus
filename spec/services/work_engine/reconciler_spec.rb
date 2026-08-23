@@ -682,6 +682,27 @@ RSpec.describe WorkEngine::Reconciler do
     expect(retry_workflow.state).to be_in(%w[queued running])
   end
 
+  it "does not retry a queued Job after an Epic-wide conflict while active WorkUnit ownership exists" do
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 205, agent_provider: "claude")
+    cancelled = child.latest_workflow
+    cancelled.update!(
+      artifacts: {
+        "cancelled_reason" => EpicWorkflowLock::BLOCK_REASON,
+        "cancelled_details" => { "keeper_workflow_id" => 123_456 }
+      }
+    )
+    cancelled.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    cancelled.steps.update_all(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    cancelled.runs.update_all(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    child.update_columns(state: "queued")
+    active_work_unit_for(child, kind: "chat_feedback")
+
+    result = reconcile(job_id: child.id)
+
+    expect(kind(result, :queued_job_after_epic_workflow_conflict)).to be_nil
+    expect(plan(result, :retry_job_after_epic_workflow_conflict)).to be_nil
+  end
+
   it "restarts queued chat feedback after a cleared Epic-wide workflow conflict" do
     epic = Factories.epic(user: job.user, repository: job.repository)
     epic.update!(state: "in_progress")
@@ -780,6 +801,22 @@ RSpec.describe WorkEngine::Reconciler do
     expect(retry_workflow.artifact("retry_reason")).to eq("cancelled_workflow_recovered")
     expect(retry_workflow.artifact("cancelled_workflow_id")).to eq(cancelled.id)
     expect(retry_workflow.state).to be_in(%w[queued running])
+  end
+
+  it "does not retry a queued Job after cancelled workflow while active WorkUnit ownership exists" do
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
+    cancelled = child.latest_workflow
+    cancelled.update!(artifacts: { "main_broken" => true })
+    cancelled.update_columns(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    cancelled.steps.update_all(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    cancelled.runs.update_all(state: "cancelled", started_at: 30.minutes.ago, finished_at: 20.minutes.ago)
+    child.update_columns(state: "queued")
+    active_work_unit_for(child, kind: "retry")
+
+    result = reconcile(job_id: child.id)
+
+    expect(kind(result, :queued_job_after_cancelled_workflow)).to be_nil
+    expect(plan(result, :retry_job_after_cancelled_workflow)).to be_nil
   end
 
   it "does not retry a queued Job whose latest workflow cancellation was deliberate" do
@@ -1091,6 +1128,26 @@ RSpec.describe WorkEngine::Reconciler do
     expect(orphaned.reload).to be_failed
   end
 
+  it "does not fail an implemented Job missing a PR while active WorkUnit ownership exists" do
+    orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
+    orphaned_workflow = Workflow.create!(
+      job: orphaned,
+      trigger_kind: "initial",
+      state: "succeeded",
+      started_at: 10.minutes.ago,
+      finished_at: 5.minutes.ago
+    )
+    orphaned_workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+    orphaned_workflow.steps.create!(kind: "pr_open", position: 1, state: "cancelled")
+    active_work_unit_for(orphaned, kind: "retry")
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :implemented_job_missing_pr)).to be_nil
+    expect(plan(result, :fail_implemented_job_missing_pr)).to be_nil
+    expect(orphaned.reload).to be_implemented
+  end
+
   it "does not fail an implemented Job whose latest workflow has no review-publication policy" do
     orphaned = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
     manual_workflow = Workflow.create!(
@@ -1168,6 +1225,23 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :fail_approved_job_missing_pr)).to have_attributes(target_id: orphaned.id)
     expect(result.repair_executions.map(&:message)).to include("marked Job ##{orphaned.id} failed because it was approved without a tracked PR")
     expect(orphaned.reload).to be_failed
+  end
+
+  it "does not fail an approved Job missing a PR while active WorkUnit ownership exists" do
+    orphaned = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "approved",
+      approved_at: 1.minute.ago,
+      approved_via: "operator"
+    )
+    active_work_unit_for(orphaned, kind: "manual")
+
+    result = reconcile_and_execute(job_id: orphaned.id)
+
+    expect(kind(result, :approved_job_missing_pr)).to be_nil
+    expect(plan(result, :fail_approved_job_missing_pr)).to be_nil
+    expect(orphaned.reload).to be_approved
   end
 
   it "does not fail an implemented fork-review Job with a staging PR" do
