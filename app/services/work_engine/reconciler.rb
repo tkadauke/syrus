@@ -1077,11 +1077,19 @@ module WorkEngine
     end
 
     def repair_workflow?(workflow)
-      workflow&.trigger_kind.in?(%w[retry ci_failure chat_feedback pr_comment manual])
+      return false unless workflow&.trigger_kind
+
+      WorkDefinitions.for(workflow.trigger_kind).active_repair_work?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def repair_work_unit?(unit)
-      unit&.kind.in?(%w[retry ci_failure chat_feedback pr_comment manual])
+      return false unless unit&.kind
+
+      WorkDefinitions.for(unit.kind).active_repair_work?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def expected_start_blocked_workflow?(job, workflow)

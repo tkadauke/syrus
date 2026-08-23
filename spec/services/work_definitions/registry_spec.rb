@@ -215,6 +215,15 @@ RSpec.describe WorkDefinitions do
       "landing_validation",
       "merge_train_validation"
     )
+    expect(described_class.active_repair_work_kinds).to contain_exactly(
+      "pr_comment",
+      "chat_feedback",
+      "ci_failure",
+      "retry",
+      "checkpoint_resume",
+      "manual",
+      "manual_agentic_run"
+    )
   end
 
   it "resolves merge train members from the train artifact through the definition" do

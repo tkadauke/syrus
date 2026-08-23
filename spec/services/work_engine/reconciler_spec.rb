@@ -2715,6 +2715,20 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
+  it "uses WorkDefinition repair policy when classifying active repair workflows" do
+    workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    workflow.work_unit&.mark_terminal!("failed")
+    repair = WorkUnits::Launcher.instantiate(kind: "manual_agentic_run", job: job)
+    job.update_columns(state: "failed")
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :failed_job_active_repair_work)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+    expect(issue.affected_ids[:workflow_ids]).to eq([ repair.id ])
+    expect(issue.evidence["active_repair_workflows"]).to eq([ [ repair.id, "manual_agentic_run", "queued" ] ])
+  end
+
   it "classifies failed Jobs with active cross-job repair WorkUnit ownership" do
     owner = Factories.job_record(user: job.user, repository: job.repository, state: "failed", issue_number: 701)
     member = Factories.job_record(user: job.user, repository: job.repository, state: "failed", issue_number: 702)

@@ -5,6 +5,10 @@ module WorkDefinitions
     def blocks_ci_failure? = true
   end
 
+  module ActiveRepairWork
+    def active_repair_work? = true
+  end
+
   module OpensReviewPullRequest
     def self.included(base)
       base.review_publication_step_kinds = %w[pr_open]
@@ -53,6 +57,7 @@ module WorkDefinitions
   end
 
   class PrComment < Base
+    include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
 
@@ -63,6 +68,7 @@ module WorkDefinitions
   end
 
   class ChatFeedback < Base
+    include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
 
@@ -73,6 +79,7 @@ module WorkDefinitions
   end
 
   class CiFailure < Base
+    include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
 
@@ -198,6 +205,7 @@ module WorkDefinitions
   end
 
   class Retry < Base
+    include ActiveRepairWork
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
@@ -209,6 +217,7 @@ module WorkDefinitions
   end
 
   class CheckpointResume < Base
+    include ActiveRepairWork
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
@@ -239,6 +248,7 @@ module WorkDefinitions
   end
 
   class Manual < Base
+    include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
 
@@ -300,6 +310,7 @@ module WorkDefinitions
   end
 
   class ManualAgenticRun < Base
+    include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
 

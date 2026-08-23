@@ -28,6 +28,10 @@ module WorkDefinitions
     @ci_failure_blocking_kinds ||= kinds_matching(&:blocks_ci_failure?)
   end
 
+  def active_repair_work_kinds
+    @active_repair_work_kinds ||= kinds_matching(&:active_repair_work?)
+  end
+
   def registry
     load_definitions
     @registry ||= WorkDefinitions::Base.descendants.index_by(&:kind).freeze
@@ -40,6 +44,7 @@ module WorkDefinitions
       @landing_workflow_kinds
       @epic_wide_kinds
       @ci_failure_blocking_kinds
+      @active_repair_work_kinds
     ].each do |ivar|
       remove_instance_variable(ivar) if instance_variable_defined?(ivar)
     end
