@@ -784,8 +784,14 @@ class Job < ApplicationRecord
 
   def cancel_active_execution!
     active_runtime_workflows.each do |workflow|
-      workflow.cancel! if workflow.may_cancel?
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "operator_cancelled",
+        artifacts: {
+          "cancelled_reason" => "operator_cancelled",
+          "cancelled_at" => Time.current.iso8601
+        }
+      )
     end
 
     runs.active.find_each do |run|
@@ -821,8 +827,11 @@ class Job < ApplicationRecord
         "cancelled_reason" => Workflow::SUPERSEDED_BY_REBASE_REASON,
         "cancelled_at" => Time.current.iso8601
       )
-      workflow.cancel!
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: Workflow::SUPERSEDED_BY_REBASE_REASON,
+        artifacts: workflow.artifacts
+      )
       cancelled = true
     end
     cancelled
@@ -1072,8 +1081,11 @@ class Job < ApplicationRecord
         "retry_cancelled_reason" => "job_approved",
         "retry_cancelled_at" => Time.current.iso8601
       )
-      workflow.cancel! if workflow.may_cancel?
-      workflow.save!
+      WorkUnits::WorkflowCancellation.cancel!(
+        workflow,
+        reason: "job_approved",
+        artifacts: workflow.artifacts
+      )
     end
   end
 

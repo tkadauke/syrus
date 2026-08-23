@@ -1933,6 +1933,11 @@ Completed slices:
   and reconciler preemption repairs all preserve their existing Workflow
   artifacts while refining attached WorkUnits with a typed
   `preemption_reason`.
+- Job-level active-work cancellation helpers now use the same typed Workflow
+  cancellation facade for close/restart, manual rebase supersession, and
+  approval-driven retry cancellation. This removes another set of paths where a
+  Workflow could be intentionally superseded while its WorkUnit only said
+  generic `cancelled`.
 - Generic requested-Intent launch now respects WorkDefinition ownership.
   Non-landing job-scoped Intents can be launched by the generic scheduler, and
   existing Intents with prior terminal Units can be rebuilt from their snapshots.

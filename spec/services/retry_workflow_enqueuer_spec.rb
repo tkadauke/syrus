@@ -10,6 +10,7 @@ RSpec.describe RetryWorkflowEnqueuer do
     run.start! if run.may_start?
     state == "succeeded" ? run.succeed! : run.fail!
     run.save!
+    run.workflow&.work_unit&.mark_terminal!(state)
   end
 
   def github_issue_with_labels(*names)
@@ -225,6 +226,21 @@ RSpec.describe RetryWorkflowEnqueuer do
     }.to change { retry_workflow.reload.state }.from("queued").to("cancelled")
 
     expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("job_approved")
+  end
+
+  it "marks the queued retry WorkUnit as preempted when approval cancels it" do
+    finish_current_run!
+    retry_workflow = WorkUnits::Launcher.instantiate(kind: "retry", job: job, idempotency_key: "approval-cancelled-retry")
+    job.update!(state: "implemented")
+
+    job.approve!(via: "operator", by_user: user)
+    job.save!
+
+    expect(retry_workflow.reload).to be_cancelled
+    expect(retry_workflow.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: "job_approved"
+    )
   end
 
   it "syncs skip-prepare from the source issue before instantiating the workflow" do

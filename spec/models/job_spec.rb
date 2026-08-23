@@ -747,7 +747,10 @@ RSpec.describe Job do
 
       expect(workflow.reload).to be_cancelled
       expect(workflow.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_REBASE_REASON)
-      expect(unit.reload).to be_cancelled
+      expect(unit.reload).to have_attributes(
+        state: "cancelled",
+        preemption_reason: Workflow::SUPERSEDED_BY_REBASE_REASON
+      )
     end
 
     it "approves an implemented job with approval metadata" do
