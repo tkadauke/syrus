@@ -4297,6 +4297,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     agent_questions: overrides.agent_questions || [],
     queued_messages: overrides.queued_messages || [],
     scratchpad_items: overrides.scratchpad_items || [],
+    preview_panels: [],
     attachment_groups: {
       repositories: overrides.attachment_groups?.repositories || [],
       epics: overrides.attachment_groups?.epics || [],

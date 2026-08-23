@@ -16821,6 +16821,7 @@ function chatPayload(overrides: {
     ],
     pending_actions: overrides.pendingActions || [],
     agent_questions: overrides.agentQuestions || [],
+    preview_panels: [],
     attachment_groups: {
       repositories: [
         { id: 2, label: "acme/widgets", app_detach_path: "/api/v1/app/chats/8/attachments/2" }

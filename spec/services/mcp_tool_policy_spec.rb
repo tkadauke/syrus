@@ -431,6 +431,13 @@ RSpec.describe McpToolPolicy do
   end
 
   describe "output matches today's tools_for_session" do
+    # Chat plugin tool sets (e.g. PreviewTools::ChatToolSet) are appended by
+    # Mcp::Sidecar.plugin_tools_for on top of the McpToolRegistry-driven set;
+    # McpToolPolicy only governs the registry-driven set (used by the
+    # evaluator role and read-only summaries), so its output is a subset of
+    # the sidecar's once a broadly-available chat plugin is registered.
+    let(:plugin_tool_names) { PreviewTools::ChatToolSet.tool_definitions(tier: :essential).map { |defn| defn[:name] } }
+
     it "produces identical essential tool set as the sidecar for a planning session" do
       session = chat_session
       context = context_for(session)
@@ -438,7 +445,7 @@ RSpec.describe McpToolPolicy do
       policy_tools = described_class.for(context).map(&:tool_name)
       sidecar_essential = Mcp::Sidecar.chat_tools(session, tier: :essential).map(&:tool_name)
 
-      expect(policy_tools).to include(*sidecar_essential)
+      expect(policy_tools).to include(*(sidecar_essential - plugin_tool_names))
     end
 
     it "produces identical deferred tool set as the sidecar for a planning session" do
@@ -448,7 +455,7 @@ RSpec.describe McpToolPolicy do
       policy_tools = described_class.for(context).map(&:tool_name)
       sidecar_deferred = Mcp::Sidecar.chat_tools(session, tier: :deferred).map(&:tool_name)
 
-      expect(policy_tools).to include(*sidecar_deferred)
+      expect(policy_tools).to include(*(sidecar_deferred - plugin_tool_names))
     end
   end
 end

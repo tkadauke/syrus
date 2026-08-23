@@ -51,12 +51,21 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".tools_for_context" do
+    # Mcp::Sidecar.chat_tool_names appends plugin-provided chat tools (e.g.
+    # PreviewTools::ChatToolSet) on top of the registry-driven set via
+    # Mcp::Sidecar.plugin_tools_for; McpToolRegistry only knows about the
+    # registry-driven set, so the sidecar's output is a superset once a
+    # broadly-available chat plugin is registered.
+    def plugin_tool_names(tier:)
+      PreviewTools::ChatToolSet.tool_definitions(tier: tier).map { |defn| defn[:name] }
+    end
+
     it "keeps the planner chat tool set unchanged" do
       session = chat_session
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
-      expect(tool_names_for(context, tier: :deferred)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :deferred))
+      expect(tool_names_for(context, tier: :essential) + plugin_tool_names(tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :deferred) + plugin_tool_names(tier: :deferred)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :deferred))
     end
 
     it "keeps the admin chat tool set unchanged" do
@@ -64,7 +73,7 @@ RSpec.describe McpToolRegistry do
       session = chat_session(session_user: admin, session_repository: Factories.repository(user: admin))
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential) + plugin_tool_names(tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
       expect(tool_names_for(context, tier: :essential)).to include("admin_overview", "force_fail_job")
     end
 
