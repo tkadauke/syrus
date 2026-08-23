@@ -16840,6 +16840,7 @@ function chatPayload(overrides: {
       files: {},
       loaded: true
     },
+    preview_panels: [],
     paths: {
       credentials_path: "/credentials",
       repositories_path: "/repositories",
