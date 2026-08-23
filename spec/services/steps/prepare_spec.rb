@@ -224,11 +224,11 @@ RSpec.describe Steps::Prepare do
     end
 
     it "does not record an artifact when sccache isn't installed" do
+      allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
       File.write(@ws_path.join(".syrus.yml"), <<~YAML)
         prepare:
           - echo first
       YAML
-      allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
 
       handler.call
 

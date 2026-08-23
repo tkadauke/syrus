@@ -223,7 +223,6 @@ RSpec.describe Steps::Grader do
 
   it "does not call augmentors when the grader passes" do
     allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
-
     augmentor = double("augmentor")
     expect(augmentor).not_to receive(:augment_grader_failure)
 
