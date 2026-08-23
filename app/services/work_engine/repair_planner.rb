@@ -386,7 +386,7 @@ module WorkEngine
             "cancel_stale_auto_retry_workflow",
             primary_workflow,
             "The auto-retry workflow was created from a failure that a newer successful workflow already superseded.",
-            execution_steps: [ "Workflow#cancel!" ],
+            execution_steps: [ "Workflow#cancel!", "WorkUnit#preempt!" ],
             preconditions: {
               workflow_state: "queued",
               trigger_kind: "retry",
@@ -518,7 +518,7 @@ module WorkEngine
             "cancel_workflow_for_closed_job",
             primary_workflow,
             "The parent Job is closed, so any queued or running Workflow under it should be cancelled instead of continuing work.",
-            execution_steps: [ "Workflow#cancel!" ],
+            execution_steps: [ "Workflow#cancel!", "WorkUnit#preempt!" ],
             preconditions: {
               job_state: "closed",
               workflow_state: %w[queued running],

@@ -102,6 +102,24 @@ class WorkUnit < ApplicationRecord
     WorkIntents::TerminalUnitSync.call(self)
   end
 
+  def preempt!(reason:, by_work_unit: nil)
+    transaction do
+      update!(
+        state: "cancelled",
+        finished_at: finished_at || Time.current,
+        blocked_reason: nil,
+        blocked_until: nil,
+        blocked_details: {},
+        blocked_by_user: nil,
+        preemption_reason: reason,
+        preempted_by_work_unit: by_work_unit
+      )
+      work_unit_locks.active.find_each(&:release!)
+    end
+
+    WorkIntents::TerminalUnitSync.call(self)
+  end
+
   def request_pause!
     update!(pause_requested: true)
   end

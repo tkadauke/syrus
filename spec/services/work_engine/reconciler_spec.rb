@@ -32,7 +32,7 @@ RSpec.describe WorkEngine::Reconciler do
     result.repair_plans.find { |repair_plan| repair_plan.action == action.to_s }
   end
 
-  def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "blocked", blocked_reason:, blocked_until: nil, blocked_details: {})
+  def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "blocked", blocked_reason: nil, blocked_until: nil, blocked_details: {})
     unit = workflow.work_unit
     intent = unit&.work_intent || WorkIntent.create!(
       kind: kind,
@@ -578,6 +578,8 @@ RSpec.describe WorkEngine::Reconciler do
     older.update_columns(state: "running", started_at: 20.minutes.ago, created_at: 20.minutes.ago)
     older_step.update_columns(state: "running", started_at: 20.minutes.ago)
     older_run.update_columns(state: "running", started_at: 20.minutes.ago, last_heartbeat_at: 20.minutes.ago)
+    older_unit = attach_work_unit(older, state: "running")
+    newer_unit = attach_work_unit(newer, kind: "ci_failure", state: "queued")
 
     result = reconcile_and_execute(job_id: job.id)
 
@@ -594,6 +596,11 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_executions.map(&:message)).to include("cancelled superseded Workflow ##{older.id} because newer Workflow ##{newer.id} is active")
     expect(older.reload).to be_cancelled
     expect(older.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
+    expect(older_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+      preempted_by_work_unit_id: newer_unit.id
+    )
     expect(older_step.reload).to be_cancelled
     expect(older_run.reload).to be_cancelled
     expect(newer.reload).to be_queued
@@ -617,6 +624,8 @@ RSpec.describe WorkEngine::Reconciler do
     conflict.update_columns(state: "running", started_at: 1.minute.ago, created_at: 1.minute.ago)
     conflict_step.update_columns(state: "running", started_at: 1.minute.ago)
     conflict_run.update_columns(state: "running", started_at: 1.minute.ago, last_heartbeat_at: Time.current)
+    keeper_unit = attach_work_unit(keeper, kind: "stack_rebase", state: "running")
+    conflict_unit = attach_work_unit(conflict, state: "running")
 
     result = reconcile_and_execute
 
@@ -633,6 +642,11 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{conflict.id} because Epic-wide Workflow ##{keeper.id} is active")
     expect(keeper.reload).to be_running
     expect(conflict.reload).to be_cancelled
+    expect(conflict_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: EpicWorkflowLock::BLOCK_REASON,
+      preempted_by_work_unit_id: keeper_unit.id
+    )
     expect(conflict_step.reload).to be_cancelled
     expect(conflict_run.reload).to be_cancelled
   end

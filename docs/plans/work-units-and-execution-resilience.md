@@ -1921,6 +1921,11 @@ Completed slices:
   facade for queued-step and deferred-phase repairs, so operator-visible repair
   actions cannot resume provider/admission/resource blocked work through a
   different legacy-only path while scheduler ownership is enabled.
+- Superseded-workflow and Epic-workflow-conflict repairs now also mark the
+  affected WorkUnit as preempted/cancelled, release its locks, and point to the
+  keeper WorkUnit when one exists. The legacy Workflow cancellation artifact is
+  still written for compatibility, but WorkUnit state now records that this was
+  preemption rather than an ordinary failed attempt.
 
 ### Phase 8: Step/Run Simplification
 

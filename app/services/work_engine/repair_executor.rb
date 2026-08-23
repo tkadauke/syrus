@@ -895,6 +895,10 @@ module WorkEngine
             workflow.cancel!
             workflow.save!
           end
+          workflow.work_unit&.preempt!(
+            reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+            by_work_unit: keeper.work_unit
+          )
 
           success("cancelled superseded Workflow ##{workflow.id} because newer Workflow ##{keeper.id} is active")
         end
@@ -924,6 +928,10 @@ module WorkEngine
             workflow.cancel!
             workflow.save!
           end
+          workflow.work_unit&.preempt!(
+            reason: EpicWorkflowLock::BLOCK_REASON,
+            by_work_unit: keeper.work_unit
+          )
 
           success("cancelled Workflow ##{workflow.id} because Epic-wide Workflow ##{keeper.id} is active")
         end
