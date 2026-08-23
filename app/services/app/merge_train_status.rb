@@ -75,7 +75,10 @@ module App
     def current_step(workflow)
       return unless workflow
 
-      workflow.current_step || workflow.steps.where(state: "queued").order(:position).first || workflow.steps.order(:position).last
+      steps = workflow.steps.order(:position, :id).includes(:runs).to_a
+      steps.find { |step| step.visible_state == "running" } ||
+        steps.find { |step| step.visible_state == "queued" } ||
+        steps.last
     end
 
     def phase(train, workflow, step)
@@ -91,17 +94,18 @@ module App
       return unless step
 
       latest_run = step.runs.order(:created_at, :id).last
-      result = if step.succeeded?
+      state = step.visible_state
+      result = if state == "succeeded"
         latest_run&.step_agent_diff.present? ? "committed" : "no_changes"
-      elsif step.failed?
+      elsif state == "failed"
         "failed"
-      elsif step.running?
+      elsif state == "running"
         "running"
       end
 
       {
         step_id: step.id,
-        state: step.state,
+        state: state,
         result: result,
         run_id: latest_run&.id,
         head_sha: latest_run&.head_sha,

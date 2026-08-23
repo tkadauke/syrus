@@ -43,4 +43,15 @@ RSpec.describe GraderConclusionCache do
 
     expect(described_class.fingerprint_for_plan(first)).to eq(described_class.fingerprint_for_plan(second))
   end
+
+  it "reads grader status from the latest run projection when step state is stale" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job_record(user: user, repository: repository)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+    Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded")
+
+    expect(described_class.status_for_step(step)).to eq("passed")
+  end
 end

@@ -161,17 +161,15 @@ module App
         workflow = unit.workflow
         return nil unless workflow
 
-        step = workflow.steps
-          .where(state: %w[running queued])
-          .reorder(Arel.sql("CASE state WHEN 'running' THEN 0 ELSE 1 END"), :position, :id)
-          .first
+        step = current_projected_step(workflow)
         return nil unless step
 
+        projection = step_state_projection(step)
         {
           id: step.id,
           kind: step.kind,
           display_name: step_display_name(step),
-          state: step.state,
+          state: projection.visible_state,
           position: step.position
         }
       end
@@ -345,15 +343,17 @@ module App
       def step_json(step, workflow:, latest_step:)
         PerformanceLogging.phase("job_detail.step.serialize", job_id: @job.id, workflow_id: workflow.id, step_id: step.id, kind: step.kind) do
           runs = ordered_runs_for(step)
+          projection = step_state_projection(step, runs: runs)
           {
             id: step.id,
             kind: step.kind,
             display_name: step_display_name(step),
-            display_status: step_display_status(step),
+            display_status: step_display_status(step, projection: projection),
             position: step.position,
             iteration: step.iteration,
             loop_id: step.loop_id,
-            state: step.state,
+            state: projection.visible_state,
+            persisted_state: projection.drifted? ? step.state : nil,
             started_at: iso8601(step.started_at),
             finished_at: iso8601(step.finished_at),
             created_at: iso8601(step.created_at),
@@ -374,12 +374,20 @@ module App
         Step::Kind.label_for(step.kind)
       end
 
-      def step_display_status(step)
-        active_run = ordered_runs_for(step).find { |run| run.state.in?(%w[queued running]) }
-        return active_run.state if active_run
+      def step_display_status(step, projection: step_state_projection(step))
         return nil if step.queued? && ordered_runs_for(step).empty?
 
-        step.state
+        projection.visible_state
+      end
+
+      def current_projected_step(workflow)
+        steps = ordered_steps_for(workflow)
+        steps.find { |step| step_state_projection(step).visible_state == "running" } ||
+          steps.find { |step| step_state_projection(step).visible_state == "queued" }
+      end
+
+      def step_state_projection(step, runs: ordered_runs_for(step))
+        ::Steps::StateProjection.for(step, runs: runs)
       end
 
       def run_json(run, workflow:, step:)

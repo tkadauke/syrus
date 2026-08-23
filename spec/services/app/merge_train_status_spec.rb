@@ -53,6 +53,16 @@ RSpec.describe App::MergeTrainStatus do
     expect(payload[:reconciliation]).to include(state: "running", result: "running")
   end
 
+  it "uses the latest run projection for current step state" do
+    _train, _workflow, step = train_with_workflow(step_kind: "merge_train_reconcile", step_state: "queued")
+    step.runs.last.update_columns(state: "running", started_at: Time.current)
+
+    payload = described_class.for_epic(epic)
+
+    expect(payload).to include(phase: "reconciling")
+    expect(payload[:reconciliation]).to include(state: "running", result: "running")
+  end
+
   it "reports no-op reconciliation when the reconcile run produced no diff" do
     train_with_workflow(
       step_kind: "merge_train_reconcile",

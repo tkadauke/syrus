@@ -1994,6 +1994,14 @@ After WorkUnits are stable, simplify the Step/Run relationship:
 
 This should remove many terminal-descendant and active-run drift repairs.
 
+Completed slices:
+
+- Step visible state now goes through `Steps::StateProjection`, which derives
+  presentation from the latest meaningful Run attempt while preserving the
+  persisted Step state as drift diagnostics. Job workflow JSON, WorkUnit current
+  step summaries, merge-train status, and grader conclusion caching use the
+  projection instead of each hand-rolling Step/Run precedence.
+
 ## Success Criteria
 
 - The UI can explain why a Job is not progressing from one Intent or WorkUnit

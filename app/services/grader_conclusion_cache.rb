@@ -122,10 +122,11 @@ class GraderConclusionCache
   end
 
   def self.status_for_step(step)
-    return "passed" if step.state == "succeeded"
+    state = step.visible_state
+    return "passed" if state == "succeeded"
     return "timed_out" if GraderFailureSignal.timeout_like_step?(step)
-    return "cancelled" if step.state == "cancelled"
-    return "failed" if step.state == "failed"
+    return "cancelled" if state == "cancelled"
+    return "failed" if state == "failed"
 
     "inconclusive"
   end

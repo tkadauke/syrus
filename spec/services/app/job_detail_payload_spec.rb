@@ -877,6 +877,31 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "renders step state from the latest run projection while preserving drift diagnostics" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "queued")
+      Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "running",
+        started_at: 2.minutes.ago,
+        last_heartbeat_at: 1.minute.ago
+      )
+
+      payload = workflows_payload_for(job)
+      step_payload = payload.fetch(:workflows).first.fetch(:steps).first
+
+      expect(step_payload).to include(
+        kind: "implement",
+        state: "running",
+        persisted_state: "queued",
+        display_status: "running"
+      )
+    end
+
     it "keeps legacy workflows without WorkUnit ownership in the fallback workflow list" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

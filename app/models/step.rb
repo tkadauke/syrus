@@ -95,6 +95,14 @@ class Step < ApplicationRecord
     TERMINAL_STATES.include?(state)
   end
 
+  def state_projection(runs: nil)
+    Steps::StateProjection.for(self, runs: runs)
+  end
+
+  def visible_state(runs: nil)
+    state_projection(runs: runs).visible_state
+  end
+
   def skip_with_reason!(reason)
     return false unless may_skip?
 
