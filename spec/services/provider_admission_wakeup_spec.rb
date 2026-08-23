@@ -53,6 +53,14 @@ RSpec.describe ProviderAdmissionWakeup do
     )
   end
 
+  def set_feature(slug, enabled)
+    Feature.find_or_create_by!(slug: slug) do |feature|
+      feature.category = "Operations"
+      feature.name = slug.humanize
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!(slug)
+  end
+
   describe ".call" do
     it "cancels future-scheduled auto-retry attempts and requests a reconcile for each affected job" do
       attempt = pending_attempt
@@ -100,6 +108,38 @@ RSpec.describe ProviderAdmissionWakeup do
       expect(result.workflow_ids).to eq([ queued_workflow.id ])
       expect(queued_workflow.reload.artifact("start_blocked_reason")).to be_nil
       expect(queued_workflow.first_step.runs.count).to eq(1)
+    end
+
+    it "does not wake stale legacy landing workflows after landing ownership moves to WorkUnits" do
+      set_feature("work_units_landing", true)
+      legacy_job = Factories.job_record(user: job.user, repository: job.repository, agent_provider: "claude", state: "landing")
+      legacy_workflow = Workflow.create!(
+        job: legacy_job,
+        trigger_kind: "auto_merge",
+        agent_provider: "claude",
+        state: "queued",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON,
+          "pause_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
+        }
+      )
+      queued_job = Factories.job_record(user: job.user, repository: job.repository, agent_provider: "claude", state: "landing")
+      queued_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: queued_job)
+      queued_workflow.update!(
+        agent_provider: "claude",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON,
+          "pause_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
+        }
+      )
+      queued_workflow.work_unit.block!(reason: WorkUnits::Gates::ProviderAvailability::REASON)
+      allow(ProviderCircuitBreaker).to receive(:call).and_return(closed_circuit)
+
+      result = described_class.call(provider: "claude")
+
+      expect(result.workflow_ids).to eq([ queued_workflow.id ])
+      expect(legacy_workflow.reload.steps).to be_empty
+      expect(queued_workflow.reload.first_step.runs.count).to eq(1)
     end
 
     it "is a no-op when the provider circuit is still open" do

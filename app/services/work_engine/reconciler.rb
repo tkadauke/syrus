@@ -15,18 +15,6 @@ module WorkEngine
       no_changes_produced
       semantic_failure
     ].freeze
-    QUEUED_CANCELLED_WORKFLOW_RECOVERY_TRIGGER_KINDS = %w[
-      initial
-      retry
-      replay
-      manual
-      resume
-      pr_comment
-      chat_feedback
-      ci_failure
-      coding_handoff
-      local_mode_handoff
-    ].freeze
     DELIBERATE_CANCELLED_WORKFLOW_REASONS = %w[
       job_closed
       operator_cancelled
@@ -1723,7 +1711,7 @@ module WorkEngine
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
-        next if external_pr_ingest_run?(run)
+        next if work_definition_for(run.workflow)&.suppresses_layered_auto_repair?
 
         classification = run.run_failure_classification
         next if classification.nil?
@@ -2353,13 +2341,21 @@ module WorkEngine
 
     def recoverable_cancelled_workflow_for_queued_job?(job, workflow)
       return false unless workflow&.cancelled?
-      return false unless QUEUED_CANCELLED_WORKFLOW_RECOVERY_TRIGGER_KINDS.include?(workflow.trigger_kind)
+      return false unless recoverable_cancelled_workflow?(workflow)
       return false if cancelled_workflow_reason(workflow) == EpicWorkflowLock::BLOCK_REASON
       return false if deliberate_cancelled_workflow?(workflow)
       return false if active_epic_wide_workflow_for_job?(job)
       return false unless job.dependencies_satisfied_for_execution?
 
       true
+    end
+
+    def recoverable_cancelled_workflow?(workflow)
+      return false unless workflow
+
+      WorkDefinitions.for(workflow.work_unit&.kind || workflow.trigger_kind).recoverable_cancelled_workflow?
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def deliberate_cancelled_workflow?(workflow)
@@ -2445,18 +2441,6 @@ module WorkEngine
       WorkDefinitions.for(workflow.trigger_kind)
     rescue WorkDefinitions::UnknownKind
       nil
-    end
-
-    # external_pr_ingest already retries deterministically within its own
-    # bounded RetryUntil chain (see Workflows::ExternalPrIngest). Layering the
-    # work engine's separate auto-repair loop on top just because an
-    # individual grader Run's outcome happened to look like a timeout or
-    # worker death converts a deterministic grader/application failure into
-    # an unbounded retry loop instead of letting the workflow exhaust its
-    # iterations and land the Job in :failed for operator action (Retry PR
-    # Ingestion).
-    def external_pr_ingest_run?(run)
-      run.workflow&.trigger_kind == "external_pr_ingest"
     end
 
     def latest_workflow_run?(run)

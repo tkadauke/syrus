@@ -754,6 +754,28 @@ RSpec.describe Job do
       )
     end
 
+    it "includes legacy active workflows while their WorkUnit path is legacy-owned" do
+      Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+        feature.category = "Operations"
+        feature.name = "Work units landing"
+      end.update!(enabled: false)
+      job = Factories.job_record(state: "landing")
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+
+      expect(job.active_runtime_workflows).to contain_exactly(workflow)
+    end
+
+    it "ignores legacy active workflows once their WorkUnit path is authoritative" do
+      Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+        feature.category = "Operations"
+        feature.name = "Work units landing"
+      end.update!(enabled: true)
+      job = Factories.job_record(state: "landing")
+      Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+
+      expect(job.active_runtime_workflows).to be_empty
+    end
+
     it "approves an implemented job with approval metadata" do
       job = Factories.job
       job.update!(state: "implemented")

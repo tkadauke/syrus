@@ -67,6 +67,14 @@ RSpec.describe "Filters::Chips" do
     unit
   end
 
+  def set_feature(slug, enabled)
+    Feature.find_or_create_by!(slug: slug) do |feature|
+      feature.category = "Operations"
+      feature.name = slug.humanize
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!(slug)
+  end
+
   describe "state" do
     it "filters by exact state" do
       queued_job = Factories.job(repository: repo, issue_number: 1)
@@ -234,6 +242,17 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(manually_paused_running)
     end
 
+    it "in_progress: ignores legacy landing workflows after landing ownership moves to WorkUnits" do
+      set_feature("work_units_landing", true)
+      stale_legacy = Factories.job_record(repository: repo, issue_number: 18, state: "landing")
+      work_unit_owner = Factories.job_record(repository: repo, issue_number: 19, state: "landing")
+
+      Workflow.create!(job: stale_legacy, trigger_kind: "auto_merge", state: "running")
+      create_running_work_unit_for(work_unit_owner, kind: "auto_merge")
+
+      expect(run(field: "attention", op: "is", value: "in_progress")).to contain_exactly(work_unit_owner)
+    end
+
     it "queued: returns queued jobs and jobs whose latest workflow is queued" do
       queued = Factories.job_record(repository: repo, issue_number: 21, state: "queued")
       queued_rebase = Factories.job_record(repository: repo, issue_number: 22, state: "approved")
@@ -273,6 +292,23 @@ RSpec.describe "Filters::Chips" do
       create_blocked_work_unit_for(repair_paused, kind: "ci_failure")
 
       expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, workflow_paused, work_unit_paused, repair_paused)
+    end
+
+    it "paused: ignores legacy landing start-block artifacts after landing ownership moves to WorkUnits" do
+      set_feature("work_units_landing", true)
+      stale_legacy = Factories.job_record(repository: repo, issue_number: 38, state: "landing")
+      work_unit_paused = Factories.job_record(repository: repo, issue_number: 39, state: "running")
+
+      Workflow.create!(
+        job: stale_legacy,
+        trigger_kind: "auto_merge",
+        state: "running",
+        artifacts: { "start_blocked_reason" => "workflow_admission_budget" }
+      )
+      create_blocked_work_unit_for(work_unit_paused)
+
+      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(work_unit_paused)
+      expect(run(field: "has_start_blocked_reason", op: "is_true", value: nil)).to contain_exactly(work_unit_paused)
     end
 
     it "queued: excludes jobs with a running infrastructure workflow (e.g. main_grader)" do

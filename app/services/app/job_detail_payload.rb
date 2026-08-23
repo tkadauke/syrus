@@ -816,20 +816,28 @@ module App
     end
 
     def workflow_for_start_blocked
-      @workflow_for_start_blocked ||= @job.workflows
-        .includes(:work_unit)
-        .where(state: %w[queued running])
-        .where("artifacts LIKE ?", '%"start_blocked_reason"%')
-        .reorder(created_at: :desc, id: :desc)
-        .detect { |wf| WorkUnits::StartBlock.for(wf).reason.present? }
+      @workflow_for_start_blocked ||= begin
+        base_scope = @job.workflows
+          .where(state: %w[queued running])
+          .where("artifacts LIKE ?", '%"start_blocked_reason"%')
+
+        WorkUnits::Ownership
+          .legacy_active_workflows_scope([ @job.id ], base_scope: base_scope)
+          .includes(:work_unit)
+          .reorder(created_at: :desc, id: :desc)
+          .detect { |wf| WorkUnits::StartBlock.for(wf).reason.present? }
+      end
     end
 
     def job_start_blocked_data
       @job_start_blocked_data ||= begin
-        if (workflow = workflow_for_start_blocked)
+        work_unit_data = WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
+        if work_unit_data[:reason].present?
+          work_unit_data
+        elsif (workflow = workflow_for_start_blocked)
           WorkUnits::StartBlock.for(workflow).data
         else
-          WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
+          {}
         end
       end
     end

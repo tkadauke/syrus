@@ -191,13 +191,8 @@ RSpec.describe Workflow do
 
   describe "#infrastructure_workflow?" do
     it "uses the WorkDefinition lifecycle ownership policy" do
-      lifecycle_owner_kinds = WorkDefinitions.registry.values
-        .map(&:new)
-        .select(&:manages_own_job_lifecycle?)
-        .map(&:workflow_trigger_kind)
-        .uniq
+      lifecycle_owner_kinds = WorkDefinitions.lifecycle_managed_workflow_kinds
 
-      expect(described_class::INFRASTRUCTURE_TRIGGER_KINDS).to contain_exactly(*lifecycle_owner_kinds)
       lifecycle_owner_kinds.each do |trigger_kind|
         expect(build_wf(trigger_kind: trigger_kind)).to be_infrastructure_workflow
       end

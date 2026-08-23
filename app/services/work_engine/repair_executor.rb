@@ -1142,19 +1142,6 @@ module WorkEngine
       end
 
       class RetryJobAfterCancelledWorkflow < Base
-        RECOVERY_TRIGGER_KINDS = %w[
-          initial
-          retry
-          replay
-          manual
-          resume
-          pr_comment
-          chat_feedback
-          external_pr_feedback
-          ci_failure
-          coding_handoff
-          local_mode_handoff
-        ].freeze
         DELIBERATE_REASONS = %w[
           job_closed
           operator_cancelled
@@ -1172,7 +1159,7 @@ module WorkEngine
 
           latest = job.latest_workflow
           return skipped("Latest Workflow is not cancelled") unless latest&.cancelled?
-          return skipped("Latest Workflow trigger_kind is not recoverable") unless RECOVERY_TRIGGER_KINDS.include?(latest.trigger_kind)
+          return skipped("Latest Workflow trigger_kind is not recoverable") unless recoverable_cancelled_workflow?(latest)
           return skipped("Latest Workflow was cancelled by an Epic-wide workflow lock") if cancelled_workflow_reason(latest) == EpicWorkflowLock::BLOCK_REASON
           return skipped("Latest Workflow cancellation appears deliberate") if deliberate_cancelled_workflow?(latest)
           return skipped("Epic-wide workflow is still active") if active_epic_wide_workflow_for_job?(job)
@@ -1185,6 +1172,12 @@ module WorkEngine
         end
 
         private
+
+        def recoverable_cancelled_workflow?(workflow)
+          WorkDefinitions.for(workflow.work_unit&.kind || workflow.trigger_kind).recoverable_cancelled_workflow?
+        rescue WorkDefinitions::UnknownKind
+          false
+        end
 
         def deliberate_cancelled_workflow?(workflow)
           reason = cancelled_workflow_reason(workflow).to_s

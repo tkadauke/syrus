@@ -31,7 +31,7 @@ class MergeTrainDispatcher
     MergeTrain.transaction do
       members = result.members.map { |job| job.tap(&:lock!) }
 
-      raise ActiveRecord::Rollback if Job.landing.where(repository_id: @epic.repository_id).exists?
+      raise ActiveRecord::Rollback if landing_job_in_progress
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
 
@@ -94,7 +94,11 @@ class MergeTrainDispatcher
 
   def active_train_in_progress?
     MergeTrain.active.where(epic_id: @epic.id).exists? ||
-      WorkUnits::Ownership.active_for_epic?(@epic, kinds: %w[merge_train merge_train_validation])
+      WorkUnits::Ownership.active_for_epic?(
+        @epic,
+        kinds: WorkDefinitions.family_kinds_for("merge_train"),
+        include_legacy: !WorkUnits::PathOwnership.work_unit_owned?("merge_train")
+      )
   end
 
   def landing_job_in_progress

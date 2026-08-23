@@ -3811,6 +3811,31 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :operator_review_nonretryable_failure).auto_executable).to eq(false)
   end
 
+  it "uses WorkDefinition retry policy to rebuild nonretryable WorkUnit attempts" do
+    workflow.update_columns(trigger_kind: "merge_train", state: "failed", finished_at: Time.current)
+    step.update_columns(kind: "merge_train_build", state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    attach_work_unit(workflow, kind: "job_bundle", state: "failed")
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_conflict",
+      retryable: false,
+      confidence: 0.9,
+      reason: "bundle integration conflict",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :rebuild_merge_train)
+
+    expect(repair_plan.auto_executable).to eq(true)
+    expect(repair_plan.preconditions).to include(
+      "work_unit_kind" => "job_bundle",
+      "trigger_kind" => "merge_train",
+      "rebuild_path_available" => true
+    )
+  end
+
   it "does not keep alarming on a nonretryable failure once a newer workflow has superseded it" do
     run.update_columns(state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current)

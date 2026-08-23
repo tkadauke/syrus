@@ -20,10 +20,10 @@ module Filters
         private
 
         def workflow_blocked_job_ids
-          Workflow.active
-                  .where("artifacts LIKE ?", '%"start_blocked_reason"%')
-                  .distinct
-                  .pluck(:job_id)
+          WorkUnits::Ownership
+            .legacy_active_workflows_scope(nil, base_scope: Workflow.active.where("artifacts LIKE ?", '%"start_blocked_reason"%'))
+            .distinct
+            .pluck(:job_id)
         end
       end
     end

@@ -63,6 +63,8 @@ RSpec.describe WorkDefinitions do
       expect(definition.retry_policy).to respond_to(:continuation?)
       expect(definition.retry_policy).to respond_to(:new_attempt?)
       expect(definition.retry_policy).to respond_to(:rebuild_unit?)
+      expect(definition.recoverable_cancelled_workflow?).to be_in([ true, false ])
+      expect(definition.suppresses_layered_auto_repair?).to be_in([ true, false ])
       expect(definition.manages_own_job_lifecycle?).to be_in([ true, false ])
     end
   end
@@ -242,6 +244,23 @@ RSpec.describe WorkDefinitions do
       "retry",
       "checkpoint_resume"
     )
+    expect(described_class.recoverable_cancelled_workflow_kinds).to contain_exactly(
+      "initial",
+      "pr_comment",
+      "chat_feedback",
+      "ci_failure",
+      "retry",
+      "checkpoint_resume",
+      "replay",
+      "manual",
+      "resume",
+      "coding_handoff",
+      "local_mode_handoff",
+      "external_pr_feedback"
+    )
+    expect(described_class.layered_auto_repair_suppressed_kinds).to contain_exactly(
+      "external_pr_ingest"
+    )
     expect(described_class.landing_validation_prefetch_source_kinds).to contain_exactly(
       "auto_merge",
       "merge_train",
@@ -264,6 +283,22 @@ RSpec.describe WorkDefinitions do
       "main_grader",
       "main_branch_repair"
     )
+    expect(described_class.lifecycle_managed_workflow_kinds).to contain_exactly(
+      "main_grader",
+      "agent_insight",
+      "main_branch_repair",
+      "landing_validation",
+      "merge_train_validation"
+    )
+  end
+
+  it "maps between WorkDefinition kinds and persisted Workflow trigger kinds" do
+    expect(described_class.workflow_trigger_kinds_for(%w[merge_train job_bundle])).to eq(%w[merge_train])
+    expect(described_class.workflow_trigger_kinds_for(%w[merge_train_validation job_bundle_validation])).to eq(%w[merge_train_validation])
+    expect(described_class.workflow_trigger_kinds_for(%w[auto_merge stack_rebase])).to contain_exactly("auto_merge", "stack_rebase")
+
+    expect(described_class.kinds_for_workflow_trigger("merge_train")).to contain_exactly("merge_train", "job_bundle")
+    expect(described_class.kinds_for_workflow_trigger("merge_train_validation")).to contain_exactly("merge_train_validation", "job_bundle_validation")
   end
 
   it "keeps landing lock definitions behind their domain dispatchers" do

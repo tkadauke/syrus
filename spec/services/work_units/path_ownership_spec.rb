@@ -59,4 +59,25 @@ RSpec.describe WorkUnits::PathOwnership do
     expect { described_class.for("new_unregistered_path") }
       .to raise_error(KeyError, /unknown work unit ownership path/)
   end
+
+  it "selects exactly one owner for every registered rollout path" do
+    described_class::PATH_GATES.each do |path, gate|
+      described_class::PATH_GATES.values.uniq.each { |slug| set_feature(slug, false) }
+
+      disabled = described_class.for(path)
+      expect(disabled).to be_legacy
+      expect(disabled).not_to be_work_unit
+      expect(disabled.gate).to eq(gate)
+
+      (described_class::PATH_GATES.values.uniq - [ gate ]).each { |slug| set_feature(slug, true) }
+      other_gates_enabled = described_class.for(path)
+      expect(other_gates_enabled).to be_legacy
+      expect(other_gates_enabled).not_to be_work_unit
+
+      set_feature(gate, true)
+      enabled = described_class.for(path)
+      expect(enabled).to be_work_unit
+      expect(enabled).not_to be_legacy
+    end
+  end
 end

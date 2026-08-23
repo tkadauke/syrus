@@ -9,10 +9,12 @@ RSpec.describe "workflow launch funnel" do
   ].freeze
 
   DIRECT_START_PATTERNS = [
-    /\bStepDispatcher\.start_workflow\(/
+    /\bStepDispatcher\.start_workflow\(/,
+    /\bStepDispatcher\.resume_deferred_phase\(/
   ].freeze
 
   ALLOWED_FILES = %w[
+    app/services/work_units/deferred_phase_resume.rb
     app/services/work_units/launcher.rb
   ].freeze
 
@@ -40,8 +42,9 @@ RSpec.describe "workflow launch funnel" do
       Production workflow creation and starts must go through
       WorkUnits::Launcher so WorkIntent/WorkUnit shadow records cannot be
       missed. Move direct Workflows::* .instantiate or
-      StepDispatcher.start_workflow calls behind the launcher, or add an
-      explicit exception here with a migration note.
+      StepDispatcher.start_workflow/resume_deferred_phase calls behind the
+      WorkUnit facades, or add an explicit exception here with a migration
+      note.
 
       #{offenders.join("\n")}
     MESSAGE

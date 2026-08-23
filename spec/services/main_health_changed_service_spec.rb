@@ -69,6 +69,22 @@ RSpec.describe MainHealthChangedService do
         expect(workflow.reload.artifact("main_broken")).to be true
       end
 
+      it "records queued no-run WorkUnits as main-health blocked" do
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+        workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+
+        described_class.on_health_change!(repository)
+
+        expect(workflow.work_unit.reload).to have_attributes(
+          state: "blocked",
+          blocked_reason: "main_branch_health"
+        )
+        expect(workflow.work_unit.blocked_details).to include(
+          "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+          "repository_slug" => repository.slug
+        )
+      end
+
       it "stamps active running workflows with main_broken artifact" do
         job = Factories.job(repository: repository)
         workflow = job.latest_workflow

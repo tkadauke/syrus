@@ -127,6 +127,19 @@ RSpec.describe MergeTrainDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "rechecks WorkUnit landing locks inside the dispatch transaction" do
+    approved_child(1)
+    landing_owner = Factories.job_record(user: user, repository: repository, issue_number: 99, state: "implemented", pr_number: 999)
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_owner)
+    workflow.work_unit.update!(state: "running")
+    dispatcher = described_class.new(epic)
+    allow(dispatcher).to receive(:blocker_reason).and_return(nil)
+
+    expect(dispatcher.try_dispatch!).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(epic.jobs.reload.pluck(:state)).to all(eq("approved"))
+  end
+
   it "does not dispatch a second train when the Epic already has an active train" do
     approved_child(1)
     active_train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master", state: "grading")
@@ -143,6 +156,17 @@ RSpec.describe MergeTrainDispatcher do
     expect(described_class.try_dispatch!(epic)).to be_nil
     expect(MergeTrain.count).to eq(0)
     expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
+  it "ignores legacy merge-train workflows as active train blockers when WorkUnit landing owns the path" do
+    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units landing"
+    end.update!(enabled: true)
+    child = approved_child(1)
+    Workflow.create!(job: child, trigger_kind: "merge_train", state: "running")
+
+    expect(described_class.blocker_reason(epic)).to be_nil
   end
 
   it "does not dispatch when an active merge-train work unit owns the Epic" do

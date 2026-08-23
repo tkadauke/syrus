@@ -37,6 +37,16 @@ RSpec.describe ChatFeedbackSubmission do
     expect(result.error).to include("queued jobs are not actionable")
   end
 
+  it "rejects duplicate chat feedback through WorkUnit ownership" do
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    WorkUnits::Launcher.instantiate(kind: "chat_feedback", job: job)
+
+    result = described_class.call(job: job, feedback: "One more thing.", allowed_states: %w[implemented approved])
+
+    expect(result).not_to be_success
+    expect(result.error).to eq("a chat_feedback workflow is already queued or running for this job")
+  end
+
   it "dismisses the GitHub review and passes the captured review_id to the propagator" do
     job = Factories.job_record(
       user: user, repository: repository,

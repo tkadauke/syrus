@@ -43,6 +43,14 @@ module WorkDefinitions
     @retry_workflow_attempt_kinds ||= kinds_matching(&:retry_workflow_attempt?)
   end
 
+  def recoverable_cancelled_workflow_kinds
+    @recoverable_cancelled_workflow_kinds ||= kinds_matching(&:recoverable_cancelled_workflow?)
+  end
+
+  def layered_auto_repair_suppressed_kinds
+    @layered_auto_repair_suppressed_kinds ||= kinds_matching(&:suppresses_layered_auto_repair?)
+  end
+
   def landing_validation_prefetch_source_kinds
     @landing_validation_prefetch_source_kinds ||= kinds_matching(&:landing_validation_prefetch_source?)
   end
@@ -53,6 +61,13 @@ module WorkDefinitions
 
   def agent_concurrency_exempt_kinds
     @agent_concurrency_exempt_kinds ||= kinds_matching(&:agent_concurrency_exempt?)
+  end
+
+  def lifecycle_managed_workflow_kinds
+    @lifecycle_managed_workflow_kinds ||= definitions_matching(&:manages_own_job_lifecycle?)
+      .map(&:workflow_trigger_kind)
+      .uniq
+      .freeze
   end
 
   def child_kinds_for(parent_kind)
@@ -66,6 +81,21 @@ module WorkDefinitions
 
   def family_kinds_for(kind)
     [ kind.to_s, *child_kinds_for(kind) ].uniq.freeze
+  end
+
+  def workflow_trigger_kinds_for(kinds)
+    Array(kinds)
+      .map { |kind| registry[kind.to_s]&.new&.workflow_trigger_kind }
+      .compact
+      .uniq
+      .freeze
+  end
+
+  def kinds_for_workflow_trigger(trigger_kind)
+    trigger_kind = trigger_kind.to_s
+    definitions_matching { |definition| definition.workflow_trigger_kind == trigger_kind }
+      .map(&:kind)
+      .freeze
   end
 
   def landing_validation_child_kind_for(parent_kind)
@@ -91,9 +121,12 @@ module WorkDefinitions
       @ci_failure_blocking_kinds
       @active_repair_work_kinds
       @retry_workflow_attempt_kinds
+      @recoverable_cancelled_workflow_kinds
+      @layered_auto_repair_suppressed_kinds
       @landing_validation_prefetch_source_kinds
       @landing_validation_child_kinds
       @agent_concurrency_exempt_kinds
+      @lifecycle_managed_workflow_kinds
     ].each do |ivar|
       remove_instance_variable(ivar) if instance_variable_defined?(ivar)
     end

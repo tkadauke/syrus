@@ -81,7 +81,17 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   before do
+    set_feature("work_units_landing", false)
+    set_feature("work_units_scheduler", false)
     seed_low_cost_profiles
+  end
+
+  def set_feature(slug, enabled)
+    Feature.find_or_create_by!(slug: slug) do |feature|
+      feature.category = "Operations"
+      feature.name = slug.humanize
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!(slug)
   end
 
   it "admits a workflow when projected pressure is within budget" do
@@ -158,6 +168,41 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.reason).to eq("predicted_budget_pressure_high")
     expect(decision.delay_until).to be_present
     expect(decision.pressure.dig("projected", "cpu_pressure")).to be >= 100.0
+  end
+
+  it "ignores legacy landing workflows in admission pressure after landing moves to WorkUnits" do
+    set_feature("work_units_landing", true)
+    WorkflowStepResourceProfile.delete_all
+    seed_low_cost_profiles(except: [ "prepare" ])
+    profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
+    legacy = workflow_for(state: "running", trigger_kind: "auto_merge")
+    candidate = workflow_for
+
+    decision = described_class.call(workflow: candidate)
+
+    expect(legacy.reload).to be_running
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("within_budget")
+    expect(decision.pressure.dig("active", "workflow_count")).to eq(0)
+    expect(decision.details.fetch("repository_active_workflow_count")).to eq(0)
+  end
+
+  it "counts WorkUnit-owned landing workflows in admission pressure" do
+    set_feature("work_units_landing", true)
+    WorkflowStepResourceProfile.delete_all
+    seed_low_cost_profiles(except: [ "prepare" ])
+    profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
+    active = workflow_for(state: "running", trigger_kind: "auto_merge")
+    WorkUnits::Backfill.workflow!(active)
+    candidate = workflow_for
+
+    decision = described_class.call(workflow: candidate)
+
+    expect(active.reload.work_unit).to be_running
+    expect(decision.action).to eq("delay_until")
+    expect(decision.reason).to eq("predicted_budget_pressure_high")
+    expect(decision.pressure.dig("active", "workflow_count")).to eq(1)
+    expect(decision.details.fetch("repository_active_workflow_count")).to eq(1)
   end
 
   it "admits a medium-priority auto-merge below the healthy-worker floor despite conservative default pressure" do

@@ -68,6 +68,24 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_workflow_ids([ job.id ], kinds: "auto_merge")).to be_empty
   end
 
+  it "derives landing-owned legacy workflow fallbacks from WorkDefinition policy" do
+    set_feature("work_units_landing", true)
+    auto_merge = Factories.job_record(issue_number: 421)
+    bundle = Factories.job_record(repository: auto_merge.repository, issue_number: 422)
+    validation = Factories.job_record(repository: auto_merge.repository, issue_number: 423)
+    stack_rebase = Factories.job_record(repository: auto_merge.repository, issue_number: 424)
+    manual = Factories.job_record(repository: auto_merge.repository, issue_number: 425)
+    Workflow.create!(job: auto_merge, trigger_kind: "auto_merge", state: "running")
+    Workflow.create!(job: bundle, trigger_kind: WorkDefinitions.for("job_bundle").workflow_trigger_kind, state: "running")
+    Workflow.create!(job: validation, trigger_kind: WorkDefinitions.for("job_bundle_validation").workflow_trigger_kind, state: "running")
+    Workflow.create!(job: stack_rebase, trigger_kind: "stack_rebase", state: "running")
+    Workflow.create!(job: manual, trigger_kind: "manual", state: "running")
+
+    ids = [ auto_merge.id, bundle.id, validation.id, stack_rebase.id, manual.id ]
+
+    expect(described_class.active_job_ids(ids)).to contain_exactly(manual.id)
+  end
+
   it "keeps legacy fallbacks for paths whose ownership gate is still disabled" do
     set_feature("work_units_scheduler", true)
     set_feature("work_units_landing", false)

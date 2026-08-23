@@ -108,6 +108,8 @@ module WorkDefinitions
     def blocks_ci_failure? = false
     def active_repair_work? = false
     def retry_workflow_attempt? = false
+    def recoverable_cancelled_workflow? = false
+    def suppresses_layered_auto_repair? = false
     def landing_validation_prefetch_source? = false
     def landing_validation_child? = false
     def agent_concurrency_exempt? = false

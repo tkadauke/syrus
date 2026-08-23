@@ -16,7 +16,11 @@ module WorkEngine
       return false unless job&.epic_id
 
       if WorkUnits::PathOwnership.work_unit_owned?("epic_wide_workflow")
-        WorkUnits::Ownership.active_for_epic?(job.epic, kinds: WorkDefinitions.epic_wide_kinds)
+        WorkUnits::Ownership.active_for_epic?(
+          job.epic,
+          kinds: WorkDefinitions.epic_wide_kinds,
+          include_legacy: false
+        )
       else
         legacy_active_epic_wide_workflow?
       end
@@ -45,7 +49,12 @@ module WorkEngine
     end
 
     def legacy_active_landing_work?
-      job.workflows.active.any? || active_epic_wide_workflow?
+      WorkUnits::Ownership
+        .legacy_active_workflows_scope(
+          [ job.id ],
+          kinds: WorkDefinitions.landing_lock_kinds
+        )
+        .exists? || active_epic_wide_workflow?
     end
   end
 end

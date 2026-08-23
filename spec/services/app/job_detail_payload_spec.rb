@@ -214,6 +214,33 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :summary_state)).to eq("running")
     end
 
+    it "prefers blocked WorkUnit data over stale workflow block artifacts" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        artifacts: {
+          "start_blocked_reason" => "workflow_admission_budget",
+          "start_blocked_details" => { "reason" => "stale_artifact" }
+        }
+      )
+      workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "running")
+      unit = attach_work_unit(
+        workflow,
+        member_jobs: [ job ],
+        kind: "manual_visual_review",
+        state: "blocked",
+        blocked_reason: "provider_availability"
+      )
+      unit.update!(blocked_details: { "provider" => "codex" })
+
+      payload = payload_for(job).fetch(:job)
+
+      expect(payload[:start_blocked_reason]).to eq("provider_availability")
+      expect(payload[:start_blocked_details]).to eq("provider" => "codex")
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)

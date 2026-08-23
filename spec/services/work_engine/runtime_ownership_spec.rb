@@ -83,6 +83,15 @@ RSpec.describe WorkEngine::RuntimeOwnership do
     expect(described_class.active_epic_wide_workflow_for_job?(second)).to be true
   end
 
+  it "ignores legacy active epic-wide workflows when the reconciler gate is enabled" do
+    set_reconciler_gate(true)
+    epic = Factories.epic
+    job = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 1)
+    Workflow.create!(job: job, trigger_kind: "merge_train", state: "running")
+
+    expect(described_class.active_epic_wide_workflow_for_job?(job)).to be false
+  end
+
   it "ignores work unit epic ownership while the reconciler gate is disabled" do
     set_reconciler_gate(false)
     epic = Factories.epic
@@ -100,6 +109,14 @@ RSpec.describe WorkEngine::RuntimeOwnership do
     Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
 
     expect(described_class.active_landing_work_for_job?(job)).to be true
+  end
+
+  it "does not treat non-landing active workflows as legacy landing ownership" do
+    set_landing_gate(false)
+    job = Factories.job_record
+    Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+
+    expect(described_class.active_landing_work_for_job?(job)).to be false
   end
 
   it "uses work unit landing ownership when the landing gate is enabled" do

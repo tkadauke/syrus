@@ -33,7 +33,7 @@ class JobBundleDispatcher
     MergeTrain.transaction do
       members = result.members.map { |job| job.tap(&:lock!) }
 
-      raise ActiveRecord::Rollback if Job.landing.where(repository_id: @repository.id).exists?
+      raise ActiveRecord::Rollback if landing_job_in_progress
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
 
@@ -91,10 +91,17 @@ class JobBundleDispatcher
   private
 
   def active_bundle_in_progress?
-    MergeTrain.active.where(repository_id: @repository.id, epic_id: nil).exists?
+    WorkUnits::Ownership.active_for_lock_key?(
+      "landing:repository:#{@repository.id}",
+      kinds: WorkDefinitions.family_kinds_for("job_bundle")
+    ) || MergeTrain.active.where(repository_id: @repository.id, epic_id: nil).exists?
   end
 
   def landing_job_in_progress
+    if (unit = WorkUnits::Ownership.active_unit_for_lock_key("landing:repository:#{@repository.id}", kinds: WorkDefinitions.landing_lock_kinds))
+      return unit.member_jobs.order(:id).first || unit.workflow&.job
+    end
+
     Job.landing.where(repository_id: @repository.id).order(:id).first
   end
 

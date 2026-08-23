@@ -194,7 +194,24 @@ class MainHealthChangedService
             .where(state: %w[queued running])
             .find_each do |workflow|
       workflow.set_artifact!("main_broken", true)
+      record_queued_work_unit_main_health_block!(workflow)
     end
+  end
+
+  def record_queued_work_unit_main_health_block!(workflow)
+    return unless workflow.queued?
+    return if workflow.steps.joins(:runs).exists?
+
+    WorkUnits::WorkflowBlockProjection.record!(
+      workflow,
+      start_blocked_reason: StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+      blocked_until: StepDispatcher::START_BLOCKED_BACKOFF.from_now,
+      details: {
+        "repository_id" => @repository.id,
+        "repository_slug" => @repository.slug,
+        "main_health_state" => "broken"
+      }
+    )
   end
 
   def start_blocked_queued_workflows!

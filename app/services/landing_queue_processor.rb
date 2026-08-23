@@ -549,7 +549,10 @@ class LandingQueueProcessor
   end
 
   def landing_in_progress_for_repository?(repository_id)
-    Job.landing.where(repository_id: repository_id).exists?
+    WorkUnits::Ownership.active_for_lock_key?(
+      "landing:repository:#{repository_id}",
+      kinds: WorkDefinitions.landing_lock_kinds
+    ) || Job.landing.where(repository_id: repository_id).exists?
   end
 
   def release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
@@ -651,9 +654,12 @@ class LandingQueueProcessor
   end
 
   def legacy_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
-    Workflow.active
+    WorkUnits::Ownership.legacy_active_workflows_scope(
+      nil,
+      kinds: WorkDefinitions.landing_workflow_kinds,
+      base_scope: Workflow.active
+    )
       .joins(:job)
-      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .where(jobs: { repository_id: repository_id, state: "landing" })
       .where.not(jobs: { id: except_job_id })
       .reorder(:id)

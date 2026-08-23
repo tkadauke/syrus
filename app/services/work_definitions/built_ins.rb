@@ -13,6 +13,14 @@ module WorkDefinitions
     def retry_workflow_attempt? = true
   end
 
+  module RecoverableCancelledWorkflow
+    def recoverable_cancelled_workflow? = true
+  end
+
+  module SuppressesLayeredAutoRepair
+    def suppresses_layered_auto_repair? = true
+  end
+
   module LandingValidationPrefetchSource
     def landing_validation_prefetch_source? = true
   end
@@ -65,6 +73,7 @@ module WorkDefinitions
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "initial"
     self.workflow_trigger_kind = "initial"
@@ -76,6 +85,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "pr_comment"
     self.workflow_trigger_kind = "pr_comment"
@@ -87,6 +97,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "chat_feedback"
     self.workflow_trigger_kind = "chat_feedback"
@@ -98,6 +109,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "ci_failure"
     self.workflow_trigger_kind = "ci_failure"
@@ -278,6 +290,7 @@ module WorkDefinitions
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "retry"
     self.workflow_trigger_kind = "retry"
@@ -291,6 +304,7 @@ module WorkDefinitions
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "checkpoint_resume"
     self.workflow_trigger_kind = "retry"
@@ -311,6 +325,8 @@ module WorkDefinitions
   end
 
   class Replay < Base
+    include RecoverableCancelledWorkflow
+
     self.kind = "replay"
     self.workflow_trigger_kind = "replay"
     self.runtime_role = "legacy"
@@ -321,6 +337,7 @@ module WorkDefinitions
     include ActiveRepairWork
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "manual"
     self.workflow_trigger_kind = "manual"
@@ -331,6 +348,7 @@ module WorkDefinitions
   class Resume < Base
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "resume"
     self.workflow_trigger_kind = "resume"
@@ -342,6 +360,7 @@ module WorkDefinitions
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "coding_handoff"
     self.workflow_trigger_kind = "coding_handoff"
@@ -353,6 +372,7 @@ module WorkDefinitions
     include OpensReviewPullRequest
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "local_mode_handoff"
     self.workflow_trigger_kind = "local_mode_handoff"
@@ -403,6 +423,7 @@ module WorkDefinitions
   class ExternalPrIngest < Base
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include SuppressesLayeredAutoRepair
 
     self.kind = "external_pr_ingest"
     self.workflow_trigger_kind = "external_pr_ingest"
@@ -413,6 +434,7 @@ module WorkDefinitions
   class ExternalPrFeedback < Base
     include ResumesFailedSteps
     include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
 
     self.kind = "external_pr_feedback"
     self.workflow_trigger_kind = "external_pr_feedback"

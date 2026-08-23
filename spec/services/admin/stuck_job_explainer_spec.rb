@@ -77,6 +77,62 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action, :reason)).not_to include("Dependency graph")
   end
 
+  it "explains blocked WorkUnit ownership without requiring workflow block artifacts" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "queued",
+      issue_title: "Provider-paused work"
+    )
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "blocked",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow,
+      blocked_reason: "provider_availability",
+      blocked_until: 5.minutes.from_now,
+      blocked_details: { "provider" => "codex" }
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload.dig(:current_intent)).to include(
+      id: intent.id,
+      kind: "initial",
+      state: "requested"
+    )
+    expect(payload.dig(:work_units, :active)).to contain_exactly(
+      include(
+        id: unit.id,
+        kind: "initial",
+        state: "blocked",
+        blocked_reason: "provider_availability",
+        blocked_details: { "provider" => "codex" },
+        workflow_id: workflow.id
+      )
+    )
+    expect(payload.dig(:recommended_action)).to include(
+      action: "wait",
+      work_unit_id: unit.id,
+      blocked_reason: "provider_availability"
+    )
+    expect(payload.dig(:human_summary)).to include("active work unit WU-#{unit.id} is blocked")
+  end
+
   it "points grader failures at Run logs instead of stack state" do
     job = Factories.job_record(
       user: user,

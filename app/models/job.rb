@@ -306,7 +306,7 @@ class Job < ApplicationRecord
   end
 
   def infrastructure?
-    Workflow::INFRASTRUCTURE_TRIGGER_KINDS.include?(latest_workflow_trigger_kind)
+    WorkDefinitions.lifecycle_managed_workflow_kinds.include?(latest_workflow_trigger_kind)
   end
 
   def claimed?
@@ -840,13 +840,10 @@ class Job < ApplicationRecord
   def active_runtime_workflows
     WorkUnits::TerminalWorkflowSync.for_job(self)
 
-    direct_workflows = workflows.active.to_a
-    unit_workflows = WorkUnits::Ownership
-      .active_units_for_job(self)
-      .filter_map(&:workflow)
-      .select { |workflow| workflow.state.in?(%w[queued running]) }
-
-    (direct_workflows + unit_workflows).uniq
+    Workflow
+      .where(id: WorkUnits::Ownership.active_workflow_ids([ id ]).to_a)
+      .order(:created_at, :id)
+      .to_a
   end
 
   def mark_externally_implemented!(number)

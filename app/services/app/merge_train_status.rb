@@ -67,7 +67,7 @@ module App
     end
 
     def workflow_for(train)
-      Workflow.where(trigger_kind: "merge_train", job_id: train.jobs.select(:id))
+      Workflow.where(trigger_kind: WorkDefinitions.for("merge_train").workflow_trigger_kind, job_id: train.jobs.select(:id))
               .order(id: :desc)
               .detect { |workflow| workflow.artifact("merge_train_id").to_i == train.id }
     end

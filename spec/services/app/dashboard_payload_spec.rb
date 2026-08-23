@@ -411,6 +411,55 @@ RSpec.describe App::DashboardPayload do
       expect(items.fetch(tip.id)[:landing_queue_wait_reason]).to be_nil
     end
 
+    it "reports a WorkUnit-owned merge-train blocker without relying on workflow artifacts" do
+      Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+        feature.category = "Operations"
+        feature.name = "Work units landing"
+      end.update!(enabled: true)
+      AppSetting.current.update!(merge_train_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
+      tip = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 102)
+      train = MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch)
+      MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: tip, position: 1)
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "requested",
+        repository: repo,
+        scope_type: "epic",
+        scope_id: epic.id,
+        actor: user,
+        source_type: "spec"
+      )
+      workflow = Workflow.create!(
+        job: tip,
+        trigger_kind: "merge_train",
+        state: "succeeded",
+        artifacts: { "merge_train_id" => train.id }
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "merge_train",
+        state: "blocked",
+        repository: repo,
+        scope_type: "epic",
+        scope_id: epic.id,
+        workflow: workflow,
+        blocked_reason: "urgent_job_active"
+      )
+      unit.work_unit_members.create!(job: first, role: "primary")
+      unit.work_unit_members.create!(job: tip, role: "member")
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      items = result[:items].index_by { |item| item[:id] }
+
+      expect(items.fetch(first.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
+      expect(items.fetch(first.id)[:landing_queue_wait_reason]).to be_nil
+      expect(items.fetch(tip.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
+      expect(items.fetch(tip.id)[:landing_queue_wait_reason]).to be_nil
+    end
+
     it "reports ordinary Epic merge-train participation as neutral queue status" do
       AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)

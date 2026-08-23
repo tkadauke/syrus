@@ -14,7 +14,7 @@ class ChatFeedbackSubmission
       return Result.new(workflow: nil, error: "#{job.state} jobs are not actionable for chat feedback; the job must be #{states}.")
     end
 
-    if job.workflows.where(trigger_kind: "chat_feedback", state: ACTIVE_STATES).exists?
+    if WorkUnits::Ownership.active_for_job_kind?(job, "chat_feedback")
       return Result.new(workflow: nil, error: "a chat_feedback workflow is already queued or running for this job")
     end
 

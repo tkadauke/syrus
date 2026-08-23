@@ -719,6 +719,23 @@ RSpec.describe LandingQueueProcessor do
     expect(ready.reload).to be_approved
   end
 
+  it "skips an approved Job whose repository is owned by an active landing WorkUnit lock" do
+    owner = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 1,
+      state: "implemented",
+      pr_number: 101,
+      branch_name: "syrus/issue-1"
+    )
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+    workflow.work_unit.update!(state: "running")
+    ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+
+    expect(described_class.call).to be_nil
+    expect(ready.reload).to be_approved
+  end
+
   it "keeps an active landing Job numbered ahead of approved Jobs while its start blocker retries" do
     landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
@@ -1134,6 +1151,23 @@ RSpec.describe LandingQueueProcessor do
       already_landing.start_landing!
       already_landing.save!
 
+      target = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+
+      expect(described_class.try_land!(target)).to be_nil
+      expect(target.reload).to be_approved
+    end
+
+    it "no-ops when the repository landing slot is owned by an active WorkUnit lock" do
+      owner = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 1,
+        state: "implemented",
+        pr_number: 101,
+        branch_name: "syrus/issue-1"
+      )
+      workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+      workflow.work_unit.update!(state: "running")
       target = queue_job(issue_number: 2, approved_at: 1.minute.ago)
 
       expect(described_class.try_land!(target)).to be_nil

@@ -90,6 +90,24 @@ RSpec.describe JobBundleDispatcher do
     expect(described_class.try_dispatch!(repository)).to be_nil
   end
 
+  it "does not dispatch while a landing WorkUnit owns the repository landing slot" do
+    owner = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 50,
+      state: "implemented",
+      pr_number: 950,
+      branch_name: "syrus/issue-50"
+    )
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+    workflow.work_unit.update!(state: "running")
+    approved_job(1)
+    approved_job(2)
+
+    expect(described_class.blocker_reason(repository)).to eq("#{owner.slug} is already landing for #{repository.slug}")
+    expect(described_class.try_dispatch!(repository)).to be_nil
+  end
+
   it "does not dispatch while a rebase workflow is active for a bundle member" do
     a = approved_job(1)
     approved_job(2)

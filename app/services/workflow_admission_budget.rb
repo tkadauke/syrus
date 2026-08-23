@@ -406,7 +406,7 @@ class WorkflowAdmissionBudget
   end
 
   def active_minimum_progress_handoff_count
-    @active_minimum_progress_handoff_count ||= Workflow.active
+    @active_minimum_progress_handoff_count ||= active_workflow_scope
       .where.not(id: workflow.id)
       .where.not(job_id: job.id)
       .where(created_at: (now - ACTIVE_WORKFLOW_WINDOW)..)
@@ -452,10 +452,17 @@ class WorkflowAdmissionBudget
   end
 
   def active_workflows_with_runs
-    Workflow.active
+    active_workflow_scope
       .left_outer_joins(steps: :runs)
       .where("workflows.state = ? OR runs.state IN (?)", "running", %w[ queued running ])
       .distinct
+  end
+
+  def active_workflow_scope
+    workflow_ids = WorkUnits::Ownership.active_workflow_ids(nil, states: WorkUnits::Ownership::RUNNABLE_STATES).to_a
+    return Workflow.none if workflow_ids.empty?
+
+    Workflow.where(id: workflow_ids)
   end
 
   def host_pressure

@@ -73,10 +73,14 @@ class ProviderAdmissionWakeup
   end
 
   def legacy_workflows
-    scope = Workflow
+    base_scope = Workflow
       .where(agent_provider: provider, state: "queued")
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
-      .order(:created_at, :id)
+
+    scope = WorkUnits::Ownership.legacy_active_workflows_scope(
+      nil,
+      base_scope: base_scope
+    ).order(:created_at, :id)
     scope = scope.where(user_id: user.id) if user
     scope.to_a
   end

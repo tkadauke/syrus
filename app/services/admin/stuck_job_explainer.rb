@@ -18,6 +18,8 @@ module Admin
         stuck: stuck_items.any?,
         issues: issues_payload,
         stuck_list: stuck_list_payload,
+        current_intent: current_intent_payload,
+        work_units: work_units_payload,
         workflows: workflows_payload,
         runs: runs_payload,
         dependencies: dependencies_payload,
@@ -95,6 +97,83 @@ module Admin
         failed: failed.map { |workflow| workflow_payload(workflow) },
         queued_stale_behind_terminal: queued_stale_behind_terminal?(queued, terminal)
       }
+    end
+
+    def current_intent_payload
+      intent = active_work_unit&.work_intent || latest_waiting_or_requested_intent
+      return nil unless intent
+
+      {
+        id: intent.id,
+        kind: intent.kind,
+        state: intent.state,
+        scope_type: intent.scope_type,
+        scope_id: intent.scope_id,
+        wait_reason: intent.wait_reason,
+        wait_until: intent.wait_until&.iso8601,
+        wait_details: intent.wait_details.presence,
+        requested_at: intent.requested_at&.iso8601,
+        satisfied_at: intent.satisfied_at&.iso8601,
+        cancelled_at: intent.cancelled_at&.iso8601
+      }
+    end
+
+    def work_units_payload
+      members = WorkUnitMember
+        .joins(:work_unit)
+        .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
+        .where(job_id: job.id)
+        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .limit(25)
+        .to_a
+
+      {
+        active: members.select { |member| member.work_unit.active? }.map { |member| work_unit_payload(member) },
+        recent: members.map { |member| work_unit_payload(member) }
+      }
+    end
+
+    def work_unit_payload(member)
+      unit = member.work_unit
+      workflow = unit.workflow
+      {
+        id: unit.id,
+        kind: unit.kind,
+        state: unit.state,
+        member_role: member.role,
+        work_intent_id: unit.work_intent_id,
+        workflow_id: unit.workflow_id,
+        workflow_trigger_kind: workflow&.trigger_kind,
+        workflow_state: workflow&.state,
+        scope_type: unit.scope_type,
+        scope_id: unit.scope_id,
+        blocked_reason: unit.blocked_reason,
+        blocked_until: unit.blocked_until&.iso8601,
+        blocked_details: unit.blocked_details.presence,
+        preemption_reason: unit.preemption_reason,
+        preempted_by_work_unit_id: unit.preempted_by_work_unit_id,
+        parent_work_unit_id: unit.parent_work_unit_id,
+        created_at: unit.created_at&.iso8601,
+        started_at: unit.started_at&.iso8601,
+        finished_at: unit.finished_at&.iso8601
+      }
+    end
+
+    def active_work_unit
+      @active_work_unit ||= WorkUnitMember
+        .joins(:work_unit)
+        .includes(work_unit: :work_intent)
+        .where(job_id: job.id, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
+        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .first
+        &.work_unit
+    end
+
+    def latest_waiting_or_requested_intent
+      WorkIntent
+        .where(scope_type: "job", scope_id: job.id, state: %w[requested waiting])
+        .order(created_at: :desc, id: :desc)
+        .first
     end
 
     def workflow_payload(workflow)
@@ -417,6 +496,15 @@ module Admin
     end
 
     def recommended_action(payload)
+      if (blocked_unit = blocked_work_unit(payload))
+        return action(
+          "wait",
+          "WorkUnit ##{blocked_unit[:id]} is blocked by #{blocked_unit[:blocked_reason]}.",
+          work_unit_id: blocked_unit[:id],
+          blocked_reason: blocked_unit[:blocked_reason],
+          next_check_at: blocked_unit[:blocked_until]
+        )
+      end
       if (state_plan = ReconcileJobStatesJob::Plan.for(job))
         return action(
           "reconcile_job_state",
@@ -454,6 +542,10 @@ module Admin
       return action("wait", "The Job has active queued or running workflow work.") if payload.dig(:workflows, :active).present?
 
       action("manual_intervention", "No automated next action was inferred.")
+    end
+
+    def blocked_work_unit(payload)
+      payload.dig(:work_units, :active).to_a.find { |unit| unit[:state] == "blocked" && unit[:blocked_reason].present? }
     end
 
     def stale_heartbeat_run_id(payload)
@@ -508,6 +600,9 @@ module Admin
       end
       if payload.dig(:workflows, :queued_stale_behind_terminal)
         bits << "a queued workflow is older than a newer terminal workflow"
+      end
+      if (unit = payload.dig(:work_units, :active)&.first)
+        bits << "active work unit WU-#{unit[:id]} is #{unit[:state]} (#{unit[:kind]})"
       end
       bits << action[:reason]
       "#{bits.join('; ')} Recommended action: #{action[:action]}."

@@ -82,7 +82,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     # between the state transition and the cleanup call).
     infra_cutoff = RETAIN_AFTER_SUCCESS_OR_CANCEL.ago
     Workflow.where(state: "failed")
-            .where(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
+            .where(trigger_kind: WorkDefinitions.lifecycle_managed_workflow_kinds)
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", infra_cutoff)
             .find_each do |wf|
@@ -105,7 +105,7 @@ class WorkflowWorkspacePruneJob < ApplicationJob
     # Latest + job open: operator may retry. Keep up to RETAIN_AFTER_FAILURE
     # as a backstop.
     Workflow.where(state: "failed")
-            .where.not(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
+            .where.not(trigger_kind: WorkDefinitions.lifecycle_managed_workflow_kinds)
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL")
             .find_each do |wf|

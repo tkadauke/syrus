@@ -650,7 +650,7 @@ module WorkEngine
 
       class NonretryableSemanticGitFailure < Base
         def plan
-          return merge_train_rebuild if primary_workflow&.trigger_kind == "merge_train" && step_kind&.rebuild_repair?
+          return rebuild_work_unit if rebuild_unit_retry?
 
           operator_plan(
             "operator_review_nonretryable_failure",
@@ -661,13 +661,26 @@ module WorkEngine
 
         private
 
-        def merge_train_rebuild
+        def rebuild_unit_retry?
+          return false unless primary_workflow && primary_step
+
+          definition = WorkDefinitions.for(primary_workflow.work_unit&.kind || primary_workflow.trigger_kind)
+          definition.retry_policy.rebuild_unit?(primary_step)
+        rescue WorkDefinitions::UnknownKind
+          false
+        end
+
+        def rebuild_work_unit
           automatic_plan(
             "rebuild_merge_train",
             primary_workflow,
-            "Merge-train retries use the existing rebuild path rather than replaying non-idempotent landing work.",
+            "This WorkUnit's retry policy rebuilds the attempt rather than replaying non-idempotent work.",
             execution_steps: [ "RetryFailedStepEnqueuer.call" ],
-            preconditions: { trigger_kind: "merge_train", rebuild_path_available: true }
+            preconditions: {
+              work_unit_kind: primary_workflow.work_unit&.kind,
+              trigger_kind: primary_workflow.trigger_kind,
+              rebuild_path_available: true
+            }
           )
         end
       end

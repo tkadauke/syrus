@@ -4,14 +4,6 @@ module WorkUnits
   class Ownership
     ACTIVE_STATES = %w[queued blocked running].freeze
     RUNNABLE_STATES = %w[queued running].freeze
-    LANDING_OWNED_KINDS = %w[
-      auto_merge
-      external_pr_merge
-      landing_validation
-      merge_train
-      merge_train_validation
-      stack_rebase
-    ].freeze
     ActiveWork = Data.define(:kind, :workflow, :work_unit)
     def self.active_for_job?(job)
       active_job_ids([ job.id ]).include?(job.id)
@@ -21,10 +13,13 @@ module WorkUnits
       active_job_ids([ job.id ], kinds: kinds).include?(job.id)
     end
 
-    def self.active_for_epic?(epic, kinds: nil)
+    def self.active_for_epic?(epic, kinds: nil, include_legacy: true)
       return false unless epic
 
-      active_units_for_epic(epic, kinds: kinds).any? || legacy_active_epic_workflows(epic, kinds: kinds).exists?
+      return true if active_units_for_epic(epic, kinds: kinds).any?
+      return false unless include_legacy
+
+      legacy_active_epic_workflows(epic, kinds: kinds).exists?
     end
 
     def self.active_for_lock_key?(lock_key, kinds: nil)
@@ -352,9 +347,17 @@ module WorkUnits
       kind = kind.to_s
       return true if kind == "replay"
       return false unless Workflow::TriggerKind.values.include?(kind)
-      return !WorkUnits::PathOwnership.work_unit_owned?("landing_queue") if LANDING_OWNED_KINDS.include?(kind)
+      return !WorkUnits::PathOwnership.work_unit_owned?("landing_queue") if landing_owned_trigger_kinds.include?(kind)
 
       !WorkUnits::PathOwnership.work_unit_owned?("retry")
+    end
+
+    def self.landing_owned_trigger_kinds
+      @landing_owned_trigger_kinds ||= begin
+        WorkDefinitions.workflow_trigger_kinds_for(
+          WorkDefinitions.landing_lock_kinds + WorkDefinitions.family_kinds_for("stack_rebase")
+        )
+      end
     end
 
     def self.workflow_states(states)

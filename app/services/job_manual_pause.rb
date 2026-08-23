@@ -27,7 +27,7 @@ class JobManualPause
   def self.resume_active_workflows(job)
     job.workflows.where(state: %w[ queued running ]).find_each do |workflow|
       StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::MANUAL_PAUSE_REASON)
-      StepDispatcher.resume_deferred_phase(workflow.id)
+      WorkUnits::DeferredPhaseResume.call(workflow.id)
     end
   end
 
