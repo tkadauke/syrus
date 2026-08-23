@@ -1,9 +1,14 @@
 require "rails_helper"
 
 RSpec.describe WorkUnits::Launcher do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository) }
+
+  before { clear_enqueued_jobs }
+  after { clear_enqueued_jobs }
 
   def set_scheduler_gate(enabled)
     Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
@@ -229,6 +234,43 @@ RSpec.describe WorkUnits::Launcher do
     expect(@result.run).to be_nil
     expect(@result.reason).to eq("manual_pause")
     expect(@result.work_unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
+  ensure
+    set_scheduler_gate(false)
+  end
+
+  it "schedules a recheck when a runtime gate blocks the launch" do
+    set_scheduler_gate(true)
+    workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
+    retry_at = 12.minutes.from_now
+    gate_result = WorkUnits::GateResult.block(
+      reason: WorkUnits::Gates::ProviderAvailability::REASON,
+      retry_at: retry_at,
+      details: { "provider" => "codex" }
+    )
+    allow(WorkUnits::Scheduler).to receive(:evaluate!).with(workflow.work_unit).and_return(gate_result)
+
+    expect {
+      @result = described_class.start!(workflow)
+    }.not_to change { Run.count }
+
+    expect(@result).to be_blocked
+    expect(enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }.last[:at]).to be_within(2.seconds).of(retry_at.to_f)
+  ensure
+    set_scheduler_gate(false)
+  end
+
+  it "does not schedule automatic rechecks for manual pauses" do
+    set_scheduler_gate(true)
+    workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
+    gate_result = WorkUnits::GateResult.block(
+      reason: WorkUnits::Gates::ManualPause::REASON,
+      details: { "pause_requested" => true }
+    )
+    allow(WorkUnits::Scheduler).to receive(:evaluate!).with(workflow.work_unit).and_return(gate_result)
+
+    described_class.start!(workflow)
+
+    expect(enqueued_jobs.map { |entry| entry[:job] }).not_to include(WorkflowPhaseAdmissionJob)
   ensure
     set_scheduler_gate(false)
   end

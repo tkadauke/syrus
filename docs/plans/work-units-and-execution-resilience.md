@@ -1702,6 +1702,12 @@ Completed slices:
   WorkUnit ID and typed reason in evidence; expired WorkUnit-only admission
   blocks re-enter the normal dispatcher path, and stale WorkUnit-only
   dependency blocks are cleared before the Workflow is restarted.
+- The WorkUnit scheduler now owns the first runtime start gates behind the
+  `work_units_scheduler` feature: main-branch health, provider availability,
+  manual pause, admission control, and hard resource safety. `StepDispatcher`
+  remains a migration safety net, but launcher-blocked WorkUnits record typed
+  blocked reasons and schedule admission/landing rechecks for non-manual
+  runtime pauses.
 
 ### Phase 6: Work Definition Policies
 

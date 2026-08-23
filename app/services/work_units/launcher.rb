@@ -48,6 +48,7 @@ module WorkUnits
       if unit && Feature.work_units_scheduler_enabled?
         gate_result = Scheduler.evaluate!(unit)
         if gate_result.blocked?
+          schedule_blocked_recheck!(workflow, gate_result)
           return Result.new(
             workflow: workflow,
             run: nil,
@@ -70,6 +71,28 @@ module WorkUnits
         reason: nil,
         gate_result: nil
       )
+    end
+
+    def self.schedule_blocked_recheck!(workflow, gate_result)
+      return if gate_result.reason == WorkUnits::Gates::ManualPause::REASON
+
+      wait_until = gate_result.retry_at
+      priority = workflow.job.solid_queue_priority
+      if wait_until&.future?
+        WorkflowPhaseAdmissionJob.set(wait_until: wait_until, priority: priority).perform_later(workflow.id)
+      else
+        WorkflowPhaseAdmissionJob.set(wait: StepDispatcher::START_BLOCKED_BACKOFF, priority: priority).perform_later(workflow.id)
+      end
+
+      return unless workflow.landing_workflow?
+
+      LandingQueueProcessorJob.set(wait: landing_recheck_delay(wait_until), priority: priority).perform_later
+    end
+
+    def self.landing_recheck_delay(wait_until)
+      return StepDispatcher::START_BLOCKED_BACKOFF unless wait_until&.future?
+
+      [ wait_until - Time.current, StepDispatcher::START_BLOCKED_BACKOFF.to_i ].max.seconds
     end
 
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:)

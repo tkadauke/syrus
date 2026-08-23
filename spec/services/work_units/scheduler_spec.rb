@@ -29,12 +29,12 @@ RSpec.describe WorkUnits::Scheduler do
   end
 
   it "does not unblock a unit blocked by a reason outside the evaluated gates" do
-    unit.block!(reason: "admission_control", details: { "pressure" => "high" })
+    unit.block!(reason: "dependency_failed", details: { "dependency_id" => 123 })
 
     result = described_class.evaluate!(unit)
 
     expect(result).to be_pass
-    expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "admission_control")
+    expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "dependency_failed")
   end
 
   it "uses manual pause as the first built-in gate" do

@@ -84,7 +84,14 @@ module WorkDefinitions
     end
 
     def intent_gates = [ WorkIntents::Gates::Dependency ]
-    def unit_gates = [ WorkUnits::Gates::ManualPause ]
+    def unit_gates
+      [
+        WorkUnits::Gates::MainBranchHealth,
+        WorkUnits::Gates::ProviderAvailability,
+        WorkUnits::Gates::ManualPause,
+        WorkUnits::Gates::AdmissionControl
+      ]
+    end
     def preemption_policy = WorkUnits::PreemptionPolicies::None.new
     def retry_policy = WorkUnits::RetryPolicies::Operator.new
     def blocks_ci_failure? = false
