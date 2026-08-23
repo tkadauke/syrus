@@ -114,7 +114,7 @@ RSpec.describe Job do
 
     it "rejects a job owned by an active WorkUnit even when no Run is active" do
       job = Factories.job_record(state: "implemented")
-      workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "succeeded", finished_at: Time.current)
+      workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "queued")
       intent = WorkIntent.create!(
         kind: "manual_visual_review",
         state: "requested",

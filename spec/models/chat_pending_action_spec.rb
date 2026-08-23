@@ -660,6 +660,85 @@ RSpec.describe ChatPendingAction do
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
+  it "repairs WorkUnit-owned workflows through confirmed repair actions" do
+    admin = Factories.user(admin: true)
+    repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: repository)
+    owner = Factories.job_record(user: admin, repository: repository, state: "running")
+    member = Factories.job_record(user: admin, repository: repository, state: "running")
+    workflow = Workflow.create!(
+      job: owner,
+      trigger_kind: "merge_train",
+      agent_provider: owner.agent_provider,
+      state: "running",
+      started_at: 5.minutes.ago
+    )
+    intent = WorkIntent.create!(
+      kind: "merge_train",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: owner.id,
+      actor: admin,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "merge_train",
+      state: "running",
+      repository: repository,
+      scope_type: "job",
+      scope_id: owner.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: owner, role: "primary")
+    unit.work_unit_members.create!(job: member, role: "member")
+
+    cancel_action = admin_session.pending_actions.create!(
+      action: "cancel_stale_work",
+      payload: { "job_id" => member.id, "workflow_ids" => [ workflow.id ], "reconcile" => false },
+      reason: "Cross-job WorkUnit workflow is stale.",
+      requested_by: "agent"
+    )
+
+    expect(cancel_action.confirm!).to be true
+    expect(workflow.reload).to be_cancelled
+    expect(unit.reload).to be_cancelled
+
+    queued_workflow = Workflow.create!(
+      job: owner,
+      trigger_kind: "retry",
+      agent_provider: owner.agent_provider,
+      state: "queued"
+    )
+    queued_workflow.steps.create!(kind: "implement", position: 0, iteration: 1)
+    queued_unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "retry",
+      state: "queued",
+      repository: repository,
+      scope_type: "job",
+      scope_id: owner.id,
+      workflow: queued_workflow
+    )
+    queued_unit.work_unit_members.create!(job: owner, role: "primary")
+    queued_unit.work_unit_members.create!(job: member, role: "member")
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
+
+    reenqueue_action = admin_session.pending_actions.create!(
+      action: "reenqueue_work",
+      payload: { "job_id" => member.id, "workflow_id" => queued_workflow.id },
+      reason: "Cross-job WorkUnit workflow has no first Run.",
+      requested_by: "agent"
+    )
+
+    expect {
+      reenqueue_action.confirm!
+    }.to have_enqueued_job(RunJob)
+    expect(reenqueue_action.reload.result.workflow).to eq(queued_workflow)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(queued_workflow)
+  end
+
   it "rejects mismatched repository and chat session" do
     other_repo = Factories.repository(user: user)
     action = described_class.new(

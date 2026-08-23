@@ -75,11 +75,11 @@ module PendingActions
     end
 
     def target_workflows(job)
-      scope = job.workflows.active
+      active_workflows = job.active_runtime_workflows
       ids = workflow_ids.map { |id| Integer(id, exception: false) }.compact
-      return scope.to_a if ids.empty?
+      return active_workflows if ids.empty?
 
-      records = scope.where(id: ids).to_a
+      records = active_workflows.select { |workflow| ids.include?(workflow.id) }
       missing = ids - records.map(&:id)
       raise ArgumentError, "Workflow ids are not active work for #{job.slug}: #{missing.join(", ")}" if missing.any?
 

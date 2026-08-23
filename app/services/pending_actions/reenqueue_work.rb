@@ -74,10 +74,13 @@ module PendingActions
     end
 
     def target_workflow(job)
+      active_workflows = job.active_runtime_workflows
       if payload["workflow_id"].present?
-        job.workflows.find(payload["workflow_id"])
+        workflow_id = Integer(payload["workflow_id"], exception: false)
+        active_workflows.find { |workflow| workflow.id == workflow_id } ||
+          raise(ActiveRecord::RecordNotFound, "Couldn't find active Workflow with 'id'=#{payload["workflow_id"]} for #{job.slug}")
       else
-        job.workflows.active.order(created_at: :desc, id: :desc).first
+        active_workflows.max_by { |workflow| [ workflow.created_at || Time.at(0), workflow.id ] }
       end
     end
 

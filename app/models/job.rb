@@ -191,6 +191,8 @@ class Job < ApplicationRecord
   end
 
   def active_runtime_work?
+    WorkUnits::TerminalWorkflowSync.for_job(self)
+
     any_active_run? || WorkUnits::Ownership.active_for_job?(self)
   end
   # Materialized rather than a correlated NOT EXISTS — see
