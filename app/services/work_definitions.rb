@@ -44,6 +44,10 @@ module WorkDefinitions
     @landing_validation_child_kinds ||= kinds_matching(&:landing_validation_child?)
   end
 
+  def agent_concurrency_exempt_kinds
+    @agent_concurrency_exempt_kinds ||= kinds_matching(&:agent_concurrency_exempt?)
+  end
+
   def child_kinds_for(parent_kind)
     load_definitions
     registry.values
@@ -81,6 +85,7 @@ module WorkDefinitions
       @retry_workflow_attempt_kinds
       @landing_validation_prefetch_source_kinds
       @landing_validation_child_kinds
+      @agent_concurrency_exempt_kinds
     ].each do |ivar|
       remove_instance_variable(ivar) if instance_variable_defined?(ivar)
     end

@@ -1822,6 +1822,10 @@ Completed slices:
   Speculative landing validation, grader collection, and changed-file base
   selection consume the source/child/family policy sets instead of maintaining
   local `auto_merge`/`merge_train`/validation trigger lists.
+- Work definitions now declare agent-concurrency exemptions. `RunJob` exempts
+  main branch health/repair work through definition policy instead of carrying
+  its own `main_grader`/`main_branch_repair` list, while retry-workflow
+  eligibility at run start uses the same retry-attempt policy as the reconciler.
 
 ### Phase 7: Callback Strangler Completion
 

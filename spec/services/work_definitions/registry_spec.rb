@@ -241,6 +241,10 @@ RSpec.describe WorkDefinitions do
     expect(described_class.family_kinds_for("merge_train")).to contain_exactly("merge_train", "merge_train_validation")
     expect(described_class.landing_validation_child_kind_for("auto_merge")).to eq("landing_validation")
     expect(described_class.landing_validation_child_kind_for("merge_train")).to eq("merge_train_validation")
+    expect(described_class.agent_concurrency_exempt_kinds).to contain_exactly(
+      "main_grader",
+      "main_branch_repair"
+    )
   end
 
   it "resolves merge train members from the train artifact through the definition" do

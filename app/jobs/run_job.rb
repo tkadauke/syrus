@@ -145,7 +145,7 @@ class RunJob < ApplicationJob
 
     run = ::Run.find_by(id: run_id)
     return false unless run && !run.terminal? && run.agent_queue?
-    return false if run.trigger_kind.in?(%w[main_grader main_branch_repair])
+    return false if work_definition_for_run(run).agent_concurrency_exempt?
 
     active = ::Run.running_agent_runs.where.not(id: run_id).count
     return false if active < limit
@@ -250,7 +250,7 @@ class RunJob < ApplicationJob
   end
 
   def cancel_ineligible_retry_workflow!
-    return false unless @workflow.trigger_kind == "retry"
+    return false unless work_definition_for_workflow(@workflow)&.retry_workflow_attempt?
 
     eligibility = RetryWorkflowEligibility.call(job: @job, workflow: @workflow)
     return false if eligibility.eligible?
@@ -264,6 +264,20 @@ class RunJob < ApplicationJob
     @workflow.save!
     ReconcileJobStatesJob.perform_later if eligibility.code.in?(%w[ pr_ready superseded ])
     true
+  end
+
+  def work_definition_for_run(run)
+    work_definition_for_workflow(run.step&.workflow) || WorkDefinitions.for(run.trigger_kind)
+  rescue WorkDefinitions::UnknownKind
+    WorkDefinitions.for("manual")
+  end
+
+  def work_definition_for_workflow(workflow)
+    return unless workflow
+
+    WorkDefinitions.for(workflow.work_unit&.kind || workflow.trigger_kind)
+  rescue WorkDefinitions::UnknownKind
+    nil
   end
 
   # Snapshot the diagnostic, fail the Run, and let Run/Step

@@ -21,6 +21,10 @@ module WorkDefinitions
     def landing_validation_child? = true
   end
 
+  module AgentConcurrencyExempt
+    def agent_concurrency_exempt? = true
+  end
+
   module OpensReviewPullRequest
     def self.included(base)
       base.review_publication_step_kinds = %w[pr_open]
@@ -309,6 +313,8 @@ module WorkDefinitions
   end
 
   class MainGrader < Base
+    include AgentConcurrencyExempt
+
     self.kind = "main_grader"
     self.workflow_trigger_kind = "main_grader"
     self.runtime_role = "infrastructure"
@@ -316,6 +322,7 @@ module WorkDefinitions
   end
 
   class MainBranchRepair < Base
+    include AgentConcurrencyExempt
     include OpensReviewPullRequest
     include ManagesOwnJobLifecycle
     include ResumesFailedSteps
