@@ -637,6 +637,28 @@ RSpec.describe WorkEngine::Reconciler do
     expect(conflict_run.reload).to be_cancelled
   end
 
+  it "releases active locks retained by a terminal WorkUnit" do
+    workflow = job.latest_workflow
+    unit = workflow.work_unit
+    lock = unit.work_unit_locks.active.first
+    unit.update_columns(state: "succeeded", finished_at: 5.minutes.ago)
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :terminal_work_unit_active_locks)).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "release_terminal_work_unit_locks"
+    )
+    expect(plan(result, :release_terminal_work_unit_locks)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkUnit",
+      target_id: unit.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("released 1 active locks for terminal WorkUnit ##{unit.id}")
+    expect(lock.reload).not_to be_active
+  end
+
   it "retries a queued Job whose latest workflow was cancelled by a cleared Epic-wide workflow conflict" do
     epic = Factories.epic(user: job.user, repository: job.repository)
     epic.update!(state: "in_progress")

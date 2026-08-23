@@ -132,6 +132,14 @@ module WorkEngine
           end
         end
 
+        def target_work_unit
+          @target_work_unit ||= if plan.target_type == "WorkUnit"
+            WorkUnit.includes(:work_unit_locks, :workflow, :work_unit_members).find_by(id: plan.target_id)
+          else
+            first_work_unit || target_workflow&.work_unit
+          end
+        end
+
         def active_epic_wide_workflow_for_job?(job)
           WorkEngine::RuntimeOwnership.active_epic_wide_workflow_for_job?(job)
         end
@@ -191,6 +199,10 @@ module WorkEngine
 
         def first_workflow
           Workflow.includes(:job, :steps).find_by(id: first_id("workflow_ids"))
+        end
+
+        def first_work_unit
+          WorkUnit.includes(:work_unit_locks, :workflow, :work_unit_members).find_by(id: first_id("work_unit_ids"))
         end
 
         def first_job
@@ -682,6 +694,25 @@ module WorkEngine
             failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")
           else
             success("cancelled active descendants for terminal Workflow ##{workflow.id}")
+          end
+        end
+      end
+
+      class ReleaseTerminalWorkUnitLocks < Base
+        def perform
+          unit = target_work_unit
+          return skipped("WorkUnit no longer exists") unless unit
+          return skipped("WorkUnit is #{unit.state}, not terminal") unless unit.terminal?
+
+          active_locks = unit.work_unit_locks.active.to_a
+          return skipped("WorkUnit has no active locks") if active_locks.empty?
+
+          active_locks.each(&:release!)
+          remaining = unit.work_unit_locks.active.pluck(:id)
+          if remaining.any?
+            failure("active locks remain for WorkUnit ##{unit.id}: #{remaining.inspect}")
+          else
+            success("released #{active_locks.size} active locks for terminal WorkUnit ##{unit.id}")
           end
         end
       end

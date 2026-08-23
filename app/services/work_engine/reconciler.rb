@@ -83,6 +83,7 @@ module WorkEngine
       :workflow_ids,
       :step_ids,
       :run_ids,
+      :work_unit_ids,
       :solid_queue_available,
       :solid_queue_jobs,
       :solid_queue_processes,
@@ -101,6 +102,7 @@ module WorkEngine
           workflow_ids: workflow_ids,
           step_ids: step_ids,
           run_ids: run_ids,
+          work_unit_ids: work_unit_ids,
           solid_queue_available: solid_queue_available,
           solid_queue_jobs: solid_queue_jobs,
           solid_queue_processes: solid_queue_processes,
@@ -161,6 +163,7 @@ module WorkEngine
       )
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
       @workflows = scoped_workflows.includes(:job, :steps).to_a
+      @work_units = scoped_work_units.includes(:work_unit_locks, :work_unit_members, :workflow).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
       workflow_steps = @workflows.flat_map(&:steps)
       missing_run_step_ids = @runs.filter_map(&:step_id) - workflow_steps.map(&:id)
@@ -179,6 +182,7 @@ module WorkEngine
       issues.concat(classify_active_steps_with_terminal_runs)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
+      issues.concat(classify_terminal_work_units_with_active_locks)
       issues.concat(classify_stale_auto_retry_workflows)
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_jobs_without_active_workflows)
@@ -249,7 +253,7 @@ module WorkEngine
 
     private
 
-    attr_reader :source, :job_id, :workflow_id, :run_id, :now, :jobs, :workflows, :runs, :steps, :solid_queue
+    attr_reader :source, :job_id, :workflow_id, :run_id, :now, :jobs, :workflows, :work_units, :runs, :steps, :solid_queue
 
     def execute_repairs?
       @execute_repairs
@@ -293,6 +297,27 @@ module WorkEngine
       else
         step_ids = workflows.flat_map { |workflow| workflow.steps.map(&:id) }
         Run.where(step_id: step_ids).where(state: %w[ queued running failed ])
+      end
+    end
+
+    def scoped_work_units
+      if workflow_id.present?
+        WorkUnit.where(workflow_id: workflow_id)
+      elsif run_id.present?
+        WorkUnit.where(workflow_id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
+      elsif job_id.present?
+        member_unit_ids = WorkUnit
+          .joins(:work_unit_members)
+          .where(work_unit_members: { job_id: job_id })
+          .select(:id)
+        workflow_unit_ids = WorkUnit.where(workflow_id: workflows.map(&:id)).select(:id)
+        WorkUnit.where(id: member_unit_ids).or(WorkUnit.where(id: workflow_unit_ids))
+      else
+        active_units = WorkUnit.where(state: WorkUnits::Ownership::ACTIVE_STATES)
+        terminal_locked_units = WorkUnit
+          .joins(:work_unit_locks)
+          .where(state: %w[succeeded failed cancelled], work_unit_locks: { released_at: nil })
+        WorkUnit.where(id: active_units.select(:id)).or(WorkUnit.where(id: terminal_locked_units.select(:id)))
       end
     end
 
@@ -694,6 +719,29 @@ module WorkEngine
             job_state: workflow.job.state
           ),
           explanation: "Workflow ##{workflow.id} is an auto-retry for Workflow ##{source.id}, but that source failure was already superseded."
+        )
+      end
+    end
+
+    def classify_terminal_work_units_with_active_locks
+      work_units.select(&:terminal?).filter_map do |unit|
+        active_locks = unit.work_unit_locks.select(&:active?)
+        next if active_locks.empty?
+
+        issue(
+          kind: :terminal_work_unit_active_locks,
+          severity: :error,
+          affected_ids: ids_for(unit),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "release_terminal_work_unit_locks",
+          evidence: {
+            work_unit_id: unit.id,
+            work_unit_state: unit.state,
+            workflow_id: unit.workflow_id,
+            active_lock_ids: active_locks.map(&:id),
+            active_lock_keys: active_locks.map(&:lock_key)
+          },
+          explanation: "Terminal WorkUnit ##{unit.id} still owns active locks; terminal units must release locks so future work can proceed."
         )
       end
     end
@@ -1542,6 +1590,7 @@ module WorkEngine
         workflow_ids: workflows.map(&:id),
         step_ids: steps.map(&:id),
         run_ids: runs.map(&:id),
+        work_unit_ids: work_units.map(&:id),
         solid_queue_available: solid_queue[:available],
         solid_queue_jobs: solid_queue[:jobs],
         solid_queue_processes: solid_queue[:processes],

@@ -156,7 +156,11 @@ module WorkEngine
         end
 
         def primary_record
-          primary_run || primary_workflow || primary_step || primary_job
+          primary_work_unit || primary_run || primary_workflow || primary_step || primary_job
+        end
+
+        def primary_work_unit
+          @primary_work_unit ||= WorkUnit.includes(:work_unit_locks, :work_unit_members, :workflow).find_by(id: first_id(:work_unit_ids))
         end
 
         def primary_run
@@ -1040,6 +1044,22 @@ module WorkEngine
               workflow_state: %w[succeeded failed cancelled],
               active_step_ids: issue.evidence["active_step_ids"],
               active_run_ids: issue.evidence["active_run_ids"]
+            }
+          )
+        end
+      end
+
+      class TerminalWorkUnitActiveLocks < Base
+        def plan
+          automatic_plan(
+            "release_terminal_work_unit_locks",
+            primary_work_unit,
+            "The WorkUnit is terminal but still owns active locks, so release those stale locks without changing the terminal outcome.",
+            execution_steps: [ "WorkUnitLock#release!" ],
+            preconditions: {
+              work_unit_state: %w[succeeded failed cancelled],
+              active_lock_ids: issue.evidence["active_lock_ids"],
+              active_lock_keys: issue.evidence["active_lock_keys"]
             }
           )
         end
