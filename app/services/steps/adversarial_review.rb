@@ -1,6 +1,7 @@
 module Steps
   class AdversarialReview < Base
     FAILURE_SKIP_THRESHOLD = 1
+    TURN_BUDGET = 200
 
     def call
       workspace.setup
@@ -10,7 +11,7 @@ module Steps
       log("invoking agent for adversarial_review step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
 
       run_agent(prompt: run.prompt,
-                max_turns: 35,
+                max_turns: TURN_BUDGET,
                 required_mcp_tools: %w[submit_adversarial_review],
                 disallowed_tools: REVIEW_COLLIDING_TOOLS)
       discard_reviewer_workspace_changes

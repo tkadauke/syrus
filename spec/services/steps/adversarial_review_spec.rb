@@ -69,7 +69,7 @@ RSpec.describe Steps::AdversarialReview do
       expect(prompt).to include("Changed files from the latest succeeded implement step")
       expect(prompt).to include("app.rb")
       expect(prompt).not_to include("puts 'review me'")
-      expect(max_turns).to eq(35)
+      expect(max_turns).to eq(described_class::TURN_BUDGET)
       expect(required_mcp_tools).to eq(%w[submit_adversarial_review])
       expect(disallowed_tools).to eq(%w[ReportFindings])
       workflow.set_artifact!("adversarial_review_iterations", [
