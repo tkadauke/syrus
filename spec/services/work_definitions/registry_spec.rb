@@ -247,6 +247,17 @@ RSpec.describe WorkDefinitions do
     )
   end
 
+  it "keeps landing lock definitions behind their domain dispatchers" do
+    described_class.registry.each_key do |kind|
+      definition = described_class.for(kind)
+      if definition.landing_lock?
+        expect(definition.generic_intent_start_allowed?).to be(false), "#{definition.kind} must not bypass landing dispatch"
+      else
+        expect(definition.generic_intent_start_allowed?).to be(true), "#{definition.kind} should be generic-startable unless it declares a dispatcher"
+      end
+    end
+  end
+
   it "resolves merge train members from the train artifact through the definition" do
     user = Factories.user
     repository = Factories.repository(user: user)

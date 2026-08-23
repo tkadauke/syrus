@@ -104,6 +104,7 @@ module WorkDefinitions
     def landing_lock? = kind.in?(LANDING_LOCK_KINDS)
     def requires_approval? = false
     def requires_epic_readiness? = false
+    def generic_intent_start_allowed? = !landing_lock?
 
     def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }

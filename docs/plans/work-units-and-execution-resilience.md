@@ -1926,6 +1926,11 @@ Completed slices:
   keeper WorkUnit when one exists. The legacy Workflow cancellation artifact is
   still written for compatibility, but WorkUnit state now records that this was
   preemption rather than an ordinary failed attempt.
+- Generic requested-Intent launch now respects WorkDefinition ownership.
+  Non-landing job-scoped Intents can be launched by the generic scheduler, and
+  existing Intents with prior terminal Units can be rebuilt from their snapshots.
+  Fresh landing/ref-mutating Intents require their domain dispatcher so a new
+  `auto_merge` or `merge_train` request cannot bypass landing queue ordering.
 
 ### Phase 8: Step/Run Simplification
 

@@ -71,6 +71,17 @@ module WorkIntents
           reason: gate_result.reason
         )
       end
+      unless generic_start_allowed?
+        return StartResult.new(
+          intent: intent,
+          gate_result: gate_result,
+          workflow: nil,
+          work_unit: nil,
+          launch_result: nil,
+          status: "waiting",
+          reason: "domain_dispatcher_required"
+        )
+      end
 
       workflow = WorkUnits::Launcher.instantiate_intent!(
         intent,
@@ -94,6 +105,11 @@ module WorkIntents
     private
 
     attr_reader :intent, :gates
+
+    def generic_start_allowed?
+      intent.definition.generic_intent_start_allowed? ||
+        intent.work_units.where(state: %w[succeeded failed cancelled]).exists?
+    end
 
     def managed_wait_reason?(reason)
       managed_wait_reasons.include?(reason)

@@ -107,6 +107,26 @@ RSpec.describe WorkIntents::Scheduler do
     expect(result.workflow.first_step.runs.last).to be_queued
   end
 
+  it "does not generically launch landing intents that must use the landing dispatcher" do
+    job.update!(state: "approved")
+    landing_intent = WorkIntent.create!(
+      kind: "auto_merge",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user
+    )
+
+    expect {
+      result = described_class.start_ready!(landing_intent)
+      expect(result).to be_waiting
+      expect(result.reason).to eq("domain_dispatcher_required")
+    }.not_to change { WorkUnit.count }
+
+    expect(landing_intent.reload).to have_attributes(state: "requested", wait_reason: nil)
+  end
+
   it "does not start a requested intent while another active WorkUnit owns it" do
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "spec-intent")
     active_intent = workflow.work_unit.work_intent
