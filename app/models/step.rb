@@ -103,25 +103,9 @@ class Step < ApplicationRecord
     save!
   end
 
-  # When a Step succeeds, hand off to the dispatcher to start the
-  # next one (if any). Linear chain — `next_step` is at most one.
-  # The dispatcher is what creates the Run on the next Step; this
-  # callback just signals "I'm done; move along".
   after_update_commit :advance_next_step!, if: :saved_change_to_state_to_succeeded?
   after_update_commit :apply_auto_approval_rule!, if: :saved_change_to_succeeded_grade?
-
-  # When a Step fails, the linear chain can't advance: v1 has no
-  # intra-workflow retry, so the workflow itself is dead. Mark
-  # the Workflow failed (which fires its own cleanup callbacks).
   after_update_commit :fail_workflow!, if: :saved_change_to_state_to_failed?
-
-  # When a Step is cancelled, anything queued behind it in the
-  # chain is orphaned: the dispatcher only advances on succeed,
-  # so the queued tail will never run. Cascade the cancel to
-  # downstream queued steps, then (if the workflow has no active
-  # work left) cancel the workflow itself so workspace cleanup +
-  # after_cancel hooks fire. Legitimate "skip one future step"
-  # :skipped means the step was intentionally unnecessary and does not cascade.
   after_update_commit :cancel_workflow_chain!, if: :saved_change_to_state_to_cancelled?
 
   def saved_change_to_state_to_succeeded?
@@ -144,42 +128,19 @@ class Step < ApplicationRecord
   end
 
   def advance_next_step!
-    StepDispatcher.advance_from(self)
+    Steps::LifecyclePropagation.succeeded!(self)
   end
 
   def apply_auto_approval_rule!
-    AutoApprovalRule.for(workflow.job).apply_after_grader_success!(self)
+    Steps::LifecyclePropagation.succeeded_grade!(self)
   end
 
   def fail_workflow!
-    StepDispatcher.fail_from(self)
+    Steps::LifecyclePropagation.failed!(self)
   end
 
   def cancel_workflow_chain!
-    return if Thread.current[:syrus_step_suppress_cancel_cascade]
-
-    Step.suppress_cancel_cascade { cancel_downstream_queued_steps! }
-    cancel_workflow_if_idle!
-  end
-
-  def cancel_downstream_queued_steps!
-    cursor = next_step
-    while cursor
-      if cursor.may_cancel?
-        cursor.cancel!
-        cursor.save!
-      end
-      cursor = cursor.next_step
-    end
-  end
-
-  def cancel_workflow_if_idle!
-    wf = workflow
-    return unless wf.may_cancel?
-    return if wf.active_descendants?
-
-    wf.cancel!
-    wf.save!
+    Steps::LifecyclePropagation.cancelled!(self)
   end
 
   # The most recently created Run on this Step — i.e. the latest

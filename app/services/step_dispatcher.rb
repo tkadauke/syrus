@@ -678,8 +678,8 @@ class StepDispatcher
 
     next_step = find_next_runnable
     if next_step
-      # Idempotency: Runs::LifecyclePropagation fires fail_from twice
-      # (once from Step#fail_workflow!, once explicitly from
+      # Idempotency: failure propagation fires fail_from twice
+      # (once from Steps::LifecyclePropagation, once explicitly from
       # Run failure propagation). For grader Steps that
       # advance-on-fail, both calls would try to create a Run on
       # the same next_step. Skip if already materialized.
@@ -785,8 +785,8 @@ class StepDispatcher
   def advance_to_next_runnable!
     next_step = find_next_runnable
     if next_step
-      # Idempotency: Runs::LifecyclePropagation fires fail_from twice
-      # (once from Step#fail_workflow!, once explicitly from
+      # Idempotency: failure propagation fires fail_from twice
+      # (once from Steps::LifecyclePropagation, once explicitly from
       # Run failure propagation). For grader Steps that
       # advance-on-fail, both calls would try to create a Run on
       # the same next_step. Skip if already materialized.

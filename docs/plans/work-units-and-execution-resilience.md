@@ -1770,6 +1770,10 @@ Completed slices:
   activity logging are routed through one orchestration service. That makes
   Run terminal behavior auditable as one unit before WorkUnit becomes the
   runtime owner for migrated paths.
+- Step callback propagation now lives in `Steps::LifecyclePropagation`. The
+  `Step` model keeps AASM wiring and the `suppress_cancel_cascade` guard, while
+  chain advancement, auto-approval after grader success, failed-Step Workflow
+  propagation, and downstream cancel fanout are centralized in one service.
 
 ### Phase 8: Step/Run Simplification
 
