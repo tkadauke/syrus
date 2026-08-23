@@ -1010,9 +1010,12 @@ Bundled plugins:
   builds on the Ruby-generic support the `ruby` plugin provides; enabling
   `syrus_rails` cascades to enable `ruby`. Provides only genuinely
   Rails-framework-specific extension points: `:preview_provider` (starts a
-  Rails server for preview hosting), `:mcp_tool_set`, `:artifact_renderer`
-  (schema ERD and migration diff renderers), and `:prompt_injector`. Enable
-  by calling `SyrusRails.register!` from an initializer.
+  Rails server for preview hosting; health-checks `/up` only when
+  `config/routes.rb` actually maps `rails/health#show`, else falls back to
+  `/`; only launches `npm run dev` when `package.json` defines a `dev`
+  script), `:mcp_tool_set`, `:artifact_renderer` (schema ERD and migration
+  diff renderers), and `:prompt_injector`. Enable by calling
+  `SyrusRails.register!` from an initializer.
 - `django` — installed but disabled by default. `depends_on: [ "python" ]` —
   its Django-specific tooling builds on the Python-generic support the
   `python` plugin provides (prepare detection, pytest grader detail);
