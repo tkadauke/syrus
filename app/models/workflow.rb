@@ -185,11 +185,11 @@ class Workflow < ApplicationRecord
   end
 
   def active_descendants?
-    runs.active.exists? || step_state_projections.any?(&:active?)
+    runs.active.exists? || projected_active_steps.any?
   end
 
   def live_descendants?
-    runs.active.exists? || step_state_projections.any? { |projection| projection.visible_state == "running" }
+    runs.active.exists? || projected_running_steps.any?
   end
 
   def cleanup_blocked_by_active_descendants?
@@ -198,6 +198,22 @@ class Workflow < ApplicationRecord
 
   def step_state_projections
     projected_steps.map(&:projection)
+  end
+
+  def projected_active_steps
+    projected_steps.filter_map { |entry| entry.step if entry.projection.active? }
+  end
+
+  def projected_running_steps
+    projected_steps.filter_map { |entry| entry.step if entry.projection.visible_state == "running" }
+  end
+
+  def projected_active_step_ids
+    projected_active_steps.map(&:id)
+  end
+
+  def projected_running_step_ids
+    projected_running_steps.map(&:id)
   end
 
   ProjectedStep = Data.define(:step, :projection)
@@ -310,6 +326,8 @@ class Workflow < ApplicationRecord
 
   def cancel_active_descendants!
     Step.suppress_cancel_cascade do
+      active_steps = projected_active_steps
+
       runs.active.find_each do |run|
         if run.may_cancel?
           run.cancel!
@@ -317,7 +335,7 @@ class Workflow < ApplicationRecord
         end
       end
 
-      steps.active.find_each do |step|
+      active_steps.each do |step|
         if step.may_cancel?
           step.cancel!
           step.save!

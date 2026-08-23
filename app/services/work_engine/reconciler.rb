@@ -637,7 +637,7 @@ module WorkEngine
 
     def classify_terminal_workflows_with_active_descendants
       workflows.select(&:terminal?).filter_map do |workflow|
-        active_step_ids = workflow.steps.active.pluck(:id)
+        active_step_ids = workflow.projected_active_step_ids
         active_run_ids = workflow.runs.active.pluck(:id)
         next if active_step_ids.empty? && active_run_ids.empty?
 
@@ -1615,7 +1615,7 @@ module WorkEngine
 
         path = WorkflowWorkspace.path_for(workflow)
         next if File.directory?(path)
-        next unless workflow.steps.where(state: "running").exists? || workflow.runs.where(state: "running").exists? || workflow.retry_available?
+        next unless workflow.live_descendants? || workflow.retry_available?
 
         issue(
           kind: :workspace_missing,
@@ -1806,7 +1806,7 @@ module WorkEngine
           safe_to_auto_repair: false,
           recommended_repair_action: "operator_review_active_descendants",
           evidence: workflow_evidence(workflow).merge(
-            active_step_ids: workflow.steps.active.pluck(:id),
+            active_step_ids: workflow.projected_active_step_ids,
             active_run_ids: workflow.runs.active.pluck(:id)
           ),
           explanation: "Workflow ##{workflow.id} is terminal but still has active descendants that prevent workspace cleanup."
@@ -2077,14 +2077,13 @@ module WorkEngine
     end
 
     def workflow_has_active_descendants?(workflow)
-      workflow.steps.active.exists? || workflow.runs.active.exists?
+      workflow.active_descendants?
     end
 
     def orphaned_failed_step(workflow)
       failed_steps = workflow.steps.select(&:failed?)
       return nil if failed_steps.empty?
-      return nil if workflow.runs.active.exists?
-      return nil if workflow.steps.where(state: "running").exists?
+      return nil if workflow.live_descendants?
 
       failed_steps.max_by { |step| [ step.position || -1, step.id || -1 ] }
     end

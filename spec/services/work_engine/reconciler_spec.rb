@@ -2031,6 +2031,24 @@ RSpec.describe WorkEngine::Reconciler do
     expect(run.reload).to have_attributes(state: "cancelled", agent_outcome: nil)
   end
 
+  it "does not cancel a persisted running Step whose latest Run is already terminal" do
+    isolated_workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: 10.minutes.ago)
+    isolated_step = Step.create!(
+      workflow: isolated_workflow,
+      kind: "grader",
+      position: 0,
+      state: "running",
+      started_at: 15.minutes.ago,
+      finished_at: nil
+    )
+    Run.create!(job: job, step: isolated_step, trigger_kind: "initial", state: "failed", finished_at: 10.minutes.ago)
+
+    result = reconcile(workflow_id: isolated_workflow.id)
+
+    expect(kind(result, :cleanup_blocked_by_active_descendants)).to be_nil
+    expect(isolated_step.reload).to be_running
+  end
+
   it "does not surface a terminal-workflow-with-active-descendants issue from an unrelated Job on a job-scoped reconcile" do
     ensure_solid_queue_test_tables!
     other_job = Factories.job(agent_provider: "claude")

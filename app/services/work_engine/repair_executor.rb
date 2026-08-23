@@ -576,7 +576,7 @@ module WorkEngine
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
-          return skipped("Workflow still has active descendants") if workflow.steps.active.exists? || workflow.runs.active.exists?
+          return skipped("Workflow still has active descendants") if workflow.active_descendants?
 
           outcome = orphaned_workflow_outcome(workflow)
           return skipped("No terminal outcome could be inferred") unless outcome
@@ -615,8 +615,7 @@ module WorkEngine
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
-          return skipped("Workflow still has active Runs") if workflow.runs.active.exists?
-          return skipped("Workflow still has running Steps") if workflow.steps.where(state: "running").exists?
+          return skipped("Workflow still has running descendants") if workflow.live_descendants?
 
           failed_step = workflow.steps.where(state: "failed").order(position: :desc, id: :desc).first
           return skipped("Workflow has no failed Step") unless failed_step
@@ -685,7 +684,7 @@ module WorkEngine
           end
 
           workflow.reload
-          remaining_steps = workflow.steps.active.pluck(:id)
+          remaining_steps = workflow.projected_active_step_ids
           remaining_runs = workflow.runs.active.pluck(:id)
           if remaining_steps.any? || remaining_runs.any?
             failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")
