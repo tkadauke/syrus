@@ -10992,25 +10992,22 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("button", { name: /Prepare workspace/i })).toBeInTheDocument()
-    // A single-iteration grade loop is presented the same way as
-    // adversarial/visual review loops: a named "Grade loop" group that must
-    // be expanded before the nested Grade step becomes visible.
+    // A single-iteration grade loop whose sole item is the Grade step is
+    // flattened: expanding "Grade loop" shows the grader phases directly,
+    // with no intervening "Iteration 1" or nested "Grade" wrapper, and the
+    // loop's own pills reflect the grader pass/fail counts.
     const gradeLoop = screen.getByRole("button", { name: /Grade loop/i })
-    fireEvent.click(gradeLoop)
-    expect(screen.getByText("Iteration 1")).toBeInTheDocument()
+    expect(within(gradeLoop).getByText("1 failed")).toBeInTheDocument()
 
-    const grade = screen.getByRole("button", { name: /Grade(?! loop)/i })
-    expect(within(grade).getAllByText(/failed/i).length).toBeGreaterThan(0)
-    expect(within(grade).getByText("1 failed")).toBeInTheDocument()
+    fireEvent.click(gradeLoop)
+    expect(screen.queryByText("Iteration 1")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Grade$/i })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Push/i })).toBeInTheDocument()
     expect(screen.queryByText("Plan graders")).not.toBeInTheDocument()
     expect(screen.queryByText("Aggregate graders")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /rspec/i })).not.toBeInTheDocument()
-
-    fireEvent.click(grade)
 
     // The redundant "Grade summary" table is gone; the per-grader phase
-    // cards remain.
+    // cards render directly.
     expect(screen.queryByText("Grade summary")).not.toBeInTheDocument()
     expect(screen.queryByText("Open an individual grader below to view raw logs.")).not.toBeInTheDocument()
     expect(screen.queryByText("exit 1")).not.toBeInTheDocument()
