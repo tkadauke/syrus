@@ -57,6 +57,18 @@ RSpec.describe WorkUnits::Backfill do
     expect(first.work_unit).to eq(workflow.reload.work_unit)
   end
 
+  it "skips active workflows whose locks are already owned by another WorkUnit" do
+    owner_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+    legacy_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+
+    result = described_class.workflow!(legacy_workflow)
+
+    expect(result).to be_skipped
+    expect(result.skipped_reason).to eq("active_lock_conflict")
+    expect(legacy_workflow.reload.work_unit).to be_nil
+    expect(owner_workflow.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("job:#{job.id}")
+  end
+
   it "backfills active workflows and ignores terminal workflows by default" do
     active = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
     terminal = Workflow.create!(job: job, trigger_kind: "retry", state: "failed")

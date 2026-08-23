@@ -1779,6 +1779,11 @@ Completed slices:
   success, failure, cancellation, and reopen side effects to one service while
   retaining public compatibility seams for workspace cleanup, descendant
   cancellation, WorkUnit sync, Job lifecycle propagation, and workflow hooks.
+- WorkUnit locks now enforce the plan's "one active owner per lock key"
+  invariant with a nullable unique `active_lock_key`. Active locks populate it,
+  released historical locks clear it, and the migration releases duplicate
+  active shadow locks before adding the unique index so runtime ownership cannot
+  silently split across two non-terminal Units.
 
 ### Phase 8: Step/Run Simplification
 

@@ -1,5 +1,15 @@
 module WorkUnits
   class Launcher
+    class LockConflict < StandardError
+      attr_reader :lock_key, :work_unit
+
+      def initialize(lock_key:, work_unit:)
+        @lock_key = lock_key
+        @work_unit = work_unit
+        super("active WorkUnit ##{work_unit.id} already owns lock #{lock_key}")
+      end
+    end
+
     Result = Data.define(:workflow, :run)
 
     def self.instantiate(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, **options)
@@ -125,6 +135,10 @@ module WorkUnits
 
     def create_locks!(unit)
       definition.lock_keys_for(job: job, member_jobs: member_jobs, artifacts: payload_artifacts, **options).each do |lock_key|
+        if (owner = Ownership.active_unit_for_lock_key(lock_key))
+          raise LockConflict.new(lock_key: lock_key, work_unit: owner)
+        end
+
         unit.work_unit_locks.create!(lock_key: lock_key)
       end
     end

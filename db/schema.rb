@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_22_173241) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_22_193000) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2212,11 +2212,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_173241) do
 
   create_table "work_unit_locks", force: :cascade do |t|
     t.datetime "acquired_at", null: false
+    t.string "active_lock_key", limit: 255
     t.datetime "created_at", null: false
     t.string "lock_key", limit: 255, null: false
     t.datetime "released_at"
     t.datetime "updated_at", null: false
     t.bigint "work_unit_id", null: false
+    t.index ["active_lock_key"], name: "idx_work_unit_locks_active_key_unique", unique: true
     t.index ["lock_key", "released_at"], name: "idx_work_unit_locks_key_release"
     t.index ["lock_key"], name: "idx_work_unit_locks_lock_key"
     t.index ["work_unit_id"], name: "idx_work_unit_locks_unit"

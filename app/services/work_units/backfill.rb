@@ -27,6 +27,7 @@ module WorkUnits
       return Result.new(workflow: workflow, work_unit: workflow.work_unit, created: false, skipped_reason: "already_backfilled") if workflow.work_unit
       return Result.new(workflow: workflow, work_unit: nil, created: false, skipped_reason: "missing_job") unless job
       return Result.new(workflow: workflow, work_unit: nil, created: false, skipped_reason: "unknown_work_definition") unless definition
+      return Result.new(workflow: workflow, work_unit: nil, created: false, skipped_reason: "active_lock_conflict") if active_lock_conflict?
 
       WorkUnit.transaction do
         intent = find_or_create_intent!
@@ -90,9 +91,17 @@ module WorkUnits
     end
 
     def create_locks!(unit)
-      definition.lock_keys_for(job: job, member_jobs: member_jobs, artifacts: workflow.artifacts.to_h).each do |lock_key|
+      lock_keys.each do |lock_key|
         unit.work_unit_locks.create!(lock_key: lock_key)
       end
+    end
+
+    def active_lock_conflict?
+      lock_keys.any? { |lock_key| Ownership.active_for_lock_key?(lock_key) }
+    end
+
+    def lock_keys
+      @lock_keys ||= definition.lock_keys_for(job: job, member_jobs: member_jobs, artifacts: workflow.artifacts.to_h)
     end
 
     def member_jobs

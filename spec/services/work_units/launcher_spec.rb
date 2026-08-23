@@ -47,8 +47,20 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
   end
 
-  it "creates a fresh intent and unit for repeated non-idempotent launches" do
+  it "prevents repeated non-idempotent launches while the first unit owns the lock" do
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
+
+    expect {
+      described_class.instantiate(kind: "manual_visual_review", job: job)
+    }.to raise_error(WorkUnits::Launcher::LockConflict, /#{Regexp.escape("job:#{job.id}")}/)
+    expect(WorkUnit.where(kind: "manual_visual_review", scope_type: "job", scope_id: job.id).count).to eq(1)
+    expect(first.work_unit).to be_active
+  end
+
+  it "creates a fresh intent and unit for repeated non-idempotent launches after the first unit is terminal" do
+    first = described_class.instantiate(kind: "manual_visual_review", job: job)
+    first.work_unit.mark_terminal!("cancelled")
+
     second = described_class.instantiate(kind: "manual_visual_review", job: job)
 
     expect(second).not_to eq(first)
