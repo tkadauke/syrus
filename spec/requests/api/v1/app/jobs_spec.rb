@@ -19,6 +19,12 @@ RSpec.describe "App API job detail", type: :request do
 
   before { sign_in_as(user) unless RSpec.current_example.metadata[:skip_sign_in] }
 
+  before do
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
+  end
+
   around do |example|
     old_data_root = ENV["SYRUS_DATA_ROOT"]
     Dir.mktmpdir("syrus-app-api-jobs") do |data_root|

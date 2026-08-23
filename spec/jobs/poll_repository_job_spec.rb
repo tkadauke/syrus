@@ -7,6 +7,12 @@ RSpec.describe PollRepositoryJob do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)
   end
 
+  before do
+    allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+      RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
+    )
+  end
+
   def issue(number: 42, labels: [ "syrus" ], body: "", state: "open", user_login: "reporter")
     OpenStruct.new(
       number: number,
