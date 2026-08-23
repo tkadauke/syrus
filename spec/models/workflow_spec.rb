@@ -110,6 +110,26 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "#active_descendants?" do
+    it "treats an active Step with only terminal Runs as no longer active" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+      Run.create!(job: job, step: step, trigger_kind: "initial", state: "succeeded")
+
+      expect(workflow.active_descendants?).to be(false)
+      expect(workflow.live_descendants?).to be(false)
+    end
+
+    it "still treats an active Run on a terminal Step as active work" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "succeeded")
+      Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+
+      expect(workflow.active_descendants?).to be(true)
+      expect(workflow.live_descendants?).to be(true)
+    end
+  end
+
   describe "#landing_workflow?" do
     it "treats every trigger that owns landing state as a landing workflow" do
       expect(described_class::LANDING_TRIGGER_KINDS).to contain_exactly(*WorkDefinitions.landing_workflow_kinds)

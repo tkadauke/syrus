@@ -185,15 +185,20 @@ class Workflow < ApplicationRecord
   end
 
   def active_descendants?
-    steps.active.exists? || runs.active.exists?
+    runs.active.exists? || step_state_projections.any?(&:active?)
   end
 
   def live_descendants?
-    runs.active.exists? || steps.where(state: "running").exists?
+    runs.active.exists? || step_state_projections.any? { |projection| projection.visible_state == "running" }
   end
 
   def cleanup_blocked_by_active_descendants?
     live_descendants?
+  end
+
+  def step_state_projections
+    loaded_steps = steps.includes(:runs).order(:position, :id).to_a
+    loaded_steps.map { |step| Steps::StateProjection.for(step, runs: step.runs.to_a) }
   end
 
   # Cancel every still-active Step + Run under this Workflow. Called

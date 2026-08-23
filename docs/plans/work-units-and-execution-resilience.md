@@ -2005,6 +2005,10 @@ Completed slices:
   `Steps::StateSynchronizer`, and the reconciler uses the same projection when
   planning active-Step/terminal-Run drift repairs. This removes another
   hand-rolled Step/Run terminal precedence rule from WorkEngine.
+- Workflow active/live descendant checks now use the same Step projection for
+  Step liveness while still treating active Runs as authoritative work. Terminal
+  Workflow cleanup and idle checks therefore share the same Step/Run precedence
+  as UI projection and repair planning.
 
 ## Success Criteria
 
