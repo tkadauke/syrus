@@ -207,7 +207,7 @@ module App
     end
 
     def subject
-      return "epic" if AppSetting.simple?
+      return "job" if AppSetting.simple?
 
       @subject ||= normalize_subject(params[:subject]) ||
                    normalize_subject(params[:dashboard_subject]) ||
@@ -680,7 +680,7 @@ module App
 
     def paths_json
       {
-        dashboard_path: AppSetting.simple? ? dashboard_epics_path : dashboard_path_for(subject),
+        dashboard_path: AppSetting.simple? ? dashboard_jobs_path : dashboard_path_for(subject),
         dashboard_jobs_path: dashboard_jobs_path,
         dashboard_epics_path: dashboard_epics_path,
         dashboard_workflows_path: dashboard_workflows_path,

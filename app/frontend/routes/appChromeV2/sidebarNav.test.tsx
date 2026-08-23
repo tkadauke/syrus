@@ -25,10 +25,10 @@ describe("buildSidebarNavItems", () => {
     expect(items.map((item) => item.id)).toEqual(["dashboard", "repositories", "schedules", "terminal", "team"])
   })
 
-  it("routes dashboard to the epics board in simple mode", () => {
+  it("routes dashboard to the jobs board in simple mode", () => {
     const items = buildSidebarNavItems({ ...baseContext, simpleMode: true }, [], translate)
 
-    expect(items.find((item) => item.id === "dashboard")?.to).toBe("/dashboard/epics")
+    expect(items.find((item) => item.id === "dashboard")?.to).toBe("/dashboard/jobs")
   })
 
   it("routes dashboard to the jobs board outside simple mode", () => {

@@ -138,6 +138,7 @@ export type DashboardJobItem = {
   title_pending?: boolean
   state: string
   summary_state: string
+  closure_reason: string | null
   validity: string
   priority: string
   agent_provider: string | null

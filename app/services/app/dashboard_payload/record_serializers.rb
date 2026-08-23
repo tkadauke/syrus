@@ -35,6 +35,7 @@ module App
           title_pending: job.title_pending?,
           state: job.state,
           summary_state: summary_state(job),
+          closure_reason: job.closure_reason,
           validity: job.validity,
           priority: job.priority,
           agent_provider: workflow_agent_provider,

@@ -75,6 +75,35 @@ export function JobsDashboardTable({ items, columns, landingQueueEntries, prefix
   )
 }
 
+// Simple-mode's primary dashboard list: every Job with its own status shown
+// directly (no epic rollup pill to hide behind). Mirrors SimpleFeaturesTable's
+// list-item styling but keeps rows read-only status summaries rather than
+// links — Job detail pages are not yet part of the simple-mode surface.
+export function SimpleJobsTable({ items }: { items: DashboardJobItem[] }) {
+  return (
+    <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+        {items.map((job) => (
+          <li
+            aria-label={job.title}
+            className="grid gap-2 px-4 py-4 text-gray-700 dark:text-gray-200 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-4"
+            key={job.id}
+          >
+            <span className="min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{job.title}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <NeutralStatePill state={job.state} />
+              {job.state === "closed" && job.closure_reason ? (
+                <span className="text-sm text-gray-500 dark:text-gray-400">{humanizeOption(job.closure_reason)}</span>
+              ) : null}
+            </span>
+            {job.updated_at ? <span className="text-sm text-gray-500 dark:text-gray-400">{formatRelativeDate(new Date(job.updated_at))}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
   const { t } = useT("dashboard")
   const { confirm, dialog } = useConfirm()

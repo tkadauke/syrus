@@ -215,13 +215,19 @@ has merged, the feature becomes ready for review at the Epic level. From the
 Epic page the operator can start a preview, mark the feature as looking good,
 or submit plain-text feedback. Feedback creates a new child Job at the end of
 the Epic's linear chain and moves the feature back to working status.
-The simple-mode dashboard shows only these features, not Jobs or Workflows,
-and uses human statuses such as **Working on it**, **Wrapping up**,
-**Ready for your review**, **Done**, and **Something went wrong**. The feature
-detail page keeps the implementation machinery out of view: no child Job list,
-workflow history, diffs, grader output, PR numbers, branch names, commit SHAs,
-timeline, or dependency graph. Scheduled tasks and the repository GitHub
-Issues tab are also hidden in simple mode.
+The feature detail page uses human statuses such as **Working on it**,
+**Wrapping up**, **Ready for your review**, **Done**, and **Something went
+wrong**, and keeps the implementation machinery out of view: no child Job
+list, workflow history, diffs, grader output, PR numbers, branch names,
+commit SHAs, timeline, or dependency graph.
+
+The simple-mode primary dashboard is job-centric rather than feature-centric:
+it lists every Job directly — any kind (issue, cron, or direct) — with its
+own status shown inline (queued, running, implemented, approved, landing, or
+closed, plus the closure reason once closed) instead of rolling work up
+behind an Epic status pill. Epics do not appear on this primary dashboard
+list. Scheduled tasks and the repository GitHub Issues tab are also hidden in
+simple mode.
 Simple mode notifications use the feature title only: they announce
 ready-for-review, terminal feature problems that need attention, and accepted
 review feedback; Job IDs, PR numbers, branch names, commit SHAs, and grader
