@@ -6,6 +6,11 @@ RSpec.describe PollMergeStateJob, :ci_only do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", auto_merge_enabled: true) }
   let(:job) { Factories.job(user: user, repository: repository, pr_number: 7, branch_name: "syrus/issue-42-1") }
 
+  def mark_workflows_succeeded_for_polling!(target)
+    target.workflows.update_all(state: "succeeded")
+    WorkUnits::TerminalWorkflowSync.for_job(target)
+  end
+
   def pr(mergeable_state: "clean", mergeable: true, merged: false, state: "open", head_sha: "abc", base_ref: "main", base_sha: "base")
     repo = OpenStruct.new(full_name: "acme/widgets")
     OpenStruct.new(
@@ -22,7 +27,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
   before do
     job.mark_implemented! if job.may_mark_implemented?
     job.save!
-    job.workflows.update_all(state: "succeeded")
+    mark_workflows_succeeded_for_polling!(job)
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr)
     allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([ OpenStruct.new(state: "APPROVED") ])
     allow_any_instance_of(GithubClient).to receive(:pr_issue_comments).and_return([])
@@ -65,7 +70,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
                              branch_name: "syrus/issue-42-x")
     fork_job.mark_implemented! if fork_job.may_mark_implemented?
     fork_job.save!
-    fork_job.workflows.update_all(state: "succeeded")
+    mark_workflows_succeeded_for_polling!(fork_job)
 
     expect_any_instance_of(GithubClient)
       .to receive(:pull_request)
@@ -355,7 +360,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
     external = Factories.job(user: user, repository: repository, pr_number: nil)
     external.update!(state: "closed", closure_reason: "preempted",
                      external_pr_number: 99, finished_at: Time.current)
-    external.workflows.update_all(state: "succeeded")
+    mark_workflows_succeeded_for_polling!(external)
     expect_any_instance_of(GithubClient)
       .to receive(:pull_request)
       .with("acme/widgets", 99, bypass_cache: false)
@@ -414,8 +419,8 @@ RSpec.describe PollMergeStateJob, :ci_only do
     before do
       job.update!(parent_job: parent_job)
       child_job.update!(parent_job: job)
-      child_job.workflows.update_all(state: "succeeded")
-      parent_job.workflows.update_all(state: "succeeded")
+      mark_workflows_succeeded_for_polling!(child_job)
+      mark_workflows_succeeded_for_polling!(parent_job)
       allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
         pr(mergeable_state: "dirty", mergeable: false)
       )
@@ -521,7 +526,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
       job = Factories.job(user: user, repository: repository, pr_number: nil)
       job.update!(state: "closed", closure_reason: "preempted",
                   external_pr_number: external_pr_number, finished_at: Time.current)
-      job.workflows.update_all(state: "succeeded")
+      mark_workflows_succeeded_for_polling!(job)
       job
     end
 
