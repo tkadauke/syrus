@@ -66,6 +66,8 @@ RSpec.describe Steps::Grader do
     end
 
     it "does not record an artifact when sccache isn't installed" do
+      allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
+
       handler.call
 
       expect(workflow.reload.artifact("sccache_stats")).to be_nil
@@ -199,6 +201,7 @@ RSpec.describe Steps::Grader do
   end
 
   it "calls registered grader augmentors when the grader fails" do
+    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     step.update!(details: step.details.merge("command" => "ruby -e 'exit 1'"))
 
     augmentor = double("augmentor")
@@ -218,6 +221,7 @@ RSpec.describe Steps::Grader do
   end
 
   it "does not call augmentors when the grader passes" do
+    allow(SccacheStatsCapture).to receive(:capture).and_return(nil)
     augmentor = double("augmentor")
     expect(augmentor).not_to receive(:augment_grader_failure)
 
