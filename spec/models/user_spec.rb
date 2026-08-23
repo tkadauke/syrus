@@ -36,6 +36,33 @@ RSpec.describe User do
     end
   end
 
+  describe "global_role" do
+    it "defaults to user for non-first signups" do
+      Factories.user # bootstrap admin, so the next signup isn't auto-promoted
+      expect(Factories.user.global_role).to eq("user")
+    end
+
+    it "derives admin? from global_role" do
+      user = Factories.user(global_role: "admin")
+      expect(user.admin?).to be true
+
+      user.update!(global_role: "user")
+      expect(user.admin?).to be false
+    end
+
+    it "rejects values outside the enum" do
+      user = Factories.user
+      user.global_role = "superadmin"
+      expect(user).not_to be_valid
+    end
+
+    it "scopes to admins only" do
+      admin = Factories.user(global_role: "admin")
+      Factories.user(global_role: "user")
+      expect(User.admin).to contain_exactly(admin)
+    end
+  end
+
   describe "profile fields" do
     it "falls back to a name guessed from the email address when profile fields are blank" do
       user = User.create!(attrs)
