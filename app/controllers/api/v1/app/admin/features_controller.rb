@@ -30,7 +30,8 @@ module Api
                     category: category,
                     features: features.map { |feature| feature_payload(feature) }
                   }
-                end
+                end,
+              work_unit_ownership: work_unit_ownership_payload
             }
           end
 
@@ -73,6 +74,28 @@ module Api
               name_i18n_key: feature.name_i18n_key,
               description_i18n_key: feature.description_i18n_key
             }
+          end
+
+          def work_unit_ownership_payload
+            WorkUnits::PathOwnership::PATH_GATES
+              .keys
+              .sort
+              .map { |path| WorkUnits::PathOwnership.for(path) }
+              .group_by(&:gate)
+              .map do |gate, paths|
+                gate_feature = declared_features.find { |feature| feature.slug == gate }
+                {
+                  gate: gate,
+                  enabled: gate_feature&.enabled? || false,
+                  paths: paths.map do |path|
+                    {
+                      path: path.path,
+                      owner: path.owner.to_s,
+                      gate: path.gate
+                    }
+                  end
+                }
+              end
           end
 
           def feature_params
