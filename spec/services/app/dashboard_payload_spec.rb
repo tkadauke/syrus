@@ -805,6 +805,29 @@ RSpec.describe App::DashboardPayload do
       expect(item[:start_blocked_reason]).to be_nil
     end
 
+    it "shows failed jobs with active repair WorkUnits as repairing" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+      workflow.update!(state: "running")
+      workflow.work_unit.mark_running!
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(
+        state: "failed",
+        summary_state: "repairing",
+        active_workflow_trigger_kind: "ci_failure"
+      )
+      expect(item[:active_repair_work]).to include(
+        kind: "ci_failure",
+        workflow_id: workflow.id,
+        workflow_state: "running",
+        work_unit_id: workflow.work_unit.id,
+        work_unit_state: "running"
+      )
+    end
+
     it "keeps admission-blocked landing workflows in landing queue instead of paused" do
       job = Factories.job_record(
         user: user,

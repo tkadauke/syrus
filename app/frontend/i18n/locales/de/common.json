@@ -181,6 +181,7 @@
     "queued": "in Warteschlange",
     "blocked_by_epic": "durch Epic blockiert",
     "running": "läuft",
+    "repairing": "wird repariert",
     "paused": "pausiert",
     "open": "offen",
     "implemented": "umgesetzt",

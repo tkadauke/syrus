@@ -181,6 +181,7 @@
     "queued": "queued",
     "blocked_by_epic": "blocked by epic",
     "running": "running",
+    "repairing": "repairing",
     "paused": "paused",
     "open": "open",
     "implemented": "implemented",

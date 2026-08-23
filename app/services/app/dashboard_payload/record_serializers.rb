@@ -22,6 +22,7 @@ module App
           provider_availability_for(workflow_agent_provider)
         end
         retry_state = PerformanceLogging.phase("dashboard_job.retry_state", job_id: job.id) { retry_state_for(job) }
+        active_repair_work = PerformanceLogging.phase("dashboard_job.active_repair_work", job_id: job.id) { active_repair_work_for(job) }
         repository = PerformanceLogging.phase("dashboard_job.repository", job_id: job.id) { repository_json(job.repository) }
         source_chat = PerformanceLogging.phase("dashboard_job.source_chat", job_id: job.id) { App::JobSourceChat.for(job) }
         tags = PerformanceLogging.phase("dashboard_job.tags", job_id: job.id, tag_count: job.tags.size) { job.tags.map { |tag| tag_json(tag) } }
@@ -67,6 +68,7 @@ module App
           manual_paused: job.manual_paused?,
           manual_paused_at: job.manual_paused_at&.iso8601,
           manual_paused_by_user: owner_user_json(job.manual_paused_by_user),
+          active_repair_work: active_repair_work_json(active_repair_work),
           retry_state: retry_state,
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601,
@@ -113,6 +115,21 @@ module App
         return job.workflows.size unless defined?(@job_runtime_workflow_counts_by_job_id)
 
         @job_runtime_workflow_counts_by_job_id.fetch(job.id, 0)
+      end
+
+      def active_repair_work_json(active_work)
+        return nil unless active_work
+
+        workflow = active_work.workflow
+        unit = active_work.work_unit
+        {
+          kind: active_work.kind,
+          workflow_id: workflow&.id,
+          workflow_state: workflow&.state,
+          work_unit_id: unit&.id,
+          work_unit_state: unit&.state,
+          blocked_reason: unit&.blocked_reason
+        }
       end
 
       def retry_state_for(job)

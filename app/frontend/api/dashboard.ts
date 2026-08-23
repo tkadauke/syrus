@@ -113,6 +113,15 @@ export type DashboardDeploymentStage = {
   reached_at: string | null
 }
 
+export type ActiveRepairWork = {
+  kind: string
+  workflow_id: number | null
+  workflow_state: string | null
+  work_unit_id: number | null
+  work_unit_state: string | null
+  blocked_reason: string | null
+}
+
 export type DashboardLandingQueueEntry = {
   key: string
   position: number
@@ -186,6 +195,7 @@ export type DashboardJobItem = {
   manual_paused?: boolean
   manual_paused_at?: string | null
   manual_paused_by_user?: DashboardOwnerUser | null
+  active_repair_work?: ActiveRepairWork | null
   paths: {
     job_path: string
     source_path: string

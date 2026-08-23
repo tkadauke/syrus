@@ -619,6 +619,9 @@ module App
       @job_runtime_active_workflow_trigger_kinds_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_workflow_triggers", count: job_ids.size) do
         active_workflow_trigger_kinds_by_job_id(job_ids)
       end
+      @job_runtime_active_repair_work_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_repair_work", count: job_ids.size) do
+        WorkUnits::Ownership.active_repair_work_by_job_id(job_ids)
+      end
     end
 
     def paused_job_ids(job_ids)
@@ -735,20 +738,31 @@ module App
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
       return "paused" if job_apparently_paused?(job)
+      return "repairing" if job.failed? && active_repair_work_for(job)
 
       job.state
     end
 
     def active_workflow_trigger_kind(job)
-      return nil unless summary_state(job) == "running"
+      return nil unless summary_state(job).in?(%w[running repairing])
       if defined?(@job_runtime_active_workflow_trigger_kinds_by_job_id)
-        return @job_runtime_active_workflow_trigger_kinds_by_job_id[job.id]
+        return active_repair_work_for(job)&.kind || @job_runtime_active_workflow_trigger_kinds_by_job_id[job.id]
       end
+
+      return active_repair_work_for(job)&.kind if job.failed?
 
       latest = latest_workflow_for(job)
       return latest.trigger_kind if latest&.state.in?(%w[queued running])
 
       job.active_workflow_trigger_kind
+    end
+
+    def active_repair_work_for(job)
+      if defined?(@job_runtime_active_repair_work_by_job_id)
+        return @job_runtime_active_repair_work_by_job_id[job.id]
+      end
+
+      WorkUnits::Ownership.active_repair_work_for_job(job)
     end
 
     def latest_workflow_for(job)

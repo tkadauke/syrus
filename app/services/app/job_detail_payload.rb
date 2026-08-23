@@ -138,6 +138,7 @@ module App
         ::App::RetryState.for(@job, latest_run: latest_run_for_retry_state, any_active_run: any_active_run)
       end
       approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json }
+      active_repair_work = PerformanceLogging.phase("job_detail.job.active_repair_work", job_id: @job.id) { active_repair_work_for_job }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { @job.workflows.size }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.size }
@@ -219,6 +220,7 @@ module App
         any_active_run: any_active_run,
         prepare_skipped: prepare_skip_reason.present?,
         prepare_skip_reason: prepare_skip_reason,
+        active_repair_work: active_repair_work_json(active_repair_work),
         created_at: iso8601(@job.created_at),
         updated_at: iso8601(@job.updated_at),
         started_at: iso8601(@job.started_at),
@@ -249,6 +251,25 @@ module App
       return @job_has_active_runtime_work if defined?(@job_has_active_runtime_work)
 
       @job_has_active_runtime_work = PerformanceLogging.phase("job_detail.job.active_runtime_work", job_id: @job.id) { @job.active_runtime_work? }
+    end
+
+    def active_repair_work_for_job
+      @active_repair_work_for_job ||= WorkUnits::Ownership.active_repair_work_for_job(@job)
+    end
+
+    def active_repair_work_json(active_work)
+      return nil unless active_work
+
+      workflow = active_work.workflow
+      unit = active_work.work_unit
+      {
+        kind: active_work.kind,
+        workflow_id: workflow&.id,
+        workflow_state: workflow&.state,
+        work_unit_id: unit&.id,
+        work_unit_state: unit&.state,
+        blocked_reason: unit&.blocked_reason
+      }
     end
 
     def repository_json(repository)
@@ -817,6 +838,7 @@ module App
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
       return "paused" if job_apparently_paused?(job)
+      return "repairing" if job.failed? && active_repair_work_for_job
 
       job.state
     end

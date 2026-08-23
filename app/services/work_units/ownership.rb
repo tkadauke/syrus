@@ -12,6 +12,7 @@ module WorkUnits
       merge_train_validation
       stack_rebase
     ].freeze
+    ActiveWork = Data.define(:kind, :workflow, :work_unit)
     def self.active_for_job?(job)
       active_job_ids([ job.id ]).include?(job.id)
     end
@@ -36,6 +37,33 @@ module WorkUnits
 
     def self.ci_failure_blocked_for_job?(job)
       active_ci_failure_blocking_unit_for_job(job).present?
+    end
+
+    def self.active_repair_work_by_job_id(job_ids)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return {} if ids.empty?
+
+      repair_kinds = WorkDefinitions.active_repair_work_kinds
+      result = active_units_by_job_id(ids, kinds: repair_kinds).transform_values do |unit|
+        ActiveWork.new(kind: unit.kind, workflow: unit.workflow, work_unit: unit)
+      end
+
+      remaining_ids = ids - result.keys
+      return result if remaining_ids.empty?
+
+      legacy_active_workflows_scope(remaining_ids, kinds: repair_kinds)
+        .order(:job_id, created_at: :desc, id: :desc)
+        .each do |workflow|
+          result[workflow.job_id] ||= ActiveWork.new(kind: workflow.trigger_kind, workflow: workflow, work_unit: nil)
+        end
+
+      result
+    end
+
+    def self.active_repair_work_for_job(job)
+      return nil unless job
+
+      active_repair_work_by_job_id([ job.id ])[job.id]
     end
 
     def self.active_unit_for_lock_key(lock_key, kinds: nil)

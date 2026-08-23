@@ -112,6 +112,14 @@ export type JobRecord = {
   any_active_run: boolean
   prepare_skipped: boolean
   prepare_skip_reason: string | null
+  active_repair_work?: {
+    kind: string
+    workflow_id: number | null
+    workflow_state: string | null
+    work_unit_id: number | null
+    work_unit_state: string | null
+    blocked_reason: string | null
+  } | null
   created_at: string | null
   updated_at: string | null
   started_at: string | null

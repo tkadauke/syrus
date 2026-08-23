@@ -175,6 +175,27 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :summary_state)).to eq("landing")
     end
 
+    it "shows failed jobs with active repair WorkUnits as repairing" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")
+      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "running")
+
+      payload = payload_for(job).fetch(:job)
+
+      expect(payload).to include(
+        state: "failed",
+        summary_state: "repairing",
+        any_active_run: true
+      )
+      expect(payload[:active_repair_work]).to include(
+        kind: "ci_failure",
+        workflow_id: workflow.id,
+        workflow_state: "running",
+        work_unit_id: unit.id,
+        work_unit_state: "running"
+      )
+    end
+
     it "does not show stale pause artifacts as paused while a WorkUnit-owned workflow is active" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       owner = Factories.job_record(user: user, repository: repo, state: "running")
