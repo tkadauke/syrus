@@ -33,6 +33,22 @@ RSpec.describe UrgentJobClosedJob do
     }.to change { step.runs.count }.by(1)
   end
 
+  it "starts WorkUnit-blocked workflows even when legacy artifacts are absent" do
+    create_urgent_job!(state: "closed")
+    job = Factories.job_record(user: user, repository: repository, priority: "medium", state: "queued")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    workflow.work_unit.block!(
+      reason: "urgent_job_active",
+      blocked_until: 5.minutes.from_now,
+      details: { "preempted_by_job_id" => 123 }
+    )
+
+    expect(WorkUnits::Launcher).to receive(:start!).with(workflow).once.and_call_original
+    expect {
+      described_class.new.perform(repository.id)
+    }.to change { workflow.first_step.runs.count }.by(1)
+  end
+
   it "does not start workflows when another urgent job is still open" do
     create_urgent_job!(state: "closed")
     create_urgent_job!(state: "queued")

@@ -224,6 +224,33 @@ RSpec.describe LandingQueueProcessor do
     )
   end
 
+  it "lets an urgent Job preempt a landing workflow paused only through WorkUnit state" do
+    blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    blocked.start_landing!
+    blocked.save!
+    blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: blocked)
+    blocked_workflow.work_unit.block!(
+      reason: "urgent_job_active",
+      blocked_until: 10.minutes.from_now,
+      details: { "preempted_by_job_id" => 999 }
+    )
+    urgent = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+    urgent.update!(priority: "urgent")
+
+    workflow = described_class.call
+
+    expect(workflow).to be_present
+    expect(workflow.job).to eq(urgent)
+    expect(workflow.trigger_kind).to eq("auto_merge")
+    expect(urgent.reload).to be_landing
+    expect(blocked.reload).to be_approved
+    expect(blocked_workflow.reload).to be_failed
+    expect(blocked_workflow.artifact("start_blocked_details")).to include(
+      "preempted_by_job_id" => urgent.id,
+      "preempted_by_job_slug" => urgent.slug
+    )
+  end
+
   it "does not dispatch a second landing workflow for a job that already has one active" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     job.start_landing!

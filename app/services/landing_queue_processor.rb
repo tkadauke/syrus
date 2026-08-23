@@ -609,7 +609,7 @@ class LandingQueueProcessor
         blocked_job.lock!
         next unless workflow.queued?
         next unless workflow.landing_workflow?
-        next unless workflow.artifact("start_blocked_reason") == start_blocked_reason
+        next unless workflow_blocked_for_start_reason?(workflow, start_blocked_reason)
         next if workflow.first_step&.runs&.exists?
         next unless blocked_job.landing?
         next unless blocked_job.may_defer_landing?
@@ -634,6 +634,23 @@ class LandingQueueProcessor
   end
 
   def active_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
+    (work_unit_blocked_landing_workflows(repository_id, except_job_id: except_job_id, start_blocked_reason: start_blocked_reason) +
+      legacy_blocked_landing_workflows(repository_id, except_job_id: except_job_id, start_blocked_reason: start_blocked_reason)).uniq(&:id)
+  end
+
+  def work_unit_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
+    WorkUnit
+      .joins(workflow: :job)
+      .where(state: "blocked", blocked_reason: work_unit_blocked_reason_for(start_blocked_reason))
+      .where(workflows: { state: Workflow::TriggerKind::ACTIVE_STATES, trigger_kind: WorkDefinitions.landing_workflow_kinds })
+      .where(jobs: { repository_id: repository_id, state: "landing" })
+      .where.not(jobs: { id: except_job_id })
+      .includes(:workflow)
+      .order(:id)
+      .map(&:workflow)
+  end
+
+  def legacy_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
     Workflow.active
       .joins(:job)
       .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
@@ -641,6 +658,15 @@ class LandingQueueProcessor
       .where.not(jobs: { id: except_job_id })
       .reorder(:id)
       .select { |workflow| workflow.artifact("start_blocked_reason") == start_blocked_reason }
+  end
+
+  def workflow_blocked_for_start_reason?(workflow, start_blocked_reason)
+    workflow.artifact("start_blocked_reason") == start_blocked_reason ||
+      workflow.work_unit&.blocked_reason == work_unit_blocked_reason_for(start_blocked_reason)
+  end
+
+  def work_unit_blocked_reason_for(start_blocked_reason)
+    WorkUnits::WorkflowBlockProjection::REASON_MAP.fetch(start_blocked_reason.to_s, "preempted")
   end
 
   def active_landing_workflow_for_job?(job)

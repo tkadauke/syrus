@@ -1713,6 +1713,10 @@ Completed slices:
   recovery, and admission-capacity wakeups can all resume WorkUnit-blocked
   workflows without relying on serialized `start_blocked_reason` scans, while
   keeping those scans as a migration fallback.
+- Urgent-job release and landing-slot preemption now read WorkUnit blocked
+  reasons before legacy Workflow artifact markers. Non-urgent work blocked
+  behind urgent landing or repair work can be resumed/deferred based on
+  WorkUnit state even when no serialized Workflow start-block artifact exists.
 
 ### Phase 6: Work Definition Policies
 
