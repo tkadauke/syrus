@@ -460,7 +460,8 @@ RSpec.describe "App API job detail", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["workflows"]).to eq([])
-    expect(body.dig("workflows_pagination", "total_workflows")).to eq(job.workflows.count)
+    expect(body["work_units"]).to eq([])
+    expect(body.dig("workflows_pagination", "total_workflows")).to eq(0)
   end
 
   it "returns active work from the current WorkUnit without loading the workflow graph" do

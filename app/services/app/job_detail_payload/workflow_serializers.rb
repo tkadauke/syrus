@@ -179,6 +179,7 @@ module App
           steps = ordered_steps_for(workflow)
           step_count = step_counts_by_workflow_id.fetch(workflow.id, steps.size)
           latest_step = steps.last
+          workflow_job_id = workflow.job_id || @job.id
           {
             id: workflow.id,
             slug: workflow.slug,
@@ -194,10 +195,10 @@ module App
             finished_at: iso8601(workflow.finished_at),
             created_at: iso8601(workflow.created_at),
             updated_at: iso8601(workflow.updated_at),
-            app_retry_step_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/retry_step",
-            app_push_commits_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/push_commits",
-            app_force_push_branch_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/force_push_branch",
-            app_discard_branch_output_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/discard_branch_output",
+            app_retry_step_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/retry_step",
+            app_push_commits_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/push_commits",
+            app_force_push_branch_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/force_push_branch",
+            app_discard_branch_output_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/discard_branch_output",
             failure_classification: workflow_failure_classification_json(workflow),
             steps_total: step_count,
             steps_displayed: steps.size,
@@ -242,7 +243,7 @@ module App
       end
 
       def total_workflows
-        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { @job.workflows.count }
+        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { workflows_scope.count }
       end
 
       def workflows_page
@@ -437,10 +438,10 @@ module App
           can_stop: run.may_cancel?,
           can_diagnose: run.queued? || run.running?,
           can_resume: %w[failed cancelled].include?(run.state) && session.present? && !job_has_active_runtime_work?,
-          app_artifacts_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/artifacts",
-          app_stop_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/stop",
-          app_diagnose_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/diagnose",
-          app_resume_path: "/api/v1/app/jobs/#{@job.id}/resume",
+          app_artifacts_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/artifacts",
+          app_stop_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/stop",
+          app_diagnose_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/diagnose",
+          app_resume_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/resume",
           app_grade_log_path: app_grade_log_path(run, workflow: workflow, step: step)
         }
       end
@@ -837,7 +838,7 @@ module App
         return if name.blank?
 
         query = { name: name, workflow_id: workflow.id }.compact.to_query
-        path = "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/grade_log"
+        path = "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/grade_log"
         query.present? ? "#{path}?#{query}" : path
       end
     end

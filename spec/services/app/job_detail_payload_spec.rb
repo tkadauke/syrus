@@ -792,7 +792,8 @@ RSpec.describe App::JobDetailPayload do
       first = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
       second = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 102)
       workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
-      Step.create!(workflow: workflow, kind: "merge_train_build", position: 1, state: "running")
+      step = Step.create!(workflow: workflow, kind: "merge_train_build", position: 1, state: "running")
+      run = Run.create!(job: first, step: step, trigger_kind: "merge_train", state: "running")
       unit = attach_work_unit(workflow, member_jobs: [ first, second ], kind: "merge_train")
 
       payload = workflows_payload_for(second)
@@ -814,7 +815,18 @@ RSpec.describe App::JobDetailPayload do
           workflow: include(
             id: workflow.id,
             trigger_kind: "merge_train",
-            steps: include(include(kind: "merge_train_build"))
+            app_retry_step_path: "/api/v1/app/jobs/#{first.id}/workflows/#{workflow.id}/retry_step",
+            steps: include(
+              include(
+                kind: "merge_train_build",
+                runs: include(
+                  include(
+                    id: run.id,
+                    app_stop_path: "/api/v1/app/jobs/#{first.id}/runs/#{run.id}/stop"
+                  )
+                )
+              )
+            )
           )
         )
       )
@@ -887,6 +899,12 @@ RSpec.describe App::JobDetailPayload do
 
       expect(payload.fetch(:workflows)).to be_empty
       expect(payload.fetch(:work_units).map { |unit| unit.dig(:workflow, :id) }).to eq([ workflow.id ])
+      expect(payload.fetch(:workflows_pagination)).to include(
+        total_workflows: 0,
+        total_pages: 1,
+        first_item: 0,
+        last_item: 0
+      )
       expect(nested_workflow.fetch(:steps).map { |entry| entry[:kind] }).to include("implement")
       expect(nested_step.fetch(:warnings)).to include(include(kind: "grader_side_effect", title: "needs attention"))
       expect(nested_run).to include(id: run.id, state: "running", can_stop: true)
