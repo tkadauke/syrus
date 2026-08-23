@@ -108,7 +108,7 @@ describe("AppChromeV2", () => {
       })
     })
 
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard/epics")
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard/jobs")
     expect(screen.queryByRole("link", { name: "Schedules" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Jobs" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Workflows" })).not.toBeInTheDocument()

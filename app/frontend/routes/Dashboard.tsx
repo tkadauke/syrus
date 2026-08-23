@@ -1,7 +1,7 @@
 import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
-import { JobsDashboardTable } from "./dashboard/JobsTable"
-import { EpicsTable, SimpleFeaturesTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
+import { JobsDashboardTable, SimpleJobsTable } from "./dashboard/JobsTable"
+import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
 import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -855,7 +855,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
 
   const columns = dashboardVisibleColumns(payload)
   const items = payload.items ?? []
-  if (payload.simple_mode) return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
+  if (payload.simple_mode) return <SimpleJobsTable items={items.filter((item): item is DashboardJobItem => item.type === "job")} />
   if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 

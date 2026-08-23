@@ -232,25 +232,26 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(items.fetch(external_pr_job.id)).to include("pr_number" => 88, "pr_is_external" => true)
     end
 
-    it "forces the dashboard to feature rows in simple mode" do
+    it "forces the dashboard to job rows in simple mode" do
       AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
       epic = Factories.epic(user: user, repository: repo, title: "Checkout polish")
-      Factories.job_record(repository: repo, epic: epic, issue_number: 1, issue_title: "Hidden child job", state: "open", owner_user: user)
+      job = Factories.job_record(repository: repo, epic: epic, issue_number: 1, issue_title: "Visible child job", state: "open", owner_user: user)
 
-      get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body).to include("simple_mode" => true, "subject" => "epic", "view" => "list")
+      expect(body).to include("simple_mode" => true, "subject" => "job", "view" => "list")
       expect(body.dig("controls", "views")).to eq(%w[list])
       expect(body["items"]).to contain_exactly(
         include(
-          "type" => "epic",
-          "title" => "Checkout polish",
-          "simple_status" => "working_on_it"
+          "type" => "job",
+          "id" => job.id,
+          "title" => "Visible child job",
+          "state" => "open"
         )
       )
-      expect(body["items"].map { |item| item["type"] }).not_to include("job", "workflow")
+      expect(body["items"].map { |item| item["type"] }).not_to include("epic", "workflow")
     end
 
     it "presents deferred auto-merge workflows as postponed dashboard state" do
