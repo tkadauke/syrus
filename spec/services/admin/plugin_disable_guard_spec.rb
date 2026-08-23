@@ -32,6 +32,42 @@ RSpec.describe Admin::PluginDisableGuard do
       expect { described_class.ensure_disableable!(manifest_for("ruby")) }
         .to raise_error(described_class::Blocked)
     end
+
+    it "blocks disabling plugins with active WorkUnit-owned workflows" do
+      register("ruby", provides: { agent_provider: AdminPluginsSpec::AvailableProvider })
+      job = Factories.job_record(agent_provider: "codex")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "manual",
+        agent_provider: "available",
+        state: "succeeded"
+      )
+      intent = WorkIntent.create!(
+        kind: "manual",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "manual",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      blockers = described_class.blockers_for(manifest_for("ruby"))
+
+      expect(blockers).to include(have_attributes(kind: "active_workflows", count: 1))
+      expect { described_class.ensure_disableable!(manifest_for("ruby")) }
+        .to raise_error(described_class::Blocked, /Active workflows use Available/)
+    end
   end
 
   describe ".dependents_for" do

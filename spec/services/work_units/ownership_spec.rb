@@ -71,6 +71,34 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.all_active_job_ids).not_to include(idle_job.id)
   end
 
+  it "reports active workflow ids from work units and legacy active workflows" do
+    work_unit_job = Factories.job_record(issue_number: 211)
+    legacy_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 212)
+    terminal_workflow = Workflow.create!(
+      job: work_unit_job,
+      trigger_kind: "manual",
+      agent_provider: "codex",
+      state: "succeeded"
+    )
+    legacy_workflow = Workflow.create!(
+      job: legacy_job,
+      trigger_kind: "initial",
+      agent_provider: "codex",
+      state: "queued"
+    )
+    ignored_workflow = Workflow.create!(
+      job: work_unit_job,
+      trigger_kind: "retry",
+      agent_provider: "claude",
+      state: "queued"
+    )
+    attach_work_unit(terminal_workflow, member_jobs: [ work_unit_job ], kind: "manual", state: "running")
+
+    expect(described_class.active_workflow_ids(agent_provider: "codex")).to contain_exactly(terminal_workflow.id, legacy_workflow.id)
+    expect(described_class.active_workflow_ids([ work_unit_job.id ], kinds: "manual")).to contain_exactly(terminal_workflow.id)
+    expect(described_class.active_workflow_ids(agent_provider: "codex")).not_to include(ignored_workflow.id)
+  end
+
   it "filters active membership by work unit kind" do
     job = Factories.job
     retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")

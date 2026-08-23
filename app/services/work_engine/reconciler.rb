@@ -263,8 +263,9 @@ module WorkEngine
       elsif run_id.present?
         Job.where(id: Run.where(id: run_id).select(:job_id))
       else
+        active_job_ids = WorkUnits::Ownership.all_active_job_ids.to_a
         Job.where(id: Job.open_threads.select(:id))
-           .or(Job.where(id: Workflow.active.select(:job_id)))
+           .or(Job.where(id: active_job_ids))
       end
     end
 

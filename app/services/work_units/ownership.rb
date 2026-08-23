@@ -69,6 +69,15 @@ module WorkUnits
         legacy_active_workflow_job_ids(nil, kinds: kinds).to_set
     end
 
+    def self.active_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
+      unit_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).to_set |
+        legacy_active_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).to_set
+    end
+
+    def self.active_workflow_count(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
+      active_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).size
+    end
+
     def self.active_trigger_kinds_by_job_id(job_ids)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?
@@ -229,6 +238,27 @@ module WorkUnits
       scope = scope.where(job_id: ids) if ids.any?
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       scope.distinct.pluck(:job_id)
+    end
+
+    def self.unit_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      scope = WorkUnit.joins(:workflow).where(state: Array(states).map(&:to_s))
+      scope = scope.joins(:work_unit_members).where(work_unit_members: { job_id: ids }) if ids.any?
+      scope = scope.where(kind: Array(kinds).map(&:to_s)) if kinds.present?
+      scope = scope.where(workflows: { agent_provider: agent_provider.to_s }) if agent_provider.present?
+      scope.distinct.pluck(:workflow_id)
+    end
+
+    def self.legacy_active_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      workflow_states = Array(states).map(&:to_s) & %w[queued running]
+      return [] if workflow_states.empty?
+
+      scope = Workflow.where(state: workflow_states)
+      scope = scope.where(job_id: ids) if ids.any?
+      scope = scope.where(trigger_kind: Array(kinds).map(&:to_s)) if kinds.present?
+      scope = scope.where(agent_provider: agent_provider.to_s) if agent_provider.present?
+      scope.distinct.pluck(:id)
     end
 
     def self.legacy_active_workflow_trigger_kinds_by_job_id(job_ids)
