@@ -9,6 +9,50 @@ No broad scope removal was made as part of this audit. Existing `Current.user`
 relations remain in place because they are the replacement semantics that keep
 private user data separated.
 
+## Policy layer (Repository/Job/Epic)
+
+EPIC-257 (global roles, repository role tiers, teams, and GitHub permission
+parity) replaces this convention-based, per-controller scoping with policy
+objects one resource at a time. The first step introduced the `pundit` gem
+and `RepositoryPolicy`, `JobPolicy`, and `EpicPolicy` under `app/policies/`,
+wrapping — not changing — the access rules documented in this file for
+`Api::V1::App::RepositoriesController`, `Api::V1::App::JobsController`, and
+`Api::V1::App::EpicsController`:
+
+- `RepositoryPolicy::Scope#resolve` is exactly `Current.user.repositories`
+  (the `belongs_to :user` FK on `Repository`).
+- `JobPolicy::Scope#resolve` is exactly `Current.user.jobs` (the
+  `belongs_to :user` FK on `Job`).
+- `EpicPolicy::Scope#resolve` is exactly `Epic.accessible_to(user)`
+  (repository membership, including upstream repositories — see
+  `Epic.accessible_to` in `app/models/epic.rb`).
+
+None of the three `Scope` classes bypass for global admins. `find_repository`,
+`find_job_by_param`, and `find_epic` now call `policy_scope(Repository)` /
+`policy_scope(Job)` / `policy_scope(Epic)` instead of the raw association, so
+an inaccessible record still 404s exactly as before — the controllers never
+call `authorize` (which would 403 via `Pundit::NotAuthorizedError`), keeping
+today's not-found semantics intact.
+
+`EpicPolicy` additionally reproduces the three per-action checks
+`EpicsController` already had before this policy layer existed, unchanged:
+`unclaim?` (current claimant or admin), `reassign?(via_owner_user_id_param:)`
+(admin-only when reassigning through the `owner_user_id` param; the legacy
+`owner_id` param path is unrestricted), and `advance_state?(target_state:)`
+(product owners cannot advance into `ready`/`in_progress`/`done`). These are
+genuine "global admins bypass this policy" rules — they predate this Job and
+are preserved as-is.
+
+`RepositoryPolicy` and `JobPolicy` also define `show?`/`update?`/`destroy?`
+predicates (owner-or-admin) for later epic jobs to call via `authorize` once
+repository role tiers and teams exist; nothing in the current controllers
+invokes them yet, so they have no runtime effect today. `ApplicationPolicy#admin?`
+is the single admin-bypass helper all four predicate-level checks share.
+Scope-level admin bypass (an admin browsing every repository/job/epic in the
+app SPA, not just the separate Bearer-token admin API) is deliberately left
+for whichever later epic job introduces the target access model described in
+the Epic — adding it now would be a visibility change this Job does not make.
+
 ```yaml current_user_scope_files
 per-user/private:
   - app/controllers/api/v1/app/auth_controller.rb
@@ -152,7 +196,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
 | `app/controllers/api/v1/app/dashboard_controller.rb` | per-user/private | Dashboard payload, preferences, bulk job actions, tags, approvals, and broadcasts operate on `Current.user` jobs/epics/tags. |
 | `app/controllers/api/v1/app/direct_jobs_controller.rb` | per-user/private | Direct jobs can only be created in active repositories owned by the current user, using that user's configured agent providers. |
-| `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update/read paths use `Current.user.epics`; repository choices come from the same user. |
+| `app/controllers/api/v1/app/epics_controller.rb` | per-user/private | Epic create/update paths use `Current.user.epics`; repository choices come from the same user. Index/find/dependency-target lookups go through `EpicPolicy` (`policy_scope(Epic)`, exactly `Epic.accessible_to(Current.user)` — see [Policy layer](#policy-layer-repositoryjobepic)); unclaim, reassign, and state-advancement checks are `EpicPolicy` predicates. |
 | `app/controllers/api/v1/app/filters_controller.rb` | per-user/private | Foreign-key filter options resolve against user-owned repositories, epics, jobs, and tags. Hostnames are a cross-system option but only labels, not user data. |
 | `app/controllers/api/v1/app/insights/spending_controller.rb` | per-user/private | Spending rollups are computed for the signed-in user unless the viewer is an admin, in which case the payload intentionally expands to instance-wide totals. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
@@ -165,7 +209,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
-| `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission use `Current.user.jobs`; timeline is separately admin-only because it exposes run history. |
+| `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission are scoped through `JobPolicy` (`policy_scope(Job)`, exactly `Current.user.jobs` — see [Policy layer](#policy-layer-repositoryjobepic)); timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Creates and manages local daemon sessions through `Current.user.chat_sessions`; daemon session creation sets `user: Current.user`. |
 | `app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
 | `app/controllers/api/v1/app/notification_preferences_controller.rb` | per-user/private | Reads and updates only `Current.user.notification_preferences`. |
@@ -176,7 +220,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/input_sources_controller.rb` | per-user/private | Registry-backed input source CRUD finds the parent repository through `Current.user.repositories` and resolves source types only from `PluginRegistry.providers_for(:input_source)`, so only the repository owner can read or update source credentials. |
-| `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
+| `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, exactly `Current.user.repositories` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
