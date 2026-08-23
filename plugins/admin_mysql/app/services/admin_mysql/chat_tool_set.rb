@@ -2,61 +2,37 @@ require "mcp"
 
 module AdminMysql
   class ChatToolSet
+    TOOL_CLASSES = [
+      StatusTool,
+      KillQueryTool
+    ].freeze
+
     def self.available_for?(chat_session, tier:)
       chat_session.user.admin? && AdminMysql.mysql? && %i[ essential deferred ].include?(tier.to_sym)
     end
 
     def self.tool_definitions(tier:)
-      [
+      TOOL_CLASSES.map do |klass|
         {
-          name: "admin_mysql_status",
-          description: "Read live MySQL status, process list, connection information, slow-log availability, and statement digests for this Syrus instance.",
-          input_schema: {
-            type: "object",
-            properties: {
-              limit: {
-                type: "integer",
-                minimum: 1,
-                maximum: Inspector::MAX_LIMIT,
-                description: "Maximum number of process list rows to return."
-              }
-            }
-          }
-        },
-        {
-          name: "admin_mysql_kill_query",
-          description: "Kill the currently executing query for a MySQL thread id using KILL QUERY. This does not close the connection.",
-          input_schema: {
-            type: "object",
-            required: [ "thread_id" ],
-            properties: {
-              thread_id: {
-                type: "integer",
-                minimum: 1,
-                description: "MySQL PROCESSLIST.ID to interrupt."
-              }
-            }
-          }
+          name: klass.tool_name,
+          description: klass.description_value,
+          input_schema: klass.input_schema_value.to_h
         }
-      ]
+      end
     end
 
-    def handle(tool_name, params, _server_context)
-      payload = case tool_name.to_s
-      when "admin_mysql_status"
-        Inspector.new.snapshot(limit: params[:limit] || params["limit"] || Inspector::DEFAULT_LIMIT)
-      when "admin_mysql_kill_query"
-        Inspector.new.kill_query(params[:thread_id] || params["thread_id"])
-      else
-        return MCP::Tool::Response.new([ { type: "text", text: "Unknown Admin MySQL tool: #{tool_name.inspect}" } ], error: true)
-      end
+    def handle(tool_name, params, server_context)
+      klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
+      return MCP::Tool::Response.new([ { type: "text", text: "Unknown Admin MySQL tool: #{tool_name.inspect}" } ], error: true) unless klass
 
-      MCP::Tool::Response.new([ { type: "text", text: JSON.pretty_generate(payload) } ], error: payload.dig(:error).present?)
-    rescue Inspector::Unavailable, ArgumentError => e
-      MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.message}" } ], error: true)
+      klass.call(**self.class.symbolize(params), server_context: server_context)
     rescue StandardError => e
       Rails.logger.error("[AdminMysql::ChatToolSet] #{e.class}: #{e.message}")
       MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
+    end
+
+    def self.symbolize(params)
+      (params || {}).each_with_object({}) { |(key, value), normalized| normalized[key.to_sym] = value }
     end
   end
 end
