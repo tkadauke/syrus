@@ -8,6 +8,12 @@ RSpec.describe JobWorkflowAccessors do
   # example controls the workflow set explicitly.
   let(:job) do
     j = Factories.job(user: user, repository: repository)
+    unit_ids = WorkUnitMember.where(job_id: j.id).pluck(:work_unit_id)
+    intent_ids = WorkUnit.where(id: unit_ids).pluck(:work_intent_id)
+    WorkUnitLock.where(work_unit_id: unit_ids).delete_all
+    WorkUnitMember.where(work_unit_id: unit_ids).delete_all
+    WorkUnit.where(id: unit_ids).delete_all
+    WorkIntent.where(id: intent_ids).delete_all
     j.workflows.destroy_all
     j.reload
   end
@@ -196,6 +202,31 @@ RSpec.describe JobWorkflowAccessors do
 
       result = job.reload.active_workflow_trigger_kind
       expect(result).to eq("pr_comment")
+    end
+
+    it "returns the trigger kind for a WorkUnit that owns the job through membership" do
+      primary = Factories.job_record(user: user, repository: repository)
+      workflow = Workflow.create!(job: primary, user: user, trigger_kind: "merge_train", state: "running")
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "requested",
+        repository: repository,
+        scope_type: "job",
+        scope_id: primary.id
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "merge_train",
+        state: "running",
+        repository: repository,
+        scope_type: "job",
+        scope_id: primary.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: primary, role: "primary")
+      unit.work_unit_members.create!(job: job, role: "member")
+
+      expect(job.reload.active_workflow_trigger_kind).to eq("merge_train")
     end
 
     context "when workflows association is loaded in memory" do

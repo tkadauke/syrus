@@ -1629,6 +1629,10 @@ Completed slices:
   work remains visible in the landing queue instead of moving to the Paused
   folder. The legacy Workflow artifact fallback remains until workflow
   pause/block state is fully migrated.
+- `Job#active_workflow_trigger_kind` now delegates to
+  `WorkUnits::Ownership.active_trigger_kinds_by_job_id`, so single-Job callers
+  see cross-job WorkUnit ownership instead of only workflows directly attached
+  to that Job.
 
 ### Phase 5: Reconciler Simplification
 
