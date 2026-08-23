@@ -304,4 +304,100 @@ RSpec.describe Repository do
       expect(repo.polling_enabled).to be false   # stays off — user re-enables explicitly
     end
   end
+
+  describe "#effective_role_for" do
+    let(:repo) { Factories.repository(user: owner) }
+    let(:global_admin) { Factories.user(admin: true) }
+    let(:direct_reader) { Factories.user }
+    let(:team_writer) { Factories.user }
+    let(:both) { Factories.user }
+    let(:stranger) { Factories.user }
+    let(:team) { Team.create!(name: "Platform") }
+
+    before do
+      repo.repository_memberships.create!(user: direct_reader, role: "read")
+      repo.repository_memberships.create!(user: both, role: "read")
+      team.team_memberships.create!(user: team_writer, role: "member")
+      team.team_memberships.create!(user: both, role: "member")
+      team.team_repositories.create!(repository: repo, role: "write")
+    end
+
+    it "returns 'admin' for a global admin regardless of membership" do
+      expect(repo.effective_role_for(global_admin)).to eq("admin")
+    end
+
+    it "returns the direct RepositoryMembership role when there is no team grant" do
+      expect(repo.effective_role_for(direct_reader)).to eq("read")
+    end
+
+    it "returns the best TeamRepository role for a user with only a team grant" do
+      expect(repo.effective_role_for(team_writer)).to eq("write")
+    end
+
+    it "returns the higher of a direct membership and a team grant for the same user" do
+      expect(repo.effective_role_for(both)).to eq("write")
+    end
+
+    it "returns nil for a user with no direct membership and no team grant" do
+      expect(repo.effective_role_for(stranger)).to be_nil
+    end
+
+    it "returns nil for a nil user" do
+      expect(repo.effective_role_for(nil)).to be_nil
+    end
+
+    # Proves teams are purely additive: a repository with zero
+    # TeamRepository grants behaves identically to the
+    # direct-membership-only model that preceded teams.
+    it "matches the direct-membership-only outcome when the repo has no team grants" do
+      bare_repo = Factories.repository(user: owner)
+      bare_repo.repository_memberships.create!(user: direct_reader, role: "read")
+
+      expect(bare_repo.effective_role_for(direct_reader)).to eq(bare_repo.membership_for(direct_reader).role)
+      expect(bare_repo.effective_role_for(stranger)).to be_nil
+      expect(bare_repo.effective_role_for(global_admin)).to eq("admin")
+    end
+  end
+
+  describe "#member_at_least?" do
+    let(:repo) { Factories.repository(user: owner) }
+    let(:team) { Team.create!(name: "Platform") }
+    let(:team_admin) { Factories.user }
+
+    before do
+      team.team_memberships.create!(user: team_admin, role: "member")
+      team.team_repositories.create!(repository: repo, role: "admin")
+    end
+
+    it "is true when a team grant meets the tier" do
+      expect(repo.member_at_least?(team_admin, "write")).to be true
+    end
+
+    it "is false when neither direct membership nor a team grant meets the tier" do
+      expect(repo.member_at_least?(Factories.user, "read")).to be false
+    end
+  end
+
+  describe ".accessible_repository_ids_for" do
+    it "includes repositories granted via a team, alongside direct memberships" do
+      direct_repo = Factories.repository(user: owner)
+      team_repo = Factories.repository(user: owner)
+      unrelated_repo = Factories.repository(user: owner)
+      user = Factories.user
+      direct_repo.repository_memberships.create!(user: user, role: "read")
+      team = Team.create!(name: "Platform")
+      team.team_memberships.create!(user: user, role: "member")
+      team.team_repositories.create!(repository: team_repo, role: "read")
+
+      ids = Repository.accessible_repository_ids_for(user).pluck(:id)
+
+      expect(ids).to contain_exactly(direct_repo.id, team_repo.id)
+      expect(ids).not_to include(unrelated_repo.id)
+    end
+
+    it "returns none for a nil user" do
+      Factories.repository
+      expect(Repository.accessible_repository_ids_for(nil)).to be_empty
+    end
+  end
 end

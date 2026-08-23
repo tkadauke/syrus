@@ -6,11 +6,11 @@ module Api
       # admin list current members, add a user by email at a chosen role,
       # change an existing member's role, and remove a member.
       class RepositoryMembershipsController < BaseController
-        include RepositoryTabsSerialization
+        include RepositoryMembersSerialization
 
         def index
           repository = find_repository
-          render json: memberships_payload(repository)
+          render json: repository_members_payload(repository)
         end
 
         def create
@@ -34,7 +34,7 @@ module Api
           end
 
           repository.repository_memberships.create!(user: target_user, role: role)
-          render json: memberships_payload(repository.reload).merge(message: "#{target_user.email_address} added as #{role}."), status: :created
+          render json: repository_members_payload(repository.reload).merge(message: "#{target_user.email_address} added as #{role}."), status: :created
         end
 
         def update
@@ -53,7 +53,7 @@ module Api
           end
 
           membership.update!(role: role)
-          render json: memberships_payload(repository.reload).merge(message: "Role updated to #{role}.")
+          render json: repository_members_payload(repository.reload).merge(message: "Role updated to #{role}.")
         end
 
         def destroy
@@ -66,7 +66,7 @@ module Api
           end
 
           membership.destroy!
-          render json: memberships_payload(repository.reload).merge(message: "Member removed.")
+          render json: repository_members_payload(repository.reload).merge(message: "Member removed.")
         end
 
         private
@@ -84,32 +84,6 @@ module Api
           return nil if email.blank?
 
           User.find_by(email_address: email.downcase)
-        end
-
-        def memberships_payload(repository)
-          {
-            repository: {
-              id: repository.id,
-              slug: repository.slug,
-              repository_path: repository_path(repository)
-            },
-            tabs: repository_tabs_json(repository),
-            memberships: repository.repository_memberships.includes(:user).order(:id).map { |m| membership_json(m) }
-          }
-        end
-
-        def membership_json(membership)
-          {
-            id: membership.id,
-            role: membership.role,
-            agent_provider: membership.agent_provider,
-            created_at: membership.created_at.iso8601,
-            user: {
-              id: membership.user.id,
-              email_address: membership.user.email_address,
-              name: membership.user.display_name
-            }
-          }
         end
       end
     end

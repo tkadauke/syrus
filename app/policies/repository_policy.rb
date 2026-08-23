@@ -41,7 +41,10 @@ class RepositoryPolicy < ApplicationPolicy
   # visibility. Admin bypass lives on the per-record predicates above.
   class Scope < ApplicationPolicy::Scope
     def resolve
-      scope.where(id: RepositoryMembership.at_least("admin").where(user: user).select(:repository_id))
+      direct_ids = RepositoryMembership.at_least("admin").where(user: user).select(:repository_id)
+      team_ids = TeamMembership.where(user: user).select(:team_id)
+      team_repo_ids = TeamRepository.at_least("admin").where(team_id: team_ids).select(:repository_id)
+      scope.where(id: direct_ids).or(scope.where(id: team_repo_ids))
     end
   end
 
