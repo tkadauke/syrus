@@ -88,6 +88,7 @@ module WorkDefinitions
     def preemption_policy = WorkUnits::PreemptionPolicies::None.new
     def retry_policy = WorkUnits::RetryPolicies::Operator.new
     def blocks_ci_failure? = false
+    def landing_lock? = kind.in?(LANDING_LOCK_KINDS)
 
     def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
@@ -103,10 +104,6 @@ module WorkDefinitions
     def legacy? = runtime_role == "legacy"
 
     private
-
-    def landing_lock?
-      kind.in?(LANDING_LOCK_KINDS)
-    end
 
     def source_repository_for(job)
       job.respond_to?(:effective_pr_repository) ? job.effective_pr_repository : job.repository

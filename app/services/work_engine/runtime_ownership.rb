@@ -16,7 +16,7 @@ module WorkEngine
       return false unless job&.epic_id
 
       if WorkUnits::PathOwnership.work_unit_owned?("epic_wide_workflow")
-        WorkUnits::Ownership.active_for_epic?(job.epic, kinds: Workflow::EPIC_WIDE_TRIGGER_KINDS)
+        WorkUnits::Ownership.active_for_epic?(job.epic, kinds: WorkDefinitions.epic_wide_kinds)
       else
         legacy_active_epic_wide_workflow?
       end
@@ -26,7 +26,7 @@ module WorkEngine
       return false unless job
 
       if WorkUnits::PathOwnership.work_unit_owned?("landing_queue")
-        WorkUnits::Ownership.active_for_job_kind?(job, WorkDefinitions::Base::LANDING_LOCK_KINDS)
+        WorkUnits::Ownership.active_for_job_kind?(job, WorkDefinitions.landing_lock_kinds)
       else
         legacy_active_landing_work?
       end

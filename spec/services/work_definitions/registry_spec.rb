@@ -85,6 +85,27 @@ RSpec.describe WorkDefinitions do
     end
   end
 
+  it "publishes scheduler policy kind sets from work definitions" do
+    expect(described_class.landing_lock_kinds).to contain_exactly(
+      "auto_merge",
+      "external_pr_merge",
+      "merge_train",
+      "landing_validation",
+      "merge_train_validation"
+    )
+    expect(described_class.landing_workflow_kinds).to contain_exactly(*Workflow::LANDING_TRIGGER_KINDS)
+    expect(described_class.epic_wide_kinds).to contain_exactly(*Workflow::EPIC_WIDE_TRIGGER_KINDS)
+    expect(described_class.ci_failure_blocking_kinds).to contain_exactly(
+      "rebase",
+      "stack_rebase",
+      "auto_merge",
+      "external_pr_merge",
+      "merge_train",
+      "landing_validation",
+      "merge_train_validation"
+    )
+  end
+
   it "resolves merge train members from the train artifact through the definition" do
     user = Factories.user
     repository = Factories.repository(user: user)
@@ -115,7 +136,7 @@ RSpec.describe WorkDefinitions do
 
   it "declares landing locks for landing definitions" do
     job = Factories.job_record
-    landing_kinds = WorkDefinitions::Base::LANDING_LOCK_KINDS
+    landing_kinds = described_class.landing_lock_kinds
 
     landing_kinds.each do |kind|
       definition = described_class.for(kind)

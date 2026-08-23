@@ -1716,6 +1716,12 @@ Completed slices:
   reconciler and executor paths consume that policy instead of hard-coding
   `pr_open`, so non-PR-producing workflows are not misclassified and future
   review-publication workflows have one declaration point.
+- The WorkDefinitions registry now publishes scheduler policy kind sets:
+  landing-lock kinds, first-class landing workflow kinds, Epic-wide kinds, and
+  CI-failure-blocking kinds. Landing queue reentry, landing queue processor
+  helpers, Epic-wide workflow locking, WorkUnit blocked-job filtering, and
+  runtime ownership adapters consume these policy sets instead of local
+  trigger-kind lists.
 
 ### Phase 7: Callback Strangler Completion
 

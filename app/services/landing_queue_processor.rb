@@ -636,7 +636,7 @@ class LandingQueueProcessor
   def active_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
     Workflow.active
       .joins(:job)
-      .where(trigger_kind: Workflow::LANDING_TRIGGER_KINDS)
+      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .where(jobs: { repository_id: repository_id, state: "landing" })
       .where.not(jobs: { id: except_job_id })
       .reorder(:id)
@@ -644,7 +644,7 @@ class LandingQueueProcessor
   end
 
   def active_landing_workflow_for_job?(job)
-    job.workflows.active.where(trigger_kind: Workflow::LANDING_TRIGGER_KINDS).exists?
+    job.workflows.active.where(trigger_kind: WorkDefinitions.landing_workflow_kinds).exists?
   end
 
   def merge_train_for_epic_child?(job)
@@ -795,7 +795,7 @@ class LandingQueueProcessor
     return unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
 
     workflow = job.workflows
-      .where(trigger_kind: Workflow::LANDING_TRIGGER_KINDS)
+      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .reorder(id: :desc)
       .detect { |wf| LandingQueueReentry.landing_start_blocker?(wf.artifact("start_blocked_reason")) }
     retry_after = parse_time(workflow&.artifact("start_blocked_next_check_at"))
@@ -805,7 +805,7 @@ class LandingQueueProcessor
   def active_landing_start_blocker_retry_after(job)
     workflow = job.workflows
       .active
-      .where(trigger_kind: Workflow::LANDING_TRIGGER_KINDS)
+      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .reorder(id: :desc)
       .detect { |wf| LandingQueueReentry.landing_start_blocker?(wf.artifact("start_blocked_reason")) }
     retry_after = parse_time(workflow&.artifact("start_blocked_next_check_at"))

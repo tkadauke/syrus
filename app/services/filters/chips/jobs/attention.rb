@@ -268,7 +268,7 @@ module Filters
         end
 
         def paused_workflow_job_ids
-          active_workflow_job_ids(excluding_trigger_kind: Workflow::LANDING_TRIGGER_KINDS) do |relation|
+          active_workflow_job_ids(excluding_trigger_kind: WorkDefinitions.landing_workflow_kinds) do |relation|
             relation.where("artifacts LIKE ? OR artifacts LIKE ?", '%"pause_reason"%', '%"start_blocked_reason"%')
           end
         end

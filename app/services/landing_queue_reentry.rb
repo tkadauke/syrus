@@ -54,7 +54,7 @@ class LandingQueueReentry
 
   def landing_start_blocker_backoff_active?(candidate)
     workflow = candidate.workflows
-      .where(trigger_kind: Workflow::LANDING_TRIGGER_KINDS)
+      .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
       .reorder(id: :desc)
       .detect { |wf| self.class.landing_start_blocker?(wf.artifact("start_blocked_reason")) }
     next_check_at = parse_time(workflow&.artifact("start_blocked_next_check_at"))

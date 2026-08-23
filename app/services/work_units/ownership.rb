@@ -137,7 +137,7 @@ module WorkUnits
     def self.blocked_unit_job_ids_scope(kinds: nil, include_landing: false)
       scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: "blocked" })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
-      scope = scope.where.not(work_units: { kind: WorkDefinitions::Base::LANDING_LOCK_KINDS }) unless include_landing
+      scope = scope.where.not(work_units: { kind: WorkDefinitions.landing_lock_kinds }) unless include_landing
       scope
     end
 

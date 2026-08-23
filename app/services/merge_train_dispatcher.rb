@@ -95,7 +95,7 @@ class MergeTrainDispatcher
   end
 
   def landing_job_in_progress
-    if (unit = WorkUnits::Ownership.active_unit_for_lock_key("landing:repository:#{@epic.repository_id}", kinds: WorkDefinitions::Base::LANDING_LOCK_KINDS))
+    if (unit = WorkUnits::Ownership.active_unit_for_lock_key("landing:repository:#{@epic.repository_id}", kinds: WorkDefinitions.landing_lock_kinds))
       return unit.member_jobs.order(:id).first || unit.workflow&.job
     end
 

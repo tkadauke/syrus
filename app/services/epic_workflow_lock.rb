@@ -18,10 +18,10 @@ class EpicWorkflowLock
     return [] unless epic
 
     unit_workflows = WorkUnits::Ownership
-      .active_units_for_epic(epic, kinds: Workflow::EPIC_WIDE_TRIGGER_KINDS)
+      .active_units_for_epic(epic, kinds: WorkDefinitions.epic_wide_kinds)
       .filter_map(&:workflow)
     legacy_workflows = WorkUnits::Ownership
-      .legacy_active_epic_workflows(epic, kinds: Workflow::EPIC_WIDE_TRIGGER_KINDS)
+      .legacy_active_epic_workflows(epic, kinds: WorkDefinitions.epic_wide_kinds)
       .order(:created_at, :id)
       .to_a
 
