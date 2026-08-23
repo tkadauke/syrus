@@ -213,6 +213,23 @@ export function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["
   return t("loop_name")
 }
 
+export function loopSoleGradeItem(item: LoopStepItem): GradeStepItem | null {
+  if (item.iterations.length !== 1) return null
+
+  const [iteration] = item.iterations
+  if (iteration.items.length !== 1) return null
+
+  const [only] = iteration.items
+  return only.type === "grade" ? only : null
+}
+
+export function loopGradeSummaries(item: LoopStepItem): GradeSummary[] {
+  const latestIteration = item.iterations[item.iterations.length - 1]
+  if (!latestIteration) return []
+
+  return latestIteration.items.flatMap((displayItem) => displayItem.type === "grade" ? gradeSummaries(displayItem) : [])
+}
+
 export function loopDisplayStatus(item: LoopStepItem) {
   const latestIteration = item.iterations[item.iterations.length - 1]
   if (!latestIteration) return null
