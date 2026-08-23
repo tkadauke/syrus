@@ -260,5 +260,10 @@
   "repository_tabs_aria": "Repository tabs",
   "title_uncommitted": "Uncommitted coding changes",
   "title_scratchpad": "Has scratch pad items",
-  "title_turn_active": "Chat turn active"
+  "title_turn_active": "Chat turn active",
+  "sidebar_pages": {
+    "loading": "Loading...",
+    "unavailable_heading": "Page unavailable",
+    "unavailable_body": "This page is not available right now."
+  }
 }

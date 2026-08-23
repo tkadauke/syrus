@@ -260,5 +260,10 @@
   "repository_tabs_aria": "Tabulae repositorii",
   "title_uncommitted": "Mutationes codicis non commissae",
   "title_scratchpad": "Habet res in tabula",
-  "title_turn_active": "Vicis colloquii activa"
+  "title_turn_active": "Vicis colloquii activa",
+  "sidebar_pages": {
+    "loading": "Onerans...",
+    "unavailable_heading": "Pagina non praesto",
+    "unavailable_body": "Haec pagina nunc non praesto est."
+  }
 }

@@ -1,7 +1,8 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, DashboardIcon, MoonIcon, PlusIcon, RepositoryIcon, ScheduleIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, TerminalIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
+import { buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -14,6 +15,7 @@ import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload 
 import { patchJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
+import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { BugReportContext } from "../lib/bugReportContext"
@@ -88,23 +90,38 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     : children ?? <Outlet />
 
   const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags?.terminal && user))
+  const sidebarPluginPages = useQuery({
+    queryKey: ["sidebar", "plugin_pages"],
+    queryFn: fetchSidebarPluginPages,
+    staleTime: 30_000,
+    enabled: Boolean(user)
+  })
+  const sidebarNavContext = useMemo(() => ({
+    simpleMode,
+    featureFlags: data?.feature_flags ?? {},
+    teamUserCount: data?.team_user_count ?? 0
+  }), [simpleMode, data?.feature_flags, data?.team_user_count])
+  const mergedSidebarNavItems = useMemo(
+    () => buildSidebarNavItems(sidebarNavContext, sidebarPluginPages.data?.pages ?? [], t),
+    [sidebarNavContext, sidebarPluginPages.data, t]
+  )
+  const primaryNavItems = useMemo(() => {
+    const spendingItem = { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> }
+    const items = mergedSidebarNavItems.map((item) => ({
+      id: item.id,
+      label: item.label,
+      to: `${prefix}${item.to}`,
+      active: sidebarNavItemActive(item, normalizedPath),
+      icon: item.icon,
+      ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
+    }))
+    const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
+    if (dashboardIndex === -1) return items
+    return [...items.slice(0, dashboardIndex + 1), spendingItem, ...items.slice(dashboardIndex + 1)]
+  }, [mergedSidebarNavItems, normalizedPath, prefix, t, terminalSessionCount])
   const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
-    ...(tabsHidden ? [] : [
-      { id: "dashboard", label: t("nav:dashboard"), to: simpleMode ? `${prefix}/dashboard/epics` : `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
-      { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
-      { id: "repositories", label: t("nav:repositories"), to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
-      ...(simpleMode ? [] : [{ id: "schedules", label: t("nav:schedules"), to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> }]),
-      ...(data?.feature_flags?.terminal ? [{
-        id: "terminal",
-        label: t("nav:terminal"),
-        to: `${prefix}/terminal`,
-        active: normalizedPath.startsWith("/terminal"),
-        icon: <TerminalIcon />,
-        badge: terminalSessionCount
-      }] : []),
-      ...(data && data.team_user_count > 1 ? [{ id: "team", label: t("nav:team"), to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), icon: <TeamIcon /> }] : [])
-    ])
+    ...(tabsHidden ? [] : primaryNavItems)
   ] : []
 
   async function startChat() {

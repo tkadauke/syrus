@@ -45,6 +45,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::AdminPage }
   end
 
+  let(:sidebar_page_class) do
+    Class.new { include Syrus::Plugin::SidebarPage }
+  end
+
   let(:chat_mcp_tool_set_class) do
     Class.new { include Syrus::Plugin::ChatMcpToolSet }
   end
@@ -314,6 +318,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for(:chat_mcp_tool_set)).to eq([ chat_mcp_tool_set_class ])
     end
 
+    it "returns sidebar page providers" do
+      described_class.register(
+        name: "sidebar_ui_plugin", version: "1.0.0",
+        provides: { sidebar_page: sidebar_page_class }
+      )
+
+      expect(described_class.providers_for(:sidebar_page)).to eq([ sidebar_page_class ])
+    end
+
     it "returns an empty array when no plugin provides the requested extension point" do
       described_class.register(name: "plugin", version: "1.0.0", provides: { mcp_tool_set: mcp_tool_set_class })
 
@@ -464,6 +477,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             ci_log_parser:      ci_log_parser_class,
             preview_provider:   preview_provider_class,
             admin_page:         admin_page_class,
+            sidebar_page:       sidebar_page_class,
             chat_mcp_tool_set:  chat_mcp_tool_set_class,
             source_control_provider: source_control_provider_class,
             artifact_renderer:  artifact_renderer_class,
