@@ -1,4 +1,4 @@
-module Mcp::Tools
+module WhiteboardTools
   module ExcalidrawId
     ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-".chars.freeze
     LENGTH = 21

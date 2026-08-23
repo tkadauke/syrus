@@ -56,7 +56,6 @@ describe("workspaceTabLabel", () => {
   const mockT = (key: string) => `T:${key}`
 
   it("maps each workspace tab to its translation key", () => {
-    expect(workspaceTabLabel("whiteboard", mockT)).toBe("T:tab_whiteboard")
     expect(workspaceTabLabel("context", mockT)).toBe("T:tab_context")
     expect(workspaceTabLabel("media", mockT)).toBe("T:tab_media")
     expect(workspaceTabLabel("files", mockT)).toBe("T:tab_files")
@@ -93,7 +92,7 @@ describe("mobileChatTabLabel", () => {
   })
 
   it("delegates to workspaceTabLabel for workspace tabs", () => {
-    expect(mobileChatTabLabel("whiteboard", mockT)).toBe("T:tab_whiteboard")
+    expect(mobileChatTabLabel("context", mockT)).toBe("T:tab_context")
     expect(mobileChatTabLabel("jobs", mockT)).toBe("T:tab_jobs")
   })
 
@@ -4334,7 +4333,9 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     documents_in_scope: [],
     attachment_results: overrides.attachment_results || [],
     preview_panels: [],
-    workspace_tabs: [],
+    workspace_tabs: [
+      { id: "whiteboard_tools.canvas", label: "Whiteboard", label_key: "whiteboard_tools:tab_whiteboard", component: "whiteboard_tools/WhiteboardTab", order: 0 }
+    ],
     local_mode_enabled: false,
     speech_to_text: {
       enabled: false,

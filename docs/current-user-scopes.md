@@ -9,6 +9,13 @@ No broad scope removal was made as part of this audit. Existing `Current.user`
 relations remain in place because they are the replacement semantics that keep
 private user data separated.
 
+`spec/docs/current_user_scopes_spec.rb` only scans `app/controllers/**` and
+`app/views/**`, so plugin-owned controllers (e.g. `plugins/whiteboard_tools`'s
+`ChatWhiteboardsController`/`WhiteboardSnapshotsController`, both scoped
+through `Current.user.accessible_chat_sessions`, same as the rest of the
+chat surface) aren't covered by this audit or its spec. That's a pre-existing
+gap in the audit's scan globs, not something specific to those controllers.
+
 ```yaml current_user_scope_files
 per-user/private:
   - app/controllers/api/v1/app/auth_controller.rb
@@ -19,7 +26,6 @@ per-user/private:
   - app/controllers/api/v1/app/report_issue_controller.rb
   - app/controllers/api/v1/app/chat_job_status_controller.rb
   - app/controllers/api/v1/app/chat_participants_controller.rb
-  - app/controllers/api/v1/app/chat_whiteboards_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
   - app/controllers/concerns/chat_attachable_resolution.rb
   - app/controllers/concerns/chat_attachment_search.rb
@@ -77,7 +83,6 @@ per-user/private:
   - app/controllers/api/v1/app/tours_controller.rb
   - app/controllers/api/v1/app/users_controller.rb
   - app/controllers/api/v1/app/video_walkthroughs_controller.rb
-  - app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
   - app/controllers/api/v1/app/workflow_warnings_controller.rb
   - app/controllers/api/v1/app/workflows_controller.rb
   - app/controllers/application_controller.rb
@@ -136,7 +141,6 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/report_issue_controller.rb` | per-user/private | Files GitHub issues with the current user's connected GitHub token. |
 | `app/controllers/api/v1/app/chat_job_status_controller.rb` | per-user/private | Returns job and epic status for confirmed proposals in a chat session found through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/chat_participants_controller.rb` | per-user/private | Group-chat participant add/remove find the chat through `Current.user.accessible_chat_sessions`, so only current participants can manage membership. |
-| `app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Locates whiteboards through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/chats_controller.rb` | per-user/private | Chat sessions, proposals, attached repositories/jobs/documents/epics, and pending actions are all owned or selected through the current user's associations. |
 | `app/controllers/concerns/chat_attachable_resolution.rb` | per-user/private | Attachable-resolution helpers (extracted from `ChatsController`) resolve a specific repository/job/document/epic through `Current.user`'s associations. |
 | `app/controllers/concerns/chat_attachment_search.rb` | per-user/private | Attachment-search helpers (extracted from `ChatsController`) scope candidate repositories/jobs/documents/epics through `Current.user`'s associations. |
@@ -191,7 +195,6 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |
 | `app/controllers/api/v1/app/users_controller.rb` | per-user/private | Invite-picker listing excludes the current user and, when scoping to a chat, excludes that chat's existing participants found through `Current.user.accessible_chat_sessions`. No admin gate — Syrus has no team/org scoping, so any authenticated user may see the flat instance user list. |
 | `app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |
-| `app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Lists and loads snapshots only through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/workflow_warnings_controller.rb` | per-user/private | Warnings are found through jobs scoped to `Current.user.jobs`; filing a fix Job creates it as `Current.user`. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile browsing excludes private credential data while using the current user for viewer-sensitive profile payloads. |

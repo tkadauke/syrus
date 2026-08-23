@@ -488,8 +488,59 @@ unlike a standalone admin route that derives its context from the URL).
 
 The bundled `syrus_dev` plugin (default-disabled dev tooling — see below)
 registers a trivial `SyrusDev::WorkspaceTabs` provider as a live, always-built
-proof of this extension point, without moving any real feature into a plugin
-yet — that migration (the whiteboard) is a separate, later Job.
+proof of this extension point, without moving any real feature into a plugin.
+
+**First real consumer: `whiteboard_tools`.** The whiteboard migration (moving
+the Excalidraw canvas tab, its 14 draw/move/delete/read/update/save/clear/load
+MCP tools, and its REST endpoints out of core) landed as `plugins/whiteboard_tools`,
+confirming the design above end-to-end and surfacing a few things worth
+recording:
+
+- **The `Whiteboard`/`WhiteboardSnapshot` models stayed in core** (`app/models/`),
+  unrenamed. `Syrus::PluginModelNamespaceChecker` only requires namespacing for
+  `ApplicationRecord` subclasses that physically live under `plugins/*/app/models/`
+  — a plugin is free to depend on a core model it doesn't own, same as
+  `preview_tools`' `ChatToolSet`/`ScratchDirectory` already depend on the core
+  `PreviewPanel` model. Moving the model itself (rename + table migration) was a much
+  larger, riskier change for no behavioral gain here, since `chat_session.whiteboard`/
+  `chat_session.whiteboard_snapshots` association method names didn't need to change.
+- **Fullscreen has no core hook, and doesn't need one.** The whiteboard tab's
+  "fullscreen" affordance used to be a Chat.tsx-owned layout shift (hide the
+  chat column and tab bar, resize the grid). `PluginWorkspaceTabProps` only
+  hands a component `payload: ChatPayload` — no fullscreen prop/callback. Since
+  Option A means the plugin owns its own rendering, `WhiteboardTab.tsx` now
+  implements fullscreen entirely itself: local `useState`, a `document.body`
+  portal (`ReactDOM.createPortal`) covering the viewport, and its own Escape-key
+  listener. No core extension-point change was needed — a plugin tab can
+  already do anything a normal React component can from inside `<Suspense>`.
+- **The chat payload's `whiteboard` scene field needed no extension-point
+  change either.** `PluginWorkspaceTabProps.payload` is the *full* `ChatPayload`,
+  so a plugin tab can already read whatever core fields it needs (here,
+  `payload.whiteboard` and `payload.paths.app_whiteboard_path`, both unchanged) —
+  there's no need for a separate "per-tab data channel" on the extension point.
+- **The "default active tab" heuristic became an explicit, documented core→plugin
+  seam.** Before the migration, `defaultWorkspaceTab()` preferred `"whiteboard"`
+  as the initial tab whenever the chat already had drawn content. That heuristic
+  reads `payload.whiteboard` directly, so preserving it after the tab became
+  plugin-owned meant `workspaceTabs.ts` now looks up the plugin tab by
+  `component === "whiteboard_tools/WhiteboardTab"` — a literal string naming one
+  specific plugin's tab, called out with a comment at its definition. This is the
+  one piece of real, acknowledged coupling the migration introduced; there's no
+  generic "which tab should be the default" hook on `:workspace_tab` today.
+- **Found and fixed a real bug in `PluginRouteDispatch`** (`app/controllers/concerns/plugin_route_dispatch.rb`):
+  every existing plugin route (`linear_source`, `syrus_dev`, `tailscale`, ...)
+  happened to have no path parameters, so nobody had hit the fact that
+  `request.path_parameters.merge!(route.params)` mutates the hash in place
+  without invalidating Rails' separately-memoized `request.params`. Whiteboard's
+  routes (`:id`, `:chat_id`) were the first plugin routes to need path params,
+  which surfaced it — `params[:id]` was arriving `nil` at the controller even
+  though `request.path_parameters` looked correct. Fixed by using the
+  `path_parameters=` setter, which does invalidate the memo.
+- **`@excalidraw/excalidraw` stays a root `package.json` dependency.** There's
+  no plugin-scoped frontend dependency mechanism in this codebase (Vite
+  resolves from the single root `node_modules` regardless of which plugin
+  folder imports a package), so this is a known, accepted gap rather than
+  something this migration solved.
 
 ## `grader_augmentor`
 
@@ -1151,3 +1202,14 @@ Bundled plugins:
   touching the attached repository checkout. Unavailable in Coding Mode and
   Local Mode, which already have real Write/Edit tools. See
   `config/syrus_docs/preview_panels.md`.
+- `whiteboard_tools` — default-enabled. Provides `:workspace_tab`
+  (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
+  chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,
+  a real Excalidraw canvas with its own fullscreen handling — see the
+  `:workspace_tab` section above), and `:chat_mcp_tool_set`
+  (`WhiteboardTools::ChatToolSet`, tier `:deferred`): `read_scene`, `draw_shape`,
+  `draw_text`, `draw_line`, `draw_arrow`, `draw_freedraw`, `draw_frame`,
+  `draw_embed`, `draw_image`, `move_element`, `delete_element`, `update_scene`,
+  `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own
+  `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
+  routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.

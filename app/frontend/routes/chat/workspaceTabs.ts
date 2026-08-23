@@ -24,7 +24,7 @@ export type PreviewTab = `preview:${number}`
 // are namespaced under "plugin:" so a plugin's own tab id can never collide
 // with one of the fixed core tab names below.
 export type PluginTab = `plugin:${string}`
-export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab | PluginTab
+export type WorkspaceTab = "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab | PluginTab
 export type MobileChatTab = "chat" | WorkspaceTab
 
 export function previewTabId(panelId: number): PreviewTab {
@@ -59,7 +59,6 @@ export function workspaceTabClass(active: boolean) {
 }
 
 export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
-  if (tab === "whiteboard") return t("tab_whiteboard")
   if (tab === "context") return t("tab_context")
   if (tab === "media") return t("tab_media")
   if (tab === "pinned") return t("tab_pinned")
@@ -87,7 +86,6 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
 
 export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false): WorkspaceTab[] {
   return [
-    "whiteboard",
     ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
     "media",
     "pinned",
@@ -99,17 +97,30 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false)
   ] as WorkspaceTab[]
 }
 
+// The whiteboard used to be a hardcoded core tab, and this heuristic
+// preferred it as the initial active tab whenever the chat already had
+// drawn content (so returning to a chat with a sketch on it opens straight
+// to the canvas). Preserving that now that it's a plugin-registered tab
+// means reaching for its component key specifically -- an explicit,
+// intentional seam rather than the extension point routing "preferred
+// default tab" generically. No plugin-declared tab (or a chat with no
+// whiteboard content yet) falls back to "context" as before.
+const WHITEBOARD_TAB_COMPONENT = "whiteboard_tools/WhiteboardTab"
+
 export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab {
   const tabs = availableWorkspaceTabs(payload, simpleMode)
   const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
-  const preferred = whiteboardLoaded && payload.whiteboard.elements.length > 0 ? "whiteboard" : "context"
+  const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
+  const preferred = whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab
+    ? pluginTabId(whiteboardTab.id)
+    : "context"
   return tabs.includes(preferred) ? preferred : tabs[0]
 }
 
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "whiteboard" || value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" ? value : null
+    return value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" ? value : null
   } catch (_error) {
     return null
   }
