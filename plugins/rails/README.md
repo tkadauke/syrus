@@ -16,7 +16,7 @@ surfaces a confirm-and-cascade-disable prompt. See
 
 | Extension point | What it does |
 |---|---|
-| `:preview_provider` | Configures the Syrus preview host to run `bin/rails server`, seed via `db:create db:migrate db:seed`, health-check `/up`, and tail `log/development.log` |
+| `:preview_provider` | Configures the Syrus preview host to run `bin/rails server`, seed via `db:create db:migrate db:seed`, health-check `/up` (falling back to `/` when the repo's `config/routes.rb` doesn't map `rails/health#show`), and tail `log/development.log` |
 | `:mcp_tool_set` | Rails schema/migration/route introspection tools for workflow agents |
 | `:artifact_renderer` | `SchemaErdRenderer` and `MigrationDiffRenderer`, mapping `submit_artifact` payload types to reviewer-facing ERD/migration-diff views |
 | `:prompt_injector` | Adds Rails-specific guidance (schema/migration awareness) to the implementing agent's system prompt |
@@ -58,8 +58,10 @@ development:
 ```
 
 Rails previews install JavaScript dependencies when a package-manager lockfile
-is present and start `npm run dev` alongside `bin/rails server` when the repo
-has `package.json`. They also set `VITE_RUBY_SKIP_PROXY=false` so vite-ruby
+is present and start `npm run dev` alongside `bin/rails server` when the repo's
+`package.json` actually defines a `dev` script (a `package.json` present for
+other tooling, with no `dev` script, is left alone rather than launching a
+doomed `npm run dev`). They also set `VITE_RUBY_SKIP_PROXY=false` so vite-ruby
 generates same-origin asset URLs. Without those preview-specific guardrails,
 apps can leak `http://localhost:<vite-port>` asset URLs that point at the
 operator's browser machine instead of the preview host and render as a blank
