@@ -106,9 +106,9 @@ features:
     default: false
   - slug: work_units_shadow_mode
     category: "Operations"
-    name: "Work units shadow mode"
+    name: "Work units shadow diagnostics"
     name_i18n_key: "features.slugs.work_units_shadow_mode.name"
-    description: "Records WorkIntent and WorkUnit shadow ownership data while legacy Job and Workflow behavior remains the scheduling source of truth."
+    description: "Historical rollout marker for WorkIntent and WorkUnit shadow diagnostics. WorkUnit rows are now written unconditionally; scheduling ownership is controlled by the scheduler, landing, and reconciler WorkUnit gates."
     description_i18n_key: "features.slugs.work_units_shadow_mode.description"
     default: false
   - slug: work_units_scheduler

@@ -1333,10 +1333,11 @@ to enqueue, repair, pause, cancel, or reconcile that work.
 The proposed gates:
 
 1. `work_units_shadow_mode`
-   - dual-writes WorkIntent/WorkUnit data and logs divergences;
+   - historical/bootstrap rollout marker for WorkIntent/WorkUnit shadow
+     diagnostics;
    - does not own scheduling or repair decisions;
-   - safe to keep on early because existing Job/Workflow behavior remains the
-     source of truth.
+   - WorkIntent/WorkUnit rows are now written unconditionally because optional
+     dual-write created partial production data and made debugging worse.
 2. `work_units_scheduler`
    - enables WorkUnit ownership for lower-risk single-Job runtime paths and
      continuations: retry, resume, manual pause/unpause, admission-control
@@ -2009,6 +2010,11 @@ Completed slices:
   Step liveness while still treating active Runs as authoritative work. Terminal
   Workflow cleanup and idle checks therefore share the same Step/Run precedence
   as UI projection and repair planning.
+- Failed Jobs with active repair WorkUnits now project as `repairing` in the
+  dashboard and job detail payloads while preserving the persisted Job state as
+  `failed`. The payload includes the active repair WorkUnit/workflow identity,
+  so operators can distinguish an idle failed Job from a failed Job whose repair
+  work is already running, queued, or blocked.
 - Explicit completion repair (`RunCompletionReconciler`) now marks the Run
   terminal and then delegates Step mutation to `Steps::StateSynchronizer`, so
   "the external side effect already happened" repairs and generic WorkEngine

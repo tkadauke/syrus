@@ -44,3 +44,22 @@ tell when the debt is still necessary and when it can be removed.
   is authoritative, delete migration-only compatibility specs, and keep only
   tests that prove all runtime work enters through WorkIntent/WorkUnit
   ownership.
+
+## Work Units Shadow Diagnostics Flag
+
+- **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
+- **Owner area:** WorkIntent / WorkUnit migration
+- **Code:** `Feature.work_units_shadow_mode_enabled?`, `work_units_shadow_mode`
+  entries in `config/features.yml` and admin feature presentation.
+- **Why it exists:** The first rollout plan treated WorkUnit row creation as an
+  optional shadow-write mode. Production has moved past that: launch paths and
+  the bounded backfill now create WorkIntent / WorkUnit rows unconditionally so
+  diagnostics are complete. The flag remains only as a familiar rollout marker
+  while scheduler, landing, and reconciler ownership gates graduate.
+- **Removal condition:** WorkUnit-backed scheduler, landing, and reconciler
+  gates have been tested in production and the admin rollout panel no longer
+  needs to explain historical shadow mode.
+- **Removal work:** Delete the feature slug, `Feature.work_units_shadow_mode_enabled?`,
+  frontend/admin feature copy, and any docs that describe shadow row creation
+  as optional. Keep the three ownership gates until their legacy paths are
+  removed.
