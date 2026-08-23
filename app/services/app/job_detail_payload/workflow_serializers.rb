@@ -129,7 +129,10 @@ module App
       end
 
       def intent_execution_status(intent)
-        return "active" if intent.work_units.where(state: %w[queued blocked running]).exists?
+        active_states = intent.work_units.where(state: %w[queued blocked running]).distinct.pluck(:state)
+        return "running" if active_states.include?("running")
+        return "queued" if active_states.include?("queued")
+        return "blocked" if active_states.include?("blocked")
         return "blocked" if intent.waiting?
 
         intent.state
@@ -140,10 +143,7 @@ module App
       end
 
       def work_unit_label(unit)
-        label = work_definition_label(unit.kind)
-        return label unless unit.blocked_reason.present?
-
-        "#{label}: #{blocked_reason_label(unit.blocked_reason)}"
+        work_definition_label(unit.kind)
       end
 
       def work_definition_label(kind)

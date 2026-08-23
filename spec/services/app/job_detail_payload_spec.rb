@@ -161,7 +161,7 @@ RSpec.describe App::JobDetailPayload do
       active_work = payload_for(job).fetch(:active_work)
       expect(active_work).to include(
         kind: "manual_visual_review",
-        label: "Manual visual review: Admission control",
+        label: "Manual visual review",
         blocked_reason: "admission_control",
         blocked_label: "Admission control",
         blocked_details: { "reason" => "worker_host_pressure_high" }
@@ -773,7 +773,7 @@ RSpec.describe App::JobDetailPayload do
         state: "requested",
         scope_type: "job",
         scope_id: job.id,
-        execution_status: "active"
+        execution_status: "running"
       )
     end
 

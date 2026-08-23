@@ -114,7 +114,7 @@ describe("WorkflowsTab", () => {
               wait_label: null,
               wait_until: null,
               wait_details: null,
-              execution_status: "active",
+              execution_status: "running",
               requested_at: null,
               satisfied_at: null,
               cancelled_at: null
@@ -127,7 +127,7 @@ describe("WorkflowsTab", () => {
 
     expect(screen.getByText("CI failure")).toBeInTheDocument()
     expect(screen.getByText("Desired requested")).toBeInTheDocument()
-    expect(screen.getByText("Attempt active")).toBeInTheDocument()
+    expect(screen.getByText("Attempt running")).toBeInTheDocument()
   })
 
   it("shows blocked WorkUnit reasons and details without requiring the nested Workflow to be open", () => {
@@ -139,7 +139,7 @@ describe("WorkflowsTab", () => {
             work_units: [{
               id: 88,
               kind: "retry",
-              label: "Retry: Auto-retry backoff",
+              label: "Retry",
               state: "blocked",
               work_intent_id: 77,
               workflow_id: null,
@@ -174,7 +174,7 @@ describe("WorkflowsTab", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Work attempts" })).toBeInTheDocument()
-    expect(screen.getByText("Retry: Auto-retry backoff")).toBeInTheDocument()
+    expect(screen.getByText("Retry")).toBeInTheDocument()
     expect(screen.getByText("Auto-retry backoff")).toBeInTheDocument()
     expect(screen.getByText("child of WU-77")).toBeInTheDocument()
     expect(screen.getByText("preempted: terminal parent work unit")).toBeInTheDocument()
@@ -192,7 +192,7 @@ describe("WorkflowsTab", () => {
             work_units: [{
               id: 38,
               kind: "initial",
-              label: "Initial implementation: Admission control",
+              label: "Initial implementation",
               state: "blocked",
               work_intent_id: 38,
               workflow_id: 20071,
@@ -245,5 +245,77 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("4 active runs; 4 healthy workers; 5 active workflows in this repository.")).toBeInTheDocument()
     expect(screen.getByText("This workflow is predicted to be expensive.")).toBeInTheDocument()
     expect(screen.getByText("Diagnostic details")).toBeInTheDocument()
+  })
+
+  it("explains stack dependency blockers in human terms", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            current_intent: {
+              id: 38,
+              kind: "initial",
+              label: "Initial implementation",
+              state: "waiting",
+              scope_type: "job",
+              scope_id: 3593,
+              wait_reason: "dependency",
+              wait_label: "Dependency",
+              wait_until: null,
+              wait_details: { blocked_by_job_ids: [3592], blocked_by_epic_ids: [] },
+              execution_status: "blocked",
+              requested_at: null,
+              satisfied_at: null,
+              cancelled_at: null
+            },
+            work_units: [{
+              id: 38,
+              kind: "initial",
+              label: "Initial implementation",
+              state: "blocked",
+              work_intent_id: 38,
+              workflow_id: 20071,
+              workflow_slug: "WF-20071",
+              workflow_trigger_kind: "initial",
+              workflow_state: "queued",
+              workflow_attached_job_id: 3593,
+              member_role: "primary",
+              scope_type: "job",
+              scope_id: 3593,
+              blocked_reason: "stack_dependencies_not_ready",
+              blocked_label: "Stack dependencies not ready",
+              blocked_until: null,
+              blocked_details: {
+                kind: "stack_parent_not_ready",
+                message: "selected stack parent is missing an open PR branch or captured head SHA",
+                dependencies: [{ slug: "JOB-3592", state: "running", job_id: 3592 }],
+                start_blocked_reason: "stack_dependencies_not_ready"
+              },
+              parent_work_unit_id: null,
+              parent_work_unit_kind: null,
+              parent_work_unit_label: null,
+              preemption_reason: null,
+              preempted_by_work_unit_id: null,
+              preempted_by_work_unit_kind: null,
+              preempted_by_work_unit_label: null,
+              workflow: null,
+              current_step: null,
+              created_at: null,
+              started_at: null,
+              finished_at: null
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("Desired waiting")).toBeInTheDocument()
+    expect(screen.getByText("Attempt blocked")).toBeInTheDocument()
+    expect(screen.getByText("Stack dependencies not ready")).toBeInTheDocument()
+    expect(screen.getByText("This stack item is waiting for its parent branch to be ready.")).toBeInTheDocument()
+    expect(screen.getByText("selected stack parent is missing an open PR branch or captured head SHA.")).toBeInTheDocument()
+    expect(screen.getByText("JOB-3592 is running.")).toBeInTheDocument()
   })
 })

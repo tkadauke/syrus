@@ -66,7 +66,7 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
-              <SmallPill>{humanize(intent.execution_status)}</SmallPill>
+              <SmallPill>{humanize(intent.state)}</SmallPill>
               {waitLabel ? <SmallPill>{waitLabel}</SmallPill> : null}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -180,6 +180,12 @@ function workDiagnosticLines(details: Record<string, unknown>) {
 
   const reason = stringDetail(details.reason)
   if (reason) lines.push(reasonSentence(reason))
+  const kind = stringDetail(details.kind)
+  if (kind && kind !== reason) lines.push(reasonSentence(kind))
+  const message = stringDetail(details.message)
+  if (message) lines.push(message.endsWith(".") ? message : `${message}.`)
+  const dependencies = dependencyLines(details.dependencies)
+  lines.push(...dependencies)
 
   const action = stringDetail(details.action)
   const delayUntil = stringDetail(details.delay_until)
@@ -219,7 +225,9 @@ function reasonSentence(reason: string) {
     manual_pause: "The job is manually paused.",
     provider_availability: "The selected provider is below the configured availability threshold.",
     auto_retry_backoff: "Automatic retry is waiting for its backoff window.",
-    dependency: "This work is waiting for dependencies."
+    dependency: "This work is waiting for dependencies.",
+    stack_dependencies_not_ready: "This stack item is waiting for its parent branch to be ready.",
+    stack_parent_not_ready: "This stack item is waiting for its parent branch to be ready."
   }
   return labels[reason] || `${humanize(reason)}.`
 }
@@ -239,6 +247,17 @@ function pressureSummary(pressure: Record<string, unknown> | null) {
   ].filter(Boolean)
   if (hostBits.length === 0 && activeBits.length === 0) return null
   return `Current pressure: ${[hostBits.join(", "), activeBits.join(", ")].filter(Boolean).join("; ")}.`
+}
+
+function dependencyLines(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is Record<string, unknown> => Boolean(objectDetail(item))).map((dependency) => {
+    const slug = stringDetail(dependency.slug)
+    const jobId = numberDetail(dependency.job_id)
+    const state = stringDetail(dependency.state)
+    const label = slug || (jobId !== null ? `JOB-${jobId}` : "Dependency")
+    return `${label}${state ? ` is ${humanize(state)}` : ""}.`
+  })
 }
 
 function formatDiagnosticTime(value: string) {
