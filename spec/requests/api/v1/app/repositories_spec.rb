@@ -1141,7 +1141,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   end
 
   it "hides and rejects needs-triage release for product owners" do
-    user.update!(role: "product_owner", admin: false)
+    user.update!(role: "product_owner", global_role: "user")
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
     job = user.jobs.create!(

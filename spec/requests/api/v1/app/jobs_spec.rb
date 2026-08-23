@@ -59,7 +59,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "lists jobs for bearer-token CLI clients without admin access" do
-    user.update!(api_token: "syrus_cli_token", admin: false)
+    user.update!(api_token: "syrus_cli_token", global_role: "user")
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")
     job
     job.update!(epic: epic)
@@ -260,7 +260,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "returns a structured job detail payload for React rendering" do
-    user.update!(admin: false)
+    user.update!(global_role: "user")
     owner = Factories.user(email_address: "owner@example.com")
     job.update!(owner_user: owner)
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct", state: "in_progress")
@@ -844,7 +844,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "lets admins force-fail an open job through the app API" do
-    user.update!(admin: true)
+    user.update!(global_role: "admin")
     job.update!(state: "running")
 
     post "/api/v1/app/jobs/#{job.id}/force_fail"
@@ -858,7 +858,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "rejects app force-fail for non-admin users" do
-    user.update!(admin: false)
+    user.update!(global_role: "user")
     job.update!(state: "running")
 
     post "/api/v1/app/jobs/#{job.id}/force_fail"
@@ -868,7 +868,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "returns admin-only diagnostic detail to admins" do
-    user.update!(admin: true)
+    user.update!(global_role: "admin")
     run = job.initial_run
     diagnostic = run.create_run_diagnostic!(
       error_class: "RuntimeError",
@@ -903,7 +903,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "returns a timeline payload separately from the detail payload" do
-    user.update!(admin: true)
+    user.update!(global_role: "admin")
     run = job.initial_run
     run.start!
     run.fail!
@@ -931,7 +931,7 @@ RSpec.describe "App API job detail", type: :request do
   end
 
   it "blocks timeline payloads for non-admin users" do
-    user.update!(admin: false)
+    user.update!(global_role: "user")
 
     get "/api/v1/app/jobs/#{job.id}/timeline"
 

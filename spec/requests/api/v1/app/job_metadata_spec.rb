@@ -130,7 +130,7 @@ RSpec.describe "App API job metadata commands", type: :request do
     prerequisite = Job.create!(user: user, repository: repo, issue_number: 41)
     target = Job.create!(user: user, repository: repo, issue_number: 42, issue_body: "Depends-on: #41")
     target.advance_after_triage!
-    user.update!(admin: true)
+    user.update!(global_role: "admin")
     expect(target.runs).to be_empty
     expect(AppEvents).to receive(:broadcast).with(
       user: user,
@@ -152,7 +152,7 @@ RSpec.describe "App API job metadata commands", type: :request do
   end
 
   it "blocks dependency override for non-admin users" do
-    user.update!(admin: false)
+    user.update!(global_role: "user")
 
     post app_job_path("/dependencies/override"), as: :json
 

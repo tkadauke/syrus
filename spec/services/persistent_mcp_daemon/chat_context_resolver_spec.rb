@@ -52,7 +52,7 @@ RSpec.describe PersistentMcpDaemon::ChatContextResolver do
     end
 
     it "includes admin-only tools for an admin user" do
-      user.update!(admin: true)
+      user.update!(global_role: "admin")
 
       resolved = described_class.resolve(raw_context(token_for))
 

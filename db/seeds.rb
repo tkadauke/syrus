@@ -25,7 +25,7 @@ if Rails.env.development?
     name: "Demo Operator",
     first_name: "Demo",
     last_name: "Operator",
-    admin: true,
+    global_role: "admin",
     agent_provider: "codex",
     chat_provider: "codex"
   )

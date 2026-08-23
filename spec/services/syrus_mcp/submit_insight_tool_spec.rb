@@ -244,7 +244,7 @@ RSpec.describe Mcp::Tools::SubmitInsightTool do
     let(:other_repository) { Factories.repository(user: other_user) }
 
     it "rejects evidence referencing a job from another user's repository" do
-      user.update!(admin: false)
+      user.update!(global_role: "user")
       foreign_job = Factories.job(user: other_user, repository: other_repository)
 
       response = call(
@@ -256,7 +256,7 @@ RSpec.describe Mcp::Tools::SubmitInsightTool do
     end
 
     it "rejects evidence referencing foreign jobs when user is admin" do
-      user.update!(admin: true)
+      user.update!(global_role: "admin")
       foreign_job = Factories.job(user: other_user, repository: other_repository)
 
       response = call(
@@ -387,7 +387,7 @@ RSpec.describe Mcp::Tools::SubmitInsightTool do
     end
 
     it "rejects remove_memory proposals for inaccessible memories" do
-      user.update!(admin: false)
+      user.update!(global_role: "user")
       other_repo = Factories.repository(user: user)
       memory = ChatMemory.create!(
         user: user,

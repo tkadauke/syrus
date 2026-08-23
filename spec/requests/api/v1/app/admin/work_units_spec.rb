@@ -12,7 +12,7 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
   end
 
   it "requires an admin user" do
-    user.update!(admin: false)
+    user.update!(global_role: "user")
     sign_in_as(user)
 
     get "/api/v1/app/admin/work_units"
