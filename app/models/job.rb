@@ -153,11 +153,11 @@ class Job < ApplicationRecord
   scope :effectively_owned_by, ->(user) {
     where("jobs.owner_user_id = :id OR (jobs.owner_user_id IS NULL AND jobs.user_id = :id)", id: user.id)
   }
-  # Jobs visible to a user: any job on a repository they're a member of,
-  # plus jobs on upstream repositories of any repository they're a member
-  # of. Mirrors Epic.accessible_to.
+  # Jobs visible to a user: any job on a repository they're a member of
+  # (directly or via a Team grant), plus jobs on upstream repositories of
+  # any such repository. Mirrors Epic.accessible_to.
   scope :accessible_to, ->(user) {
-    member_repo_ids = RepositoryMembership.where(user: user).select(:repository_id)
+    member_repo_ids = Repository.accessible_repository_ids_for(user)
     upstream_ids = Repository.where(id: member_repo_ids).where.not(upstream_repository_id: nil).select(:upstream_repository_id)
     where(repository_id: member_repo_ids).or(where(repository_id: upstream_ids))
   }

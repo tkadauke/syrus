@@ -1,9 +1,9 @@
 # Current.user Scope Audit
 
-Audited for epic #780. The app has no team membership model today, so most
-`Current.user` scoping is either per-user/private or admin-only. Team-visible
-scope is limited to cross-user profile metadata until there is a first-class
-team scope to replace the current per-user associations.
+Audited for epic #780. Most `Current.user` scoping is per-user/private or
+admin-only; see [Teams](#teams) for the first-class team scope EPIC-257 added
+(`Team`/`TeamMembership`/`TeamRepository`), which now additively widens
+repository access alongside direct `RepositoryMembership` rows.
 
 No broad scope removal was made as part of this audit. Existing `Current.user`
 relations remain in place because they are the replacement semantics that keep
@@ -29,14 +29,14 @@ first step had deliberately left as stubs (see below).
   later promoted to `admin`. It replaced the original `Current.user.repositories`
   FK-only scope.
 - `JobPolicy::Scope#resolve` is `Job.accessible_to(user)` (repository
-  membership, any tier, including upstream repositories — mirrors
-  `Epic.accessible_to`; see `app/models/job.rb`). This closed the
-  visibility gap where two `RepositoryMembership` holders on the same
-  repository could already see each other's Epics but not each other's
-  Jobs.
+  membership OR team-granted access, any tier, including upstream
+  repositories — mirrors `Epic.accessible_to`; see `app/models/job.rb`).
+  This closed the visibility gap where two `RepositoryMembership` holders on
+  the same repository could already see each other's Epics but not each
+  other's Jobs.
 - `EpicPolicy::Scope#resolve` is exactly `Epic.accessible_to(user)`
-  (repository membership, any tier, including upstream repositories — see
-  `Epic.accessible_to` in `app/models/epic.rb`).
+  (repository membership OR team-granted access, any tier, including
+  upstream repositories — see `Epic.accessible_to` in `app/models/epic.rb`).
 
 `RepositoryPolicy#write?`/`#admin?` and `JobPolicy#write?` are the tier
 predicates:
@@ -218,6 +218,68 @@ admin-only:
   - app/controllers/api/v1/app/setup_controller.rb
 ```
 
+## Teams
+
+EPIC-257's final step added `Team` (name), `TeamMembership` (user_id,
+team_id, role: `member`/`owner`), and `TeamRepository` (team_id,
+repository_id, role: `read`/`write`/`admin`) so one repository can be
+granted to multiple teams at potentially different tiers — a bulk-grant
+mechanism additive to direct `RepositoryMembership` rows, not a replacement
+for them.
+
+`Repository#effective_role_for(user)` is the highest of: global admin (via
+`User#admin?`) -> `"admin"`; the user's direct `RepositoryMembership#role`;
+the best `TeamRepository#role` across teams the user belongs to that have a
+grant on that repository. `Repository#member_at_least?(user, tier)` is
+implemented in terms of it, so `RepositoryPolicy#write?`/`#admin?` and
+`JobPolicy#write?` picked up team-inherited access without any policy-level
+changes. A repository with zero `TeamRepository` grants resolves identically
+to the direct-membership-only model that preceded teams (see
+`spec/models/repository_spec.rb`'s `#effective_role_for` coverage).
+
+`RepositoryPolicy::Scope#resolve`, `Job.accessible_to`, and
+`Epic.accessible_to` were widened the same way: `Repository.accessible_repository_ids_for(user)`
+now unions direct `RepositoryMembership` repo ids with `TeamRepository`
+repo ids (any tier, for `Job`/`Epic` visibility — any grant counts, mirroring
+how a single `RepositoryMembership` row of any tier already granted
+visibility); `RepositoryPolicy::Scope` unions admin-tier rows from both
+sources, since it backs repository settings visibility specifically.
+
+`TeamPolicy` (`app/policies/team_policy.rb`) gates the team CRUD API
+itself: `#show?` is any team member or global admin; `#write?` (rename,
+delete, membership CRUD) is an owner-tier `TeamMembership` or global admin.
+Any authenticated user may create a team (`#create?`) and becomes its first
+owner, mirroring `Repository#seed_owner_membership`.
+
+Two authorization surfaces exist for the underlying `TeamRepository` grant
+records, matching who initiates the grant:
+
+- `Api::V1::App::TeamsController` / `TeamMembershipsController` — team CRUD
+  and roster management, gated by `TeamPolicy` (team owner or global admin).
+  The team detail payload includes the team's `TeamRepository` grants
+  read-only for visibility, but does not let a team owner add or remove them
+  — see below.
+- `Api::V1::App::RepositoryTeamGrantsController` — grants/revokes a team's
+  access to a specific repository, nested under
+  `/repositories/:repository_id/team_grants` and gated identically to
+  `RepositoryMembershipsController` (admin-tier `RepositoryPolicy::Scope`).
+  This is deliberate: letting a team *owner* grant their team access to an
+  arbitrary repository they have no rights on would be a privilege
+  escalation, so only a repository admin (or global admin) can create a
+  `TeamRepository` row. It shares a `RepositoryMembersSerialization` payload
+  concern with `RepositoryMembershipsController` so both mutate the same
+  repository "Members" page query cache entry.
+
+The `AdminTeams.tsx` UI (`/admin/teams`) follows `AdminUsers.tsx`'s
+list+detail pattern and, like all `/admin/*` SPA routes, is gated
+server-side by `SpaController#admin_spa_path?`/`require_admin` — so while the
+API itself authorizes team owners, the current in-scope UI surface for team
+CRUD is reachable only by global admins. Non-admin team owners can still
+manage their team's roster via the same API (e.g. through the Go CLI or a
+future non-admin UI). Repository admins manage `TeamRepository` grants from
+the existing repository "Members" tab (`RepositoryMembers.tsx`), which now
+lists both direct memberships and team grants side by side.
+
 ## Per-user/private
 
 These scopes expose or mutate records that belong to the signed-in user.
@@ -283,6 +345,9 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/input_sources_controller.rb` | per-user/private | Registry-backed input source CRUD finds the parent repository through `Current.user.repositories` and resolves source types only from `PluginRegistry.providers_for(:input_source)`, so only the repository owner can read or update source credentials. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | admin-tier and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, admin-tier `RepositoryMembership` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to global admins. |
 | `app/controllers/api/v1/app/repository_memberships_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `RepositoryMembership` rows, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repositories_controller.rb`. Refuses to remove or demote the last `admin`-tier member of a repository. |
+| `app/controllers/api/v1/app/repository_team_grants_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `TeamRepository` grants for a repository, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repository_memberships_controller.rb` — see [Teams](#teams). |
+| `app/controllers/api/v1/app/teams_controller.rb` | team-tier | Team CRUD, scoped through `TeamPolicy`/`policy_scope(Team)`: visible to any team member or global admin, mutable by owner-tier `TeamMembership` or global admin. Any authenticated user may create a team. |
+| `app/controllers/api/v1/app/team_memberships_controller.rb` | team-tier | Lists, adds, changes the role of, and removes `TeamMembership` rows, gated by `TeamPolicy#write?` (owner-tier or global admin). Refuses to remove or demote the last `owner`-tier member of a team. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
@@ -306,11 +371,16 @@ instead of broader model scopes.
 ## Team-visible
 
 Team profiles are visible to signed-in users so operators can see who owns
-work. There is still no team ownership table, membership table, or team-scoped
-repository relation in the current data model. GitHub repositories may be
-organization repositories, but most Syrus access here is still mediated through
-the signed-in user's repository rows and GitHub credential, so those paths
-remain classified as per-user/private.
+work; that classification predates and is unrelated to the `Team` model
+described in [Teams](#teams) above (a naming coincidence: "team profile"
+means "the cross-user profile directory," not "a `Team` record"). GitHub
+repositories may be organization repositories, but most Syrus access here is
+still mediated through the signed-in user's repository rows and GitHub
+credential, so those paths remain classified as per-user/private.
+
+`Api::V1::App::TeamsController`, `TeamMembershipsController`, and
+`RepositoryTeamGrantsController` are the first controllers actually scoped
+through the `Team` model — see [Teams](#teams).
 
 ## Public/session
 

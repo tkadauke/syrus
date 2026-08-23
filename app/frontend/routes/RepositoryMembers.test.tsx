@@ -26,6 +26,7 @@ function membershipsPayload(overrides: Record<string, unknown> = {}) {
         user: { id: 2, email_address: "reader@example.com", name: "Grace Hopper" }
       }
     ],
+    team_grants: [],
     ...overrides
   }
 }
@@ -91,8 +92,8 @@ describe("RepositoryMembersRoute", () => {
     await screen.findByText("Ada Lovelace")
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "writer@example.com" } })
-    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "write" } })
-    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+    fireEvent.change(screen.getAllByLabelText("Role")[0], { target: { value: "write" } })
+    fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0])
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -129,6 +130,93 @@ describe("RepositoryMembersRoute", () => {
         "/api/v1/app/repositories/1/memberships/11",
         expect.objectContaining({ method: "PATCH" })
       )
+    })
+  })
+
+  describe("team grants", () => {
+    it("lists existing team grants", async () => {
+      renderRoute(membershipsPayload({
+        team_grants: [
+          { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
+        ]
+      }))
+
+      expect(await screen.findByText("Platform")).toBeInTheDocument()
+    })
+
+    it("grants a team access by name at the chosen role", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url === "/api/v1/app/repositories/1/team_grants" && init?.method === "POST") {
+          return Promise.resolve(jsonResponse(membershipsPayload({
+            team_grants: [
+              { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
+            ],
+            message: "Platform added as write."
+          })))
+        }
+        return Promise.resolve(jsonResponse(membershipsPayload()))
+      })
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
+            <Routes>
+              <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByText("Ada Lovelace")
+
+      fireEvent.change(screen.getByLabelText("Team name"), { target: { value: "Platform" } })
+      const addButtons = screen.getAllByRole("button", { name: "Add" })
+      fireEvent.click(addButtons[addButtons.length - 1])
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/repositories/1/team_grants",
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      expect(await screen.findByText("Platform")).toBeInTheDocument()
+    })
+
+    it("removes a team grant after confirmation", async () => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url === "/api/v1/app/repositories/1/team_grants/20" && init?.method === "DELETE") {
+          return Promise.resolve(jsonResponse(membershipsPayload({ message: "Platform removed." })))
+        }
+        return Promise.resolve(jsonResponse(membershipsPayload({
+          team_grants: [
+            { id: 20, role: "write", created_at: "2026-01-04T00:00:00Z", team: { id: 5, name: "Platform" } }
+          ]
+        })))
+      })
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/app-shell/repositories/1/memberships"]}>
+            <Routes>
+              <Route element={<RepositoryMembersRoute />} path="/app-shell/repositories/:repositoryId/memberships" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByText("Platform")
+      const removeButtons = screen.getAllByRole("button", { name: "Remove" })
+      fireEvent.click(removeButtons[removeButtons.length - 1])
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/repositories/1/team_grants/20",
+          expect.objectContaining({ method: "DELETE" })
+        )
+      })
     })
   })
 

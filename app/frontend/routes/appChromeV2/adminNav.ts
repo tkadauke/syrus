@@ -48,6 +48,7 @@ export const CORE_ADMIN_NAV_ITEMS: readonly CoreAdminNavItem[] = [
   { id: "backend_exceptions", labelKey: "nav_backend_exceptions", to: "/admin/backend_exceptions", paths: ["/admin/backend_exceptions"], groupId: "observability", order: 40 },
   { id: "mcp_tool_usage", labelKey: "nav_mcp_tool_usage", to: "/admin/mcp_tool_usage", paths: ["/admin/mcp_tool_usage"], groupId: "observability", order: 50 },
   { id: "users", labelKey: "nav_users", to: "/admin/users", paths: ["/admin/users"], groupId: "users_access", order: 10 },
+  { id: "teams", labelKey: "nav_teams", to: "/admin/teams", paths: ["/admin/teams"], groupId: "users_access", order: 15 },
   { id: "invitations", labelKey: "nav_invitations", to: "/invitations", paths: ["/invitations"], groupId: "users_access", order: 20 },
   { id: "github_app", labelKey: "nav_github_app", to: "/admin/github_app/register", paths: ["/admin/github_app"], groupId: "users_access", order: 30 },
   { id: "installations", labelKey: "nav_installations", to: "/admin/installations", paths: ["/admin/installations"], groupId: "users_access", order: 40 },

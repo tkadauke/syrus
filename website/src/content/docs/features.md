@@ -1052,6 +1052,23 @@ email at a chosen tier, change an existing member's tier, or remove
 them. There is always at least one Admin-tier member on a repository;
 Syrus refuses to remove or demote the last one.
 
+### Teams
+
+**Teams** (Admin → Teams) are a bulk-grant mechanism layered on top of
+direct repository membership, not a replacement for it. A team has a
+name and a roster of members, each either an **Owner** (can rename the
+team and manage its membership) or a plain **Member**. Any signed-in
+user can create a team and becomes its first owner.
+
+A repository's Admin-tier members grant a team access from that same
+**Members** tab, at a chosen tier (Read/Write/Admin) — exactly the same
+three tiers direct membership uses. Every member of a granted team then
+gets at least that tier on the repository, alongside whatever direct
+membership they hold. A team with no repository grants, or a repository
+with no team grants, behaves exactly as it did before teams existed —
+teams are purely additive. Removing a repository's last team grant
+never removes its direct memberships, and vice versa.
+
 For team workflows, fork-based development, and open source contributions,
 see [Collaboration](/docs/collaboration).
 

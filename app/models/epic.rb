@@ -64,10 +64,11 @@ class Epic < ApplicationRecord
   scope :other_owned_by, ->(user) {
     where("(owner_id IS NOT NULL AND owner_id != :user_id) OR (owner_user_id IS NOT NULL AND owner_user_id != :user_id)", user_id: user&.id)
   }
-  # Epics visible to a user: any epic on a repository they're a member of,
-  # plus epics on upstream repositories of any repository they're a member of.
+  # Epics visible to a user: any epic on a repository they're a member of
+  # (directly or via a Team grant), plus epics on upstream repositories of
+  # any such repository.
   scope :accessible_to, ->(user) {
-    member_repo_ids = RepositoryMembership.where(user: user).select(:repository_id)
+    member_repo_ids = Repository.accessible_repository_ids_for(user)
     upstream_ids = Repository.where(id: member_repo_ids).where.not(upstream_repository_id: nil).select(:upstream_repository_id)
     where(repository_id: member_repo_ids).or(where(repository_id: upstream_ids))
   }

@@ -468,7 +468,14 @@
     "remove": "Remove",
     "confirm_remove": "Remove {{email}} from this repository?",
     "added_at": "Added",
-    "unable_to_load": "Unable to load repository members."
+    "unable_to_load": "Unable to load repository members.",
+    "team_grants": "Team access",
+    "team_grants_description": "Teams granted access to this repository. Every member of a granted team gets at least that role tier, alongside any direct memberships above.",
+    "team_grants_empty": "No teams have been granted access yet.",
+    "add_team_grant": "Grant a team access",
+    "team_name_label": "Team name",
+    "team_name_placeholder": "e.g. Platform",
+    "confirm_remove_team": "Remove {{name}}'s access to this repository?"
   },
   "document_preview": {
     "aria_label": "Preview of {{title}}",

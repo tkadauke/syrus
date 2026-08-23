@@ -468,7 +468,14 @@
     "remove": "Removere",
     "confirm_remove": "{{email}} ex hoc receptaculo removere?",
     "added_at": "Additum",
-    "unable_to_load": "Membra receptaculi onerari non potuerunt."
+    "unable_to_load": "Membra receptaculi onerari non potuerunt.",
+    "team_grants": "Accessus Societatis",
+    "team_grants_description": "Societates quibus accessus ad hoc receptaculum concessus est. Omne membrum societatis concessae saltem hoc munus habet, praeter membra directa.",
+    "team_grants_empty": "Nulli societati accessus adhuc concessus est.",
+    "add_team_grant": "Societati accessum concedere",
+    "team_name_label": "Nomen societatis",
+    "team_name_placeholder": "e.g. Suggestus",
+    "confirm_remove_team": "Accessum {{name}} ad hoc receptaculum removere?"
   },
   "document_preview": {
     "aria_label": "Prospectus documenti {{title}}",
