@@ -60,14 +60,62 @@ RSpec.describe SyrusRails::PreviewProvider do
   end
 
   describe "#start_command" do
-    it "returns a command that starts Vite when package.json is present before the rails server" do
-      expect(provider.start_command(port: 3001))
-        .to eq("mkdir -p log tmp/pids && if [ -f package.json ]; then npm run dev > log/vite.log 2>&1 & fi && exec bin/rails server -p 3001 -b 0.0.0.0 -e development")
+    it "returns a command that starts Vite when package.json defines a dev script" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "package.json"), { "scripts" => { "dev" => "vite" } }.to_json)
+        provider.detect?(dir)
+
+        expect(provider.start_command(port: 3001))
+          .to eq("mkdir -p log tmp/pids && if [ -f package.json ]; then npm run dev > log/vite.log 2>&1 & fi && exec bin/rails server -p 3001 -b 0.0.0.0 -e development")
+      end
+    end
+
+    it "omits the Vite fragment when package.json has no dev script" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "package.json"), { "scripts" => { "build" => "vite build" } }.to_json)
+        provider.detect?(dir)
+
+        expect(provider.start_command(port: 3001))
+          .to eq("mkdir -p log tmp/pids && exec bin/rails server -p 3001 -b 0.0.0.0 -e development")
+      end
+    end
+
+    it "omits the Vite fragment when package.json has no scripts key" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "package.json"), {}.to_json)
+        provider.detect?(dir)
+
+        expect(provider.start_command(port: 3001))
+          .to eq("mkdir -p log tmp/pids && exec bin/rails server -p 3001 -b 0.0.0.0 -e development")
+      end
+    end
+
+    it "omits the Vite fragment when package.json is absent" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        provider.detect?(dir)
+
+        expect(provider.start_command(port: 3001))
+          .to eq("mkdir -p log tmp/pids && exec bin/rails server -p 3001 -b 0.0.0.0 -e development")
+      end
     end
 
     it "interpolates the port into the command" do
-      expect(provider.start_command(port: 4567))
-        .to include("bin/rails server -p 4567 -b 0.0.0.0 -e development")
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        provider.detect?(dir)
+
+        expect(provider.start_command(port: 4567))
+          .to include("bin/rails server -p 4567 -b 0.0.0.0 -e development")
+      end
+    end
+
+    it "falls back to skipping the Vite fragment when called without a prior detect?" do
+      expect(provider.start_command(port: 3001))
+        .to eq("mkdir -p log tmp/pids && exec bin/rails server -p 3001 -b 0.0.0.0 -e development")
     end
   end
 
@@ -88,8 +136,45 @@ RSpec.describe SyrusRails::PreviewProvider do
   end
 
   describe "#health_check_path" do
-    it "returns /up" do
-      expect(provider.health_check_path).to eq("/up")
+    it "returns /up when config/routes.rb maps the Rails health-check route" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "config", "routes.rb"), <<~RUBY)
+          Rails.application.routes.draw do
+            get "up" => "rails/health#show", as: :rails_health_check
+          end
+        RUBY
+        provider.detect?(dir)
+
+        expect(provider.health_check_path).to eq("/up")
+      end
+    end
+
+    it "falls back to / when config/routes.rb does not map the health-check route" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        File.write(File.join(dir, "config", "routes.rb"), <<~RUBY)
+          Rails.application.routes.draw do
+            root "home#index"
+          end
+        RUBY
+        provider.detect?(dir)
+
+        expect(provider.health_check_path).to eq("/")
+      end
+    end
+
+    it "falls back to / when config/routes.rb is missing" do
+      Dir.mktmpdir do |dir|
+        touch_rails_markers(dir)
+        provider.detect?(dir)
+
+        expect(provider.health_check_path).to eq("/")
+      end
+    end
+
+    it "falls back to / when called without a prior detect?" do
+      expect(provider.health_check_path).to eq("/")
     end
   end
 
@@ -121,6 +206,14 @@ RSpec.describe SyrusRails::PreviewProvider do
         "SYRUS_SQLITE"
       )
     end
+  end
+
+  def touch_rails_markers(dir)
+    FileUtils.touch(File.join(dir, "Gemfile"))
+    FileUtils.mkdir_p(File.join(dir, "config"))
+    FileUtils.touch(File.join(dir, "config", "application.rb"))
+    FileUtils.mkdir_p(File.join(dir, "bin"))
+    FileUtils.touch(File.join(dir, "bin", "rails"))
   end
 end
 
