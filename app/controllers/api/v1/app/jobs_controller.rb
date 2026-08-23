@@ -66,6 +66,8 @@ module Api
 
         def chat_feedback
           job = find_job
+          return unless authorize_job_mutation!(job)
+
           result = ChatFeedbackSubmission.call(
             job: job,
             feedback: params[:body],
@@ -92,6 +94,8 @@ module Api
 
         def update_priority
           job = find_job_by_param(:job_id)
+          return unless authorize_job_mutation!(job)
+
           priority = params[:priority].to_s
 
           unless Job::PRIORITIES.include?(priority)
@@ -105,6 +109,8 @@ module Api
 
         def update_provider_setting
           job = find_job_by_param(:job_id)
+          return unless authorize_job_mutation!(job)
+
           setting = params[:job_provider_setting].to_s
 
           unless Job::PROVIDER_SETTINGS.include?(setting)
@@ -236,6 +242,18 @@ module Api
         end
 
         private
+
+        # find_job/find_job_by_param resolve against the widened,
+        # repository-membership-based JobPolicy::Scope (read-visibility
+        # parity with Epic). Mutation actions must stay creator-or-admin-only
+        # for now, so they call this explicitly instead of relying on the
+        # finder scope alone.
+        def authorize_job_mutation!(job)
+          return true if JobPolicy.new(Current.user, job).update?
+
+          render_error("forbidden", "Only the job owner or an admin can perform this action.", status: :forbidden)
+          false
+        end
 
         def filter_jobs(scope)
           if params[:repo].present?

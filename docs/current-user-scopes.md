@@ -21,18 +21,40 @@ wrapping — not changing — the access rules documented in this file for
 
 - `RepositoryPolicy::Scope#resolve` is exactly `Current.user.repositories`
   (the `belongs_to :user` FK on `Repository`).
-- `JobPolicy::Scope#resolve` is exactly `Current.user.jobs` (the
-  `belongs_to :user` FK on `Job`).
+- `JobPolicy::Scope#resolve` is `Job.accessible_to(user)` (repository
+  membership, including upstream repositories — mirrors
+  `Epic.accessible_to`; see `app/models/job.rb`). This closed the
+  visibility gap where two `RepositoryMembership` holders on the same
+  repository could already see each other's Epics but not each other's
+  Jobs (read-visibility parity only — a later repo-role-tiers job covers
+  write-capability tiers).
 - `EpicPolicy::Scope#resolve` is exactly `Epic.accessible_to(user)`
   (repository membership, including upstream repositories — see
   `Epic.accessible_to` in `app/models/epic.rb`).
 
+`JobPolicy#update?` stayed narrower than the widened `show?`/`Scope`:
+`update?` is still owner-or-admin only. `Api::V1::App::JobsController`'s
+mutation actions that resolve their target job through the widened
+`policy_scope(Job)`/`find_job_by_param` (`chat_feedback`,
+`update_priority`, `update_provider_setting`) now call
+`JobPolicy#update?` explicitly and render `403 forbidden` when it is
+false, so a non-owning repository member can see a Job it cannot yet
+mutate. Job actions gated through `Current.user.jobs` directly
+(`app/controllers/api/v1/app/job_lifecycle_controller.rb`'s approve/
+retry/cancel, and the other `Current.user.jobs`-scoped controllers)
+were left untouched — they were never widened, so they need no new
+guard.
+
 None of the three `Scope` classes bypass for global admins. `find_repository`,
 `find_job_by_param`, and `find_epic` now call `policy_scope(Repository)` /
 `policy_scope(Job)` / `policy_scope(Epic)` instead of the raw association, so
-an inaccessible record still 404s exactly as before — the controllers never
-call `authorize` (which would 403 via `Pundit::NotAuthorizedError`), keeping
-today's not-found semantics intact.
+a record outside the Scope still 404s exactly as before — none of these three
+controllers call Pundit's `authorize` (which would 403 via
+`Pundit::NotAuthorizedError`) for the finder lookup itself. `JobsController`'s
+three mutation actions are the one exception: they find the Job via the
+widened Scope (so it 404s only for a user with no repository access at all),
+then separately call `JobPolicy#update?` and 403 when a visible-but-not-owned
+Job fails that check — see above.
 
 `EpicPolicy` additionally reproduces the three per-action checks
 `EpicsController` already had before this policy layer existed, unchanged:
@@ -43,11 +65,15 @@ today's not-found semantics intact.
 genuine "global admins bypass this policy" rules — they predate this Job and
 are preserved as-is.
 
-`RepositoryPolicy` and `JobPolicy` also define `show?`/`update?`/`destroy?`
-predicates (owner-or-admin) for later epic jobs to call via `authorize` once
-repository role tiers and teams exist; nothing in the current controllers
-invokes them yet, so they have no runtime effect today. `ApplicationPolicy#admin?`
-is the single admin-bypass helper all four predicate-level checks share.
+`RepositoryPolicy` also defines `show?`/`update?`/`destroy?` predicates
+(owner-or-admin) for a later epic job to call via `authorize` once repository
+role tiers and teams exist; nothing in the current controllers invokes them
+yet, so they have no runtime effect today. `JobPolicy#update?` is the one
+exception with runtime effect already (see above); `JobPolicy#show?` is
+wider than `update?` (repository-accessible, not just owner-or-admin) and is
+exercised indirectly through `JobPolicy::Scope`/`find_job_by_param`, not a
+direct `authorize` call. `ApplicationPolicy#admin?` is the single
+admin-bypass helper every predicate-level check shares.
 Scope-level admin bypass (an admin browsing every repository/job/epic in the
 app SPA, not just the separate Bearer-token admin API) is deliberately left
 for whichever later epic job introduces the target access model described in
