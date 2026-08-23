@@ -112,19 +112,26 @@ RSpec.describe Workflow do
 
   describe "#landing_workflow?" do
     it "treats every trigger that owns landing state as a landing workflow" do
-      expect(described_class::LANDING_TRIGGER_KINDS).to contain_exactly("auto_merge", "external_pr_merge", "merge_train")
+      expect(described_class::LANDING_TRIGGER_KINDS).to contain_exactly(*WorkDefinitions.landing_workflow_kinds)
 
-      described_class::LANDING_TRIGGER_KINDS.each do |trigger_kind|
+      WorkDefinitions.landing_workflow_kinds.each do |trigger_kind|
         expect(build_wf(trigger_kind: trigger_kind)).to be_landing_workflow
       end
     end
   end
 
   describe "#infrastructure_workflow?" do
-    it "treats speculative validation workflows as infrastructure" do
-      expect(described_class::INFRASTRUCTURE_TRIGGER_KINDS).to include("main_branch_repair", "landing_validation", "merge_train_validation")
-      expect(build_wf(trigger_kind: "main_branch_repair")).to be_infrastructure_workflow
-      expect(build_wf(trigger_kind: "merge_train_validation")).to be_infrastructure_workflow
+    it "uses the WorkDefinition lifecycle ownership policy" do
+      lifecycle_owner_kinds = WorkDefinitions.registry.values
+        .map(&:new)
+        .select(&:manages_own_job_lifecycle?)
+        .map(&:kind)
+
+      expect(described_class::INFRASTRUCTURE_TRIGGER_KINDS).to contain_exactly(*lifecycle_owner_kinds)
+      lifecycle_owner_kinds.each do |trigger_kind|
+        expect(build_wf(trigger_kind: trigger_kind)).to be_infrastructure_workflow
+      end
+      expect(build_wf(trigger_kind: "initial")).not_to be_infrastructure_workflow
     end
   end
 
@@ -701,6 +708,16 @@ RSpec.describe Workflow do
 
       expect { wf.succeed!; wf.save! }
         .to change { job.reload.state }.from("running").to("failed")
+    end
+
+    it "does not fail a non-publication workflow merely because a pr_open step exists" do
+      job.update!(state: "running", pr_number: nil, external_pr_number: nil, fork_review_pr_number: nil)
+      wf = described_class.create!(job: job, trigger_kind: "pr_comment", state: "running", started_at: 1.minute.ago)
+      wf.steps.create!(kind: "prepare", position: 0, state: "succeeded")
+      wf.steps.create!(kind: "pr_open", position: 1, state: "cancelled")
+
+      expect { wf.succeed!; wf.save! }
+        .to change { job.reload.state }.from("running").to("implemented")
     end
 
     it "does not transition Job on workflow.succeed! when Job has already moved past :running (auto-approval path)" do

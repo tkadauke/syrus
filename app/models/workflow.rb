@@ -172,7 +172,7 @@ class Workflow < ApplicationRecord
   end
 
   def epic_wide?
-    Workflow::TriggerKind.epic_wide?(trigger_kind)
+    WorkDefinitions.epic_wide_kinds.include?(trigger_kind)
   end
 
   def enforce_job_workflow_runaway_limits_on_create!
@@ -426,8 +426,10 @@ class Workflow < ApplicationRecord
   end
 
   def pr_publication_missing_after_success?
-    return false unless steps.where(kind: "pr_open").exists?
-    return false if steps.where(kind: "pr_open", state: "succeeded").exists?
+    publication_step_kinds = work_definition.review_publication_step_kinds
+    return false if publication_step_kinds.empty?
+    return false unless steps.where(kind: publication_step_kinds).exists?
+    return false if steps.where(kind: publication_step_kinds, state: "succeeded").exists?
     return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
     return false if job.infrastructure_job?
     return false if trigger_kind == "main_branch_repair" && artifact("preflight_passed")
@@ -675,7 +677,7 @@ class Workflow < ApplicationRecord
   alias_method :record_worker_hostname!, :record_worker_identity!
 
   def landing_workflow?
-    LANDING_TRIGGER_KINDS.include?(trigger_kind)
+    WorkDefinitions.landing_workflow_kinds.include?(trigger_kind)
   end
 
   def coding_handoff_workflow?
@@ -691,11 +693,16 @@ class Workflow < ApplicationRecord
   end
 
 
-  # Infrastructure workflows manage their own Job lifecycle via after_success/
-  # after_fail hooks. The normal propagate_*_to_job! cascade is skipped so
-  # these hidden jobs don't surface in the operator-facing state machine.
+  # Workflows whose definitions manage their own Job lifecycle via
+  # after_success/after_fail hooks skip the normal propagate_*_to_job! cascade.
+  # Kept under the legacy method name because many callers still ask whether
+  # a workflow should be excluded from ordinary user-work handling.
   def infrastructure_workflow?
-    INFRASTRUCTURE_TRIGGER_KINDS.include?(trigger_kind)
+    work_definition.manages_own_job_lifecycle?
+  end
+
+  def work_definition
+    WorkDefinitions.for(trigger_kind)
   end
 
 

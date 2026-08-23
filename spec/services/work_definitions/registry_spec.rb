@@ -62,6 +62,7 @@ RSpec.describe WorkDefinitions do
       expect(definition.retry_policy).to respond_to(:automatic?)
       expect(definition.retry_policy).to respond_to(:continuation?)
       expect(definition.retry_policy).to respond_to(:new_attempt?)
+      expect(definition.manages_own_job_lifecycle?).to be_in([ true, false ])
     end
   end
 
@@ -150,5 +151,20 @@ RSpec.describe WorkDefinitions do
   it "marks infrastructure workflows explicitly" do
     expect(described_class.for("main_grader")).to be_infrastructure
     expect(described_class.for("agent_insight")).to be_infrastructure
+  end
+
+  it "declares workflow definitions that own their Job lifecycle" do
+    lifecycle_owner_kinds = described_class.registry.values
+      .map(&:new)
+      .select(&:manages_own_job_lifecycle?)
+      .map(&:kind)
+
+    expect(lifecycle_owner_kinds).to contain_exactly(
+      "main_grader",
+      "agent_insight",
+      "main_branch_repair",
+      "landing_validation",
+      "merge_train_validation"
+    )
   end
 end

@@ -11,6 +11,10 @@ module WorkDefinitions
     end
   end
 
+  module ManagesOwnJobLifecycle
+    def manages_own_job_lifecycle? = true
+  end
+
   class Initial < Base
     include OpensReviewPullRequest
 
@@ -70,6 +74,7 @@ module WorkDefinitions
 
   class LandingValidation < Base
     include BlocksCiFailure
+    include ManagesOwnJobLifecycle
 
     self.kind = "landing_validation"
     self.workflow_trigger_kind = "landing_validation"
@@ -108,6 +113,7 @@ module WorkDefinitions
 
   class MergeTrainValidation < Base
     include BlocksCiFailure
+    include ManagesOwnJobLifecycle
 
     self.kind = "merge_train_validation"
     self.workflow_trigger_kind = "merge_train_validation"
@@ -199,6 +205,7 @@ module WorkDefinitions
 
   class MainBranchRepair < Base
     include OpensReviewPullRequest
+    include ManagesOwnJobLifecycle
 
     self.kind = "main_branch_repair"
     self.workflow_trigger_kind = "main_branch_repair"

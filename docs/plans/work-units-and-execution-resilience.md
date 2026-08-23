@@ -1731,6 +1731,17 @@ make WorkUnit the runtime owner for migrated paths.
 Do not let both Workflow callbacks and WorkUnit scheduler independently mutate
 Job lifecycle/runtime projections.
 
+Completed slices:
+
+- `Workflow#landing_workflow?`, `#epic_wide?`,
+  `#infrastructure_workflow?`, and the successful-workflow publication check
+  now delegate their classification to WorkDefinition policies. Work
+  definitions distinguish true infrastructure runtime role from "manages its
+  own Job lifecycle" so main-branch repair and speculative validation workflows
+  can keep skipping generic propagation without pretending to be infrastructure.
+  The legacy callbacks still execute in the same order, but they no longer own
+  local trigger-kind lists for these scheduler/runtime classifications.
+
 ### Phase 8: Step/Run Simplification
 
 After WorkUnits are stable, simplify the Step/Run relationship:
