@@ -1145,6 +1145,26 @@ module WorkEngine
         end
       end
 
+      class DispatcherOwnedWorkIntentWithoutActiveUnit < Base
+        def plan
+          automatic_plan(
+            "wake_dispatcher_for_requested_work_intent",
+            primary_work_intent,
+            "The Intent is requested and ready, but this work kind is owned by a domain dispatcher; wake that dispatcher instead of launching a Workflow directly.",
+            execution_steps: [ "LandingQueueProcessorJob.perform_later" ],
+            preconditions: {
+              work_intent_state: "requested",
+              dispatcher: issue.evidence["dispatcher"],
+              scope_type: issue.evidence["scope_type"],
+              scope_id: issue.evidence["scope_id"],
+              representative_job_id: issue.evidence["representative_job_id"],
+              member_job_ids: issue.evidence["member_job_ids"],
+              active_work_unit_ids: []
+            }
+          )
+        end
+      end
+
       class SucceededWorkUnitUnsatisfiedIntent < Base
         def plan
           automatic_plan(

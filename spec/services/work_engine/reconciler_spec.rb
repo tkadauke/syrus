@@ -881,7 +881,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_executions.map(&:message)).to include("launched WorkIntent ##{intent.id} as Workflow ##{unit.workflow_id}")
   end
 
-  it "launches requested epic-scoped WorkIntents from the prior member snapshot" do
+  it "wakes the landing dispatcher for requested landing-owned WorkIntents instead of launching them directly" do
     epic = Factories.epic(user: job.user, repository: job.repository)
     first = Factories.job_record(user: job.user, repository: job.repository, epic: epic, state: "approved", issue_number: 601)
     second = Factories.job_record(user: job.user, repository: job.repository, epic: epic, state: "approved", issue_number: 602)
@@ -894,22 +894,25 @@ RSpec.describe WorkEngine::Reconciler do
     old_workflow.update!(state: "cancelled", finished_at: 5.minutes.ago)
     old_unit.mark_terminal!("cancelled")
 
-    result = reconcile_and_execute(work_intent_id: old_intent.id)
+    expect {
+      @result = reconcile_and_execute(work_intent_id: old_intent.id)
+    }.not_to change { Workflow.count }
+    result = @result
 
-    expect(kind(result, :requested_work_intent_without_active_unit)).to have_attributes(
+    expect(kind(result, :requested_work_intent_without_active_unit)).to be_nil
+    expect(kind(result, :dispatcher_owned_work_intent_without_active_unit)).to have_attributes(
       severity: "warning",
       safe_to_auto_repair: true,
-      recommended_repair_action: "launch_requested_work_intent"
+      recommended_repair_action: "wake_dispatcher_for_requested_work_intent"
     )
-    new_unit = old_intent.reload.work_units.order(:id).last
-    expect(new_unit).not_to eq(old_unit)
-    expect(new_unit).to have_attributes(kind: "merge_train", scope_type: "epic", scope_id: epic.id)
-    expect(new_unit.workflow).to be_present
-    expect(new_unit.workflow.job).to eq(second)
-    expect(new_unit.workflow.artifacts).to include("merge_train_id" => train.id)
-    expect(new_unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
-      [[ first.id, "primary" ], [ second.id, "member" ]]
+    expect(plan(result, :wake_dispatcher_for_requested_work_intent)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: old_intent.id
     )
+    expect(old_intent.reload.work_units.order(:id).last).to eq(old_unit)
+    expect(enqueued_jobs.map { |entry| entry[:job] }).to include(LandingQueueProcessorJob)
+    expect(result.repair_executions.map(&:message)).to include("woke landing queue for WorkIntent ##{old_intent.id} (merge_train)")
   end
 
   it "does not launch requested WorkIntents that already have active WorkUnits" do

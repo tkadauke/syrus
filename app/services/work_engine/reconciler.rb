@@ -190,6 +190,7 @@ module WorkEngine
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
       issues.concat(classify_waiting_work_intents_ready_for_recheck)
+      issues.concat(classify_dispatcher_owned_work_intents_without_active_units)
       issues.concat(classify_requested_work_intents_without_active_units)
       issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
@@ -821,6 +822,8 @@ module WorkEngine
       return [] unless work_intent_id.present?
 
       work_intents.select(&:requested?).filter_map do |intent|
+        next unless intent.definition.generic_intent_start_allowed?
+
         relaunchability = work_intent_relaunchability(intent)
         next unless relaunchability.relaunchable?
         next unless intent_gates_pass?(intent)
@@ -852,6 +855,44 @@ module WorkEngine
       end
     end
 
+    def classify_dispatcher_owned_work_intents_without_active_units
+      return [] unless work_intent_id.present?
+
+      work_intents.select(&:requested?).filter_map do |intent|
+        next if intent.definition.generic_intent_start_allowed?
+
+        relaunchability = work_intent_relaunchability(intent)
+        next unless relaunchability.relaunchable?
+        next unless intent_gates_pass?(intent)
+
+        active_unit_ids = intent.work_units
+          .select { |unit| unit.state.in?(WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES) }
+          .map(&:id)
+        next if active_unit_ids.any?
+
+        issue(
+          kind: :dispatcher_owned_work_intent_without_active_unit,
+          severity: :warning,
+          affected_ids: ids_for(intent),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "wake_dispatcher_for_requested_work_intent",
+          evidence: {
+            work_intent_id: intent.id,
+            work_intent_kind: intent.kind,
+            work_intent_state: intent.state,
+            dispatcher: dispatcher_for_intent(intent),
+            scope_type: intent.scope_type,
+            scope_id: intent.scope_id,
+            representative_job_id: relaunchability.representative_job_id,
+            member_job_ids: relaunchability.member_job_ids,
+            active_work_unit_ids: active_unit_ids,
+            terminal_work_unit_ids: intent.work_units.select(&:terminal?).map(&:id)
+          },
+          explanation: "WorkIntent ##{intent.id} is requested and ready, but its #{intent.kind} definition must be relaunched by its domain dispatcher."
+        )
+      end
+    end
+
     WorkIntentRelaunchability = Data.define(:representative_job_id, :member_job_ids) do
       def relaunchable? = representative_job_id.present?
     end
@@ -872,6 +913,12 @@ module WorkEngine
       intent.definition.intent_gates.all? { |gate| gate.call(intent).pass? }
     rescue WorkDefinitions::UnknownKind
       false
+    end
+
+    def dispatcher_for_intent(intent)
+      intent.definition.landing_lock? ? "landing_queue" : "unknown"
+    rescue WorkDefinitions::UnknownKind
+      "unknown"
     end
 
     def classify_active_work_units_without_workflows

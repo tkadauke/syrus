@@ -73,15 +73,18 @@ class WorkUnit < ApplicationRecord
   end
 
   def mark_running!
-    update!(
-      state: "running",
-      started_at: started_at || Time.current,
-      finished_at: nil,
-      blocked_reason: nil,
-      blocked_until: nil,
-      blocked_details: {},
-      blocked_by_user: nil
-    )
+    transaction do
+      ensure_active_locks!
+      update!(
+        state: "running",
+        started_at: started_at || Time.current,
+        finished_at: nil,
+        blocked_reason: nil,
+        blocked_until: nil,
+        blocked_details: {},
+        blocked_by_user: nil
+      )
+    end
   end
 
   def mark_terminal!(state)
@@ -129,6 +132,38 @@ class WorkUnit < ApplicationRecord
   end
 
   private
+
+  def ensure_active_locks!
+    lock_keys_for_runtime.each do |lock_key|
+      next if work_unit_locks.active.exists?(lock_key: lock_key)
+
+      owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
+      if owner && owner.id != id
+        raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)
+      end
+
+      work_unit_locks.create!(lock_key: lock_key)
+    end
+  end
+
+  def lock_keys_for_runtime
+    return [] unless workflow
+
+    definition.lock_keys_for(
+      job: primary_job || workflow.job,
+      member_jobs: runtime_member_jobs,
+      artifacts: workflow.artifacts.to_h
+    )
+  end
+
+  def runtime_member_jobs
+    jobs = work_unit_members.includes(:job).order(:id).map(&:job).compact
+    jobs.presence || [ workflow.job ].compact
+  end
+
+  def primary_job
+    work_unit_members.includes(:job).find { |member| member.role == "primary" }&.job
+  end
 
   def normalize_blocked_details
     self.blocked_details ||= {}

@@ -11,7 +11,6 @@ module WorkIntents
 
       def call
         return GateResult.pass if intent.definition.generic_intent_start_allowed?
-        return GateResult.pass if intent.work_units.where(state: %w[succeeded failed cancelled]).exists?
 
         GateResult.wait(
           reason: REASON,

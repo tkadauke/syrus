@@ -833,6 +833,20 @@ module WorkEngine
         end
       end
 
+      class WakeDispatcherForRequestedWorkIntent < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not requested") unless intent.requested?
+
+          dispatcher = plan.preconditions["dispatcher"].to_s
+          return skipped("unsupported dispatcher #{dispatcher.inspect}") unless dispatcher == "landing_queue"
+
+          LandingQueueProcessorJob.perform_later
+          success("woke landing queue for WorkIntent ##{intent.id} (#{intent.kind})")
+        end
+      end
+
       class SatisfyWorkIntentFromSucceededWorkUnit < Base
         def perform
           intent = target_work_intent
