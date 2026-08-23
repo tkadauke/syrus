@@ -799,6 +799,34 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "includes parent and preemption relationships for WorkUnit diagnostics" do
+      parent_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+      parent = attach_work_unit(parent_workflow, member_jobs: [ job ], kind: "auto_merge")
+      child_job = Factories.job_record(user: user, repository: repo, issue_number: 102)
+      child_workflow = Workflow.create!(job: child_job, trigger_kind: "landing_validation", state: "cancelled")
+      child = attach_work_unit(child_workflow, member_jobs: [ child_job ], kind: "landing_validation", state: "cancelled")
+      child.update!(
+        parent_work_unit: parent,
+        preemption_reason: "terminal_parent_work_unit",
+        preempted_by_work_unit: parent
+      )
+
+      payload = workflows_payload_for(child_job)
+
+      expect(payload.fetch(:work_units)).to contain_exactly(
+        include(
+          id: child.id,
+          parent_work_unit_id: parent.id,
+          parent_work_unit_kind: "auto_merge",
+          parent_work_unit_label: "Auto-merge",
+          preemption_reason: "terminal_parent_work_unit",
+          preempted_by_work_unit_id: parent.id,
+          preempted_by_work_unit_kind: "auto_merge",
+          preempted_by_work_unit_label: "Auto-merge"
+        )
+      )
+    end
+
     it "renders WorkUnit-owned direct workflows only under their WorkUnit" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

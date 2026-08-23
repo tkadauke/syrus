@@ -114,12 +114,15 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>WU-{unit.id}</span>
+            {unit.parent_work_unit_id ? <span>child of WU-{unit.parent_work_unit_id}</span> : null}
             {workflowPath ? (
               <Link className="underline hover:no-underline" to={workflowPath}>{unit.workflow_slug || workflowSlug(unit.workflow_id!)}</Link>
             ) : (
               <span>No workflow attached</span>
             )}
             {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to JOB-{unit.workflow_attached_job_id}</span> : null}
+            {unit.preemption_reason ? <span>preempted: {humanize(unit.preemption_reason)}</span> : null}
+            {unit.preempted_by_work_unit_id ? <span>by WU-{unit.preempted_by_work_unit_id}</span> : null}
             {unit.blocked_until ? <span>next check <RelativeTimestamp value={unit.blocked_until} /></span> : null}
           </div>
           {unit.blocked_details ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{stringify(unit.blocked_details)}</p> : null}

@@ -122,6 +122,13 @@ describe("WorkflowsTab", () => {
               blocked_label: "Auto-retry backoff",
               blocked_until: "2026-08-23T12:00:00Z",
               blocked_details: { auto_retry_attempt_id: 5 },
+              parent_work_unit_id: 77,
+              parent_work_unit_kind: "auto_merge",
+              parent_work_unit_label: "Auto-merge",
+              preemption_reason: "terminal_parent_work_unit",
+              preempted_by_work_unit_id: 79,
+              preempted_by_work_unit_kind: "merge_train",
+              preempted_by_work_unit_label: "Epic merge-train",
               workflow: null,
               current_step: null,
               created_at: null,
@@ -137,6 +144,9 @@ describe("WorkflowsTab", () => {
     expect(screen.getByRole("heading", { name: "Work attempts" })).toBeInTheDocument()
     expect(screen.getByText("Retry: Auto-retry backoff")).toBeInTheDocument()
     expect(screen.getByText("Auto-retry backoff")).toBeInTheDocument()
+    expect(screen.getByText("child of WU-77")).toBeInTheDocument()
+    expect(screen.getByText("preempted: terminal parent work unit")).toBeInTheDocument()
+    expect(screen.getByText("by WU-79")).toBeInTheDocument()
     expect(screen.getByText((_content, element) =>
       Boolean(element?.matches("p") &&
         element.textContent?.includes("\"auto_retry_attempt_id\"") &&

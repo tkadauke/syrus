@@ -502,6 +502,13 @@ export type JobWorkUnit = {
   blocked_label?: string | null
   blocked_until: string | null
   blocked_details: Record<string, unknown> | null
+  parent_work_unit_id?: number | null
+  parent_work_unit_kind?: string | null
+  parent_work_unit_label?: string | null
+  preemption_reason?: string | null
+  preempted_by_work_unit_id?: number | null
+  preempted_by_work_unit_kind?: string | null
+  preempted_by_work_unit_label?: string | null
   workflow?: JobWorkflow | null
   current_step?: {
     id: number

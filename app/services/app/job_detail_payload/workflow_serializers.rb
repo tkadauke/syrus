@@ -78,6 +78,13 @@ module App
           blocked_label: unit.blocked_reason.present? ? blocked_reason_label(unit.blocked_reason) : nil,
           blocked_until: iso8601(unit.blocked_until),
           blocked_details: unit.blocked_details.presence,
+          parent_work_unit_id: unit.parent_work_unit_id,
+          parent_work_unit_kind: unit.parent_work_unit&.kind,
+          parent_work_unit_label: unit.parent_work_unit ? work_unit_label(unit.parent_work_unit) : nil,
+          preemption_reason: unit.preemption_reason,
+          preempted_by_work_unit_id: unit.preempted_by_work_unit_id,
+          preempted_by_work_unit_kind: unit.preempted_by_work_unit&.kind,
+          preempted_by_work_unit_label: unit.preempted_by_work_unit ? work_unit_label(unit.preempted_by_work_unit) : nil,
           workflow: workflow ? workflow_json(workflow) : nil,
           created_at: iso8601(unit.created_at),
           started_at: iso8601(unit.started_at),
@@ -89,7 +96,7 @@ module App
         @active_work_unit_member_for_job ||= PerformanceLogging.phase("job_detail.active_work.query", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)
-            .includes(work_unit: [ :workflow, :work_intent ])
+            .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
             .where(job_id: @job.id, work_units: { state: %w[queued blocked running] })
             .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
             .first
@@ -142,7 +149,7 @@ module App
         @work_unit_members_for_job ||= PerformanceLogging.phase("job_detail.work_units.query", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)
-            .includes(work_unit: [ :workflow, :work_intent ])
+            .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
             .where(job_id: @job.id)
             .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
             .limit(50)
