@@ -778,8 +778,8 @@ module App
         return @job_runtime_paused_job_ids.key?(job.id)
       end
 
-      return false if job.any_active_run?
       return true if WorkUnits::Ownership.blocked_for_job?(job)
+      return false if job.active_runtime_work?
 
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)

@@ -131,7 +131,7 @@ module App
       provider_availability = PerformanceLogging.phase("job_detail.job.provider_availability", job_id: @job.id, provider: workflow_agent_provider) do
         App::ProviderAvailability.for_user(@user, workflow_agent_provider)
       end
-      any_active_run = job_has_active_run?
+      any_active_run = job_has_active_runtime_work?
       latest_run_for_retry_state = PerformanceLogging.phase("job_detail.job.latest_run_for_retry_state", job_id: @job.id) { latest_run_for_retry_state }
       retry_state = PerformanceLogging.phase("job_detail.job.retry_state", job_id: @job.id) do
         ::App::RetryState.for(@job, latest_run: latest_run_for_retry_state, any_active_run: any_active_run)
@@ -242,6 +242,12 @@ module App
           .select(:id, :job_id, :step_id, :state, :created_at, :finished_at, :updated_at)
           .includes(:run_diagnostic)
           .first
+    end
+
+    def job_has_active_runtime_work?
+      return @job_has_active_runtime_work if defined?(@job_has_active_runtime_work)
+
+      @job_has_active_runtime_work = PerformanceLogging.phase("job_detail.job.active_runtime_work", job_id: @job.id) { @job.active_runtime_work? }
     end
 
     def repository_json(repository)
@@ -815,8 +821,8 @@ module App
     end
 
     def job_apparently_paused?(job)
-      return false if job.any_active_run?
       return true if WorkUnits::Ownership.blocked_for_job?(job)
+      return false if job.active_runtime_work?
 
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && (

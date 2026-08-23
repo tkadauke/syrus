@@ -166,6 +166,24 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :summary_state)).to eq("landing")
     end
 
+    it "does not show stale pause artifacts as paused while a WorkUnit-owned workflow is active" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      owner = Factories.job_record(user: user, repository: repo, state: "running")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        artifacts: {
+          "pause_reason" => "workflow_admission_budget",
+          "start_blocked_reason" => "workflow_admission_budget"
+        }
+      )
+      owner_workflow = Workflow.create!(job: owner, trigger_kind: "merge_train", state: "running")
+      attach_work_unit(owner_workflow, member_jobs: [ owner, job ], kind: "merge_train", state: "running")
+
+      expect(payload_for(job).dig(:job, :summary_state)).to eq("running")
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
@@ -1136,6 +1154,19 @@ RSpec.describe App::JobDetailPayload do
         workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
         failed_run_with_session(job, workflow)
         job.runs.create!(trigger_kind: "manual", state: "running", started_at: Time.current)
+
+        run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+        expect(run_payload[:can_resume]).to eq(false)
+      end
+
+      it "is false while a WorkUnit-owned workflow is active for the Job" do
+        job = Factories.job_record(repository: repo)
+        owner = Factories.job_record(repository: repo)
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+        failed_run_with_session(job, workflow)
+        owner_workflow = Workflow.create!(job: owner, trigger_kind: "merge_train", state: "running")
+        attach_work_unit(owner_workflow, member_jobs: [ owner, job ], kind: "merge_train", state: "running")
 
         run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
 

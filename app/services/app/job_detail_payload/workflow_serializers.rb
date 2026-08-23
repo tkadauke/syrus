@@ -395,7 +395,7 @@ module App
           agent_session: agent_session_json(session),
           can_stop: run.may_cancel?,
           can_diagnose: run.queued? || run.running?,
-          can_resume: %w[failed cancelled].include?(run.state) && session.present? && !job_has_active_run?,
+          can_resume: %w[failed cancelled].include?(run.state) && session.present? && !job_has_active_runtime_work?,
           app_artifacts_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/artifacts",
           app_stop_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/stop",
           app_diagnose_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/diagnose",
@@ -631,10 +631,10 @@ module App
         @latest_workflow_id ||= @job.workflows.maximum(:id)
       end
 
-      def job_has_active_run?
-        return @job_has_active_run if defined?(@job_has_active_run)
+      def job_has_active_runtime_work?
+        return @job_has_active_runtime_work if defined?(@job_has_active_runtime_work)
 
-        @job_has_active_run = PerformanceLogging.phase("job_detail.job.any_active_run", job_id: @job.id) { @job.any_active_run? }
+        @job_has_active_runtime_work = PerformanceLogging.phase("job_detail.job.active_runtime_work", job_id: @job.id) { @job.active_runtime_work? }
       end
 
       EMPTY_JOB_LOG_STATS = { count: 0, rate_limited: false }.freeze
