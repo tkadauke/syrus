@@ -144,9 +144,18 @@ RSpec.describe App::JobDetailPayload do
     it "shows blocked non-landing WorkUnits as paused" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "running")
-      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual_visual_review", state: "blocked", blocked_reason: "admission_control")
+      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "manual_visual_review", state: "blocked", blocked_reason: "admission_control")
+      next_check = 5.minutes.from_now
+      unit.update!(
+        blocked_until: next_check,
+        blocked_details: { "reason" => "worker_host_pressure_high" }
+      )
 
-      expect(payload_for(job).dig(:job, :summary_state)).to eq("paused")
+      payload = payload_for(job).fetch(:job)
+      expect(payload[:summary_state]).to eq("paused")
+      expect(payload[:start_blocked_reason]).to eq("admission_control")
+      expect(payload[:start_blocked_next_check_at]).to eq(next_check.iso8601)
+      expect(payload[:start_blocked_details]).to eq("reason" => "worker_host_pressure_high")
     end
 
     it "keeps blocked landing WorkUnits in the landing state" do

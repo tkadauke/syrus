@@ -334,7 +334,7 @@ module App
             jobs_base_scope.where(state: %w[queued running landing]).select(:id)
           end
 
-          Workflow.where(job_id: active_scope, state: %w[queued running])
+          legacy = Workflow.where(job_id: active_scope, state: %w[queued running])
                   .where("artifacts LIKE ?", '%"start_blocked_reason"%')
                   .reorder(id: :desc)
                   .select(:job_id, :artifacts)
@@ -350,6 +350,8 @@ module App
               details: wf.artifacts&.dig("start_blocked_details")
             } if reason.present?
           end
+          scoped_job_ids = job_ids.presence || legacy.keys
+          legacy.merge(WorkUnits::Ownership.blocked_data_by_job_id(scoped_job_ids))
         end
       end
 

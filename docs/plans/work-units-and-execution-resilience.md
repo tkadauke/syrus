@@ -1633,6 +1633,9 @@ Completed slices:
   `WorkUnits::Ownership.active_trigger_kinds_by_job_id`, so single-Job callers
   see cross-job WorkUnit ownership instead of only workflows directly attached
   to that Job.
+- Dashboard and Job detail start-blocked metadata now fall back to blocked
+  WorkUnit reason/details/next wakeup data, so WorkUnit-paused jobs explain
+  why they are paused even when no legacy Workflow artifact exists.
 
 ### Phase 5: Reconciler Simplification
 

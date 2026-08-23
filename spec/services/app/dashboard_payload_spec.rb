@@ -758,11 +758,19 @@ RSpec.describe App::DashboardPayload do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
       workflow.update!(state: "running")
-      workflow.work_unit.block!(reason: "admission_control", details: { "source" => "spec" })
+      next_check = 5.minutes.from_now
+      workflow.work_unit.block!(
+        reason: "admission_control",
+        blocked_until: next_check,
+        details: { "reason" => "worker_host_pressure_high", "source" => "spec" }
+      )
 
       rows = call(subject: "job", section: "rows")
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
+      expect(item[:start_blocked_reason]).to eq("admission_control")
+      expect(item[:start_blocked_next_check_at]).to eq(next_check.iso8601)
+      expect(item[:start_blocked_details]).to include("reason" => "worker_host_pressure_high")
 
       paused_folder = SmartFolder.find_builtin_by_attention("paused")
       in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")

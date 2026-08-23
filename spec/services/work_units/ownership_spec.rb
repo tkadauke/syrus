@@ -103,6 +103,28 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.all_blocked_job_ids(include_landing: true)).to include(blocked.id, landing.id)
   end
 
+  it "returns blocked metadata keyed by job id" do
+    job = Factories.job_record(issue_number: 303)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "initial", state: "blocked")
+    blocked_until = 10.minutes.from_now
+    unit.update!(
+      blocked_reason: "admission_control",
+      blocked_until: blocked_until,
+      blocked_details: { "reason" => "worker_host_pressure_high" }
+    )
+
+    data = described_class.blocked_data_by_job_id([ job.id ]).fetch(job.id)
+
+    expect(data).to include(
+      reason: "admission_control",
+      next_check_at: blocked_until.iso8601,
+      count: nil,
+      details: { "reason" => "worker_host_pressure_high" }
+    )
+    expect(data.fetch(:at)).to be_present
+  end
+
   it "filters active lock ownership by kind" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")

@@ -759,23 +759,23 @@ module App
     end
 
     def job_start_blocked_reason
-      workflow_for_start_blocked&.artifact("start_blocked_reason")
+      job_start_blocked_data[:reason]
     end
 
     def job_start_blocked_at
-      workflow_for_start_blocked&.artifact("start_blocked_at")
+      job_start_blocked_data[:at]
     end
 
     def job_start_blocked_next_check_at
-      workflow_for_start_blocked&.artifact("start_blocked_next_check_at")
+      job_start_blocked_data[:next_check_at]
     end
 
     def job_start_blocked_count
-      workflow_for_start_blocked&.artifact("start_blocked_count")
+      job_start_blocked_data[:count]
     end
 
     def job_start_blocked_details
-      workflow_for_start_blocked&.artifact("start_blocked_details")
+      job_start_blocked_data[:details]
     end
 
     def job_start_blocked_breakdown
@@ -793,6 +793,22 @@ module App
         .where("artifacts LIKE ?", '%"start_blocked_reason"%')
         .reorder(created_at: :desc, id: :desc)
         .detect { |wf| wf.artifact("start_blocked_reason").present? }
+    end
+
+    def job_start_blocked_data
+      @job_start_blocked_data ||= begin
+        if (workflow = workflow_for_start_blocked)
+          {
+            reason: workflow.artifact("start_blocked_reason"),
+            at: workflow.artifact("start_blocked_at"),
+            next_check_at: workflow.artifact("start_blocked_next_check_at"),
+            count: workflow.artifact("start_blocked_count"),
+            details: workflow.artifact("start_blocked_details")
+          }
+        else
+          WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
+        end
+      end
     end
 
     def summary_state(job)

@@ -109,6 +109,31 @@ module WorkUnits
         .to_set
     end
 
+    def self.blocked_data_by_job_id(job_ids, kinds: nil, include_landing: false)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return {} if ids.empty?
+
+      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
+        .where(job_id: ids)
+        .includes(:work_unit)
+        .order(Arel.sql("work_units.updated_at DESC, work_units.id DESC"))
+        .each_with_object({}) do |member, result|
+          next if result.key?(member.job_id)
+
+          unit = member.work_unit
+          reason = unit.blocked_reason.presence
+          next unless reason
+
+          result[member.job_id] = {
+            reason: reason,
+            at: unit.updated_at&.iso8601,
+            next_check_at: unit.blocked_until&.iso8601,
+            count: nil,
+            details: unit.blocked_details.presence
+          }
+        end
+    end
+
     def self.blocked_unit_job_ids_scope(kinds: nil, include_landing: false)
       scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: "blocked" })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
