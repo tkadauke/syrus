@@ -369,7 +369,7 @@ module WorkEngine
             "resume_queued_step",
             primary_step,
             "The previous Step succeeded but the handoff did not create a Run on the queued Step, so resume that workflow phase through the dispatcher.",
-            execution_steps: [ "StepDispatcher.resume_deferred_phase" ],
+            execution_steps: [ "WorkUnits::DeferredPhaseResume.call" ],
             preconditions: {
               workflow_state: "running",
               step_state: "queued",
@@ -731,7 +731,7 @@ module WorkEngine
               "resume_deferred_phase",
               primary_workflow,
               "The workflow's resource-admission phase pause is past its recheck time, so replay the phase admission gate and either resume the queued step or refresh the blocker.",
-              execution_steps: [ "StepDispatcher.resume_deferred_phase" ],
+              execution_steps: [ "WorkUnits::DeferredPhaseResume.call" ],
               preconditions: {
                 workflow_state: "running",
                 start_blocked_reason: issue.evidence["start_blocked_reason"],

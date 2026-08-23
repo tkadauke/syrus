@@ -5,8 +5,8 @@ class StepDispatcher
   # cancelled), transition the Workflow itself to succeeded.
   #
   # Wired up via Step#after_update_commit when state → succeeded.
-  def self.advance_from(step)
-    new(step.workflow, advancing_from: step).advance!
+  def self.advance_from(step, check_phase_admission: true)
+    new(step.workflow, advancing_from: step, check_phase_admission: check_phase_admission).advance!
   end
 
   # Kick off a freshly-instantiated Workflow. Caller (Job#after_
@@ -648,7 +648,7 @@ class StepDispatcher
     )
   end
 
-  def self.resume_deferred_phase(workflow_id, step_id = nil)
+  def self.resume_deferred_phase(workflow_id, step_id = nil, check_phase_admission: true)
     workflow = Workflow.find_by(id: workflow_id)
     return unless workflow&.queued? || workflow&.running?
     return if manually_paused?(workflow)
@@ -661,7 +661,7 @@ class StepDispatcher
     if step.id == workflow.first_step&.id
       start_workflow(workflow)
     elsif completed_predecessor?(previous)
-      advance_from(previous)
+      advance_from(previous, check_phase_admission: check_phase_admission)
     end
   end
 
@@ -692,9 +692,10 @@ class StepDispatcher
     JobLog.append!(run: run, chunk: message, kind: "system")
   end
 
-  def initialize(workflow, advancing_from: nil)
+  def initialize(workflow, advancing_from: nil, check_phase_admission: true)
     @workflow = workflow
     @from_step = advancing_from
+    @check_phase_admission = check_phase_admission
   end
 
   def advance!
@@ -711,7 +712,7 @@ class StepDispatcher
       return if next_step.runs.any?
       return if manually_paused_before_next_step?(next_step)
 
-      self.class.create_run_and_enqueue(next_step, @workflow)
+      self.class.create_run_and_enqueue(next_step, @workflow, check_phase_admission: @check_phase_admission)
     else
       finish_workflow!
     end

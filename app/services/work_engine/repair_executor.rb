@@ -407,7 +407,7 @@ module WorkEngine
           previous = step.previous_step
           return skipped("Previous Step is not succeeded") unless previous&.succeeded?
 
-          run = StepDispatcher.resume_deferred_phase(workflow.id, step.id)
+          run = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id).run
           run ? success("resumed Step ##{step.id} with Run ##{run.id}") : skipped("queued Step remained deferred")
         end
       end
@@ -475,13 +475,13 @@ module WorkEngine
           return skipped("Paused phase step already has a Run") if step.runs.exists?
 
           before_run_ids = step.runs.pluck(:id)
-          StepDispatcher.resume_deferred_phase(workflow.id, step.id)
+          result = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id)
 
           step.reload
-          new_run = step.runs.where.not(id: before_run_ids).order(:id).last
+          new_run = result.run || step.runs.where.not(id: before_run_ids).order(:id).last
           if new_run
             success("resumed deferred phase for Workflow ##{workflow.id} with Run ##{new_run.id}")
-          elsif WorkflowAdmissionCapacityWakeup.admission_or_resource_paused?(workflow.reload)
+          elsif result.blocked? || WorkflowAdmissionCapacityWakeup.admission_or_resource_paused?(workflow.reload)
             skipped("phase remains paused after admission recheck")
           else
             success("cleared deferred phase block for Workflow ##{workflow.id}")

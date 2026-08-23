@@ -1910,6 +1910,17 @@ Completed slices:
   blocked Units are re-evaluated through `WorkUnits::Scheduler`, and eligible
   workflows are started immediately through `WorkUnits::Launcher` before the
   legacy Workflow artifact resume path runs.
+- Timed provider/admission/resource wakeups now resume through
+  `WorkUnits::DeferredPhaseResume`. With `work_units_scheduler` enabled, the
+  wakeup re-evaluates the active WorkUnit, keeps typed blocked Units blocked
+  when gates still fail, starts first steps through `WorkUnits::Launcher`, and
+  resumes later steps without re-running the same phase gate twice. With the
+  gate disabled, the legacy `StepDispatcher.resume_deferred_phase` path remains
+  the owner.
+- Reconciler repair execution now uses the same `WorkUnits::DeferredPhaseResume`
+  facade for queued-step and deferred-phase repairs, so operator-visible repair
+  actions cannot resume provider/admission/resource blocked work through a
+  different legacy-only path while scheduler ownership is enabled.
 
 ### Phase 8: Step/Run Simplification
 
