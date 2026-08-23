@@ -1727,6 +1727,10 @@ Completed slices:
   successful Unit left its Intent in `requested` or `waiting`. This covers one
   concrete form of "Intent with only terminal Units is satisfied" without
   prematurely deciding failed/cancelled retry semantics.
+- Active WorkUnits without an attached Workflow are now treated as invalid
+  empty attempts: the reconciler cancels the Unit and releases any locks,
+  leaving the WorkIntent requested so scheduling can create a real attempt
+  instead of letting a workflow-less Unit block execution forever.
 
 ### Phase 6: Work Definition Policies
 

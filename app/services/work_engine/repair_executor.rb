@@ -725,6 +725,23 @@ module WorkEngine
         end
       end
 
+      class CancelActiveWorkUnitWithoutWorkflow < Base
+        def perform
+          unit = target_work_unit
+          return skipped("WorkUnit no longer exists") unless unit
+          return skipped("WorkUnit is #{unit.state}, not active") unless unit.active?
+          return skipped("WorkUnit already has Workflow ##{unit.workflow_id}") if unit.workflow_id.present?
+
+          unit.mark_terminal!("cancelled")
+          remaining_lock_ids = unit.work_unit_locks.active.pluck(:id)
+          if remaining_lock_ids.any?
+            failure("cancelled WorkUnit ##{unit.id}, but active locks remain: #{remaining_lock_ids.inspect}")
+          else
+            success("cancelled active WorkUnit ##{unit.id} without a Workflow")
+          end
+        end
+      end
+
       class SatisfyWorkIntentFromSucceededWorkUnit < Base
         def perform
           intent = target_work_intent

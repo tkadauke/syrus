@@ -1069,6 +1069,23 @@ module WorkEngine
         end
       end
 
+      class ActiveWorkUnitWithoutWorkflow < Base
+        def plan
+          automatic_plan(
+            "cancel_active_work_unit_without_workflow",
+            primary_work_unit,
+            "The WorkUnit has no Workflow attached, so it cannot execute; cancel the empty attempt and release any locks so the Intent can be scheduled again.",
+            execution_steps: [ "WorkUnit#mark_terminal!(cancelled)" ],
+            preconditions: {
+              work_unit_state: %w[queued blocked running],
+              workflow_id: nil,
+              active_lock_ids: issue.evidence["active_lock_ids"],
+              active_lock_keys: issue.evidence["active_lock_keys"]
+            }
+          )
+        end
+      end
+
       class SucceededWorkUnitUnsatisfiedIntent < Base
         def plan
           automatic_plan(

@@ -659,6 +659,46 @@ RSpec.describe WorkEngine::Reconciler do
     expect(lock.reload).not_to be_active
   end
 
+  it "cancels active WorkUnits that never attached a Workflow" do
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "queued",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+    member = unit.work_unit_members.create!(job: job, role: "primary")
+    lock = unit.work_unit_locks.create!(lock_key: "spec:orphan-unit:#{unit.id}")
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :active_work_unit_without_workflow)).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_active_work_unit_without_workflow"
+    )
+    expect(plan(result, :cancel_active_work_unit_without_workflow)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkUnit",
+      target_id: unit.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled active WorkUnit ##{unit.id} without a Workflow")
+    expect(unit.reload).to be_cancelled
+    expect(lock.reload).not_to be_active
+    expect(member.reload).to be_present
+    expect(intent.reload).to be_requested
+  end
+
   it "satisfies requested WorkIntents left behind by succeeded WorkUnits" do
     workflow = job.latest_workflow
     unit = workflow.work_unit

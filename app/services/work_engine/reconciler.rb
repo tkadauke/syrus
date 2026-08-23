@@ -182,6 +182,7 @@ module WorkEngine
       issues.concat(classify_active_steps_with_terminal_runs)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
+      issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
       issues.concat(classify_stale_auto_retry_workflows)
@@ -748,6 +749,28 @@ module WorkEngine
             active_lock_keys: active_locks.map(&:lock_key)
           },
           explanation: "Terminal WorkUnit ##{unit.id} still owns active locks; terminal units must release locks so future work can proceed."
+        )
+      end
+    end
+
+    def classify_active_work_units_without_workflows
+      work_units.select(&:active?).filter_map do |unit|
+        next if unit.workflow_id.present?
+
+        issue(
+          kind: :active_work_unit_without_workflow,
+          severity: :error,
+          affected_ids: ids_for(unit),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "cancel_active_work_unit_without_workflow",
+          evidence: {
+            work_unit_id: unit.id,
+            work_unit_state: unit.state,
+            work_intent_id: unit.work_intent_id,
+            active_lock_ids: unit.work_unit_locks.select(&:active?).map(&:id),
+            active_lock_keys: unit.work_unit_locks.select(&:active?).map(&:lock_key)
+          },
+          explanation: "Active WorkUnit ##{unit.id} has no Workflow, so it cannot execute but may still own locks."
         )
       end
     end
