@@ -826,6 +826,14 @@ RSpec.describe App::DashboardPayload do
         work_unit_id: workflow.work_unit.id,
         work_unit_state: "running"
       )
+
+      in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")
+      just_failed_folder = SmartFolder.find_builtin_by_attention("just_failed")
+      in_progress = call(subject: "job", smart_folder_id: in_progress_folder.id, section: "rows")
+      just_failed = call(subject: "job", smart_folder_id: just_failed_folder.id, section: "rows")
+
+      expect(in_progress[:items].map { |row| row[:id] }).to include(job.id)
+      expect(just_failed[:items].map { |row| row[:id] }).not_to include(job.id)
     end
 
     it "keeps admission-blocked landing workflows in landing queue instead of paused" do

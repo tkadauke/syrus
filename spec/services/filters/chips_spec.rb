@@ -196,6 +196,7 @@ RSpec.describe "Filters::Chips" do
       blocked_work_unit = Factories.job_record(repository: repo, issue_number: 14, state: "running")
       work_unit_owner = Factories.job_record(repository: repo, issue_number: 15, state: "running")
       work_unit_member = Factories.job_record(repository: repo, issue_number: 16, state: "approved")
+      work_unit_repairing = Factories.job_record(repository: repo, issue_number: 17, state: "failed")
       Factories.job_record(repository: repo, issue_number: 7, state: "approved")
 
       Workflow.create!(job: queued_rebase, trigger_kind: "rebase", state: "queued")
@@ -216,6 +217,7 @@ RSpec.describe "Filters::Chips" do
       )
       create_blocked_work_unit_for(blocked_work_unit)
       create_running_work_unit_for(work_unit_owner, member_jobs: [ work_unit_owner, work_unit_member ], kind: "merge_train")
+      create_running_work_unit_for(work_unit_repairing, kind: "ci_failure")
 
       expect(run(field: "attention", op: "is", value: "in_progress")).to contain_exactly(
         running,
@@ -226,7 +228,8 @@ RSpec.describe "Filters::Chips" do
         running_ci_failure,
         old_running_workflow,
         work_unit_owner,
-        work_unit_member
+        work_unit_member,
+        work_unit_repairing
       )
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(manually_paused_running)
     end
@@ -257,6 +260,7 @@ RSpec.describe "Filters::Chips" do
       workflow_paused = Factories.job_record(repository: repo, issue_number: 29, state: "running")
       work_unit_paused = Factories.job_record(repository: repo, issue_number: 31, state: "running")
       landing_paused = Factories.job_record(repository: repo, issue_number: 32, state: "landing")
+      repair_paused = Factories.job_record(repository: repo, issue_number: 37, state: "failed")
       Factories.job_record(repository: repo, issue_number: 30, state: "queued")
       Workflow.create!(
         job: workflow_paused,
@@ -266,8 +270,9 @@ RSpec.describe "Filters::Chips" do
       )
       create_blocked_work_unit_for(work_unit_paused)
       create_blocked_work_unit_for(landing_paused, kind: "auto_merge")
+      create_blocked_work_unit_for(repair_paused, kind: "ci_failure")
 
-      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, workflow_paused, work_unit_paused)
+      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, workflow_paused, work_unit_paused, repair_paused)
     end
 
     it "queued: excludes jobs with a running infrastructure workflow (e.g. main_grader)" do
@@ -322,6 +327,7 @@ RSpec.describe "Filters::Chips" do
       )
       active_failed = Factories.job_record(repository: repo, issue_number: 19, state: "failed")
       active_implemented = Factories.job_record(repository: repo, issue_number: 20, state: "implemented")
+      repairing_failed = Factories.job_record(repository: repo, issue_number: 21, state: "failed")
       Factories.job_record(repository: repo, issue_number: 15, state: "queued")
       Factories.job_record(
         repository: repo,
@@ -333,6 +339,7 @@ RSpec.describe "Filters::Chips" do
       Factories.job_record(repository: repo, issue_number: 17, state: "triaging", triaging_reason: "pending_epic_ref")
       Workflow.create!(job: active_failed, trigger_kind: "manual", state: "running")
       Workflow.create!(job: active_implemented, trigger_kind: "manual", state: "queued")
+      create_running_work_unit_for(repairing_failed, kind: "ci_failure")
 
       expect(run(field: "attention", op: "is", value: "inbox")).to contain_exactly(
         failed,
@@ -424,6 +431,8 @@ RSpec.describe "Filters::Chips" do
         state: "approved",
         landing_failure_reason: "landing start blocked: workflow admission budget"
       )
+      repair_running = Factories.job_record(repository: repo, issue_number: 7, state: "failed")
+      repair_blocked = Factories.job_record(repository: repo, issue_number: 8, state: "failed")
       Factories.job_record(
         repository: repo,
         issue_number: 5,
@@ -431,9 +440,11 @@ RSpec.describe "Filters::Chips" do
         landing_failure_reason: "old landing failure"
       )
       Factories.job(repository: repo, issue_number: 2)
+      create_running_work_unit_for(repair_running, kind: "ci_failure")
+      create_blocked_work_unit_for(repair_blocked, kind: "ci_failure")
 
       expect(run(field: "attention", op: "is", value: "just_failed")).to contain_exactly(failed)
-      expect(run(field: "attention", op: "is", value: "just_failed")).not_to include(landing_failed, merge_train_failed, landing_retrying)
+      expect(run(field: "attention", op: "is", value: "just_failed")).not_to include(landing_failed, merge_train_failed, landing_retrying, repair_running, repair_blocked)
     end
 
     it "has_landing_failure: returns open jobs with a substantive landing failure reason" do

@@ -145,6 +145,7 @@ module Filters
           active = scope.where(manual_paused: false)
           active.where(state: "running").where.not(id: paused_job_ids)
                 .or(active.open_threads.where(id: unpaused_running_workflow_job_ids))
+                .or(active.where(id: runnable_repair_work_job_ids))
         end
 
         def apply_paused
@@ -172,7 +173,7 @@ module Filters
           owner_jobs = Job.effectively_owned_by(user)
           open = scope.effectively_owned_by(user).open_threads.without_active_workflows
           open.where(id: actionable_unread_feedback_ids(owner_jobs))
-              .or(open.where(state: "failed"))
+              .or(open.where(state: "failed").where.not(id: active_repair_work_job_ids))
               .or(open.where(id: landing_failure_ids(owner_jobs)))
               .or(open.where(id: needs_review_ids(owner_jobs)))
               .or(open.where(id: awaiting_approval_ids(owner_jobs)))
@@ -184,9 +185,10 @@ module Filters
 
         def apply_just_failed
           # A Job in Just failed should be terminal enough to require
-          # operator action. Landing failures remain actionable through Inbox,
-          # but may still have active automatic repair workflows.
-          scope.where(state: "failed")
+          # operator action. Failed jobs with active repair work are still in
+          # motion, so they surface as in-progress/paused from the WorkUnit
+          # projection instead of as operator-terminal failures.
+          scope.where(state: "failed").where.not(id: active_repair_work_job_ids)
         end
 
         def apply_stale
@@ -265,6 +267,14 @@ module Filters
 
         def paused_job_ids
           paused_workflow_job_ids | blocked_work_unit_job_ids
+        end
+
+        def active_repair_work_job_ids
+          @active_repair_work_job_ids ||= WorkUnits::Ownership.all_active_job_ids(kinds: WorkDefinitions.active_repair_work_kinds).to_a
+        end
+
+        def runnable_repair_work_job_ids
+          @runnable_repair_work_job_ids ||= WorkUnits::Ownership.all_runnable_job_ids(kinds: WorkDefinitions.active_repair_work_kinds).to_a
         end
 
         def paused_workflow_job_ids
