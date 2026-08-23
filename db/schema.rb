@@ -2467,8 +2467,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "admin_build_cache_clear_requests", "users"
-
   # Virtual tables defined in this database.
   # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end
