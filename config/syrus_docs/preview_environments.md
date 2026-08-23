@@ -103,11 +103,23 @@ Alongside its poll loop, `bin/preview` also starts `PreviewControlServer`, a sma
 
 Preview apps do not reuse workflow workspaces: successful workflow workspaces are cleaned up as part of normal workflow lifecycle. When an operator starts a preview, the preview service materializes a fresh checkout under `$SYRUS_DATA_ROOT/previews/<preview_environment_id>/` at the Job's PR branch, runs preview setup and seed commands there, and starts the app from that checkout. Stopping or expiring an environment removes that checkout and nulls the `workspace_path` column so a stopped/expired environment's row never points at a deleted directory.
 
+### Post-land previews
+
+A Job stays previewable after it lands (`Job#previewable?` allows a `closed?`
+Job once `landed_sha` is present — the merge commit SHA Syrus records on
+successful auto-merge and merge-train landing). Syrus deletes the PR branch
+right after merge, so `PreviewWorkspace` cannot clone it by name anymore for a
+landed Job. Instead `PreviewService#workspace_revision_for` selects
+`revision: :commit_sha` for closed, landed Jobs: `PreviewWorkspace` clones the
+repository's default branch (always present, non-shallow) and checks out
+`job.landed_sha` directly rather than passing `--branch job.branch_name`. Every
+other previewable state keeps cloning by branch name (`revision: :head`).
+
 Each preview server child process is recorded as a `SpawnedProcess` with `kind=preview`, including `pid`, `pgid`, command, workdir, and preview/job identifiers in `resource_attribution`. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
 
 ## Lifecycle
 
-- Start: operator clicks "Start Preview" in the Syrus UI for an implemented, approved, or landing Job → preview service creates a fresh preview checkout, runs setup/seed commands, then spawns the app.
+- Start: operator clicks "Start Preview" in the Syrus UI for an implemented, approved, or landing Job, or for a closed Job that has landed (see "Post-land previews" above) → preview service creates a fresh preview checkout, runs setup/seed commands, then spawns the app.
 - Inactivity TTL: 10 minutes of no proxied traffic causes the preview service to stop the environment.
 - TTL reset: each proxied request through `PreviewProxyMiddleware` resets `last_activity_at` and extends `expires_at`.
 - Failure: if the checkout, preview command resolution, port allocation, setup/seed/app start, or health check fails, the environment is marked `failed` with an error message. It must not remain indefinitely in `starting` or `seeding`.

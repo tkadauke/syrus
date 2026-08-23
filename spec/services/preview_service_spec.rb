@@ -173,6 +173,25 @@ RSpec.describe PreviewService do
     end
   end
 
+  describe "#workspace_revision_for" do
+    it "returns :head for a job that has not landed" do
+      service = described_class.new
+      expect(service.send(:workspace_revision_for, job)).to eq(:head)
+    end
+
+    it "returns :commit_sha for a closed job with a merged commit sha" do
+      landed_job = Factories.job_record(state: "closed", landed_sha: "abc123")
+      service = described_class.new
+      expect(service.send(:workspace_revision_for, landed_job)).to eq(:commit_sha)
+    end
+
+    it "returns :head for a closed job with no merged commit sha" do
+      closed_job = Factories.job_record(state: "closed", landed_sha: nil)
+      service = described_class.new
+      expect(service.send(:workspace_revision_for, closed_job)).to eq(:head)
+    end
+  end
+
   describe "#poll_starting_environments" do
     it "does not process environments that already have a child entry" do
       env = create_env
@@ -187,7 +206,7 @@ RSpec.describe PreviewService do
     it "marks the environment failed when the preview workspace cannot be prepared" do
       env = create_env(workspace_path: "/nonexistent/path")
       service = described_class.new
-      allow(PreviewWorkspace).to receive(:prepare!).with(env).and_raise("checkout failed")
+      allow(PreviewWorkspace).to receive(:prepare!).with(env, revision: :head).and_raise("checkout failed")
 
       service.send(:poll_starting_environments)
       expect(env.reload.state).to eq("failed")
