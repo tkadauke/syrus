@@ -2,9 +2,16 @@ require "digest"
 
 class NotificationService
   SIMPLE_SUPPRESSED_KINDS = %w[
-    job_failed job_implemented pr_comment_addressed pr_merged epic_completed upstream_pr_closed
+    pr_comment_addressed pr_merged epic_completed upstream_pr_closed
     main_broken main_inconclusive main_recovered external_pr_feedback
   ].freeze
+
+  # job_failed/job_implemented are suppressed in simple mode only for Jobs
+  # that belong to a legacy epic (epic_id present) — those Jobs keep routing
+  # through the epic's own rollup notification (Epic#notify_child_failed,
+  # Epic#notify_epic_review_ready). Standalone Jobs surface these directly
+  # now that simple mode's primary surface is job-centric.
+  SIMPLE_EPIC_CHILD_SUPPRESSED_KINDS = %w[job_failed job_implemented].freeze
 
   def self.create_for(user:, kind:, job: nil, repository: nil, actor: nil, pr_url: nil, body:, supervisor_dedupe_key: nil)
     raise ArgumentError, "unknown notification kind: #{kind}" unless Notification::KINDS.include?(kind)
@@ -21,11 +28,18 @@ class NotificationService
       dedupe_key: supervisor_dedupe_key
     )
 
-    return nil if AppSetting.simple? && SIMPLE_SUPPRESSED_KINDS.include?(kind)
+    preserve_job_reference = AppSetting.simple? && SIMPLE_EPIC_CHILD_SUPPRESSED_KINDS.include?(kind) && job.present?
+
+    if AppSetting.simple?
+      return nil if SIMPLE_SUPPRESSED_KINDS.include?(kind)
+      return nil if SIMPLE_EPIC_CHILD_SUPPRESSED_KINDS.include?(kind) && job&.epic_id.present?
+    end
     return nil unless user.notification_preference_for(kind)
 
-    job = nil if AppSetting.simple?
-    pr_url = nil if AppSetting.simple?
+    if AppSetting.simple? && !preserve_job_reference
+      job = nil
+      pr_url = nil
+    end
     notification = Notification.create!(
       user: user,
       kind: kind,
