@@ -2137,6 +2137,48 @@ RSpec.describe WorkEngine::Reconciler do
     expect(first.reload).to be_landing
   end
 
+  it "does not auto-defer a landing Job owned by an active landing WorkUnit" do
+    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units landing"
+    end.update!(enabled: true)
+    workflow.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+    step.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+    run.update_columns(state: "succeeded", finished_at: 1.minute.ago)
+    job.update!(state: "landing", approved_at: 2.minutes.ago, approved_via: "operator")
+    intent = WorkIntent.create!(
+      kind: "auto_merge",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "auto_merge",
+      state: "blocked",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow,
+      blocked_reason: "admission_control",
+      blocked_until: 2.minutes.from_now,
+      blocked_details: { "reason" => "budget_pressure" }
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :landing_job_without_active_workflow)).to be_nil
+
+    executed = reconcile_and_execute(job_id: job.id)
+
+    expect(plan(executed, :defer_orphaned_landing_job)).to be_nil
+    expect(job.reload).to be_landing
+  end
+
   it "waits for landing workflows queued without a first Run while admission backoff is active" do
     landing_job = Factories.job_record(
       user: job.user,

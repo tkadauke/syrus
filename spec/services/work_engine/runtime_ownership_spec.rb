@@ -8,6 +8,13 @@ RSpec.describe WorkEngine::RuntimeOwnership do
     end.update!(enabled: enabled)
   end
 
+  def set_landing_gate(enabled)
+    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units landing"
+    end.update!(enabled: enabled)
+  end
+
   def attach_epic_unit(epic, workflow, member_jobs:, state: "running")
     intent = WorkIntent.create!(
       kind: "merge_train",
@@ -30,6 +37,29 @@ RSpec.describe WorkEngine::RuntimeOwnership do
     member_jobs.each_with_index do |job, index|
       unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
     end
+    unit
+  end
+
+  def attach_landing_unit(job, workflow: nil, kind: "auto_merge", state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
     unit
   end
 
@@ -62,5 +92,30 @@ RSpec.describe WorkEngine::RuntimeOwnership do
     attach_epic_unit(epic, workflow, member_jobs: [ first, second ])
 
     expect(described_class.active_epic_wide_workflow_for_job?(second)).to be false
+  end
+
+  it "uses legacy active landing workflow detection when the landing gate is disabled" do
+    set_landing_gate(false)
+    job = Factories.job_record
+    Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+
+    expect(described_class.active_landing_work_for_job?(job)).to be true
+  end
+
+  it "uses work unit landing ownership when the landing gate is enabled" do
+    set_landing_gate(true)
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "succeeded")
+    attach_landing_unit(job, workflow: workflow, state: "blocked")
+
+    expect(described_class.active_landing_work_for_job?(job)).to be true
+  end
+
+  it "ignores non-landing work units when checking landing ownership" do
+    set_landing_gate(true)
+    job = Factories.job_record
+    attach_landing_unit(job, kind: "initial", state: "running")
+
+    expect(described_class.active_landing_work_for_job?(job)).to be false
   end
 end

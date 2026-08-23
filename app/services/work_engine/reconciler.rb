@@ -880,7 +880,7 @@ module WorkEngine
         next unless job.state.in?(%w[running landing])
         active_workflows = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
         next if active_workflows.any?
-        next if job.landing? && active_epic_wide_workflow_for_job?(job)
+        next if job.landing? && active_landing_work_for_job?(job)
 
         if job.landing?
           next unless landing_slot_orphaned?(job)
@@ -1076,7 +1076,7 @@ module WorkEngine
     end
 
     def landing_slot_orphaned?(job)
-      job.workflows.active.none?
+      !active_landing_work_for_job?(job)
     end
 
     def landing_start_blocked_workflow?(workflow)
@@ -1921,6 +1921,10 @@ module WorkEngine
 
     def active_epic_wide_workflow_for_job?(job)
       WorkEngine::RuntimeOwnership.active_epic_wide_workflow_for_job?(job)
+    end
+
+    def active_landing_work_for_job?(job)
+      WorkEngine::RuntimeOwnership.active_landing_work_for_job?(job)
     end
 
     def recoverable_cancelled_workflow_for_queued_job?(job, workflow)

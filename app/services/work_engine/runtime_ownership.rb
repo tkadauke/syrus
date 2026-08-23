@@ -4,6 +4,10 @@ module WorkEngine
       new(job).active_epic_wide_workflow?
     end
 
+    def self.active_landing_work_for_job?(job)
+      new(job).active_landing_work?
+    end
+
     def initialize(job)
       @job = job
     end
@@ -18,6 +22,16 @@ module WorkEngine
       end
     end
 
+    def active_landing_work?
+      return false unless job
+
+      if WorkUnits::PathOwnership.work_unit_owned?("landing_queue")
+        WorkUnits::Ownership.active_for_job_kind?(job, WorkDefinitions::Base::LANDING_LOCK_KINDS)
+      else
+        legacy_active_landing_work?
+      end
+    end
+
     private
 
     attr_reader :job
@@ -28,6 +42,10 @@ module WorkEngine
         .epic_wide
         .where(job_id: job.epic.jobs.select(:id))
         .exists?
+    end
+
+    def legacy_active_landing_work?
+      job.workflows.active.any? || active_epic_wide_workflow?
     end
   end
 end

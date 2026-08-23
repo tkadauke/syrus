@@ -1682,6 +1682,15 @@ Concrete Phase 5 graduation targets:
 - after WorkUnit-backed CI failure dispatch, remove/disable CI repair checks
   that infer active landing from unrelated Workflow rows.
 
+Completed slices:
+
+- `landing_job_without_active_workflow` now goes through
+  `WorkEngine::RuntimeOwnership.active_landing_work_for_job?`. With
+  `work_units_landing` enabled, active landing WorkUnits are authoritative, so
+  a landing Job is not auto-deferred merely because the old direct Workflow row
+  is terminal or absent. With the gate disabled, the adapter preserves the
+  legacy active-Workflow / Epic-wide Workflow fallback.
+
 ### Phase 6: Work Definition Policies
 
 Have each Work definition declare:
