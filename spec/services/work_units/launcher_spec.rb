@@ -5,6 +5,13 @@ RSpec.describe WorkUnits::Launcher do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository) }
 
+  def set_scheduler_gate(enabled)
+    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units scheduler"
+    end.update!(enabled: enabled)
+  end
+
   it "instantiates the workflow template declared by the work definition" do
     workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
 
@@ -112,6 +119,15 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT)).to eq("syrus/parent")
   end
 
+  it "uses maintenance-scoped locks for rebase workflows so they can recover active job work" do
+    active = described_class.instantiate(kind: "initial", job: job)
+
+    rebase = described_class.instantiate(kind: "rebase", job: job, base_branch: "main")
+
+    expect(active.work_unit.work_unit_locks.pluck(:lock_key)).to include("job:#{job.id}")
+    expect(rebase.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("maintenance:rebase:job:#{job.id}")
+  end
+
   it "snapshots known ref metadata onto the intent and unit" do
     job.update!(branch_name: "syrus/job-#{job.id}")
 
@@ -161,6 +177,9 @@ RSpec.describe WorkUnits::Launcher do
 
     expect(result.workflow).to be_persisted
     expect(result.workflow.work_unit).to have_attributes(kind: "manual_visual_review")
+    expect(result).to be_started
+    expect(result.intent).to eq(result.workflow.work_unit.work_intent)
+    expect(result.work_unit).to eq(result.workflow.work_unit)
     expect(result.run).to be_queued
     expect(result.run.step).to eq(result.workflow.first_step)
   end
@@ -191,8 +210,27 @@ RSpec.describe WorkUnits::Launcher do
     result = described_class.start!(workflow)
 
     expect(result.workflow).to eq(workflow)
+    expect(result).to be_started
     expect(result.run).to be_queued
     expect(result.run.step).to eq(workflow.first_step)
+  end
+
+  it "lets the work unit scheduler block a start before the first Run is created" do
+    set_scheduler_gate(true)
+    workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
+    workflow.work_unit.request_pause!
+
+    expect {
+      @result = described_class.start!(workflow)
+    }.not_to change { Run.count }
+
+    expect(@result).to be_blocked
+    expect(@result.workflow).to eq(workflow)
+    expect(@result.run).to be_nil
+    expect(@result.reason).to eq("manual_pause")
+    expect(@result.work_unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
+  ensure
+    set_scheduler_gate(false)
   end
 
   it "snapshots merge train members from the merge train artifact" do
@@ -217,6 +255,19 @@ RSpec.describe WorkUnits::Launcher do
       "job:#{first.id}",
       "job:#{second.id}",
       "landing:repository:#{repository.id}"
+    )
+  end
+
+  it "uses maintenance-scoped locks for stack rebase workflows" do
+    epic = Factories.epic(user: user, repository: repository)
+    parent = Factories.job_record(user: user, repository: repository, epic: epic)
+    child = Factories.job_record(user: user, repository: repository, epic: epic, parent_job: parent)
+
+    workflow = described_class.instantiate(kind: "stack_rebase", job: child, base_branch: parent.branch_name || "main")
+
+    expect(workflow.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly(
+      "maintenance:rebase:job:#{child.id}",
+      "maintenance:stack_rebase:epic:#{epic.id}"
     )
   end
 end

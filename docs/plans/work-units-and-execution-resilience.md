@@ -1784,6 +1784,14 @@ Completed slices:
   released historical locks clear it, and the migration releases duplicate
   active shadow locks before adding the unique index so runtime ownership cannot
   silently split across two non-terminal Units.
+- `WorkUnits::Launcher` now returns a typed launch result carrying the Workflow,
+  first Run, WorkIntent, WorkUnit, status, and gate result. When the
+  `work_units_scheduler` gate is enabled, launcher start evaluates WorkUnit
+  gates before creating the first Run and returns a blocked result instead of
+  leaking a queued Run past a typed unit block. Rebase and stack-rebase
+  WorkDefinitions use maintenance-scoped locks (`maintenance:rebase:*`) rather
+  than the primary `job:*` locks so recovery rebases can coexist with the active
+  workflow they are repairing while still preventing duplicate rebase races.
 
 ### Phase 8: Step/Run Simplification
 

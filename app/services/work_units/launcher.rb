@@ -10,7 +10,10 @@ module WorkUnits
       end
     end
 
-    Result = Data.define(:workflow, :run)
+    Result = Data.define(:workflow, :run, :intent, :work_unit, :status, :reason, :gate_result) do
+      def started? = status == "started"
+      def blocked? = status == "blocked"
+    end
 
     def self.instantiate(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, **options)
       new(
@@ -41,7 +44,32 @@ module WorkUnits
     end
 
     def self.start!(workflow, **options)
-      Result.new(workflow: workflow, run: StepDispatcher.start_workflow(workflow, **options))
+      unit = workflow.work_unit
+      if unit && Feature.work_units_scheduler_enabled?
+        gate_result = Scheduler.evaluate!(unit)
+        if gate_result.blocked?
+          return Result.new(
+            workflow: workflow,
+            run: nil,
+            intent: unit.work_intent,
+            work_unit: unit,
+            status: "blocked",
+            reason: gate_result.reason,
+            gate_result: gate_result
+          )
+        end
+      end
+
+      run = StepDispatcher.start_workflow(workflow, **options)
+      Result.new(
+        workflow: workflow,
+        run: run,
+        intent: unit&.work_intent,
+        work_unit: unit,
+        status: run ? "started" : "not_started",
+        reason: nil,
+        gate_result: nil
+      )
     end
 
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:)

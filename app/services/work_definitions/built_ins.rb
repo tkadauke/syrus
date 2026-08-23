@@ -64,6 +64,10 @@ module WorkDefinitions
     self.workflow_trigger_kind = "rebase"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
+      [ "maintenance:rebase:job:#{job.id}" ]
+    end
   end
 
   class StackRebase < Base
@@ -74,6 +78,12 @@ module WorkDefinitions
     self.workflow_trigger_kind = "stack_rebase"
     self.runtime_role = "first_class"
     self.scope = "epic"
+
+    def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
+      keys = member_jobs.map { |member_job| "maintenance:rebase:job:#{member_job.id}" }
+      keys << "maintenance:stack_rebase:epic:#{job.epic_id}" if job.epic_id.present?
+      keys.uniq
+    end
   end
 
   class AutoMerge < Base
