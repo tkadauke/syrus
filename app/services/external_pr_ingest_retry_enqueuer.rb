@@ -17,7 +17,7 @@ class ExternalPrIngestRetryEnqueuer
 
     job.with_lock do
       job.reload
-      if job.workflows.active.exists?
+      if WorkUnits::Ownership.active_for_job?(job)
         failure_result = failure("A workflow is already running for this Job.")
       else
         state_error = prepare_job_state_for_retry

@@ -49,6 +49,10 @@ RSpec.describe PollForkReviewPrJob do
     )
   end
 
+  def finish_work_units_for(job)
+    WorkUnit.where(workflow_id: job.workflows.select(:id)).find_each { |unit| unit.mark_terminal!("succeeded") }
+  end
+
   it "does nothing when the job has no fork_review_pr_number" do
     other_job = Factories.job(repository: fork_repo, issue_number: 99)
     expect(ForkReviewApprover).not_to receive(:new)
@@ -144,6 +148,8 @@ RSpec.describe PollForkReviewPrJob do
     before do
       stub_fork_pr
       stub_reviews([])
+      job.workflows.where(trigger_kind: "initial").update_all(state: "succeeded", finished_at: Time.current)
+      finish_work_units_for(job)
       allow(PrCommentClassifier).to receive(:call).and_return(
         PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
       )

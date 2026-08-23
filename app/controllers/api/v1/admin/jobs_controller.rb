@@ -36,7 +36,7 @@ module Api
             scope = scope.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%")
           end
           if truthy?(params[:has_active_workflow])
-            scope = scope.where(id: Workflow.active.select(:job_id))
+            scope = scope.where(id: WorkUnits::Ownership.all_active_job_ids.to_a)
           end
           if truthy?(params[:failed_in_last_24h])
             scope = scope.where(id: failed_recently_job_ids(24.hours.ago))

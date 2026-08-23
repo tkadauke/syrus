@@ -632,7 +632,7 @@ module App
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
           !RebaseWorkflowSelector.active_merge_train_for_stack?(@job),
         can_check_mergeability: @job.pr_number.present? || @job.external_pr_number.present?,
-        can_retry_pr_ingestion: @job.open? && @job.external_pr_ingest_blocked? && !@job.workflows.active.exists?,
+        can_retry_pr_ingestion: @job.open? && @job.external_pr_ingest_blocked? && !WorkUnits::Ownership.active_for_job?(@job),
         can_retry: retry_actions[:implementation].present?,
         can_retry_from_failed_step: retry_actions[:failed_step].present?,
         retry_failed_step_action: retry_actions[:failed_step],

@@ -295,7 +295,7 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def pending_followup?
-    @job.workflows.active.where(trigger_kind: "pr_comment").exists?
+    WorkUnits::Ownership.active_for_job?(@job)
   end
 
   # Fetches the FULL comment thread (no `since:` cutoff), not just new
@@ -516,7 +516,7 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def pending_ci_failure_run?
-    @job.workflows.active.where(trigger_kind: "ci_failure").exists?
+    WorkUnits::Ownership.active_for_job_kind?(@job, "ci_failure")
   end
 
   def landing_workflow_active?

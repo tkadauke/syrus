@@ -52,7 +52,7 @@ module CiRepair
     private
 
     def active_ci_repair?
-      @job.workflows.active.where(trigger_kind: "ci_failure").exists?
+      WorkUnits::Ownership.active_for_job_kind?(@job, "ci_failure")
     end
 
     def enforce_same_sha_limit!(head_sha)

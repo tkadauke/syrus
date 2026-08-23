@@ -18,7 +18,7 @@ class PollMergeStateJob < ApplicationJob
     pr_number = @job.pr_number || @job.external_pr_number
     return unless pr_number
     return if @job.repository.archived?
-    return if @job.workflows.active.exists?
+    return if WorkUnits::Ownership.active_for_job?(@job)
     return if RebaseWorkflowSelector.active_for_stack?(@job)
 
     pr_repo = @job.effective_pr_repository

@@ -197,7 +197,7 @@ class PollExternalPrJob < ApplicationJob
   end
 
   def pending_external_pr_feedback?
-    @job.workflows.active.where(trigger_kind: "external_pr_feedback").exists?
+    WorkUnits::Ownership.active_for_job?(@job)
   end
 
   def notify_external_feedback(record)

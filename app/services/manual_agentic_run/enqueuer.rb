@@ -51,7 +51,7 @@ module ManualAgenticRun
       raise ArgumentError, "push requires an existing PR branch." if @push && @job.branch_name.blank?
       raise ArgumentError, "push requires an existing PR." if @push && (@job.pr_number.presence || @job.external_pr_number.presence).blank?
       raise ArgumentError, "fresh_checkout cannot push to the existing PR branch; use current_pr_branch or disable push." if @push && @base == "fresh_checkout"
-      raise ArgumentError, "A manual agentic run is already active for this Job." if @job.workflows.active.where(trigger_kind: "manual_agentic_run").exists?
+      raise ArgumentError, "A manual agentic run is already active for this Job." if WorkUnits::Ownership.active_for_job_kind?(@job, "manual_agentic_run")
     end
 
     def base_payload

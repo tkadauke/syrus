@@ -137,7 +137,7 @@ class PollForkReviewPrJob < ApplicationJob
   end
 
   def pending_followup?
-    @job.workflows.active.where(trigger_kind: "pr_comment").exists?
+    WorkUnits::Ownership.active_for_job?(@job)
   end
 
   def fetch_all_fork_review_comments

@@ -32,6 +32,35 @@ RSpec.describe ExternalPrIngestRetryEnqueuer do
     expect(result.error).to match(/already running/i)
   end
 
+  it "rejects when an active WorkUnit owns the Job even if the workflow is terminal" do
+    job = same_repo_job
+    workflow = Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed", finished_at: Time.current)
+    intent = WorkIntent.create!(
+      kind: "external_pr_ingest",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "external_pr_ingest",
+      state: "running",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    result = described_class.call(job: job)
+
+    expect(result).not_to be_success
+    expect(result.error).to match(/already running/i)
+  end
+
   it "dispatches a fresh external_pr_ingest workflow and returns the Job to :queued after a failed ingest" do
     job = same_repo_job(state: "failed")
 

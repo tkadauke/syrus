@@ -19,6 +19,9 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
 
   def auth(token) = { "Authorization" => "Bearer #{token}" }
   def parse_body  = JSON.parse(response.body)
+  def finish_work_units_for(job)
+    WorkUnit.where(workflow_id: job.workflows.select(:id)).find_each { |unit| unit.mark_terminal!("succeeded") }
+  end
 
   describe "auth" do
     it "401s without an Authorization header" do
@@ -565,10 +568,45 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
         # job_124 has the auto-created Initial workflow from Factories.job;
         # mark it terminal so we can tell which Jobs surface.
         job_124.workflows.update_all(state: "succeeded", finished_at: Time.current)
+        finish_work_units_for(job_124)
+        finish_work_units_for(job_125)
 
         Workflow.create!(job: job_125, trigger_kind: "rebase", state: "running")
 
         get "/api/v1/admin/jobs", params: { has_active_workflow: "true" }, headers: auth(admin_token)
+        ids = parse_body["jobs"].map { |j| j["id"] }
+        expect(ids).to include(job_125.id)
+        expect(ids).not_to include(job_124.id)
+      end
+
+      it "includes Jobs owned only by an active WorkUnit" do
+        job_124.workflows.update_all(state: "succeeded", finished_at: Time.current)
+        job_125.workflows.update_all(state: "succeeded", finished_at: Time.current)
+        finish_work_units_for(job_124)
+        finish_work_units_for(job_125)
+        workflow = Workflow.create!(job: job_125, trigger_kind: "manual_visual_review", state: "succeeded", finished_at: Time.current)
+        intent = WorkIntent.create!(
+          kind: "manual_visual_review",
+          state: "requested",
+          repository: job_125.repository,
+          scope_type: "job",
+          scope_id: job_125.id,
+          actor: job_125.user,
+          source_type: "spec"
+        )
+        unit = WorkUnit.create!(
+          work_intent: intent,
+          kind: "manual_visual_review",
+          state: "running",
+          repository: job_125.repository,
+          scope_type: "job",
+          scope_id: job_125.id,
+          workflow: workflow
+        )
+        unit.work_unit_members.create!(job: job_125, role: "primary")
+
+        get "/api/v1/admin/jobs", params: { has_active_workflow: "true" }, headers: auth(admin_token)
+
         ids = parse_body["jobs"].map { |j| j["id"] }
         expect(ids).to include(job_125.id)
         expect(ids).not_to include(job_124.id)

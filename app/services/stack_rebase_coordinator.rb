@@ -49,7 +49,7 @@ class StackRebaseCoordinator
   def enqueue_rebase(child)
     return if child.closed?
     return if child.branch_name.blank? || child.pr_number.blank?
-    return if child.workflows.active.exists?
+    return if WorkUnits::Ownership.active_for_job?(child)
     return if RebaseWorkflowSelector.active_merge_train_for_stack?(child)
     return if automatic_rebase_deferred_until_epic_materialized?(child)
 

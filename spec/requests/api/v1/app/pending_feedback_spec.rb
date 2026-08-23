@@ -284,6 +284,46 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(response).to have_http_status(:conflict)
       expect(ChatFeedbackSubmission).not_to have_received(:call)
     end
+
+    it "blocks duplicate retries when a WorkUnit-owned workflow references the same comment" do
+      original = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "failed")
+      comment = make_pr_comment(
+        handling_workflow: original,
+        handling_state: "failed",
+        handling_failed_at: Time.current,
+        handling_failure_reason: "rate_limit"
+      )
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "failed",
+        artifacts: { "feedback_source" => { "pr_review_comment_id" => comment.id } }
+      )
+      intent = WorkIntent.create!(
+        kind: "chat_feedback",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "chat_feedback",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      post "/api/v1/app/jobs/#{job.id}/pending_feedback/#{comment.id}/retry"
+
+      expect(response).to have_http_status(:conflict)
+      expect(ChatFeedbackSubmission).not_to have_received(:call)
+    end
   end
 
   def sign_out

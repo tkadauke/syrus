@@ -157,7 +157,12 @@ module Api
         end
 
         def active_feedback_workflow_for?(job, comment)
-          job.workflows.active.where(trigger_kind: Workflow::TriggerKind.feedback_values).any? do |workflow|
+          active_workflows = WorkUnits::Ownership
+            .active_units_for_job(job, kinds: Workflow::TriggerKind.feedback_values)
+            .filter_map(&:workflow)
+
+          active_workflows += job.workflows.active.where(trigger_kind: Workflow::TriggerKind.feedback_values).to_a
+          active_workflows.uniq.any? do |workflow|
             workflow_references_comment?(workflow, comment)
           end
         end
