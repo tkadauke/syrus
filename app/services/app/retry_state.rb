@@ -121,7 +121,10 @@ module App
     end
 
     def any_active_run?
-      return job.any_active_run? if @any_active_run_override.equal?(UNSET)
+      if @any_active_run_override.equal?(UNSET)
+        WorkUnits::TerminalWorkflowSync.for_job(job)
+        return job.reload.active_runtime_work?
+      end
 
       @any_active_run_override
     end

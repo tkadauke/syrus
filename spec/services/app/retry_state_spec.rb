@@ -104,6 +104,42 @@ RSpec.describe App::RetryState do
       )
     end
 
+    it "does not report a failed workflow retryable while active WorkUnit ownership exists" do
+      job = Factories.job
+      job.latest_workflow.update!(
+        state: "failed",
+        artifacts: { "failure_classification" => "git_failure" },
+        failure_count: 1,
+        finished_at: 1.minute.ago
+      )
+      job.initial_run.update_columns(state: "failed", finished_at: 1.minute.ago)
+      intent = WorkIntent.create!(
+        kind: "chat_feedback",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "chat_feedback",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      expect(described_class.for(job.reload)).to include(
+        classification: "git_failure",
+        classification_label: "Git failure",
+        retryable: false,
+        state_label: "Waiting for operator"
+      )
+    end
+
     it "does not call rebase-cap landing failures retryable" do
       job = Factories.job
       workflow = job.latest_workflow
