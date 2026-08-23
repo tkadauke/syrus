@@ -136,20 +136,23 @@ module WorkEngine
 
     def self.call(...) = new(...).call
 
-    def self.request(source:, job: nil, workflow: nil, run: nil)
-      WorkEngine::ReconcileJob.perform_later(
+    def self.request(source:, job: nil, workflow: nil, run: nil, work_intent: nil)
+      args = {
         source: source.to_s,
         job_id: job&.id,
         workflow_id: workflow&.id,
         run_id: run&.id
-      )
+      }
+      args[:work_intent_id] = work_intent.id if work_intent
+      WorkEngine::ReconcileJob.perform_later(**args)
     end
 
-    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, now: Time.current, execute_repairs: false)
+    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false)
       @source = source.to_s
       @job_id = job_id
       @workflow_id = workflow_id
       @run_id = run_id
+      @work_intent_id = work_intent_id
       @now = now
       @execute_repairs = execute_repairs
     end
@@ -160,6 +163,7 @@ module WorkEngine
         job_id: job_id,
         workflow_id: workflow_id,
         run_id: run_id,
+        work_intent_id: work_intent_id,
         now: now,
         execute_repairs: execute_repairs?
       )
@@ -186,6 +190,7 @@ module WorkEngine
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
       issues.concat(classify_waiting_work_intents_ready_for_recheck)
+      issues.concat(classify_requested_work_intents_without_active_units)
       issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
@@ -221,6 +226,7 @@ module WorkEngine
           job_id: job_id,
           workflow_id: workflow_id,
           run_id: run_id,
+          work_intent_id: work_intent_id,
           now: now,
           execute_repairs: false,
           result: result
@@ -234,6 +240,7 @@ module WorkEngine
         job_id: job_id,
         workflow_id: workflow_id,
         run_id: run_id,
+        work_intent_id: work_intent_id,
         now: now,
         execute_repairs: true,
         result: result
@@ -245,6 +252,7 @@ module WorkEngine
         job_id: job_id,
         workflow_id: workflow_id,
         run_id: run_id,
+        work_intent_id: work_intent_id,
         now: now,
         execute_repairs: execute_repairs?,
         error: e
@@ -259,7 +267,7 @@ module WorkEngine
 
     private
 
-    attr_reader :source, :job_id, :workflow_id, :run_id, :now, :jobs, :workflows, :work_intents, :work_units, :runs, :steps, :solid_queue
+    attr_reader :source, :job_id, :workflow_id, :run_id, :work_intent_id, :now, :jobs, :workflows, :work_intents, :work_units, :runs, :steps, :solid_queue
 
     def execute_repairs?
       @execute_repairs
@@ -268,6 +276,8 @@ module WorkEngine
     def scoped_jobs
       if job_id.present?
         Job.where(id: job_id)
+      elsif work_intent_id.present?
+        WorkIntent.where(id: work_intent_id, scope_type: "job").select(:scope_id).then { |ids| Job.where(id: ids) }
       elsif workflow_id.present?
         Job.where(id: Workflow.where(id: workflow_id).select(:job_id))
       elsif run_id.present?
@@ -282,6 +292,8 @@ module WorkEngine
     def scoped_workflows
       if workflow_id.present?
         Workflow.where(id: workflow_id)
+      elsif work_intent_id.present?
+        Workflow.where(id: WorkUnit.where(work_intent_id: work_intent_id).select(:workflow_id))
       elsif run_id.present?
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       elsif job_id.present?
@@ -300,6 +312,8 @@ module WorkEngine
     def scoped_runs
       if run_id.present?
         Run.where(id: run_id)
+      elsif work_intent_id.present?
+        Run.where(step_id: Step.where(workflow_id: workflows.map(&:id)).select(:id)).where(state: %w[ queued running failed ])
       else
         step_ids = workflows.flat_map { |workflow| workflow.steps.map(&:id) }
         Run.where(step_id: step_ids).where(state: %w[ queued running failed ])
@@ -309,6 +323,8 @@ module WorkEngine
     def scoped_work_intents
       if workflow_id.present?
         WorkIntent.joins(:work_units).where(work_units: { workflow_id: workflow_id })
+      elsif work_intent_id.present?
+        WorkIntent.where(id: work_intent_id)
       elsif run_id.present?
         WorkIntent.joins(:work_units).where(work_units: { workflow_id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id) })
       elsif job_id.present?
@@ -325,6 +341,8 @@ module WorkEngine
     def scoped_work_units
       if workflow_id.present?
         WorkUnit.where(workflow_id: workflow_id)
+      elsif work_intent_id.present?
+        WorkUnit.where(work_intent_id: work_intent_id)
       elsif run_id.present?
         WorkUnit.where(workflow_id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       elsif job_id.present?
@@ -792,6 +810,38 @@ module WorkEngine
             wait_details: intent.wait_details
           },
           explanation: "WorkIntent ##{intent.id} is waiting for #{intent.wait_reason}, but its current gates pass and the wait can be cleared."
+        )
+      end
+    end
+
+    def classify_requested_work_intents_without_active_units
+      return [] unless work_intent_id.present?
+
+      work_intents.select(&:requested?).filter_map do |intent|
+        next unless intent.scope_type == "job" && intent.scope_id.present?
+        next unless intent_gates_pass?(intent)
+
+        active_unit_ids = intent.work_units
+          .select { |unit| unit.state.in?(WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES) }
+          .map(&:id)
+        next if active_unit_ids.any?
+
+        issue(
+          kind: :requested_work_intent_without_active_unit,
+          severity: :warning,
+          affected_ids: ids_for(intent),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "launch_requested_work_intent",
+          evidence: {
+            work_intent_id: intent.id,
+            work_intent_kind: intent.kind,
+            work_intent_state: intent.state,
+            scope_type: intent.scope_type,
+            scope_id: intent.scope_id,
+            active_work_unit_ids: active_unit_ids,
+            terminal_work_unit_ids: intent.work_units.select(&:terminal?).map(&:id)
+          },
+          explanation: "WorkIntent ##{intent.id} is requested and ready, but has no active WorkUnit."
         )
       end
     end

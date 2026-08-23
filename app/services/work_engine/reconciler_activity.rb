@@ -12,11 +12,12 @@ module WorkEngine
       new(...).record_failure!
     end
 
-    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, now: Time.current, execute_repairs: false, result: nil, error: nil)
+    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false, result: nil, error: nil)
       @source = source.to_s
       @job_id = job_id
       @workflow_id = workflow_id
       @run_id = run_id
+      @work_intent_id = work_intent_id
       @now = now
       @execute_repairs = !!execute_repairs
       @result = result
@@ -34,7 +35,7 @@ module WorkEngine
         workflow_id: workflow_id,
         run_id: run_id,
         message: "Reconciler started#{context_description}.",
-        details: { execute_repairs: execute_repairs }
+        details: { execute_repairs: execute_repairs, work_intent_id: work_intent_id }.compact
       )
     end
 
@@ -62,6 +63,7 @@ module WorkEngine
         message: "Reconciler finished#{context_description}: #{result.issues.size} issue(s), #{result.repair_plans.size} plan(s), #{result.repair_executions.size} execution(s).",
         details: {
           execute_repairs: execute_repairs,
+          work_intent_id: work_intent_id,
           issues_count: result.issues.size,
           repair_plans_count: result.repair_plans.size,
           repair_executions_count: result.repair_executions.size,
@@ -82,13 +84,13 @@ module WorkEngine
         run_id: run_id,
         severity: "error",
         message: "Reconciler failed#{context_description}: #{error.class}: #{error.message}",
-        details: { execute_repairs: execute_repairs, error_class: error.class.name, error_message: error.message }
+        details: { execute_repairs: execute_repairs, work_intent_id: work_intent_id, error_class: error.class.name, error_message: error.message }.compact
       )
     end
 
     private
 
-    attr_reader :source, :job_id, :workflow_id, :run_id, :now, :execute_repairs, :result, :error
+    attr_reader :source, :job_id, :workflow_id, :run_id, :work_intent_id, :now, :execute_repairs, :result, :error
 
     def actionable_activity
       result.repair_executions.each_with_index.filter_map do |execution, index|

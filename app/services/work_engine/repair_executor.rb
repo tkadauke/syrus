@@ -758,6 +758,53 @@ module WorkEngine
         end
       end
 
+      class LaunchRequestedWorkIntent < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not requested") unless intent.requested?
+          return skipped("WorkIntent ##{intent.id} is #{intent.scope_type}-scoped, not job-scoped") unless intent.scope_type == "job"
+
+          active_unit_ids = intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).pluck(:id)
+          return skipped("WorkIntent ##{intent.id} already has active WorkUnits: #{active_unit_ids.inspect}") if active_unit_ids.any?
+
+          gate_result = WorkIntents::Scheduler.evaluate!(intent)
+          return skipped("WorkIntent ##{intent.id} now waits on #{gate_result.reason}") unless gate_result.pass?
+
+          workflow = WorkUnits::Launcher.instantiate_intent!(
+            intent,
+            artifacts: latest_artifacts_for(intent),
+            agent_provider: latest_agent_provider_for(intent)
+          )
+          result = WorkUnits::Launcher.start!(workflow)
+          if result.blocked?
+            success("launched WorkIntent ##{intent.id} as blocked WorkUnit ##{result.work_unit&.id}: #{result.reason}")
+          else
+            success("launched WorkIntent ##{intent.id} as Workflow ##{workflow.id}")
+          end
+        end
+
+        private
+
+        def latest_artifacts_for(intent)
+          latest_workflow_for(intent)&.artifacts
+        end
+
+        def latest_agent_provider_for(intent)
+          latest_workflow_for(intent)&.agent_provider
+        end
+
+        def latest_workflow_for(intent)
+          @latest_workflow_for ||= {}
+          @latest_workflow_for[intent.id] ||= intent.work_units
+            .includes(:workflow)
+            .order(created_at: :desc, id: :desc)
+            .map(&:workflow)
+            .compact
+            .first
+        end
+      end
+
       class SatisfyWorkIntentFromSucceededWorkUnit < Base
         def perform
           intent = target_work_intent

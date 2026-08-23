@@ -748,6 +748,66 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
   end
 
+  it "launches requested WorkIntents whose gates pass but have no active WorkUnit" do
+    target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 501)
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      actor: target.user,
+      source_type: "spec"
+    )
+
+    result = reconcile_and_execute(work_intent_id: intent.id)
+
+    expect(kind(result, :requested_work_intent_without_active_unit)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "launch_requested_work_intent"
+    )
+    expect(plan(result, :launch_requested_work_intent)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: intent.id
+    )
+    unit = intent.reload.work_units.first
+    expect(unit).to be_present
+    expect(unit.workflow).to be_present
+    expect(unit.work_unit_members.pluck(:job_id)).to eq([ target.id ])
+    expect(result.repair_executions.map(&:message)).to include("launched WorkIntent ##{intent.id} as Workflow ##{unit.workflow_id}")
+  end
+
+  it "does not launch requested WorkIntents that already have active WorkUnits" do
+    target = Factories.job_record(user: job.user, repository: job.repository, issue_number: 502)
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      actor: target.user,
+      source_type: "spec"
+    )
+    workflow = Workflow.create!(job: target, trigger_kind: "initial", state: "running")
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "running",
+      repository: target.repository,
+      scope_type: "job",
+      scope_id: target.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: target, role: "primary")
+
+    result = reconcile_and_execute(work_intent_id: intent.id)
+
+    expect(kind(result, :requested_work_intent_without_active_unit)).to be_nil
+    expect(intent.reload.work_units.count).to eq(1)
+  end
+
   it "satisfies requested WorkIntents left behind by succeeded WorkUnits" do
     workflow = job.latest_workflow
     unit = workflow.work_unit

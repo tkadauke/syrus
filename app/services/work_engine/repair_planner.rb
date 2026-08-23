@@ -1101,6 +1101,23 @@ module WorkEngine
         end
       end
 
+      class RequestedWorkIntentWithoutActiveUnit < Base
+        def plan
+          automatic_plan(
+            "launch_requested_work_intent",
+            primary_work_intent,
+            "The Intent is requested and its gates pass, but no active WorkUnit exists; instantiate a fresh Unit/Workflow for the persisted desired work.",
+            execution_steps: [ "WorkUnits::Launcher.instantiate_intent!", "WorkUnits::Launcher.start!" ],
+            preconditions: {
+              work_intent_state: "requested",
+              scope_type: "job",
+              scope_id: issue.evidence["scope_id"],
+              active_work_unit_ids: []
+            }
+          )
+        end
+      end
+
       class SucceededWorkUnitUnsatisfiedIntent < Base
         def plan
           automatic_plan(

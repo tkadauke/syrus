@@ -28,6 +28,20 @@ module WorkUnits
       ).instantiate
     end
 
+    def self.instantiate_intent!(intent, artifacts: nil, agent_provider: nil, **options)
+      new(
+        kind: intent.kind,
+        job: job_for_intent!(intent),
+        artifacts: artifacts,
+        agent_provider: agent_provider,
+        idempotency_key: intent.idempotency_key,
+        source_type: intent.source_type.presence || "work_intent_relaunch",
+        source_id: intent.source_id,
+        options: options,
+        existing_intent: intent
+      ).instantiate
+    end
+
     def self.create_and_start!(kind:, job:, artifacts: nil, agent_provider: nil, idempotency_key: nil, source_type: "workflow_launch", source_id: nil, before_start: nil, **options)
       workflow = instantiate(
         kind: kind,
@@ -95,7 +109,15 @@ module WorkUnits
       [ wait_until - Time.current, StepDispatcher::START_BLOCKED_BACKOFF.to_i ].max.seconds
     end
 
-    def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:)
+    def self.job_for_intent!(intent)
+      unless intent.scope_type == "job" && intent.scope_id.present?
+        raise ArgumentError, "can only instantiate job-scoped WorkIntent ##{intent.id}"
+      end
+
+      Job.find(intent.scope_id)
+    end
+
+    def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:, existing_intent: nil)
       @definition = WorkDefinitions.for(kind)
       @job = job
       @artifacts = artifacts
@@ -104,6 +126,7 @@ module WorkUnits
       @source_type = source_type
       @source_id = source_id
       @options = options
+      @existing_intent = existing_intent
       @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
       @member_jobs = @definition.members_for(job: job, artifacts: payload_artifacts, **options)
       @ref_metadata = @definition.ref_metadata_for(job: job, artifacts: payload_artifacts, **options)
@@ -127,9 +150,10 @@ module WorkUnits
 
     private
 
-    attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options, :ref_metadata
+    attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options, :ref_metadata, :existing_intent
 
     def find_or_create_intent!
+      return existing_intent if existing_intent
       return WorkIntent.create!(intent_attributes) if idempotency_key.blank?
 
       WorkIntent.find_or_create_by!(idempotency_key: idempotency_key) do |intent|
@@ -171,7 +195,21 @@ module WorkUnits
         repository: job.repository,
         scope_type: scope_type,
         scope_id: scope_id,
-        **ref_metadata.attributes
+        **unit_ref_metadata_attributes(intent)
+      )
+    end
+
+    def unit_ref_metadata_attributes(intent)
+      return ref_metadata.attributes unless existing_intent
+
+      ref_metadata.attributes.merge(
+        delivery_track: intent.delivery_track,
+        source_repository: intent.source_repository,
+        source_remote_kind: intent.source_remote_kind,
+        source_ref: intent.source_ref,
+        target_repository: intent.target_repository,
+        target_remote_kind: intent.target_remote_kind,
+        target_ref: intent.target_ref
       )
     end
 
