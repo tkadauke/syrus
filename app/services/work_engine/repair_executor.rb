@@ -800,7 +800,6 @@ module WorkEngine
           intent = target_work_intent
           return skipped("WorkIntent no longer exists") unless intent
           return skipped("WorkIntent is #{intent.state}, not requested") unless intent.requested?
-          return skipped("WorkIntent ##{intent.id} is #{intent.scope_type}-scoped, not job-scoped") unless intent.scope_type == "job"
 
           active_unit_ids = intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).pluck(:id)
           return skipped("WorkIntent ##{intent.id} already has active WorkUnits: #{active_unit_ids.inspect}") if active_unit_ids.any?

@@ -29,15 +29,16 @@ module WorkUnits
     end
 
     def self.instantiate_intent!(intent, artifacts: nil, agent_provider: nil, **options)
+      relaunch_context = relaunch_context_for_intent!(intent)
       new(
         kind: intent.kind,
-        job: job_for_intent!(intent),
+        job: relaunch_context.job,
         artifacts: artifacts,
         agent_provider: agent_provider,
         idempotency_key: intent.idempotency_key,
         source_type: intent.source_type.presence || "work_intent_relaunch",
         source_id: intent.source_id,
-        options: options,
+        options: options.merge(member_jobs: relaunch_context.member_jobs),
         existing_intent: intent
       ).instantiate
     end
@@ -109,12 +110,30 @@ module WorkUnits
       [ wait_until - Time.current, StepDispatcher::START_BLOCKED_BACKOFF.to_i ].max.seconds
     end
 
-    def self.job_for_intent!(intent)
-      unless intent.scope_type == "job" && intent.scope_id.present?
-        raise ArgumentError, "can only instantiate job-scoped WorkIntent ##{intent.id}"
+    RelaunchContext = Data.define(:job, :member_jobs)
+
+    def self.relaunch_context_for_intent!(intent)
+      previous_unit = intent.work_units.includes(:workflow, work_unit_members: :job).order(created_at: :desc, id: :desc).first
+      previous_workflow = previous_unit&.workflow
+      snapshot_members = previous_unit&.work_unit_members&.sort_by(&:id)&.map(&:job)&.compact || []
+
+      job = previous_workflow&.job || representative_job_for_intent(intent, snapshot_members)
+      unless job
+        raise ArgumentError, "cannot instantiate WorkIntent ##{intent.id}: no representative job for #{intent.scope_type.inspect} scope"
       end
 
-      Job.find(intent.scope_id)
+      RelaunchContext.new(job: job, member_jobs: snapshot_members.presence)
+    end
+
+    def self.representative_job_for_intent(intent, snapshot_members)
+      case intent.scope_type
+      when "job"
+        Job.find_by(id: intent.scope_id)
+      when "epic"
+        snapshot_members.last || Job.where(epic_id: intent.scope_id).order(:id).last
+      when "repository"
+        snapshot_members.first || Job.where(repository_id: intent.repository_id).order(created_at: :desc, id: :desc).first
+      end
     end
 
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:, existing_intent: nil)
@@ -126,9 +145,10 @@ module WorkUnits
       @source_type = source_type
       @source_id = source_id
       @options = options
+      @member_jobs_override = Array(@options.delete(:member_jobs)).presence
       @existing_intent = existing_intent
       @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
-      @member_jobs = @definition.members_for(job: job, artifacts: payload_artifacts, **options)
+      @member_jobs = @member_jobs_override || @definition.members_for(job: job, artifacts: payload_artifacts, **options)
       @ref_metadata = @definition.ref_metadata_for(job: job, artifacts: payload_artifacts, **options)
     end
 

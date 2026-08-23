@@ -819,7 +819,8 @@ module WorkEngine
       return [] unless work_intent_id.present?
 
       work_intents.select(&:requested?).filter_map do |intent|
-        next unless intent.scope_type == "job" && intent.scope_id.present?
+        relaunchability = work_intent_relaunchability(intent)
+        next unless relaunchability.relaunchable?
         next unless intent_gates_pass?(intent)
 
         active_unit_ids = intent.work_units
@@ -839,12 +840,30 @@ module WorkEngine
             work_intent_state: intent.state,
             scope_type: intent.scope_type,
             scope_id: intent.scope_id,
+            representative_job_id: relaunchability.representative_job_id,
+            member_job_ids: relaunchability.member_job_ids,
             active_work_unit_ids: active_unit_ids,
             terminal_work_unit_ids: intent.work_units.select(&:terminal?).map(&:id)
           },
           explanation: "WorkIntent ##{intent.id} is requested and ready, but has no active WorkUnit."
         )
       end
+    end
+
+    WorkIntentRelaunchability = Data.define(:representative_job_id, :member_job_ids) do
+      def relaunchable? = representative_job_id.present?
+    end
+
+    def work_intent_relaunchability(intent)
+      if intent.scope_type == "job" && intent.scope_id.present?
+        return WorkIntentRelaunchability.new(representative_job_id: intent.scope_id, member_job_ids: [ intent.scope_id ])
+      end
+
+      latest_unit = intent.work_units.max_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id || 0 ] }
+      workflow = latest_unit&.workflow
+      members = latest_unit&.work_unit_members&.sort_by(&:id)&.map(&:job_id)&.compact || []
+      representative_job_id = workflow&.job_id || members.last
+      WorkIntentRelaunchability.new(representative_job_id: representative_job_id, member_job_ids: members)
     end
 
     def intent_gates_pass?(intent)

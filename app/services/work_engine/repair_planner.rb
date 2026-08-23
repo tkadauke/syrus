@@ -1125,8 +1125,10 @@ module WorkEngine
             execution_steps: [ "WorkUnits::Launcher.instantiate_intent!", "WorkUnits::Launcher.start!" ],
             preconditions: {
               work_intent_state: "requested",
-              scope_type: "job",
+              scope_type: issue.evidence["scope_type"],
               scope_id: issue.evidence["scope_id"],
+              representative_job_id: issue.evidence["representative_job_id"],
+              member_job_ids: issue.evidence["member_job_ids"],
               active_work_unit_ids: []
             }
           )
