@@ -1772,6 +1772,12 @@ Completed slices:
   continue safe agentic reconciliation steps and rebuild the train for
   publication/rebuild steps. `RetryFailedStepEnqueuer` asks the WorkDefinition
   retry policy instead of hard-coding merge-train trigger-kind behavior.
+- `WorkDefinitions::RegistryValidator` now enforces the plan's hierarchy-sync
+  contract: every `Workflow::TriggerKind` has a matching WorkDefinition and
+  runtime role, every definition points at a known workflow trigger/template,
+  child definitions declare a valid parent kind, and every definition exposes
+  scope, gates, preemption, and retry policy. The spec catches new workflow
+  kinds that forget to add runtime semantics.
 
 ### Phase 7: Callback Strangler Completion
 

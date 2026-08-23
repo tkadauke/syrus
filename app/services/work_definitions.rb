@@ -48,6 +48,14 @@ module WorkDefinitions
   def load_definitions
     require_dependency "work_definitions/base"
     require_dependency "work_definitions/built_ins"
+    require_dependency "work_definitions/registry_validator"
+  end
+
+  def validate_registry!
+    errors = WorkDefinitions::RegistryValidator.call
+    return true if errors.empty?
+
+    raise Error, errors.map(&:message).join("; ")
   end
 
   def kinds_matching(&predicate)
