@@ -468,7 +468,14 @@
     "remove": "Entfernen",
     "confirm_remove": "{{email}} aus diesem Repository entfernen?",
     "added_at": "Hinzugefügt",
-    "unable_to_load": "Repository-Mitglieder konnten nicht geladen werden."
+    "unable_to_load": "Repository-Mitglieder konnten nicht geladen werden.",
+    "team_grants": "Team-Zugriff",
+    "team_grants_description": "Teams mit Zugriff auf dieses Repository. Jedes Mitglied eines berechtigten Teams erhält mindestens diese Rollenstufe, zusätzlich zu direkten Mitgliedschaften.",
+    "team_grants_empty": "Noch keinem Team wurde Zugriff gewährt.",
+    "add_team_grant": "Team Zugriff gewähren",
+    "team_name_label": "Teamname",
+    "team_name_placeholder": "z. B. Platform",
+    "confirm_remove_team": "Zugriff von {{name}} auf dieses Repository entfernen?"
   },
   "document_preview": {
     "aria_label": "Vorschau von {{title}}",

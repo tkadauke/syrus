@@ -78,5 +78,16 @@ RSpec.describe EpicPolicy do
 
       expect(resolved).not_to include(foreign)
     end
+
+    it "includes epics on repositories granted via a team, mirroring a direct membership" do
+      team_member = other_user
+      team = Team.create!(name: "Platform")
+      team.team_memberships.create!(user: team_member, role: "member")
+      team.team_repositories.create!(repository: repository, role: "read")
+
+      resolved = described_class::Scope.new(team_member, Epic).resolve
+
+      expect(resolved).to contain_exactly(epic)
+    end
   end
 end

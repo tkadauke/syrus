@@ -56,6 +56,31 @@ RSpec.describe JobPolicy do
     end
   end
 
+  describe "team-inherited access" do
+    let(:team_member) { admin && Factories.user }
+    let(:team) { Team.create!(name: "Platform") }
+
+    before { team.team_memberships.create!(user: team_member, role: "member") }
+
+    it "allows #show? through any team grant, mirroring a direct membership" do
+      team.team_repositories.create!(repository: job.repository, role: "read")
+
+      expect(described_class.new(team_member, job)).to be_show
+    end
+
+    it "allows #write? through a write-tier team grant" do
+      team.team_repositories.create!(repository: job.repository, role: "write")
+
+      expect(described_class.new(team_member, job)).to be_write
+    end
+
+    it "denies #write? through a read-tier team grant" do
+      team.team_repositories.create!(repository: job.repository, role: "read")
+
+      expect(described_class.new(team_member, job)).not_to be_write
+    end
+  end
+
   describe "Scope#resolve" do
     it "returns jobs on repositories the user is a member of, matching Job.accessible_to (mirrors Epic)" do
       owned = job

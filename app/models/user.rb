@@ -5,6 +5,8 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_many :repositories, dependent: :destroy
   has_many :repository_memberships, dependent: :destroy
+  has_many :team_memberships, dependent: :destroy
+  has_many :teams, through: :team_memberships
   has_many :installations, dependent: :destroy
   has_many :epics, dependent: :destroy
   has_many :owned_epics, class_name: "Epic", foreign_key: :owner_id, dependent: :nullify, inverse_of: :owner

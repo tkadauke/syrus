@@ -32,6 +32,7 @@ import { AdminSettings } from "./AdminSettings"
 import { AdminStuck } from "./AdminStuck"
 import { AdminTranscript } from "./AdminTranscript"
 import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
+import { AdminTeamDetailRoute, AdminTeamsIndex } from "./AdminTeams"
 import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
 import { ChatSearchRoute } from "./ChatSearch"
@@ -107,6 +108,8 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/runs/:runId/transcript", element: <AdminTranscript /> },
   { path: "/admin/users", element: <AdminUsersIndex /> },
   { path: "/admin/users/:id", element: <AdminUserDetailRoute /> },
+  { path: "/admin/teams", element: <AdminTeamsIndex /> },
+  { path: "/admin/teams/:id", element: <AdminTeamDetailRoute /> },
   { path: "/admin/console", element: <AdminConsole /> },
   { path: "/admin/installations", element: <AdminInstallations /> },
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
