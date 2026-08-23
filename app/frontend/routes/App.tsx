@@ -55,6 +55,7 @@ import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
+import { RepositoryMembersRoute } from "./RepositoryMembers"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
@@ -142,6 +143,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/repositories/:repositoryId/scheduled_tasks/new", element: <ScheduledTaskFormRoute mode="new" /> },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
+  { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
   { path: "/repositories/:id/insights", element: <RepositoryInsightsRoute /> },

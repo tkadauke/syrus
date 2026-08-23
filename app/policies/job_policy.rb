@@ -3,17 +3,16 @@
 # a Job's repository can see that Job, not just its creator. Global admins
 # bypass this entirely.
 #
-# Mutation actions (approve, retry, cancel, submit chat feedback) are
-# intentionally NOT widened here -- they stay creator-or-admin-only for now
-# (`owner?`/`update?`). Wider write-capability tiers land in a later
-# repo-role-tiers job.
+# Mutation actions (approve, retry, cancel, submit chat feedback) require
+# #write?: the creator, a global admin, or a write-tier-or-higher
+# RepositoryMembership on the Job's repository.
 class JobPolicy < ApplicationPolicy
   def show?
     admin? || owner? || accessible?
   end
 
-  def update?
-    admin? || owner?
+  def write?
+    admin? || owner? || record.repository.member_at_least?(user, "write")
   end
 
   # Scope intentionally does NOT bypass for admins: `Current.user.jobs` never

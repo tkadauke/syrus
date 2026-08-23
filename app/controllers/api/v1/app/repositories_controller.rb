@@ -96,13 +96,13 @@ module Api
               render_error("validation_failed", repository.errors.full_messages.to_sentence, status: :unprocessable_content)
               return
             end
-            repository.repository_memberships.find_or_create_by!(user: Current.user) { |m| m.role = "owner" }
+            repository.repository_memberships.find_or_create_by!(user: Current.user) { |m| m.role = "admin" }
           else
             if repository.repository_memberships.exists?(user: Current.user)
               render_error("validation_failed", I18n.t("api.repositories.already_in_workspace", slug: repository.slug), status: :unprocessable_content)
               return
             end
-            repository.repository_memberships.create!(user: Current.user, role: "collaborator")
+            repository.repository_memberships.create!(user: Current.user, role: "read")
           end
 
           render json: saved_payload(repository, message: I18n.t("api.repositories.added", slug: repository.slug)), status: :created

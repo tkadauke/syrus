@@ -1345,7 +1345,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     sign_in_as(user)
     owner = Factories.user(email_address: "owner@example.com")
     shared = Factories.repository(user: owner, owner: "shared", name: "monolith")
-    shared.repository_memberships.create!(user: user, role: "collaborator")
+    shared.repository_memberships.create!(user: user, role: "read")
     epic = Factories.epic(user: owner, repository: shared, title: "Shared feature")
 
     get "/api/v1/app/epics/#{epic.id}"
@@ -1409,6 +1409,36 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(epic.reload.repository_id).to eq(target.id)
+  end
+
+  it "blocks moving an Epic to a repository where the user only has read-tier membership" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Traveling Epic")
+    other_owner = Factories.user(email_address: "other@example.com")
+    read_only_target = Factories.repository(user: other_owner, owner: "acme", name: "readonly")
+    read_only_target.repository_memberships.create!(user: user, role: "read")
+
+    patch "/api/v1/app/epics/#{epic.id}", params: {
+      epic: { title: "Traveling Epic", repository_id: read_only_target.id }
+    }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(epic.reload.repository_id).to eq(repository.id)
+  end
+
+  it "allows moving an Epic to a repository where the user has write-tier membership" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Traveling Epic")
+    other_owner = Factories.user(email_address: "other@example.com")
+    write_target = Factories.repository(user: other_owner, owner: "acme", name: "writable")
+    write_target.repository_memberships.create!(user: user, role: "write")
+
+    patch "/api/v1/app/epics/#{epic.id}", params: {
+      epic: { title: "Traveling Epic", repository_id: write_target.id }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(epic.reload.repository_id).to eq(write_target.id)
   end
 
   it "does not expose another user's epic" do

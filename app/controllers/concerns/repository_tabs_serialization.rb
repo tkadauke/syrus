@@ -7,7 +7,8 @@ module RepositoryTabsSerialization
     tabs = [
       { key: "overview", label: "Overview", path: repository_path(repository) },
       { key: "tests", label: "Tests", path: repository_path(repository, tab: "tests") },
-      { key: "documents", label: "Documents", path: repository_documents_path(repository) }
+      { key: "documents", label: "Documents", path: repository_documents_path(repository) },
+      { key: "members", label: "Members", path: repository_memberships_path(repository) }
     ]
     unless AppSetting.simple?
       tabs.insert(1, { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") })
