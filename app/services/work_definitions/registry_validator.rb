@@ -12,6 +12,7 @@ module WorkDefinitions
       errors = []
       errors.concat(validate_trigger_entries)
       errors.concat(validate_definitions)
+      errors.concat(validate_definition_constants)
       errors
     end
 
@@ -48,6 +49,7 @@ module WorkDefinitions
         errors << error(:missing_retry_policy, "WorkDefinition #{definition.kind.inspect} does not expose a retry policy") if definition.retry_policy.nil?
         errors.concat(validate_preemption_policy(definition))
         errors.concat(validate_child_definition(definition))
+        errors.concat(validate_landing_policy(definition))
         errors.concat(validate_template(definition))
         errors
       end
@@ -73,6 +75,40 @@ module WorkDefinitions
         errors << error(:unknown_parent_kind, "Child WorkDefinition #{definition.kind.inspect} declares unknown parent_kind #{definition.parent_kind.inspect}")
       end
       errors
+    end
+
+    def validate_landing_policy(definition)
+      errors = []
+      landing_path_kinds = WorkUnits::PathOwnership::LANDING_PATHS
+
+      if definition.landing_lock? && !landing_path_kinds.include?(definition.kind)
+        errors << error(:missing_landing_path, "Landing WorkDefinition #{definition.kind.inspect} has no WorkUnits::PathOwnership landing path")
+      end
+
+      if definition.landing_validation_prefetch_source? && WorkDefinitions.landing_validation_child_kind_for(definition.kind).blank?
+        errors << error(:missing_landing_validation_child, "Landing prefetch WorkDefinition #{definition.kind.inspect} has no validation child definition")
+      end
+
+      if definition.landing_validation_child?
+        parent = WorkDefinitions.registry[definition.parent_kind]&.new
+        unless parent&.landing_validation_prefetch_source?
+          errors << error(:invalid_landing_validation_parent, "Landing validation child #{definition.kind.inspect} must point to a landing prefetch source parent")
+        end
+      end
+
+      if WorkDefinitions::Base::LANDING_LOCK_KINDS.include?(definition.kind) && !definition.landing_lock?
+        errors << error(:stale_landing_lock_kind, "LANDING_LOCK_KINDS includes #{definition.kind.inspect} but the definition does not report landing_lock?")
+      end
+
+      errors
+    end
+
+    def validate_definition_constants
+      WorkDefinitions::Base::LANDING_LOCK_KINDS.filter_map do |kind|
+        next if WorkDefinitions.registry.key?(kind)
+
+        error(:unknown_landing_lock_kind, "LANDING_LOCK_KINDS includes unknown WorkDefinition #{kind.inspect}")
+      end
     end
 
     def validate_template(definition)
