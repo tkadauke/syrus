@@ -29,6 +29,29 @@ RSpec.describe LandingValidationPrefetcher do
     double("pr", head: double(sha: head_sha), base: double(sha: "base-sha", ref: base_ref))
   end
 
+  def active_work_unit_for(job, kind:, state: "running", workflow: nil)
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   before do
     Feature.find_or_create_by!(slug: "landing_validation_prefetch") do |feature|
       feature.category = "Operations"
@@ -77,6 +100,17 @@ RSpec.describe LandingValidationPrefetcher do
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
+  it "does not dispatch ordinary validation when the candidate has active validation WorkUnit ownership" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    active_work_unit_for(candidate, kind: "landing_validation")
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.not_to change { Workflow.where(trigger_kind: "landing_validation", job: candidate).count }
+
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
+  end
+
   it "dispatches a merge_train_validation workflow for the next eligible Epic landing unit" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
     AppSetting.current.update!(merge_train_enabled: true)
@@ -107,6 +141,27 @@ RSpec.describe LandingValidationPrefetcher do
     )
     expect(prefetch.work_unit).to be_present
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
+  end
+
+  it "does not dispatch merge-train validation when a member has active validation WorkUnit ownership" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    AppSetting.current.update!(merge_train_enabled: true)
+    candidate.destroy!
+
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+    first = approved_job(issue_number: 10, approved_at: 1.minute.ago).tap do |job|
+      job.update!(epic: epic, branch_name: "syrus/issue-10-#{job.id}")
+    end
+    second = approved_job(issue_number: 11, approved_at: 30.seconds.ago).tap do |job|
+      job.update!(epic: epic, branch_name: "syrus/issue-11-#{job.id}", parent_job: first)
+    end
+    active_work_unit_for(first, kind: "merge_train_validation")
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.not_to change { Workflow.where(trigger_kind: "merge_train_validation", job: second).count }
+
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
   end
 
   it "lets a successful merge_train workflow prefetch the next ordinary landing unit" do
