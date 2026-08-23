@@ -246,11 +246,13 @@ export function loopDisplayStatus(item: LoopStepItem) {
   const latestIteration = item.iterations[item.iterations.length - 1]
   if (!latestIteration) return null
 
-  const statuses = latestIteration.steps.map((step) => effectiveLoopStepStatus(step))
+  const statuses = latestIteration.steps.map((step) => effectiveStepStatus(step)).filter((status): status is string => Boolean(status))
+  const hasMaterializedPendingStep = latestIteration.steps.some((step) => !effectiveStepStatus(step) && step.state === "queued")
   if (statuses.includes("running")) return "running"
   if (statuses.includes("queued")) return "queued"
   if (statuses.includes("failed")) return "failed"
   if (statuses.includes("cancelled")) return "cancelled"
+  if (hasMaterializedPendingStep) return null
   if (statuses.length > 0 && statuses.every((status) => status === "succeeded" || status === "skipped")) return "succeeded"
   if (statuses.includes("skipped")) return "skipped"
   return null
@@ -259,10 +261,6 @@ export function loopDisplayStatus(item: LoopStepItem) {
 export function effectiveStepStatus(step: JobStep) {
   const activeRun = sortedRunsNewestFirst(step.runs).find((run) => isActiveState(run.state))
   return activeRun?.state ?? step.display_status
-}
-
-export function effectiveLoopStepStatus(step: JobStep) {
-  return effectiveStepStatus(step) ?? step.state
 }
 
 export function sortedRunsNewestFirst(runs: JobRun[]) {

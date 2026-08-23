@@ -11233,7 +11233,7 @@ describe("App", () => {
     expect(within(gradeLoop).queryByText(/failed/i)).not.toBeInTheDocument()
   })
 
-  it("does not show a terminal grade loop status while the latest iteration is queued", async () => {
+  it("does not show a grade loop status for materialized future queued steps", async () => {
     const base = jobDetailPayload()
     const workflow = base.workflows[0]
     const template = workflow.steps[0] as JobStep
@@ -11278,7 +11278,7 @@ describe("App", () => {
     )
 
     const gradeLoop = await screen.findByRole("button", { name: /Grade loop/ })
-    expect(within(gradeLoop).getByText(/queued/i)).toBeInTheDocument()
+    expect(within(gradeLoop).queryByText(/queued/i)).not.toBeInTheDocument()
     expect(within(gradeLoop).queryByText(/succeeded/i)).not.toBeInTheDocument()
     expect(within(gradeLoop).queryByText(/failed/i)).not.toBeInTheDocument()
   })
