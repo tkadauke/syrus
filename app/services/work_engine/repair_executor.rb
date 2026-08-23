@@ -420,10 +420,13 @@ module WorkEngine
           workflow = target_workflow
           return skipped("Workflow no longer exists") unless workflow
           return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
-          return skipped("Workflow is not dependency-blocked") unless workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON
+          dependency_blocked = workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON ||
+            workflow.work_unit&.blocked_reason == "stack_dependencies_not_ready"
+          return skipped("Workflow is not dependency-blocked") unless dependency_blocked
           return skipped("Dependencies are still not ready for execution") unless workflow.job.dependencies_satisfied_for_execution?
 
           StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
+          workflow.work_unit&.unblock! if workflow.work_unit&.blocked_reason == "stack_dependencies_not_ready"
           run = WorkUnits::Launcher.start!(workflow.reload).run
           run ? success("cleared stale dependency block and started Workflow ##{workflow.id} with Run ##{run.id}") : skipped("workflow start remained blocked")
         end

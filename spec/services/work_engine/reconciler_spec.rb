@@ -32,6 +32,41 @@ RSpec.describe WorkEngine::Reconciler do
     result.repair_plans.find { |repair_plan| repair_plan.action == action.to_s }
   end
 
+  def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "blocked", blocked_reason:, blocked_until: nil, blocked_details: {})
+    unit = workflow.work_unit
+    intent = unit&.work_intent || WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: workflow.job.repository,
+      scope_type: "job",
+      scope_id: workflow.job_id,
+      actor: workflow.job.user,
+      source_type: "spec"
+    )
+    unit ||= WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: workflow.job.repository,
+      scope_type: "job",
+      scope_id: workflow.job_id,
+      workflow: workflow,
+      blocked_reason: blocked_reason,
+      blocked_until: blocked_until,
+      blocked_details: blocked_details
+    )
+    unit.update!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      blocked_reason: blocked_reason,
+      blocked_until: blocked_until,
+      blocked_details: blocked_details
+    )
+    unit.work_unit_members.find_or_create_by!(job: workflow.job) { |member| member.role = "primary" }
+    unit
+  end
+
   def solid_queue_run_job(run, claimed: false, failed: false, ready: false, run_at: nil, queue_name: "runs", error: "worker process failed", process_id: nil, created_at: 10.minutes.ago)
     ensure_solid_queue_test_tables!
     queue_job = SolidQueue::Job.create!(
@@ -1919,6 +1954,50 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :wait_for_dependency_or_stack_readiness).auto_executable).to eq(false)
   end
 
+  it "classifies WorkUnit-only admission start blocks as wait-only" do
+    run.destroy!
+    workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    step.update_columns(state: "queued")
+    unit = attach_work_unit(
+      workflow,
+      blocked_reason: "admission_control",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "reason" => "predicted_budget_pressure_high" }
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :resource_admission_start_block)
+
+    expect(issue).to have_attributes(
+      severity: "info",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "wait_for_resource_admission"
+    )
+    expect(issue.affected_ids[:work_unit_ids]).to eq([ unit.id ])
+    expect(issue.evidence).to include(
+      "work_unit_id" => unit.id,
+      "work_unit_blocked_reason" => "admission_control",
+      "start_blocked_reason" => "admission_control"
+    )
+    expect(plan(result, :wait_for_resource_admission)).to have_attributes(auto_executable: false, target_id: workflow.id)
+  end
+
+  it "rechecks expired WorkUnit-only admission start blocks by starting the workflow again" do
+    run.destroy!
+    workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    step.update_columns(state: "queued")
+    attach_work_unit(workflow, blocked_reason: "admission_control", blocked_until: 1.minute.ago)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :resource_admission_start_block)).to be_nil
+    expect(kind(result, :queued_workflow_without_first_run)).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "start_workflow"
+    )
+    expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+  end
+
   it "rechecks expired dependency or stack start blocks by starting the workflow again" do
     run.destroy!
     workflow.update_columns(
@@ -1965,6 +2044,26 @@ RSpec.describe WorkEngine::Reconciler do
     expect(kind(result, :dependency_stack_start_block)).to be_nil
     expect(kind(result, :queued_workflow_without_first_run)).to be_nil
     expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+  end
+
+  it "repairs a stale WorkUnit-only dependency start block by unblocking it and starting the workflow" do
+    run.destroy!
+    workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    step.update_columns(state: "queued")
+    unit = attach_work_unit(workflow, blocked_reason: "stack_dependencies_not_ready", blocked_until: 3.minutes.from_now)
+    allow(WorkUnits::Launcher).to receive(:start!).and_call_original
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    issue = kind(result, :stale_dependency_start_block)
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "clear_stale_start_block_and_start_workflow"
+    )
+    expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+    expect(unit.reload).to be_queued
+    expect(step.runs.count).to eq(1)
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
   it "repairs a stale dependency start block by clearing it and starting the workflow" do

@@ -8,7 +8,7 @@ module WorkEngine
     RESOURCE_CONGESTION_CHECK_AFTER = 5.minutes
     RATE_LIMIT_CHECK_AFTER = 10.minutes
 
-    AFFECTED_ID_KEYS = %i[job_ids workflow_ids step_ids run_ids solid_queue_job_ids spawned_process_ids].freeze
+    AFFECTED_ID_KEYS = %i[job_ids workflow_ids step_ids run_ids work_unit_ids solid_queue_job_ids spawned_process_ids].freeze
     NONRETRYABLE_CLASSIFICATIONS = %w[
       git_conflict
       git_non_fast_forward
@@ -586,8 +586,8 @@ module WorkEngine
       workflows.filter_map do |workflow|
         if workflow.queued? && older_than?(workflow.created_at, ORPHAN_RUN_GRACE_PERIOD) && queued_without_first_run?(workflow)
           if landing_start_blocked_workflow?(workflow)
-            reason = workflow.artifact("start_blocked_reason")
-            check_after = parse_time(workflow.artifact("start_blocked_next_check_at"))
+            reason = start_block_reason(workflow)
+            check_after = start_block_next_check_at(workflow)
             wait_for_retry = check_after.present? && check_after.future?
             main_repair_job = eligible_main_repair_job_for_blocked_landing(workflow)
             repair_action = if main_repair_job
@@ -607,7 +607,7 @@ module WorkEngine
               evidence: workflow_evidence(workflow).merge(
                 first_step_id: workflow.first_step&.id,
                 start_blocked_reason: reason,
-                start_blocked_details: workflow.artifact("start_blocked_details"),
+                start_blocked_details: start_block_details(workflow),
                 landing_failure_reason: workflow.failure_reason.presence || workflow.artifact("failure_reason"),
                 main_repair_job_id: main_repair_job&.id,
                 main_repair_job_slug: main_repair_job&.slug,
@@ -626,7 +626,7 @@ module WorkEngine
               recommended_repair_action: "clear_stale_start_block_and_start_workflow",
               evidence: workflow_evidence(workflow).merge(
                 first_step_id: workflow.first_step&.id,
-                start_blocked_reason: workflow.artifact("start_blocked_reason"),
+                start_blocked_reason: start_block_reason(workflow),
                 execution_dependencies_satisfied: workflow.job.dependencies_satisfied_for_execution?,
                 unsatisfied_dependencies: workflow.job.unsatisfied_dependencies.map(&:id)
               ),
@@ -640,7 +640,7 @@ module WorkEngine
             affected_ids: ids_for(workflow),
             safe_to_auto_repair: workflow.job.open? && !start_blocked?(workflow),
             recommended_repair_action: start_blocked?(workflow) ? "wait_for_start_block_to_clear" : "start_workflow",
-            check_after: parse_time(workflow.artifact("start_blocked_next_check_at")),
+            check_after: start_block_next_check_at(workflow),
             evidence: workflow_evidence(workflow).merge(first_step_id: workflow.first_step&.id),
             explanation: "Workflow ##{workflow.id} is queued and its first Step has no Run."
           )
@@ -1084,7 +1084,7 @@ module WorkEngine
     def landing_start_blocked_workflow?(workflow)
       workflow.job&.landing? &&
         workflow.landing_workflow? &&
-        workflow.artifact("start_blocked_reason").present?
+        start_block_reason(workflow).present?
     end
 
     def landing_queue_evidence(job)
@@ -1145,20 +1145,21 @@ module WorkEngine
     def classify_start_blocks
       workflows.filter_map do |workflow|
         if workflow.running? && phase_start_block_recheck_due?(workflow)
-          reason = workflow.artifact("start_blocked_reason")
+          reason = start_block_reason(workflow)
           next unless resource_admission_block_reason?(reason)
+          details = start_block_details(workflow)
 
           next issue(
             kind: :resource_admission_start_block,
             severity: :error,
-            affected_ids: ids_for(workflow).merge(step_ids: [ workflow.artifact("start_blocked_details").to_h["phase_step_id"] ].compact),
+            affected_ids: ids_for(workflow).merge(step_ids: [ details.to_h["phase_step_id"] ].compact),
             safe_to_auto_repair: true,
             recommended_repair_action: "resume_deferred_phase",
             evidence: workflow_evidence(workflow).merge(
               start_blocked_reason: reason,
-              start_blocked_next_check_at: workflow.artifact("start_blocked_next_check_at"),
-              phase_step_id: workflow.artifact("start_blocked_details").to_h["phase_step_id"],
-              phase_step_kind: workflow.artifact("start_blocked_details").to_h["phase_step_kind"]
+              start_blocked_next_check_at: start_block_next_check_at(workflow)&.iso8601,
+              phase_step_id: details.to_h["phase_step_id"],
+              phase_step_kind: details.to_h["phase_step_kind"]
             ),
             explanation: "Workflow ##{workflow.id} is paused at a phase boundary after its resource-admission recheck time elapsed."
           )
@@ -1167,16 +1168,16 @@ module WorkEngine
         next unless workflow.queued? && start_blocked?(workflow)
         next if landing_start_blocked_workflow?(workflow)
 
-        reason = workflow.artifact("start_blocked_reason")
+        reason = start_block_reason(workflow)
         dependency_block = dependency_block_reason?(reason)
-        admission_block = reason.to_s == StepDispatcher::ADMISSION_BLOCK_REASON
+        admission_block = admission_block_reason?(reason)
         issue(
           kind: start_block_issue_kind(dependency_block: dependency_block, admission_block: admission_block),
           severity: :info,
           affected_ids: ids_for(workflow),
           safe_to_auto_repair: false,
           recommended_repair_action: start_block_repair_action(dependency_block: dependency_block, admission_block: admission_block),
-          check_after: parse_time(workflow.artifact("start_blocked_next_check_at")),
+          check_after: start_block_next_check_at(workflow),
           evidence: workflow_evidence(workflow).merge(
             start_blocked_reason: reason,
             unsatisfied_dependencies: workflow.job.unsatisfied_dependencies.map(&:id)
@@ -1201,15 +1202,19 @@ module WorkEngine
     end
 
     def phase_start_block_recheck_due?(workflow)
-      reason = workflow.artifact("start_blocked_reason")
+      reason = start_block_reason(workflow)
       return false if reason.blank?
-      return false unless workflow.artifact("start_blocked_details").to_h["phase_step_id"].present?
+      return false unless start_block_details(workflow).to_h["phase_step_id"].present?
 
       start_blocked_check_due?(workflow)
     end
 
     def resource_admission_block_reason?(reason)
       WorkflowAdmissionCapacityWakeup.admission_or_resource_reason?(reason)
+    end
+
+    def admission_block_reason?(reason)
+      reason.to_s.in?([ StepDispatcher::ADMISSION_BLOCK_REASON, "admission_control" ])
     end
 
     def classify_main_broken_workflows
@@ -1780,7 +1785,7 @@ module WorkEngine
     end
 
     def start_blocked?(workflow)
-      reason = workflow.artifact("start_blocked_reason")
+      reason = start_block_reason(workflow)
       return false if reason.blank?
       return false if start_blocked_check_due?(workflow)
 
@@ -1788,12 +1793,12 @@ module WorkEngine
     end
 
     def start_blocked_check_due?(workflow)
-      next_check_at = parse_time(workflow.artifact("start_blocked_next_check_at"))
+      next_check_at = start_block_next_check_at(workflow)
       next_check_at.present? && next_check_at <= now
     end
 
     def stale_dependency_start_block?(workflow)
-      workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON &&
+      start_block_reason(workflow).to_s.in?([ StepDispatcher::STACK_BLOCK_REASON, "stack_dependencies_not_ready" ]) &&
         !start_blocked_check_due?(workflow) &&
         workflow.job.dependencies_satisfied_for_execution?
     end
@@ -1804,9 +1809,9 @@ module WorkEngine
 
     def current_start_block_active?(workflow, reason)
       case reason.to_s
-      when StepDispatcher::MAIN_HEALTH_BLOCK_REASON
+      when StepDispatcher::MAIN_HEALTH_BLOCK_REASON, "main_branch_health"
         StepDispatcher.main_health_blocking?(workflow)
-      when StepDispatcher::STACK_BLOCK_REASON
+      when StepDispatcher::STACK_BLOCK_REASON, "stack_dependencies_not_ready"
         !stale_dependency_start_block?(workflow)
       else
         true
@@ -1814,7 +1819,7 @@ module WorkEngine
     end
 
     def eligible_main_repair_job_for_blocked_landing(workflow)
-      return nil unless workflow.artifact("start_blocked_reason") == StepDispatcher::MAIN_HEALTH_BLOCK_REASON
+      return nil unless start_block_reason(workflow).to_s.in?([ StepDispatcher::MAIN_HEALTH_BLOCK_REASON, "main_branch_health" ])
       return nil unless workflow.job&.repository_id
 
       candidates = Job.approved.where(repository_id: workflow.job.repository_id).to_a
@@ -1824,6 +1829,18 @@ module WorkEngine
       LandingQueueProcessor.entries(Job.where(id: repair_ids))
                            .find(&:eligible?)
                            &.job
+    end
+
+    def start_block_reason(workflow)
+      workflow.artifact("start_blocked_reason").presence || workflow.work_unit&.blocked_reason
+    end
+
+    def start_block_details(workflow)
+      workflow.artifact("start_blocked_details").presence || workflow.work_unit&.blocked_details || {}
+    end
+
+    def start_block_next_check_at(workflow)
+      parse_time(workflow.artifact("start_blocked_next_check_at")) || workflow.work_unit&.blocked_until
     end
 
     def run_stale?(run)
@@ -1879,7 +1896,14 @@ module WorkEngine
       when Step
         { job_ids: [ record.workflow.job_id ], workflow_ids: [ record.workflow_id ], step_ids: [ record.id ] }
       when Workflow
-        { job_ids: [ record.job_id ], workflow_ids: [ record.id ], step_ids: record.steps.map(&:id), run_ids: record.runs.pluck(:id) }
+        ids = { job_ids: [ record.job_id ], workflow_ids: [ record.id ], step_ids: record.steps.map(&:id), run_ids: record.runs.pluck(:id) }
+        ids[:work_unit_ids] = [ record.work_unit.id ] if record.work_unit
+        ids
+      when WorkUnit
+        ids = { work_unit_ids: [ record.id ] }
+        ids[:workflow_ids] = [ record.workflow_id ] if record.workflow_id.present?
+        ids[:job_ids] = record.work_unit_members.pluck(:job_id)
+        ids
       when Job
         { job_ids: [ record.id ] }
       else
@@ -1908,6 +1932,9 @@ module WorkEngine
         workflow_id: workflow.id,
         workflow_state: workflow.state,
         trigger_kind: workflow.trigger_kind,
+        work_unit_id: workflow.work_unit&.id,
+        work_unit_state: workflow.work_unit&.state,
+        work_unit_blocked_reason: workflow.work_unit&.blocked_reason,
         job_id: workflow.job_id,
         job_state: workflow.job.state,
         created_at: workflow.created_at&.iso8601,

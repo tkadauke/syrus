@@ -24,6 +24,7 @@ class WorkflowAdmissionCapacityWakeup
   def self.admission_or_resource_reason?(reason)
     reason = reason.to_s
     reason == StepDispatcher::ADMISSION_BLOCK_REASON ||
+      reason == "admission_control" ||
       reason == StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY ||
       (LandingQueueReentry.landing_start_blocker?(reason) && reason.include?("workflow admission budget"))
   end

@@ -1696,6 +1696,12 @@ Completed slices:
   a landing Job is not auto-deferred merely because the old direct Workflow row
   is terminal or absent. With the gate disabled, the adapter preserves the
   legacy active-Workflow / Epic-wide Workflow fallback.
+- Start-block reconciliation now reads linked WorkUnit blocked state when
+  legacy Workflow start-block artifacts are absent. Admission/resource,
+  dependency/stack, main-health, and landing start-block classifiers carry the
+  WorkUnit ID and typed reason in evidence; expired WorkUnit-only admission
+  blocks re-enter the normal dispatcher path, and stale WorkUnit-only
+  dependency blocks are cleared before the Workflow is restarted.
 
 ### Phase 6: Work Definition Policies
 
