@@ -8,6 +8,7 @@ module WorkUnits
 
     SCHEDULER_PATHS = %w[
       retry
+      auto_retry_backoff
       resume
       manual_pause
       admission_control_pause

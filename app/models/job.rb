@@ -800,7 +800,7 @@ class Job < ApplicationRecord
     end
 
     WorkUnits::Ownership.active_units_for_job(self).each do |unit|
-      unit.mark_terminal!("cancelled") if unit.active?
+      unit.preempt!(reason: "operator_cancelled") if unit.active?
     end
   end
 

@@ -8,7 +8,7 @@ module Filters
         operators :is_true, :is_false
 
         def apply
-          active = Run.active_job_ids.to_set | WorkUnits::Ownership.runnable_unit_job_ids(nil).to_set
+          active = Run.active_job_ids.to_set
           case op
           when :is_true  then scope.where(id: active)
           when :is_false then scope.where.not(id: active)

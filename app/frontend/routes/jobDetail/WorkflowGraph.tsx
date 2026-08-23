@@ -12,7 +12,7 @@ import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { buttonClass } from "../../lib/buttonClasses"
 import { pluginIconSrc } from "../../lib/pluginIcon"
-import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
+import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { CommandButton, useJobCommand } from "./command"
 import { booleanValue, displayStepItemKey, gradeDisplayStatus, gradePhases, gradeSummaries, gradeSummaryCounts, humanize, isActiveState, loopDisplayName, loopDisplayStatus, loopGradeSummaries, loopSoleGradeItem, objectDetails, pendingWarnings, prepareFailureDetails, prepareFailureStatus, sortedRunsNewestFirst, stringify, stringValue, workflowDetectedPlugins, workflowStepItems, type DisplayStepItem, type GradeStepItem, type GradeSummary, type LoopStepItem, type PrepareFailure } from "./stepModel"
@@ -36,15 +36,48 @@ export function WorkflowsTab({ payload, command, prefix, loading = false, error 
   const workUnits = payload.work_units || []
   if (loading) return <PanelMessage>{t("section_workflows_loading")}</PanelMessage>
   if (error) return <PanelMessage tone="error">{errorMessage(error, t("section_workflows_load_error"))}</PanelMessage>
-  if (payload.workflows.length === 0 && workUnits.length === 0) return <PanelMessage>{t("section_no_workflows")}</PanelMessage>
+  if (payload.workflows.length === 0 && workUnits.length === 0 && !payload.current_intent) return <PanelMessage>{t("section_no_workflows")}</PanelMessage>
 
   return (
     <div className="space-y-4">
+      <DesiredWorkPanel intent={payload.current_intent || null} />
       <WorkUnitsPanel command={command} payload={payload} prefix={prefix} units={workUnits} />
       <WorkflowsPagination payload={payload} prefix={prefix} />
       {payload.workflows.map((workflow) => <WorkflowCard command={command} key={workflow.id} payload={payload} prefix={prefix} workflow={workflow} />)}
       <WorkflowsPagination payload={payload} prefix={prefix} />
     </div>
+  )
+}
+
+function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
+  if (!intent) return null
+  const label = intent.label || humanize(intent.kind)
+  const waitLabel = intent.wait_label || (intent.wait_reason ? humanize(intent.wait_reason) : null)
+
+  return (
+    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Current desired work</h3>
+      </div>
+      <div className="px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
+              <SmallPill>{humanize(intent.execution_status)}</SmallPill>
+              {waitLabel ? <SmallPill>{waitLabel}</SmallPill> : null}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span>WI-{intent.id}</span>
+              <span>{intent.scope_type}{intent.scope_id ? ` ${intent.scope_id}` : ""}</span>
+              {intent.wait_until ? <span>next check <RelativeTimestamp value={intent.wait_until} /></span> : null}
+            </div>
+            {intent.wait_details ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{stringify(intent.wait_details)}</p> : null}
+          </div>
+          <StatusPill state={intent.state} />
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -66,8 +99,9 @@ function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUni
 function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   const workflowAnchor = unit.workflow_id ? `#workflow-${unit.workflow_id}` : ""
   const workflowPath = unit.workflow_id ? withRoutePrefix(`/jobs/${unit.workflow_attached_job_id || ""}?tab=workflows${workflowAnchor}`, prefix) : null
-  const label = humanize(unit.kind)
+  const label = unit.label || humanize(unit.kind)
   const membership = unit.member_role === "member" ? "member" : "primary"
+  const blockedLabel = unit.blocked_label || (unit.blocked_reason ? humanize(unit.blocked_reason) : null)
 
   return (
     <div className="px-4 py-3">
@@ -76,7 +110,7 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
             <SmallPill>{membership}</SmallPill>
-            {unit.blocked_reason ? <SmallPill>{humanize(unit.blocked_reason)}</SmallPill> : null}
+            {blockedLabel ? <SmallPill>{blockedLabel}</SmallPill> : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>WU-{unit.id}</span>
@@ -86,7 +120,9 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
               <span>No workflow attached</span>
             )}
             {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to JOB-{unit.workflow_attached_job_id}</span> : null}
+            {unit.blocked_until ? <span>next check <RelativeTimestamp value={unit.blocked_until} /></span> : null}
           </div>
+          {unit.blocked_details ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{stringify(unit.blocked_details)}</p> : null}
         </div>
         <StatusPill state={unit.state} />
       </div>

@@ -156,6 +156,15 @@ RSpec.describe App::JobDetailPayload do
       expect(payload[:start_blocked_reason]).to eq("admission_control")
       expect(payload[:start_blocked_next_check_at]).to eq(next_check.iso8601)
       expect(payload[:start_blocked_details]).to eq("reason" => "worker_host_pressure_high")
+
+      active_work = payload_for(job).fetch(:active_work)
+      expect(active_work).to include(
+        kind: "manual_visual_review",
+        label: "Manual visual review: Admission control",
+        blocked_reason: "admission_control",
+        blocked_label: "Admission control",
+        blocked_details: { "reason" => "worker_host_pressure_high" }
+      )
     end
 
     it "keeps blocked landing WorkUnits in the landing state" do
@@ -707,6 +716,7 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.fetch(:current_intent)).to include(
         id: unit.work_intent_id,
         kind: "initial",
+        label: "Initial implementation",
         state: "requested",
         scope_type: "job",
         scope_id: job.id,
@@ -734,8 +744,23 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.fetch(:current_intent)).to include(
         id: intent.id,
         kind: "initial",
+        label: "Initial implementation",
         state: "waiting",
         wait_reason: "dependency",
+        wait_label: "Dependency",
+        wait_details: include("blocked_by_job_ids" => [ 9 ]),
+        execution_status: "blocked"
+      )
+
+      workflows_payload = workflows_payload_for(job)
+
+      expect(workflows_payload.fetch(:current_intent)).to include(
+        id: intent.id,
+        kind: "initial",
+        label: "Initial implementation",
+        state: "waiting",
+        wait_reason: "dependency",
+        wait_label: "Dependency",
         wait_details: include("blocked_by_job_ids" => [ 9 ]),
         execution_status: "blocked"
       )
@@ -756,6 +781,7 @@ RSpec.describe App::JobDetailPayload do
         include(
           id: unit.id,
           kind: "merge_train",
+          label: "Epic merge-train",
           state: "running",
           workflow_id: workflow.id,
           workflow_trigger_kind: "merge_train",
@@ -776,14 +802,51 @@ RSpec.describe App::JobDetailPayload do
     it "renders WorkUnit-owned direct workflows only under their WorkUnit" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
-      Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+      run = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "running",
+        started_at: 2.minutes.ago,
+        last_heartbeat_at: 1.minute.ago
+      )
+      WorkflowWarnings.record!(
+        workflow: workflow,
+        step: step,
+        kind: "grader_side_effect",
+        severity: "low",
+        title: "needs attention"
+      )
+      SpawnedProcess.create!(
+        kind: "agent",
+        command: "claude --print",
+        workdir: "/tmp/repo",
+        hostname: "worker-1",
+        pid: 4321,
+        started_at: 1.minute.ago,
+        run: run,
+        workflow: workflow
+      )
       attach_work_unit(workflow, member_jobs: [ job ], kind: "initial")
 
       payload = workflows_payload_for(job)
+      nested_workflow = payload.dig(:work_units, 0, :workflow)
+      nested_step = nested_workflow.fetch(:steps).first
+      nested_run = nested_step.fetch(:runs).first
 
       expect(payload.fetch(:workflows)).to be_empty
       expect(payload.fetch(:work_units).map { |unit| unit.dig(:workflow, :id) }).to eq([ workflow.id ])
-      expect(payload.dig(:work_units, 0, :workflow, :steps).map { |step| step[:kind] }).to include("implement")
+      expect(nested_workflow.fetch(:steps).map { |entry| entry[:kind] }).to include("implement")
+      expect(nested_step.fetch(:warnings)).to include(include(kind: "grader_side_effect", title: "needs attention"))
+      expect(nested_run).to include(id: run.id, state: "running", can_stop: true)
+      expect(nested_run.fetch(:active_process)).to include(
+        kind: "agent",
+        command: "claude --print",
+        hostname: "worker-1",
+        pid: 4321
+      )
     end
 
     it "keeps legacy workflows without WorkUnit ownership in the fallback workflow list" do

@@ -84,6 +84,7 @@ module WorkIntents
 
     def start_requested_intents_without_active_units!
       job_scoped_current_intents.find_each do |intent|
+        next if WorkUnits::Ownership.active_for_job?(job)
         next if intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).exists?
 
         result = WorkIntents::Scheduler.start_ready!(intent)
@@ -95,7 +96,7 @@ module WorkIntents
       @queued_workflows ||= begin
         work_unit_workflows = WorkUnitMember
           .joins(work_unit: :workflow)
-          .where(job_id: job.id, work_units: { state: "queued" }, workflows: { state: "queued" })
+          .where(job_id: job.id, work_units: { state: %w[queued blocked] }, workflows: { state: "queued" })
           .includes(work_unit: :workflow)
           .map { |member| member.work_unit.workflow }
         legacy_workflows = job.workflows.where(state: "queued").includes(:work_unit).to_a

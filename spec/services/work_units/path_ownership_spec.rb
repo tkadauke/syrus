@@ -33,6 +33,7 @@ RSpec.describe WorkUnits::PathOwnership do
     set_feature("work_units_landing", false)
 
     expect(described_class.for("retry")).to be_work_unit
+    expect(described_class.for("auto_retry_backoff")).to be_work_unit
     expect(described_class.for("merge_train")).to be_legacy
 
     set_feature("work_units_landing", true)

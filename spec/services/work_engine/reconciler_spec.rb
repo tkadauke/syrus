@@ -768,6 +768,7 @@ RSpec.describe WorkEngine::Reconciler do
     )
     expect(result.repair_executions.map(&:message)).to include("cancelled active WorkUnit ##{unit.id} without a Workflow")
     expect(unit.reload).to be_cancelled
+    expect(unit.preemption_reason).to eq("missing_workflow")
     expect(lock.reload).not_to be_active
     expect(member.reload).to be_present
     expect(intent.reload).to be_requested
@@ -3521,9 +3522,15 @@ RSpec.describe WorkEngine::Reconciler do
   end
 
   it "executes safe retry plans through AutoRetryAttempt and AutoRetryJob" do
+    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units scheduler"
+    end.update!(enabled: true)
+
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
     run.update_columns(state: "failed", finished_at: Time.current)
+    unit = attach_work_unit(workflow, state: "failed")
     RunFailureClassification.create!(
       run: run,
       classification: "timeout",
@@ -3543,6 +3550,8 @@ RSpec.describe WorkEngine::Reconciler do
 
     attempt = AutoRetryAttempt.last
     expect(attempt).to have_attributes(workflow: workflow, run: run, failure_classification: "timeout")
+    expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "auto_retry_backoff")
+    expect(unit.blocked_details).to include("auto_retry_attempt_id" => attempt.id)
     expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
   end
 

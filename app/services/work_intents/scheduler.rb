@@ -71,15 +71,21 @@ module WorkIntents
           reason: gate_result.reason
         )
       end
-      unless generic_start_allowed?
+      policy_result = WorkIntents::Gates::PolicyEligibility.call(intent)
+      unless policy_result.pass?
+        intent.wait!(
+          reason: policy_result.reason,
+          wait_until: policy_result.retry_at,
+          details: policy_result.details
+        )
         return StartResult.new(
           intent: intent,
-          gate_result: gate_result,
+          gate_result: policy_result,
           workflow: nil,
           work_unit: nil,
           launch_result: nil,
           status: "waiting",
-          reason: "domain_dispatcher_required"
+          reason: policy_result.reason
         )
       end
 
@@ -105,11 +111,6 @@ module WorkIntents
     private
 
     attr_reader :intent, :gates
-
-    def generic_start_allowed?
-      intent.definition.generic_intent_start_allowed? ||
-        intent.work_units.where(state: %w[succeeded failed cancelled]).exists?
-    end
 
     def managed_wait_reason?(reason)
       managed_wait_reasons.include?(reason)

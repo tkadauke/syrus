@@ -9,6 +9,7 @@ class AutoRetryJob < ApplicationJob
 
     if stale_attempt?(attempt)
       attempt.update!(skipped_reason: "source workflow was already superseded by a successful workflow")
+      WorkUnits::AutoRetryBackoff.clear!(attempt)
       log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
       return
     end
@@ -19,11 +20,13 @@ class AutoRetryJob < ApplicationJob
 
     if result.success?
       attempt.update!(performed_at: Time.current)
+      WorkUnits::AutoRetryBackoff.clear!(attempt, terminal_state: nil)
       log(attempt, "auto-retry started via #{attempt.retry_kind}")
     elsif result.circuit&.open?
       reschedule_for_circuit(attempt, result.circuit)
     else
       attempt.update!(skipped_reason: result.error.presence || "retry could not be started")
+      WorkUnits::AutoRetryBackoff.clear!(attempt)
       log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
     end
   end
@@ -49,6 +52,7 @@ class AutoRetryJob < ApplicationJob
     retry_after = Time.current + ProviderCircuitBreaker::OPEN_FOR unless retry_after && retry_after > Time.current
 
     attempt.update!(scheduled_at: retry_after)
+    WorkUnits::AutoRetryBackoff.record!(attempt)
     AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
     log(attempt, "auto-retry delayed until #{retry_after.iso8601}: #{circuit.reason}")
   end

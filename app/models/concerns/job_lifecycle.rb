@@ -57,7 +57,7 @@ module JobLifecycle
     return false if runs.where(state: %w[running succeeded failed]).exists?
 
     transaction do
-      workflows.where(state: "queued").find_each do |workflow|
+      workflows.where(state: %w[queued running]).find_each do |workflow|
         WorkUnits::WorkflowCancellation.cancel!(
           workflow,
           reason: EpicWorkflowLock::BLOCK_REASON,

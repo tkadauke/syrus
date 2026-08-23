@@ -121,10 +121,33 @@ RSpec.describe WorkIntents::Scheduler do
     expect {
       result = described_class.start_ready!(landing_intent)
       expect(result).to be_waiting
-      expect(result.reason).to eq("domain_dispatcher_required")
+      expect(result.reason).to eq("policy_not_eligible")
     }.not_to change { WorkUnit.count }
 
-    expect(landing_intent.reload).to have_attributes(state: "requested", wait_reason: nil)
+    expect(landing_intent.reload).to have_attributes(state: "waiting", wait_reason: "policy_not_eligible")
+    expect(landing_intent.wait_details).to include(
+      "policy" => "domain_dispatcher_required",
+      "kind" => "auto_merge"
+    )
+  end
+
+  it "allows generic relaunch for domain-dispatched intents that already have a terminal attempt snapshot" do
+    job.update!(state: "approved")
+    landing_intent = WorkIntent.create!(
+      kind: "auto_merge",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user
+    )
+    prior = WorkUnits::Launcher.instantiate_intent!(landing_intent)
+    prior.work_unit.mark_terminal!("failed")
+
+    expect {
+      result = described_class.start_ready!(landing_intent)
+      expect(result).to be_started
+    }.to change { landing_intent.work_units.count }.by(1)
   end
 
   it "does not start a requested intent while another active WorkUnit owns it" do

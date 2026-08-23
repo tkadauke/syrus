@@ -25,6 +25,7 @@ export function mergeJobWorkflowsPayload(payload: JobDetailPayload, workflows?: 
 
   return {
     ...payload,
+    current_intent: workflows.current_intent ?? null,
     work_units: workflows.work_units || [],
     workflows: workflows.workflows,
     workflows_pagination: workflows.workflows_pagination,

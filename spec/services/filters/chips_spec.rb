@@ -122,7 +122,7 @@ RSpec.describe "Filters::Chips" do
   end
 
   describe "has_active_run" do
-    it "matches jobs owned by active WorkUnits even when no Run is active" do
+    it "matches only jobs with active Runs, not pending WorkUnit ownership" do
       owner = Factories.job_record(repository: repo, issue_number: 10, state: "running")
       member = Factories.job_record(repository: repo, issue_number: 11, state: "running")
       inactive = Factories.job_record(repository: repo, issue_number: 12, state: "implemented")
@@ -130,8 +130,13 @@ RSpec.describe "Filters::Chips" do
       workflow.update!(state: "running")
       workflow.work_unit.work_unit_members.create!(job: member, role: "member")
 
-      expect(run(field: "has_active_run", op: "is_true", value: nil)).to contain_exactly(owner, member)
-      expect(run(field: "has_active_run", op: "is_false", value: nil)).to include(inactive)
+      expect(run(field: "has_active_run", op: "is_true", value: nil)).to be_empty
+      expect(run(field: "has_active_run", op: "is_false", value: nil)).to include(owner, member, inactive)
+
+      step = workflow.steps.create!(kind: "merge_train_assemble", position: 1, state: "running")
+      Run.create!(job: owner, step: step, state: "running", trigger_kind: workflow.trigger_kind, agent_provider: owner.agent_provider)
+
+      expect(run(field: "has_active_run", op: "is_true", value: nil)).to contain_exactly(owner)
     end
   end
 

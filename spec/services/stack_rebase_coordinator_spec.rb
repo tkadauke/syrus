@@ -6,16 +6,15 @@ RSpec.describe StackRebaseCoordinator do
 
   let(:repository) { Factories.repository }
   let(:parent) do
-    Factories.job(repository: repository, issue_number: 41).tap do |job|
+    Factories.job_record(repository: repository, issue_number: 41).tap do |job|
       job.update!(branch_name: "syrus/issue-41-#{job.id}", pr_number: 41)
       job.runs.create!(trigger_kind: "initial", agent_provider: job.agent_provider, head_sha: "a" * 40)
     end
   end
   let(:child) do
-    Factories.job(repository: repository, issue_number: 42).tap do |job|
+    Factories.job_record(repository: repository, issue_number: 42).tap do |job|
       JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
       job.update!(parent_job: parent, branch_name: "syrus/issue-42-#{job.id}", pr_number: 42)
-      job.workflows.update_all(state: "succeeded")
     end
   end
 
@@ -50,10 +49,9 @@ RSpec.describe StackRebaseCoordinator do
 
   it "rebases amended children leaf-most first" do
     older_child = child
-    newer_child = Factories.job(repository: repository, issue_number: 43).tap do |job|
+    newer_child = Factories.job_record(repository: repository, issue_number: 43).tap do |job|
       JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
       job.update!(parent_job: parent, branch_name: "syrus/issue-43-#{job.id}", pr_number: 43)
-      job.workflows.update_all(state: "succeeded")
     end
     dispatched = []
     allow(WorkUnits::Launcher).to receive(:start!) { |workflow| dispatched << workflow }

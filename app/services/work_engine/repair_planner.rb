@@ -1100,7 +1100,7 @@ module WorkEngine
             "cancel_active_work_unit_without_workflow",
             primary_work_unit,
             "The WorkUnit has no Workflow attached, so it cannot execute; cancel the empty attempt and release any locks so the Intent can be scheduled again.",
-            execution_steps: [ "WorkUnit#mark_terminal!(cancelled)" ],
+            execution_steps: [ "WorkUnit#preempt!(missing_workflow)" ],
             preconditions: {
               work_unit_state: %w[queued blocked running],
               workflow_id: nil,

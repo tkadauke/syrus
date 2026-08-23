@@ -673,6 +673,7 @@ RSpec.describe Job do
 
       expect(job.reload).to be_closed
       expect(unit.reload).to be_cancelled
+      expect(unit.preemption_reason).to eq("operator_cancelled")
       expect(job).not_to be_active_runtime_work
     end
 

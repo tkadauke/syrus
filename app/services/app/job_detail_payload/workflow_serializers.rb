@@ -43,10 +43,12 @@ module App
         {
           id: intent.id,
           kind: intent.kind,
+          label: intent_label(intent),
           state: intent.state,
           scope_type: intent.scope_type,
           scope_id: intent.scope_id,
           wait_reason: intent.wait_reason,
+          wait_label: intent.wait_reason.present? ? blocked_reason_label(intent.wait_reason) : nil,
           wait_until: iso8601(intent.wait_until),
           wait_details: intent.wait_details.presence,
           execution_status: intent_execution_status(intent),
@@ -61,6 +63,7 @@ module App
         {
           id: unit.id,
           kind: unit.kind,
+          label: work_unit_label(unit),
           state: unit.state,
           work_intent_id: unit.work_intent_id,
           workflow_id: unit.workflow_id,
@@ -72,6 +75,7 @@ module App
           scope_type: unit.scope_type,
           scope_id: unit.scope_id,
           blocked_reason: unit.blocked_reason,
+          blocked_label: unit.blocked_reason.present? ? blocked_reason_label(unit.blocked_reason) : nil,
           blocked_until: iso8601(unit.blocked_until),
           blocked_details: unit.blocked_details.presence,
           workflow: workflow ? workflow_json(workflow) : nil,
@@ -110,6 +114,28 @@ module App
         return "blocked" if intent.waiting?
 
         intent.state
+      end
+
+      def intent_label(intent)
+        work_definition_label(intent.kind)
+      end
+
+      def work_unit_label(unit)
+        label = work_definition_label(unit.kind)
+        return label unless unit.blocked_reason.present?
+
+        "#{label}: #{blocked_reason_label(unit.blocked_reason)}"
+      end
+
+      def work_definition_label(kind)
+        definition = WorkDefinitions.for(kind)
+        Workflow::TriggerKind.label_for(definition.workflow_trigger_kind)
+      rescue WorkDefinitions::UnknownKind, KeyError
+        kind.to_s.humanize
+      end
+
+      def blocked_reason_label(reason)
+        reason.to_s.humanize
       end
 
       def work_unit_members_for_job
@@ -211,7 +237,7 @@ module App
       end
 
       def total_workflows
-        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { workflows_scope.count }
+        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { @job.workflows.count }
       end
 
       def workflows_page
@@ -495,13 +521,13 @@ module App
       end
 
       def visible_run_ids
-        @visible_run_ids ||= paginated_workflows.flat_map do |workflow|
+        @visible_run_ids ||= serialized_workflows.flat_map do |workflow|
           ordered_steps_for(workflow).flat_map { |step| ordered_runs_for(step).map(&:id) }
         end.compact
       end
 
       def visible_step_ids
-        @visible_step_ids ||= paginated_workflows.flat_map do |workflow|
+        @visible_step_ids ||= serialized_workflows.flat_map do |workflow|
           ordered_steps_for(workflow).map(&:id)
         end.compact
       end
@@ -656,7 +682,7 @@ module App
 
       def workflow_failure_classifications_by_workflow_id
         @workflow_failure_classifications_by_workflow_id ||= begin
-          workflow_ids = paginated_workflows.map(&:id)
+          workflow_ids = serialized_workflows.map(&:id)
           if workflow_ids.empty?
             {}
           else

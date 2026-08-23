@@ -11011,6 +11011,7 @@ describe("App", () => {
     expect(screen.queryByText("Grade summary")).not.toBeInTheDocument()
     expect(screen.queryByText("Open an individual grader below to view raw logs.")).not.toBeInTheDocument()
     expect(screen.queryByText("exit 1")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /^1\.Grade/i }))
     expect(screen.getByRole("button", { name: /Setup/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Result/i })).toBeInTheDocument()
 

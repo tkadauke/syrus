@@ -292,6 +292,7 @@ module WorkEngine
             attempt_number: attempt_number,
             scheduled_at: scheduled_at
           )
+          WorkUnits::AutoRetryBackoff.record!(attempt)
           AutoRetryJob.set(wait_until: scheduled_at, priority: job.solid_queue_priority).perform_later(attempt.id)
           success("scheduled #{retry_kind} auto-retry attempt ##{attempt.id} for #{scheduled_at.iso8601}")
         end
@@ -788,7 +789,7 @@ module WorkEngine
           return skipped("WorkUnit is #{unit.state}, not active") unless unit.active?
           return skipped("WorkUnit already has Workflow ##{unit.workflow_id}") if unit.workflow_id.present?
 
-          unit.mark_terminal!("cancelled")
+          unit.preempt!(reason: "missing_workflow")
           remaining_lock_ids = unit.work_unit_locks.active.pluck(:id)
           if remaining_lock_ids.any?
             failure("cancelled WorkUnit ##{unit.id}, but active locks remain: #{remaining_lock_ids.inspect}")

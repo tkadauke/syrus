@@ -48,10 +48,22 @@ module JobDependencies
       dependencies_overridden_by_user: user
     )
     log_dependency_override!(user)
-    start_pending_workflows_if_dependencies_satisfied!
+    clear_dependency_start_blocks!
+    if may_advance_after_triage?
+      advance_after_triage!
+    else
+      start_pending_workflows_if_dependencies_satisfied!
+    end
   end
 
   private
+
+  def clear_dependency_start_blocks!
+    workflows.where(state: "queued").includes(:work_unit).find_each do |workflow|
+      StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
+      StepDispatcher.clear_start_blocked!(workflow, "dependency_failed")
+    end
+  end
 
   def dependency_terminal_unsuccessful?(dependency)
     return false if dependency.dependency_succeeded?

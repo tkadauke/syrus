@@ -487,6 +487,7 @@ export type JobWorkflow = {
 export type JobWorkUnit = {
   id: number
   kind: string
+  label?: string | null
   state: string
   work_intent_id: number
   workflow_id: number | null
@@ -498,6 +499,7 @@ export type JobWorkUnit = {
   scope_type: string
   scope_id: number | null
   blocked_reason: string | null
+  blocked_label?: string | null
   blocked_until: string | null
   blocked_details: Record<string, unknown> | null
   workflow?: JobWorkflow | null
@@ -516,10 +518,12 @@ export type JobWorkUnit = {
 export type JobWorkIntent = {
   id: number
   kind: string
+  label?: string | null
   state: string
   scope_type: string
   scope_id: number | null
   wait_reason: string | null
+  wait_label?: string | null
   wait_until: string | null
   wait_details: Record<string, unknown> | null
   execution_status: string
@@ -845,7 +849,7 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<JobDetailPayload, "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
+export type JobWorkflowsPayload = Pick<JobDetailPayload, "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths">
 
 export type JobTimelinePayload = {
   job_id: number
