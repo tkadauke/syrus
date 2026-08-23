@@ -43,6 +43,19 @@ RSpec.describe RebaseWorkflowSelector do
     unit
   end
 
+  def set_feature(slug, enabled)
+    Feature.find_or_create_by!(slug: slug) do |feature|
+      feature.category = "Operations"
+      feature.name = slug.humanize
+    end.update!(enabled: enabled)
+    Feature.clear_enabled_cache!(slug)
+  end
+
+  before do
+    set_feature("work_units_scheduler", false)
+    set_feature("work_units_landing", false)
+  end
+
   describe ".stack_rebase?" do
     it "returns false when the job has no stack children" do
       expect(described_class.stack_rebase?(job)).to be false
@@ -137,6 +150,24 @@ RSpec.describe RebaseWorkflowSelector do
       expect(described_class.active_for_stack?(job)).to be true
       expect(described_class.active_for_jobs([ job ])).to be_empty
     end
+
+    it "ignores legacy rebase workflows after scheduler ownership moves to WorkUnits" do
+      set_feature("work_units_scheduler", true)
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+      Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)
+
+      expect(described_class.active_for_stack?(job)).to be false
+      expect(described_class.active_for_jobs([ job ])).to be_empty
+    end
+
+    it "ignores legacy stack-rebase workflows after landing ownership moves to WorkUnits" do
+      set_feature("work_units_landing", true)
+      workflow = Workflow.create!(job: job, trigger_kind: "stack_rebase", state: "running")
+      Step.create!(workflow: workflow, kind: "stack_auto_rebase", position: 0)
+
+      expect(described_class.active_for_stack?(job)).to be false
+      expect(described_class.active_for_jobs([ job ])).to be_empty
+    end
   end
 
   describe ".active_merge_train_for_stack?" do
@@ -183,6 +214,14 @@ RSpec.describe RebaseWorkflowSelector do
       result = described_class.active_in_repository(repository)
 
       expect(result).to include(workflow)
+    end
+
+    it "does not return legacy repository rebase workflows after scheduler ownership moves to WorkUnits" do
+      set_feature("work_units_scheduler", true)
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+      Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)
+
+      expect(described_class.active_in_repository(repository)).to be_empty
     end
 
     it "excludes workflows from other repositories" do

@@ -1654,6 +1654,10 @@ Completed slices:
   running WorkUnit membership for "In progress" and infrastructure-work
   "Queued" exclusions, so WorkUnit-owned member work is visible without losing
   the legacy paused-artifact filter during migration.
+- Rebase and stack-rebase active-work selection now applies the shared
+  feature-gated legacy Workflow visibility rules before considering direct
+  Workflow rows, so stale legacy rebase rows stop blocking stack/rebase actions
+  once the relevant path is WorkUnit-owned.
 
 ### Phase 5: Reconciler Simplification
 

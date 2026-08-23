@@ -64,7 +64,11 @@ class RebaseWorkflowSelector
 
   def self.active_in_repository(repository)
     legacy_ids = runnable_active_scope(
-      Workflow.active.where(trigger_kind: TRIGGER_KINDS).joins(:job).where(jobs: { repository_id: repository.id })
+      WorkUnits::Ownership.legacy_active_workflows_scope(
+        nil,
+        kinds: TRIGGER_KINDS,
+        base_scope: Workflow.active.where(trigger_kind: TRIGGER_KINDS).joins(:job).where(jobs: { repository_id: repository.id })
+      )
     ).pluck(:id)
     unit_ids = WorkUnit
       .where(state: WorkUnits::Ownership::ACTIVE_STATES, kind: TRIGGER_KINDS, repository_id: repository.id)
@@ -88,7 +92,13 @@ class RebaseWorkflowSelector
   private_class_method :active_workflows_for_job_ids
 
   def self.active_legacy_workflows_for_job_ids(job_ids)
-    runnable_active_scope(Workflow.active.where(trigger_kind: TRIGGER_KINDS, job_id: job_ids))
+    runnable_active_scope(
+      WorkUnits::Ownership.legacy_active_workflows_scope(
+        job_ids,
+        kinds: TRIGGER_KINDS,
+        base_scope: Workflow.active.where(trigger_kind: TRIGGER_KINDS, job_id: job_ids)
+      )
+    )
   end
   private_class_method :active_legacy_workflows_for_job_ids
 
