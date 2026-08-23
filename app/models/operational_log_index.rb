@@ -128,9 +128,11 @@ class OperationalLogIndex < SearchRecord
       remove_instance_variable(:@available) if defined?(@available)
     end
 
-    # Repopulates the FTS table from the primary-DB events after a schema
-    # rebuild (see SyrusSearchDatabaseTasks). Retention is short (6 hours)
-    # so a full re-scan is cheap.
+    # Repopulates the FTS table from the primary-DB events after the table is
+    # (re)created — first boot on a fresh search volume, or a schema-drift
+    # rebuild (see SyrusSearchDatabaseTasks::REBUILD_HOOKS, called from both
+    # branches of #ensure_required_tables!). Retention is short (6 hours) so a
+    # full re-scan is cheap.
     def rebuild!
       OperationalLogEvent.where(occurred_at: OperationalLogEvent::RETENTION.ago..).find_each do |event|
         upsert(event)

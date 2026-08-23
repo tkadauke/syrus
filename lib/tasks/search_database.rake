@@ -132,6 +132,7 @@ module SyrusSearchDatabaseTasks
 
       SearchRecord.connection.execute(sql)
       AVAILABILITY_CACHES[table_name]&.call
+      REBUILD_HOOKS[table_name]&.call
     end
   end
 
