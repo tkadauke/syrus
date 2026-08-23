@@ -57,6 +57,7 @@ function repositoryDetailPayload() {
     credential_status: { mode: "app", label: "GitHub App", installation_account: null, github_app_registered: true, install_url: null, register_path: null, previous_installation_removed: false, missing_github_ids: false },
     jobs: [],
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
+    preview: null,
     paths: {
       new_job_path: "/jobs/new",
       new_repository_skill_job_path: "/repositories/1/skills/new",
@@ -71,7 +72,9 @@ function repositoryDetailPayload() {
       app_check_ci_now_repository_path: "/api/v1/app/repositories/1/check_ci_now",
       repositories_path: "/repositories",
       repository_documents_path: "/repositories/1/documents",
-      repository_scheduled_tasks_path: "/repositories/1/scheduled_tasks"
+      repository_scheduled_tasks_path: "/repositories/1/scheduled_tasks",
+      app_preview_path: "/api/v1/app/repositories/1/preview",
+      app_preview_logs_path: "/api/v1/app/repositories/1/preview/logs"
     }
   }
 }
@@ -320,5 +323,72 @@ describe("RepositoryDetailRoute archive", () => {
       ARCHIVE_PATH,
       expect.objectContaining({ method: "POST" })
     )
+  })
+})
+
+describe("RepositoryDetailRoute preview", () => {
+  it("starts a repository-scoped preview from the Preview panel", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/repositories/1/preview" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          preview: { id: 9, state: "starting", url: null, expires_at: null, error_message: null },
+          message: "Preview environment starting."
+        }, 201))
+      }
+      if (url === THROUGHPUT_PATH) {
+        return Promise.resolve(jsonResponse(throughputPayload()))
+      }
+      return Promise.resolve(jsonResponse(repositoryDetailPayload()))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
+          <Routes>
+            <Route element={<RepositoryDetailRoute />} path="/app-shell/repositories/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const startButton = await screen.findByRole("button", { name: "Start Preview" })
+    fireEvent.click(startButton)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/1/preview",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(await screen.findByText("Starting preview…")).toBeInTheDocument()
+  })
+
+  it("shows the Open Preview link when a repository preview is already running", async () => {
+    const payload = {
+      ...repositoryDetailPayload(),
+      preview: { id: 9, state: "running" as const, url: "http://preview-9.lvh.me", expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), error_message: null }
+    }
+
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url === THROUGHPUT_PATH) {
+        return Promise.resolve(jsonResponse(throughputPayload()))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1"]}>
+          <Routes>
+            <Route element={<RepositoryDetailRoute />} path="/app-shell/repositories/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const link = await screen.findByRole("link", { name: "Open Preview" })
+    expect(link).toHaveAttribute("href", "http://preview-9.lvh.me")
   })
 })

@@ -1481,15 +1481,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
     t.text "error_message"
     t.datetime "expires_at"
     t.string "internal_host"
-    t.integer "job_id", null: false
+    t.integer "job_id"
     t.datetime "last_activity_at"
     t.integer "port"
+    t.integer "repository_id"
     t.string "state", default: "starting", null: false
     t.datetime "updated_at", null: false
     t.string "workspace_path"
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id"], name: "index_preview_environments_on_job_id"
     t.index ["job_id"], name: "index_preview_environments_on_job_id_active", where: "state IN ('starting','seeding','running','stopping')"
+    t.index ["repository_id"], name: "index_preview_environments_on_repository_id"
     t.index ["state"], name: "index_preview_environments_on_state"
   end
 
@@ -2510,6 +2512,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
   end
 
   add_foreign_key "github_collaborator_discrepancies", "repositories"
+  add_foreign_key "preview_environments", "repositories"
   add_foreign_key "team_memberships", "teams"
   add_foreign_key "team_memberships", "users"
   add_foreign_key "team_repositories", "repositories"

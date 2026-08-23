@@ -80,6 +80,7 @@ function buildPayload(): RepositoryDetailPayload {
     credential_status: { mode: "app", label: "GitHub App", installation_account: null, github_app_registered: true, install_url: null, register_path: null, previous_installation_removed: false, missing_github_ids: false },
     jobs: [],
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
+    preview: null,
     paths: {
       new_job_path: "/jobs/new",
       new_repository_skill_job_path: "/repositories/1/skills/new",
@@ -95,7 +96,9 @@ function buildPayload(): RepositoryDetailPayload {
       repositories_path: "/repositories",
       repository_documents_path: "/repositories/1/documents",
       repository_scheduled_tasks_path: "/repositories/1/scheduled_tasks",
-      app_flaky_tests_path: "/api/v1/app/repositories/1/flaky_tests"
+      app_flaky_tests_path: "/api/v1/app/repositories/1/flaky_tests",
+      app_preview_path: "/api/v1/app/repositories/1/preview",
+      app_preview_logs_path: "/api/v1/app/repositories/1/preview/logs"
     }
   }
 }

@@ -473,6 +473,7 @@ module Api
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
               jobs: PerformanceLogging.phase("repository_detail.jobs_json", repository_id: repository.id, job_count: jobs.size) { jobs.map { |job| job_json(job) } },
               pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
+              preview: PerformanceLogging.phase("repository_detail.preview", repository_id: repository.id) { repository_preview_json(repository) },
               paths: {
                 new_job_path: new_job_path(repository_id: repository.id),
                 new_repository_skill_job_path: new_repository_skill_job_path(repository),
@@ -488,7 +489,9 @@ module Api
                 repositories_path: repositories_path,
                 repository_documents_path: repository_documents_path(repository),
                 repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository),
-                app_flaky_tests_path: "/api/v1/app/repositories/#{repository.id}/flaky_tests"
+                app_flaky_tests_path: "/api/v1/app/repositories/#{repository.id}/flaky_tests",
+                app_preview_path: "/api/v1/app/repositories/#{repository.id}/preview",
+                app_preview_logs_path: "/api/v1/app/repositories/#{repository.id}/preview/logs"
               }
             }
 
@@ -658,6 +661,19 @@ module Api
             main_branch_repair_auto_approve: repository.main_branch_repair_auto_approve?,
             treat_grader_timeouts_as_failures: repository.treat_grader_timeouts_as_failures?,
             last_health_checked_sha: repository.last_health_checked_sha
+          }
+        end
+
+        def repository_preview_json(repository)
+          env = repository.preview_environments.order(created_at: :desc).first
+          return nil unless env
+
+          {
+            id: env.id,
+            state: env.state,
+            url: env.running? ? env.preview_url(RepositoryPreviewController::PREVIEW_BASE_DOMAIN) : nil,
+            expires_at: env.expires_at&.iso8601,
+            error_message: env.error_message
           }
         end
 

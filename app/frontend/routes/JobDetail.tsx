@@ -27,7 +27,7 @@ import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetai
 import { CommandButton, useJobCommand } from "./jobDetail/command"
 import { TagsPanel, NeedsAttentionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
-import { PreviewPanel, PreviewStopModal } from "./jobDetail/PreviewPanel"
+import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
@@ -378,7 +378,8 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
           <PreviewPanel
             canStart={payload.actions.can_start_preview}
             initialPreview={payload.preview}
-            jobId={payload.job.id}
+            queryKeyPrefix="job"
+            entityId={payload.job.id}
             previewPath={payload.paths.app_preview_path}
             previewLogsPath={payload.paths.app_preview_logs_path}
             queryKey={queryKey}

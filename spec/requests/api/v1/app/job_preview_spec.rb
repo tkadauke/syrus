@@ -39,11 +39,11 @@ RSpec.describe "App API job preview", type: :request do
     end
 
     it "includes the preview URL when running" do
-      create_preview_env(job, state: "running", expires_at: 10.minutes.from_now)
+      env = create_preview_env(job, state: "running", expires_at: 10.minutes.from_now)
 
       get preview_path(job), as: :json
 
-      expect(parse_body.dig("preview", "url")).to match(/http:\/\/preview-#{job.id}\./)
+      expect(parse_body.dig("preview", "url")).to match(/http:\/\/preview-#{env.id}\./)
     end
 
     it "omits the URL when not running" do

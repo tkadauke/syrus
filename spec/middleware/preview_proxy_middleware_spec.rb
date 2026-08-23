@@ -66,7 +66,7 @@ RSpec.describe PreviewProxyMiddleware do
     end
 
     it "proxies the request to the internal host and port" do
-      status, headers, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      status, headers, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
       expect(status).to eq(200)
       expect(body).to eq(["hello from preview"])
       expect(headers["content-type"]).to eq("text/html")
@@ -78,12 +78,12 @@ RSpec.describe PreviewProxyMiddleware do
           "Host" => "localhost:25000",
           "X-Forwarded-Host" => "localhost:25000",
           "X-Forwarded-Proto" => "http",
-          "X-Syrus-Preview-Host" => "preview-#{job.id}.lvh.me",
+          "X-Syrus-Preview-Host" => "preview-#{preview_env.id}.lvh.me",
           "X-Syrus-Preview-Proto" => "http"
         })
         .to_return(status: 200, body: "host ok", headers: {})
 
-      status, _, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
       expect(status).to eq(200)
       expect(body).to eq(["host ok"])
     end
@@ -96,9 +96,9 @@ RSpec.describe PreviewProxyMiddleware do
         })
         .to_return(status: 201, body: "created", headers: {})
 
-      env = env_for(host: "preview-#{job.id}.lvh.me", path: "/api/signup", method: "POST")
-      env["HTTP_ORIGIN"] = "http://preview-#{job.id}.lvh.me"
-      env["HTTP_REFERER"] = "http://preview-#{job.id}.lvh.me/signup"
+      env = env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/api/signup", method: "POST")
+      env["HTTP_ORIGIN"] = "http://preview-#{preview_env.id}.lvh.me"
+      env["HTTP_REFERER"] = "http://preview-#{preview_env.id}.lvh.me/signup"
 
       status, _, body = middleware.call(env)
 
@@ -109,7 +109,7 @@ RSpec.describe PreviewProxyMiddleware do
     it "proxies with path and query string" do
       stub_request(:get, "http://127.0.0.1:25000/dashboard?tab=logs")
         .to_return(status: 200, body: "dashboard", headers: {})
-      status, _, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me", path: "/dashboard", query: "tab=logs"))
+      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/dashboard", query: "tab=logs"))
       expect(status).to eq(200)
       expect(body).to eq(["dashboard"])
     end
@@ -117,7 +117,7 @@ RSpec.describe PreviewProxyMiddleware do
     it "preserves non-200 status codes from the upstream" do
       stub_request(:get, "http://127.0.0.1:25000/missing")
         .to_return(status: 404, body: "not found", headers: {})
-      status, _, _ = middleware.call(env_for(host: "preview-#{job.id}.lvh.me", path: "/missing"))
+      status, _, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/missing"))
       expect(status).to eq(404)
     end
 
@@ -128,7 +128,7 @@ RSpec.describe PreviewProxyMiddleware do
           "transfer-encoding" => "chunked",
           "content-type" => "text/html"
         })
-      _, headers, _ = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      _, headers, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
       expect(headers.keys).not_to include("connection", "transfer-encoding")
       expect(headers["content-type"]).to eq("text/html")
     end
@@ -142,7 +142,7 @@ RSpec.describe PreviewProxyMiddleware do
           "permissions-policy" => "fullscreen=()"
         })
 
-      _, headers, _ = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      _, headers, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
 
       expect(headers).not_to have_key("content-security-policy")
       expect(headers).not_to have_key("content-security-policy-report-only")
@@ -167,7 +167,7 @@ RSpec.describe PreviewProxyMiddleware do
           }
         )
 
-      status, headers, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      status, headers, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
 
       expect(status).to eq(200)
       expect(body.join).to include('src="/builds/main.tsx"')
@@ -183,14 +183,14 @@ RSpec.describe PreviewProxyMiddleware do
           headers: { "content-type" => "application/json" }
         )
 
-      _, _, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me", path: "/api"))
+      _, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/api"))
 
       expect(body.join).to include("http://localhost:3036")
     end
 
     it "resets last_activity_at on each proxied request" do
       freeze_time do
-        middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+        middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
         preview_env.reload
         expect(preview_env.last_activity_at).to be_within(1.second).of(Time.current)
       end
@@ -198,7 +198,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "extends expires_at on each proxied request" do
       freeze_time do
-        middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+        middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
         preview_env.reload
         expect(preview_env.expires_at).to be_within(1.second).of(
           PreviewEnvironment::DEFAULT_TTL_MINUTES.minutes.from_now
@@ -221,22 +221,43 @@ RSpec.describe PreviewProxyMiddleware do
       stub_request(:get, "http://127.0.0.1:25001/")
         .to_return(status: 200, body: "custom domain preview", headers: {})
 
-      status, _, body = custom_middleware.call(env_for(host: "preview-#{other_preview.job_id}.preview.example.com"))
+      status, _, body = custom_middleware.call(env_for(host: "preview-#{other_preview.id}.preview.example.com"))
       expect(status).to eq(200)
       expect(body).to eq(["custom domain preview"])
     end
   end
 
+  describe "preview host for a repository-scoped environment (no job)" do
+    it "proxies the request the same way as a job-scoped environment" do
+      repo_preview = PreviewEnvironment.create!(
+        repository: job.repository,
+        workspace_path: "/tmp/workspace",
+        state: "running",
+        internal_host: "127.0.0.1",
+        port: 25002,
+        expires_at: 10.minutes.from_now,
+        last_activity_at: 1.minute.ago
+      )
+      stub_request(:get, "http://127.0.0.1:25002/")
+        .to_return(status: 200, body: "main branch preview", headers: { "content-type" => "text/html" })
+
+      status, _, body = middleware.call(env_for(host: "preview-#{repo_preview.id}.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(body).to eq(["main branch preview"])
+    end
+  end
+
   describe "preview host with no running environment" do
-    it "returns 503 when no preview environment exists for the job" do
-      status, headers, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+    it "returns 503 when no preview environment exists for that id" do
+      status, headers, body = middleware.call(env_for(host: "preview-999999.lvh.me"))
       expect(status).to eq(503)
       expect(headers["Content-Type"]).to include("text/html")
       expect(body.join).to include("Preview not available")
     end
 
     it "includes a message directing the user to the Syrus UI" do
-      _, _, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      _, _, body = middleware.call(env_for(host: "preview-999999.lvh.me"))
       expect(body.join).to include("Syrus UI")
     end
   end
@@ -244,15 +265,15 @@ RSpec.describe PreviewProxyMiddleware do
   describe "preview host with a non-running environment" do
     PreviewEnvironment::ACTIVE_STATES.reject { |s| s == "running" }.each do |state|
       it "returns 503 when environment is in '#{state}' state" do
-        PreviewEnvironment.create!(job: job, workspace_path: "/tmp", state: state)
-        status, _, _ = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+        env = PreviewEnvironment.create!(job: job, workspace_path: "/tmp", state: state)
+        status, _, _ = middleware.call(env_for(host: "preview-#{env.id}.lvh.me"))
         expect(status).to eq(503)
       end
     end
 
     it "returns 503 when environment is stopped" do
-      PreviewEnvironment.create!(job: job, workspace_path: "/tmp", state: "stopped")
-      status, _, _ = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      env = PreviewEnvironment.create!(job: job, workspace_path: "/tmp", state: "stopped")
+      status, _, _ = middleware.call(env_for(host: "preview-#{env.id}.lvh.me"))
       expect(status).to eq(503)
     end
   end
@@ -262,7 +283,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "returns 502 when the upstream connection fails" do
       stub_request(:get, "http://127.0.0.1:25000/").to_raise(Errno::ECONNREFUSED)
-      status, _, body = middleware.call(env_for(host: "preview-#{job.id}.lvh.me"))
+      status, _, body = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me"))
       expect(status).to eq(502)
       expect(body.join).to include("Proxy error")
     end
@@ -276,7 +297,7 @@ RSpec.describe PreviewProxyMiddleware do
         .with(body: "field=value")
         .to_return(status: 201, body: "created", headers: {})
 
-      env = env_for(host: "preview-#{job.id}.lvh.me", path: "/submit", method: "POST", body: "field=value")
+      env = env_for(host: "preview-#{preview_env.id}.lvh.me", path: "/submit", method: "POST", body: "field=value")
       status, _, body = middleware.call(env)
       expect(status).to eq(201)
       expect(body).to eq(["created"])
@@ -289,7 +310,7 @@ RSpec.describe PreviewProxyMiddleware do
     it "matches hosts with an explicit port" do
       stub_request(:get, "http://127.0.0.1:25000/")
         .to_return(status: 200, body: "ok", headers: {})
-      status, _, _ = middleware.call(env_for(host: "preview-#{job.id}.lvh.me:3000"))
+      status, _, _ = middleware.call(env_for(host: "preview-#{preview_env.id}.lvh.me:3000"))
       expect(status).to eq(200)
     end
   end
