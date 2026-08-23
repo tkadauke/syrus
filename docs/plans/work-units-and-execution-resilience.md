@@ -1811,6 +1811,17 @@ Completed slices:
   child definitions declare a valid parent kind, and every definition exposes
   scope, gates, preemption, and retry policy. The spec catches new workflow
   kinds that forget to add runtime semantics.
+- Work definitions now declare active-repair workflow semantics. The reconciler
+  uses that policy to distinguish "failed, repair running" from generic
+  Job/Workflow state drift, including operator-confirmed manual repair work.
+- Work definitions now declare retry-workflow-attempt semantics. Stale
+  auto-retry cleanup and retry eligibility use that policy instead of assuming
+  every retry-like unit is exactly `trigger_kind == "retry"`, which keeps
+  checkpoint-resume attempts inside the same scheduler model.
+- Work definitions now declare landing-validation parent/child relationships.
+  Speculative landing validation, grader collection, and changed-file base
+  selection consume the source/child/family policy sets instead of maintaining
+  local `auto_merge`/`merge_train`/validation trigger lists.
 
 ### Phase 7: Callback Strangler Completion
 
