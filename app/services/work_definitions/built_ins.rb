@@ -31,6 +31,16 @@ module WorkDefinitions
     def preemption_policy = WorkUnits::PreemptionPolicies::Rebuild.new
   end
 
+  module RequiresApproval
+    def intent_gates = super + [ WorkIntents::Gates::Approval ]
+    def requires_approval? = true
+  end
+
+  module RequiresEpicReadiness
+    def intent_gates = super + [ WorkIntents::Gates::EpicReadiness ]
+    def requires_epic_readiness? = true
+  end
+
   class Initial < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
@@ -106,6 +116,7 @@ module WorkDefinitions
 
   class AutoMerge < Base
     include BlocksCiFailure
+    include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
 
@@ -117,6 +128,7 @@ module WorkDefinitions
 
   class LandingValidation < Base
     include BlocksCiFailure
+    include RequiresApproval
     include ManagesOwnJobLifecycle
     include CancelPreemptable
 
@@ -129,6 +141,7 @@ module WorkDefinitions
 
   class ExternalPrMerge < Base
     include BlocksCiFailure
+    include RequiresApproval
     include ResumesFailedSteps
     include RebuildOnPreempt
 
@@ -140,6 +153,8 @@ module WorkDefinitions
 
   class MergeTrain < Base
     include BlocksCiFailure
+    include RequiresApproval
+    include RequiresEpicReadiness
     include RebuildOnPreempt
 
     self.kind = "merge_train"
@@ -162,6 +177,8 @@ module WorkDefinitions
 
   class MergeTrainValidation < Base
     include BlocksCiFailure
+    include RequiresApproval
+    include RequiresEpicReadiness
     include ManagesOwnJobLifecycle
     include CancelPreemptable
 

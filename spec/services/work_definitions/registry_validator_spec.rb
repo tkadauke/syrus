@@ -35,4 +35,13 @@ RSpec.describe WorkDefinitions::RegistryValidator do
   it "is exposed through WorkDefinitions.validate_registry!" do
     expect { WorkDefinitions.validate_registry! }.not_to raise_error
   end
+
+  it "declares approval and epic-readiness intent gates for landing definitions" do
+    expect(WorkDefinitions.for("auto_merge").intent_gates).to include(WorkIntents::Gates::Approval)
+    expect(WorkDefinitions.for("external_pr_merge").intent_gates).to include(WorkIntents::Gates::Approval)
+    expect(WorkDefinitions.for("merge_train").intent_gates).to include(
+      WorkIntents::Gates::Approval,
+      WorkIntents::Gates::EpicReadiness
+    )
+  end
 end
