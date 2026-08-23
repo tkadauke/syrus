@@ -7,6 +7,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
     j = Factories.job(repository: repository, issue_number: 42)
     j.update!(branch_name: "syrus/issue-42-#{j.id}", pr_number: 7)
     j.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
+    mark_workflows_succeeded_for_polling!(j)
     j
   end
 
@@ -28,6 +29,11 @@ RSpec.describe PollPullRequestJob, :ci_only do
     stub_request(:delete, /api\.github\.com\/repos\/.*\/git\/refs\/heads\//).to_return(
       status: 204, body: ""
     )
+  end
+
+  def mark_workflows_succeeded_for_polling!(target)
+    target.workflows.update_all(state: "succeeded")
+    WorkUnits::TerminalWorkflowSync.for_job(target)
   end
 
   def stub_pr(state: "open", merged: false, labels: [], head_sha: "deadbeef0000000000000000000000000000beef")
