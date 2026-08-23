@@ -1646,6 +1646,10 @@ Completed slices:
   the top-level Workflow list as the legacy fallback for direct workflows
   without WorkUnit ownership, so cross-job units such as merge-train member work
   are diagnosable from every member Job without duplicate rendering.
+- Chat job-status cards now read active Workflows through
+  `WorkUnits::Ownership.active_workflows_by_job_id`, so active member work in
+  an Epic-wide WorkUnit suppresses stale "awaiting review" blockers and shows
+  the current workflow/step even when the Workflow row belongs to another Job.
 
 ### Phase 5: Reconciler Simplification
 

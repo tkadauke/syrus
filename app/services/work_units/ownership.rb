@@ -85,6 +85,37 @@ module WorkUnits
       active_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).size
     end
 
+    def self.active_workflows_by_job_id(job_ids, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return {} if ids.empty?
+
+      result = {}
+      unit_scope = active_unit_members_for_job_ids(ids, kinds: kinds, states: states)
+        .joins(work_unit: :workflow)
+      unit_scope = unit_scope.where(workflows: { agent_provider: agent_provider.to_s }) if agent_provider.present?
+
+      unit_scope
+        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .each do |member|
+          workflow = member.work_unit.workflow
+          next unless workflow
+
+          result[member.job_id] ||= workflow
+        end
+
+      remaining_ids = ids - result.keys
+      return result if remaining_ids.empty?
+
+      legacy_active_workflows_scope(remaining_ids, kinds: kinds, base_scope: Workflow.where(state: workflow_states(states)))
+        .then { |scope| agent_provider.present? ? scope.where(agent_provider: agent_provider.to_s) : scope }
+        .order(:job_id, created_at: :desc, id: :desc)
+        .each do |workflow|
+          result[workflow.job_id] ||= workflow
+        end
+
+      result
+    end
+
     def self.active_trigger_kinds_by_job_id(job_ids)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?
@@ -194,14 +225,14 @@ module WorkUnits
       scope
     end
 
-    def self.active_unit_members_for_job_ids(job_ids, kinds: nil)
+    def self.active_unit_members_for_job_ids(job_ids, kinds: nil, states: ACTIVE_STATES)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return WorkUnitMember.none if ids.empty?
 
       scope = WorkUnitMember
         .joins(:work_unit)
         .includes(work_unit: :workflow)
-        .where(job_id: ids, work_units: { state: ACTIVE_STATES })
+        .where(job_id: ids, work_units: { state: Array(states).map(&:to_s) })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       scope
     end
@@ -253,7 +284,7 @@ module WorkUnits
 
     def self.legacy_active_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      workflow_states = Array(states).map(&:to_s) & %w[queued running]
+      workflow_states = workflow_states(states)
       return [] if workflow_states.empty?
 
       scope = legacy_active_workflows_scope(ids, kinds: kinds, base_scope: Workflow.where(state: workflow_states))
@@ -296,6 +327,10 @@ module WorkUnits
       return !WorkUnits::PathOwnership.work_unit_owned?("landing_queue") if LANDING_OWNED_KINDS.include?(kind)
 
       !WorkUnits::PathOwnership.work_unit_owned?("retry")
+    end
+
+    def self.workflow_states(states)
+      Array(states).map(&:to_s) & %w[queued running]
     end
   end
 end

@@ -146,6 +146,35 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_workflow_ids(agent_provider: "codex")).not_to include(ignored_workflow.id)
   end
 
+  it "reports the active workflow for each member job" do
+    primary = Factories.job_record(issue_number: 221)
+    member = Factories.job_record(repository: primary.repository, user: primary.user, issue_number: 222)
+    workflow = Workflow.create!(
+      job: primary,
+      trigger_kind: "merge_train",
+      agent_provider: "codex",
+      state: "running"
+    )
+    attach_work_unit(workflow, member_jobs: [ primary, member ], kind: "merge_train")
+
+    result = described_class.active_workflows_by_job_id([ member.id ], agent_provider: "codex")
+
+    expect(result).to eq(member.id => workflow)
+  end
+
+  it "falls back to legacy workflows when no active work unit owns the job" do
+    job = Factories.job_record(issue_number: 223)
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "queued"
+    )
+
+    expect(described_class.active_workflows_by_job_id([ job.id ], agent_provider: "claude")).to eq(job.id => workflow)
+    expect(described_class.active_workflows_by_job_id([ job.id ], agent_provider: "codex")).to eq({})
+  end
+
   it "filters active membership by work unit kind" do
     job = Factories.job
     retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")

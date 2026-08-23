@@ -78,7 +78,7 @@ class ChatJobStatusQuery
     jobs = jobs.compact.uniq(&:id)
     job_ids = jobs.map(&:id)
 
-    @active_workflows_by_job_id = latest_workflows_by_job_id(job_ids, state: %w[ queued running ])
+    @active_workflows_by_job_id = WorkUnits::Ownership.active_workflows_by_job_id(job_ids)
 
     workflow_ids = @active_workflows_by_job_id.values.map(&:id)
     @current_steps_by_workflow_id = current_steps_by_workflow_id(workflow_ids)

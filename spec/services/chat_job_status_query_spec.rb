@@ -19,6 +19,31 @@ RSpec.describe ChatJobStatusQuery do
     [ proposal, job ]
   end
 
+  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: member_jobs.first.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: repository,
+      scope_type: intent.scope_type,
+      scope_id: intent.scope_id,
+      workflow: workflow
+    )
+    member_jobs.each_with_index do |job, index|
+      unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
+    end
+    unit
+  end
+
   def count_sql
     count = 0
     callback = lambda do |_name, _started, _finished, _id, payload|
@@ -178,6 +203,37 @@ RSpec.describe ChatJobStatusQuery do
         state: "queued",
         trigger_kind: "chat_feedback",
         step: "chat_feedback"
+      )
+      expect(result.first[:blocker]).to be_nil
+    end
+
+    it "uses WorkUnit membership for active workflow status on member jobs" do
+      owner_job = Factories.job_record(user: user, repository: repository, issue_number: 911)
+      _, member_job = confirmed_job_proposal(title: "Merge train member", state: "implemented", issue_number: 912)
+      workflow = Workflow.create!(
+        job: owner_job,
+        user: user,
+        trigger_kind: "merge_train",
+        agent_provider: "codex",
+        state: "running"
+      )
+      Step.create!(
+        workflow: workflow,
+        kind: "merge_train_build",
+        state: "running",
+        position: 1
+      )
+      attach_work_unit(workflow, member_jobs: [ owner_job, member_job ], kind: "merge_train")
+
+      result = described_class.call(session)
+
+      expect(result.first[:job_id]).to eq(member_job.id)
+      expect(result.first[:workflow_step]).to eq("merge_train_build")
+      expect(result.first[:active_workflow]).to include(
+        id: workflow.id,
+        state: "running",
+        trigger_kind: "merge_train",
+        step: "merge_train_build"
       )
       expect(result.first[:blocker]).to be_nil
     end
