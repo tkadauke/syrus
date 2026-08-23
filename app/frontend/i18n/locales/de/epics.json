@@ -1,5 +1,6 @@
 {
   "title": "Epics",
+  "legacy_epic_banner": "Dies ist ein älteres, mehrstufiges Feature, das vor dieser Umstellung angelegt wurde. Neue Anfragen erscheinen jetzt als einzelne Aufgaben im Haupt-Dashboard.",
   "detail_label": "Epic",
   "job_progress_label": "Epic-Aufgabenfortschritt",
   "deployment_stages_label": "Bereitstellungsstufen",

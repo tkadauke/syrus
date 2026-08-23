@@ -1,6 +1,8 @@
 {
   "title": "Tabula",
   "simple_title": "Opera tua",
+  "legacy_epics_title": "Epica",
+  "legacy_epics_banner": "Haec sunt opera antiquiora, pluribus gradibus constantia, ante hanc mutationem creata. Nova rogata iam ut singula negotia in tabula principali apparent.",
   "loading": "Oneratur...",
   "load_error": "Tabula onerari non potest.",
   "new_epic": "Nova Epica",

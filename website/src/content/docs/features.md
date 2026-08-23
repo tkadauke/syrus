@@ -214,6 +214,16 @@ closed, plus the closure reason once closed) instead of rolling work up
 behind an Epic status pill. Epics do not appear on this primary dashboard
 list. Scheduled tasks and the repository GitHub Issues tab are also hidden in
 simple mode.
+
+Epics created before Syrus switched simple mode to this job-centric dashboard
+are not migrated or deleted — they get a separate "Epics" nav entry instead,
+which stays visible only for as long as the operator has at least one such
+Epic still in progress (not yet done or archived). Opening it shows the same
+epic list simple mode always used, with a short banner explaining these are
+older, multi-step features and that new requests now show up as individual
+tasks on the main dashboard. Once every legacy Epic has landed or been
+archived, the nav entry disappears — direct links to an Epic's page keep
+working either way.
 Simple mode notifications use the feature title only: they announce
 ready-for-review, terminal feature problems that need attention, and accepted
 review feedback; Job IDs, PR numbers, branch names, commit SHAs, and grader

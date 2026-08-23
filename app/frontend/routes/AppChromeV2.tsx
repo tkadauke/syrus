@@ -1,5 +1,5 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, DashboardIcon, MoonIcon, PlusIcon, RepositoryIcon, ScheduleIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, TerminalIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, DashboardIcon, EpicIcon, MoonIcon, PlusIcon, RepositoryIcon, ScheduleIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, TerminalIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
@@ -56,6 +56,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
   const simpleMode = data?.app?.mode === "simple"
+  const legacyEpicsVisible = simpleMode && Boolean(data?.app?.legacy_epics_visible)
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
   const showDashboardSidebarSubjects = !simpleMode
   const quote = useMemo(randomPubliliusSyrusQuote, [])
@@ -92,6 +93,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
     ...(tabsHidden ? [] : [
       { id: "dashboard", label: t("nav:dashboard"), to: `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
+      ...(legacyEpicsVisible ? [{ id: "legacy_epics", label: t("nav:epics"), to: `${prefix}/dashboard/epics`, active: normalizedPath.startsWith("/dashboard/epics"), icon: <EpicIcon /> }] : []),
       { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
       { id: "repositories", label: t("nav:repositories"), to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
       ...(simpleMode ? [] : [{ id: "schedules", label: t("nav:schedules"), to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> }]),

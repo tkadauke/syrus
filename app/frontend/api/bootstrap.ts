@@ -43,6 +43,10 @@ export type BootstrapPayload = {
     mode: "advanced" | "simple"
     // True once an operator has explicitly chosen a mode (via onboarding or admin settings).
     mode_configured: boolean
+    // Simple mode only: true while the current user can still reach a
+    // pre-existing Epic that hasn't reached a terminal state (done/archived).
+    // Drives the legacy Epics nav entry; false in advanced mode.
+    legacy_epics_visible: boolean
   }
   setup_status: {
     state: "not_started" | "first_admin" | "credentials_only" | "repository_only" | "ready_for_first_chat" | "first_chat_started" | "first_successful_job"

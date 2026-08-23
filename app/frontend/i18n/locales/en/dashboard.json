@@ -1,6 +1,8 @@
 {
   "title": "Dashboard",
   "simple_title": "Your work",
+  "legacy_epics_title": "Epics",
+  "legacy_epics_banner": "These are older, multi-step features created before this update. New requests now appear as individual tasks on the main dashboard.",
   "loading": "Loading...",
   "load_error": "Unable to load dashboard.",
   "new_epic": "New Epic",
