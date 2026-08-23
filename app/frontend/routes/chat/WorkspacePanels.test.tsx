@@ -130,9 +130,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
       <MemoryRouter>
         <ChatWorkspacePanel
           activeTab={options.activeTab ?? "files"}
-          fullscreen={false}
           onSelectTab={options.onSelectTab ?? (() => {})}
-          onToggleWhiteboardFullscreen={() => {}}
           payload={payload}
           prefix=""
           queryKey={["chats", "1", ""] as const}
@@ -356,9 +354,7 @@ describe("ChatWorkspacePanel coding files", () => {
         <MemoryRouter>
           <ChatWorkspacePanel
             activeTab="files"
-            fullscreen={false}
             onSelectTab={onSelectTab}
-            onToggleWhiteboardFullscreen={() => {}}
             payload={withoutCheckout}
             prefix=""
             queryKey={["chats", "1", ""] as const}

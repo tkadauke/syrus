@@ -1,0 +1,12 @@
+{
+  "tab_whiteboard": "Whiteboard",
+  "whiteboard_title": "Whiteboard",
+  "whiteboard_unavailable": "Whiteboard unavailable.",
+  "loading_whiteboard": "Loading whiteboard...",
+  "fullscreen_exit": "Exit fullscreen",
+  "fullscreen_enter": "Fullscreen",
+  "canvas_loading": "Loading canvas...",
+  "canvas_empty_hint": "Empty canvas. Start sketching, or ask the agent to draw something.",
+  "canvas_elements_one": "{{count}} canvas element",
+  "canvas_elements_other": "{{count}} canvas elements"
+}
