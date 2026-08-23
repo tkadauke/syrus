@@ -7,7 +7,7 @@ import { useT } from "../../hooks/useT"
 import { createTerminalSession } from "../../api/terminal"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
-import { StatusPill } from "../../components/StatusPill"
+import { StatusPill, TonePill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
 import { buttonClass } from "../../lib/buttonClasses"
@@ -53,6 +53,8 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
   if (!intent) return null
   const label = intent.label || humanize(intent.kind)
   const waitLabel = intent.wait_label || (intent.wait_reason ? humanize(intent.wait_reason) : null)
+  const executionStatus = intent.execution_status || intent.state
+  const showAttemptStatus = executionStatus !== intent.state
 
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -74,11 +76,23 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
             </div>
             {intent.wait_details ? <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{stringify(intent.wait_details)}</p> : null}
           </div>
-          <StatusPill state={intent.state} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <TonePill tone="gray">Desired {humanize(intent.state)}</TonePill>
+            {showAttemptStatus ? <TonePill active={executionStatus === "active" || executionStatus === "running"} tone={intentExecutionTone(executionStatus)}>Attempt {humanize(executionStatus)}</TonePill> : null}
+          </div>
         </div>
       </div>
     </section>
   )
+}
+
+function intentExecutionTone(status: string): "red" | "green" | "blue" | "gray" | "amber" {
+  const normalized = status.toLowerCase()
+  if (normalized.includes("fail") || normalized.includes("cancel")) return "red"
+  if (normalized.includes("success") || normalized.includes("satisfied")) return "green"
+  if (normalized.includes("active") || normalized.includes("running") || normalized.includes("queued")) return "blue"
+  if (normalized.includes("block") || normalized.includes("wait")) return "amber"
+  return "gray"
 }
 
 function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUnit[]; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {

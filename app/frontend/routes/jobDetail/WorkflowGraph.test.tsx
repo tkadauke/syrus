@@ -90,12 +90,47 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Landing")).toBeInTheDocument()
     expect(screen.getByText((_content, element) => element?.textContent === "WI-77")).toBeInTheDocument()
     expect(screen.getByText("Waiting on dependency")).toBeInTheDocument()
+    expect(screen.getByText("Desired waiting")).toBeInTheDocument()
+    expect(screen.getByText("Attempt blocked")).toBeInTheDocument()
     expect(screen.getByText((_content, element) =>
       Boolean(element?.matches("p") &&
         element.textContent?.includes("\"blocked_by_job_ids\"") &&
         element.textContent.includes("9"))
     )).toBeInTheDocument()
     expect(screen.queryByText("No workflows yet.")).not.toBeInTheDocument()
+  })
+
+  it("separates desired intent state from active attempt state", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            current_intent: {
+              id: 77,
+              kind: "ci_failure",
+              label: "CI failure",
+              state: "requested",
+              scope_type: "job",
+              scope_id: 3578,
+              wait_reason: null,
+              wait_label: null,
+              wait_until: null,
+              wait_details: null,
+              execution_status: "active",
+              requested_at: null,
+              satisfied_at: null,
+              cancelled_at: null
+            }
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("CI failure")).toBeInTheDocument()
+    expect(screen.getByText("Desired requested")).toBeInTheDocument()
+    expect(screen.getByText("Attempt active")).toBeInTheDocument()
   })
 
   it("shows blocked WorkUnit reasons and details without requiring the nested Workflow to be open", () => {
