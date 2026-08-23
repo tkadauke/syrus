@@ -285,6 +285,7 @@ RSpec.describe RunJob, :ci_only do
       log = `git --git-dir=#{bare_remote_dir} log --oneline #{job.branch_name}`.split("\n")
       expect(log.size).to be >= 2
     end
+
   end
 
   # ----- Retry workflow ------------------------------------------
@@ -295,6 +296,7 @@ RSpec.describe RunJob, :ci_only do
     before do
       WebMock.reset_executed_requests!
     end
+
   end
 
   # ----- Rebase workflow -----------------------------------------

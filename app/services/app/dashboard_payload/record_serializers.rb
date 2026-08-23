@@ -216,9 +216,9 @@ module App
         child_jobs.each_with_object(Hash.new(0)) do |job, counts|
           state = if job.closure_reason == "preempted" || job.closure_reason&.start_with?("external_pr_")
                     "preempted"
-          else
+                  else
                     job.state
-          end
+                  end
           counts[state] += 1
         end.to_h
       end

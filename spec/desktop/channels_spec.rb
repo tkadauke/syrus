@@ -46,7 +46,7 @@ RSpec.describe "desktop channels" do
       expect(build_app).to include('-c.appId="$APP_ID"')
       expect(build_app).to include('-c.mac.icon="$MAC_ICON"')
       # ${version} must stay literal for electron-builder to expand.
-      expect(build_app).to include(%q(-c.dmg.title="$PRODUCT "'${version}'))
+      expect(build_app).to include(%q{-c.dmg.title="$PRODUCT "'${version}'})
     end
 
     it "passes the overrides to electron-builder on Windows, including the shortcut name" do

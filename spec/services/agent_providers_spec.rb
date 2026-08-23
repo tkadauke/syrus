@@ -37,7 +37,7 @@ RSpec.describe AgentProviders do
         runner: nil,
         scope: "test-scope",
         prompt: "hello",
-        log_sink: ->(*) { },
+        log_sink: ->(*) {},
         timeout: 30,
         max_turns: 1
       )
@@ -56,7 +56,7 @@ RSpec.describe AgentProviders do
         runner: nil,
         scope: "test-scope",
         prompt: "hello",
-        log_sink: ->(*) { },
+        log_sink: ->(*) {},
         timeout: 30,
         max_turns: 1
       )
@@ -70,7 +70,7 @@ RSpec.describe AgentProviders do
           runner: nil,
           scope: "test",
           prompt: "x",
-          log_sink: ->(*) { },
+          log_sink: ->(*) {},
           timeout: 30,
           max_turns: 1
         )

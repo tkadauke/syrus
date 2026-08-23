@@ -88,7 +88,7 @@ RSpec.describe PrCommentClassifier do
 
       described_class::OneShotAgent.new(user: user, provider: "claude").run_once(
         prompt: "classify this",
-        log_sink: ->(*) { },
+        log_sink: ->(*) {},
         timeout: 20,
         max_turns: 1
       )
@@ -101,7 +101,7 @@ RSpec.describe PrCommentClassifier do
 
       expect {
         described_class::OneShotAgent.new(user: user, provider: "oracle").run_once(
-          prompt: "x", log_sink: ->(*) { }, timeout: 20, max_turns: 1
+          prompt: "x", log_sink: ->(*) {}, timeout: 20, max_turns: 1
         )
       }.to raise_error(AgentProviders::ConfigurationError)
     end

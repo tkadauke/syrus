@@ -8,7 +8,7 @@ RSpec.describe AgentRole do
       expect(described_class::CHAT_CODING).to     eq("chat:coding")
       expect(described_class::CHAT_LOCAL).to      eq("chat:local")
       expect(described_class::CHAT_WALKTHROUGH).to eq("chat:walkthrough")
-      expect(described_class::CHAT_EVALUATOR).to eq("chat:evaluator")
+      expect(described_class::CHAT_EVALUATOR).to  eq("chat:evaluator")
     end
 
     it "defines all workflow roles" do
@@ -31,7 +31,7 @@ RSpec.describe AgentRole do
 
     it "defines infrastructure and insight roles" do
       expect(described_class::INFRASTRUCTURE_MAIN_REPAIR).to eq("infrastructure:main_repair")
-      expect(described_class::AGENT_INSIGHT).to eq("agent:insight")
+      expect(described_class::AGENT_INSIGHT).to               eq("agent:insight")
     end
 
     it "collects workflow roles into WORKFLOW_ROLES" do

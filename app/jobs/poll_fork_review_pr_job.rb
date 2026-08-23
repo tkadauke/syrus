@@ -190,4 +190,5 @@ class PollForkReviewPrJob < ApplicationJob
     latest = new_comments.map(&:created_at).compact.max
     @job.update!(last_seen_fork_review_comment_at: latest) if latest
   end
+
 end

@@ -431,7 +431,7 @@ RSpec.describe CodexInvocation do
   end
 
   describe "provider cleanup timeout handling" do
-    let(:null_sink) { ->(_chunk, **) { } }
+    let(:null_sink) { ->(_chunk, **) {} }
 
     def stub_process_runner(runner_result, emit_line: nil)
       allow(ProcessRunner).to receive(:new) do |**kwargs|

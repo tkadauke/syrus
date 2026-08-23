@@ -37,4 +37,5 @@ class WorkflowAdmissionControlWakeup
         attempt.id
       end
   end
+
 end

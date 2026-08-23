@@ -27,4 +27,5 @@ class BrowserErrorAutoReportJob < ApplicationJob
   end
 
   private
+
 end

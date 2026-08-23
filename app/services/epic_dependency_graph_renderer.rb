@@ -174,4 +174,5 @@ class EpicDependencyGraphRenderer
   def epic_node_id(epic_record)
     "epic_#{epic_record.id}"
   end
+
 end

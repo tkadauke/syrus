@@ -103,4 +103,5 @@ class MainBranchHealthCheck < ApplicationRecord
       source: "concern_quorum"
     )
   end
+
 end

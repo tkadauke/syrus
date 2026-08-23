@@ -166,7 +166,7 @@ RSpec.describe Gemini::Client do
           { status: 200, headers: json_headers, body: { name: "files/abc", state: "ACTIVE" }.to_json }
         )
 
-      file = client.wait_until_active("files/abc", sleeper: ->(_s) { })
+      file = client.wait_until_active("files/abc", sleeper: ->(_s) {})
 
       expect(file).to include("name" => "files/abc", "state" => "ACTIVE")
       expect(WebMock).to have_requested(:get, file_url).twice
@@ -177,7 +177,7 @@ RSpec.describe Gemini::Client do
         .to_return(status: 200, headers: json_headers, body: { name: "files/abc", state: "FAILED" }.to_json)
 
       expect {
-        client.wait_until_active("files/abc", sleeper: ->(_s) { })
+        client.wait_until_active("files/abc", sleeper: ->(_s) {})
       }.to raise_error(Gemini::Client::FileProcessingFailed, /could not process the video/)
     end
 
@@ -186,7 +186,7 @@ RSpec.describe Gemini::Client do
         .to_return(status: 200, headers: json_headers, body: { name: "files/abc", state: "PROCESSING" }.to_json)
 
       expect {
-        client.wait_until_active("files/abc", timeout: 0, sleeper: ->(_s) { })
+        client.wait_until_active("files/abc", timeout: 0, sleeper: ->(_s) {})
       }.to raise_error(Gemini::Client::Error, /timed out waiting/)
     end
   end

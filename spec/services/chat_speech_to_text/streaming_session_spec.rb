@@ -24,8 +24,8 @@ RSpec.describe ChatSpeechToText::StreamingSession do
 
     started.start(
       on_delta: ->(delta) { deltas << delta.text },
-      on_error: ->(_) { },
-      on_complete: ->(*) { }
+      on_error: ->(_) {},
+      on_complete: ->(*) {}
     )
     provider_stream.emit_delta("hello")
 
@@ -35,7 +35,7 @@ RSpec.describe ChatSpeechToText::StreamingSession do
 
   it "accepts monotonically ordered base64 audio chunks" do
     started = session
-    started.start(on_delta: ->(_) { }, on_error: ->(_) { }, on_complete: ->(*) { })
+    started.start(on_delta: ->(_) {}, on_error: ->(_) {}, on_complete: ->(*) {})
 
     started.accept_chunk(sequence: 1, audio_base64: Base64.strict_encode64("one"))
     started.accept_chunk(sequence: 2, audio_base64: Base64.strict_encode64("two"))
@@ -45,7 +45,7 @@ RSpec.describe ChatSpeechToText::StreamingSession do
 
   it "rejects out-of-order chunks before they reach the provider" do
     started = session
-    started.start(on_delta: ->(_) { }, on_error: ->(_) { }, on_complete: ->(*) { })
+    started.start(on_delta: ->(_) {}, on_error: ->(_) {}, on_complete: ->(*) {})
 
     expect {
       started.accept_chunk(sequence: 2, audio_base64: Base64.strict_encode64("late"))
@@ -62,7 +62,7 @@ RSpec.describe ChatSpeechToText::StreamingSession do
       content_type: "audio/webm",
       clock: -> { mutable_now }
     )
-    idle_session.start(on_delta: ->(_) { }, on_error: ->(_) { }, on_complete: ->(*) { })
+    idle_session.start(on_delta: ->(_) {}, on_error: ->(_) {}, on_complete: ->(*) {})
 
     mutable_now = now + described_class::IDLE_TIMEOUT + 1.second
 

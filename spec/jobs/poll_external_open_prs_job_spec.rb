@@ -142,6 +142,7 @@ RSpec.describe PollExternalOpenPrsJob do
         described_class.perform_now(repository.id)
       }.not_to change(Job, :count)
     end
+
   end
 
   describe "guards" do
