@@ -58,4 +58,38 @@ RSpec.describe WorkflowActivity do
       "reason_key" => "pr_publication_missing_after_success"
     )
   end
+
+  it "deduplicates repeated lifecycle events before persisting them" do
+    job = Factories.job_record(state: "queued")
+    workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "codex")
+    step = workflow.steps.create!(kind: "implement", position: 1)
+    run = Run.create!(job: job, user: job.user, step: step, trigger_kind: "initial", agent_provider: "codex")
+    occurred_at = Time.current
+    event = WorkflowActivityEvent.from_event_hash(
+      "event_type" => "run_started",
+      "source" => "run",
+      "severity" => "info",
+      "occurred_at" => occurred_at.iso8601(6),
+      "job_id" => job.id,
+      "workflow_id" => workflow.id,
+      "step_id" => step.id,
+      "run_id" => run.id,
+      "trigger_kind" => "initial",
+      "workflow_state" => "running",
+      "step_kind" => "implement",
+      "run_state" => "running",
+      "message" => "Run ##{run.id} queued -> running.",
+      "metadata" => {
+        "from_state" => "queued",
+        "to_state" => "running",
+        "step_kind" => "implement",
+        "trigger_kind" => "initial"
+      }
+    )
+
+    expect {
+      WorkflowActivityEvent.persist_observability_events!([ event, event.merge(occurred_at: occurred_at + 1.second) ], batch_size: 10)
+      WorkflowActivityEvent.persist_observability_events!([ event.merge(occurred_at: occurred_at + 2.seconds) ], batch_size: 10)
+    }.to change { WorkflowActivityEvent.where(event_type: "run_started", run_id: run.id).count }.by(1)
+  end
 end

@@ -62,6 +62,54 @@ class WorkflowActivityEvent < ApplicationRecord
     }.compact
   end
 
+  def self.persist_observability_events!(rows, batch_size:)
+    deduped_rows = rows.uniq { |row| dedupe_key(row) }.reject { |row| recently_persisted_duplicate?(row) }
+    return if deduped_rows.empty?
+
+    deduped_rows.each_slice(batch_size) do |batch|
+      insert_all(normalize_insert_rows(batch)) # rubocop:disable Rails/SkipsModelValidations
+    end
+  end
+
+  def self.dedupe_key(row)
+    [
+      row[:event_type],
+      row[:source],
+      row[:job_id],
+      row[:workflow_id],
+      row[:step_id],
+      row[:run_id],
+      row[:trigger_kind],
+      row[:workflow_state],
+      row[:step_kind],
+      row[:run_state],
+      row[:reason_key],
+      row[:message],
+      normalized_event_json(row[:metadata])
+    ]
+  end
+
+  def self.recently_persisted_duplicate?(row)
+    occurred_at = row[:occurred_at] || Time.current
+    where(event_type: row[:event_type], source: row[:source], message: row[:message])
+      .where(occurred_at: (occurred_at - 5.minutes)..(occurred_at + 5.minutes))
+      .yield_self { |scope| nullable_match(scope, :job_id, row[:job_id]) }
+      .yield_self { |scope| nullable_match(scope, :workflow_id, row[:workflow_id]) }
+      .yield_self { |scope| nullable_match(scope, :step_id, row[:step_id]) }
+      .yield_self { |scope| nullable_match(scope, :run_id, row[:run_id]) }
+      .yield_self { |scope| nullable_match(scope, :reason_key, row[:reason_key]) }
+      .any? { |event| dedupe_key(event.attributes.symbolize_keys) == dedupe_key(row) }
+  end
+
+  def self.nullable_match(scope, column, value)
+    value.nil? ? scope.where(column => nil) : scope.where(column => value)
+  end
+
+  def self.normalize_insert_rows(rows)
+    keys = rows.flat_map(&:keys).uniq
+    rows.map { |row| keys.index_with { |key| row[key] } }
+  end
+
   def as_event_hash
     {
       "event" => "syrus.workflow_activity",

@@ -830,6 +830,44 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil)
   end
 
+  it "clears stale waits when a WorkIntent already has an active WorkUnit" do
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    intent.wait!(reason: "dependency", details: { "blocked_by_job_ids" => [ 123 ] })
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "queued",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+
+    result = reconcile_and_execute(work_intent_id: intent.id)
+
+    expect(kind(result, :waiting_work_intent_with_active_unit)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "clear_waiting_work_intent_active_unit"
+    )
+    expect(plan(result, :clear_waiting_work_intent_active_unit)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: intent.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cleared stale wait on WorkIntent ##{intent.id}; active WorkUnits: [#{unit.id}]")
+    expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
+  end
+
   it "does not recheck waiting WorkIntents while their gates still block" do
     blocker = Factories.job_record(user: job.user, repository: job.repository, state: "implemented", issue_number: 123)
     JobDependency.create!(job: job, depends_on_job: blocker, source: "manual")

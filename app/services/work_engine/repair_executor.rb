@@ -789,6 +789,22 @@ module WorkEngine
         end
       end
 
+      class ClearWaitingWorkIntentActiveUnit < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not waiting") unless intent.waiting?
+
+          active_unit_ids = intent.work_units
+            .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+            .pluck(:id)
+          return skipped("WorkIntent ##{intent.id} no longer has active WorkUnits") if active_unit_ids.empty?
+
+          intent.request!
+          success("cleared stale wait on WorkIntent ##{intent.id}; active WorkUnits: #{active_unit_ids.inspect}")
+        end
+      end
+
       class LaunchRequestedWorkIntent < Base
         def perform
           intent = target_work_intent

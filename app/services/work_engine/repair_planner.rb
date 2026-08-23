@@ -1139,6 +1139,21 @@ module WorkEngine
         end
       end
 
+      class WaitingWorkIntentWithActiveUnit < Base
+        def plan
+          automatic_plan(
+            "clear_waiting_work_intent_active_unit",
+            primary_work_intent,
+            "The Intent still says it is waiting, but active WorkUnits already exist; clear the stale wait so intent state matches runtime ownership.",
+            execution_steps: [ "WorkIntent#request!" ],
+            preconditions: {
+              work_intent_state: "waiting",
+              active_work_unit_ids: issue.evidence["active_work_unit_ids"]
+            }
+          )
+        end
+      end
+
       class RequestedWorkIntentWithoutActiveUnit < Base
         def plan
           automatic_plan(

@@ -177,6 +177,7 @@ module WorkEngine
       issues.concat(classify_active_steps_with_terminal_runs)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
+      issues.concat(classify_waiting_work_intents_with_active_units)
       issues.concat(classify_waiting_work_intents_ready_for_recheck)
       issues.concat(classify_dispatcher_owned_work_intents_without_active_units)
       issues.concat(classify_requested_work_intents_without_active_units)
@@ -806,6 +807,31 @@ module WorkEngine
       end
     end
 
+    def classify_waiting_work_intents_with_active_units
+      work_intents.select(&:waiting?).filter_map do |intent|
+        active_unit_ids = active_work_unit_ids_for_intent(intent)
+        next if active_unit_ids.empty?
+
+        issue(
+          kind: :waiting_work_intent_with_active_unit,
+          severity: :warning,
+          affected_ids: ids_for(intent).merge(work_unit_ids: active_unit_ids),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "clear_waiting_work_intent_active_unit",
+          evidence: {
+            work_intent_id: intent.id,
+            work_intent_kind: intent.kind,
+            work_intent_state: intent.state,
+            wait_reason: intent.wait_reason,
+            wait_until: intent.wait_until&.iso8601,
+            wait_details: intent.wait_details,
+            active_work_unit_ids: active_unit_ids
+          },
+          explanation: "WorkIntent ##{intent.id} is still waiting for #{intent.wait_reason}, but active WorkUnits already exist for it."
+        )
+      end
+    end
+
     def classify_requested_work_intents_without_active_units
       return [] unless work_intent_id.present?
 
@@ -983,11 +1009,10 @@ module WorkEngine
       end
     end
 
-    def active_work_unit_ids_for_intent(intent, excluding:)
-      intent.work_units
-        .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
-        .where.not(id: excluding.id)
-        .pluck(:id)
+    def active_work_unit_ids_for_intent(intent, excluding: nil)
+      scope = intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+      scope = scope.where.not(id: excluding.id) if excluding
+      scope.pluck(:id)
     end
 
     def stale_auto_retry_attempt_for(workflow)
