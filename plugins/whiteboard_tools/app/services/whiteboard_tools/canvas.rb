@@ -1,4 +1,4 @@
-module Mcp::Tools
+module WhiteboardTools
   module Canvas
     class ElementLimitExceeded < StandardError; end
 

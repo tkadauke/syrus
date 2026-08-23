@@ -207,12 +207,8 @@ Rails.application.routes.draw do
         patch "chats/:id", to: "chats#update", constraints: { id: /\d+/ }
         delete "chats/:id", to: "chats#destroy", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
-        get "chats/:id/whiteboard", to: "chat_whiteboards#show", constraints: { id: /\d+/ }
-        patch "chats/:id/whiteboard", to: "chat_whiteboards#update", constraints: { id: /\d+/ }
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
         delete "chats/:chat_id/participants/:user_id", to: "chat_participants#destroy", constraints: { chat_id: /\d+/, user_id: /\d+/ }
-        get "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#index", constraints: { chat_id: /\d+/ }
-        post "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/video_walkthroughs", to: "video_walkthroughs#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/speech_to_text", to: "speech_to_text#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/speech_to_text/stream", to: "speech_to_text#stream", constraints: { chat_id: /\d+/ }
@@ -221,7 +217,6 @@ Rails.application.routes.draw do
         delete "chats/:chat_id/local_daemon_session", to: "local_daemon_sessions#destroy", constraints: { chat_id: /\d+/ }
         get "chats/:chat_id/job_status", to: "chat_job_status#show", constraints: { chat_id: /\d+/ }
         post "video_walkthroughs/:id/retry", to: "video_walkthroughs#retry", constraints: { id: /\d+/ }
-        get "chats/:chat_id/whiteboard_snapshots/:id", to: "whiteboard_snapshots#show", constraints: { chat_id: /\d+/, id: /\d+/ }
         patch "chats/:id/mark_read", to: "chats#mark_read", constraints: { id: /\d+/ }
         patch "chats/:id/mark_unread", to: "chats#mark_unread", constraints: { id: /\d+/ }
         patch "chats/:id/hide", to: "chats#hide", constraints: { id: /\d+/ }

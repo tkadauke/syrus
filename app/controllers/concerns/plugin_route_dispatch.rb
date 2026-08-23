@@ -10,14 +10,15 @@ module PluginRouteDispatch
     controller_class = "#{controller_path.camelize}Controller".constantize
     raise ActionController::RoutingError, "Invalid plugin route controller" unless controller_class < ActionController::Metal
 
-    request.path_parameters.merge!(route.params)
-    request.path_parameters.delete(:plugin_route)
-    # #params memoizes into this header on first access; PluginRoutesController's
-    # own before_actions (auth/session resume) already read params before we
-    # get here, so without clearing it the redispatched controller would see
-    # the stale pre-merge path_parameters (missing any dynamic segments the
-    # matched route declared, e.g. :repository_id) instead of route.params.
-    request.delete_header("action_dispatch.request.parameters")
+    # Use the path_parameters= setter, not an in-place mutation of the hash
+    # path_parameters returns. Rails memoizes request.params (GET+POST+path)
+    # into an env key on first access -- middleware ahead of us in the stack
+    # (request logging, etc.) routinely triggers that memoization before we
+    # get here. Only the setter invalidates it; merge!-ing the returned hash
+    # leaves the memo stale, so route.params (:id, :chat_id, ...) would be
+    # missing from the dispatched controller's `params` even though
+    # request.path_parameters itself looks correct.
+    request.path_parameters = request.path_parameters.merge(route.params).except(:plugin_route)
 
     controller_class.dispatch(action_name, request, response)
   end

@@ -1,45 +1,17 @@
 require "rails_helper"
 
-RSpec.describe "Mcp::Tools canvas tools" do
+RSpec.describe WhiteboardTools::ChatToolSet do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
-
-  def server
-    MCP::Server.new(
-      name: "syrus-chat-sidecar",
-      tools: [
-        Mcp::Tools::ReadSceneTool,
-        Mcp::Tools::DrawShapeTool,
-        Mcp::Tools::DrawTextTool,
-        Mcp::Tools::DrawLineTool,
-        Mcp::Tools::DrawArrowTool,
-        Mcp::Tools::DrawFreedrawTool,
-        Mcp::Tools::DrawFrameTool,
-        Mcp::Tools::DrawEmbedTool,
-        Mcp::Tools::DrawImageTool,
-        Mcp::Tools::MoveElementTool,
-        Mcp::Tools::DeleteElementTool,
-        Mcp::Tools::SaveCanvasTool,
-        Mcp::Tools::ClearCanvasTool,
-        Mcp::Tools::LoadCanvasTool,
-        Mcp::Tools::UpdateSceneTool
-      ],
-      server_context: { chat_session: chat_session }
-    )
-  end
-
-  def jsonrpc(method, id: 1, params: {})
-    raw = server.handle_json({ jsonrpc: "2.0", id: id, method: method, params: params }.to_json)
-    raw && JSON.parse(raw, symbolize_names: true)
-  end
+  let(:tool_set) { WhiteboardTools::ChatToolSet.new }
 
   def call_tool(name, arguments = {})
-    jsonrpc("tools/call", params: { name: name, arguments: arguments })
+    tool_set.handle(name, arguments, { chat_session: chat_session })
   end
 
   def payload(response)
-    JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
+    JSON.parse(response.content.first[:text], symbolize_names: true)
   end
 
   def expect_canvas_broadcast
@@ -65,10 +37,49 @@ RSpec.describe "Mcp::Tools canvas tools" do
     { "id" => "shape-#{index}", "type" => "rectangle" }
   end
 
+  describe ".available_for?" do
+    it "is available at the deferred tier, matching the tools' former tier: :deferred registration" do
+      expect(described_class.available_for?(chat_session, tier: :deferred)).to be true
+    end
+
+    it "is unavailable at the essential tier" do
+      expect(described_class.available_for?(chat_session, tier: :essential)).to be false
+    end
+  end
+
+  describe ".tool_definitions" do
+    it "exposes all 14 draw/move/delete/read/update/save/clear/load tool names at the deferred tier" do
+      names = described_class.tool_definitions(tier: :deferred).map { |tool| tool.fetch(:name) }
+
+      expect(names).to contain_exactly(
+        "read_scene", "draw_shape", "draw_text", "draw_line", "draw_arrow", "draw_freedraw",
+        "draw_frame", "draw_embed", "draw_image", "move_element", "delete_element",
+        "update_scene", "save_canvas", "clear_canvas", "load_canvas"
+      )
+    end
+
+  end
+
+  describe "#handle" do
+    it "errors when there is no chat session in context" do
+      response = tool_set.handle("read_scene", {}, {})
+
+      expect(response.error?).to be true
+      expect(response.content.first[:text]).to match(/No chat session/)
+    end
+
+    it "errors for an unknown tool name" do
+      response = call_tool("delete_everything")
+
+      expect(response.error?).to be true
+      expect(response.content.first[:text]).to match(/Unknown whiteboard tool/)
+    end
+  end
+
   it "read_scene returns the empty scene without rasterization or mutation logging" do
     response = call_tool("read_scene")
 
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(payload(response)).to eq(version: 0, elements: [], appState: {}, files: {})
     expect(chat_session.reload.whiteboard).to be_nil
     expect(chat_session.messages).to be_empty
@@ -82,7 +93,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     id = payload(response).fetch(:id)
     whiteboard = chat_session.reload.whiteboard
     shape, label = whiteboard.elements
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(id).to match(/\A[0-9A-Z_a-z-]{21}\z/)
     expect(whiteboard.version).to eq(1)
     expect(whiteboard.last_edited_at).to be_present
@@ -107,7 +118,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     response = call_tool("draw_text", content: "Hello", x: 3, y: 4, font_size: 24)
 
     element = chat_session.reload.whiteboard.elements.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include("type" => "text", "text" => "Hello", "originalText" => "Hello", "fontSize" => 24)
   end
 
@@ -124,7 +135,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     )
 
     element = chat_session.reload.whiteboard.elements.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include(
       "type" => "arrow",
       "points" => [ [ 0.0, 0.0 ], [ 30.0, 10.0 ], [ 60.0, 40.0 ] ],
@@ -148,7 +159,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     )
 
     element = chat_session.reload.whiteboard.elements.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include(
       "type" => "freedraw",
       "points" => [ [ 0.0, 0.0 ], [ 10.0, 8.0 ] ],
@@ -163,7 +174,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     response = call_tool("draw_frame", type: "magicframe", x: 0, y: 0, width: 400, height: 300, name: "Plan")
 
     element = chat_session.reload.whiteboard.elements.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include("type" => "magicframe", "name" => "Plan", "width" => 400.0, "height" => 300.0)
   end
 
@@ -173,7 +184,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     response = call_tool("draw_embed", type: "iframe", link: "https://example.com/demo", x: 1, y: 2, width: 300, height: 180)
 
     element = chat_session.reload.whiteboard.elements.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include("type" => "iframe", "link" => "https://example.com/demo")
   end
 
@@ -185,7 +196,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     whiteboard = chat_session.reload.whiteboard
     element = whiteboard.elements.first
     file_id = element.fetch("fileId")
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include("type" => "image", "status" => "saved", "scale" => [ 1, 1 ], "crop" => nil)
     expect(whiteboard.files.fetch(file_id)).to include(
       "id" => file_id,
@@ -206,7 +217,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     arrow = elements.find { |element| element["id"] == arrow_id }
     from = elements.find { |element| element["id"] == from_id }
     to = elements.find { |element| element["id"] == to_id }
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(arrow).to include(
       "type" => "arrow",
       "startBinding" => { "elementId" => from_id, "focus" => 0, "gap" => 1 },
@@ -228,7 +239,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     elements = chat_session.reload.whiteboard.elements
     from = elements.find { |element| element["id"] == from_id }
     arrow = elements.find { |element| element["id"] == arrow_id }
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(from).to include("x" => 50.0, "y" => 60.0)
     expect(arrow["x"]).to eq(100.0)
     expect(arrow["y"]).to eq(85.0)
@@ -241,8 +252,55 @@ RSpec.describe "Mcp::Tools canvas tools" do
 
     response = call_tool("delete_element", id: id)
 
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(chat_session.reload.whiteboard.elements).to be_empty
+  end
+
+  it "save_canvas returns an empty-canvas result without creating a snapshot" do
+    response = nil
+
+    expect {
+      response = call_tool("save_canvas", name: "Empty plan")
+    }.not_to change(WhiteboardSnapshot, :count)
+
+    expect(response.error?).to be_falsey
+    expect(payload(response)).to eq(saved: false, reason: "canvas is empty")
+  end
+
+  it "save_canvas saves a non-empty canvas as a manual snapshot" do
+    chat_session.create_whiteboard!(
+      scene_json: {
+        "elements" => [ { "id" => "box-1", "type" => "rectangle" }, { "id" => "note-1", "type" => "text" } ],
+        "appState" => { "viewBackgroundColor" => "#ffffff" },
+        "files" => {}
+      },
+      version: 7
+    )
+
+    response = nil
+    expect {
+      response = call_tool("save_canvas", name: "Planning board")
+    }.to change(WhiteboardSnapshot, :count).by(1)
+
+    snapshot = WhiteboardSnapshot.first
+    expect(response.error?).to be_falsey
+    expect(payload(response)).to include(
+      saved: true,
+      snapshot_id: snapshot.id,
+      name: "Planning board",
+      element_count: 2
+    )
+    expect(snapshot).to have_attributes(
+      chat_session: chat_session,
+      snapshot_kind: "manual",
+      element_count: 2,
+      name: "Planning board"
+    )
+    expect(snapshot.scene_json).to eq(
+      "elements" => [ { "id" => "box-1", "type" => "rectangle" }, { "id" => "note-1", "type" => "text" } ],
+      "appState" => { "viewBackgroundColor" => "#ffffff" },
+      "files" => {}
+    )
   end
 
   it "clear_canvas saves a snapshot before emptying the scene" do
@@ -256,7 +314,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     }.to change(WhiteboardSnapshot, :count).by(1)
 
     snapshot = WhiteboardSnapshot.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(payload(response)).to include(cleared: true, snapshot_id: snapshot.id)
     expect(snapshot).to have_attributes(
       chat_session: chat_session,
@@ -275,7 +333,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
       response = call_tool("clear_canvas")
     }.not_to change(WhiteboardSnapshot, :count)
 
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(payload(response)).to include(cleared: true, snapshot_id: nil)
     expect(chat_session.reload.whiteboard.elements).to be_empty
   end
@@ -318,7 +376,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     loaded_elements = whiteboard.elements.reject { |element| element.fetch("id") == existing_id }
     loaded_box = loaded_elements.find { |element| element["type"] == "rectangle" }
     loaded_label = loaded_elements.find { |element| element["type"] == "text" }
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(payload(response)).to include(
       loaded: true,
       snapshot_id: snapshot.id,
@@ -353,7 +411,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
 
     auto_saved_snapshot = WhiteboardSnapshot.where(snapshot_kind: "auto_before_load").first
     whiteboard = chat_session.reload.whiteboard
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(payload(response)).to include(
       loaded: true,
       snapshot_id: snapshot.id,
@@ -379,8 +437,8 @@ RSpec.describe "Mcp::Tools canvas tools" do
 
     response = call_tool("load_canvas", snapshot_id: snapshot.id)
 
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to eq(Whiteboard.element_limit_message)
+    expect(response.error?).to be(true)
+    expect(response.content.first[:text]).to eq(Whiteboard.element_limit_message)
     expect(chat_session.reload.whiteboard.elements.size).to eq(Whiteboard::MAX_ELEMENTS)
   end
 
@@ -393,7 +451,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     )
 
     expect {
-      Mcp::Tools::LoadCanvasTool.call(snapshot_id: snapshot.id, server_context: { chat_session: chat_session })
+      call_tool("load_canvas", snapshot_id: snapshot.id)
     }.to raise_error(ActiveRecord::RecordNotFound)
   end
 
@@ -407,7 +465,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
 
     response = call_tool("update_scene", elements: replacement, appState: { viewBackgroundColor: "#fff" }, files: files)
 
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(chat_session.reload.whiteboard.elements).to eq(replacement)
     expect(chat_session.reload.whiteboard.app_state).to eq("viewBackgroundColor" => "#fff")
     expect(chat_session.reload.whiteboard.files).to eq(files)
@@ -425,8 +483,8 @@ RSpec.describe "Mcp::Tools canvas tools" do
     ]
 
     responses.each do |response|
-      expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to eq(Whiteboard.element_limit_message)
+      expect(response.error?).to be(true)
+      expect(response.content.first[:text]).to eq(Whiteboard.element_limit_message)
     end
     expect(chat_session.reload.whiteboard.elements.size).to eq(Whiteboard::MAX_ELEMENTS)
     expect(chat_session.messages).to be_empty
@@ -438,8 +496,8 @@ RSpec.describe "Mcp::Tools canvas tools" do
       elements: Array.new(Whiteboard::MAX_ELEMENTS + 1) { |index| minimal_element(index) }
     )
 
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to eq(Whiteboard.element_limit_message)
+    expect(response.error?).to be(true)
+    expect(response.content.first[:text]).to eq(Whiteboard.element_limit_message)
     expect(chat_session.reload.whiteboard).to be_nil
     expect(chat_session.messages).to be_empty
   end
@@ -463,10 +521,10 @@ RSpec.describe "Mcp::Tools canvas tools" do
     bad_shape = call_tool("draw_shape", type: "triangle", x: 0, y: 0, width: 10, height: 10)
     bad_update = call_tool("update_scene", elements: [ { "id" => "bad", "type" => "bogus" } ])
 
-    expect(bad_shape[:result][:isError]).to be(true)
-    expect(bad_shape[:result][:content].first[:text]).to match(/type must/)
-    expect(bad_update[:result][:isError]).to be(true)
-    expect(bad_update[:result][:content].first[:text]).to match(/unsupported element type/)
+    expect(bad_shape.error?).to be(true)
+    expect(bad_shape.content.first[:text]).to match(/type must/)
+    expect(bad_update.error?).to be(true)
+    expect(bad_update.content.first[:text]).to match(/unsupported element type/)
   end
 
   it "draws sticky shapes as yellow rectangles" do
@@ -475,7 +533,7 @@ RSpec.describe "Mcp::Tools canvas tools" do
     response = draw_shape(type: "sticky", x: 50, y: 50, width: 150, height: 100)
 
     element = chat_session.reload.whiteboard.elements.first
-    expect(response[:result][:isError]).to be_falsey
+    expect(response.error?).to be_falsey
     expect(element).to include(
       "type" => "rectangle",
       "backgroundColor" => "#fef08a",
@@ -483,27 +541,27 @@ RSpec.describe "Mcp::Tools canvas tools" do
     )
   end
 
-  describe "Mcp::Tools::Canvas" do
+  describe WhiteboardTools::Canvas do
     describe ".text_element" do
       it "sets height for a single line based on font_size" do
-        element = Mcp::Tools::Canvas.text_element(content: "Hello", x: 0, y: 0, font_size: 20)
+        element = WhiteboardTools::Canvas.text_element(content: "Hello", x: 0, y: 0, font_size: 20)
         expect(element["height"]).to eq((20 * 1.25).round(2))
         expect(element["width"]).to eq([ "Hello".length * 20 * 0.6, 20 ].max.round(2))
       end
 
       it "scales height by line count for multi-line content" do
-        element = Mcp::Tools::Canvas.text_element(content: "Line one\nLine two\nLine three", x: 0, y: 0, font_size: 20)
+        element = WhiteboardTools::Canvas.text_element(content: "Line one\nLine two\nLine three", x: 0, y: 0, font_size: 20)
         expect(element["height"]).to eq((20 * 1.25 * 3).round(2))
       end
 
       it "sizes width by the longest line, not total character count" do
-        element = Mcp::Tools::Canvas.text_element(content: "Short\nA much longer line here", x: 0, y: 0, font_size: 20)
+        element = WhiteboardTools::Canvas.text_element(content: "Short\nA much longer line here", x: 0, y: 0, font_size: 20)
         longest = "A much longer line here".length
         expect(element["width"]).to eq([ longest * 20 * 0.6, 20 ].max.round(2))
       end
 
       it "treats empty string as a single line with minimum width" do
-        element = Mcp::Tools::Canvas.text_element(content: "", x: 0, y: 0, font_size: 20)
+        element = WhiteboardTools::Canvas.text_element(content: "", x: 0, y: 0, font_size: 20)
         expect(element["height"]).to eq((20 * 1.25).round(2))
         expect(element["width"]).to eq(20.0)
       end
@@ -513,28 +571,28 @@ RSpec.describe "Mcp::Tools canvas tools" do
       let(:container) { { "id" => "box-1", "x" => 0.0, "y" => 0.0, "width" => 200.0, "height" => 100.0 } }
 
       it "sets height for a single-line label" do
-        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Step A", font_size: 20)
+        label = WhiteboardTools::Canvas.bound_label_element(container: container, text: "Step A", font_size: 20)
         expect(label["height"]).to eq((20 * 1.25).round(2))
       end
 
       it "scales height by line count for multi-line labels" do
-        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
+        label = WhiteboardTools::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
         expect(label["height"]).to eq((20 * 1.25 * 2).round(2))
       end
 
       it "sizes width by the longest line for multi-line labels" do
-        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Hi\nA longer line", font_size: 20)
+        label = WhiteboardTools::Canvas.bound_label_element(container: container, text: "Hi\nA longer line", font_size: 20)
         longest = "A longer line".length
         expect(label["width"]).to eq([ longest * 20 * 0.6, 20 * 2 ].max.round(2))
       end
 
       it "includes autoResize: true" do
-        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Label", font_size: 20)
+        label = WhiteboardTools::Canvas.bound_label_element(container: container, text: "Label", font_size: 20)
         expect(label["autoResize"]).to be(true)
       end
 
       it "centers multi-line label vertically using its full height" do
-        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
+        label = WhiteboardTools::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
         expected_height = (20 * 1.25 * 2).round(2)
         expected_y = container.fetch("y") + (container.fetch("height") - expected_height) / 2.0
         expect(label["y"]).to eq(expected_y)
@@ -542,21 +600,21 @@ RSpec.describe "Mcp::Tools canvas tools" do
     end
 
     it "ELEMENT_TYPES does not include sticky" do
-      expect(Mcp::Tools::Canvas::ELEMENT_TYPES).not_to include("sticky")
+      expect(WhiteboardTools::Canvas::ELEMENT_TYPES).not_to include("sticky")
     end
 
     it "validate_elements! raises on a sticky element" do
       elements = [ { "id" => "s1", "type" => "sticky" } ]
       expect {
-        Mcp::Tools::Canvas.validate_elements!(elements)
+        WhiteboardTools::Canvas.validate_elements!(elements)
       }.to raise_error(ArgumentError, /unsupported element type: sticky/)
     end
 
     it "update_scene rejects sticky elements via validate_elements!" do
       bad_update = call_tool("update_scene", elements: [ { "id" => "sticky-1", "type" => "sticky" } ])
 
-      expect(bad_update[:result][:isError]).to be(true)
-      expect(bad_update[:result][:content].first[:text]).to match(/unsupported element type: sticky/)
+      expect(bad_update.error?).to be(true)
+      expect(bad_update.content.first[:text]).to match(/unsupported element type: sticky/)
     end
   end
 end

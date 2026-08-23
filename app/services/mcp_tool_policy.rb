@@ -177,7 +177,6 @@ class McpToolPolicy
       Mcp::Tools::ListRepoDocumentsTool,
       Mcp::Tools::ReadRepoDocumentTool,
       Mcp::Tools::ListChatMediaTool,
-      Mcp::Tools::ReadSceneTool,
       Mcp::Tools::ListWakeupsTool,
       Mcp::Tools::ListScheduledTasksTool,
       Mcp::Tools::ReadScheduledTaskTool,
