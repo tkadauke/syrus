@@ -3,7 +3,7 @@ module JobExecutionAccessors
 
   def retry_with_agent_providers
     return [] unless open?
-    return [] if any_active_run?
+    return [] if active_runtime_work?
     return [] unless latest_workflow&.retry_as_new_workflow_available?
 
     configured = user.configured_agent_providers

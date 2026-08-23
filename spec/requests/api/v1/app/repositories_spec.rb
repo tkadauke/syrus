@@ -5,6 +5,31 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
   let(:user) { Factories.user }
 
+  def attach_active_work_unit(owner_job:, member_job:, kind: "merge_train")
+    workflow = Workflow.create!(job: owner_job, trigger_kind: kind, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: owner_job.repository,
+      scope_type: "job",
+      scope_id: owner_job.id,
+      actor: owner_job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: "running",
+      repository: owner_job.repository,
+      scope_type: "job",
+      scope_id: owner_job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: owner_job, role: "primary")
+    unit.work_unit_members.create!(job: member_job, role: "member") unless owner_job == member_job
+    unit
+  end
+
   def parse_body
     JSON.parse(response.body)
   end
@@ -457,6 +482,21 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "app_check_ci_now_repository_path" => "/api/v1/app/repositories/#{repository.id}/check_ci_now"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
+  end
+
+  it "uses WorkUnit-owned active work when serializing repository detail retry state" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    member = Factories.job(repository: repository, issue_number: 1, issue_title: "Member work")
+    owner = Factories.job(repository: repository, issue_number: 2, issue_title: "Owner work")
+    member.current_run.update!(state: "failed", finished_at: Time.current)
+    attach_active_work_unit(owner_job: owner, member_job: member)
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    member_payload = parse_body.fetch("jobs").find { |job| job.fetch("id") == member.id }
+    expect(member_payload.fetch("retry_state")).to include("retryable" => false)
   end
 
   it "omits GitHub Issues and scheduled task tabs in simple mode" do
@@ -1133,6 +1173,22 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect {
       post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
     }.not_to change { Workflow.where(trigger_kind: "retry").count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("No failed jobs to retry.")
+  end
+
+  it "does not retry failed jobs that are owned by active WorkUnits" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    failed = Factories.job(repository: repository, issue_number: 1)
+    failed.update!(state: "failed")
+    failed.current_run.update!(state: "failed", finished_at: Time.current)
+    attach_active_work_unit(owner_job: failed, member_job: failed, kind: "manual_visual_review")
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
+    }.not_to change { Run.count }
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to eq("No failed jobs to retry.")

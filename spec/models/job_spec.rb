@@ -1213,6 +1213,30 @@ describe "running / failed lifecycle (new in this commit)" do
       )
     end
 
+    def attach_active_work_unit(owner_job:, member_job:)
+      workflow = Workflow.create!(job: owner_job, trigger_kind: "merge_train", state: "running")
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "requested",
+        repository: owner_job.repository,
+        scope_type: "job",
+        scope_id: owner_job.id,
+        actor: owner_job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "merge_train",
+        state: "running",
+        repository: owner_job.repository,
+        scope_type: "job",
+        scope_id: owner_job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: owner_job, role: "primary")
+      unit.work_unit_members.create!(job: member_job, role: "member")
+    end
+
     it "returns configured providers excluding the provider from the latest run" do
       finish_latest_workflow(state: "succeeded", provider: "claude")
 
@@ -1234,6 +1258,13 @@ describe "running / failed lifecycle (new in this commit)" do
 
     it "returns no providers when the latest workflow is not failed or succeeded" do
       finish_latest_workflow(state: "cancelled", provider: "claude")
+
+      expect(job.reload.retry_with_agent_providers).to be_empty
+    end
+
+    it "returns no providers while a WorkUnit-owned workflow is active for the Job" do
+      finish_latest_workflow(state: "failed", provider: "claude")
+      attach_active_work_unit(owner_job: Factories.job(repository: repository), member_job: job)
 
       expect(job.reload.retry_with_agent_providers).to be_empty
     end

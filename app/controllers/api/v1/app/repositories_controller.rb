@@ -1145,8 +1145,7 @@ module Api
 
             base.where(id: inactive_job_ids)
           else
-            # Materialized rather than a subquery — see Run.active_job_ids.
-            base.where.not(id: Run.active_job_ids)
+            base.where.not(id: WorkUnits::Ownership.all_active_job_ids)
           end
 
           base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
@@ -1173,7 +1172,7 @@ module Api
           @repository_detail_latest_runs_by_job_id = PerformanceLogging.phase("repository_detail.preload.latest_runs", job_count: job_ids.size) { latest_runs_by_job_id(job_ids) }
           @repository_detail_latest_workflows_by_job_id = PerformanceLogging.phase("repository_detail.preload.latest_workflows", job_count: job_ids.size) { latest_workflows_by_job_id(job_ids) }
           @repository_detail_active_job_ids = PerformanceLogging.phase("repository_detail.preload.active_jobs", job_count: job_ids.size) do
-            job_ids.empty? ? {} : Run.active.where(job_id: job_ids).distinct.pluck(:job_id).index_with(true)
+            WorkUnits::Ownership.active_job_ids(job_ids).index_with(true)
           end
           @repository_detail_run_diagnostics_by_run_id = PerformanceLogging.phase("repository_detail.preload.run_diagnostics", run_count: @repository_detail_latest_runs_by_job_id.size) do
             RunDiagnostic
