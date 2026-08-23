@@ -14,7 +14,7 @@ class PreviewPanel < ApplicationRecord
   # Mirrors PreviewEnvironment#preview_url: derived, not stored, so the
   # base domain can change without touching persisted rows. Uses the
   # distinct "preview-panel-" prefix so PreviewProxyMiddleware can tell
-  # panel requests apart from PreviewEnvironment's "preview-<job_id>" ones.
+  # panel requests apart from PreviewEnvironment's "preview-<preview_environment_id>" ones.
   def preview_url(base_domain) = "http://preview-panel-#{id}.#{base_domain}"
 
   # Looks up an attached file by its stored relative path (e.g.

@@ -292,6 +292,10 @@ Rails.application.routes.draw do
             post :run_insight_analysis
           end
         end
+        get "repositories/:repository_id/preview", to: "repository_preview#show", constraints: { repository_id: /\d+/ }
+        get "repositories/:repository_id/preview/logs", to: "repository_preview#logs", constraints: { repository_id: /\d+/ }
+        post "repositories/:repository_id/preview", to: "repository_preview#create", constraints: { repository_id: /\d+/ }
+        delete "repositories/:repository_id/preview", to: "repository_preview#destroy", constraints: { repository_id: /\d+/ }
         get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
         get "repositories/:repository_id/tests", to: "repository_tests#index"
         get "repositories/:repository_id/tests/:id", to: "repository_tests#show", constraints: { id: /\d+/ }

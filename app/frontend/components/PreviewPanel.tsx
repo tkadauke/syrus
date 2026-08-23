@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useT } from "../../hooks/useT"
-import { fetchJobPreview, fetchJobPreviewLogs, startJobPreview, stopJobPreview, type PreviewEnvironmentRecord } from "../../api/jobs"
-import { errorMessage } from "../../lib/errorMessage"
-import { CloseIcon } from "../../components/CloseIcon"
-import type { JobDetailQueryKey } from "./queryKeys"
+import { useT } from "../hooks/useT"
+import { fetchJobPreview, fetchJobPreviewLogs, startJobPreview, stopJobPreview, type PreviewEnvironmentRecord } from "../api/jobs"
+import { errorMessage } from "../lib/errorMessage"
+import { CloseIcon } from "./CloseIcon"
 
 const ACTIVE_STATES = ["starting", "seeding", "running", "stopping"] as const
 const POLL_INTERVAL_MS = 3000
@@ -36,27 +35,37 @@ function useCountdown(expiresAt: string | null) {
   return remaining
 }
 
+// Shared preview control panel for both job-scoped previews (JobDetail) and
+// repository-scoped "preview main" previews (RepositoryDetail) — both hit the
+// same PreviewEnvironment/PreviewProxyMiddleware machinery server-side, just
+// scoped to a different owning record. queryKeyPrefix + entityId namespace
+// this panel's own TanStack Query cache entries so a job preview and a
+// repository preview never collide; queryKey is the caller's own detail
+// page cache key, invalidated on every preview state change.
 export function PreviewPanel({
-  jobId,
+  queryKeyPrefix,
+  entityId,
   previewPath,
   previewLogsPath,
   canStart,
   initialPreview,
   queryKey
 }: {
-  jobId: number
+  queryKeyPrefix: string
+  entityId: number
   previewPath: string
   previewLogsPath: string
   canStart: boolean
   initialPreview: PreviewEnvironmentRecord | null
-  queryKey: JobDetailQueryKey
+  queryKey: readonly unknown[]
 }) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
+  const previewQueryKey = [`${queryKeyPrefix}-preview`, entityId] as const
 
   const preview = useQuery({
-    queryKey: ["job-preview", jobId],
+    queryKey: previewQueryKey,
     queryFn: () => fetchJobPreview(previewPath),
     select: (data) => data.preview,
     initialData: { preview: initialPreview },
@@ -71,7 +80,7 @@ export function PreviewPanel({
   const start = useMutation({
     mutationFn: () => startJobPreview(previewPath),
     onSuccess: (data) => {
-      queryClient.setQueryData(["job-preview", jobId], { preview: data.preview })
+      queryClient.setQueryData(previewQueryKey, { preview: data.preview })
       void queryClient.invalidateQueries({ queryKey })
       setError(null)
     },
@@ -81,7 +90,7 @@ export function PreviewPanel({
   const stop = useMutation({
     mutationFn: () => stopJobPreview(previewPath),
     onSuccess: (data) => {
-      queryClient.setQueryData(["job-preview", jobId], { preview: data.preview })
+      queryClient.setQueryData(previewQueryKey, { preview: data.preview })
       void queryClient.invalidateQueries({ queryKey })
       setError(null)
     },
@@ -109,7 +118,7 @@ export function PreviewPanel({
           onStop={() => stop.mutate()}
           t={t}
         />
-        {env ? <PreviewLogs jobId={jobId} previewLogsPath={previewLogsPath} running={env.state === "running"} /> : null}
+        {env ? <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} /> : null}
         {env?.state === "running" && !expired && countdown ? (
           <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_expires_in", { time: countdown })}</p>
         ) : null}
@@ -124,7 +133,7 @@ export function PreviewPanel({
   )
 }
 
-function PreviewLogs({ jobId, previewLogsPath, running }: { jobId: number; previewLogsPath: string; running: boolean }) {
+function PreviewLogs({ queryKeyPrefix, entityId, previewLogsPath, running }: { queryKeyPrefix: string; entityId: number; previewLogsPath: string; running: boolean }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
 
@@ -139,7 +148,8 @@ function PreviewLogs({ jobId, previewLogsPath, running }: { jobId: number; previ
       </button>
       {open ? (
         <PreviewLogsModal
-          jobId={jobId}
+          queryKeyPrefix={queryKeyPrefix}
+          entityId={entityId}
           onClose={() => setOpen(false)}
           previewLogsPath={previewLogsPath}
           running={running}
@@ -150,12 +160,14 @@ function PreviewLogs({ jobId, previewLogsPath, running }: { jobId: number; previ
 }
 
 function PreviewLogsModal({
-  jobId,
+  queryKeyPrefix,
+  entityId,
   previewLogsPath,
   running,
   onClose
 }: {
-  jobId: number
+  queryKeyPrefix: string
+  entityId: number
   previewLogsPath: string
   running: boolean
   onClose: () => void
@@ -164,7 +176,7 @@ function PreviewLogsModal({
   const closeRef = useRef<HTMLButtonElement>(null)
 
   const logs = useQuery({
-    queryKey: ["job-preview-logs", jobId],
+    queryKey: [`${queryKeyPrefix}-preview-logs`, entityId],
     queryFn: () => fetchJobPreviewLogs(previewLogsPath),
     refetchInterval: running ? POLL_INTERVAL_MS : false
   })

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_23_202442) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1469,15 +1469,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.text "error_message"
     t.datetime "expires_at"
     t.string "internal_host"
-    t.integer "job_id", null: false
+    t.integer "job_id"
     t.datetime "last_activity_at"
     t.integer "port"
+    t.integer "repository_id"
     t.string "state", default: "starting", null: false
     t.datetime "updated_at", null: false
     t.string "workspace_path"
     t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
     t.index ["job_id"], name: "index_preview_environments_on_job_id"
     t.index ["job_id"], name: "index_preview_environments_on_job_id_active", where: "state IN ('starting','seeding','running','stopping')"
+    t.index ["repository_id"], name: "index_preview_environments_on_repository_id"
     t.index ["state"], name: "index_preview_environments_on_state"
   end
 
@@ -2467,6 +2469,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  # Virtual tables defined in this database.
-  # Note that virtual tables may not work with other database engines. Be careful if changing database.
+  add_foreign_key "preview_environments", "repositories"
 end

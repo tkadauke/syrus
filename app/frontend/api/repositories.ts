@@ -1,6 +1,6 @@
 import { getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
-import type { JobRetryState } from "./jobs"
+import type { JobRetryState, PreviewEnvironmentRecord } from "./jobs"
 import type { ProviderAvailability } from "./providerAvailability"
 
 export type RepositoryEpicDependencyPolicy = "linear" | "nonlinear"
@@ -213,6 +213,7 @@ export type RepositoryDetailPayload = {
     previous_path: string | null
     next_path: string | null
   }
+  preview: PreviewEnvironmentRecord | null
   paths: {
     new_job_path: string
     new_repository_skill_job_path: string
@@ -231,6 +232,8 @@ export type RepositoryDetailPayload = {
     app_run_insight_analysis_repository_path?: string
     repository_insights_path?: string
     app_flaky_tests_path: string
+    app_preview_path: string
+    app_preview_logs_path: string
   }
   agent_insights_enabled?: boolean
   active_insight_job?: {

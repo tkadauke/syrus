@@ -44,8 +44,8 @@ class PreviewProxyMiddleware
     match = @host_pattern.match(host)
     return @app.call(env) unless match
 
-    job_id = match[1].to_i
-    preview_env = PreviewEnvironment.find_by(job_id: job_id, state: "running")
+    preview_environment_id = match[1].to_i
+    preview_env = PreviewEnvironment.find_by(id: preview_environment_id, state: "running")
     return not_available_response unless preview_env
 
     preview_env.touch_activity!

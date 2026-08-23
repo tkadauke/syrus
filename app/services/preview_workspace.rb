@@ -11,8 +11,11 @@ class PreviewWorkspace
   end
 
   # revision: :head (default) checks out the Job's feature branch — today's
-  # behavior, unchanged for every existing caller. revision: :base checks out
-  # the Job's base revision instead, resolved fresh via `git merge-base
+  # behavior, unchanged for every existing caller. For a repository-scoped
+  # preview environment (no Job at all), :head instead clones the
+  # repository's default branch with no revision override — there is no Job
+  # to derive a branch/SHA from. revision: :base checks out the Job's base
+  # revision instead, resolved fresh via `git merge-base
   # <effective_base_branch> <head>` so stacked Jobs compare against their real
   # parent branch rather than always the repo default branch. revision:
   # :commit_sha clones the repository's default branch and checks out
@@ -34,7 +37,7 @@ class PreviewWorkspace
   def initialize(preview_environment, git:, revision: :head)
     @preview_environment = preview_environment
     @job = preview_environment.job
-    @repository = @job.repository
+    @repository = preview_environment.effective_repository
     @git = git
     @revision = revision
     @path = self.class.path_for(preview_environment)
@@ -42,7 +45,7 @@ class PreviewWorkspace
   end
 
   def prepare!
-    raise "job has no branch to preview" if @job.branch_name.blank? && !commit_sha_revision?
+    raise "job has no branch to preview" if @job && @job.branch_name.blank? && !commit_sha_revision?
     raise "job has no merged commit sha to preview" if commit_sha_revision? && @job.landed_sha.blank?
 
     FileUtils.rm_rf(@path)
@@ -56,7 +59,7 @@ class PreviewWorkspace
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: @path.to_s)
     checkout_base_revision! if base_revision?
     checkout_commit_sha! if commit_sha_revision?
-    @git.configure_author(BotIdentity.for(@job), chdir: @path.to_s)
+    @git.configure_author(BotIdentity.for(@job), chdir: @path.to_s) if @job
     apply_preview_asset_proxy_overrides!
     @preview_environment.update_columns(workspace_path: @path.to_s, updated_at: Time.current)
     @path.to_s
@@ -75,8 +78,10 @@ class PreviewWorkspace
     @revision == :commit_sha
   end
 
+  # No Job (repository-scoped preview) always clones the default branch,
+  # same as a landed Job's :commit_sha revision.
   def clone_branch
-    commit_sha_revision? ? @repository.default_branch : @job.branch_name
+    commit_sha_revision? || @job.nil? ? @repository.default_branch : @job.branch_name
   end
 
   # Non-shallow clone (no --depth above) fetches every branch as a
@@ -95,7 +100,7 @@ class PreviewWorkspace
   end
 
   def authenticated_url
-    @repository.authenticated_url(user: @job.user)
+    @repository.authenticated_url(user: @job&.user || @repository.user)
   end
 
   # Preview workspaces are disposable copies. It is safe to patch framework
@@ -119,6 +124,6 @@ class PreviewWorkspace
 
     vite_config.write("#{JSON.pretty_generate(config)}\n")
   rescue JSON::ParserError => e
-    Rails.logger.warn("[PreviewWorkspace] could not patch Vite preview config for #{@job.slug}: #{e.message}")
+    Rails.logger.warn("[PreviewWorkspace] could not patch Vite preview config for #{@job&.slug || @repository.slug}: #{e.message}")
   end
 end

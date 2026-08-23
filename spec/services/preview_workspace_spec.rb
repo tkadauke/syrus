@@ -54,6 +54,23 @@ RSpec.describe PreviewWorkspace do
     FileUtils.rm_rf(source_path) if source_path
   end
 
+  it "logs via the repository (not a nil job) when vite.json is malformed for a repository-scoped preview" do
+    source_path = Dir.mktmpdir
+    FileUtils.mkdir_p(File.join(source_path, "config"))
+    File.write(File.join(source_path, "config", "vite.json"), "not json")
+
+    repository = Factories.repository
+    preview_environment = PreviewEnvironment.create!(repository: repository, state: "starting")
+    allow_any_instance_of(Repository).to receive(:authenticated_url).and_return(source_path)
+    allow_any_instance_of(Repository).to receive(:remote_url).and_return("https://github.example/acme/app.git")
+
+    expect {
+      described_class.prepare!(preview_environment, git: PreviewWorkspaceSpecGit.new(source_path))
+    }.not_to raise_error
+  ensure
+    FileUtils.rm_rf(source_path) if source_path
+  end
+
   describe ".cleanup_for" do
     it "removes the workspace directory and nulls the stale workspace_path column" do
       repository = Factories.repository
@@ -230,6 +247,24 @@ RSpec.describe PreviewWorkspace do
       expect {
         described_class.prepare!(preview_environment, git: GitRunner.new, revision: :commit_sha)
       }.to raise_error(/no merged commit sha/)
+    ensure
+      FileUtils.rm_rf(source_path) if source_path
+    end
+
+    it "clones the repository's default branch with no revision override for a repository-scoped preview (no Job)" do
+      source_path = init_source_repo
+      branch_from(source_path, "feature", from: "main")
+      write_commit(source_path, "feature.txt", "feature work")
+      run_git(source_path, "checkout", "--quiet", "main")
+      main_sha = head_sha(source_path)
+
+      repository = Factories.repository(default_branch: "main")
+      preview_environment = PreviewEnvironment.create!(repository: repository, state: "starting")
+      stub_repository!(repository, source_path)
+
+      described_class.prepare!(preview_environment, git: GitRunner.new)
+
+      expect(head_sha(preview_environment.reload.workspace_path)).to eq(main_sha)
     ensure
       FileUtils.rm_rf(source_path) if source_path
     end
