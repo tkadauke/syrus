@@ -15,6 +15,18 @@ function isActive(state: PreviewEnvironmentRecord["state"]) {
   return (ACTIVE_STATES as readonly string[]).includes(state)
 }
 
+// Task language for the coding agent, not UI copy — always English regardless
+// of the operator's locale, matching every other prompt-generation path.
+function buildPreviewFixPrompt(errorMessage: string) {
+  return `Syrus's preview feature diagnosed this repository's preview process as unreachable:
+
+"${errorMessage}"
+
+The app starts and passes its own local health check, but is not reachable from the network host Syrus's preview proxy uses to reach it. This almost always means the preview start command binds its server to 127.0.0.1/localhost only instead of all interfaces.
+
+Please fix this repository's preview start command (in .syrus.yml's \`preview.start\`, or the equivalent dev-server start script) so the app binds to 0.0.0.0 while still listening on the port Syrus provides. Common fixes: pass a \`-b 0.0.0.0\` / \`--host 0.0.0.0\` flag to the server command, or change a hardcoded 127.0.0.1/localhost bind host in code or config to 0.0.0.0. Verify the fix doesn't regress normal local usage.`
+}
+
 function useCountdown(expiresAt: string | null) {
   const [remaining, setRemaining] = useState<string | null>(null)
 
@@ -109,7 +121,7 @@ export function PreviewPanel({
       repositoryId: String(repositoryId),
       agentProvider: "",
       title: t("preview_fix_job_title"),
-      prompt: t("preview_fix_prompt", { error_message: env?.error_message ?? "" }),
+      prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
       priority: "high",
       createMore: false,
       files: [],

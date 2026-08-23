@@ -579,6 +579,5 @@
   "preview_logs_close": "Schließen",
   "preview_fix_button": "Vorschau reparieren",
   "preview_fix_job_title": "Vorschau reparieren: über den Vorschau-Proxy nicht erreichbar",
-  "preview_fix_prompt": "Syrus' Vorschau-Funktion hat diagnostiziert, dass der Vorschauprozess dieses Repositorys nicht erreichbar ist:\n\n\"{{error_message}}\"\n\nDie App startet und besteht ihren eigenen lokalen Health-Check, ist aber vom Netzwerk-Host aus, den Syrus' Vorschau-Proxy verwendet, nicht erreichbar. Das bedeutet fast immer, dass der Vorschau-Startbefehl den Server nur an 127.0.0.1/localhost statt an alle Schnittstellen bindet.\n\nBitte korrigiere den Vorschau-Startbefehl dieses Repositorys (in `.syrus.yml` unter `preview.start`, oder im entsprechenden Dev-Server-Startskript), sodass die App an 0.0.0.0 bindet und dabei weiterhin den von Syrus bereitgestellten Port verwendet. Übliche Lösungen: dem Server-Befehl ein `-b 0.0.0.0` / `--host 0.0.0.0` mitgeben, oder einen fest codierten 127.0.0.1/localhost-Bind-Host in Code oder Konfiguration auf 0.0.0.0 ändern. Prüfe, dass die Korrektur die normale lokale Nutzung nicht beeinträchtigt.",
   "preview_fix_error": "Der Job zur Reparatur der Vorschau konnte nicht erstellt werden."
 }
