@@ -105,15 +105,27 @@ module App
 
       def current_work_intent_for_job
         @current_work_intent_for_job ||= begin
-          active_work_unit_member_for_job&.work_unit&.work_intent || latest_job_scoped_work_intent
+          active_work_unit_member_for_job&.work_unit&.work_intent || latest_relevant_work_intent
         end
       end
 
-      def latest_job_scoped_work_intent
+      def latest_relevant_work_intent
         WorkIntent
-          .where(scope_type: "job", scope_id: @job.id, state: %w[requested waiting])
+          .where(state: %w[requested waiting])
+          .where(relevant_work_intent_scope)
           .order(created_at: :desc, id: :desc)
           .first
+      end
+
+      def relevant_work_intent_scope
+        table = WorkIntent.arel_table
+        clauses = [
+          table[:scope_type].eq("job").and(table[:scope_id].eq(@job.id))
+        ]
+        clauses << table[:scope_type].eq("epic").and(table[:scope_id].eq(@job.epic_id)) if @job.epic_id.present?
+        clauses << table[:scope_type].eq("repository").and(table[:scope_id].eq(@job.repository_id)) if @job.repository_id.present?
+
+        clauses.reduce { |scope, clause| scope.or(clause) }
       end
 
       def intent_execution_status(intent)
@@ -238,7 +250,7 @@ module App
 
       def workflows_scope
         @job.workflows
-            .where.not(id: work_unit_workflow_ids_for_job)
+            .where.not(id: all_work_unit_workflow_ids_for_job)
             .reorder(created_at: :desc, id: :desc)
       end
 
@@ -301,6 +313,17 @@ module App
 
       def work_unit_workflow_ids_for_job
         @work_unit_workflow_ids_for_job ||= work_unit_workflows_for_job.map(&:id)
+      end
+
+      def all_work_unit_workflow_ids_for_job
+        @all_work_unit_workflow_ids_for_job ||= PerformanceLogging.phase("job_detail.work_units.workflow_ids", job_id: @job.id) do
+          WorkUnitMember
+            .joins(:work_unit)
+            .where(job_id: @job.id)
+            .where.not(work_units: { workflow_id: nil })
+            .distinct
+            .pluck("work_units.workflow_id")
+        end
       end
 
       def ordered_runs_for(step)

@@ -118,6 +118,12 @@ module WorkDefinitions
     def requires_approval? = false
     def requires_epic_readiness? = false
     def generic_intent_start_allowed? = !landing_lock?
+    def lock_conflicts_enforced?
+      return WorkUnits::PathOwnership.work_unit_owned?(kind) if WorkUnits::PathOwnership::PATH_GATES.key?(kind)
+      return Feature.work_units_scheduler_enabled? if first_class? && scope == "job"
+
+      false
+    end
 
     def lock_keys_for(job:, member_jobs:, artifacts: {}, **)
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }

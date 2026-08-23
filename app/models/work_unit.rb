@@ -138,11 +138,17 @@ class WorkUnit < ApplicationRecord
       next if work_unit_locks.active.exists?(lock_key: lock_key)
 
       owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
-      if owner && owner.id != id
+      if owner && owner.id != id && definition.lock_conflicts_enforced?
         raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)
       end
+      next if owner && owner.id != id
 
       work_unit_locks.create!(lock_key: lock_key)
+    rescue ActiveRecord::RecordNotUnique
+      owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
+      if owner && owner.id != id && definition.lock_conflicts_enforced?
+        raise WorkUnits::Launcher::LockConflict.new(lock_key: lock_key, work_unit: owner)
+      end
     end
   end
 

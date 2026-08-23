@@ -246,12 +246,27 @@ module WorkUnits
 
     def create_locks!(unit)
       definition.lock_keys_for(job: job, member_jobs: member_jobs, artifacts: payload_artifacts, **options).each do |lock_key|
-        if (owner = Ownership.active_unit_for_lock_key(lock_key))
-          raise LockConflict.new(lock_key: lock_key, work_unit: owner)
-        end
-
-        unit.work_unit_locks.create!(lock_key: lock_key)
+        create_lock!(unit, lock_key)
       end
+    end
+
+    def create_lock!(unit, lock_key)
+      if (owner = Ownership.active_unit_for_lock_key(lock_key))
+        raise LockConflict.new(lock_key: lock_key, work_unit: owner) if lock_conflicts_enforced?
+
+        return
+      end
+
+      unit.work_unit_locks.create!(lock_key: lock_key)
+    rescue ActiveRecord::RecordNotUnique
+      owner = Ownership.active_unit_for_lock_key(lock_key)
+      raise LockConflict.new(lock_key: lock_key, work_unit: owner) if owner && lock_conflicts_enforced?
+
+      nil
+    end
+
+    def lock_conflicts_enforced?
+      definition.lock_conflicts_enforced?
     end
 
     def scope_type

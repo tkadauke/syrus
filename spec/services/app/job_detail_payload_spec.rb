@@ -814,6 +814,37 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "includes a waiting epic-scoped intent for member jobs before a work unit exists" do
+      epic = Factories.epic(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, epic: epic)
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "waiting",
+        repository: repo,
+        scope_type: "epic",
+        scope_id: epic.id,
+        actor: user,
+        wait_reason: "epic_not_ready",
+        wait_details: { "pending_job_ids" => [ job.id ] },
+        source_type: "spec"
+      )
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:current_intent)).to include(
+        id: intent.id,
+        kind: "merge_train",
+        label: "Epic merge-train",
+        state: "waiting",
+        scope_type: "epic",
+        scope_id: epic.id,
+        wait_reason: "epic_not_ready",
+        wait_label: "Epic not ready",
+        wait_details: include("pending_job_ids" => [ job.id ]),
+        execution_status: "blocked"
+      )
+    end
+
     it "includes work units involving the job even when the workflow is attached to another job" do
       epic = Factories.epic(user: user, repository: repo)
       first = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
@@ -977,6 +1008,21 @@ RSpec.describe App::JobDetailPayload do
 
       expect(payload.fetch(:work_units)).to be_empty
       expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
+    end
+
+    it "does not leak older WorkUnit-owned workflows into the legacy workflow list" do
+      job = Factories.job_record(user: user, repository: repo)
+      51.times do |index|
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", created_at: index.minutes.ago)
+        Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+        attach_work_unit(workflow, member_jobs: [ job ], kind: "initial", state: "succeeded")
+      end
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:work_units).size).to eq(50)
+      expect(payload.fetch(:workflows)).to be_empty
+      expect(payload.fetch(:workflows_pagination)).to include(total_workflows: 0)
     end
 
     it "includes generic WorkflowWarning rows on the owning step, redacted" do
