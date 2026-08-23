@@ -74,6 +74,7 @@ module Syrus
 
 
         validate_provides!(provides)
+        validate_author!(metadata[:author])
 
         @mutex.synchronize do
           validate_mcp_tool_name_uniqueness!(provides)
@@ -334,6 +335,17 @@ module Syrus
           raise ArgumentError, "Unknown extension point: #{extension_point.inspect}. Valid: #{EXTENSION_POINTS.inspect}"
         end
         @mutex.synchronize { @direct_providers[ep] << provider }
+      end
+
+      # "Syrus" is not a real author - it's the product itself. Plugins must
+      # credit an actual person or organization (blank/absent is still
+      # allowed for lightweight test registrations).
+      def validate_author!(author)
+        return if author.blank?
+
+        if author.to_s.strip.casecmp("syrus").zero?
+          raise RegistrationError, "\"Syrus\" is not a valid plugin author"
+        end
       end
 
       def validate_provides!(provides)
