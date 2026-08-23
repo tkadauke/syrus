@@ -3,7 +3,7 @@ require_relative "lib/ruby/version"
 Gem::Specification.new do |spec|
   spec.name    = "ruby"
   spec.version = Ruby::VERSION
-  spec.authors = ["Syrus"]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Ruby-generic intelligence plugin for Syrus"
   spec.description = "Provides Ruby-generic capabilities to Syrus (not specific to Rails): " \
     "RSpec grader failure detail, RSpec output parsing, SimpleCov coverage analysis, " \

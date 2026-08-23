@@ -20,6 +20,7 @@ module Python
                            "pytest JSON-report grader detail, venv/uv prompt reminder, " \
                            "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
         homepage:         "https://github.com/tkadauke/syrus",
+        author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/python.svg",
         prepare_priority: 30,
         provides: {

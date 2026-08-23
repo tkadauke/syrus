@@ -3,7 +3,7 @@
   "productName": "Syrus",
   "version": "0.0.0",
   "description": "Syrus desktop shell",
-  "author": "Syrus",
+  "author": "Thomas Kadauke",
   "private": true,
   "type": "module",
   "desktopName": "SyrusDesktop",

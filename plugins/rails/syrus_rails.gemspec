@@ -3,7 +3,7 @@ require_relative "lib/syrus_rails/version"
 Gem::Specification.new do |spec|
   spec.name    = "syrus_rails"
   spec.version = SyrusRails::VERSION
-  spec.authors = ["Syrus"]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Ruby on Rails intelligence plugin for Syrus"
   spec.description = "Provides Rails-framework-specific capabilities to Syrus: " \
     "preview server config, schema/migration/route tooling, an MCP tool set, " \

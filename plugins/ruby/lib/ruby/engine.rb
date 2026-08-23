@@ -23,6 +23,7 @@ module Ruby
                            "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
                            "require_relative-graph affected-test analysis",
         homepage:         "https://github.com/tkadauke/syrus",
+        author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/ruby.svg",
         prepare_priority: 10,
         provides: {

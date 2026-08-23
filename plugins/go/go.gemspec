@@ -3,7 +3,7 @@ require_relative "lib/go/version"
 Gem::Specification.new do |spec|
   spec.name    = "go"
   spec.version = Go::VERSION
-  spec.authors = ["Syrus"]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Go prepare-detection plugin for Syrus"
   spec.description = "Detects Go repositories via go.mod and contributes the go mod download " \
     "prepare command."
