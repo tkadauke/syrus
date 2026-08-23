@@ -408,6 +408,78 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(other_job.reload).to be_open
   end
 
+  describe "approve/run_again/cancel with a repository member who does not own the job" do
+    let(:read_member) { Factories.user }
+    let(:write_member) { Factories.user }
+
+    before do
+      repo.repository_memberships.create!(user: read_member, role: "read")
+      repo.repository_memberships.create!(user: write_member, role: "write")
+    end
+
+    it "403s cancel for a read-tier member" do
+      sign_in_as(read_member)
+
+      post app_job_path(job, "cancel"), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(job.reload).to be_open
+    end
+
+    it "allows cancel for a write-tier member" do
+      sign_in_as(write_member)
+
+      post app_job_path(job, "cancel"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload).to be_closed
+    end
+
+    it "403s approve for a read-tier member" do
+      job.update!(state: "implemented")
+      sign_in_as(read_member)
+
+      post app_job_path(job, "approve"), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(job.job_approvals).to be_empty
+    end
+
+    it "allows approve for a write-tier member (recorded as a vote, self policy still needs the owner)" do
+      job.update!(state: "implemented")
+      sign_in_as(write_member)
+
+      post app_job_path(job, "approve"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("message" => "Approval recorded.")
+      expect(job.job_approvals.where(user: write_member).count).to eq(1)
+      expect(job.reload).to be_implemented
+    end
+
+    it "403s run_again for a read-tier member" do
+      job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+      finish_work_units_for(job)
+      sign_in_as(read_member)
+
+      post app_job_path(job, "run_again"), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "allows run_again for a write-tier member" do
+      job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
+      finish_work_units_for(job)
+      sign_in_as(write_member)
+
+      expect {
+        post app_job_path(job, "run_again"), as: :json
+      }.to change { job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   it "resolves a job by its human-readable slug for lifecycle actions" do
     slugged_job = Factories.job(
       repository: repo,

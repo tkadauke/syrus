@@ -8,10 +8,12 @@ RSpec.describe JobPolicy do
   let(:owner) { admin && Factories.user }
   let(:other_user) { admin && Factories.user }
   let(:member) { admin && Factories.user }
+  let(:writer) { admin && Factories.user }
   let(:job) { Factories.job_record(user: owner) }
 
   before do
-    RepositoryMembership.create!(repository: job.repository, user: member, role: "collaborator")
+    RepositoryMembership.create!(repository: job.repository, user: member, role: "read")
+    RepositoryMembership.create!(repository: job.repository, user: writer, role: "write")
   end
 
   describe "#show?" do
@@ -32,21 +34,25 @@ RSpec.describe JobPolicy do
     end
   end
 
-  describe "#update?" do
+  describe "#write?" do
     it "allows the owning user" do
-      expect(described_class.new(owner, job)).to be_update
+      expect(described_class.new(owner, job)).to be_write
     end
 
-    it "denies a repository member who does not own the job -- mutation actions stay creator-or-admin-only" do
-      expect(described_class.new(member, job)).not_to be_update
+    it "denies a read-tier repository member who does not own the job" do
+      expect(described_class.new(member, job)).not_to be_write
+    end
+
+    it "allows a write-tier repository member who does not own the job" do
+      expect(described_class.new(writer, job)).to be_write
     end
 
     it "denies a user with no membership on the job's repository" do
-      expect(described_class.new(other_user, job)).not_to be_update
+      expect(described_class.new(other_user, job)).not_to be_write
     end
 
     it "allows a global admin regardless of ownership" do
-      expect(described_class.new(admin, job)).to be_update
+      expect(described_class.new(admin, job)).to be_write
     end
   end
 

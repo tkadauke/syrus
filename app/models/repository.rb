@@ -216,10 +216,20 @@ class Repository < ApplicationRecord
 
   def effective_agent_provider(user: nil)
     if user
-      membership_provider = repository_memberships.find_by(user_id: user.id)&.agent_provider&.presence
+      membership = membership_for(user)
+      membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
       return membership_provider if membership_provider
     end
     agent_provider.presence || (user || self.user)&.agent_provider
+  end
+
+  def membership_for(user)
+    return nil unless user
+    repository_memberships.find_by(user_id: user.id)
+  end
+
+  def member_at_least?(user, tier)
+    membership_for(user)&.at_least?(tier) || false
   end
 
   def effective_prepare_enabled
@@ -289,7 +299,7 @@ class Repository < ApplicationRecord
 
   def seed_owner_membership
     return unless user_id.present?
-    repository_memberships.find_or_create_by!(user_id: user_id) { |m| m.role = "owner" }
+    repository_memberships.find_or_create_by!(user_id: user_id) { |m| m.role = "admin" }
   end
 
   def create_github_input_source

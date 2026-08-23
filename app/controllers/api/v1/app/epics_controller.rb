@@ -643,7 +643,7 @@ module Api
         end
 
         def membership_on_repo?(repository_id)
-          RepositoryMembership.exists?(repository_id: repository_id, user: Current.user)
+          RepositoryMembership.at_least("write").exists?(repository_id: repository_id, user: Current.user)
         end
 
         # Best-effort start after a "Create Epic & Start Implementing" create:

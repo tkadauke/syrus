@@ -11,7 +11,7 @@ RSpec.describe "App API job visibility follows repository access", type: :reques
 
   before do
     job
-    RepositoryMembership.create!(repository: repo, user: member, role: "collaborator")
+    RepositoryMembership.create!(repository: repo, user: member, role: "read")
   end
 
   describe "read visibility (mirrors Epic.accessible_to)" do
@@ -51,10 +51,10 @@ RSpec.describe "App API job visibility follows repository access", type: :reques
     end
   end
 
-  describe "mutation actions stay creator-or-admin-only" do
+  describe "mutation actions require write-tier-or-higher repository access" do
     before { sign_in_as(member) }
 
-    it "rejects chat feedback from a repository member who does not own the job" do
+    it "rejects chat feedback from a read-tier repository member who does not own the job" do
       job.update!(state: "implemented")
 
       post "/api/v1/app/jobs/#{job.id}/chat_feedback", params: { body: "Please adjust this." }, as: :json
@@ -63,18 +63,25 @@ RSpec.describe "App API job visibility follows repository access", type: :reques
       expect(job.reload.workflows.where(trigger_kind: "chat_feedback")).to be_empty
     end
 
-    it "rejects a priority change from a repository member who does not own the job" do
+    it "rejects a priority change from a read-tier repository member who does not own the job" do
       patch "/api/v1/app/jobs/#{job.id}/priority", params: { priority: "high" }, as: :json
 
       expect(response).to have_http_status(:forbidden)
       expect(job.reload.priority).not_to eq("high")
     end
 
-    it "rejects a provider setting change from a repository member who does not own the job" do
+    it "rejects a provider setting change from a read-tier repository member who does not own the job" do
       patch "/api/v1/app/jobs/#{job.id}/provider_setting", params: { job_provider_setting: "codex" }, as: :json
 
       expect(response).to have_http_status(:forbidden)
       expect(job.reload.job_provider_setting).to eq("default")
+    end
+
+    it "rejects cancel from a read-tier repository member who does not own the job" do
+      post "/api/v1/app/jobs/#{job.id}/cancel", as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(job.reload).to be_open
     end
 
     it "still allows the owner to submit chat feedback" do
@@ -84,6 +91,35 @@ RSpec.describe "App API job visibility follows repository access", type: :reques
       post "/api/v1/app/jobs/#{job.id}/chat_feedback", params: { body: "Please adjust this." }, as: :json
 
       expect(response).to have_http_status(:created)
+    end
+  end
+
+  describe "a write-tier repository member can mutate a job they don't own" do
+    before do
+      RepositoryMembership.find_by(repository: repo, user: member).update!(role: "write")
+      sign_in_as(member)
+    end
+
+    it "allows submitting chat feedback" do
+      job.update!(state: "implemented")
+
+      post "/api/v1/app/jobs/#{job.id}/chat_feedback", params: { body: "Please adjust this." }, as: :json
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "allows a priority change" do
+      patch "/api/v1/app/jobs/#{job.id}/priority", params: { priority: "high" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload.priority).to eq("high")
+    end
+
+    it "allows cancelling the job" do
+      post "/api/v1/app/jobs/#{job.id}/cancel", as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload).to be_closed
     end
   end
 end

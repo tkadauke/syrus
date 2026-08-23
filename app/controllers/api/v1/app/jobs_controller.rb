@@ -245,16 +245,9 @@ module Api
 
         # find_job/find_job_by_param resolve against the widened,
         # repository-membership-based JobPolicy::Scope (read-visibility
-        # parity with Epic). Mutation actions must stay creator-or-admin-only
-        # for now, so they call this explicitly instead of relying on the
-        # finder scope alone.
-        def authorize_job_mutation!(job)
-          return true if JobPolicy.new(Current.user, job).update?
-
-          render_error("forbidden", "Only the job owner or an admin can perform this action.", status: :forbidden)
-          false
-        end
-
+        # parity with Epic). Mutation actions call authorize_job_mutation!
+        # (BaseController) explicitly instead of relying on the finder scope
+        # alone, since #write? is narrower than #show?/Scope.
         def filter_jobs(scope)
           if params[:repo].present?
             owner, name = params[:repo].to_s.split("/", 2)

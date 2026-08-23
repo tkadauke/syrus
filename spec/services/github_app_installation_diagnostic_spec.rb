@@ -50,7 +50,7 @@ RSpec.describe GithubAppInstallationDiagnostic do
     member_installation = Factories.installation(user: admin, account_login: "other")
     member = Factories.user(email_address: "member@example.com")
     repo = Factories.repository(user: admin, owner: "acme", installation: repo_installation)
-    repo.repository_memberships.create!(user: member, role: "collaborator", installation: member_installation)
+    repo.repository_memberships.create!(user: member, role: "read", installation: member_installation)
 
     row = described_class.new(slug: repo.slug).show.fetch(:repositories).first
     membership = row.fetch(:membership_installations).find { |item| item.fetch(:user_id) == member.id }

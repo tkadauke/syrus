@@ -1038,6 +1038,20 @@ instances keep the primary navigation focused on the solo operator's work.
 That model keeps solo operation simple and team operation centralized
 without turning every run into a shared global credential.
 
+### Repository Members And Access Tiers
+
+Each repository has its own members, independent of the global user role.
+Access is granted through one of three tiers: **Read** (view Jobs and
+Epics on the repository), **Write** (also approve, retry, and cancel
+Jobs), and **Admin** (also manage repository settings, credentials, and
+members — the tier the repository's original owner always holds).
+
+A repository's **Members** tab (Repository → Members) lists current
+members and their tier, and lets an Admin-tier member add someone by
+email at a chosen tier, change an existing member's tier, or remove
+them. There is always at least one Admin-tier member on a repository;
+Syrus refuses to remove or demote the last one.
+
 For team workflows, fork-based development, and open source contributions,
 see [Collaboration](/docs/collaboration).
 

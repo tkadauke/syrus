@@ -15,46 +15,88 @@ EPIC-257 (global roles, repository role tiers, teams, and GitHub permission
 parity) replaces this convention-based, per-controller scoping with policy
 objects one resource at a time. The first step introduced the `pundit` gem
 and `RepositoryPolicy`, `JobPolicy`, and `EpicPolicy` under `app/policies/`,
-wrapping — not changing — the access rules documented in this file for
+wrapping the access rules documented in this file for
 `Api::V1::App::RepositoriesController`, `Api::V1::App::JobsController`, and
-`Api::V1::App::EpicsController`:
+`Api::V1::App::EpicsController`. A follow-up step then expanded
+`RepositoryMembership::ROLES` from `owner`/`collaborator` to `read`/`write`/
+`admin` tiers and wired those tiers into the write-capability predicates the
+first step had deliberately left as stubs (see below).
 
-- `RepositoryPolicy::Scope#resolve` is exactly `Current.user.repositories`
-  (the `belongs_to :user` FK on `Repository`).
+- `RepositoryPolicy::Scope#resolve` returns repositories where the user
+  holds an `admin`-tier `RepositoryMembership` — the tier every repository's
+  FK owner is seeded with on creation (`Repository#seed_owner_membership`),
+  so this is behavior-preserving for existing owners and additive for anyone
+  later promoted to `admin`. It replaced the original `Current.user.repositories`
+  FK-only scope.
 - `JobPolicy::Scope#resolve` is `Job.accessible_to(user)` (repository
-  membership, including upstream repositories — mirrors
+  membership, any tier, including upstream repositories — mirrors
   `Epic.accessible_to`; see `app/models/job.rb`). This closed the
   visibility gap where two `RepositoryMembership` holders on the same
   repository could already see each other's Epics but not each other's
-  Jobs (read-visibility parity only — a later repo-role-tiers job covers
-  write-capability tiers).
+  Jobs.
 - `EpicPolicy::Scope#resolve` is exactly `Epic.accessible_to(user)`
-  (repository membership, including upstream repositories — see
+  (repository membership, any tier, including upstream repositories — see
   `Epic.accessible_to` in `app/models/epic.rb`).
 
-`JobPolicy#update?` stayed narrower than the widened `show?`/`Scope`:
-`update?` is still owner-or-admin only. `Api::V1::App::JobsController`'s
-mutation actions that resolve their target job through the widened
-`policy_scope(Job)`/`find_job_by_param` (`chat_feedback`,
-`update_priority`, `update_provider_setting`) now call
-`JobPolicy#update?` explicitly and render `403 forbidden` when it is
-false, so a non-owning repository member can see a Job it cannot yet
-mutate. Job actions gated through `Current.user.jobs` directly
-(`app/controllers/api/v1/app/job_lifecycle_controller.rb`'s approve/
-retry/cancel, and the other `Current.user.jobs`-scoped controllers)
-were left untouched — they were never widened, so they need no new
-guard.
+`RepositoryPolicy#write?`/`#admin?` and `JobPolicy#write?` are the tier
+predicates:
 
-None of the three `Scope` classes bypass for global admins. `find_repository`,
-`find_job_by_param`, and `find_epic` now call `policy_scope(Repository)` /
-`policy_scope(Job)` / `policy_scope(Epic)` instead of the raw association, so
-a record outside the Scope still 404s exactly as before — none of these three
-controllers call Pundit's `authorize` (which would 403 via
-`Pundit::NotAuthorizedError`) for the finder lookup itself. `JobsController`'s
-three mutation actions are the one exception: they find the Job via the
-widened Scope (so it 404s only for a user with no repository access at all),
-then separately call `JobPolicy#update?` and 403 when a visible-but-not-owned
-Job fails that check — see above.
+- `RepositoryPolicy#admin?` is `admin`-tier `RepositoryMembership` OR global
+  admin (`ApplicationPolicy#admin?`, folded in via `super`). It gates
+  `Api::V1::App::RepositoriesController#update` (the repository
+  settings/credentials form) — previously owner-FK-only — and backs
+  `RepositoryPolicy::Scope` above, so every `find_repository`-based action in
+  that controller is now admin-tier gated the same way the FK owner always
+  was. It also scopes the new `Api::V1::App::RepositoryMembershipsController`
+  (list/add/change-role/remove members) end to end via its own
+  `find_repository`.
+- `RepositoryPolicy#write?` is `write`-tier-or-higher `RepositoryMembership`
+  OR global admin. Defined for parity/future use; no controller calls it yet
+  (repository-level actions are currently all-or-nothing at admin tier).
+- `JobPolicy#write?` (replacing the old, narrower `JobPolicy#update?`) is the
+  job's creator, a global admin, OR a `write`-tier-or-higher
+  `RepositoryMembership` on the job's repository
+  (`record.repository.member_at_least?(user, "write")`). This is the "later
+  repo-role-tiers job" flagged by the earlier revision of this doc: it widens
+  `chat_feedback`/`update_priority`/`update_provider_setting`
+  (`Api::V1::App::JobsController`) and `approve`/`run_again`
+  ("Retry")/`cancel` (`Api::V1::App::JobLifecycleController`) from
+  creator-or-admin-only to creator-or-admin-or-write-tier-member.
+  `Api::V1::App::BaseController#authorize_job_mutation!` is the one shared
+  gate both controllers call after resolving the target Job through the
+  widened, repository-membership-based `JobPolicy::Scope` (so a
+  visible-but-not-writable Job 403s there instead of 404ing at the finder).
+  `JobLifecycleController`'s other actions (`start`, `restart`, `force_fail`,
+  `reopen`, `pause`, `unpause`, `open_in_local_mode`, `cancel_local_mode`) and
+  every other `Current.user.jobs`-scoped controller were left untouched —
+  they were never widened, so they need no new guard.
+
+`RepositoryMembership::ROLES` is ordered low to high (`read`, `write`,
+`admin`); `RepositoryMembership#at_least?(tier)` and the `.at_least(tier)`
+scope compare by that rank, so an `admin`-tier row satisfies a `write`-tier
+check. `Repository#member_at_least?(user, tier)` /
+`Repository#membership_for(user)` are the model-level lookups the policies
+and `Repository#effective_agent_provider` (now `write`-tier-or-higher only —
+a `read`-tier member can no longer override the agent provider a Job runs
+with) share.
+`Api::V1::App::EpicsController#membership_on_repo?` (the re-parenting guard
+when `PATCH /epics/:id` changes `repository_id`) was similarly promoted from
+"any membership row" to `write`-tier-or-higher.
+
+The pre-tier migration mapped existing `owner` rows to `admin` and
+`collaborator` rows to the more conservative `read` (not `write`) — see
+`db/migrate/20260823212331_expand_repository_membership_role_tiers.rb`.
+`collaborator` never granted Job mutation rights before this Job, only
+narrow Epic visibility plus the `membership_on_repo?`/agent-provider
+overrides, so silently upgrading it to `write` would have been a real
+privilege escalation on upgrade.
+
+None of the three `Scope` classes bypass for global admins at the Scope
+level. `find_repository`, `find_job_by_param`, and `find_epic` call
+`policy_scope(Repository)` / `policy_scope(Job)` / `policy_scope(Epic)`
+instead of the raw association, so a record outside the Scope still 404s;
+admin bypass lives on the per-record predicates (`#show?`, `#write?`,
+`#admin?`) that call sites invoke explicitly instead.
 
 `EpicPolicy` additionally reproduces the three per-action checks
 `EpicsController` already had before this policy layer existed, unchanged:
@@ -62,22 +104,14 @@ Job fails that check — see above.
 (admin-only when reassigning through the `owner_user_id` param; the legacy
 `owner_id` param path is unrestricted), and `advance_state?(target_state:)`
 (product owners cannot advance into `ready`/`in_progress`/`done`). These are
-genuine "global admins bypass this policy" rules — they predate this Job and
-are preserved as-is.
+genuine "global admins bypass this policy" rules, unrelated to repository
+role tiers, and are preserved as-is.
 
-`RepositoryPolicy` also defines `show?`/`update?`/`destroy?` predicates
-(owner-or-admin) for a later epic job to call via `authorize` once repository
-role tiers and teams exist; nothing in the current controllers invokes them
-yet, so they have no runtime effect today. `JobPolicy#update?` is the one
-exception with runtime effect already (see above); `JobPolicy#show?` is
-wider than `update?` (repository-accessible, not just owner-or-admin) and is
-exercised indirectly through `JobPolicy::Scope`/`find_job_by_param`, not a
-direct `authorize` call. `ApplicationPolicy#admin?` is the single
-admin-bypass helper every predicate-level check shares.
-Scope-level admin bypass (an admin browsing every repository/job/epic in the
-app SPA, not just the separate Bearer-token admin API) is deliberately left
-for whichever later epic job introduces the target access model described in
-the Epic — adding it now would be a visibility change this Job does not make.
+`ApplicationPolicy#admin?` remains the base global-admin-bypass helper
+(`user&.admin?`); `RepositoryPolicy#admin?` and `JobPolicy#write?` both fold
+it in (via `super` in `RepositoryPolicy#admin?`, via a direct `admin?` call
+in `JobPolicy#write?`) so a global admin always satisfies the tier check
+even with no `RepositoryMembership` row of their own.
 
 ```yaml current_user_scope_files
 per-user/private:
@@ -133,6 +167,7 @@ per-user/private:
   - app/controllers/api/v1/app/platform_identities_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
+  - app/controllers/api/v1/app/repository_memberships_controller.rb
   - app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
@@ -229,7 +264,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
 | `app/controllers/api/v1/app/job_claims_controller.rb` | per-user/private | Job claim and release actions find jobs through `Current.user.jobs` and broadcast ownership updates back to that user. |
 | `app/controllers/api/v1/app/job_coding_mode_controller.rb` | per-user/private | Opens or reuses a coding-mode ChatSession linked to a Job found through `Current.user.jobs`, and initialises the Job branch checkout inside that user's chat workspace. |
-| `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`. |
+| `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private and repository-write affordance | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`, except `approve`/`run_again`/`cancel`, which resolve through `policy_scope(Job)` and `authorize_job_mutation!` (`JobPolicy#write?` — see [Policy layer](#policy-layer-repositoryjobepic)) so a write-tier-or-higher repository member can act on a job it doesn't own. |
 | `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Daemon tunnel sessions are created, read, and destroyed through `Current.user.chat_sessions`; auth tokens belong to the current user. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
@@ -246,7 +281,8 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/profiles_controller.rb` | team-visible with current-user context | Team profiles include credential-safe user summaries visible to signed-in users; `Current.user` decides whether owner labels and current-user-specific details should be shown. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/input_sources_controller.rb` | per-user/private | Registry-backed input source CRUD finds the parent repository through `Current.user.repositories` and resolves source types only from `PluginRegistry.providers_for(:input_source)`, so only the repository owner can read or update source credentials. |
-| `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, exactly `Current.user.repositories` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
+| `app/controllers/api/v1/app/repositories_controller.rb` | admin-tier and admin affordance | Repository CRUD and GitHub issue actions are scoped through `RepositoryPolicy` (`policy_scope(Repository)`, admin-tier `RepositoryMembership` — see [Policy layer](#policy-layer-repositoryjobepic)) and the current user's GitHub credential. The GitHub App register path is only exposed to global admins. |
+| `app/controllers/api/v1/app/repository_memberships_controller.rb` | admin-tier | Lists, adds, changes the role of, and removes `RepositoryMembership` rows, scoped through the same admin-tier `RepositoryPolicy::Scope` as `repositories_controller.rb`. Refuses to remove or demote the last `admin`-tier member of a repository. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |

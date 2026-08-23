@@ -68,7 +68,7 @@ RSpec.describe PrCommentIngester do
 
   it "returns qualifying records for actionable member comments when feedback_policy is auto" do
     member = Factories.user(github_handle: "bob")
-    repo.repository_memberships.create!(user: member, role: "collaborator")
+    repo.repository_memberships.create!(user: member, role: "read")
 
     comment = make_comment(id: 103, login: "bob", body: "Please refactor this")
     result = call([ comment ])
@@ -78,7 +78,7 @@ RSpec.describe PrCommentIngester do
   it "does not qualify member comments when feedback_policy is confirm" do
     repo.update!(feedback_policy: "confirm")
     member = Factories.user(github_handle: "bob")
-    repo.repository_memberships.create!(user: member, role: "collaborator")
+    repo.repository_memberships.create!(user: member, role: "read")
 
     comment = make_comment(id: 104, login: "bob", body: "Please refactor this")
     result = call([ comment ])
