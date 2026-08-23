@@ -44,10 +44,28 @@ module WorkUnits
 
     def definition
       @definition ||= begin
-        WorkDefinitions.for(workflow.trigger_kind)
+        WorkDefinitions.for(work_definition_kind)
       rescue WorkDefinitions::UnknownKind
         nil
       end
+    end
+
+    def work_definition_kind
+      case workflow.trigger_kind
+      when "merge_train"
+        epicless_merge_train? ? "job_bundle" : "merge_train"
+      when "merge_train_validation"
+        workflow.artifacts.to_h["prefetch_landing_unit_kind"] == "job_bundle" ? "job_bundle_validation" : "merge_train_validation"
+      else
+        workflow.trigger_kind
+      end
+    end
+
+    def epicless_merge_train?
+      train_id = workflow.artifacts.to_h["merge_train_id"]
+      return false if train_id.blank?
+
+      ::MergeTrain.where(id: train_id, epic_id: nil).exists?
     end
 
     def find_or_create_intent!
@@ -75,6 +93,7 @@ module WorkUnits
         scope_type: scope_type,
         scope_id: scope_id,
         workflow: workflow,
+        parent_work_unit: parent_work_unit,
         started_at: workflow.started_at,
         finished_at: workflow.finished_at,
         **ref_metadata.attributes
@@ -122,6 +141,15 @@ module WorkUnits
 
     def ref_metadata
       @ref_metadata ||= definition.ref_metadata_for(job: job, artifacts: workflow.artifacts.to_h)
+    end
+
+    def parent_work_unit
+      return nil unless definition.child?
+
+      source_workflow_id = workflow.artifacts.to_h["prefetch_source_workflow_id"]
+      return nil if source_workflow_id.blank?
+
+      Workflow.includes(:work_unit).find_by(id: source_workflow_id)&.work_unit
     end
 
     def idempotency_key

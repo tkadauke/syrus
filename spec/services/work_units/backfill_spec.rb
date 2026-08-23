@@ -106,4 +106,61 @@ RSpec.describe WorkUnits::Backfill do
       "landing:repository:#{repository.id}"
     )
   end
+
+  it "backfills epicless merge train workflows as job bundles" do
+    first = Factories.job_record(user: user, repository: repository, issue_number: 101)
+    second = Factories.job_record(user: user, repository: repository, issue_number: 102)
+    train = MergeTrain.create!(repository: repository, base_branch: "main", priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+    workflow = Workflow.create!(
+      job: second,
+      trigger_kind: "merge_train",
+      state: "running",
+      artifacts: { "merge_train_id" => train.id }
+    )
+
+    unit = described_class.workflow!(workflow).work_unit
+
+    expect(unit).to have_attributes(kind: "job_bundle", scope_type: "repository", scope_id: repository.id)
+    expect(unit.work_intent).to have_attributes(kind: "job_bundle", scope_type: "repository", scope_id: repository.id)
+    expect(unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
+      [[ first.id, "primary" ], [ second.id, "member" ]]
+    )
+    expect(unit.work_unit_locks.pluck(:lock_key)).to contain_exactly(
+      "job:#{first.id}",
+      "job:#{second.id}",
+      "repository:#{repository.id}",
+      "landing:repository:#{repository.id}"
+    )
+  end
+
+  it "parents backfilled bundle validation units to the source landing unit" do
+    source_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+    parent = described_class.workflow!(source_workflow).work_unit
+    first = Factories.job_record(user: user, repository: repository, issue_number: 101)
+    second = Factories.job_record(user: user, repository: repository, issue_number: 102)
+    validation = Workflow.create!(
+      job: second,
+      trigger_kind: "merge_train_validation",
+      state: "running",
+      artifacts: {
+        "prefetch_landing_unit_kind" => "job_bundle",
+        "prefetch_source_workflow_id" => source_workflow.id,
+        "prefetch_merge_train_member_job_ids" => [ first.id, second.id ]
+      }
+    )
+
+    unit = described_class.workflow!(validation).work_unit
+
+    expect(unit).to have_attributes(
+      kind: "job_bundle_validation",
+      scope_type: "repository",
+      scope_id: repository.id,
+      parent_work_unit: parent
+    )
+    expect(unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
+      [[ first.id, "primary" ], [ second.id, "member" ]]
+    )
+  end
 end

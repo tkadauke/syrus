@@ -342,10 +342,13 @@ RSpec.describe WorkDefinitions do
 
     landing_kinds.each do |kind|
       definition = described_class.for(kind)
+      keys = definition.lock_keys_for(job: job, member_jobs: [ job ], artifacts: {})
 
-      expect(definition.lock_keys_for(job: job, member_jobs: [ job ], artifacts: {})).to include(
-        "landing:repository:#{job.repository_id}"
-      )
+      if definition.child?
+        expect(keys).not_to include("landing:repository:#{job.repository_id}")
+      else
+        expect(keys).to include("landing:repository:#{job.repository_id}")
+      end
     end
   end
 
