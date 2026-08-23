@@ -236,6 +236,7 @@ RSpec.describe Epic do
     end
 
     it "creates a new direct Job at the tail of the linear chain and reopens the Epic" do
+      repository.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repository, title: "Checkout polish", state: "in_progress")
       tail = child_job(epic: epic, number: 10, closure_reason: "pr_merged")
       expect(epic.reload).to be_review_ready
