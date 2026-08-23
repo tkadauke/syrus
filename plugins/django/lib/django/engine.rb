@@ -13,6 +13,7 @@ module Django
         description: "Django framework intelligence: preview hosting via manage.py runserver, " \
                       "migrate + fixtures seeding",
         homepage:    "https://github.com/tkadauke/syrus",
+        author:      "Thomas Kadauke",
         icon_url:    "/plugin-icons/django.svg",
         depends_on:  [ "python" ],
         provides: {

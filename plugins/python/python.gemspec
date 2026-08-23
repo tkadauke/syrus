@@ -3,7 +3,7 @@ require_relative "lib/python/version"
 Gem::Specification.new do |spec|
   spec.name    = "python"
   spec.version = Python::VERSION
-  spec.authors = ["Syrus"]
+  spec.authors = ["Thomas Kadauke"]
   spec.summary = "Python-generic intelligence plugin for Syrus"
   spec.description = "Provides Python-generic capabilities to Syrus: uv/poetry/pip prepare " \
     "detection, pytest JSON-report grader failure detail, and a light venv/uv activation " \
