@@ -481,6 +481,14 @@ export type ChatPreviewPanel = {
   app_close_path: string
 }
 
+export type ChatWorkspaceTab = {
+  id: string
+  label: string
+  label_key: string | null
+  component: string
+  order: number
+}
+
 export type CodingFilesPayload = {
   files: string[]
   checkout_branch: string | null
@@ -528,6 +536,7 @@ export type ChatPayload = {
   scratchpad_items: ChatScratchpadItem[]
   video_walkthroughs: ChatWalkthroughMedia[]
   preview_panels: ChatPreviewPanel[]
+  workspace_tabs: ChatWorkspaceTab[]
   attachment_groups?: {
     repositories: ChatAttachmentRow[]
     epics: ChatAttachmentRow[]

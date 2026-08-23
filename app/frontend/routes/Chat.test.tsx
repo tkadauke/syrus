@@ -9,7 +9,7 @@ import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
-import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel } from "./chat/workspaceTabs"
+import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 
@@ -63,6 +63,26 @@ describe("workspaceTabLabel", () => {
     expect(workspaceTabLabel("diff", mockT)).toBe("T:tab_diff")
     expect(workspaceTabLabel("jobs", mockT)).toBe("T:tab_jobs")
   })
+
+  it("resolves a plugin tab's label_key against the plugin's own namespace", () => {
+    const pluginTabs = [
+      { id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status", component: "my_plugin/Status", order: 0 }
+    ]
+
+    expect(workspaceTabLabel("plugin:my_plugin.status" as WorkspaceTab, mockT, [], pluginTabs)).toBe("T:my_plugin:tab_status")
+  })
+
+  it("falls back to the tab's plain label when it has no label_key", () => {
+    const pluginTabs = [
+      { id: "my_plugin.status", label: "Status", label_key: null, component: "my_plugin/Status", order: 0 }
+    ]
+
+    expect(workspaceTabLabel("plugin:my_plugin.status" as WorkspaceTab, mockT, [], pluginTabs)).toBe("Status")
+  })
+
+  it("falls back to tab_plugin when the plugin tab is unknown", () => {
+    expect(workspaceTabLabel("plugin:missing.tab" as WorkspaceTab, mockT)).toBe("T:tab_plugin")
+  })
 })
 
 describe("mobileChatTabLabel", () => {
@@ -75,6 +95,14 @@ describe("mobileChatTabLabel", () => {
   it("delegates to workspaceTabLabel for workspace tabs", () => {
     expect(mobileChatTabLabel("whiteboard", mockT)).toBe("T:tab_whiteboard")
     expect(mobileChatTabLabel("jobs", mockT)).toBe("T:tab_jobs")
+  })
+
+  it("delegates to workspaceTabLabel for plugin tabs, passing pluginTabs through", () => {
+    const pluginTabs = [
+      { id: "my_plugin.status", label: "Status", label_key: null, component: "my_plugin/Status", order: 0 }
+    ]
+
+    expect(mobileChatTabLabel("plugin:my_plugin.status" as WorkspaceTab, mockT, [], pluginTabs)).toBe("Status")
   })
 })
 
@@ -4306,6 +4334,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     documents_in_scope: [],
     attachment_results: overrides.attachment_results || [],
     preview_panels: [],
+    workspace_tabs: [],
     local_mode_enabled: false,
     speech_to_text: {
       enabled: false,

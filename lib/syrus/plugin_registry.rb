@@ -22,6 +22,7 @@ module Syrus
       autofix_command
       dependency_audit_command
       affected_test_analyzer
+      workspace_tab
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -46,7 +47,8 @@ module Syrus
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },
       dependency_audit_command: -> { Syrus::Plugin::DependencyAuditCommand },
-      affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer }
+      affected_test_analyzer:  -> { Syrus::Plugin::AffectedTestAnalyzer },
+      workspace_tab:           -> { Syrus::Plugin::WorkspaceTab }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
@@ -77,6 +79,7 @@ module Syrus
 
         @mutex.synchronize do
           validate_mcp_tool_name_uniqueness!(provides)
+          validate_workspace_tab_id_uniqueness!(provides)
           @plugins << Syrus::Plugin::Manifest.new(
             name:            name,
             display_name:    display_name,
@@ -376,6 +379,35 @@ module Syrus
             end
           end
         end
+      end
+
+      # Called inside the mutex so it sees the current @plugins snapshot.
+      # A duplicate id would otherwise produce two frontend tabs sharing the
+      # same `plugin:<id>` React key/tab identifier, making the second one
+      # unreachable.
+      def validate_workspace_tab_id_uniqueness!(provides)
+        new_tab_sets = Array(provides[:workspace_tab]).select { |ts| ts.respond_to?(:workspace_tabs) }
+        return if new_tab_sets.empty?
+
+        existing_ids = @plugins
+          .flat_map { |m| Array(m.provides[:workspace_tab]) }
+          .select { |ts| ts.respond_to?(:workspace_tabs) }
+          .flat_map { |ts| safe_workspace_tab_ids(ts) }
+
+        new_tab_sets.each do |ts|
+          safe_workspace_tab_ids(ts).each do |id|
+            if existing_ids.include?(id)
+              raise RegistrationError,
+                "Workspace tab id collision: #{id.inspect} is already registered by another plugin"
+            end
+          end
+        end
+      end
+
+      def safe_workspace_tab_ids(tab_set)
+        Array(tab_set.workspace_tabs).map { |tab| tab.to_h.symbolize_keys.fetch(:id).to_s }
+      rescue StandardError, NotImplementedError
+        []
       end
 
       def safe_tool_definitions(tool_set)

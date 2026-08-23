@@ -289,6 +289,8 @@
   "tab_diff": "Lokale Diff",
   "tab_jobs": "Aufgaben",
   "tab_preview": "Vorschau",
+  "tab_plugin": "Plugin",
+  "plugin_tab_unavailable": "Dieser Tab ist nicht verfügbar.",
   "tab_chat": "Chat",
   "aria_close_preview_panel": "Vorschau schließen: {{title}}",
   "mark_as_read": "Als gelesen markieren",

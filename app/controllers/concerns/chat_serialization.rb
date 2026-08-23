@@ -37,6 +37,10 @@ module ChatSerialization
     end
   end
 
+  def workspace_tabs_json(chat_session)
+    WorkspaceTabsPayload.new(chat_session).as_json
+  end
+
   def chat_payload(chat_session, message: nil)
     PerformanceLogging.phase("chat_payload", chat_id: chat_session.id) do
       PerformanceLogging.phase("chat_payload.preload", chat_id: chat_session.id) { preload_chat_payload_associations(chat_session) }
@@ -66,6 +70,7 @@ module ChatSerialization
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         video_walkthroughs: PerformanceLogging.phase("chat_payload.video_walkthroughs", chat_id: chat_session.id) { video_walkthroughs_json(chat_session) },
         preview_panels: PerformanceLogging.phase("chat_payload.preview_panels", chat_id: chat_session.id) { preview_panels_json(chat_session) },
+        workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
         attachment_groups: PerformanceLogging.phase("chat_payload.attachment_groups_json", chat_id: chat_session.id) { attachment_groups_json(attachment_groups) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
         attachment_results: PerformanceLogging.phase("chat_payload.attachment_results", chat_id: chat_session.id) { attachment_results_for_payload(chat_session).map { |record| attachable_result_json(record) } },

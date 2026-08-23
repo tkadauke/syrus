@@ -3552,6 +3552,39 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(panel.reload.state).to eq("closed")
   end
 
+  it "includes plugin-registered workspace tabs only while the providing plugin is enabled" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workspace_tabs"]).to contain_exactly(include(
+      "id" => "syrus_dev.workspace_tab_demo",
+      "component" => "syrus_dev/WorkspaceTabDemo",
+      "label_key" => "syrus_dev:workspace_tab_demo_label"
+    ))
+
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: false)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workspace_tabs"]).to eq([])
+  end
+
+  it "excludes plugin-registered workspace tabs from chats with no attached repository" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workspace_tabs"]).to eq([])
+  end
+
   it "renders attached Epics with their titles" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)

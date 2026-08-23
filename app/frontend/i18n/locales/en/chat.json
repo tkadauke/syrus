@@ -289,6 +289,8 @@
   "tab_diff": "Local Diff",
   "tab_jobs": "Jobs",
   "tab_preview": "Preview",
+  "tab_plugin": "Plugin",
+  "plugin_tab_unavailable": "This tab is not available.",
   "tab_chat": "Chat",
   "aria_close_preview_panel": "Close preview panel: {{title}}",
   "mark_as_read": "Mark as read",
