@@ -70,6 +70,40 @@ RSpec.describe WorkIntents::JobWakeup do
     }.to change { workflow.first_step.runs.reload.count }.by(1)
   end
 
+  it "starts queued workflows discovered through WorkUnit membership" do
+    owner = Factories.job_record(user: user, repository: repository, state: "queued", issue_number: 31)
+    member = Factories.job_record(user: user, repository: repository, state: "queued", issue_number: 32)
+    workflow = Workflows::Initial.instantiate(job: owner)
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: owner.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "queued",
+      repository: repository,
+      scope_type: "job",
+      scope_id: owner.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: owner, role: "primary")
+    unit.work_unit_members.create!(job: member, role: "member")
+
+    expect {
+      result = described_class.call(member)
+      expect(result).to be(true)
+    }.to change { workflow.first_step.runs.reload.count }.by(1)
+
+    expect(workflow.first_step.runs.last).to be_queued
+    expect(unit.reload).to be_queued
+  end
+
   it "releases an epic block and starts queued workflows when execution dependencies become ready" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     prerequisite = Factories.job_record(

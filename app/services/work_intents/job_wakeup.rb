@@ -21,8 +21,8 @@ module WorkIntents
       return false unless job.ready_for_execution?
 
       started = false
-      queued_workflows.find_each do |workflow|
-        workflow.association(:job).target = job
+      queued_workflows.each do |workflow|
+        workflow.association(:job).target = job if workflow.job_id == job.id
         next unless intent_ready_for?(workflow)
 
         WorkUnits::Launcher.start!(workflow)
@@ -62,15 +62,31 @@ module WorkIntents
     end
 
     def current_intents
+      workflow_ids = queued_workflow_ids
+      return WorkIntent.none if workflow_ids.empty?
+
       WorkIntent
         .joins(:work_units)
-        .where(work_units: { workflow_id: queued_workflows.select(:id) })
+        .where(work_units: { workflow_id: workflow_ids })
         .where(state: %w[requested waiting])
         .distinct
     end
 
     def queued_workflows
-      job.workflows.where(state: "queued")
+      @queued_workflows ||= begin
+        work_unit_workflows = WorkUnitMember
+          .joins(work_unit: :workflow)
+          .where(job_id: job.id, work_units: { state: "queued" }, workflows: { state: "queued" })
+          .includes(work_unit: :workflow)
+          .map { |member| member.work_unit.workflow }
+        legacy_workflows = job.workflows.where(state: "queued").includes(:work_unit).to_a
+
+        (work_unit_workflows + legacy_workflows).uniq(&:id)
+      end
+    end
+
+    def queued_workflow_ids
+      queued_workflows.map(&:id)
     end
   end
 end
