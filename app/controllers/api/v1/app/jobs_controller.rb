@@ -5,10 +5,10 @@ module Api
     module App
       class JobsController < BaseController
         def index
-          jobs = Current.user.jobs
-                             .without_active_workflows
-                             .includes(:epic, :repository, :deployment_stage_statuses)
-                             .order(updated_at: :desc, id: :desc)
+          jobs = policy_scope(Job)
+                   .without_active_workflows
+                   .includes(:epic, :repository, :deployment_stage_statuses)
+                   .order(updated_at: :desc, id: :desc)
           jobs = filter_jobs(jobs)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
           page_jobs = jobs.limit(limit).to_a
@@ -28,7 +28,7 @@ module Api
             params,
             smart_folder: url_filter.active? ? nil : smart_folder,
             user: Current.user
-          ).apply(Current.user.jobs)
+          ).apply(policy_scope(Job))
           job_attrs = scope.pluck(:id, :issue_title, :state, :epic_id)
           job_ids = job_attrs.map(&:first)
 
@@ -364,18 +364,18 @@ module Api
         end
 
         def find_job_by_param(key)
-          scope = Current.user.jobs
-                              .includes(
-                                :repository,
-                                :epic,
-                                :scheduled_task,
-                                :owner_user,
-                                :claimed_by_user,
-                                :tags,
-                                job_attachments: { file_attachment: :blob },
-                                dependencies: [ :created_by_user, depends_on_job: :repository ],
-                                dependent_links: [ job: :repository ]
-                              )
+          scope = policy_scope(Job)
+                    .includes(
+                      :repository,
+                      :epic,
+                      :scheduled_task,
+                      :owner_user,
+                      :claimed_by_user,
+                      :tags,
+                      job_attachments: { file_attachment: :blob },
+                      dependencies: [ :created_by_user, depends_on_job: :repository ],
+                      dependent_links: [ job: :repository ]
+                    )
           find_job_by_ref(scope, params[key])
         end
       end
