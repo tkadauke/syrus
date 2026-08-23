@@ -3,6 +3,7 @@ require "set"
 module WorkUnits
   class Ownership
     ACTIVE_STATES = %w[queued blocked running].freeze
+    RUNNABLE_STATES = %w[queued running].freeze
 
     def self.active_for_job?(job)
       active_job_ids([ job.id ]).include?(job.id)
@@ -52,6 +53,19 @@ module WorkUnits
 
     def self.all_active_job_ids(kinds: nil)
       all_active_unit_job_ids(kinds: kinds).to_set |
+        legacy_active_workflow_job_ids(nil, kinds: kinds).to_set
+    end
+
+    def self.runnable_job_ids(job_ids, kinds: nil)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return Set.new if ids.empty?
+
+      runnable_unit_job_ids(ids, kinds: kinds).to_set |
+        legacy_active_workflow_job_ids(ids, kinds: kinds).to_set
+    end
+
+    def self.all_runnable_job_ids(kinds: nil)
+      runnable_unit_job_ids(nil, kinds: kinds).to_set |
         legacy_active_workflow_job_ids(nil, kinds: kinds).to_set
     end
 
@@ -205,6 +219,14 @@ module WorkUnits
 
     def self.all_active_unit_job_ids(kinds: nil)
       scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: ACTIVE_STATES })
+      scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
+      scope.distinct.pluck(:job_id)
+    end
+
+    def self.runnable_unit_job_ids(job_ids, kinds: nil)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: RUNNABLE_STATES })
+      scope = scope.where(job_id: ids) if ids.any?
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       scope.distinct.pluck(:job_id)
     end

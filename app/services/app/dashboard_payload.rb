@@ -612,7 +612,8 @@ module App
         run_ids.empty? ? {} : RunDiagnostic.where(run_id: run_ids).index_by(&:run_id)
       end
       @job_runtime_active_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.active_jobs", count: job_ids.size) do
-        job_ids.empty? ? {} : Run.active.where(job_id: job_ids).distinct.pluck(:job_id).index_with(true)
+        direct_active_job_ids = job_ids.empty? ? [] : Run.active.where(job_id: job_ids).distinct.pluck(:job_id)
+        (direct_active_job_ids | WorkUnits::Ownership.runnable_unit_job_ids(job_ids)).index_with(true)
       end
       @job_runtime_paused_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.paused_jobs", count: job_ids.size) { paused_job_ids(job_ids).index_with(true) }
       @job_runtime_active_workflow_trigger_kinds_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_workflow_triggers", count: job_ids.size) do

@@ -97,6 +97,20 @@ RSpec.describe "Filters::Chips" do
     end
   end
 
+  describe "has_active_run" do
+    it "matches jobs owned by active WorkUnits even when no Run is active" do
+      owner = Factories.job_record(repository: repo, issue_number: 10, state: "running")
+      member = Factories.job_record(repository: repo, issue_number: 11, state: "running")
+      inactive = Factories.job_record(repository: repo, issue_number: 12, state: "implemented")
+      workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: owner)
+      workflow.update!(state: "running")
+      workflow.work_unit.work_unit_members.create!(job: member, role: "member")
+
+      expect(run(field: "has_active_run", op: "is_true", value: nil)).to contain_exactly(owner, member)
+      expect(run(field: "has_active_run", op: "is_false", value: nil)).to include(inactive)
+    end
+  end
+
   describe "tags" do
     let(:bug) { Factories.tag(user: user, name: "bug") }
     let(:epic) { Factories.tag(user: user, name: "epic") }

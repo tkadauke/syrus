@@ -333,6 +333,7 @@ module App
           else
             jobs_base_scope.where(state: %w[queued running landing]).select(:id)
           end
+          runnable_work_unit_job_ids = WorkUnits::Ownership.runnable_unit_job_ids(job_ids).to_set
 
           legacy = Workflow.where(job_id: active_scope, state: %w[queued running])
                   .includes(:work_unit)
@@ -341,6 +342,7 @@ module App
                   .select(:id, :job_id, :artifacts)
                   .each_with_object({}) do |wf, map|
             next if map.key?(wf.job_id)
+            next if runnable_work_unit_job_ids.include?(wf.job_id)
 
             data = WorkUnits::StartBlock.for(wf).data
             map[wf.job_id] = data if data[:reason].present?

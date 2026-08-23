@@ -782,6 +782,29 @@ RSpec.describe App::DashboardPayload do
       expect(in_progress[:items].map { |row| row[:id] }).not_to include(job.id)
     end
 
+    it "does not show stale pause artifacts as paused while WorkUnit-owned work is active" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      owner = Factories.job_record(user: user, repository: repo, state: "running")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        artifacts: {
+          "pause_reason" => "workflow_admission_budget",
+          "start_blocked_reason" => "workflow_admission_budget"
+        }
+      )
+      workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: owner)
+      workflow.update!(state: "running")
+      workflow.work_unit.work_unit_members.create!(job: job, role: "member")
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:summary_state]).to eq("running")
+      expect(item[:start_blocked_reason]).to be_nil
+    end
+
     it "keeps admission-blocked landing workflows in landing queue instead of paused" do
       job = Factories.job_record(
         user: user,
