@@ -412,6 +412,24 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.all_plugins.first.metadata[:author]).to eq("Alice")
     end
 
+    it "raises RegistrationError when the author is \"Syrus\"" do
+      expect {
+        described_class.register(name: "test_plugin", version: "1.0.0", author: "Syrus")
+      }.to raise_error(described_class::RegistrationError, /"Syrus" is not a valid plugin author/)
+    end
+
+    it "raises RegistrationError when the author is \"Syrus\" regardless of case or whitespace" do
+      expect {
+        described_class.register(name: "test_plugin", version: "1.0.0", author: "  syrus  ")
+      }.to raise_error(described_class::RegistrationError, /"Syrus" is not a valid plugin author/)
+    end
+
+    it "allows registering without an author" do
+      expect {
+        described_class.register(name: "test_plugin", version: "1.0.0")
+      }.not_to raise_error
+    end
+
     it "stores description, homepage, and icon_url on the manifest" do
       described_class.register(
         name:        "rich_plugin",
