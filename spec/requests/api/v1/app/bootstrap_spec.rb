@@ -139,8 +139,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "visual_review" => false,
       "work_units_landing" => false,
       "work_units_reconciler" => false,
-      "work_units_scheduler" => false,
-      "work_units_shadow_mode" => false
+      "work_units_scheduler" => false
     )
   end
 

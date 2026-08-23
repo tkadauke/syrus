@@ -149,14 +149,12 @@ RSpec.describe Feature, type: :model do
   describe "work unit rollout gates" do
     it "are false when absent and follow their feature rows" do
       slugs = %w[
-        work_units_shadow_mode
         work_units_scheduler
         work_units_landing
         work_units_reconciler
       ]
       slugs.each { |slug| Feature.where(slug: slug).delete_all }
 
-      expect(Feature.work_units_shadow_mode_enabled?).to eq(false)
       expect(Feature.work_units_scheduler_enabled?).to eq(false)
       expect(Feature.work_units_landing_enabled?).to eq(false)
       expect(Feature.work_units_reconciler_enabled?).to eq(false)
@@ -165,7 +163,6 @@ RSpec.describe Feature, type: :model do
         Feature.create!(slug: slug, category: "Operations", name: slug.humanize, enabled: true)
       end
 
-      expect(Feature.work_units_shadow_mode_enabled?).to eq(true)
       expect(Feature.work_units_scheduler_enabled?).to eq(true)
       expect(Feature.work_units_landing_enabled?).to eq(true)
       expect(Feature.work_units_reconciler_enabled?).to eq(true)
@@ -237,7 +234,6 @@ RSpec.describe Feature, type: :model do
       declarations = FeatureRegistry.declarations.index_by(&:slug)
 
       %w[
-        work_units_shadow_mode
         work_units_scheduler
         work_units_landing
         work_units_reconciler

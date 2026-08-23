@@ -366,10 +366,6 @@
         "name": "Persistent MCP sidecar",
         "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns can route their MCP tool calls to it, with automatic fallback to stdio; workflow agent runs do not yet use it and always fall back to the per-run stdio sidecar. When disabled, all agents keep using the default per-run/per-session stdio sidecars."
       },
-      "work_units_shadow_mode": {
-        "name": "Work units shadow diagnostics",
-        "description": "Historical rollout marker for WorkIntent and WorkUnit shadow diagnostics. WorkUnit rows are now written unconditionally; scheduling ownership is controlled by the scheduler, landing, and reconciler WorkUnit gates."
-      },
       "work_units_scheduler": {
         "name": "Work units scheduler",
         "description": "Lets WorkUnit-owned adapters control lower-risk scheduler paths such as retry, resume, manual pause, provider availability pauses, and admission-control pauses."

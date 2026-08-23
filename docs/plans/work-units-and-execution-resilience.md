@@ -1332,13 +1332,7 @@ to enqueue, repair, pause, cancel, or reconcile that work.
 
 The proposed gates:
 
-1. `work_units_shadow_mode`
-   - historical/bootstrap rollout marker for WorkIntent/WorkUnit shadow
-     diagnostics;
-   - does not own scheduling or repair decisions;
-   - WorkIntent/WorkUnit rows are now written unconditionally because optional
-     dual-write created partial production data and made debugging worse.
-2. `work_units_scheduler`
+1. `work_units_scheduler`
    - enables WorkUnit ownership for lower-risk single-Job runtime paths and
      continuations: retry, resume, manual pause/unpause, admission-control
      pause, and provider-availability pause;
@@ -1346,12 +1340,12 @@ The proposed gates:
      continuation paths prove the ownership model;
    - legacy code for those paths remains present but is no longer the owner
      while the flag is on.
-3. `work_units_landing`
+2. `work_units_landing`
    - enables WorkUnit ownership for landing queue, auto-merge, merge trains,
      stack rebases, landing locks, and Epic-wide landing ownership;
    - separate from the basic scheduler gate because the blast radius is much
      larger.
-4. `work_units_reconciler`
+3. `work_units_reconciler`
    - lets reconciler invariant modules act from WorkIntent/WorkUnit state for
      paths whose ownership has graduated;
    - legacy classifications remain active for unmigrated paths;
