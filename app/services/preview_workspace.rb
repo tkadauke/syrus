@@ -14,8 +14,11 @@ class PreviewWorkspace
   # behavior, unchanged for every existing caller. revision: :base checks out
   # the Job's base revision instead, resolved fresh via `git merge-base
   # <effective_base_branch> <head>` so stacked Jobs compare against their real
-  # parent branch rather than always the repo default branch. Not persisted —
-  # recomputed on every prepare! call.
+  # parent branch rather than always the repo default branch. revision:
+  # :commit_sha clones the repository's default branch and checks out
+  # `job.landed_sha` instead of `--branch job.branch_name` — the branch a
+  # landed Job merged from is typically deleted by then, so cloning it by
+  # name would fail. Not persisted — recomputed on every prepare! call.
   def self.prepare!(preview_environment, git: GitRunner.new, revision: :head)
     new(preview_environment, git: git, revision: revision).prepare!
   end
@@ -39,18 +42,20 @@ class PreviewWorkspace
   end
 
   def prepare!
-    raise "job has no branch to preview" if @job.branch_name.blank?
+    raise "job has no branch to preview" if @job.branch_name.blank? && !commit_sha_revision?
+    raise "job has no merged commit sha to preview" if commit_sha_revision? && @job.landed_sha.blank?
 
     FileUtils.rm_rf(@path)
     FileUtils.mkdir_p(@path.dirname)
     @git.run(
       "clone",
-      "--branch", @job.branch_name,
+      "--branch", clone_branch,
       "--no-tags", authenticated_url, @path.to_s,
       env: @env
     )
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: @path.to_s)
     checkout_base_revision! if base_revision?
+    checkout_commit_sha! if commit_sha_revision?
     @git.configure_author(BotIdentity.for(@job), chdir: @path.to_s)
     apply_preview_asset_proxy_overrides!
     @preview_environment.update_columns(workspace_path: @path.to_s, updated_at: Time.current)
@@ -66,6 +71,14 @@ class PreviewWorkspace
     @revision == :base
   end
 
+  def commit_sha_revision?
+    @revision == :commit_sha
+  end
+
+  def clone_branch
+    commit_sha_revision? ? @repository.default_branch : @job.branch_name
+  end
+
   # Non-shallow clone (no --depth above) fetches every branch as a
   # remote-tracking ref regardless of --branch, so origin/<effective base
   # branch> is already present locally — no extra fetch needed.
@@ -73,6 +86,12 @@ class PreviewWorkspace
     base_ref = "origin/#{@job.effective_base_branch}"
     base_sha = @git.run("merge-base", base_ref, "HEAD", chdir: @path.to_s).strip
     @git.run("checkout", base_sha, chdir: @path.to_s)
+  end
+
+  # The default-branch clone above is non-shallow, so a merge commit that
+  # already landed on that branch is present locally without an extra fetch.
+  def checkout_commit_sha!
+    @git.run("checkout", @job.landed_sha, chdir: @path.to_s)
   end
 
   def authenticated_url

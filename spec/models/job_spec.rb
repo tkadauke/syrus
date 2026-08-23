@@ -89,6 +89,14 @@ RSpec.describe Job do
     it "rejects jobs before implementation" do
       expect(Factories.job_record(state: "running")).not_to be_previewable
     end
+
+    it "allows a closed job that has landed with a merged commit sha (post-land preview)" do
+      expect(Factories.job_record(state: "closed", landed_sha: "abc123")).to be_previewable
+    end
+
+    it "rejects a closed job with no merged commit sha" do
+      expect(Factories.job_record(state: "closed", landed_sha: nil)).not_to be_previewable
+    end
   end
 
   describe "#visual_review_runnable?" do

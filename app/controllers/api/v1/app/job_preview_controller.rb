@@ -34,7 +34,7 @@ module Api
         def create
           job = find_job
           unless job.previewable?
-            render_error("validation_failed", "Preview is only available for implemented, approved, or landing jobs.", status: :unprocessable_content)
+            render_error("validation_failed", "Preview is only available for implemented, approved, or landing jobs, or landed jobs.", status: :unprocessable_content)
             return
           end
           if job.preview_environments.active.exists?

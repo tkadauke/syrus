@@ -150,7 +150,15 @@ class PreviewService
     workspace_path = env.workspace_path
     return workspace_path if workspace_path.present? && Dir.exist?(workspace_path)
 
-    PreviewWorkspace.prepare!(env)
+    PreviewWorkspace.prepare!(env, revision: workspace_revision_for(env.job))
+  end
+
+  # A closed, landed Job's branch is typically already deleted by the time an
+  # operator starts a post-land preview — clone by the merged commit SHA
+  # instead of the (gone) branch name. Every other previewable state still
+  # has a live branch to check out directly.
+  def workspace_revision_for(job)
+    job.closed? && job.landed_sha.present? ? :commit_sha : :head
   end
 
   def stop_requested?(env)

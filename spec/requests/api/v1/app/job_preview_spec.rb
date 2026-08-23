@@ -118,6 +118,27 @@ RSpec.describe "App API job preview", type: :request do
       expect(parse_body.dig("error", "message")).to include("implemented, approved, or landing")
     end
 
+    it "creates a preview environment for a closed job that landed with a merged commit sha" do
+      job.update_columns(state: "closed", landed_sha: "abc123")
+
+      expect {
+        post preview_path(job), as: :json
+      }.to change { job.preview_environments.count }.by(1)
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it "rejects a closed job with no merged commit sha" do
+      job.update_columns(state: "closed", landed_sha: nil)
+
+      expect {
+        post preview_path(job), as: :json
+      }.not_to change { job.preview_environments.count }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
     it "rejects creation when an active preview already exists" do
       create_preview_env(job, state: "running", expires_at: 10.minutes.from_now)
       job.update_columns(state: "implemented")
