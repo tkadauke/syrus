@@ -83,6 +83,7 @@ module WorkEngine
       :workflow_ids,
       :step_ids,
       :run_ids,
+      :work_intent_ids,
       :work_unit_ids,
       :solid_queue_available,
       :solid_queue_jobs,
@@ -102,6 +103,7 @@ module WorkEngine
           workflow_ids: workflow_ids,
           step_ids: step_ids,
           run_ids: run_ids,
+          work_intent_ids: work_intent_ids,
           work_unit_ids: work_unit_ids,
           solid_queue_available: solid_queue_available,
           solid_queue_jobs: solid_queue_jobs,
@@ -163,6 +165,7 @@ module WorkEngine
       )
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
       @workflows = scoped_workflows.includes(:job, :steps).to_a
+      @work_intents = scoped_work_intents.includes(:work_units).to_a
       @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, :work_unit_members, :workflow).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
       workflow_steps = @workflows.flat_map(&:steps)
@@ -182,6 +185,7 @@ module WorkEngine
       issues.concat(classify_active_steps_with_terminal_runs)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
+      issues.concat(classify_waiting_work_intents_ready_for_recheck)
       issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
@@ -255,7 +259,7 @@ module WorkEngine
 
     private
 
-    attr_reader :source, :job_id, :workflow_id, :run_id, :now, :jobs, :workflows, :work_units, :runs, :steps, :solid_queue
+    attr_reader :source, :job_id, :workflow_id, :run_id, :now, :jobs, :workflows, :work_intents, :work_units, :runs, :steps, :solid_queue
 
     def execute_repairs?
       @execute_repairs
@@ -299,6 +303,22 @@ module WorkEngine
       else
         step_ids = workflows.flat_map { |workflow| workflow.steps.map(&:id) }
         Run.where(step_id: step_ids).where(state: %w[ queued running failed ])
+      end
+    end
+
+    def scoped_work_intents
+      if workflow_id.present?
+        WorkIntent.joins(:work_units).where(work_units: { workflow_id: workflow_id })
+      elsif run_id.present?
+        WorkIntent.joins(:work_units).where(work_units: { workflow_id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id) })
+      elsif job_id.present?
+        direct_intents = WorkIntent.where(scope_type: "job", scope_id: job_id)
+        member_intents = WorkIntent
+          .joins(work_units: :work_unit_members)
+          .where(work_unit_members: { job_id: job_id })
+        WorkIntent.where(id: direct_intents.select(:id)).or(WorkIntent.where(id: member_intents.select(:id)))
+      else
+        WorkIntent.where(state: "waiting")
       end
     end
 
@@ -751,6 +771,35 @@ module WorkEngine
           explanation: "Terminal WorkUnit ##{unit.id} still owns active locks; terminal units must release locks so future work can proceed."
         )
       end
+    end
+
+    def classify_waiting_work_intents_ready_for_recheck
+      work_intents.select(&:waiting?).filter_map do |intent|
+        next unless intent_gates_pass?(intent)
+
+        issue(
+          kind: :waiting_work_intent_ready_for_recheck,
+          severity: :warning,
+          affected_ids: ids_for(intent),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "recheck_waiting_work_intent",
+          evidence: {
+            work_intent_id: intent.id,
+            work_intent_kind: intent.kind,
+            work_intent_state: intent.state,
+            wait_reason: intent.wait_reason,
+            wait_until: intent.wait_until&.iso8601,
+            wait_details: intent.wait_details
+          },
+          explanation: "WorkIntent ##{intent.id} is waiting for #{intent.wait_reason}, but its current gates pass and the wait can be cleared."
+        )
+      end
+    end
+
+    def intent_gates_pass?(intent)
+      intent.definition.intent_gates.all? { |gate| gate.call(intent).pass? }
+    rescue WorkDefinitions::UnknownKind
+      false
     end
 
     def classify_active_work_units_without_workflows
@@ -1654,6 +1703,7 @@ module WorkEngine
         workflow_ids: workflows.map(&:id),
         step_ids: steps.map(&:id),
         run_ids: runs.map(&:id),
+        work_intent_ids: work_intents.map(&:id),
         work_unit_ids: work_units.map(&:id),
         solid_queue_available: solid_queue[:available],
         solid_queue_jobs: solid_queue[:jobs],
@@ -2015,6 +2065,10 @@ module WorkEngine
         ids = { work_intent_ids: [ record.work_intent_id ], work_unit_ids: [ record.id ] }
         ids[:workflow_ids] = [ record.workflow_id ] if record.workflow_id.present?
         ids[:job_ids] = record.work_unit_members.pluck(:job_id)
+        ids
+      when WorkIntent
+        ids = { work_intent_ids: [ record.id ] }
+        ids[:job_ids] = [ record.scope_id ] if record.scope_type == "job" && record.scope_id.present?
         ids
       when Job
         { job_ids: [ record.id ] }

@@ -1086,6 +1086,21 @@ module WorkEngine
         end
       end
 
+      class WaitingWorkIntentReadyForRecheck < Base
+        def plan
+          automatic_plan(
+            "recheck_waiting_work_intent",
+            primary_work_intent,
+            "The Intent is waiting but its gates now pass, so re-run the Intent scheduler to clear the managed wait.",
+            execution_steps: [ "WorkIntents::Scheduler.evaluate!" ],
+            preconditions: {
+              work_intent_state: "waiting",
+              wait_reason: issue.evidence["wait_reason"]
+            }
+          )
+        end
+      end
+
       class SucceededWorkUnitUnsatisfiedIntent < Base
         def plan
           automatic_plan(

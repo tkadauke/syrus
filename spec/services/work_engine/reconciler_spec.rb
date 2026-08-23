@@ -699,6 +699,55 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to be_requested
   end
 
+  it "rechecks waiting WorkIntents whose gates now pass" do
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    intent.wait!(reason: "dependency", details: { "blocked_by_job_ids" => [ 123 ] })
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :waiting_work_intent_ready_for_recheck)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "recheck_waiting_work_intent"
+    )
+    expect(plan(result, :recheck_waiting_work_intent)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: intent.id
+    )
+    expect(result.snapshot.work_intent_ids).to include(intent.id)
+    expect(result.repair_executions.map(&:message)).to include("rechecked WorkIntent ##{intent.id}; wait cleared=true")
+    expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil)
+  end
+
+  it "does not recheck waiting WorkIntents while their gates still block" do
+    blocker = Factories.job_record(user: job.user, repository: job.repository, state: "implemented", issue_number: 123)
+    JobDependency.create!(job: job, depends_on_job: blocker, source: "manual")
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    intent.wait!(reason: "dependency", details: { "blocked_by_job_ids" => [ blocker.id ] })
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :waiting_work_intent_ready_for_recheck)).to be_nil
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+  end
+
   it "satisfies requested WorkIntents left behind by succeeded WorkUnits" do
     workflow = job.latest_workflow
     unit = workflow.work_unit

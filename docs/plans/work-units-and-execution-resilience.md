@@ -1731,6 +1731,10 @@ Completed slices:
   empty attempts: the reconciler cancels the Unit and releases any locks,
   leaving the WorkIntent requested so scheduling can create a real attempt
   instead of letting a workflow-less Unit block execution forever.
+- The reconciler now captures WorkIntents directly and repairs missed wakeups
+  for managed waiting Intents whose current gates pass. This gives dependency
+  waits a durable recovery path when the domain event that should have woken the
+  Intent was missed, without repeatedly logging Intents whose gates still block.
 
 ### Phase 6: Work Definition Policies
 

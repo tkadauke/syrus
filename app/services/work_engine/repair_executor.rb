@@ -742,6 +742,22 @@ module WorkEngine
         end
       end
 
+      class RecheckWaitingWorkIntent < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not waiting") unless intent.waiting?
+
+          result = WorkIntents::Scheduler.evaluate!(intent)
+          intent.reload
+          if result.pass?
+            success("rechecked WorkIntent ##{intent.id}; wait cleared=#{intent.requested?}")
+          else
+            skipped("WorkIntent ##{intent.id} still waits on #{result.reason}")
+          end
+        end
+      end
+
       class SatisfyWorkIntentFromSucceededWorkUnit < Base
         def perform
           intent = target_work_intent
