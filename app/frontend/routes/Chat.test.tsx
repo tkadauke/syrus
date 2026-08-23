@@ -4305,6 +4305,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     },
     documents_in_scope: [],
     attachment_results: overrides.attachment_results || [],
+    preview_panels: [],
     local_mode_enabled: false,
     speech_to_text: {
       enabled: false,

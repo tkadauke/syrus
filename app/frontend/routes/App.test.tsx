@@ -16840,6 +16840,7 @@ function chatPayload(overrides: {
       { id: 5, title: "Launch notes", repository_slug: "acme/widgets" }
     ],
     attachment_results: [],
+    preview_panels: [],
     whiteboard: {
       version: 2,
       elements: [{ id: "box-1", type: "rectangle" }],
