@@ -623,10 +623,13 @@ module App
     def paused_job_ids(job_ids)
       return [] if job_ids.empty?
 
+      blocked_work_unit_ids = WorkUnits::Ownership.blocked_job_ids(job_ids)
       latest_by_job = @job_runtime_latest_workflows_by_job_id || latest_workflows_by_job_id(job_ids)
-      latest_by_job.values.select do |workflow|
+      artifact_paused_ids = latest_by_job.values.select do |workflow|
         workflow.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)
       end.map(&:job_id) - @job_runtime_active_job_ids.keys
+
+      (blocked_work_unit_ids.to_a | artifact_paused_ids) - @job_runtime_active_job_ids.keys
     end
 
     def latest_runs_for_jobs(jobs)
@@ -776,6 +779,7 @@ module App
       end
 
       return false if job.any_active_run?
+      return true if WorkUnits::Ownership.blocked_for_job?(job)
 
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)

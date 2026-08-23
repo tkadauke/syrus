@@ -141,6 +141,22 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :landing_blocker_override_requested_by)).to be_nil
     end
 
+    it "shows blocked non-landing WorkUnits as paused" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "manual_visual_review", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual_visual_review", state: "blocked", blocked_reason: "admission_control")
+
+      expect(payload_for(job).dig(:job, :summary_state)).to eq("paused")
+    end
+
+    it "keeps blocked landing WorkUnits in the landing state" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing")
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "auto_merge", state: "blocked", blocked_reason: "admission_control")
+
+      expect(payload_for(job).dig(:job, :summary_state)).to eq("landing")
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)

@@ -143,13 +143,13 @@ module Filters
 
         def apply_in_progress
           active = scope.where(manual_paused: false)
-          active.where(state: "running").where.not(id: paused_workflow_job_ids)
+          active.where(state: "running").where.not(id: paused_job_ids)
                 .or(active.open_threads.where(id: unpaused_running_workflow_job_ids))
         end
 
         def apply_paused
           scope.open_threads.where(manual_paused: true)
-               .or(scope.open_threads.where(id: paused_workflow_job_ids))
+               .or(scope.open_threads.where(id: paused_job_ids))
         end
 
         def apply_queued
@@ -257,15 +257,24 @@ module Filters
         end
 
         def unpaused_running_workflow_job_ids
-          active_workflow_job_ids do |relation|
+          active_ids = active_workflow_job_ids do |relation|
             relation.where("artifacts IS NULL OR NOT (artifacts LIKE ? OR artifacts LIKE ?)", '%"pause_reason"%', '%"start_blocked_reason"%')
           end
+          active_ids - blocked_work_unit_job_ids
+        end
+
+        def paused_job_ids
+          paused_workflow_job_ids | blocked_work_unit_job_ids
         end
 
         def paused_workflow_job_ids
           active_workflow_job_ids(excluding_trigger_kind: Workflow::LANDING_TRIGGER_KINDS) do |relation|
             relation.where("artifacts LIKE ? OR artifacts LIKE ?", '%"pause_reason"%', '%"start_blocked_reason"%')
           end
+        end
+
+        def blocked_work_unit_job_ids
+          @blocked_work_unit_job_ids ||= WorkUnits::Ownership.all_blocked_job_ids.to_a
         end
 
         def active_workflow_job_ids(trigger_kind: nil, excluding_trigger_kind: nil)

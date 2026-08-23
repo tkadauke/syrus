@@ -85,6 +85,37 @@ module WorkUnits
         .uniq
     end
 
+    def self.blocked_for_job?(job, kinds: nil, include_landing: false)
+      return false unless job
+
+      blocked_job_ids([ job&.id ], kinds: kinds, include_landing: include_landing).include?(job.id)
+    end
+
+    def self.blocked_job_ids(job_ids, kinds: nil, include_landing: false)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return Set.new if ids.empty?
+
+      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
+        .where(job_id: ids)
+        .distinct
+        .pluck(:job_id)
+        .to_set
+    end
+
+    def self.all_blocked_job_ids(kinds: nil, include_landing: false)
+      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
+        .distinct
+        .pluck(:job_id)
+        .to_set
+    end
+
+    def self.blocked_unit_job_ids_scope(kinds: nil, include_landing: false)
+      scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: "blocked" })
+      scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
+      scope = scope.where.not(work_units: { kind: WorkDefinitions::Base::LANDING_LOCK_KINDS }) unless include_landing
+      scope
+    end
+
     def self.active_unit_members_for_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return WorkUnitMember.none if ids.empty?

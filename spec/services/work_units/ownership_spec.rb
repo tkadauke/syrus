@@ -90,6 +90,19 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_unit_for_lock_key("landing:repository:#{job.repository_id}")).to eq(unit)
   end
 
+  it "reports blocked job ids while excluding landing units by default" do
+    blocked = Factories.job_record(issue_number: 301)
+    landing = Factories.job_record(repository: blocked.repository, issue_number: 302)
+    blocked_workflow = Workflow.create!(job: blocked, trigger_kind: "initial", state: "running")
+    landing_workflow = Workflow.create!(job: landing, trigger_kind: "auto_merge", state: "running")
+    attach_work_unit(blocked_workflow, member_jobs: [ blocked ], kind: "initial", state: "blocked")
+    attach_work_unit(landing_workflow, member_jobs: [ landing ], kind: "auto_merge", state: "blocked")
+
+    expect(described_class.all_blocked_job_ids).to include(blocked.id)
+    expect(described_class.all_blocked_job_ids).not_to include(landing.id)
+    expect(described_class.all_blocked_job_ids(include_landing: true)).to include(blocked.id, landing.id)
+  end
+
   it "filters active lock ownership by kind" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")

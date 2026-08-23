@@ -1624,6 +1624,11 @@ Completed slices:
   `Workflow.active_job_ids`, so dashboard and smart-folder scopes exclude Jobs
   owned by active WorkUnits, including cross-job WorkUnit membership, while
   retaining legacy Workflow fallback during migration.
+- Dashboard and Job detail paused-state reads now consult blocked WorkUnits,
+  while deliberately excluding landing WorkUnits so admission-blocked landing
+  work remains visible in the landing queue instead of moving to the Paused
+  folder. The legacy Workflow artifact fallback remains until workflow
+  pause/block state is fully migrated.
 
 ### Phase 5: Reconciler Simplification
 

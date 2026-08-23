@@ -8,15 +8,22 @@ module Filters
         operators :is_true, :is_false
 
         def apply
-          blocked = Workflow.active
-                            .where("artifacts LIKE ?", '%"start_blocked_reason"%')
-                            .select(:job_id)
+          blocked = workflow_blocked_job_ids | WorkUnits::Ownership.all_blocked_job_ids.to_a
 
           case op
           when :is_true  then scope.where(id: blocked)
           when :is_false then scope.where.not(id: blocked)
           else unsupported_op!
           end
+        end
+
+        private
+
+        def workflow_blocked_job_ids
+          Workflow.active
+                  .where("artifacts LIKE ?", '%"start_blocked_reason"%')
+                  .distinct
+                  .pluck(:job_id)
         end
       end
     end

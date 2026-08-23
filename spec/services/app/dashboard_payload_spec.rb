@@ -754,6 +754,26 @@ RSpec.describe App::DashboardPayload do
       expect(in_progress[:items].map { |row| row[:id] }).not_to include(job.id)
     end
 
+    it "shows blocked work units as paused without requiring legacy workflow artifacts" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+      workflow.update!(state: "running")
+      workflow.work_unit.block!(reason: "admission_control", details: { "source" => "spec" })
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |i| i[:id] == job.id }
+      expect(item[:summary_state]).to eq("paused")
+
+      paused_folder = SmartFolder.find_builtin_by_attention("paused")
+      in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")
+
+      paused = call(subject: "job", smart_folder_id: paused_folder.id, section: "rows")
+      in_progress = call(subject: "job", smart_folder_id: in_progress_folder.id, section: "rows")
+
+      expect(paused[:items].map { |row| row[:id] }).to include(job.id)
+      expect(in_progress[:items].map { |row| row[:id] }).not_to include(job.id)
+    end
+
     it "keeps admission-blocked landing workflows in landing queue instead of paused" do
       job = Factories.job_record(
         user: user,

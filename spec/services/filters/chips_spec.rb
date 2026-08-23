@@ -20,6 +20,29 @@ RSpec.describe "Filters::Chips" do
     )
   end
 
+  def create_blocked_work_unit_for(job, kind: "initial")
+    workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: "blocked",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow,
+      blocked_reason: "admission_control"
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   describe "state" do
     it "filters by exact state" do
       queued_job = Factories.job(repository: repo, issue_number: 1)
@@ -127,6 +150,7 @@ RSpec.describe "Filters::Chips" do
       old_running_workflow = Factories.job_record(repository: repo, issue_number: 11, state: "approved")
       paused_running = Factories.job_record(repository: repo, issue_number: 12, state: "running")
       manually_paused_running = Factories.job_record(repository: repo, issue_number: 13, state: "running", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
+      blocked_work_unit = Factories.job_record(repository: repo, issue_number: 14, state: "running")
       Factories.job_record(repository: repo, issue_number: 7, state: "approved")
 
       Workflow.create!(job: queued_rebase, trigger_kind: "rebase", state: "queued")
@@ -145,6 +169,7 @@ RSpec.describe "Filters::Chips" do
         state: "running",
         artifacts: { "pause_reason" => "workflow_admission_budget" }
       )
+      create_blocked_work_unit_for(blocked_work_unit)
 
       expect(run(field: "attention", op: "is", value: "in_progress")).to contain_exactly(
         running,
@@ -182,6 +207,8 @@ RSpec.describe "Filters::Chips" do
     it "paused: returns manually paused jobs and workflow-paused jobs" do
       manual = Factories.job_record(repository: repo, issue_number: 28, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
       workflow_paused = Factories.job_record(repository: repo, issue_number: 29, state: "running")
+      work_unit_paused = Factories.job_record(repository: repo, issue_number: 31, state: "running")
+      landing_paused = Factories.job_record(repository: repo, issue_number: 32, state: "landing")
       Factories.job_record(repository: repo, issue_number: 30, state: "queued")
       Workflow.create!(
         job: workflow_paused,
@@ -189,8 +216,10 @@ RSpec.describe "Filters::Chips" do
         state: "running",
         artifacts: { "pause_reason" => "workflow_admission_budget" }
       )
+      create_blocked_work_unit_for(work_unit_paused)
+      create_blocked_work_unit_for(landing_paused, kind: "auto_merge")
 
-      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, workflow_paused)
+      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, workflow_paused, work_unit_paused)
     end
 
     it "queued: excludes jobs with a running infrastructure workflow (e.g. main_grader)" do

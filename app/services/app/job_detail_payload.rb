@@ -805,6 +805,7 @@ module App
 
     def job_apparently_paused?(job)
       return false if job.any_active_run?
+      return true if WorkUnits::Ownership.blocked_for_job?(job)
 
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && (
