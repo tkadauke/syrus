@@ -32,6 +32,33 @@ RSpec.describe WorkEngine::Reconciler do
     result.repair_plans.find { |repair_plan| repair_plan.action == action.to_s }
   end
 
+  it "includes WorkUnit ownership details in workflow issue evidence" do
+    workflow.update_columns(state: "failed", started_at: 1.hour.ago, finished_at: 55.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 1.hour.ago, finished_at: 55.minutes.ago)
+    run.update_columns(state: "running", started_at: 1.hour.ago, last_heartbeat_at: 1.hour.ago)
+    unit = attach_work_unit(
+      workflow,
+      state: "running",
+      blocked_reason: nil,
+      blocked_details: { "source" => "spec" }
+    )
+    lock_key = unit.work_unit_locks.active.first&.lock_key
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :cleanup_blocked_by_active_descendants)
+
+    expect(issue.evidence).to include(
+      "work_intent_id" => unit.work_intent_id,
+      "work_intent_kind" => "initial",
+      "work_intent_state" => "requested",
+      "work_unit_id" => unit.id,
+      "work_unit_kind" => "initial",
+      "work_unit_state" => "running",
+      "work_unit_member_job_ids" => [ job.id ],
+      "work_unit_active_lock_keys" => [ lock_key ]
+    )
+  end
+
   def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "blocked", blocked_reason: nil, blocked_until: nil, blocked_details: {})
     unit = workflow.work_unit
     intent = unit&.work_intent || WorkIntent.create!(

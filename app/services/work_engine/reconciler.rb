@@ -2253,13 +2253,10 @@ module WorkEngine
     end
 
     def workflow_evidence(workflow)
-      {
+      evidence = {
         workflow_id: workflow.id,
         workflow_state: workflow.state,
         trigger_kind: workflow.trigger_kind,
-        work_unit_id: workflow.work_unit&.id,
-        work_unit_state: workflow.work_unit&.state,
-        work_unit_blocked_reason: workflow.work_unit&.blocked_reason,
         job_id: workflow.job_id,
         job_state: workflow.job.state,
         created_at: workflow.created_at&.iso8601,
@@ -2267,6 +2264,25 @@ module WorkEngine
         worker_hostname: workflow.worker_hostname,
         worker_storage_key: workflow.worker_storage_key
       }
+      unit = workflow.work_unit
+      return evidence unless unit
+
+      evidence.merge(
+        work_intent_id: unit.work_intent_id,
+        work_intent_kind: unit.work_intent&.kind,
+        work_intent_state: unit.work_intent&.state,
+        work_unit_id: unit.id,
+        work_unit_kind: unit.kind,
+        work_unit_state: unit.state,
+        work_unit_blocked_reason: unit.blocked_reason,
+        work_unit_blocked_until: unit.blocked_until&.iso8601,
+        work_unit_blocked_details: unit.blocked_details.presence,
+        work_unit_member_job_ids: unit.work_unit_members.map(&:job_id),
+        work_unit_active_lock_keys: unit.work_unit_locks.select(&:active?).map(&:lock_key),
+        parent_work_unit_id: unit.parent_work_unit_id,
+        preempted_by_work_unit_id: unit.preempted_by_work_unit_id,
+        preemption_reason: unit.preemption_reason
+      )
     end
 
     def repositories
