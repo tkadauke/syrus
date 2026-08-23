@@ -3159,4 +3159,42 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       end
     end
   end
+
+  describe "simple-mode epic automation defaults" do
+    let(:owner) { Factories.user }
+
+    around do |example|
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "simple", mode_configured_at: Time.current)
+      example.run
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+    end
+
+    context "when the repository has opted in to auto-merge" do
+      it "enables auto_merge_enabled on the job and sets the epic's auto_approve_mode" do
+        repo = Factories.repository(user: owner, auto_merge_enabled: true)
+        epic = Factories.epic(user: owner, repository: repo, owner_user: owner)
+
+        job = owner.jobs.create!(repository: repo, epic: epic, kind: "direct", issue_title: "Task")
+
+        expect(job.auto_merge_enabled).to be true
+        expect(epic.reload.auto_approve_mode).to eq("if_graders_pass")
+      end
+    end
+
+    context "when the repository has not opted in to auto-merge (default)" do
+      it "leaves auto_merge_enabled off and does not force the epic's auto_approve_mode" do
+        repo = Factories.repository(user: owner)
+        epic = Factories.epic(user: owner, repository: repo, owner_user: owner)
+
+        job = owner.jobs.create!(repository: repo, epic: epic, kind: "direct", issue_title: "Task")
+
+        expect(job.auto_merge_enabled).to be false
+        expect(epic.reload.auto_approve_mode).to eq("never")
+        expect(job.approved?).to be false
+      end
+    end
+  end
 end

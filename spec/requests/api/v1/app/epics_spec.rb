@@ -445,6 +445,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
 
     it "creates a tail feedback Job and returns the Epic to in-progress" do
       sign_in_as(user)
+      repository.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repository, title: "Checkout", state: "in_progress")
       tail = Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
       epic.reload.auto_complete!
