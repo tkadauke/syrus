@@ -68,4 +68,28 @@ RSpec.describe JobManualPause do
     expect(job.reload.manual_paused?).to be false
     expect(unit.reload.pause_requested?).to be false
   end
+
+  it "starts a WorkUnit-blocked workflow immediately after manual unpause" do
+    set_scheduler_gate(true)
+    job = Factories.job_record(manual_paused: true, manual_paused_at: Time.current)
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    unit = workflow.work_unit
+    unit.request_pause!
+
+    blocked_result = WorkUnits::Launcher.start!(workflow)
+    expect(blocked_result).to be_blocked
+    expect(workflow.first_step.runs).to be_empty
+
+    expect {
+      described_class.unpause!(job)
+    }.to change { workflow.first_step.runs.reload.count }.by(1)
+
+    expect(job.reload.manual_paused?).to be false
+    expect(unit.reload).to have_attributes(
+      state: "queued",
+      blocked_reason: nil,
+      pause_requested: false
+    )
+    expect(workflow.first_step.runs.last).to be_queued
+  end
 end

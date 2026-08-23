@@ -1905,6 +1905,11 @@ Completed slices:
   pause, provider availability, main-branch health, and admission/resource
   blocks can pause a WorkUnit between steps with typed `blocked_reason` and
   phase-step details instead of only gating the first Run.
+- Manual unpause now resumes WorkUnit-blocked attempts directly. When an
+  operator unpauses a Job, WorkUnit pause requests are cleared, manual-pause
+  blocked Units are re-evaluated through `WorkUnits::Scheduler`, and eligible
+  workflows are started immediately through `WorkUnits::Launcher` before the
+  legacy Workflow artifact resume path runs.
 
 ### Phase 8: Step/Run Simplification
 
