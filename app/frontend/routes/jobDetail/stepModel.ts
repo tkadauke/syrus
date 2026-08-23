@@ -207,10 +207,41 @@ export function gradeSummaryCounts(summaries: GradeSummary[]) {
 
 export function loopDisplayName(item: LoopStepItem, t: ReturnType<typeof useT>["t"]) {
   const kinds = item.iterations.flatMap((iteration) => iteration.steps.map((step) => step.kind))
-  if (kinds.some((kind) => kind === "grade" || kind === "grader" || kind.startsWith("grader_"))) return t("loop_grade_name")
+  if (loopContainsGraders(item)) return t("loop_grade_name")
   if (kinds.includes("visual_review")) return t("loop_visual_review_name")
   if (kinds.includes("adversarial_review")) return t("loop_adversarial_review_name")
   return t("loop_name")
+}
+
+// When a named grade loop has exactly one iteration whose sole grouped item
+// is the Grade step, the loop wrapper and the Grade group would otherwise
+// nest two collapsible containers around the same set of grader phases. In
+// that case the outer loop stands in for the Grade group directly: its pills
+// carry the grade summary counts and its expanded content is the grader
+// phase list instead of a redundant "Iteration 1" > "Grade" wrapper pair.
+export function loopSoleGradeItem(item: LoopStepItem): GradeStepItem | null {
+  if (item.iterations.length !== 1) return null
+
+  const [iteration] = item.iterations
+  if (iteration.items.length !== 1) return null
+
+  const [only] = iteration.items
+  return only.type === "grade" ? only : null
+}
+
+function loopContainsGraders(item: LoopStepItem) {
+  return item.iterations.some((iteration) => (
+    iteration.steps.some((step) => step.kind === "grade" || step.kind === "grader" || step.kind.startsWith("grader_"))
+  ))
+}
+
+export function loopGradeSummaries(item: LoopStepItem): GradeSummary[] {
+  if (!loopContainsGraders(item)) return []
+
+  const latestIteration = item.iterations[item.iterations.length - 1]
+  if (!latestIteration) return []
+
+  return latestIteration.items.flatMap((displayItem) => displayItem.type === "grade" ? gradeSummaries(displayItem) : [])
 }
 
 export function loopDisplayStatus(item: LoopStepItem) {
