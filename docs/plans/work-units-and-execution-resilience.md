@@ -1758,6 +1758,11 @@ Completed slices:
   starting a fresh Unit/Workflow for persisted job-scoped desired work. This is
   deliberately explicit-scope only, so global or Workflow-scoped reconciles do
   not accidentally relaunch failed attempts in a loop.
+- Requested WorkIntent launch now flows through `WorkIntents::Scheduler.start_ready!`.
+  The scheduler evaluates Intent gates, refuses to duplicate active Units,
+  instantiates a fresh Unit/Workflow when gates pass, and starts the Unit through
+  the WorkUnit launcher. Reconciler repair consumes that scheduler API instead
+  of duplicating "evaluate then launch" orchestration.
 - Terminal parent WorkUnits now own their descendant invariant: the reconciler
   detects active child WorkUnits below terminal parents and cancels those child
   Workflows/Units while preserving the parent's terminal outcome. This gives

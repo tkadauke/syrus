@@ -1132,7 +1132,7 @@ module WorkEngine
             "launch_requested_work_intent",
             primary_work_intent,
             "The Intent is requested and its gates pass, but no active WorkUnit exists; instantiate a fresh Unit/Workflow for the persisted desired work.",
-            execution_steps: [ "WorkUnits::Launcher.instantiate_intent!", "WorkUnits::Launcher.start!" ],
+            execution_steps: [ "WorkIntents::Scheduler.start_ready!" ],
             preconditions: {
               work_intent_state: "requested",
               scope_type: issue.evidence["scope_type"],

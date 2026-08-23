@@ -97,6 +97,39 @@ RSpec.describe WorkIntents::Scheduler do
     expect(landing_intent.reload).to have_attributes(state: "requested", wait_reason: nil)
   end
 
+  it "starts a requested intent through a WorkUnit workflow attempt" do
+    result = described_class.start_ready!(intent)
+
+    expect(result).to be_started
+    expect(result.workflow).to be_present
+    expect(result.work_unit).to have_attributes(work_intent_id: intent.id, state: "queued")
+    expect(result.work_unit.workflow).to eq(result.workflow)
+    expect(result.workflow.first_step.runs.last).to be_queued
+  end
+
+  it "does not start a requested intent while another active WorkUnit owns it" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, idempotency_key: "spec-intent")
+    active_intent = workflow.work_unit.work_intent
+
+    expect {
+      result = described_class.start_ready!(active_intent)
+      expect(result).to be_already_active
+    }.not_to change { active_intent.work_units.count }
+  end
+
+  it "returns waiting instead of launching when intent gates block" do
+    blocker = Factories.job_record(user: user, repository: repository, state: "implemented", issue_number: 99)
+    JobDependency.create!(job: job, depends_on_job: blocker, source: "manual")
+
+    expect {
+      result = described_class.start_ready!(intent)
+      expect(result).to be_waiting
+      expect(result.reason).to eq("dependency")
+    }.not_to change { WorkUnit.count }
+
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+  end
+
   it "marks merge-train intents waiting until every open epic child is approved or landing" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 201)

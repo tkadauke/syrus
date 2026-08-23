@@ -808,22 +808,20 @@ module WorkEngine
           return skipped("WorkIntent no longer exists") unless intent
           return skipped("WorkIntent is #{intent.state}, not requested") unless intent.requested?
 
-          active_unit_ids = intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).pluck(:id)
-          return skipped("WorkIntent ##{intent.id} already has active WorkUnits: #{active_unit_ids.inspect}") if active_unit_ids.any?
-
-          gate_result = WorkIntents::Scheduler.evaluate!(intent)
-          return skipped("WorkIntent ##{intent.id} now waits on #{gate_result.reason}") unless gate_result.pass?
-
-          workflow = WorkUnits::Launcher.instantiate_intent!(
+          result = WorkIntents::Scheduler.start_ready!(
             intent,
             artifacts: latest_artifacts_for(intent),
             agent_provider: latest_agent_provider_for(intent)
           )
-          result = WorkUnits::Launcher.start!(workflow)
-          if result.blocked?
+
+          if result.already_active?
+            skipped("WorkIntent ##{intent.id} already has #{result.reason}")
+          elsif result.waiting?
+            skipped("WorkIntent ##{intent.id} now waits on #{result.reason}")
+          elsif result.blocked?
             success("launched WorkIntent ##{intent.id} as blocked WorkUnit ##{result.work_unit&.id}: #{result.reason}")
           else
-            success("launched WorkIntent ##{intent.id} as Workflow ##{workflow.id}")
+            success("launched WorkIntent ##{intent.id} as Workflow ##{result.workflow.id}")
           end
         end
 
