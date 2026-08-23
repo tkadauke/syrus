@@ -1,7 +1,7 @@
 import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
 import { JobsDashboardTable, SimpleJobsTable } from "./dashboard/JobsTable"
-import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
+import { EpicsTable, SimpleFeaturesTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
 import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -171,14 +171,16 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   })
   const readiness = bootstrap.data?.setup_status?.readiness
   const { t } = useT("dashboard")
+  const isLegacyEpicsView = payload.simple_mode && payload.subject === "epic"
 
   return (
     <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
       <header className="flex flex-wrap items-center gap-3 px-4 sm:px-0">
-        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{payload.simple_mode ? t("simple_title") : t("title")}</h1>
+        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</h1>
         {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
+      {isLegacyEpicsView ? <LegacyEpicsBanner className="mx-4 sm:mx-0" /> : null}
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
       <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
       <UntaggedIssuesBanner className="mx-4 sm:mx-0" prefix={prefix} untaggedIssues={payload.untagged_issues} />
@@ -426,6 +428,16 @@ function writeUntaggedIssuesDismissal(token: string): void {
   } catch {
     // sessionStorage can be unavailable in private or restricted browser contexts.
   }
+}
+
+export function LegacyEpicsBanner({ className = "" }: { className?: string }) {
+  const { t } = useT("dashboard")
+
+  return (
+    <div className={`${className} rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200`} role="status">
+      {t("legacy_epics_banner")}
+    </div>
+  )
 }
 
 export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }: { className?: string; prefix: string; untaggedIssues?: DashboardUntaggedIssues }) {
@@ -860,6 +872,7 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
 
   const columns = dashboardVisibleColumns(payload)
   const items = payload.items ?? []
+  if (payload.simple_mode && payload.subject === "epic") return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
   if (payload.simple_mode) return <SimpleJobsTable items={items.filter((item): item is DashboardJobItem => item.type === "job")} />
   if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />

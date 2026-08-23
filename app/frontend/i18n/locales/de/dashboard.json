@@ -1,6 +1,8 @@
 {
   "title": "Übersicht",
   "simple_title": "Deine Arbeit",
+  "legacy_epics_title": "Epics",
+  "legacy_epics_banner": "Dies sind ältere, mehrstufige Features, die vor dieser Umstellung angelegt wurden. Neue Anfragen erscheinen jetzt als einzelne Aufgaben im Haupt-Dashboard.",
   "loading": "Wird geladen...",
   "load_error": "Übersicht konnte nicht geladen werden.",
   "new_epic": "Neues Epic",

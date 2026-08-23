@@ -1283,6 +1283,20 @@ RSpec.describe Epic do
     end
   end
 
+  describe ".non_terminal" do
+    it "includes backlog/ready/in_progress Epics and excludes done/archived" do
+      backlog = described_class.create!(user: user, repository: repository, title: "Backlog", state: "backlog")
+      ready = described_class.create!(user: user, repository: repository, title: "Ready", state: "ready")
+      in_progress = described_class.create!(user: user, repository: repository, title: "In progress", state: "in_progress")
+      done = described_class.create!(user: user, repository: repository, title: "Done", state: "done")
+      archived = described_class.create!(user: user, repository: repository, title: "Archived", state: "archived")
+
+      result = described_class.non_terminal
+      expect(result).to include(backlog, ready, in_progress)
+      expect(result).not_to include(done, archived)
+    end
+  end
+
   describe "standalone reconciliation cleanup" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
