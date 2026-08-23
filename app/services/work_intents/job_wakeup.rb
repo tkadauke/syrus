@@ -28,6 +28,7 @@ module WorkIntents
         WorkUnits::Launcher.start!(workflow)
         started = true
       end
+      start_requested_intents_without_active_units! { started = true }
       started
     end
 
@@ -62,14 +63,32 @@ module WorkIntents
     end
 
     def current_intents
-      workflow_ids = queued_workflow_ids
-      return WorkIntent.none if workflow_ids.empty?
+      workflow_intent_scope = if queued_workflow_ids.empty?
+        WorkIntent.none
+      else
+        WorkIntent
+          .joins(:work_units)
+          .where(work_units: { workflow_id: queued_workflow_ids })
+      end
 
       WorkIntent
-        .joins(:work_units)
-        .where(work_units: { workflow_id: workflow_ids })
+        .where(id: workflow_intent_scope.select(:id))
+        .or(job_scoped_current_intents)
         .where(state: %w[requested waiting])
         .distinct
+    end
+
+    def job_scoped_current_intents
+      WorkIntent.where(scope_type: "job", scope_id: job.id, state: %w[requested waiting])
+    end
+
+    def start_requested_intents_without_active_units!
+      job_scoped_current_intents.find_each do |intent|
+        next if intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).exists?
+
+        result = WorkIntents::Scheduler.start_ready!(intent)
+        yield if result.started? || result.blocked?
+      end
     end
 
     def queued_workflows

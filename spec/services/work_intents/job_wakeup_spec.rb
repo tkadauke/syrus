@@ -22,6 +22,28 @@ RSpec.describe WorkIntents::JobWakeup do
     expect(workflow.first_step.runs).to be_empty
   end
 
+  it "marks persisted job intents waiting even when no workflow has been instantiated yet" do
+    blocker = Factories.job_record(user: user, repository: repository, state: "queued")
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    JobDependency.create!(job: job, depends_on_job: blocker, source: "manual")
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(false)
+    }.not_to change { WorkUnit.count }
+
+    expect(intent.reload).to have_attributes(state: "waiting", wait_reason: "dependency")
+  end
+
   it "clears a managed dependency wait and starts queued workflows once the intent is ready" do
     job = Factories.job_record(user: user, repository: repository, state: "queued")
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
@@ -35,6 +57,32 @@ RSpec.describe WorkIntents::JobWakeup do
 
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil)
     expect(workflow.first_step.runs.last).to be_queued
+  end
+
+  it "launches a persisted job intent once dependencies become ready" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: user,
+      source_type: "spec"
+    )
+    intent.wait!(reason: "dependency", details: { "blocked_by_job_ids" => [ 123 ] })
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(true)
+    }.to change { WorkUnit.count }.by(1)
+      .and change { Workflow.count }.by(1)
+      .and change { Run.count }.by(1)
+
+    unit = intent.reload.work_units.first
+    expect(intent).to have_attributes(state: "requested", wait_reason: nil)
+    expect(unit).to have_attributes(kind: "initial", state: "queued")
+    expect(unit.workflow.first_step.runs.last).to be_queued
   end
 
   it "uses execution dependency semantics so stack children can start before parent merge" do

@@ -1895,6 +1895,11 @@ Completed slices:
   queued Workflows through the WorkUnit launcher. Legacy queued Workflows
   without WorkUnit ownership still start through the same service during the
   migration window.
+- Dependency wakeups also launch persisted job-scoped WorkIntents that do not
+  have an active WorkUnit yet. When dependencies clear, `WorkIntents::JobWakeup`
+  calls `WorkIntents::Scheduler.start_ready!`, so missed workflow creation is
+  repaired at the domain wakeup instead of waiting for the reconciler's
+  requested-Intent invariant repair.
 - Mid-workflow Run creation now evaluates WorkUnit runtime gates with the
   concrete next Step as context when `work_units_scheduler` is enabled. Manual
   pause, provider availability, main-branch health, and admission/resource
