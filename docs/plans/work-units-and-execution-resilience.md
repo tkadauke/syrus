@@ -1708,6 +1708,11 @@ Completed slices:
   remains a migration safety net, but launcher-blocked WorkUnits record typed
   blocked reasons and schedule admission/landing rechecks for non-manual
   runtime pauses.
+- Provider and admission wakeups now read WorkUnit blocked state before legacy
+  Workflow artifact markers. Provider availability, provider-admission/circuit
+  recovery, and admission-capacity wakeups can all resume WorkUnit-blocked
+  workflows without relying on serialized `start_blocked_reason` scans, while
+  keeping those scans as a migration fallback.
 
 ### Phase 6: Work Definition Policies
 

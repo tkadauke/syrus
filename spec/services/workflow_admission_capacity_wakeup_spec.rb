@@ -38,6 +38,22 @@ RSpec.describe WorkflowAdmissionCapacityWakeup do
       .and have_enqueued_job(LandingQueueProcessorJob)
   end
 
+  it "wakes WorkUnit-blocked admission workflows without workflow artifacts" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    workflow.work_unit.block!(
+      reason: "admission_control",
+      blocked_until: 5.minutes.from_now,
+      details: { "action" => "delay_until" }
+    )
+
+    expect {
+      result = described_class.call
+      expect(result.workflow_ids).to eq([ workflow.id ])
+    }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
+      .and have_enqueued_job(LandingQueueProcessorJob)
+  end
+
   it "does not enqueue anything when no workflows are deferred" do
     expect {
       result = described_class.call

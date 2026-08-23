@@ -57,6 +57,22 @@ class ProviderAdmissionWakeup
   end
 
   def workflows
+    (work_unit_workflows + legacy_workflows).uniq(&:id)
+  end
+
+  def work_unit_workflows
+    scope = WorkUnit
+      .joins(:workflow)
+      .where(state: "blocked", blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON)
+      .where(workflows: { agent_provider: provider, state: "queued" })
+      .where.not(workflows: { id: Workflow.joins(steps: :runs).select("workflows.id") })
+      .includes(:workflow)
+      .order(:id)
+    scope = scope.joins(:work_intent).where(work_intents: { actor_id: user.id }) if user
+    scope.map(&:workflow)
+  end
+
+  def legacy_workflows
     scope = Workflow
       .where(agent_provider: provider, state: "queued")
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))

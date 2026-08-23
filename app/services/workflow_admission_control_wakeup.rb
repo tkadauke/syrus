@@ -16,10 +16,8 @@ class WorkflowAdmissionControlWakeup
   private
 
   def wake_deferred_workflows
-    WorkflowAdmissionCapacityWakeup.sleeper_scope
-      .filter_map do |workflow|
-        next unless WorkflowAdmissionCapacityWakeup.admission_or_resource_paused?(workflow)
-
+    WorkflowAdmissionCapacityWakeup.sleeper_workflows
+      .map do |workflow|
         WorkflowPhaseAdmissionJob.perform_later(workflow.id)
         workflow.id
       end

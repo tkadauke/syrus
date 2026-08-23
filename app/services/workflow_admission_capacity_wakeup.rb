@@ -13,7 +13,7 @@ class WorkflowAdmissionCapacityWakeup
   def self.call(...) = new(...).call
 
   def self.deferred_sleepers_exist?
-    sleeper_scope.exists?
+    work_unit_sleeper_scope.exists? || sleeper_scope.exists?
   end
 
   def self.admission_or_resource_paused?(workflow)
@@ -35,6 +35,19 @@ class WorkflowAdmissionCapacityWakeup
     end
   end
 
+  def self.sleeper_workflows
+    work_unit_workflows = work_unit_sleeper_scope.includes(:workflow).order(:id).map(&:workflow)
+    legacy_workflows = sleeper_scope.to_a.select { |workflow| admission_or_resource_paused?(workflow) }
+    (work_unit_workflows + legacy_workflows).uniq(&:id)
+  end
+
+  def self.work_unit_sleeper_scope
+    WorkUnit
+      .joins(:workflow)
+      .where(state: "blocked", blocked_reason: %w[admission_control resource_safety])
+      .where(workflows: { state: %w[queued running] })
+  end
+
   def initialize(limit: DEFAULT_LIMIT)
     @limit = limit
   end
@@ -51,13 +64,6 @@ class WorkflowAdmissionCapacityWakeup
   attr_reader :limit
 
   def deferred_workflow_ids
-    ids = []
-    self.class.sleeper_scope.reorder(:id).find_each do |workflow|
-      next unless self.class.admission_or_resource_paused?(workflow)
-
-      ids << workflow.id
-      break if ids.size >= limit
-    end
-    ids
+    self.class.sleeper_workflows.first(limit).map(&:id)
   end
 end
