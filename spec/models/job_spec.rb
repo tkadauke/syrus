@@ -648,6 +648,34 @@ RSpec.describe Job do
       # the Run
     end
 
+    it "cancels active WorkUnit ownership when closing the job" do
+      job = Factories.job_record(state: "running")
+      intent = WorkIntent.create!(
+        kind: "initial",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "initial",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      job.cancel_active_runs_and_close!("cancelled")
+
+      expect(job.reload).to be_closed
+      expect(unit.reload).to be_cancelled
+      expect(job).not_to be_active_runtime_work
+    end
+
     it "approves an implemented job with approval metadata" do
       job = Factories.job
       job.update!(state: "implemented")

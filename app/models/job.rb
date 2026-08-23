@@ -775,11 +775,25 @@ class Job < ApplicationRecord
   # "replaced"). Idempotent on already-closed Jobs.
   def cancel_active_runs_and_close!(reason)
     return if closed?
+
+    cancel_active_execution!
+    close_with_reason!(reason)
+  end
+
+  def cancel_active_execution!
+    workflows.active.find_each do |workflow|
+      workflow.cancel! if workflow.may_cancel?
+      workflow.save!
+    end
+
     runs.active.find_each do |run|
       run.cancel! if run.may_cancel?
       run.save!
     end
-    close_with_reason!(reason)
+
+    WorkUnits::Ownership.active_units_for_job(self).each do |unit|
+      unit.mark_terminal!("cancelled") if unit.active?
+    end
   end
 
   # Cancels every other active Workflow on this Job right before "Rebase

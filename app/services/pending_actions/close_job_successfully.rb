@@ -61,15 +61,7 @@ module PendingActions
     end
 
     def cancel_active_execution!(job)
-      job.workflows.active.find_each do |workflow|
-        workflow.cancel! if workflow.may_cancel?
-        workflow.save!
-      end
-
-      job.runs.active.find_each do |run|
-        run.cancel! if run.may_cancel?
-        run.save!
-      end
+      job.cancel_active_execution!
     end
 
     def github_closure_result(job)
