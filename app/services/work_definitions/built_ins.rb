@@ -19,9 +19,22 @@ module WorkDefinitions
     def retry_policy = WorkUnits::RetryPolicies::ResumeStepOrNewWorkflow.new
   end
 
+  module CheckpointPreemptable
+    def preemption_policy = WorkUnits::PreemptionPolicies::Checkpoint.new
+  end
+
+  module CancelPreemptable
+    def preemption_policy = WorkUnits::PreemptionPolicies::Cancel.new
+  end
+
+  module RebuildOnPreempt
+    def preemption_policy = WorkUnits::PreemptionPolicies::Rebuild.new
+  end
+
   class Initial < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "initial"
     self.workflow_trigger_kind = "initial"
@@ -31,6 +44,7 @@ module WorkDefinitions
 
   class PrComment < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "pr_comment"
     self.workflow_trigger_kind = "pr_comment"
@@ -40,6 +54,7 @@ module WorkDefinitions
 
   class ChatFeedback < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "chat_feedback"
     self.workflow_trigger_kind = "chat_feedback"
@@ -49,6 +64,7 @@ module WorkDefinitions
 
   class CiFailure < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "ci_failure"
     self.workflow_trigger_kind = "ci_failure"
@@ -59,6 +75,7 @@ module WorkDefinitions
   class Rebase < Base
     include BlocksCiFailure
     include ResumesFailedSteps
+    include RebuildOnPreempt
 
     self.kind = "rebase"
     self.workflow_trigger_kind = "rebase"
@@ -73,6 +90,7 @@ module WorkDefinitions
   class StackRebase < Base
     include BlocksCiFailure
     include ResumesFailedSteps
+    include RebuildOnPreempt
 
     self.kind = "stack_rebase"
     self.workflow_trigger_kind = "stack_rebase"
@@ -89,6 +107,7 @@ module WorkDefinitions
   class AutoMerge < Base
     include BlocksCiFailure
     include ResumesFailedSteps
+    include RebuildOnPreempt
 
     self.kind = "auto_merge"
     self.workflow_trigger_kind = "auto_merge"
@@ -99,6 +118,7 @@ module WorkDefinitions
   class LandingValidation < Base
     include BlocksCiFailure
     include ManagesOwnJobLifecycle
+    include CancelPreemptable
 
     self.kind = "landing_validation"
     self.workflow_trigger_kind = "landing_validation"
@@ -110,6 +130,7 @@ module WorkDefinitions
   class ExternalPrMerge < Base
     include BlocksCiFailure
     include ResumesFailedSteps
+    include RebuildOnPreempt
 
     self.kind = "external_pr_merge"
     self.workflow_trigger_kind = "external_pr_merge"
@@ -119,6 +140,7 @@ module WorkDefinitions
 
   class MergeTrain < Base
     include BlocksCiFailure
+    include RebuildOnPreempt
 
     self.kind = "merge_train"
     self.workflow_trigger_kind = "merge_train"
@@ -141,6 +163,7 @@ module WorkDefinitions
   class MergeTrainValidation < Base
     include BlocksCiFailure
     include ManagesOwnJobLifecycle
+    include CancelPreemptable
 
     self.kind = "merge_train_validation"
     self.workflow_trigger_kind = "merge_train_validation"
@@ -160,6 +183,7 @@ module WorkDefinitions
   class Retry < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "retry"
     self.workflow_trigger_kind = "retry"
@@ -170,6 +194,7 @@ module WorkDefinitions
   class CheckpointResume < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "checkpoint_resume"
     self.workflow_trigger_kind = "retry"
@@ -181,6 +206,7 @@ module WorkDefinitions
 
   class ManualVisualReview < Base
     include ResumesFailedSteps
+    include CancelPreemptable
 
     self.kind = "manual_visual_review"
     self.workflow_trigger_kind = "manual_visual_review"
@@ -197,6 +223,7 @@ module WorkDefinitions
 
   class Manual < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "manual"
     self.workflow_trigger_kind = "manual"
@@ -206,6 +233,7 @@ module WorkDefinitions
 
   class Resume < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "resume"
     self.workflow_trigger_kind = "resume"
@@ -216,6 +244,7 @@ module WorkDefinitions
   class CodingHandoff < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "coding_handoff"
     self.workflow_trigger_kind = "coding_handoff"
@@ -226,6 +255,7 @@ module WorkDefinitions
   class LocalModeHandoff < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "local_mode_handoff"
     self.workflow_trigger_kind = "local_mode_handoff"
@@ -244,6 +274,7 @@ module WorkDefinitions
     include OpensReviewPullRequest
     include ManagesOwnJobLifecycle
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "main_branch_repair"
     self.workflow_trigger_kind = "main_branch_repair"
@@ -253,6 +284,7 @@ module WorkDefinitions
 
   class ManualAgenticRun < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "manual_agentic_run"
     self.workflow_trigger_kind = "manual_agentic_run"
@@ -269,6 +301,7 @@ module WorkDefinitions
 
   class ExternalPrIngest < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "external_pr_ingest"
     self.workflow_trigger_kind = "external_pr_ingest"
@@ -278,6 +311,7 @@ module WorkDefinitions
 
   class ExternalPrFeedback < Base
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "external_pr_feedback"
     self.workflow_trigger_kind = "external_pr_feedback"
@@ -288,6 +322,7 @@ module WorkDefinitions
   class Skill < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
+    include CheckpointPreemptable
 
     self.kind = "skill"
     self.workflow_trigger_kind = "skill"

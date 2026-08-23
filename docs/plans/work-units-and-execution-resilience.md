@@ -1778,6 +1778,11 @@ Completed slices:
   helpers, Epic-wide workflow locking, WorkUnit blocked-job filtering, and
   runtime ownership adapters consume these policy sets instead of local
   trigger-kind lists.
+- Work definitions now declare concrete preemption policies instead of a single
+  placeholder: agentic job work is checkpoint-resumable, landing/publication
+  and rebase-style units rebuild, short validation/manual-review units cancel,
+  and infrastructure/legacy definitions remain non-preemptible. The registry
+  validator rejects unknown policy modes or resume strategies.
 - Work definitions now declare concrete retry policies. Ordinary retryable
   workflows continue the failed step in place, while merge trains explicitly
   continue safe agentic reconciliation steps and rebuild the train for

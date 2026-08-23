@@ -111,6 +111,71 @@ RSpec.describe WorkDefinitions do
     end
   end
 
+  it "declares preemption policies for workflow families" do
+    checkpoint_kinds = %w[
+      initial
+      pr_comment
+      chat_feedback
+      ci_failure
+      retry
+      checkpoint_resume
+      manual
+      resume
+      coding_handoff
+      local_mode_handoff
+      main_branch_repair
+      manual_agentic_run
+      external_pr_ingest
+      external_pr_feedback
+      skill
+    ]
+    rebuild_kinds = %w[
+      rebase
+      stack_rebase
+      auto_merge
+      external_pr_merge
+      merge_train
+    ]
+    cancel_kinds = %w[
+      landing_validation
+      merge_train_validation
+      manual_visual_review
+    ]
+
+    checkpoint_kinds.each do |kind|
+      policy = described_class.for(kind).preemption_policy
+
+      expect(policy.mode).to eq(:checkpoint)
+      expect(policy).to be_checkpoint
+      expect(policy.resume_strategy).to eq(:checkpoint_resume)
+    end
+
+    rebuild_kinds.each do |kind|
+      policy = described_class.for(kind).preemption_policy
+
+      expect(policy.mode).to eq(:rebuild)
+      expect(policy).not_to be_checkpoint
+      expect(policy.resume_strategy).to eq(:rebuild_unit)
+    end
+
+    cancel_kinds.each do |kind|
+      policy = described_class.for(kind).preemption_policy
+
+      expect(policy.mode).to eq(:cancel)
+      expect(policy).not_to be_checkpoint
+      expect(policy.resume_strategy).to eq(:new_attempt)
+    end
+
+    none_kinds = described_class.registry.keys - checkpoint_kinds - rebuild_kinds - cancel_kinds
+    none_kinds.each do |kind|
+      policy = described_class.for(kind).preemption_policy
+
+      expect(policy.mode).to eq(:none)
+      expect(policy).not_to be_checkpoint
+      expect(policy.resume_strategy).to eq(:none)
+    end
+  end
+
   it "declares review publication steps only for workflows that open review PRs" do
     expected_pr_openers = %w[
       initial

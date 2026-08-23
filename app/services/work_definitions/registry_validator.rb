@@ -46,10 +46,21 @@ module WorkDefinitions
         errors << error(:invalid_unit_gates, "WorkDefinition #{definition.kind.inspect} unit_gates must be an Array") unless definition.unit_gates.is_a?(Array)
         errors << error(:missing_preemption_policy, "WorkDefinition #{definition.kind.inspect} does not expose a preemption policy") if definition.preemption_policy.nil?
         errors << error(:missing_retry_policy, "WorkDefinition #{definition.kind.inspect} does not expose a retry policy") if definition.retry_policy.nil?
+        errors.concat(validate_preemption_policy(definition))
         errors.concat(validate_child_definition(definition))
         errors.concat(validate_template(definition))
         errors
       end
+    end
+
+    def validate_preemption_policy(definition)
+      policy = definition.preemption_policy
+      return [] unless policy
+
+      errors = []
+      errors << error(:invalid_preemption_mode, "WorkDefinition #{definition.kind.inspect} has invalid preemption mode #{policy.mode.inspect}") unless policy.mode.in?(%i[none cancel checkpoint rebuild])
+      errors << error(:invalid_preemption_resume_strategy, "WorkDefinition #{definition.kind.inspect} has invalid preemption resume strategy #{policy.resume_strategy.inspect}") unless policy.resume_strategy.in?(%i[none new_attempt checkpoint_resume rebuild_unit])
+      errors
     end
 
     def validate_child_definition(definition)
