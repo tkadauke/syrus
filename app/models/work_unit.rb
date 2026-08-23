@@ -98,6 +98,8 @@ class WorkUnit < ApplicationRecord
       )
       work_unit_locks.active.find_each(&:release!)
     end
+
+    WorkIntents::TerminalUnitSync.call(self)
   end
 
   def request_pause!

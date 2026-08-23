@@ -8,7 +8,7 @@ module WorkEngine
     RESOURCE_CONGESTION_CHECK_AFTER = 5.minutes
     RATE_LIMIT_CHECK_AFTER = 10.minutes
 
-    AFFECTED_ID_KEYS = %i[job_ids workflow_ids step_ids run_ids work_unit_ids solid_queue_job_ids spawned_process_ids].freeze
+    AFFECTED_ID_KEYS = %i[job_ids workflow_ids step_ids run_ids work_intent_ids work_unit_ids solid_queue_job_ids spawned_process_ids].freeze
     NONRETRYABLE_CLASSIFICATIONS = %w[
       git_conflict
       git_non_fast_forward
@@ -163,7 +163,7 @@ module WorkEngine
       )
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
       @workflows = scoped_workflows.includes(:job, :steps).to_a
-      @work_units = scoped_work_units.includes(:work_unit_locks, :work_unit_members, :workflow).to_a
+      @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, :work_unit_members, :workflow).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
       workflow_steps = @workflows.flat_map(&:steps)
       missing_run_step_ids = @runs.filter_map(&:step_id) - workflow_steps.map(&:id)
@@ -182,6 +182,7 @@ module WorkEngine
       issues.concat(classify_active_steps_with_terminal_runs)
       issues.concat(classify_queued_steps_without_runs)
       issues.concat(classify_workflows)
+      issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
       issues.concat(classify_stale_auto_retry_workflows)
       issues.concat(classify_job_workflow_drift)
@@ -317,7 +318,12 @@ module WorkEngine
         terminal_locked_units = WorkUnit
           .joins(:work_unit_locks)
           .where(state: %w[succeeded failed cancelled], work_unit_locks: { released_at: nil })
-        WorkUnit.where(id: active_units.select(:id)).or(WorkUnit.where(id: terminal_locked_units.select(:id)))
+        succeeded_unsatisfied_units = WorkUnit
+          .joins(:work_intent)
+          .where(state: "succeeded", work_intents: { state: %w[requested waiting] })
+        WorkUnit.where(id: active_units.select(:id))
+          .or(WorkUnit.where(id: terminal_locked_units.select(:id)))
+          .or(WorkUnit.where(id: succeeded_unsatisfied_units.select(:id)))
       end
     end
 
@@ -744,6 +750,41 @@ module WorkEngine
           explanation: "Terminal WorkUnit ##{unit.id} still owns active locks; terminal units must release locks so future work can proceed."
         )
       end
+    end
+
+    def classify_succeeded_work_units_with_unsatisfied_intents
+      work_units.select(&:succeeded?).filter_map do |unit|
+        intent = unit.work_intent
+        next unless intent&.requested? || intent&.waiting?
+
+        active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
+        next if active_sibling_ids.any?
+
+        issue(
+          kind: :succeeded_work_unit_unsatisfied_intent,
+          severity: :error,
+          affected_ids: ids_for(unit).merge(work_intent_ids: [ intent.id ]),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "satisfy_work_intent_from_succeeded_work_unit",
+          evidence: {
+            work_unit_id: unit.id,
+            work_unit_state: unit.state,
+            workflow_id: unit.workflow_id,
+            work_intent_id: intent.id,
+            work_intent_kind: intent.kind,
+            work_intent_state: intent.state,
+            work_intent_wait_reason: intent.wait_reason
+          },
+          explanation: "Succeeded WorkUnit ##{unit.id} completed WorkIntent ##{intent.id}, but the intent is still #{intent.state}."
+        )
+      end
+    end
+
+    def active_work_unit_ids_for_intent(intent, excluding:)
+      intent.work_units
+        .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+        .where.not(id: excluding.id)
+        .pluck(:id)
     end
 
     def stale_auto_retry_attempt_for(workflow)
@@ -1948,7 +1989,7 @@ module WorkEngine
         ids[:work_unit_ids] = [ record.work_unit.id ] if record.work_unit
         ids
       when WorkUnit
-        ids = { work_unit_ids: [ record.id ] }
+        ids = { work_intent_ids: [ record.work_intent_id ], work_unit_ids: [ record.id ] }
         ids[:workflow_ids] = [ record.workflow_id ] if record.workflow_id.present?
         ids[:job_ids] = record.work_unit_members.pluck(:job_id)
         ids

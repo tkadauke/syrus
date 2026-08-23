@@ -140,6 +140,14 @@ module WorkEngine
           end
         end
 
+        def target_work_intent
+          @target_work_intent ||= if plan.target_type == "WorkIntent"
+            WorkIntent.find_by(id: plan.target_id)
+          else
+            WorkIntent.find_by(id: first_id("work_intent_ids")) || target_work_unit&.work_intent
+          end
+        end
+
         def active_epic_wide_workflow_for_job?(job)
           WorkEngine::RuntimeOwnership.active_epic_wide_workflow_for_job?(job)
         end
@@ -714,6 +722,29 @@ module WorkEngine
           else
             success("released #{active_locks.size} active locks for terminal WorkUnit ##{unit.id}")
           end
+        end
+      end
+
+      class SatisfyWorkIntentFromSucceededWorkUnit < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not requested/waiting") unless intent.requested? || intent.waiting?
+
+          unit_id = plan.preconditions["work_unit_id"]
+          unit = WorkUnit.find_by(id: unit_id)
+          return skipped("WorkUnit ##{unit_id} no longer exists") unless unit
+          return skipped("WorkUnit ##{unit.id} belongs to WorkIntent ##{unit.work_intent_id}, not ##{intent.id}") unless unit.work_intent_id == intent.id
+          return skipped("WorkUnit ##{unit.id} is #{unit.state}, not succeeded") unless unit.succeeded?
+
+          active_sibling_ids = intent.work_units
+            .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+            .where.not(id: unit.id)
+            .pluck(:id)
+          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_sibling_ids.inspect}") if active_sibling_ids.any?
+
+          intent.satisfy!
+          success("satisfied WorkIntent ##{intent.id} from succeeded WorkUnit ##{unit.id}")
         end
       end
 

@@ -163,6 +163,10 @@ module WorkEngine
           @primary_work_unit ||= WorkUnit.includes(:work_unit_locks, :work_unit_members, :workflow).find_by(id: first_id(:work_unit_ids))
         end
 
+        def primary_work_intent
+          @primary_work_intent ||= WorkIntent.find_by(id: first_id(:work_intent_ids)) || primary_work_unit&.work_intent
+        end
+
         def primary_run
           @primary_run ||= Run.includes(:step, :job, :provider_session_metadata, :run_failure_classification).find_by(id: first_id(:run_ids))
         end
@@ -1060,6 +1064,22 @@ module WorkEngine
               work_unit_state: %w[succeeded failed cancelled],
               active_lock_ids: issue.evidence["active_lock_ids"],
               active_lock_keys: issue.evidence["active_lock_keys"]
+            }
+          )
+        end
+      end
+
+      class SucceededWorkUnitUnsatisfiedIntent < Base
+        def plan
+          automatic_plan(
+            "satisfy_work_intent_from_succeeded_work_unit",
+            primary_work_intent,
+            "The WorkUnit succeeded and no active sibling Unit remains for the same Intent, so mark the desired work satisfied.",
+            execution_steps: [ "WorkIntent#satisfy!" ],
+            preconditions: {
+              work_intent_state: %w[requested waiting],
+              work_unit_id: issue.evidence["work_unit_id"],
+              work_unit_state: "succeeded"
             }
           )
         end

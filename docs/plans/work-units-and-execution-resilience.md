@@ -1722,6 +1722,11 @@ Completed slices:
   classification, and repair execution. Main-health repair release and landing
   backoff checks no longer require legacy Workflow start-block artifacts when
   the WorkUnit carries the authoritative block.
+- Succeeded WorkUnits now satisfy their WorkIntent when no active sibling Unit
+  remains, and the reconciler detects/repairs old drift where a terminal
+  successful Unit left its Intent in `requested` or `waiting`. This covers one
+  concrete form of "Intent with only terminal Units is satisfied" without
+  prematurely deciding failed/cancelled retry semantics.
 
 ### Phase 6: Work Definition Policies
 
