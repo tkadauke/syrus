@@ -173,5 +173,65 @@ RSpec.describe PreviewWorkspace do
     ensure
       FileUtils.rm_rf(source_path) if source_path
     end
+
+    it "checks out the Job's merged commit sha when revision: :commit_sha is given (post-land preview)" do
+      source_path = init_source_repo
+      branch_from(source_path, "feature", from: "main")
+      write_commit(source_path, "feature.txt", "feature work")
+      run_git(source_path, "checkout", "--quiet", "main")
+      run_git(source_path, "merge", "--quiet", "--no-ff", "-m", "Merge feature", "feature")
+      merge_sha = head_sha(source_path)
+
+      repository = Factories.repository(default_branch: "main")
+      job = Factories.job_record(
+        repository: repository, branch_name: "feature", state: "closed", landed_sha: merge_sha
+      )
+      preview_environment = PreviewEnvironment.create!(job: job, state: "starting")
+      stub_repository!(repository, source_path)
+
+      described_class.prepare!(preview_environment, git: GitRunner.new, revision: :commit_sha)
+
+      expect(head_sha(preview_environment.reload.workspace_path)).to eq(merge_sha)
+    ensure
+      FileUtils.rm_rf(source_path) if source_path
+    end
+
+    it "checks out the merged commit sha by cloning the default branch even after the source branch is deleted" do
+      source_path = init_source_repo
+      branch_from(source_path, "feature", from: "main")
+      write_commit(source_path, "feature.txt", "feature work")
+      run_git(source_path, "checkout", "--quiet", "main")
+      run_git(source_path, "merge", "--quiet", "--no-ff", "-m", "Merge feature", "feature")
+      merge_sha = head_sha(source_path)
+      run_git(source_path, "branch", "-D", "feature")
+
+      repository = Factories.repository(default_branch: "main")
+      job = Factories.job_record(
+        repository: repository, branch_name: "feature", state: "closed", landed_sha: merge_sha
+      )
+      preview_environment = PreviewEnvironment.create!(job: job, state: "starting")
+      stub_repository!(repository, source_path)
+
+      described_class.prepare!(preview_environment, git: GitRunner.new, revision: :commit_sha)
+
+      expect(head_sha(preview_environment.reload.workspace_path)).to eq(merge_sha)
+    ensure
+      FileUtils.rm_rf(source_path) if source_path
+    end
+
+    it "raises when the job has no merged commit sha for revision: :commit_sha" do
+      source_path = init_source_repo
+
+      repository = Factories.repository(default_branch: "main")
+      job = Factories.job_record(repository: repository, branch_name: "feature", state: "closed", landed_sha: nil)
+      preview_environment = PreviewEnvironment.create!(job: job, state: "starting")
+      stub_repository!(repository, source_path)
+
+      expect {
+        described_class.prepare!(preview_environment, git: GitRunner.new, revision: :commit_sha)
+      }.to raise_error(/no merged commit sha/)
+    ensure
+      FileUtils.rm_rf(source_path) if source_path
+    end
   end
 end
