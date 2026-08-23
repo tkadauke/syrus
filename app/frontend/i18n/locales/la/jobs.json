@@ -575,6 +575,5 @@
   "preview_logs_close": "Claude",
   "preview_fix_button": "Corrige praevisum",
   "preview_fix_job_title": "Corrige praevisum: per vicarium praevisi non attingibile",
-  "preview_fix_prompt": "Instrumentum praevisi Syri diagnosticavit processum praevisi huius repositorii non attingibilem esse:\n\n\"{{error_message}}\"\n\nApplicatio incipit et probationem salutis localem superat, sed ex hospite retis quo vicarius praevisi Syri utitur attingi non potest. Hoc fere semper significat mandatum initiandi praevisum servum tantum ad 127.0.0.1/localhost, non ad omnes interfacies, alligare.\n\nQuaeso corrige mandatum initiandi praevisum huius repositorii (in `.syrus.yml` sub `preview.start`, vel in scripto simili initiandi servi provisionalis) ut applicatio ad 0.0.0.0 alligetur, portu a Syro praebito adhuc auscultante. Remedia communia: da mandato servi optionem `-b 0.0.0.0` / `--host 0.0.0.0`, vel muta hospitem alligationis 127.0.0.1/localhost fixum in codice vel configuratione ad 0.0.0.0. Confirma correctionem usum localem solitum non vitiare.",
   "preview_fix_error": "Opus corrigendi praevisum creari non potuit."
 }
