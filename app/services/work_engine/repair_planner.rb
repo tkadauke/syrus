@@ -835,6 +835,16 @@ module WorkEngine
         end
       end
 
+      class FailedJobActiveRepairWork < Base
+        def plan
+          waiting_plan(
+            "monitor_active_repair_work",
+            "The Job is failed, but a repair workflow is already active; wait for that work to finish before applying terminal repair.",
+            target: primary_job
+          )
+        end
+      end
+
       class JobWithoutActiveWorkflow < Base
         def plan
           operator_plan(

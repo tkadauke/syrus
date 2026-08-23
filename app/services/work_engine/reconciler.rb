@@ -197,6 +197,7 @@ module WorkEngine
       issues.concat(classify_active_child_work_units_with_terminal_parents)
       issues.concat(classify_stale_auto_retry_workflows)
       issues.concat(classify_job_workflow_drift)
+      issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_jobs_without_active_workflows)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
       issues.concat(classify_queued_jobs_cancelled_without_active_workflow)
@@ -1015,9 +1016,10 @@ module WorkEngine
 
     def classify_job_workflow_drift
       jobs.filter_map do |job|
-        active = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
+        active = active_runtime_workflows_for_job(job)
         next if active.empty? || job.closed? || %w[queued running landing coding approved].include?(job.state)
         next if job.failed? && job.latest_workflow&.queued? && ReconcileJobStatesJob::Plan.for(job)
+        next if job.failed? && active_repair_workflows?(active)
         next if active.all? { |workflow| expected_start_blocked_workflow?(job, workflow) }
 
         issue(
@@ -1030,6 +1032,56 @@ module WorkEngine
           explanation: "Job ##{job.id} is #{job.state} while it still has active Workflows."
         )
       end
+    end
+
+    def classify_failed_jobs_with_active_repair_work
+      jobs.filter_map do |job|
+        next unless job.failed?
+
+        active = active_runtime_workflows_for_job(job)
+        repair_workflows = active.select { |workflow| repair_workflow?(workflow) }
+        next if repair_workflows.empty?
+
+        units = active_work_units_for_job(job)
+        issue(
+          kind: :failed_job_active_repair_work,
+          severity: :info,
+          affected_ids: ids_for(job).merge(
+            workflow_ids: repair_workflows.map(&:id),
+            work_unit_ids: units.select { |unit| repair_workflow?(unit.workflow) || repair_work_unit?(unit) }.map(&:id)
+          ),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "monitor_active_repair_work",
+          evidence: {
+            job_state: job.state,
+            active_repair_workflows: repair_workflows.map { |workflow| [ workflow.id, workflow.trigger_kind, workflow.state ] },
+            active_work_units: units.map { |unit| [ unit.id, unit.kind, unit.state, unit.workflow_id ] }
+          },
+          explanation: "Job ##{job.id} is failed, but active repair work is already running or queued."
+        )
+      end
+    end
+
+    def active_runtime_workflows_for_job(job)
+      @active_runtime_workflows_for_job ||= {}
+      @active_runtime_workflows_for_job[job.id] ||= job.active_runtime_workflows
+    end
+
+    def active_work_units_for_job(job)
+      @active_work_units_for_job ||= {}
+      @active_work_units_for_job[job.id] ||= WorkUnits::Ownership.active_units_for_job(job)
+    end
+
+    def active_repair_workflows?(workflows)
+      workflows.any? { |workflow| repair_workflow?(workflow) }
+    end
+
+    def repair_workflow?(workflow)
+      workflow&.trigger_kind.in?(%w[retry ci_failure chat_feedback pr_comment manual])
+    end
+
+    def repair_work_unit?(unit)
+      unit&.kind.in?(%w[retry ci_failure chat_feedback pr_comment manual])
     end
 
     def expected_start_blocked_workflow?(job, workflow)

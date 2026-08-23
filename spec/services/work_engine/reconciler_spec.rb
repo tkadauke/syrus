@@ -2691,6 +2691,44 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.affected_ids[:workflow_ids]).to include(workflow.id)
   end
 
+  it "classifies failed Jobs with active repair workflows without reporting generic state drift" do
+    workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    workflow.work_unit&.mark_terminal!("failed")
+    repair = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+    job.update_columns(state: "failed")
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :failed_job_active_repair_work)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+    expect(issue).to have_attributes(
+      severity: "info",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "monitor_active_repair_work"
+    )
+    expect(issue.affected_ids[:workflow_ids]).to eq([ repair.id ])
+    expect(issue.affected_ids[:work_unit_ids]).to eq([ repair.work_unit.id ])
+    expect(plan(result, :monitor_active_repair_work)).to have_attributes(
+      auto_executable: false,
+      target_type: "Job",
+      target_id: job.id
+    )
+  end
+
+  it "classifies failed Jobs with active cross-job repair WorkUnit ownership" do
+    owner = Factories.job_record(user: job.user, repository: job.repository, state: "failed", issue_number: 701)
+    member = Factories.job_record(user: job.user, repository: job.repository, state: "failed", issue_number: 702)
+    repair = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: owner)
+    repair.work_unit.work_unit_members.create!(job: member, role: "member")
+
+    result = reconcile(job_id: member.id)
+    issue = kind(result, :failed_job_active_repair_work)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+    expect(issue.affected_ids[:workflow_ids]).to eq([ repair.id ])
+    expect(issue.affected_ids[:work_unit_ids]).to eq([ repair.work_unit.id ])
+  end
+
   it "does not classify terminal workflow state drift while active WorkUnit ownership exists" do
     workflow.update_columns(state: "succeeded", finished_at: 5.minutes.ago)
     step.update_columns(state: "succeeded", finished_at: 5.minutes.ago)
