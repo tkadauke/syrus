@@ -728,6 +728,7 @@ RSpec.describe App::JobDetailPayload do
       first = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
       second = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 102)
       workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
+      Step.create!(workflow: workflow, kind: "merge_train_build", position: 1, state: "running")
       unit = attach_work_unit(workflow, member_jobs: [ first, second ], kind: "merge_train")
 
       payload = workflows_payload_for(second)
@@ -744,9 +745,38 @@ RSpec.describe App::JobDetailPayload do
           workflow_attached_job_id: first.id,
           member_role: "member",
           scope_type: "epic",
-          scope_id: epic.id
+          scope_id: epic.id,
+          workflow: include(
+            id: workflow.id,
+            trigger_kind: "merge_train",
+            steps: include(include(kind: "merge_train_build"))
+          )
         )
       )
+    end
+
+    it "renders WorkUnit-owned direct workflows only under their WorkUnit" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "initial")
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:workflows)).to be_empty
+      expect(payload.fetch(:work_units).map { |unit| unit.dig(:workflow, :id) }).to eq([ workflow.id ])
+      expect(payload.dig(:work_units, 0, :workflow, :steps).map { |step| step[:kind] }).to include("implement")
+    end
+
+    it "keeps legacy workflows without WorkUnit ownership in the fallback workflow list" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:work_units)).to be_empty
+      expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
     end
 
     it "includes generic WorkflowWarning rows on the owning step, redacted" do

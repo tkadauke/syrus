@@ -1636,6 +1636,10 @@ Completed slices:
 - Dashboard and Job detail start-blocked metadata now fall back to blocked
   WorkUnit reason/details/next wakeup data, so WorkUnit-paused jobs explain
   why they are paused even when no legacy Workflow artifact exists.
+- The Job Workflows tab API now nests Workflow traces under WorkUnits and keeps
+  the top-level Workflow list as the legacy fallback for direct workflows
+  without WorkUnit ownership, so cross-job units such as merge-train member work
+  are diagnosable from every member Job without duplicate rendering.
 
 ### Phase 5: Reconciler Simplification
 

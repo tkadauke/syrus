@@ -40,7 +40,7 @@ export function WorkflowsTab({ payload, command, prefix, loading = false, error 
 
   return (
     <div className="space-y-4">
-      <WorkUnitsPanel units={workUnits} prefix={prefix} />
+      <WorkUnitsPanel command={command} payload={payload} prefix={prefix} units={workUnits} />
       <WorkflowsPagination payload={payload} prefix={prefix} />
       {payload.workflows.map((workflow) => <WorkflowCard command={command} key={workflow.id} payload={payload} prefix={prefix} workflow={workflow} />)}
       <WorkflowsPagination payload={payload} prefix={prefix} />
@@ -48,7 +48,7 @@ export function WorkflowsTab({ payload, command, prefix, loading = false, error 
   )
 }
 
-function WorkUnitsPanel({ units, prefix }: { units: JobWorkUnit[]; prefix: string }) {
+function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUnit[]; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   if (units.length === 0) return null
 
   return (
@@ -57,37 +57,44 @@ function WorkUnitsPanel({ units, prefix }: { units: JobWorkUnit[]; prefix: strin
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Work attempts</h3>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {units.map((unit) => <WorkUnitRow key={unit.id} prefix={prefix} unit={unit} />)}
+        {units.map((unit) => <WorkUnitRow command={command} key={unit.id} payload={payload} prefix={prefix} unit={unit} />)}
       </div>
     </section>
   )
 }
 
-function WorkUnitRow({ unit, prefix }: { unit: JobWorkUnit; prefix: string }) {
+function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
   const workflowAnchor = unit.workflow_id ? `#workflow-${unit.workflow_id}` : ""
   const workflowPath = unit.workflow_id ? withRoutePrefix(`/jobs/${unit.workflow_attached_job_id || ""}?tab=workflows${workflowAnchor}`, prefix) : null
   const label = humanize(unit.kind)
   const membership = unit.member_role === "member" ? "member" : "primary"
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
-          <SmallPill>{membership}</SmallPill>
-          {unit.blocked_reason ? <SmallPill>{humanize(unit.blocked_reason)}</SmallPill> : null}
+    <div className="px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
+            <SmallPill>{membership}</SmallPill>
+            {unit.blocked_reason ? <SmallPill>{humanize(unit.blocked_reason)}</SmallPill> : null}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>WU-{unit.id}</span>
+            {workflowPath ? (
+              <Link className="underline hover:no-underline" to={workflowPath}>{unit.workflow_slug || workflowSlug(unit.workflow_id!)}</Link>
+            ) : (
+              <span>No workflow attached</span>
+            )}
+            {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to JOB-{unit.workflow_attached_job_id}</span> : null}
+          </div>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <span>WU-{unit.id}</span>
-          {workflowPath ? (
-            <Link className="underline hover:no-underline" to={workflowPath}>{unit.workflow_slug || workflowSlug(unit.workflow_id!)}</Link>
-          ) : (
-            <span>No workflow attached</span>
-          )}
-          {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to JOB-{unit.workflow_attached_job_id}</span> : null}
-        </div>
+        <StatusPill state={unit.state} />
       </div>
-      <StatusPill state={unit.state} />
+      {unit.workflow ? (
+        <div className="mt-3">
+          <WorkflowCard command={command} payload={payload} prefix={prefix} workflow={unit.workflow} />
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -500,6 +500,7 @@ export type JobWorkUnit = {
   blocked_reason: string | null
   blocked_until: string | null
   blocked_details: Record<string, unknown> | null
+  workflow?: JobWorkflow | null
   current_step?: {
     id: number
     kind: string

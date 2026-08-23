@@ -74,6 +74,7 @@ module App
           blocked_reason: unit.blocked_reason,
           blocked_until: iso8601(unit.blocked_until),
           blocked_details: unit.blocked_details.presence,
+          workflow: workflow ? workflow_json(workflow) : nil,
           created_at: iso8601(unit.created_at),
           started_at: iso8601(unit.started_at),
           finished_at: iso8601(unit.finished_at)
@@ -205,11 +206,12 @@ module App
 
       def workflows_scope
         @job.workflows
+            .where.not(id: work_unit_workflow_ids_for_job)
             .reorder(created_at: :desc, id: :desc)
       end
 
       def total_workflows
-        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { @job.workflows.count }
+        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { workflows_scope.count }
       end
 
       def workflows_page
@@ -234,8 +236,8 @@ module App
       end
 
       def steps_by_workflow_id
-        @steps_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.steps.query", job_id: @job.id, workflow_count: paginated_workflows.size) do
-          ids = paginated_workflows.map(&:id)
+        @steps_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.steps.query", job_id: @job.id, workflow_count: serialized_workflows.size) do
+          ids = serialized_workflows.map(&:id)
           next {} if ids.empty?
 
           steps = Step
@@ -252,9 +254,21 @@ module App
 
       def step_counts_by_workflow_id
         @step_counts_by_workflow_id ||= begin
-          ids = paginated_workflows.map(&:id)
+          ids = serialized_workflows.map(&:id)
           ids.empty? ? {} : Step.where(workflow_id: ids).group(:workflow_id).count
         end
+      end
+
+      def serialized_workflows
+        @serialized_workflows ||= (paginated_workflows + work_unit_workflows_for_job).uniq(&:id)
+      end
+
+      def work_unit_workflows_for_job
+        @work_unit_workflows_for_job ||= work_unit_members_for_job.filter_map { |member| member.work_unit.workflow }
+      end
+
+      def work_unit_workflow_ids_for_job
+        @work_unit_workflow_ids_for_job ||= work_unit_workflows_for_job.map(&:id)
       end
 
       def ordered_runs_for(step)
