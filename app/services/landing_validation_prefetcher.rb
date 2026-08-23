@@ -47,12 +47,13 @@ class LandingValidationPrefetcher
 
   attr_reader :workflow, :job, :git
 
-  TargetUnit = Data.define(:kind, :key, :jobs, :artifacts) do
+  TargetUnit = Data.define(:kind, :key, :jobs, :artifacts, :parent_work_unit) do
     def instantiate(seed_artifacts)
       WorkUnits::Launcher.instantiate(
         kind: work_definition_kind,
         job: workflow_job,
-        artifacts: seed_artifacts.merge(artifacts)
+        artifacts: seed_artifacts.merge(artifacts),
+        parent_work_unit: parent_work_unit
       )
     end
 
@@ -133,6 +134,7 @@ class LandingValidationPrefetcher
       kind: "job",
       key: unit.key,
       jobs: [ candidate ],
+      parent_work_unit: workflow.work_unit,
       artifacts: candidate_identity(candidate).merge(
         "prefetch_landing_unit_key" => unit.key,
         "prefetch_landing_unit_kind" => "job"
@@ -154,6 +156,7 @@ class LandingValidationPrefetcher
       kind: "merge_train",
       key: unit.key,
       jobs: result.members,
+      parent_work_unit: workflow.work_unit,
       artifacts: {
         "prefetch_landing_unit_key" => unit.key,
         "prefetch_landing_unit_kind" => "merge_train",
@@ -196,6 +199,7 @@ class LandingValidationPrefetcher
       kind: "job_bundle",
       key: unit.key,
       jobs: result.members,
+      parent_work_unit: workflow.work_unit,
       artifacts: {
         "prefetch_landing_unit_key" => unit.key,
         "prefetch_landing_unit_kind" => "job_bundle",

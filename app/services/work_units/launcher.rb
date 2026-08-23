@@ -146,6 +146,7 @@ module WorkUnits
       @source_id = source_id
       @options = options
       @member_jobs_override = Array(@options.delete(:member_jobs)).presence
+      @parent_work_unit = @options.delete(:parent_work_unit)
       @existing_intent = existing_intent
       @scope = @definition.scope_for(job: job, artifacts: payload_artifacts, **options)
       @member_jobs = @member_jobs_override || @definition.members_for(job: job, artifacts: payload_artifacts, **options)
@@ -170,7 +171,7 @@ module WorkUnits
 
     private
 
-    attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options, :ref_metadata, :existing_intent
+    attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options, :ref_metadata, :existing_intent, :parent_work_unit
 
     def find_or_create_intent!
       return existing_intent if existing_intent
@@ -215,6 +216,7 @@ module WorkUnits
         repository: job.repository,
         scope_type: scope_type,
         scope_id: scope_id,
+        parent_work_unit: parent_work_unit,
         **unit_ref_metadata_attributes(intent)
       )
     end

@@ -81,6 +81,7 @@ RSpec.describe LandingValidationPrefetcher do
 
   it "dispatches a landing_validation workflow for the next eligible job when enabled" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    source_unit = active_work_unit_for(source_job, kind: "auto_merge", workflow: workflow)
 
     expect {
       described_class.after_landing_graders_passed(workflow: workflow)
@@ -97,6 +98,7 @@ RSpec.describe LandingValidationPrefetcher do
       "prefetch_candidate_head_sha" => "candidate-head"
     )
     expect(prefetch.work_unit).to be_present
+    expect(prefetch.work_unit.parent_work_unit).to eq(source_unit)
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
@@ -123,6 +125,7 @@ RSpec.describe LandingValidationPrefetcher do
     second = approved_job(issue_number: 11, approved_at: 30.seconds.ago).tap do |job|
       job.update!(epic: epic, branch_name: "syrus/issue-11-#{job.id}", parent_job: first)
     end
+    source_unit = active_work_unit_for(source_job, kind: "merge_train", workflow: workflow)
 
     expect {
       described_class.after_landing_graders_passed(workflow: workflow)
@@ -140,6 +143,7 @@ RSpec.describe LandingValidationPrefetcher do
       "predicted_base_ref" => repository.default_branch
     )
     expect(prefetch.work_unit).to be_present
+    expect(prefetch.work_unit.parent_work_unit).to eq(source_unit)
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
@@ -188,6 +192,7 @@ RSpec.describe LandingValidationPrefetcher do
 
     first = approved_job(issue_number: 10, approved_at: 1.minute.ago)
     second = approved_job(issue_number: 11, approved_at: 30.seconds.ago)
+    source_unit = active_work_unit_for(source_job, kind: "job_bundle", workflow: workflow)
 
     expect {
       described_class.after_landing_graders_passed(workflow: workflow)
@@ -207,6 +212,7 @@ RSpec.describe LandingValidationPrefetcher do
     expect(prefetch.work_unit.kind).to eq("job_bundle_validation")
     expect(prefetch.work_unit.scope_type).to eq("repository")
     expect(prefetch.work_unit.member_jobs).to contain_exactly(first, second)
+    expect(prefetch.work_unit.parent_work_unit).to eq(source_unit)
     expect(WorkUnits::Launcher).to have_received(:start!).with(prefetch)
   end
 
