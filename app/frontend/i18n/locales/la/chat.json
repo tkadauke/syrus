@@ -291,6 +291,8 @@
   "tab_diff": "Differentia Localis",
   "tab_jobs": "Opera",
   "tab_preview": "Prospectus",
+  "tab_plugin": "Instrumentum",
+  "plugin_tab_unavailable": "Haec tabula non praesto est.",
   "tab_chat": "Colloquium",
   "aria_close_preview_panel": "Prospectum claudere: {{title}}",
   "mark_as_read": "Signa ut lectum",
