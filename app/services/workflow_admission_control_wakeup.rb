@@ -18,7 +18,7 @@ class WorkflowAdmissionControlWakeup
   def wake_deferred_workflows
     WorkflowAdmissionCapacityWakeup.sleeper_workflows
       .map do |workflow|
-        WorkflowPhaseAdmissionJob.perform_later(workflow.id)
+        WorkflowPhaseAdmissionJob.enqueue_once(workflow.id)
         workflow.id
       end
   end

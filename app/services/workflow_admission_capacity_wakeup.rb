@@ -54,7 +54,7 @@ class WorkflowAdmissionCapacityWakeup
 
   def call
     workflow_ids = deferred_workflow_ids
-    workflow_ids.each { |workflow_id| WorkflowPhaseAdmissionJob.perform_later(workflow_id) }
+    workflow_ids.each { |workflow_id| WorkflowPhaseAdmissionJob.enqueue_once(workflow_id) }
     LandingQueueProcessorJob.perform_later if workflow_ids.any?
     Result.new(workflow_ids: workflow_ids)
   end

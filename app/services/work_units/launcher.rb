@@ -95,9 +95,9 @@ module WorkUnits
       wait_until = gate_result.retry_at
       priority = workflow.job.solid_queue_priority
       if wait_until&.future?
-        WorkflowPhaseAdmissionJob.set(wait_until: wait_until, priority: priority).perform_later(workflow.id)
+        WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait_until: wait_until, priority: priority)
       else
-        WorkflowPhaseAdmissionJob.set(wait: StepDispatcher::START_BLOCKED_BACKOFF, priority: priority).perform_later(workflow.id)
+        WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: StepDispatcher::START_BLOCKED_BACKOFF, priority: priority)
       end
 
       return unless workflow.landing_workflow?

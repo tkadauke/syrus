@@ -10,7 +10,7 @@ class ProviderAvailabilityWakeup
 
   def call
     provider_paused_workflows.each do |workflow|
-      WorkflowPhaseAdmissionJob.perform_later(workflow.id)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id)
     end
     LandingQueueProcessorJob.perform_later if provider_paused_workflows.any?(&:landing_workflow?)
   end
