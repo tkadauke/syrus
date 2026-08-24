@@ -65,6 +65,11 @@ module AgentProviders
       provider
     end
 
+    # Refreshes this provider's cached usage snapshot when it looks stale.
+    # Providers with no usage probe (the default) do nothing.
+    def self.refresh_stale_usage!(user:, now: Time.current)
+    end
+
     def provider
       self.class.provider
     end

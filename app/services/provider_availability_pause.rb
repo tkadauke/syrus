@@ -86,18 +86,9 @@ class ProviderAvailabilityPause
   end
 
   def refresh_stale_usage
-    case provider
-    when "codex"
-      return unless user.codex_auth_mode == "chatgpt_login"
-      return unless CodexUsageProbe.stale?(user, now: now)
-
-      CodexUsageProbe.refresh_for(user: user)
-    when "claude"
-      return unless user.claude_oauth_token.present?
-      return unless ClaudeUsageProbe.stale?(user, now: now)
-
-      ClaudeUsageProbe.refresh_for(user: user)
-    end
+    AgentProviders.for(provider).refresh_stale_usage!(user: user, now: now)
+  rescue AgentProviders::ConfigurationError
+    nil
   end
 
   def usage_exhausted?(availability)
