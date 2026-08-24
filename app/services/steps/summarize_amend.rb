@@ -47,10 +47,7 @@ module Steps
     end
 
     def upstream_agentic_run
-      workflow.steps.where(kind: %w[respond analyze_and_fix manual_agentic_run])
-        .order(:position)
-        .flat_map { |step| step.runs.select(&:succeeded?) }
-        .max_by(&:created_at)
+      latest_succeeded_run_for(%w[respond analyze_and_fix manual_agentic_run])
     end
 
     def promote_artifacts!(from: nil)

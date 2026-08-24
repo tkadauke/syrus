@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { memo, useState } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
@@ -11,6 +11,7 @@ import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { Markdown, PlainText } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
@@ -278,17 +279,12 @@ export function shouldAnimateMessageEntrance(messageId: number | null | undefine
 // absolutely-positioned overlay (which would stack and overlap).
 function MessageActions({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
+  const { copied, copy } = useCopyToClipboard()
 
   if (!item.text) return null
 
   function handleCopy() {
-    void navigator.clipboard.writeText(item.text).then(() => {
-      setCopied(true)
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-    })
+    copy(item.text)
   }
 
   return (

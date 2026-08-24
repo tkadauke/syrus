@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   createAdminInvitation,
   fetchAdminInvitations,
@@ -11,6 +11,7 @@ import {
 } from "../api/adminInvitations"
 import { CopyIcon } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
+import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 
@@ -124,7 +125,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useCopyToClipboard()
   const revoke = useMutation({
     mutationFn: () => revokeAdminInvitation(invitation.id),
     onSuccess: (payload: AdminInvitationsPayload) => {
@@ -134,15 +135,8 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
     onSettled: () => setConfirming(false)
   })
 
-  useEffect(() => {
-    if (!copied) return
-    const timeout = window.setTimeout(() => setCopied(false), 1500)
-    return () => window.clearTimeout(timeout)
-  }, [copied])
-
   function copyUrl() {
-    navigator.clipboard.writeText(invitation.share_url)
-    setCopied(true)
+    copy(invitation.share_url)
     onNotice(t("invitations.link_copied"))
   }
 

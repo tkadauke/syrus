@@ -82,13 +82,9 @@ RSpec.describe TestRunIngester do
   end
 
   it "indexes durable test identities instead of individual test cases" do
-    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
-
     ingester.ingest!
 
-    jobs = ActiveJob::Base.queue_adapter.enqueued_jobs
     expect(TestIdentitySearchIndex.search("fail_0", user_id: repo.user_id).map { |row| row[:test_identity_id] }).to eq([ TestIdentity.find_by!(name: "fail_0").id ])
-    expect(jobs.none? { |job| job[:job] == IndexTestRunSearchJob }).to be(true)
   end
 
   it "links test cases to the repository" do

@@ -97,6 +97,7 @@ import { PinIcon } from "../components/PinIcon"
 import { newestPins, useChatPins, useHasPins } from "./chat/pins"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
@@ -1091,9 +1092,7 @@ function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { 
 
 function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const { t } = useT("chat")
-  const [copied, setCopied] = useState(false)
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
+  const { copied, copy } = useCopyToClipboard(2000)
 
   const daemonState = payload.chat.local_daemon_state ?? null
   const chatId = payload.chat.id
@@ -1114,10 +1113,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
 
   function copyCommand() {
     if (!command) return
-    void navigator.clipboard.writeText(command).then(() => {
-      setCopied(true)
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
-    })
+    copy(command)
   }
 
   if (daemonState === "connected") return null

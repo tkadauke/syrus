@@ -67,10 +67,7 @@ module Steps
     end
 
     def successful_implement_run
-      workflow.steps.where(kind: UPSTREAM_AGENT_STEP_KINDS)
-        .order(:position)
-        .flat_map { |step| step.runs.select(&:succeeded?) }
-        .max_by(&:created_at)
+      latest_succeeded_run_for(UPSTREAM_AGENT_STEP_KINDS)
     end
 
     def missing_required_implement_run?
