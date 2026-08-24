@@ -770,7 +770,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
-          <IssueMetadata job={job} />
+          {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
@@ -811,7 +811,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
-          <IssueMetadata job={job} />
+          {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
