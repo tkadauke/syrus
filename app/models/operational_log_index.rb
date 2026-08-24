@@ -5,6 +5,7 @@ class OperationalLogIndex < SearchRecord
   FALLBACK_SEARCH_SCAN_LIMIT = 1_000
   STALE_AFTER = 5.minutes
   FRESHNESS_CHECK_INTERVAL = 2.minutes
+  REBUILD_BATCH_SIZE = 1_000
 
   class << self
     def upsert(event)
@@ -164,14 +165,20 @@ class OperationalLogIndex < SearchRecord
     end
 
     # Repopulates the FTS table from the primary-DB events after the table is
-    # (re)created — first boot on a fresh search volume, or a schema-drift
+    # (re)created — first boot on a fresh search volume, a schema-drift
     # rebuild (see SyrusSearchDatabaseTasks::REBUILD_HOOKS, called from both
-    # branches of #ensure_required_tables!). Retention is short (6 hours) so a
-    # full re-scan is cheap.
+    # branches of #ensure_required_tables!), or a runtime drift self-heal
+    # (see #ensure_fresh!, which can run synchronously inside a search call).
+    # Retention is only 6 hours, but a busy instance can still have tens of
+    # thousands of events in that window, so this batches through
+    # upsert_many (one transaction per batch) instead of looping upsert
+    # (one transaction, and one fsync, per row) — the difference between a
+    # sub-second rebuild and one that blocks a search for minutes.
     def rebuild!
-      OperationalLogEvent.where(occurred_at: OperationalLogEvent::RETENTION.ago..).find_each do |event|
-        upsert(event)
-      end
+      OperationalLogEvent.where(occurred_at: OperationalLogEvent::RETENTION.ago..)
+        .find_in_batches(batch_size: REBUILD_BATCH_SIZE) do |batch|
+          upsert_many(batch, delete_ids: batch.map(&:id))
+        end
     end
 
     private
