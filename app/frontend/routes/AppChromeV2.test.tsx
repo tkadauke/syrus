@@ -103,15 +103,59 @@ describe("AppChromeV2", () => {
           bug_report_mode: null,
           report_issue_repo_slug: "tkadauke/syrus",
           mode: "simple",
-          mode_configured: true
+          mode_configured: true,
+          legacy_epics_visible: false
         }
       })
     })
 
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard/epics")
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard/jobs")
     expect(screen.queryByRole("link", { name: "Schedules" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Jobs" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Workflows" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Epics" })).not.toBeInTheDocument()
+  })
+
+  it("shows a legacy Epics nav link in simple mode only while the user has a non-terminal legacy Epic", () => {
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/dashboard"],
+      bootstrap: bootstrapPayload({
+        app: {
+          revision: "dev",
+          revision_url: null,
+          version: null,
+          built_at: null,
+          bug_report_mode: null,
+          report_issue_repo_slug: "tkadauke/syrus",
+          mode: "simple",
+          mode_configured: true,
+          legacy_epics_visible: true
+        }
+      })
+    })
+
+    expect(screen.getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/dashboard/epics")
+  })
+
+  it("does not show the legacy Epics nav link in advanced mode even when legacy_epics_visible is true", () => {
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/dashboard"],
+      bootstrap: bootstrapPayload({
+        app: {
+          revision: "dev",
+          revision_url: null,
+          version: null,
+          built_at: null,
+          bug_report_mode: null,
+          report_issue_repo_slug: "tkadauke/syrus",
+          mode: "advanced",
+          mode_configured: true,
+          legacy_epics_visible: true
+        }
+      })
+    })
+
+    expect(screen.queryByRole("link", { name: "Epics" })).not.toBeInTheDocument()
   })
 
   it("hides smart folder save controls in the chrome sidebar when row context is absent", async () => {

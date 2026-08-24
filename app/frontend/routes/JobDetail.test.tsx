@@ -42,7 +42,8 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       bug_report_mode: null,
       report_issue_repo_slug: "owner/repo",
       mode: "advanced" as const,
-      mode_configured: false
+      mode_configured: false,
+      legacy_epics_visible: false
     },
     setup_status: null,
     public: {
@@ -702,6 +703,62 @@ describe("JobDetailView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Job already has active feedback.")
+    expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
+  })
+
+  it("renders the Request changes button when the action is allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_request_changes: true }
+    }))
+
+    expect(screen.getByRole("button", { name: "Request changes" })).toBeInTheDocument()
+  })
+
+  it("hides the Request changes button when the action is not allowed", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "running", summary_state: "running" },
+      actions: { ...jobPayload().actions, can_request_changes: false }
+    }))
+
+    expect(screen.queryByRole("button", { name: "Request changes" })).not.toBeInTheDocument()
+  })
+
+  it("submits a request-changes Job, collapses the panel, and shows a success notice", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Created a new Job to track this feedback." }, 200))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_request_changes: true }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "Tighten the copy." } })
+    fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/request_changes", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ feedback: "Tighten the copy." })
+      }))
+    })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
+    })
+    expect(screen.getByText("Created a new Job to track this feedback.")).toBeInTheDocument()
+  })
+
+  it("shows an inline error when request-changes submission fails", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Feedback can't be blank." } }, 422))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "approved", summary_state: "approved" },
+      actions: { ...jobPayload().actions, can_request_changes: true }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }))
+    fireEvent.change(screen.getByPlaceholderText("What should be changed?"), { target: { value: "x" } })
+    fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Feedback can't be blank.")
     expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
   })
 
@@ -2024,6 +2081,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_cancel_local_mode: false,
       can_start_preview: false,
       can_run_visual_review: false,
+      can_request_changes: false,
       linked_chat_id: null,
       feedback_agent_options: [],
       rebase_agent_options: [],
@@ -2065,6 +2123,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_preview_path: "/api/v1/app/jobs/1/preview",
       app_preview_logs_path: "/api/v1/app/jobs/1/preview/logs",
       app_visual_review_path: "/api/v1/app/jobs/1/visual_review",
+      app_request_changes_path: "/api/v1/app/jobs/1/request_changes",
       admin_resource_admission_path: "/admin/resource_admission"
     },
     ...overrides

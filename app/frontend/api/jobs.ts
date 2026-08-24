@@ -680,6 +680,7 @@ export type JobActions = {
   can_open_in_coding_mode: boolean
   can_start_preview: boolean
   can_run_visual_review: boolean
+  can_request_changes: boolean
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]
@@ -778,6 +779,7 @@ export type JobPaths = {
   app_preview_path: string
   app_preview_logs_path: string
   app_visual_review_path: string
+  app_request_changes_path: string
   admin_resource_admission_path: string
 }
 
@@ -1039,6 +1041,10 @@ export function deleteJobCommand(path: string) {
 
 export async function submitJobFeedback(jobId: number, body: string): Promise<void> {
   await postJson(`/api/v1/app/jobs/${jobId}/chat_feedback`, { body })
+}
+
+export function submitJobRequestChanges(path: string, feedback: string) {
+  return postJson<JobCommandPayload>(path, { feedback })
 }
 
 export type PendingFeedbackActionPayload = {

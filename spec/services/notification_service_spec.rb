@@ -120,7 +120,7 @@ RSpec.describe NotificationService do
       allow(ActionCable.server).to receive(:broadcast)
 
       %w[
-        job_failed job_implemented pr_comment_addressed pr_merged epic_completed upstream_pr_closed
+        pr_comment_addressed pr_merged epic_completed upstream_pr_closed
         main_broken main_inconclusive main_recovered
       ].each do |kind|
         expect(
@@ -130,6 +130,62 @@ RSpec.describe NotificationService do
             job: job,
             pr_url: "https://github.com/acme/widgets/pull/12",
             body: "Technical notification for #{job.slug} on #{job.branch_name}"
+          )
+        ).to be_nil
+      end
+
+      expect(Notification.count).to eq(0)
+      expect(ActionCable.server).not_to have_received(:broadcast)
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+    end
+
+    it "un-suppresses job_failed and job_implemented in simple mode for standalone Jobs" do
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "simple", mode_configured_at: Time.current)
+      user = Factories.user
+      job = Factories.job_record(user: user, pr_number: 12, branch_name: "syrus/job-12")
+      allow(ActionCable.server).to receive(:broadcast)
+
+      %w[job_failed job_implemented].each do |kind|
+        notification = described_class.create_for(
+          user: user,
+          kind: kind,
+          job: job,
+          pr_url: "https://github.com/acme/widgets/pull/12",
+          body: "Standalone job notification for #{job.slug}"
+        )
+
+        expect(notification).to have_attributes(
+          job_id: job.id,
+          pr_url: "https://github.com/acme/widgets/pull/12"
+        )
+      end
+
+      expect(Notification.count).to eq(2)
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+    end
+
+    it "keeps suppressing job_failed and job_implemented in simple mode for epic-child Jobs" do
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "simple", mode_configured_at: Time.current)
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      epic = Factories.epic(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository, epic: epic, pr_number: 12, branch_name: "syrus/job-12")
+      allow(ActionCable.server).to receive(:broadcast)
+
+      %w[job_failed job_implemented].each do |kind|
+        expect(
+          described_class.create_for(
+            user: user,
+            kind: kind,
+            job: job,
+            pr_url: "https://github.com/acme/widgets/pull/12",
+            body: "Epic-child job notification for #{job.slug}"
           )
         ).to be_nil
       end

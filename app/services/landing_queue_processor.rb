@@ -734,7 +734,8 @@ class LandingQueueProcessor
     # surfacing the real misconfiguration. Keep the Job in :approved
     # with a clear blocked_reason; once the repo flips
     # auto_merge_enabled=true the queue picks it up immediately. Simple-mode
-    # Epic children can opt in per Job without exposing the repository setting.
+    # Epic children only auto-land when the repository has opted in the
+    # same way advanced-mode Jobs do.
     return override_or_block(job, { key: "auto_merge_not_enabled" }, consume: consume_override) unless job.auto_merge_enabled?
     return override_or_block(job, { key: "review_requested_changes" }, consume: consume_override) if job.needs_attention_reason == Job::REQUESTED_CHANGES_ATTENTION_REASON
     return blocked({ key: "missing_pull_request" }) if job.pr_number.blank? && job.external_pr_number.blank?

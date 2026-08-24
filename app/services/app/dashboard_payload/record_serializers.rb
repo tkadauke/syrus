@@ -35,6 +35,7 @@ module App
           title_pending: job.title_pending?,
           state: job.state,
           summary_state: summary_state(job),
+          closure_reason: job.closure_reason,
           validity: job.validity,
           priority: job.priority,
           agent_provider: workflow_agent_provider,
@@ -93,11 +94,16 @@ module App
           source_chat: source_chat,
           needs_attention: job.needs_attention?,
           needs_attention_reason: job.needs_attention_reason,
+          can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
+          can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
           paths: {
             job_path: job_path(job),
             source_path: source_job_path(job),
             app_pause_path: "/api/v1/app/jobs/#{job.id}/pause",
-            app_unpause_path: "/api/v1/app/jobs/#{job.id}/unpause"
+            app_unpause_path: "/api/v1/app/jobs/#{job.id}/unpause",
+            app_approve_path: "/api/v1/app/jobs/#{job.id}/approve",
+            app_preview_path: "/api/v1/app/jobs/#{job.id}/preview",
+            app_preview_logs_path: "/api/v1/app/jobs/#{job.id}/preview/logs"
           }
         }
 
@@ -264,6 +270,31 @@ module App
       def dashboard_simple_mode?
         @dashboard_simple_mode = AppSetting.simple? unless defined?(@dashboard_simple_mode)
         @dashboard_simple_mode
+      end
+
+      # Backs the simple-mode dashboard row's "Preview & Approve" action
+      # (Job#previewable? is cheap, but preview_available_for_repository?
+      # shells out to read .syrus.yml off the repo's local bare clone — only
+      # worth paying that cost on the simple-mode job-centric dashboard,
+      # which is the only surface that renders this action).
+      def can_start_preview_for?(job)
+        dashboard_simple_mode? && job.previewable? && preview_available_for_repository?(job.repository)
+      end
+
+      # Memoized per repository so a page of many jobs from the same repo
+      # only shells out to `git show HEAD:.syrus.yml` once.
+      def preview_available_for_repository?(repository)
+        @preview_available_by_repository_id ||= {}
+        @preview_available_by_repository_id.fetch(repository.id) do
+          @preview_available_by_repository_id[repository.id] = App::PreviewAvailability.configured?(repository)
+        end
+      end
+
+      # Mirrors JobDetailPayload#simple_epic_child? — legacy simple-mode Epic
+      # child Jobs keep reviewing through the Epic's post-merge rollup flow,
+      # not this per-Job preview/approve action.
+      def simple_epic_child?(job)
+        dashboard_simple_mode? && job.epic_id.present?
       end
 
       def owner_json(owner)

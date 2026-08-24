@@ -3,6 +3,7 @@
   "setup": "Setup",
   "repositories": "Repositories",
   "schedules": "Schedules",
+  "epics": "Epics",
   "terminal": "Terminal",
   "team": "Team",
   "new_chat": "New Chat",

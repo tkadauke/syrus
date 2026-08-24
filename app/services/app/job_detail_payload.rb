@@ -695,6 +695,7 @@ module App
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,
         can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
+        can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
@@ -703,6 +704,15 @@ module App
 
     def simple_epic_child?
       AppSetting.simple? && @job.epic_id.present?
+    end
+
+    # Mirrors JobReviewFeedbackSubmission's own eligibility check: a closed
+    # Job is only "already landed" (and thus safe to depend on) when it
+    # closed for a successful reason. Depending on an unsuccessfully-closed
+    # Job (invalidated/duplicate/cancelled/etc.) would create a
+    # JobDependency that can never resolve.
+    def request_changes_eligible?
+      @job.previewable? || (@job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(@job.closure_reason))
     end
 
     def paths_json
@@ -744,6 +754,7 @@ module App
         app_preview_path: "/api/v1/app/jobs/#{@job.id}/preview",
         app_preview_logs_path: "/api/v1/app/jobs/#{@job.id}/preview/logs",
         app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
+        app_request_changes_path: "/api/v1/app/jobs/#{@job.id}/request_changes",
         admin_resource_admission_path: admin_resource_admission_path
       }
     end
@@ -902,25 +913,7 @@ module App
     def preview_provider_configured?
       return @preview_provider_configured unless @preview_provider_configured.nil?
 
-      @preview_provider_configured = (
-        Syrus::Plugin::PreviewProvider.configured? || syrus_yml_has_preview?
-      )
-    end
-
-    def syrus_yml_has_preview?
-      clone_path = File.join(
-        ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
-        "clones",
-        "#{@job.repository_id}.git"
-      )
-      return false unless File.directory?(clone_path)
-
-      yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-      return false unless $?.success? && yml_content.present?
-
-      SyrusYml.new(yml_content).parse.preview.present?
-    rescue StandardError
-      false
+      @preview_provider_configured = App::PreviewAvailability.configured?(@job.repository)
     end
 
     # Mirrors preview_provider_configured?'s read-the-local-bare-clone

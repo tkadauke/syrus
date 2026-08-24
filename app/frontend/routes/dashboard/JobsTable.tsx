@@ -4,7 +4,7 @@ import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
 import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
@@ -15,8 +15,8 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { StatusPill, TonePill } from "../../components/StatusPill"
-import { bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
-import type { LandingQueueBlockerJob } from "../../api/jobs"
+import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
+import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 
@@ -71,6 +71,163 @@ export function JobsDashboardTable({ items, columns, landingQueueEntries, prefix
         sortState={sortState}
         t={t}
       />
+    </div>
+  )
+}
+
+// Simple-mode's primary dashboard list: every Job with its own status shown
+// directly (no epic rollup pill to hide behind). Mirrors SimpleFeaturesTable's
+// list-item styling but keeps rows read-only status summaries rather than
+// links — Job detail pages are not yet part of the simple-mode surface. The
+// one exception is Preview & Approve: implemented/approved jobs get a
+// one-click preview + plain-language approve action right on the row, since
+// this is the primary pre-land review surface for job-centric simple mode.
+export function SimpleJobsTable({ items }: { items: DashboardJobItem[] }) {
+  return (
+    <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+        {items.map((job) => (
+          <li
+            aria-label={job.title}
+            className="grid gap-2 px-4 py-4 text-gray-700 dark:text-gray-200 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-4"
+            key={job.id}
+          >
+            <span className="min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{job.title}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <NeutralStatePill state={job.state} />
+              {job.state === "closed" && job.closure_reason ? (
+                <span className="text-sm text-gray-500 dark:text-gray-400">{humanizeOption(job.closure_reason)}</span>
+              ) : null}
+            </span>
+            {job.updated_at ? <span className="text-sm text-gray-500 dark:text-gray-400">{formatRelativeDate(new Date(job.updated_at))}</span> : null}
+            {job.can_start_preview || job.can_approve ? (
+              <div className="md:col-span-3">
+                <SimplePreviewApprove job={job} />
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const SIMPLE_PREVIEW_ACTIVE_STATES = ["starting", "seeding", "running", "stopping"] as const
+const SIMPLE_PREVIEW_POLL_INTERVAL_MS = 3000
+
+function simplePreviewIsActive(state: PreviewEnvironmentRecord["state"]) {
+  return (SIMPLE_PREVIEW_ACTIVE_STATES as readonly string[]).includes(state)
+}
+
+// Compact "Preview & Approve" action for a single simple-mode dashboard row:
+// reuses the same start/stop preview endpoints and can_start_preview gate as
+// the full JobDetail PreviewPanel, plus the existing approve endpoint —
+// framed in plain language since this is the primary pre-land review flow
+// for non-technical operators.
+function SimplePreviewApprove({ job }: { job: DashboardJobItem }) {
+  const { t } = useT("dashboard")
+  const { t: tJobs } = useT("jobs")
+  const queryClient = useQueryClient()
+  const [notice, setNotice] = useState<string | null>(null)
+  const previewPath = job.paths.app_preview_path
+
+  const preview = useQuery({
+    queryKey: ["job-preview", job.id],
+    queryFn: () => fetchPreview(previewPath!),
+    select: (data) => data.preview,
+    enabled: Boolean(job.can_start_preview && previewPath),
+    refetchInterval: (query) => {
+      const env = query.state.data?.preview
+      return env && simplePreviewIsActive(env.state) ? SIMPLE_PREVIEW_POLL_INTERVAL_MS : false
+    }
+  })
+
+  const start = useMutation({
+    mutationFn: () => startPreview(previewPath!),
+    onSuccess: (data) => queryClient.setQueryData(["job-preview", job.id], data.preview)
+  })
+
+  const stop = useMutation({
+    mutationFn: () => stopPreview(previewPath!),
+    onSuccess: (data) => queryClient.setQueryData(["job-preview", job.id], data.preview)
+  })
+
+  const approve = useMutation({
+    mutationFn: () => approveDashboardJob(job.paths.app_approve_path!),
+    onSuccess: (payload) => {
+      setNotice(payload.message ?? t("simple_review_approved"))
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+    }
+  })
+
+  const env = preview.data ?? null
+  const previewPending = start.isPending || stop.isPending
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+      <span className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("simple_status.ready_for_your_review")}</span>
+      {job.can_start_preview ? (
+        <SimplePreviewControls env={env} isPending={previewPending} onStart={() => start.mutate()} onStop={() => stop.mutate()} t={tJobs} />
+      ) : null}
+      {job.can_approve ? (
+        <button
+          className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={approve.isPending}
+          onClick={() => approve.mutate()}
+          type="button"
+        >
+          {t("simple_review_approve")}
+        </button>
+      ) : null}
+      {approve.isError ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{errorMessage(approve.error, t("simple_review_approve_error"))}</span> : null}
+      {start.isError || stop.isError ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{errorMessage(start.error ?? stop.error, t("simple_review_preview_error"))}</span> : null}
+      <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+    </div>
+  )
+}
+
+function SimplePreviewControls({ env, isPending, onStart, onStop, t }: { env: PreviewEnvironmentRecord | null; isPending: boolean; onStart: () => void; onStop: () => void; t: ReturnType<typeof useT>["t"] }) {
+  const state = env?.state
+
+  if (!state || state === "stopped" || state === "failed") {
+    return (
+      <button
+        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        disabled={isPending}
+        onClick={onStart}
+        type="button"
+      >
+        {t("preview_start")}
+      </button>
+    )
+  }
+
+  if (state === "starting" || state === "seeding" || state === "stopping") {
+    return (
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {state === "starting" ? t("preview_starting") : state === "seeding" ? t("preview_seeding") : t("preview_stopping")}
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <a
+        className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+        href={env!.url ?? "#"}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {t("preview_open")}
+      </a>
+      <button
+        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        disabled={isPending}
+        onClick={onStop}
+        type="button"
+      >
+        {t("preview_stop")}
+      </button>
     </div>
   )
 }
@@ -613,7 +770,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
-          <IssueMetadata job={job} />
+          {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
@@ -654,7 +811,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
-          <IssueMetadata job={job} />
+          {job.issue_number ? <IssueMetadata job={job} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>

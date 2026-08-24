@@ -236,6 +236,7 @@ RSpec.describe Epic do
     end
 
     it "creates a new direct Job at the tail of the linear chain and reopens the Epic" do
+      repository.update!(auto_merge_enabled: true)
       epic = Factories.epic(user: user, repository: repository, title: "Checkout polish", state: "in_progress")
       tail = child_job(epic: epic, number: 10, closure_reason: "pr_merged")
       expect(epic.reload).to be_review_ready
@@ -1279,6 +1280,20 @@ RSpec.describe Epic do
       shared_epic = Factories.epic(user: owner, repository: shared_repo)
 
       expect(described_class.accessible_to(user)).to include(shared_epic)
+    end
+  end
+
+  describe ".non_terminal" do
+    it "includes backlog/ready/in_progress Epics and excludes done/archived" do
+      backlog = described_class.create!(user: user, repository: repository, title: "Backlog", state: "backlog")
+      ready = described_class.create!(user: user, repository: repository, title: "Ready", state: "ready")
+      in_progress = described_class.create!(user: user, repository: repository, title: "In progress", state: "in_progress")
+      done = described_class.create!(user: user, repository: repository, title: "Done", state: "done")
+      archived = described_class.create!(user: user, repository: repository, title: "Archived", state: "archived")
+
+      result = described_class.non_terminal
+      expect(result).to include(backlog, ready, in_progress)
+      expect(result).not_to include(done, archived)
     end
   end
 

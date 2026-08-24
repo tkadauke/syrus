@@ -29,7 +29,7 @@ export type MergedNavItem = {
 // spending_insights sidebar_page plugin, appended via pluginPages below) and
 // "setup" (onboarding-only, assembled separately).
 export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
-  { id: "dashboard", labelKey: "nav:dashboard", to: (ctx) => (ctx.simpleMode ? "/dashboard/epics" : "/dashboard/jobs"), icon: <DashboardIcon />, order: 10 },
+  { id: "dashboard", labelKey: "nav:dashboard", to: () => "/dashboard/jobs", icon: <DashboardIcon />, order: 10 },
   { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
   { id: "schedules", labelKey: "nav:schedules", to: () => "/scheduled_tasks", icon: <ScheduleIcon />, order: 30, visible: (ctx) => !ctx.simpleMode },
   { id: "terminal", labelKey: "nav:terminal", to: () => "/terminal", icon: <TerminalIcon />, order: 40, visible: (ctx) => Boolean(ctx.featureFlags.terminal) },

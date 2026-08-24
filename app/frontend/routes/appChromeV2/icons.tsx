@@ -49,6 +49,14 @@ export function RepositoryIcon() {
   )
 }
 
+export function EpicIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M4.75 7.75h14.5M4.75 12h14.5M4.75 16.25h9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function ScheduleIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">

@@ -1,5 +1,6 @@
 {
   "title": "Epics",
+  "legacy_epic_banner": "This is an older, multi-step feature created before this update. New requests now appear as individual tasks on the main dashboard.",
 
   "detail_label": "Epic",
   "job_progress_label": "Epic job progress",

@@ -215,17 +215,53 @@ has merged, the feature becomes ready for review at the Epic level. From the
 Epic page the operator can start a preview, mark the feature as looking good,
 or submit plain-text feedback. Feedback creates a new child Job at the end of
 the Epic's linear chain and moves the feature back to working status.
-The simple-mode dashboard shows only these features, not Jobs or Workflows,
-and uses human statuses such as **Working on it**, **Wrapping up**,
-**Ready for your review**, **Done**, and **Something went wrong**. The feature
-detail page keeps the implementation machinery out of view: no child Job list,
-workflow history, diffs, grader output, PR numbers, branch names, commit SHAs,
-timeline, or dependency graph. Scheduled tasks and the repository GitHub
-Issues tab are also hidden in simple mode.
-Simple mode notifications use the feature title only: they announce
+The feature detail page uses human statuses such as **Working on it**,
+**Wrapping up**, **Ready for your review**, **Done**, and **Something went
+wrong**, and keeps the implementation machinery out of view: no child Job
+list, workflow history, diffs, grader output, PR numbers, branch names,
+commit SHAs, timeline, or dependency graph.
+
+The simple-mode primary dashboard is job-centric rather than feature-centric:
+it lists every Job directly — any kind (issue, cron, or direct) — with its
+own status shown inline (queued, running, implemented, approved, landing, or
+closed, plus the closure reason once closed) instead of rolling work up
+behind an Epic status pill. Epics do not appear on this primary dashboard
+list. Scheduled tasks and the repository GitHub Issues tab are also hidden in
+simple mode.
+
+Reviewing a standalone Job (not one that belongs to a legacy Epic) happens
+before it lands, not after: once the Job reaches implemented or approved
+state, its dashboard row shows a one-click **Preview & Approve** action —
+start a live preview of the change with one click, then approve with a plain
+"Looks good, approve" button when it's ready to land. This is the primary
+review flow for job-centric work; the preview and approve buttons only
+appear when a preview is actually configured for the repository and the
+current user is eligible to approve.
+
+If a standalone Job isn't quite right, its Job Detail page offers a
+**Request changes** action — available once the Job has been implemented
+(implemented, approved, or landing) or has already landed. Unlike the legacy
+Epic review flow, this does not amend the original Job or append onto an
+Epic chain: it opens a brand-new Job carrying your feedback, linked back to
+the original as a dependency, that lands independently once it's approved.
+The original Job (and its PR) are untouched.
+
+Epics created before Syrus switched simple mode to this job-centric dashboard
+are not migrated or deleted — they get a separate "Epics" nav entry instead,
+which stays visible only for as long as the operator has at least one such
+Epic still in progress (not yet done or archived). Opening it shows the same
+epic list simple mode always used, with a short banner explaining these are
+older, multi-step features and that new requests now show up as individual
+tasks on the main dashboard. Once every legacy Epic has landed or been
+archived, the nav entry disappears — direct links to an Epic's page keep
+working either way.
+For a standalone Job (the normal job-centric case), simple mode notifies you
+directly on that Job when it fails or when Syrus opens its PR, with a link
+back to the Job that actually had the problem. For a Job that belongs to a
+legacy Epic, notifications still use the feature title only: they announce
 ready-for-review, terminal feature problems that need attention, and accepted
-review feedback; Job IDs, PR numbers, branch names, commit SHAs, and grader
-details are suppressed.
+review feedback at the Epic level; Job IDs, PR numbers, branch names, commit
+SHAs, and grader details stay suppressed for those child Jobs.
 
 An Epic has a board state: `backlog`, `ready`, `in_progress`, `done`, or
 `archived`. Child Jobs can be blocked until the Epic starts, and Epics can

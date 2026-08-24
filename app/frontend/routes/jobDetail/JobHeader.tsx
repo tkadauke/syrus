@@ -33,7 +33,7 @@ export function ChatBubbleIcon() {
   )
 }
 
-export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; feedbackPanelOpen: boolean; onToggleFeedbackPanel: () => void; onApprove?: () => void }) {
+export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFeedbackPanel, requestChangesPanelOpen, onToggleRequestChangesPanel, onApprove }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; feedbackPanelOpen: boolean; onToggleFeedbackPanel: () => void; requestChangesPanelOpen?: boolean; onToggleRequestChangesPanel?: () => void; onApprove?: () => void }) {
   const { t } = useT("jobs")
   const [retryFeedbackOpen, setRetryFeedbackOpen] = useState(false)
   const [retryFeedbackInput, setRetryFeedbackInput] = useState<RetryPostInput | null>(null)
@@ -42,6 +42,7 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
   const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
+  const canRequestChanges = payload.actions.can_request_changes && onToggleRequestChangesPanel
 
   function handleActionClick(action: HeaderAction) {
     if (action.key === "approve" && onApprove) {
@@ -63,6 +64,17 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
             type="button"
           >
             {t("give_feedback")}
+          </button>
+        ) : null}
+        {canRequestChanges ? (
+          <button
+            aria-expanded={requestChangesPanelOpen}
+            className={buttonClass("secondary")}
+            data-tour="job-request-changes"
+            onClick={onToggleRequestChangesPanel}
+            type="button"
+          >
+            {t("request_changes")}
           </button>
         ) : null}
         {visibleActions.map((action) => (
@@ -123,6 +135,43 @@ export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
           <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
           <button className={buttonClass("primary")} disabled={isPending || !trimmedBody} type="submit">
             {isPending ? t("submitting") : t("submit_feedback")}
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+export function RequestChangesPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (feedback: string) => void }) {
+  const { t } = useT("jobs")
+  const [feedback, setFeedback] = useState("")
+  const trimmedFeedback = feedback.trim()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!trimmedFeedback) return
+
+    onSubmit(trimmedFeedback)
+  }
+
+  return (
+    <section aria-labelledby="job-request-changes-title" className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+      <form className="space-y-3" onSubmit={submit}>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-request-changes-title">{t("request_changes_panel_title")}</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-300">{t("request_changes_panel_description")}</p>
+        <textarea
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          disabled={isPending}
+          onChange={(event) => setFeedback(event.target.value)}
+          placeholder={t("request_changes_placeholder")}
+          rows={4}
+          value={feedback}
+        />
+        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("request_changes_error"))}</p> : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
+          <button className={buttonClass("primary")} disabled={isPending || !trimmedFeedback} type="submit">
+            {isPending ? t("submitting") : t("submit_request_changes")}
           </button>
         </div>
       </form>

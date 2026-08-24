@@ -1480,6 +1480,7 @@ class Job < ApplicationRecord
   def apply_simple_epic_automation_defaults
     return unless AppSetting.simple?
     return unless epic || epic_id.present?
+    return unless repository&.auto_merge_enabled?
 
     self.auto_merge_enabled = true
   end
@@ -1487,6 +1488,7 @@ class Job < ApplicationRecord
   def ensure_simple_epic_auto_approval
     return unless AppSetting.simple?
     return unless epic
+    return unless repository&.auto_merge_enabled?
     return if epic.auto_approve_mode == "if_graders_pass"
 
     epic.update!(auto_approve_mode: "if_graders_pass")

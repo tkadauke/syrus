@@ -1,5 +1,5 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, GripIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, EpicIcon, GripIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
@@ -60,6 +60,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
   const simpleMode = data?.app?.mode === "simple"
+  const legacyEpicsVisible = simpleMode && Boolean(data?.app?.legacy_epics_visible)
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
   const showDashboardSidebarSubjects = !simpleMode
   const quote = useMemo(randomPubliliusSyrusQuote, [])
@@ -124,7 +125,20 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   })), [mergedSidebarNavItems, normalizedPath, prefix, terminalSessionCount])
   const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
-    ...(tabsHidden ? [] : primaryNavItems)
+    ...(tabsHidden ? [] : (() => {
+      const items = [...primaryNavItems]
+      if (legacyEpicsVisible) {
+        const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
+        items.splice(dashboardIndex + 1, 0, {
+          id: "legacy_epics",
+          label: t("nav:epics"),
+          to: `${prefix}/dashboard/epics`,
+          active: normalizedPath.startsWith("/dashboard/epics"),
+          icon: <EpicIcon />
+        })
+      }
+      return items
+    })())
   ] : []
 
   async function startChat() {

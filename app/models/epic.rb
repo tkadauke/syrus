@@ -11,6 +11,7 @@ class Epic < ApplicationRecord
   BOARD_STATES = %w[ backlog ready in_progress done ].freeze
   ARCHIVED_STATE = "archived"
   STATES = (BOARD_STATES + [ ARCHIVED_STATE ]).freeze
+  NON_TERMINAL_STATES = %w[ backlog ready in_progress ].freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
   SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
   EPIC_DEPENDENCY_POLICIES = %w[ linear nonlinear ].freeze
@@ -58,6 +59,7 @@ class Epic < ApplicationRecord
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
   before_destroy :clear_job_epic_titles
 
+  scope :non_terminal, -> { where(state: NON_TERMINAL_STATES) }
   scope :claimed, -> { where("owner_id IS NOT NULL OR owner_user_id IS NOT NULL") }
   scope :unclaimed, -> { where(owner_id: nil, owner_user_id: nil) }
   scope :owned_by, ->(user) { where("owner_id = :user_id OR owner_user_id = :user_id", user_id: user&.id) }

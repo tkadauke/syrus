@@ -66,10 +66,11 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
-  it "enables auto-approval and per-Job auto-merge for simple-mode Epic children" do
+  it "enables auto-approval and per-Job auto-merge for simple-mode Epic children when the repository has opted in" do
     setting = AppSetting.current
     original_mode = setting.mode
     setting.update!(mode: "simple", mode_configured_at: Time.current)
+    repository.update!(auto_merge_enabled: true)
     proposal = epic_proposal
     proposal.child_proposals.create!(
       chat_session: chat_session,

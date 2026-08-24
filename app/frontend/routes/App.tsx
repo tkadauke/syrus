@@ -483,7 +483,6 @@ function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
 }
 
 const SIMPLE_MODE_HIDDEN_PATHS = [
-  "/dashboard/jobs",
   "/dashboard/workflows",
   "/jobs",
   "/jobs/new",
@@ -519,7 +518,7 @@ function SimpleModeRedirect({ children, initialBootstrap }: { children: ReactNod
   })
 
   if ((bootstrap.data ?? initialBootstrap)?.app?.mode === "simple") {
-    return <Navigate replace to={`${prefix}/dashboard/epics`} />
+    return <Navigate replace to={`${prefix}/dashboard/jobs`} />
   }
 
   return children

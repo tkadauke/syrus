@@ -138,6 +138,7 @@ export type DashboardJobItem = {
   title_pending?: boolean
   state: string
   summary_state: string
+  closure_reason: string | null
   validity: string
   priority: string
   agent_provider: string | null
@@ -196,11 +197,16 @@ export type DashboardJobItem = {
   manual_paused_at?: string | null
   manual_paused_by_user?: DashboardOwnerUser | null
   active_repair_work?: ActiveRepairWork | null
+  can_approve?: boolean
+  can_start_preview?: boolean
   paths: {
     job_path: string
     source_path: string
     app_pause_path?: string
     app_unpause_path?: string
+    app_approve_path?: string
+    app_preview_path?: string
+    app_preview_logs_path?: string
   }
 }
 
@@ -632,6 +638,10 @@ export function pauseDashboardJob(path: string) {
 }
 
 export function unpauseDashboardJob(path: string) {
+  return postJson<{ message?: string }>(path, {})
+}
+
+export function approveDashboardJob(path: string) {
   return postJson<{ message?: string }>(path, {})
 }
 

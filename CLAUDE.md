@@ -502,7 +502,11 @@ experience: Coding Mode and Local Mode are force-disabled, developer surfaces
 like Jobs/Workflows/scheduled tasks/GitHub Issues are hidden from the UI,
 Epics are presented as features, and child Jobs under Epics are expected to
 form a strict linear chain. Simple-mode Epic child Jobs auto-land after
-passing graders, then the Epic becomes feature-reviewable; feedback appends a
+passing graders only when the repository has opted in via
+`Repository#auto_merge_enabled` (default `false`) — the same per-repo opt-in
+advanced mode respects; otherwise child Jobs stay `approved`, awaiting an
+operator/user approval, the same as advanced mode. Once child Jobs land, the
+Epic becomes feature-reviewable; feedback appends a
 new direct Job at the end of the chain. Implement, PR-feedback, and CI-repair
 prompts include `Prompts::SimpleModeAgentContext`, so agents should make
 technical defaults, ask at most one focused clarifying question only for

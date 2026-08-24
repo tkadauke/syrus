@@ -3,6 +3,7 @@
   "setup": "Constitutio",
   "repositories": "Horrea",
   "schedules": "Agenda",
+  "epics": "Epica",
   "terminal": "Terminale",
   "team": "Collegium",
   "new_chat": "Colloquium Novum",
