@@ -17,7 +17,12 @@ module Mcp::Tools
 
     input_schema(
       properties: {
-        question: { type: "string", description: "Question text to show to the operator." },
+        question: {
+          type: "string",
+          description: "Question text to show to the operator, rendered as Markdown. For multi-line " \
+            "questions, write an actual line break in the string — not the literal two-character " \
+            "sequence backslash-n."
+        },
         options: {
           type: "array",
           items: { type: "string" },
@@ -30,7 +35,7 @@ module Mcp::Tools
     class << self
       def call(question:, server_context:, options: nil)
         chat_session = server_context.fetch(:chat_session)
-        question_text = question.to_s.strip
+        question_text = normalize_line_breaks(question.to_s).strip
         return Mcp::Tools.invalid("question is required") if question_text.blank?
 
         normalized_options = normalize_options(options)
@@ -51,6 +56,15 @@ module Mcp::Tools
       end
 
       private
+
+      # Models occasionally write the literal two-character sequence
+      # backslash-n into a tool-call string when they intend a line break,
+      # instead of an actual embedded newline. The question text renders as
+      # Markdown, so without this the literal escape shows up verbatim in
+      # the chat UI instead of producing a line break.
+      def normalize_line_breaks(text)
+        text.gsub('\n', "\n")
+      end
 
       def normalize_options(options)
         return nil if options.nil?

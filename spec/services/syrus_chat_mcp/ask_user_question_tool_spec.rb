@@ -38,6 +38,14 @@ RSpec.describe Mcp::Tools::AskUserQuestionTool do
     expect(response_payload(response)).to include(question_id: question.id)
   end
 
+  it "normalizes literal backslash-n sequences into real line breaks" do
+    response = call_tool(question: "Two scoping questions:\\n1. Scope to X?\\n2. Name it Y?")
+
+    question = chat_session.agent_questions.sole
+    expect(question.question).to eq("Two scoping questions:\n1. Scope to X?\n2. Name it Y?")
+    expect(response[:result][:isError]).to be_falsey
+  end
+
   it "rejects invalid options" do
     response = call_tool(question: "Pick one", options: [ "Yes", "" ])
 
