@@ -9,6 +9,7 @@ import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
 import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
+import { formatBytes } from "../lib/format"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { mergeOptionalAttachments } from "../lib/bugReportOptionalAttachments"
 
@@ -732,12 +733,6 @@ function ContextRow({ label, value }: { label: string; value: string }) {
       <dd className="truncate">{value}</dd>
     </div>
   )
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function ChevronDownIcon() {

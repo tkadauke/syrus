@@ -58,6 +58,15 @@ class ProviderUsageLimit
     run.step&.agentic? == true
   end
 
+  def self.for_run?(run, text)
+    return false if run.run_failure_classification&.repaired_for_circuit?
+    return false if inconclusive?(text)
+    return true if run.agent_outcome.to_s == OUTCOME
+    return false unless run_can_exhaust_provider?(run)
+
+    run.run_failure_classification&.classification == CLASSIFICATION || detect?(text)
+  end
+
   def self.extract_model(text, fallback: nil)
     explicit = fallback.to_s.strip.presence
     return explicit if explicit
