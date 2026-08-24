@@ -329,6 +329,8 @@ RSpec.configure do |config|
 
     SpendingInsights.register! unless registered_names.include?("spending_insights")
 
+    MysqlDbBrowser.register! unless registered_names.include?("mysql_db_browser")
+
     Syrus::PluginRegistry.all_plugins
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_231619) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_232145) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1332,6 +1332,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_231619) do
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
+  end
+
+  create_table "mysql_connections", force: :cascade do |t|
+    t.boolean "agentic_access_enabled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.text "credentials"
+    t.string "default_database"
+    t.string "host", null: false
+    t.string "label", null: false
+    t.integer "port", default: 3306, null: false
+    t.datetime "updated_at", null: false
+    t.string "username", null: false
   end
 
   create_table "notifications", force: :cascade do |t|
