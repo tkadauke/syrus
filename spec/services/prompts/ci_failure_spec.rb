@@ -64,6 +64,14 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to include("(no summary provided)")
   end
 
+  it "renders a degraded prompt when failed check entries are malformed" do
+    out = build(failed_checks: [ nil, "not-a-check" ]).to_s
+
+    expect(out).to include("# Failing checks (1 total")
+    expect(out).to include("No summary provided.")
+    expect(out).to include("Fix the failing checks.")
+  end
+
   it "renders a degraded prompt when the PR head SHA is missing" do
     out = build(head_sha: nil).to_s
 

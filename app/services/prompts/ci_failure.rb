@@ -16,7 +16,7 @@ module Prompts
       @repo_slug    = repo_slug
       @branch_name  = branch_name
       @head_sha     = head_sha
-      @failed_checks = failed_checks
+      @failed_checks = Array(failed_checks).compact
       @instructions = instructions.to_s.strip.presence
       @epic = epic
       @job = job
@@ -144,6 +144,8 @@ module Prompts
     end
 
     def value(hash, key)
+      hash = hash.to_h if hash.respond_to?(:to_h)
+      hash = {} unless hash.is_a?(Hash)
       hash[key] || hash[key.to_s]
     end
 

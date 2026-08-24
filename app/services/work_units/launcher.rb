@@ -30,6 +30,7 @@ module WorkUnits
 
     def self.instantiate_intent!(intent, artifacts: nil, agent_provider: nil, **options)
       relaunch_context = relaunch_context_for_intent!(intent)
+      artifacts = relaunch_artifacts_for(intent, artifacts)
       new(
         kind: intent.kind,
         job: relaunch_context.job,
@@ -125,6 +126,12 @@ module WorkUnits
       RelaunchContext.new(job: job, member_jobs: snapshot_members.presence)
     end
 
+    def self.relaunch_artifacts_for(intent, artifacts)
+      return artifacts if artifacts
+
+      intent.payload_artifacts.presence || {}
+    end
+
     def self.representative_job_for_intent(intent, snapshot_members)
       case intent.scope_type
       when "job"
@@ -174,12 +181,23 @@ module WorkUnits
     attr_reader :definition, :job, :agent_provider, :idempotency_key, :source_type, :source_id, :options, :ref_metadata, :existing_intent, :parent_work_unit
 
     def find_or_create_intent!
-      return existing_intent if existing_intent
+      if existing_intent
+        persist_payload_artifacts!(existing_intent)
+        return existing_intent
+      end
       return WorkIntent.create!(intent_attributes) if idempotency_key.blank?
 
       WorkIntent.find_or_create_by!(idempotency_key: idempotency_key) do |intent|
         intent.assign_attributes(intent_attributes)
-      end
+      end.tap { |intent| persist_payload_artifacts!(intent) }
+    end
+
+    def persist_payload_artifacts!(intent)
+      artifacts = payload_artifacts
+      return if artifacts.blank?
+      return if intent.payload_artifacts == artifacts
+
+      intent.update!(payload_artifacts: artifacts)
     end
 
     def intent_attributes
@@ -192,7 +210,8 @@ module WorkUnits
         priority: job.priority,
         actor: job.user,
         source_type: source_type,
-        source_id: source_id
+        source_id: source_id,
+        payload_artifacts: payload_artifacts
       }.merge(ref_metadata.attributes)
     end
 

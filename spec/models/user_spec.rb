@@ -50,6 +50,14 @@ RSpec.describe User do
       expect(user.admin?).to be false
     end
 
+    it "can derive admin? from a partially selected persisted record" do
+      admin = Factories.user(global_role: "admin")
+      Factories.user(global_role: "user")
+
+      expect(User.select(:id).find(admin.id).admin?).to be true
+      expect(User.select(:id).where.not(id: admin.id).first.admin?).to be false
+    end
+
     it "rejects values outside the enum" do
       user = Factories.user
       user.global_role = "superadmin"

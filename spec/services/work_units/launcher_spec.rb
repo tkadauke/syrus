@@ -125,6 +125,36 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.artifact("head_sha")).to eq("abc123")
   end
 
+  it "snapshots launch artifacts on the work intent for later relaunches" do
+    workflow = described_class.instantiate(
+      kind: "ci_failure",
+      job: job,
+      artifacts: { "head_sha" => "abc123", "base_sha" => "base456" }
+    )
+
+    expect(workflow.work_unit.work_intent.payload_artifacts).to include(
+      "head_sha" => "abc123",
+      "base_sha" => "base456"
+    )
+  end
+
+  it "uses work intent payload artifacts when relaunching an intent" do
+    workflow = described_class.instantiate(
+      kind: "ci_failure",
+      job: job,
+      artifacts: { "head_sha" => "abc123", "base_sha" => "base456" },
+      idempotency_key: "ci-failure:#{job.id}:abc123"
+    )
+    intent = workflow.work_unit.work_intent
+    workflow.work_unit.mark_terminal!("failed")
+
+    relaunched = described_class.instantiate_intent!(intent)
+
+    expect(relaunched).not_to eq(workflow)
+    expect(relaunched.artifact("head_sha")).to eq("abc123")
+    expect(relaunched.artifact("base_sha")).to eq("base456")
+  end
+
   it "passes workflow-specific options through to specialized templates" do
     workflow = described_class.instantiate(
       kind: "rebase",

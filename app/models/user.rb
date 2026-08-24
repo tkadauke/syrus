@@ -199,6 +199,12 @@ class User < ApplicationRecord
   after_create :seed_default_cron_templates
 
   def admin?
+    unless has_attribute?(:global_role)
+      return self.class.where(id: id).pick(:global_role) == "admin" if persisted?
+
+      return false
+    end
+
     global_role == "admin"
   end
 

@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_161000) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1847,6 +1848,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
     t.index ["state", "job_id", "updated_at"], name: "idx_runs_state_job_updated"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
     t.index ["state", "step_id"], name: "idx_runs_state_step_id"
+    t.index ["state", "updated_at", "id"], name: "idx_runs_state_updated_id"
     t.index ["step_id", "created_at", "id"], name: "idx_runs_step_created"
     t.index ["step_id", "state", "id"], name: "idx_runs_step_state_id"
     t.index ["step_id"], name: "index_runs_on_step_id"
@@ -2229,6 +2231,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
     t.string "delivery_track", limit: 128
     t.string "idempotency_key", limit: 255
     t.string "kind", limit: 64, null: false
+    t.json "payload_artifacts"
     t.string "priority", limit: 32
     t.bigint "repository_id"
     t.datetime "requested_at", null: false

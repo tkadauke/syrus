@@ -831,7 +831,7 @@ module WorkEngine
         private
 
         def latest_artifacts_for(intent)
-          latest_workflow_for(intent)&.artifacts
+          latest_workflow_for(intent)&.artifacts.presence || intent.payload_artifacts.presence || {}
         end
 
         def latest_agent_provider_for(intent)

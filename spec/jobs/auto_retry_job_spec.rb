@@ -144,6 +144,18 @@ RSpec.describe AutoRetryJob do
     expect(attempt.performed_at).to be_nil
   end
 
+  it "records skipped failed-step attempts when the retry primitive rejects the run" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    allow(RetryFailedStepEnqueuer).to receive(:call).and_return(
+      RetryFailedStepEnqueuer::Result.new(run: nil, workflow: workflow, step: step, error: "No failed step to retry.")
+    )
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("No failed step to retry.")
+    expect(attempt.performed_at).to be_nil
+  end
+
   it "skips stale attempts after a newer workflow has already succeeded" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     Workflow.create!(

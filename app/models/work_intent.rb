@@ -12,6 +12,7 @@ class WorkIntent < ApplicationRecord
 
   before_validation :set_requested_at, on: :create
   before_validation :normalize_wait_details
+  before_validation :normalize_payload_artifacts
 
   validates :kind, :state, :scope_type, :requested_at, presence: true
   validates :state, inclusion: { in: STATES }
@@ -60,6 +61,10 @@ class WorkIntent < ApplicationRecord
     WorkDefinitions.for(kind)
   end
 
+  def payload_artifact(key)
+    (payload_artifacts || {})[key.to_s]
+  end
+
   private
 
   def set_requested_at
@@ -68,5 +73,9 @@ class WorkIntent < ApplicationRecord
 
   def normalize_wait_details
     self.wait_details ||= {}
+  end
+
+  def normalize_payload_artifacts
+    self.payload_artifacts ||= {}
   end
 end

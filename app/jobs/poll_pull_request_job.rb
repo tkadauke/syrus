@@ -3,6 +3,11 @@ class PollPullRequestJob < ApplicationJob
 
   queue_as :polling
   PR_CHECK_CACHE_REFRESH_INTERVAL = 5.minutes
+  TRANSIENT_GITHUB_ERROR_CLASSES = [
+    Octokit::ServerError,
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
 
   # Max ci_failure workflows on a Job in any rolling 24h window. CI
   # failures CAN runaway loop (agent's fix introduces new failures →
@@ -62,6 +67,8 @@ class PollPullRequestJob < ApplicationJob
     # table reflects the actual error class for later diagnostics.
     @job&.user&.mark_gh_api_blocked!(strip_docs_url(e.message))
     raise
+  rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+    Rails.logger.warn("[PollPullRequestJob] #{@job&.slug || job_id}: transient GitHub polling failure — #{e.class}: #{e.message}")
   end
 
   private
@@ -434,6 +441,8 @@ class PollPullRequestJob < ApplicationJob
     reason = strip_docs_url(e.message)
     @job.user.mark_gh_api_blocked!("check-runs: #{reason}")
     Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: ci_failure path disabled — #{reason[0, 160]}")
+  rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+    Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: ci_failure check-runs skipped after transient GitHub failure — #{e.class}: #{e.message}")
   end
 
   def cache_pr_checks_state(head_sha, detail)
@@ -629,7 +638,7 @@ class PollPullRequestJob < ApplicationJob
     base_sha = pr_base_sha
     return false unless base_sha
 
-    if active_ci_failure_workflows_for_repository.any? { |workflow| workflow.job_id != @job.id && workflow.artifact("base_sha") == base_sha }
+    if active_ci_failure_workflows_for_repository.any? { |workflow| workflow.job_id != @job.id && ci_failure_base_sha_for(workflow) == base_sha }
       Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because another active CI repair is already handling base #{base_sha[0, 7]}")
       return true
     end
@@ -649,7 +658,11 @@ class PollPullRequestJob < ApplicationJob
       .where(trigger_kind: "ci_failure", state: %w[queued running])
       .pluck(:id)
 
-    Workflow.where(id: (unit_workflow_ids + legacy_ids).uniq).includes(:job)
+    Workflow.where(id: (unit_workflow_ids + legacy_ids).uniq).includes(:job, work_unit: :work_intent)
+  end
+
+  def ci_failure_base_sha_for(workflow)
+    workflow.artifact("base_sha") || workflow.work_unit&.work_intent&.payload_artifact("base_sha")
   end
 
   def enqueue_ci_failure_run(head_sha, failed_checks)

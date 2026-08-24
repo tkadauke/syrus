@@ -22,8 +22,8 @@ class AutoRetryJob < ApplicationJob
       attempt.update!(performed_at: Time.current)
       WorkUnits::AutoRetryBackoff.clear!(attempt, terminal_state: nil)
       log(attempt, "auto-retry started via #{attempt.retry_kind}")
-    elsif result.circuit&.open?
-      reschedule_for_circuit(attempt, result.circuit)
+    elsif retry_result_circuit(result)&.open?
+      reschedule_for_circuit(attempt, retry_result_circuit(result))
     else
       attempt.update!(skipped_reason: result.error.presence || "retry could not be started")
       WorkUnits::AutoRetryBackoff.clear!(attempt)
@@ -59,6 +59,10 @@ class AutoRetryJob < ApplicationJob
 
   def perform_retry(attempt)
     send(RETRY_DISPATCH.fetch(attempt.retry_kind, :retry_workflow), attempt)
+  end
+
+  def retry_result_circuit(result)
+    result.circuit if result.respond_to?(:circuit)
   end
 
   def stale_attempt?(attempt)

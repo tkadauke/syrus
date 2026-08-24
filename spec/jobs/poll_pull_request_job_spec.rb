@@ -797,6 +797,37 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
     end
 
+    it "suppresses duplicate CI repairs from WorkIntent payload artifacts when Workflow artifacts are missing" do
+      other = Factories.job_record(repository: repository, issue_number: 43, state: "approved")
+      workflow = Workflow.create!(job: other, trigger_kind: "ci_failure", state: "running", artifacts: {})
+      intent = WorkIntent.create!(
+        kind: "ci_failure",
+        state: "requested",
+        repository: repository,
+        scope_type: "job",
+        scope_id: other.id,
+        payload_artifacts: { "base_sha" => base_sha, "head_sha" => "other-head" }
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "ci_failure",
+        state: "running",
+        repository: repository,
+        scope_type: "job",
+        scope_id: other.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: other, role: "primary")
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+    end
+
     it "uses an explicitly selected agent provider for CI-failure workflows" do
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
@@ -819,6 +850,18 @@ RSpec.describe PollPullRequestJob, :ci_only do
           html_url: "u", output: { summary: "ok" } }
       ])
       expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+    end
+
+    it "keeps polling non-CI feedback when check-runs hit a transient network failure" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/#{sha}/check-runs")
+        .with(query: hash_including({}))
+        .to_raise(Faraday::ConnectionFailed.new("end of file reached"))
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to raise_error
+      expect(job.workflows.where(trigger_kind: "ci_failure")).to be_empty
+      expect(job.reload.pr_checks_checked_at).to be_nil
     end
 
     it "is a no-op when checks are still in_progress (don't act on partial state)" do
