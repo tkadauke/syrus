@@ -330,7 +330,7 @@ function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRo
   const { t } = useT("admin")
   return (
     <select
-      className={`${inputClass()} w-auto`}
+      className={inputClass({ fullWidth: false })}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value as TeamMembershipRole)}
       value={value}
