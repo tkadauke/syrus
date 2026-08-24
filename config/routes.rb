@@ -291,6 +291,11 @@ Rails.application.routes.draw do
             get :throughput_metrics
             post :run_insight_analysis
           end
+          resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
+          resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
+        end
+        resources :teams, only: %i[ index show create update destroy ] do
+          resources :memberships, controller: "team_memberships", only: %i[ create update destroy ]
         end
         get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
         get "repositories/:repository_id/tests", to: "repository_tests#index"
@@ -517,6 +522,7 @@ Rails.application.routes.draw do
     # the per-repo controller was pure duplication of the top-level chat flow.
     get "documents", to: "spa#show", as: :documents
     get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
+    get "memberships", to: "spa#show", as: :memberships
   end
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
@@ -594,6 +600,8 @@ Rails.application.routes.draw do
   get "admin/runs/:run_id/transcript", to: "spa#show", as: :admin_run_transcript, constraints: { run_id: /\d+/ }
   get "admin/users", to: "spa#show", as: :admin_users
   get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
+  get "admin/teams", to: "spa#show", as: :admin_teams
+  get "admin/teams/:id", to: "spa#show", as: :admin_team, constraints: { id: /\d+/ }
   get "admin/features", to: "spa#show", as: :admin_features
   get "admin/plugins", to: "spa#show", as: :admin_plugins
   get "admin/build_cache", to: "spa#show", as: :admin_build_cache

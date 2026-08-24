@@ -41,7 +41,9 @@ module Api
         end
 
         def run_again
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
           ctx = params[:retry_context].presence || params[:replay_context]
           ctx = ctx.to_s.strip
           artifacts = ctx.present? ? { "replay_context" => ctx } : nil
@@ -107,7 +109,9 @@ module Api
         end
 
         def cancel
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
           if job.closed?
             render_error("validation_failed", "Job is already closed.", status: :unprocessable_content)
             return
@@ -134,7 +138,9 @@ module Api
         end
 
         def approve
-          job = find_job
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
           unless job.auto_merge_enabled?
             render_error("validation_failed", "Auto-merge is disabled for #{job.repository.slug}; enable it in repository settings before approving.", status: :unprocessable_content)
             return
@@ -280,6 +286,16 @@ module Api
 
         def find_job
           find_job_by_ref(Current.user.jobs.includes(:repository, :runs, :workflows), params[:job_id])
+        end
+
+        # approve/run_again/cancel resolve through the wider,
+        # repository-membership-based JobPolicy::Scope (find_job's
+        # Current.user.jobs stays creator-only for the other actions in
+        # this controller) so a write-tier repository member can reach
+        # them; authorize_job_mutation! (BaseController) still gates the
+        # actual mutation.
+        def find_mutable_job
+          find_job_by_ref(policy_scope(Job).includes(:repository, :runs, :workflows), params[:job_id])
         end
 
         def render_job(job, message:, changed:, tab: nil)

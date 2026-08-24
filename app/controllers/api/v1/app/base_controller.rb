@@ -4,6 +4,7 @@ module Api
       # JSON API for the browser SPA and app-scoped CLI calls. Browser
       # requests use session cookies; CLI requests may use bearer tokens.
       class BaseController < ApplicationController
+        include Pundit::Authorization
         include JobEpicRefFinder
         include JsonErrorRendering
 
@@ -56,6 +57,19 @@ module Api
           render_error("forbidden", I18n.t("api.base.admin_forbidden"), status: :forbidden)
         end
 
+        # Shared gate for Job mutation actions (approve, retry, cancel,
+        # submit chat feedback, priority/provider-setting changes): the
+        # creator, a global admin, or a write-tier-or-higher
+        # RepositoryMembership on the Job's repository. Callers typically
+        # find the job through the wider, repository-membership-based
+        # JobPolicy::Scope first (so a visible-but-not-writable Job 403s
+        # here instead of 404ing at the finder).
+        def authorize_job_mutation!(job)
+          return true if JobPolicy.new(Current.user, job).write?
+
+          render_error("forbidden", "Only the job owner, a repository member with write access, or an admin can perform this action.", status: :forbidden)
+          false
+        end
 
         def plain_json(value)
           case value

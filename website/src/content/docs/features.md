@@ -1038,8 +1038,61 @@ instances keep the primary navigation focused on the solo operator's work.
 That model keeps solo operation simple and team operation centralized
 without turning every run into a shared global credential.
 
+### Repository Members And Access Tiers
+
+Each repository has its own members, independent of the global user role.
+Access is granted through one of three tiers: **Read** (view Jobs and
+Epics on the repository), **Write** (also approve, retry, and cancel
+Jobs), and **Admin** (also manage repository settings, credentials, and
+members — the tier the repository's original owner always holds).
+
+A repository's **Members** tab (Repository → Members) lists current
+members and their tier, and lets an Admin-tier member add someone by
+email at a chosen tier, change an existing member's tier, or remove
+them. There is always at least one Admin-tier member on a repository;
+Syrus refuses to remove or demote the last one.
+
+### Teams
+
+**Teams** (Admin → Teams) are a bulk-grant mechanism layered on top of
+direct repository membership, not a replacement for it. A team has a
+name and a roster of members, each either an **Owner** (can rename the
+team and manage its membership) or a plain **Member**. Any signed-in
+user can create a team and becomes its first owner.
+
+A repository's Admin-tier members grant a team access from that same
+**Members** tab, at a chosen tier (Read/Write/Admin) — exactly the same
+three tiers direct membership uses. Every member of a granted team then
+gets at least that tier on the repository, alongside whatever direct
+membership they hold. A team with no repository grants, or a repository
+with no team grants, behaves exactly as it did before teams existed —
+teams are purely additive. Removing a repository's last team grant
+never removes its direct memberships, and vice versa.
+
 For team workflows, fork-based development, and open source contributions,
 see [Collaboration](/docs/collaboration).
+
+### GitHub Permission Parity
+
+GitHub is still the actual source of truth for who can push code today, so
+a background sync periodically compares Syrus's Write/Admin-tier repository
+members against real GitHub collaborator permissions on repositories with a
+GitHub App installation, and flags drift in either direction. This is
+detection and surfacing only — Syrus never grants, revokes, or otherwise
+changes GitHub access as a result of this check.
+
+A Write/Admin-tier member whose GitHub collaborator permission doesn't back
+up their Syrus access — no linked GitHub handle, not a collaborator on the
+repository, or a GitHub permission below their Syrus tier — gets a "GitHub
+mismatch" badge on their row in the **Members** tab. This is the more
+important direction to know about: Syrus would otherwise let that person
+approve, retry, or cancel Jobs without matching commit rights.
+
+A GitHub collaborator with write or admin access and no corresponding Syrus
+access at all shows up in a separate "GitHub-only collaborators" list on the
+same tab. Both signals refresh automatically; there's nothing to configure.
+This groundwork matters more once self-hosted git removes GitHub as a
+required central host for a repository.
 
 ## Spending Insights
 

@@ -210,7 +210,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
   end
 
-  it "adds the current user as collaborator when the same GitHub slug is already registered by another user" do
+  it "adds the current user as a read-tier member when the same GitHub slug is already registered by another user" do
     other_user = Factories.user
     existing_repo = Factories.repository(user: other_user, owner: "acme", name: "widgets")
     sign_in_as(user)
@@ -232,10 +232,10 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:created)
     membership = existing_repo.repository_memberships.find_by(user: user)
     expect(membership).not_to be_nil
-    expect(membership.role).to eq("collaborator")
+    expect(membership.role).to eq("read")
   end
 
-  it "creates an owner membership when registering a new repository" do
+  it "creates an admin-tier membership when registering a new repository" do
     sign_in_as(user)
 
     expect {
@@ -254,7 +254,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
     expect(response).to have_http_status(:created)
     repo = Repository.find_by(owner: "acme", name: "brandnew")
-    expect(repo.repository_memberships.find_by(user: user).role).to eq("owner")
+    expect(repo.repository_memberships.find_by(user: user).role).to eq("admin")
     expect(parse_body.dig("repository", "owner_user")).to include(
       "id" => user.id,
       "email_address" => user.email_address
@@ -1141,7 +1141,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   end
 
   it "hides and rejects needs-triage release for product owners" do
-    user.update!(role: "product_owner", admin: false)
+    user.update!(role: "product_owner", global_role: "user")
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
     job = user.jobs.create!(

@@ -24,7 +24,7 @@ RSpec.describe PrCommentAttributor do
 
   it "attributes a repository member as member" do
     member = Factories.user(github_handle: "bob")
-    repo.repository_memberships.create!(user: member, role: "collaborator")
+    repo.repository_memberships.create!(user: member, role: "read")
 
     expect(call("bob")).to eq("member")
   end

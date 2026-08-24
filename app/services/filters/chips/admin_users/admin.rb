@@ -9,7 +9,7 @@ module Filters
         values({ value: "true", label: "Yes" }, { value: "false", label: "No" })
 
         def apply
-          scope.where(admin: ActiveModel::Type::Boolean.new.cast(value))
+          scope.where(global_role: ActiveModel::Type::Boolean.new.cast(value) ? "admin" : "user")
         end
       end
     end

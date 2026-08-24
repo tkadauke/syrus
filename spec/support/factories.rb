@@ -2,6 +2,11 @@ module Factories
   module_function
 
   def user(**attrs)
+    if attrs.key?(:admin) && !attrs.key?(:global_role)
+      attrs = attrs.merge(global_role: attrs[:admin] ? "admin" : "user")
+    end
+    attrs = attrs.except(:admin)
+
     User.create!({ email_address: "user-#{SecureRandom.hex(4)}@example.com", password: "supersecret" }.merge(attrs))
   end
 

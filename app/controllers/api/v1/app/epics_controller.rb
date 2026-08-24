@@ -5,7 +5,7 @@ module Api
         before_action :authorize_epic_action!, only: [ :update_state, :start, :approve_review, :submit_review_feedback ]
 
         def index
-          epics = Epic.accessible_to(Current.user).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
+          epics = policy_scope(Epic).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
           epics = filter_epics(epics)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
 
@@ -22,7 +22,7 @@ module Api
             params,
             smart_folder: url_filter.active? ? nil : smart_folder,
             user: Current.user
-          ).apply(Epic.accessible_to(Current.user))
+          ).apply(policy_scope(Epic))
           epic_attrs = scope.pluck(:id, :title, :state, :number)
           epic_ids = epic_attrs.map(&:first)
 
@@ -128,7 +128,7 @@ module Api
           epic = find_epic
           return render_error("epic_not_owned", I18n.t("api.epics.not_claimed"), status: :unprocessable_content) if epic.owner_user_id.blank? && !epic.claimed?
 
-          unless epic.owner_user_id == Current.user.id || Current.user.admin?
+          unless EpicPolicy.new(Current.user, epic).unclaim?
             return render_error("forbidden", I18n.t("api.epics.unclaim_forbidden"), status: :forbidden)
           end
 
@@ -146,7 +146,9 @@ module Api
         def reassign
           epic = find_epic
           owner_param = params[:owner_user_id].presence || params[:owner_id].presence
-          return render_error("forbidden", I18n.t("api.epics.admin_forbidden"), status: :forbidden) if params[:owner_user_id].present? && !Current.user.admin?
+          unless EpicPolicy.new(Current.user, epic).reassign?(via_owner_user_id_param: params[:owner_user_id].present?)
+            return render_error("forbidden", I18n.t("api.epics.admin_forbidden"), status: :forbidden)
+          end
 
           owner = User.find_by(id: owner_param)
           return render_error("owner_not_found", I18n.t("api.epics.owner_not_found"), status: :not_found) unless owner
@@ -202,7 +204,7 @@ module Api
 
         def add_dependency
           epic = find_epic
-          depends_on_epic = Epic.accessible_to(Current.user).find(params.require(:depends_on_epic_id))
+          depends_on_epic = policy_scope(Epic).find(params.require(:depends_on_epic_id))
           dependency = epic.dependencies.build(depends_on_epic: depends_on_epic)
 
           if dependency.save
@@ -637,11 +639,11 @@ module Api
         end
 
         def find_epic
-          find_epic_by_ref(Epic.accessible_to(Current.user).includes(:owner_user), params[:id])
+          find_epic_by_ref(policy_scope(Epic).includes(:owner_user), params[:id])
         end
 
         def membership_on_repo?(repository_id)
-          RepositoryMembership.exists?(repository_id: repository_id, user: Current.user)
+          RepositoryMembership.at_least("write").exists?(repository_id: repository_id, user: Current.user)
         end
 
         # Best-effort start after a "Create Epic & Start Implementing" create:
@@ -658,10 +660,8 @@ module Api
         end
 
         def authorize_epic_action!
-          return unless Current.user&.product_owner?
-
           target_state = action_name == "start" ? "in_progress" : params[:target_state].to_s
-          return unless target_state.in?(%w[ready in_progress done])
+          return if EpicPolicy.new(Current.user, nil).advance_state?(target_state: target_state)
 
           render_error(
             "forbidden",

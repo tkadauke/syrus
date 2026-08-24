@@ -32,6 +32,7 @@ import { AdminSettings } from "./AdminSettings"
 import { AdminStuck } from "./AdminStuck"
 import { AdminTranscript } from "./AdminTranscript"
 import { AdminUserDetailRoute, AdminUsersIndex } from "./AdminUsers"
+import { AdminTeamDetailRoute, AdminTeamsIndex } from "./AdminTeams"
 import { AgentSettingsRoute } from "./AgentSettings"
 import { PasswordRequestRoute, PasswordResetRoute, SignInRoute, SignUpRoute } from "./Auth"
 import { ChatSearchRoute } from "./ChatSearch"
@@ -55,6 +56,7 @@ import { RepositoriesIndex } from "./Repositories"
 import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
+import { RepositoryMembersRoute } from "./RepositoryMembers"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
@@ -106,6 +108,8 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/runs/:runId/transcript", element: <AdminTranscript /> },
   { path: "/admin/users", element: <AdminUsersIndex /> },
   { path: "/admin/users/:id", element: <AdminUserDetailRoute /> },
+  { path: "/admin/teams", element: <AdminTeamsIndex /> },
+  { path: "/admin/teams/:id", element: <AdminTeamDetailRoute /> },
   { path: "/admin/console", element: <AdminConsole /> },
   { path: "/admin/installations", element: <AdminInstallations /> },
   { path: "/admin/github_app/register", element: <AdminGithubAppRegister /> },
@@ -142,6 +146,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/repositories/:repositoryId/scheduled_tasks/new", element: <ScheduledTaskFormRoute mode="new" /> },
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
+  { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
   { path: "/repositories/:id/insights", element: <RepositoryInsightsRoute /> },

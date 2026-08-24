@@ -52,6 +52,9 @@ class Repository < ApplicationRecord
   has_many :fork_repositories, class_name: "Repository", foreign_key: :upstream_repository_id, dependent: :nullify, inverse_of: :upstream_repository
   has_many :repository_memberships, dependent: :destroy
   has_many :members, through: :repository_memberships, source: :user
+  has_many :team_repositories, dependent: :destroy
+  has_many :teams, through: :team_repositories
+  has_many :github_collaborator_discrepancies, dependent: :destroy
   has_many :repository_final_approvers, dependent: :destroy
   has_many :final_approvers, through: :repository_final_approvers, source: :user
   has_many :jobs, dependent: :destroy
@@ -216,10 +219,51 @@ class Repository < ApplicationRecord
 
   def effective_agent_provider(user: nil)
     if user
-      membership_provider = repository_memberships.find_by(user_id: user.id)&.agent_provider&.presence
+      membership = membership_for(user)
+      membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
       return membership_provider if membership_provider
     end
     agent_provider.presence || (user || self.user)&.agent_provider
+  end
+
+  def membership_for(user)
+    return nil unless user
+    repository_memberships.find_by(user_id: user.id)
+  end
+
+  def member_at_least?(user, tier)
+    role = effective_role_for(user)
+    return false unless role
+    RepositoryMembership::ROLE_RANK.fetch(role, -1) >= RepositoryMembership::ROLE_RANK.fetch(tier.to_s, 0)
+  end
+
+  # Highest of: global admin -> "admin"; direct RepositoryMembership role;
+  # best TeamRepository grant across teams `user` belongs to that have a
+  # grant on this repository. Teams are purely additive -- a repository
+  # with zero TeamRepository grants resolves identically to the
+  # direct-membership-only model that preceded teams.
+  def effective_role_for(user)
+    return nil unless user
+    return "admin" if user.admin?
+
+    candidates = [ membership_for(user)&.role, best_team_role_for(user) ].compact
+    return nil if candidates.empty?
+
+    candidates.max_by { |role| RepositoryMembership::ROLE_RANK.fetch(role, -1) }
+  end
+
+  # Repository ids visible to `user`: direct RepositoryMembership (any
+  # tier) plus any repository granted to a team the user belongs to (any
+  # tier). Mirrors Job.accessible_to / Epic.accessible_to's "any grant
+  # counts" visibility semantics -- callers that need tier-gated access
+  # should use #effective_role_for / #member_at_least? instead.
+  def self.accessible_repository_ids_for(user)
+    return none.select(:id) unless user
+
+    direct_ids = RepositoryMembership.where(user: user).select(:repository_id)
+    team_ids = TeamMembership.where(user: user).select(:team_id)
+    team_repo_ids = TeamRepository.where(team_id: team_ids).select(:repository_id)
+    where(id: direct_ids).or(where(id: team_repo_ids)).select(:id)
   end
 
   def effective_prepare_enabled
@@ -255,6 +299,11 @@ class Repository < ApplicationRecord
 
   private
 
+  def best_team_role_for(user)
+    team_ids = user.team_memberships.select(:team_id)
+    team_repositories.where(team_id: team_ids).pluck(:role).max_by { |role| RepositoryMembership::ROLE_RANK.fetch(role, -1) }
+  end
+
   def normalize_agent_provider
     self.agent_provider = nil if agent_provider.blank?
   end
@@ -289,7 +338,7 @@ class Repository < ApplicationRecord
 
   def seed_owner_membership
     return unless user_id.present?
-    repository_memberships.find_or_create_by!(user_id: user_id) { |m| m.role = "owner" }
+    repository_memberships.find_or_create_by!(user_id: user_id) { |m| m.role = "admin" }
   end
 
   def create_github_input_source

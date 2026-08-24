@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -784,6 +784,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.index ["repository_id", "created_at"], name: "index_github_auth_fallbacks_on_repository_and_created_at"
     t.index ["repository_id"], name: "index_github_auth_fallback_diagnostics_on_repository_id"
     t.index ["run_id"], name: "index_github_auth_fallback_diagnostics_on_run_id"
+  end
+
+  create_table "github_collaborator_discrepancies", force: :cascade do |t|
+    t.datetime "checked_at", null: false
+    t.datetime "created_at", null: false
+    t.string "github_login", null: false
+    t.string "github_permission", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id", "github_login"], name: "index_github_collab_discrepancies_on_repo_id_and_login", unique: true
+    t.index ["repository_id"], name: "index_github_collaborator_discrepancies_on_repository_id"
   end
 
   create_table "grader_conclusions", force: :cascade do |t|
@@ -1615,9 +1626,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
   create_table "repository_memberships", force: :cascade do |t|
     t.string "agent_provider"
     t.datetime "created_at", null: false
+    t.datetime "github_permission_mismatch_checked_at"
+    t.string "github_permission_mismatch_reason"
     t.bigint "installation_id"
     t.integer "repository_id", null: false
-    t.string "role", default: "owner", null: false
+    t.string "role", default: "read", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["installation_id"], name: "index_repository_memberships_on_installation_id"
@@ -2001,6 +2014,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.index ["user_id"], name: "index_tags_on_user_id"
   end
 
+  create_table "team_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "role", null: false
+    t.integer "team_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["team_id", "user_id"], name: "index_team_memberships_on_team_id_and_user_id", unique: true
+    t.index ["team_id"], name: "index_team_memberships_on_team_id"
+    t.index ["user_id"], name: "index_team_memberships_on_user_id"
+  end
+
+  create_table "team_repositories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "repository_id", null: false
+    t.string "role", null: false
+    t.integer "team_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_team_repositories_on_repository_id"
+    t.index ["team_id", "repository_id"], name: "index_team_repositories_on_team_id_and_repository_id", unique: true
+    t.index ["team_id"], name: "index_team_repositories_on_team_id"
+  end
+
+  create_table "teams", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "terminal_sessions", force: :cascade do |t|
     t.string "auth_token", null: false
     t.datetime "created_at", null: false
@@ -2077,7 +2118,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
   end
 
   create_table "users", force: :cascade do |t|
-    t.boolean "admin", default: false, null: false
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
     t.text "api_token"
@@ -2106,6 +2146,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.string "gh_rate_limit_resource", limit: 32
     t.string "github_handle"
     t.text "github_token"
+    t.string "global_role", default: "user", null: false
     t.boolean "landing_paused", default: false, null: false
     t.string "last_name"
     t.string "locale", null: false
@@ -2468,6 +2509,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_164000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  # Virtual tables defined in this database.
-  # Note that virtual tables may not work with other database engines. Be careful if changing database.
+  add_foreign_key "github_collaborator_discrepancies", "repositories"
+  add_foreign_key "team_memberships", "teams"
+  add_foreign_key "team_memberships", "users"
+  add_foreign_key "team_repositories", "repositories"
+  add_foreign_key "team_repositories", "teams"
 end
