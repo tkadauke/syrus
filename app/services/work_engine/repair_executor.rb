@@ -67,6 +67,12 @@ module WorkEngine
 
           with_audit { perform }
         rescue StandardError => e
+          if transient_database_lock_error?(e)
+            result = skipped("deferred due to transient database lock: #{e.message}")
+            audit!(result.status, result.message)
+            return result
+          end
+
           Rails.logger.warn("[WorkEngine::RepairExecutor] #{plan.action} failed: #{e.class}: #{e.message}")
           failure("#{e.class}: #{e.message}")
         end
@@ -307,12 +313,28 @@ module WorkEngine
           return skipped("Run is #{run.state}, not running") unless run.running?
           return skipped("Run cannot transition to failed") unless run.may_fail?
 
+          existing_run_ids = run.step&.runs&.pluck(:id) || []
           with_transition_reason do
             run.agent_outcome = AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
             run.fail!
             run.save!
           end
+          if (replacement_run = worker_died_replacement_run(run, existing_run_ids: existing_run_ids))
+            return success("marked Run ##{run.id} worker_died; queued replacement Run ##{replacement_run.id} on Step ##{run.step_id}")
+          end
+
           success("marked Run ##{run.id} worker_died; no automatic retry was scheduled, leaving follow-up to terminal-state reconciliation or operator review")
+        end
+
+        def worker_died_replacement_run(run, existing_run_ids:)
+          run.step&.runs&.where.not(id: existing_run_ids)&.order(:id)&.last
+        end
+
+        def transient_database_lock_error?(error)
+          return true if defined?(ActiveRecord::LockWaitTimeout) && error.is_a?(ActiveRecord::LockWaitTimeout)
+
+          error.is_a?(ActiveRecord::StatementInvalid) &&
+            error.message.match?(/Lock wait timeout|database is locked/i)
         end
       end
 

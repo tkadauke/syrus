@@ -2238,7 +2238,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(agent_run.reload.state).to eq("running")
   end
 
-  it "auto-fails a stale running grader Run when no retry path is available" do
+  it "auto-fails a stale running grader Run and reports the in-place replacement Run" do
     step.update_columns(kind: "grader", state: "running", started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago)
     workflow.update_columns(state: "running", started_at: step.started_at)
     run.update_columns(
@@ -2259,8 +2259,37 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
     expect(repair_plan.execution_steps).to eq([ "Run#fail!(agent_outcome: worker_died)" ])
     expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
-    expect(result.repair_executions.map(&:message)).to include(match(/no automatic retry was scheduled/))
-    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: .*no automatic retry was scheduled/))
+    replacement_run = step.runs.where.not(id: run.id).last
+    expect(replacement_run).to have_attributes(state: "queued")
+    expect(result.repair_executions.map(&:message)).to include("marked Run ##{run.id} worker_died; queued replacement Run ##{replacement_run.id} on Step ##{step.id}")
+    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked Run ##{run.id} worker_died; queued replacement Run ##{replacement_run.id} on Step ##{step.id}/))
+  end
+
+  it "defers repair execution on transient database lock timeouts" do
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    stale_plan = WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "queued_run_without_queue_claim",
+      action: "reenqueue_run",
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id,
+      affected_ids: { run_ids: [ run.id ] },
+      execution_steps: [ "Run#reenqueue!" ],
+      preconditions: {},
+      reason: "stale plan computed before a transient lock"
+    )
+    policy = WorkEngine::RepairExecutor::Policies::ReenqueueRun.new(plan: stale_plan, now: Time.current)
+    allow(policy).to receive(:perform).and_raise(
+      ActiveRecord::StatementInvalid.new("Mysql2::Error::TimeoutError: Lock wait timeout exceeded; try restarting transaction")
+    )
+
+    execution = policy.execute
+
+    expect(execution).to have_attributes(
+      status: "skipped",
+      message: match(/deferred due to transient database lock/)
+    )
+    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/skipped reenqueue_run: deferred due to transient database lock/))
   end
 
   it "auto-fails a stale running prepare Run whose SolidQueue job failed with ProcessPrunedError" do
