@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useT } from "../hooks/useT"
-import { fetchJobPreview, fetchJobPreviewLogs, startJobPreview, stopJobPreview, type PreviewEnvironmentRecord } from "../api/jobs"
+import { fetchPreview, fetchPreviewLogs, startPreview, stopPreview, type PreviewEnvironmentRecord } from "../api/jobs"
 import { errorMessage } from "../lib/errorMessage"
 import { CloseIcon } from "./CloseIcon"
 
@@ -66,7 +66,7 @@ export function PreviewPanel({
 
   const preview = useQuery({
     queryKey: previewQueryKey,
-    queryFn: () => fetchJobPreview(previewPath),
+    queryFn: () => fetchPreview(previewPath),
     select: (data) => data.preview,
     initialData: { preview: initialPreview },
     refetchInterval: (query) => {
@@ -78,7 +78,7 @@ export function PreviewPanel({
   const env = preview.data
 
   const start = useMutation({
-    mutationFn: () => startJobPreview(previewPath),
+    mutationFn: () => startPreview(previewPath),
     onSuccess: (data) => {
       queryClient.setQueryData(previewQueryKey, { preview: data.preview })
       void queryClient.invalidateQueries({ queryKey })
@@ -88,7 +88,7 @@ export function PreviewPanel({
   })
 
   const stop = useMutation({
-    mutationFn: () => stopJobPreview(previewPath),
+    mutationFn: () => stopPreview(previewPath),
     onSuccess: (data) => {
       queryClient.setQueryData(previewQueryKey, { preview: data.preview })
       void queryClient.invalidateQueries({ queryKey })
@@ -177,7 +177,7 @@ function PreviewLogsModal({
 
   const logs = useQuery({
     queryKey: [`${queryKeyPrefix}-preview-logs`, entityId],
-    queryFn: () => fetchJobPreviewLogs(previewLogsPath),
+    queryFn: () => fetchPreviewLogs(previewLogsPath),
     refetchInterval: running ? POLL_INTERVAL_MS : false
   })
 
