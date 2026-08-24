@@ -475,7 +475,21 @@
     "add_team_grant": "Team Zugriff gewähren",
     "team_name_label": "Teamname",
     "team_name_placeholder": "z. B. Platform",
-    "confirm_remove_team": "Zugriff von {{name}} auf dieses Repository entfernen?"
+    "confirm_remove_team": "Zugriff von {{name}} auf dieses Repository entfernen?",
+    "github_mismatch_badge": "GitHub-Abweichung",
+    "github_mismatch_reason": {
+      "no_github_handle": "Für diese Person ist kein GitHub-Handle hinterlegt, der GitHub-Zugriff kann daher nicht überprüft werden.",
+      "not_a_github_collaborator": "Diese Person ist kein GitHub-Mitarbeiter (Collaborator) dieses Repositorys.",
+      "insufficient_github_permission": "Die GitHub-Berechtigung dieser Person liegt unter ihrer Syrus-Rolle."
+    },
+    "github_mismatch_hint": {
+      "no_github_handle": "Kein GitHub-Handle hinterlegt — GitHub-Zugriff kann nicht überprüft werden.",
+      "not_a_github_collaborator": "Kein GitHub-Mitarbeiter (Collaborator) dieses Repositorys.",
+      "insufficient_github_permission": "GitHub-Berechtigung liegt unter dieser Syrus-Rolle."
+    },
+    "github_only_collaborators": "Nur-GitHub-Mitarbeiter",
+    "github_only_collaborators_description": "GitHub-Mitarbeiter mit Schreib- oder Admin-Zugriff auf dieses Repository, die keinen entsprechenden Syrus-Zugriff haben. Nur eine Warnung — Syrus vergibt oder entzieht niemals GitHub-Zugriff.",
+    "github_only_on_github": "auf GitHub, kein Syrus-Zugriff"
   },
   "document_preview": {
     "aria_label": "Vorschau von {{title}}",

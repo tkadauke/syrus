@@ -23,10 +23,32 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/memberships", type:
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["memberships"]).to contain_exactly(
-        include("role" => "admin", "user" => include("id" => owner.id))
+        include("role" => "admin", "user" => include("id" => owner.id), "github_permission_mismatch_reason" => nil)
       )
       expect(parse_body.dig("repository", "id")).to eq(repository.id)
       expect(parse_body["tabs"].map { |tab| tab["key"] }).to include("members")
+      expect(parse_body["github_collaborator_discrepancies"]).to eq([])
+    end
+
+    it "surfaces a stored GitHub permission mismatch on a membership" do
+      membership = repository.repository_memberships.find_by(user: owner)
+      membership.update!(github_permission_mismatch_reason: "not_a_github_collaborator", github_permission_mismatch_checked_at: Time.current)
+
+      get "/api/v1/app/repositories/#{repository.id}/memberships"
+
+      expect(parse_body["memberships"]).to contain_exactly(
+        include("github_permission_mismatch_reason" => "not_a_github_collaborator", "github_permission_mismatch_checked_at" => be_present)
+      )
+    end
+
+    it "surfaces GitHub-only collaborator discrepancies" do
+      repository.github_collaborator_discrepancies.create!(github_login: "external-dev", github_permission: "write", checked_at: Time.current)
+
+      get "/api/v1/app/repositories/#{repository.id}/memberships"
+
+      expect(parse_body["github_collaborator_discrepancies"]).to contain_exactly(
+        include("github_login" => "external-dev", "github_permission" => "write")
+      )
     end
 
     it "adds a user by email at the chosen role" do

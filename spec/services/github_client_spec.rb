@@ -729,6 +729,32 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#collaborator_permissions" do
+    let(:client) { GithubClient.for_user(user) }
+
+    it "maps GitHub's permissions hash down to read/write/admin tiers" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/collaborators")
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: [
+          { login: "admin-dev", permissions: { pull: true, triage: true, push: true, maintain: true, admin: true } },
+          { login: "push-dev", permissions: { pull: true, triage: true, push: true, maintain: false, admin: false } },
+          { login: "maintain-dev", permissions: { pull: true, triage: true, push: false, maintain: true, admin: false } },
+          { login: "triage-dev", permissions: { pull: true, triage: true, push: false, maintain: false, admin: false } },
+          { login: "pull-dev", permissions: { pull: true, triage: false, push: false, maintain: false, admin: false } }
+        ].to_json)
+
+      result = client.collaborator_permissions("acme/widgets")
+
+      expect(result).to eq([
+        { login: "admin-dev", permission: "admin" },
+        { login: "push-dev", permission: "write" },
+        { login: "maintain-dev", permission: "write" },
+        { login: "triage-dev", permission: "read" },
+        { login: "pull-dev", permission: "read" }
+      ])
+    end
+  end
+
   describe "rate limit tracking" do
     let(:client) { GithubClient.for_user(user) }
     let(:reset_epoch) { 1_714_944_000 }

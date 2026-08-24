@@ -630,6 +630,22 @@ class GithubClient
     raise
   end
 
+  # Returns [{ login:, permission: "read"|"write"|"admin" }, ...] for every
+  # collaborator on the repo (direct, outside, or team-inherited — GitHub's
+  # `affiliation: "all"` default). `permission` collapses GitHub's five-tier
+  # permissions hash (pull/triage/push/maintain/admin) down to the three
+  # tiers RepositoryMembership::ROLES uses: admin -> "admin", push/maintain
+  # -> "write", pull/triage -> "read". Used by GithubPermissionSyncer to
+  # compare against Syrus's own role tiers.
+  def collaborator_permissions(repo_slug)
+    track_rate_limits { @client.collaborators(repo_slug) }.map do |collaborator|
+      { login: collaborator.login, permission: collaborator_permission_tier(collaborator) }
+    end
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited listing collaborators on #{repo_slug}: #{e.message}")
+    raise
+  end
+
   # Returns { user: "login", orgs: ["org1", "org2"] } — the authenticated
   # user's login plus all org logins they belong to, sorted.
   def accessible_owners
@@ -868,6 +884,13 @@ class GithubClient
 
   def github_actions_check_run?(run)
     run.app&.slug.to_s == "github-actions"
+  end
+
+  def collaborator_permission_tier(collaborator)
+    permissions = collaborator.permissions
+    return "admin" if permissions&.admin
+    return "write" if permissions&.push || permissions&.maintain
+    "read"
   end
 
   def actions_workflow_names_by_run_id_for_sha(repo_slug, sha)
