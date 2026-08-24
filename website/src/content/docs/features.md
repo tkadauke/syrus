@@ -224,10 +224,13 @@ older, multi-step features and that new requests now show up as individual
 tasks on the main dashboard. Once every legacy Epic has landed or been
 archived, the nav entry disappears — direct links to an Epic's page keep
 working either way.
-Simple mode notifications use the feature title only: they announce
+For a standalone Job (the normal job-centric case), simple mode notifies you
+directly on that Job when it fails or when Syrus opens its PR, with a link
+back to the Job that actually had the problem. For a Job that belongs to a
+legacy Epic, notifications still use the feature title only: they announce
 ready-for-review, terminal feature problems that need attention, and accepted
-review feedback; Job IDs, PR numbers, branch names, commit SHAs, and grader
-details are suppressed.
+review feedback at the Epic level; Job IDs, PR numbers, branch names, commit
+SHAs, and grader details stay suppressed for those child Jobs.
 
 An Epic has a board state: `backlog`, `ready`, `in_progress`, `done`, or
 `archived`. Child Jobs can be blocked until the Epic starts, and Epics can

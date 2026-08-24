@@ -6,6 +6,12 @@ class NotificationService
     main_broken main_inconclusive main_recovered external_pr_feedback
   ].freeze
 
+  # These kinds still suppress by default (see SIMPLE_SUPPRESSED_KINDS above),
+  # but surface per-Job in simple mode for standalone Jobs (no epic_id) since
+  # the primary simple-mode surface is job-centric. Jobs that belong to a
+  # legacy epic keep routing through the epic-level rollup notification.
+  SIMPLE_JOB_CENTRIC_KINDS = %w[job_failed job_implemented].freeze
+
   def self.create_for(user:, kind:, job: nil, repository: nil, actor: nil, pr_url: nil, body:, supervisor_dedupe_key: nil)
     raise ArgumentError, "unknown notification kind: #{kind}" unless Notification::KINDS.include?(kind)
     return nil unless user&.id && User.exists?(user.id)
@@ -21,11 +27,13 @@ class NotificationService
       dedupe_key: supervisor_dedupe_key
     )
 
-    return nil if AppSetting.simple? && SIMPLE_SUPPRESSED_KINDS.include?(kind)
+    return nil if AppSetting.simple? && suppressed_in_simple_mode?(kind, job)
     return nil unless user.notification_preference_for(kind)
 
-    job = nil if AppSetting.simple?
-    pr_url = nil if AppSetting.simple?
+    unless simple_job_centric?(kind, job)
+      job = nil if AppSetting.simple?
+      pr_url = nil if AppSetting.simple?
+    end
     notification = Notification.create!(
       user: user,
       kind: kind,
@@ -92,6 +100,18 @@ class NotificationService
     end
   end
   private_class_method :severity_for
+
+  def self.suppressed_in_simple_mode?(kind, job)
+    return false if simple_job_centric?(kind, job)
+
+    SIMPLE_SUPPRESSED_KINDS.include?(kind)
+  end
+  private_class_method :suppressed_in_simple_mode?
+
+  def self.simple_job_centric?(kind, job)
+    SIMPLE_JOB_CENTRIC_KINDS.include?(kind) && job.present? && job.epic_id.nil?
+  end
+  private_class_method :simple_job_centric?
 
   def self.default_dedupe_key(kind, job, repository, body)
     if job
