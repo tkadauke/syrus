@@ -3,6 +3,8 @@ class OperationalLogIndex < SearchRecord
 
   MAX_LIMIT = 100
   FALLBACK_SEARCH_SCAN_LIMIT = 1_000
+  STALE_AFTER = 5.minutes
+  FRESHNESS_CHECK_INTERVAL = 2.minutes
 
   class << self
     def upsert(event)
@@ -50,6 +52,8 @@ class OperationalLogIndex < SearchRecord
 
     def search(query: nil, since: OperationalLogEvent::RETENTION.ago, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0)
       return fallback_search(query: query, since: since, until_time: until_time, level: level, role: role, hostname: hostname, app_revision: app_revision, limit: limit, offset: offset) unless available?
+
+      ensure_fresh!
 
       binds = []
       wheres = [ "occurred_at >= ?" ]
@@ -126,6 +130,37 @@ class OperationalLogIndex < SearchRecord
 
     def reset_availability_cache!
       remove_instance_variable(:@available) if defined?(@available)
+    end
+
+    # A local search.sqlite3 mirror only stays fresh on hosts that actively
+    # consume the `indexing` queue (the multi-worker "home" tier — see
+    # config/syrus_docs/multi_worker.md). Any other process attached to the
+    # same data root (a "compute" tier worker, or a per-Run MCP sidecar
+    # spawned as its subprocess) gets its local operational_log_fts seeded
+    # once at container boot (REBUILD_HOOKS replays the retention window)
+    # and never again, since IndexOperationalLogEventsJob never runs there.
+    # Once that boot-time seed ages out of OperationalLogEvent::RETENTION,
+    # every search silently returns zero rows even though the primary DB
+    # keeps accumulating events, with no error surfaced anywhere. Detect
+    # that drift here and self-heal instead of requiring an operator to
+    # notice and run `OperationalLogIndex.rebuild!` by hand.
+    def ensure_fresh!
+      return if @next_freshness_check_at && Time.current < @next_freshness_check_at
+
+      @next_freshness_check_at = Time.current + FRESHNESS_CHECK_INTERVAL
+
+      primary_latest = OperationalLogEvent.maximum(:occurred_at)
+      return unless primary_latest
+
+      local_latest = connection.select_value("SELECT MAX(occurred_at) FROM operational_log_fts").presence
+      local_latest_time = local_latest && Time.zone.parse(local_latest)
+      return if local_latest_time && local_latest_time >= primary_latest - STALE_AFTER
+
+      rebuild!
+    end
+
+    def reset_freshness_check!
+      remove_instance_variable(:@next_freshness_check_at) if defined?(@next_freshness_check_at)
     end
 
     # Repopulates the FTS table from the primary-DB events after the table is
