@@ -59,7 +59,6 @@ import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
 import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import { SearchRoute } from "./Search"
-import { SpendingInsightsRoute } from "./SpendingInsights"
 import { RepositoryInsightsRoute } from "./RepositoryInsights"
 import { AdminInsightsRoute } from "./AdminInsights"
 import { Tags } from "./Tags"
@@ -67,6 +66,7 @@ import { TerminalRoute } from "./Terminal"
 import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
+import { PluginSidebarPageRoute } from "../pluginSidebarPages"
 
 type AppRouteDefinition = {
   path: string
@@ -83,7 +83,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
   { path: "/search", element: <SearchRoute /> },
-  { path: "/insights/spending", element: <SpendingInsightsRoute /> },
+  { path: "/insights/spending", element: <PluginSidebarPageRoute /> },
   { path: "/terminal", element: <TerminalRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },

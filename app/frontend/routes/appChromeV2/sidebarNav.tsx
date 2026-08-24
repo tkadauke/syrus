@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import type { SidebarPluginPage } from "../../api/sidebarPages"
-import { DashboardIcon, PluginIcon, RepositoryIcon, ScheduleIcon, TeamIcon, TerminalIcon } from "./icons"
+import { DashboardIcon, PluginIcon, RepositoryIcon, ScheduleIcon, SpendingIcon, TeamIcon, TerminalIcon } from "./icons"
 
 export type SidebarNavContext = {
   simpleMode: boolean
@@ -25,9 +25,9 @@ export type MergedNavItem = {
   order: number
 }
 
-// The primary sidebar nav, minus "spending" (kept as a separate hardcoded
-// entry in AppChromeV2 for now — becoming the first sidebar_page plugin is
-// tracked as a follow-up) and "setup" (onboarding-only, assembled separately).
+// The primary sidebar nav, minus "spending" (now provided by the
+// spending_insights sidebar_page plugin, appended via pluginPages below) and
+// "setup" (onboarding-only, assembled separately).
 export const CORE_NAV_ITEMS: readonly CoreNavItem[] = [
   { id: "dashboard", labelKey: "nav:dashboard", to: (ctx) => (ctx.simpleMode ? "/dashboard/epics" : "/dashboard/jobs"), icon: <DashboardIcon />, order: 10 },
   { id: "repositories", labelKey: "nav:repositories", to: () => "/repositories", icon: <RepositoryIcon />, order: 20 },
@@ -42,6 +42,7 @@ const PLUGIN_ICONS: Record<string, ReactNode> = {
   dashboard: <DashboardIcon />,
   repository: <RepositoryIcon />,
   schedule: <ScheduleIcon />,
+  spending: <SpendingIcon />,
   terminal: <TerminalIcon />,
   team: <TeamIcon />,
 }
