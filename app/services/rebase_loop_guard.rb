@@ -1,4 +1,6 @@
 class RebaseLoopGuard
+  extend RebaseResultLookup
+
   BLOCK_REASON = "waiting for GitHub mergeability after no-op rebase".freeze
 
   def self.latest_noop_rebase(job)
@@ -32,24 +34,6 @@ class RebaseLoopGuard
     result.is_a?(Hash) && result["changed"] == false && result["reason"] == "rebased"
   end
   private_class_method :noop_result?
-
-  def self.result_for(workflow, job)
-    stack_entry = Array(workflow.artifact(StackRebasePlan::RESULTS_ARTIFACT)).find do |entry|
-      entry["job_id"].to_i == job.id
-    end
-    stack_entry&.fetch("result", nil) || workflow.artifact("auto_rebase_result")
-  end
-  private_class_method :result_for
-
-  def self.pr_head_sha(pr)
-    pr.head&.sha.to_s.presence
-  end
-  private_class_method :pr_head_sha
-
-  def self.pr_base_sha(pr)
-    pr.base&.sha.to_s.presence
-  end
-  private_class_method :pr_base_sha
 
   def self.pr_base_ref(pr)
     pr.base&.ref.to_s.presence

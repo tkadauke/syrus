@@ -1,4 +1,6 @@
 class RebaseAttemptGuard
+  extend RebaseResultLookup
+
   ATTEMPT_CAP = 5
   BLOCK_REASON = "rebase cap reached; manual rebase or PR update required".freeze
   AGENT_REBASE_STEPS = %w[ agent_rebase stack_agent_rebase ].freeze
@@ -29,13 +31,6 @@ class RebaseAttemptGuard
       consecutive += 1
     end
     consecutive
-  end
-
-  def self.result_for(workflow, job)
-    stack_entry = Array(workflow.artifact(StackRebasePlan::RESULTS_ARTIFACT)).find do |entry|
-      entry["job_id"].to_i == job.id
-    end
-    stack_entry&.fetch("result", nil) || workflow.artifact("auto_rebase_result")
   end
 
   def self.branch_for(workflow, job)
@@ -79,14 +74,4 @@ class RebaseAttemptGuard
     true
   end
   private_class_method :matches_pr?
-
-  def self.pr_head_sha(pr)
-    pr.head&.sha.to_s.presence
-  end
-  private_class_method :pr_head_sha
-
-  def self.pr_base_sha(pr)
-    pr.base&.sha.to_s.presence
-  end
-  private_class_method :pr_base_sha
 end
