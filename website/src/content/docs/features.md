@@ -98,6 +98,9 @@ Terminal — it's appended at the end of the list rather than dropped or
 inserted at a random position. The pinned Supervisor chat entry below the
 primary nav is not part of this list and always stays in place.
 
+Reordering uses the same mouse-driven HTML5 drag-and-drop pattern as the
+recent chats list; there is currently no keyboard-only way to reorder items.
+
 ## Terminal
 
 When the `terminal` feature flag is enabled, the V2 sidebar shows a
