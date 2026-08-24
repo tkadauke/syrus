@@ -290,26 +290,30 @@ module WorkEngine
       elsif run_id.present?
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       elsif job_id.present?
-        active_ids = Workflow.where(job_id: job_id, state: %w[ queued running failed ]).pluck(:id)
-        terminal_descendant_ids = terminal_workflows_with_active_descendants(job_ids: [ job_id ]).pluck(:id)
+        active_workflows = Workflow.where(job_id: job_id, state: %w[ queued running failed ])
+        terminal_descendant_workflows = terminal_workflows_with_active_descendants(job_ids: [ job_id ])
 
-        Workflow.where(id: active_ids + terminal_descendant_ids)
+        Workflow.where(id: active_workflows.select(:id))
+          .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       else
-        active_ids = Workflow.where(job_id: jobs.map(&:id), state: %w[ queued running failed ]).pluck(:id)
-        terminal_descendant_ids = terminal_workflows_with_active_descendants.pluck(:id)
+        active_workflows = Workflow.where(job_id: jobs.map(&:id), state: %w[ queued running failed ])
+        terminal_descendant_workflows = terminal_workflows_with_active_descendants
 
-        Workflow.where(id: active_ids + terminal_descendant_ids)
+        Workflow.where(id: active_workflows.select(:id))
+          .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       end
     end
 
     def scoped_runs
       if run_id.present?
         Run.where(id: run_id)
+      elsif workflow_id.present?
+        Run.where(step_id: Step.where(workflow_id: workflow_id).select(:id)).where(state: %w[ queued running failed ])
       elsif work_intent_id.present?
-        Run.where(step_id: Step.where(workflow_id: workflows.map(&:id)).select(:id)).where(state: %w[ queued running failed ])
+        workflow_ids = WorkUnit.where(work_intent_id: work_intent_id).where.not(workflow_id: nil).select(:workflow_id)
+        Run.where(step_id: Step.where(workflow_id: workflow_ids).select(:id)).where(state: %w[ queued running failed ])
       else
-        step_ids = workflows.flat_map { |workflow| workflow.steps.map(&:id) }
-        Run.where(step_id: step_ids).where(state: %w[ queued running failed ])
+        Run.where(step_id: Step.where(workflow_id: workflows.map(&:id)).select(:id)).where(state: %w[ queued running failed ])
       end
     end
 
