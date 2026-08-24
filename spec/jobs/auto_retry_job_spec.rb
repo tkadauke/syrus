@@ -176,6 +176,33 @@ RSpec.describe AutoRetryJob do
     expect(RetryWorkflowEnqueuer).not_to have_received(:call)
   end
 
+  it "skips stale provider-delay attempts when fresh classification no longer matches" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    run.update_columns(agent_outcome: nil)
+    attempt.update!(failure_classification: "rate_limited")
+    RunFailureClassification.create!(
+      run: run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "stale deployed classifier result",
+      classified_at: 20.minutes.ago
+    )
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "GitRunner::GitError",
+      error_message: "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree."
+    )
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.not_to change { step.runs.count }
+
+    expect(attempt.reload.skipped_reason).to eq("failure classification changed from rate_limited to git_state_corrupt before retry")
+    expect(attempt.performed_at).to be_nil
+    expect(run.run_failure_classification.reload.classification).to eq("git_state_corrupt")
+  end
+
   it "reschedules the same attempt when the provider circuit is still open" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     retry_after = 10.minutes.from_now

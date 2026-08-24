@@ -14,6 +14,7 @@ class AutoRetryJob < ApplicationJob
       return
     end
 
+    return if skip_if_provider_delay_no_longer_matches(attempt)
     return if reschedule_if_provider_blocked(attempt)
 
     result = perform_retry(attempt)
@@ -45,6 +46,37 @@ class AutoRetryJob < ApplicationJob
 
     reschedule_for_circuit(attempt, circuit)
     true
+  end
+
+  PROVIDER_DELAYED_CLASSIFICATIONS = [ "rate_limited", ProviderUsageLimit::CLASSIFICATION ].freeze
+
+  def skip_if_provider_delay_no_longer_matches(attempt)
+    return false unless PROVIDER_DELAYED_CLASSIFICATIONS.include?(attempt.failure_classification)
+    return false unless attempt.run
+    return false if trusted_provider_delay_attempt?(attempt)
+
+    fresh = RunFailureClassifier.persist!(attempt.run)
+    return false if fresh.classification == attempt.failure_classification
+
+    attempt.update!(skipped_reason: "failure classification changed from #{attempt.failure_classification} to #{fresh.classification} before retry")
+    WorkUnits::AutoRetryBackoff.clear!(attempt)
+    log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
+    WorkEngine::Reconciler.request(source: self.class.name, job: attempt.job)
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[AutoRetryJob] failed to refresh Run ##{attempt.run_id} failure classification: #{e.class}: #{e.message}")
+    false
+  end
+
+  def trusted_provider_delay_attempt?(attempt)
+    case attempt.failure_classification
+    when "rate_limited"
+      attempt.run.user&.gh_rate_limit_reset_at&.future?
+    when ProviderUsageLimit::CLASSIFICATION
+      ProviderQuotaReset.retry_after_for_run(attempt.run).present?
+    else
+      false
+    end
   end
 
   def reschedule_for_circuit(attempt, circuit)

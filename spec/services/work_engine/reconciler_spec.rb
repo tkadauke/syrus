@@ -3577,6 +3577,35 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
   end
 
+  it "refreshes stale provider-delay classifications before planning retry loops" do
+    run.update_columns(state: "failed", finished_at: Time.current, agent_outcome: nil)
+    step.update_columns(state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "GitRunner::GitError",
+      error_message: "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree."
+    )
+    RunFailureClassification.create!(
+      run: run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "stale deployed classifier result",
+      classified_at: 20.minutes.ago
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(plan(result, :schedule_retry_after_rate_limit)).to be_nil
+    expect(kind(result, :nonretryable_semantic_git_failure)).to be_present
+    expect(run.run_failure_classification.reload).to have_attributes(
+      classification: "git_state_corrupt",
+      retryable: false
+    )
+  end
+
   it "ignores retryable failed Runs that were superseded by a later successful Run on the same Step" do
     step.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
     workflow.update_columns(state: "running", started_at: 30.minutes.ago)

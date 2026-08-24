@@ -1778,7 +1778,7 @@ module WorkEngine
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
         next if work_definition_for(run.workflow)&.suppresses_layered_auto_repair?
 
-        classification = run.run_failure_classification
+        classification = effective_failure_classification(run)
         next if classification.nil?
         next unless classification.retryable || provider_quota_classification?(classification)
 
@@ -1857,7 +1857,7 @@ module WorkEngine
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
 
-        classification = run.run_failure_classification
+        classification = effective_failure_classification(run)
         next if classification.nil?
         next if provider_quota_classification?(classification)
 
@@ -2462,6 +2462,32 @@ module WorkEngine
       return run.user.gh_rate_limit_reset_at if classification.classification == "rate_limited" && run.user.gh_rate_limit_reset_at&.future?
 
       nil
+    end
+
+    def effective_failure_classification(run)
+      classification = run.run_failure_classification
+      return classification unless provider_delayed_classification?(classification)
+      return classification if trusted_provider_delay_classification?(run, classification)
+
+      RunFailureClassifier.persist!(run)
+    rescue StandardError => e
+      Rails.logger.warn("[WorkEngine::Reconciler] failed to refresh Run ##{run.id} failure classification: #{e.class}: #{e.message}")
+      classification
+    end
+
+    def provider_delayed_classification?(classification)
+      classification&.classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
+    end
+
+    def trusted_provider_delay_classification?(run, classification)
+      case classification.classification
+      when "rate_limited"
+        run.user&.gh_rate_limit_reset_at&.future?
+      when ProviderUsageLimit::CLASSIFICATION
+        ProviderQuotaReset.retry_after_for_run(run, now: now).present?
+      else
+        false
+      end
     end
 
     def provider_quota_classification?(classification)
