@@ -2,6 +2,8 @@ require "set"
 
 module WorkflowStepResourceProfiles
   class Refresh
+    MAX_INPUT_SUMMARIES = 5_000
+
     def initialize(now: Time.current)
       @now = now
     end
@@ -26,10 +28,16 @@ module WorkflowStepResourceProfiles
 
     def input_summaries
       RunResourceSummary
-        .includes(:job, :step, run: :command_spans)
+        .preload(:job, :step, run: :command_spans)
         .where.not(repository_id: nil, step_kind: nil)
         .where(retention_limited: false)
-        .where("COALESCE(finished_at, created_at) >= ?", now - WorkflowStepResourceProfile::INPUT_RETAIN_AFTER)
+        .where("COALESCE(finished_at, created_at) >= ?", now - input_retain_after)
+        .order(Arel.sql("COALESCE(finished_at, created_at) DESC"), id: :desc)
+        .limit(MAX_INPUT_SUMMARIES)
+    end
+
+    def input_retain_after
+      [ WorkflowStepResourceProfile::INPUT_RETAIN_AFTER, RunResourceSummary::RETAIN_AFTER ].min
     end
 
     def grouped_inputs(summaries)

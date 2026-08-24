@@ -1988,6 +1988,8 @@ module WorkEngine
     def capture_solid_queue
       PerformanceLogging.phase("work_engine.reconciler.capture_solid_queue") do
         root_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_root_run_ids") { solid_queue_root_run_ids }
+        return empty_solid_queue_snapshot if root_ids.empty?
+
         jobs = PerformanceLogging.phase("work_engine.reconciler.solid_queue_run_jobs") do
           SolidQueue::Job
             .where(class_name: "RunJob")
@@ -2071,6 +2073,19 @@ module WorkEngine
       end
     rescue ActiveRecord::StatementInvalid, NameError
       { available: false, jobs: [], processes: [], pauses: [] }
+    end
+
+    def empty_solid_queue_snapshot
+      {
+        available: true,
+        jobs: [],
+        processes: PerformanceLogging.phase("work_engine.reconciler.solid_queue_processes") {
+          SolidQueue::Process.all.map { |process| { id: process.id, hostname: process.hostname, last_heartbeat_at: process.last_heartbeat_at } }
+        },
+        pauses: PerformanceLogging.phase("work_engine.reconciler.solid_queue_pauses") {
+          SolidQueue::Pause.all.map { |pause| { id: pause.id, queue_name: pause.queue_name, created_at: pause.created_at } }
+        }
+      }
     end
 
     def solid_queue_for_run(run)

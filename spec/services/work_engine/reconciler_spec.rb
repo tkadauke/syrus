@@ -4224,6 +4224,19 @@ RSpec.describe WorkEngine::Reconciler do
       expect(result.snapshot.solid_queue_jobs.map { |entry| entry[:id] }).to include(queue_job.id)
     end
 
+    it "does not query executions when the scoped workflow has no Runs" do
+      run.destroy!
+      workflow.reload
+
+      other_job = Factories.job(agent_provider: "claude")
+      other_run = other_job.latest_workflow.first_step.runs.first
+      solid_queue_run_job(other_run, failed: true, created_at: 30.days.ago)
+
+      bind_sets = captured_execution_binds { reconcile(workflow_id: workflow.id) }
+
+      expect(bind_sets).to be_empty
+    end
+
     # `where(run_id:).or(where(workflow_id:))` cannot combine the two indexes
     # on MySQL and degrades to a full scan of spawned_processes — 382k rows and
     # 375MB on production, measured at 127.4 seconds against 0.99ms and 0.80ms

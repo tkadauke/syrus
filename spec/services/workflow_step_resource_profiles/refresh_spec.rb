@@ -278,6 +278,37 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(profile.p50_cpu_pressure).to eq(10.0)
   end
 
+  it "does not train profiles from summaries older than detailed summary retention" do
+    resource_summary(repository: repository, duration: 100, cpu: 10.0)
+    resource_summary(
+      repository: repository,
+      duration: 1_000,
+      cpu: 99.0,
+      finished_at: now - RunResourceSummary::RETAIN_AFTER - 1.second
+    )
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.sample_count).to eq(1)
+    expect(profile.p50_duration_seconds).to eq(100.0)
+  end
+
+  it "caps each refresh to recent summaries so maintenance stays bounded" do
+    stub_const("#{described_class}::MAX_INPUT_SUMMARIES", 2)
+
+    resource_summary(repository: repository, duration: 100, cpu: 10.0, finished_at: now - 3.minutes)
+    resource_summary(repository: repository, duration: 200, cpu: 20.0, finished_at: now - 2.minutes)
+    resource_summary(repository: repository, duration: 300, cpu: 30.0, finished_at: now - 1.minute)
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.sample_count).to eq(2)
+    expect(profile.p50_duration_seconds).to eq(200.0)
+    expect(profile.p90_duration_seconds).to eq(300.0)
+  end
+
   it "retains historical profiles after detailed summaries are pruned" do
     stale_observed_at = now - 100.days
     retained = WorkflowStepResourceProfile.create!(

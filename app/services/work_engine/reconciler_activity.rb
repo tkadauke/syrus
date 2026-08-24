@@ -51,6 +51,7 @@ module WorkEngine
       end
 
       return unless execute_repairs
+      return unless notable_result?
 
       WorkEngineReconcilerActivityEvent.record!(
         event_type: "run_finished",
@@ -91,6 +92,10 @@ module WorkEngine
     private
 
     attr_reader :source, :job_id, :workflow_id, :run_id, :work_intent_id, :now, :execute_repairs, :result, :error
+
+    def notable_result?
+      actionable_activity.any?
+    end
 
     def actionable_activity
       result.repair_executions.each_with_index.filter_map do |execution, index|

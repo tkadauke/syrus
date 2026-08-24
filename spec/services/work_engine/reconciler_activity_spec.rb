@@ -71,7 +71,7 @@ RSpec.describe WorkEngine::ReconcilerActivity do
     )
   end
 
-  it "does not record detailed activity for skipped repair executions" do
+  it "does not record skipped-only repair passes as activity" do
     job = Factories.job
     result = reconciler_result(
       job: job,
@@ -86,10 +86,7 @@ RSpec.describe WorkEngine::ReconcilerActivity do
       result: result
     )
 
-    expect(WorkEngineReconcilerActivityEvent.order(:id).pluck(:event_type)).to eq(%w[run_finished])
-    expect(WorkEngineReconcilerActivityEvent.first.details).to include(
-      "repair_statuses" => { "skipped" => 1 }
-    )
+    expect(WorkEngineReconcilerActivityEvent.count).to eq(0)
   end
 
   it "does not record read-only reconciler inspections as activity" do
