@@ -654,7 +654,7 @@ module Api
             ci_health: repository.ci_health,
             grader_health: repository.grader_health,
             main_health: repository.main_health,
-            landing_paused: repository.landing_paused?,
+            landing_paused: repository_main_health_landing_paused?(repository),
             main_branch_health_enabled: repository.main_branch_health_enabled?,
             main_branch_repair_enabled: repository.main_branch_repair_enabled?,
             main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
@@ -1001,7 +1001,7 @@ module Api
             ci_health: current_health[:ci_health],
             grader_health: current_health[:grader_health],
             main_health: current_health[:main_health],
-            landing_paused: repository.landing_paused?,
+            landing_paused: repository_main_health_landing_paused?(repository),
             main_branch_health_enabled: repository.main_branch_health_enabled?,
             main_branch_repair_enabled: repository.main_branch_repair_enabled?,
             main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
@@ -1019,6 +1019,19 @@ module Api
         end
 
         def current_health_history_json(repository, checks)
+          unless repository.main_branch_health_enabled?
+            return {
+              ci_health: "unknown",
+              grader_health: "unknown",
+              main_health: "unknown",
+              ci_signal_current: false,
+              grader_signal_current: false,
+              current_health_pending: false,
+              current_ci_failed_checks: [],
+              current_grader_failed_names: []
+            }
+          end
+
           sha = repository.last_health_checked_sha.to_s.presence
           ci_signal_current = sha.present? && (repository.last_ci_evaluated_sha == sha || repository.ci_health_not_configured?)
           grader_signal_current = sha.present? && repository.last_graded_sha == sha
@@ -1045,6 +1058,10 @@ module Api
           return "inconclusive" if ci_health == "inconclusive" || grader_health == "inconclusive"
 
           "unknown"
+        end
+
+        def repository_main_health_landing_paused?(repository)
+          repository.main_branch_health_enabled? && repository.landing_paused?
         end
 
         def main_branch_repair_json(repository)

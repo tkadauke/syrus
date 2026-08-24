@@ -97,6 +97,7 @@ class Repository < ApplicationRecord
   before_validation :normalize_upstream_metadata
   before_validation :default_main_branch_repair_for_fork, on: :create
   before_save :link_installation_from_owner
+  before_save :clear_landing_pause_when_main_branch_health_disabled
   after_create :seed_owner_membership
   after_create :create_github_input_source
   after_save :sync_input_source_attrs, if: -> { saved_change_to_polling_enabled? || saved_change_to_trigger_label? }
@@ -151,6 +152,10 @@ class Repository < ApplicationRecord
 
   def main_health_poll_outage?
     main_health_poll_error_streak >= MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD
+  end
+
+  def clear_landing_pause_when_main_branch_health_disabled
+    self.landing_paused = false unless main_branch_health_enabled?
   end
 
   # Read-through delegators to the InputSources::Github record.

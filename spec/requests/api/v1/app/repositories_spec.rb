@@ -710,6 +710,57 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
   end
 
+  it "does not present stale broken main branch health as current when health checks are disabled" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    stale_sha = "stale1234567890"
+    MainBranchHealthCheck.record_concern_quorum(
+      repository: repository,
+      sha: stale_sha,
+      grader_failed_names: [ "rspec", "react-tests" ]
+    )
+    repository.update!(
+      main_branch_health_enabled: false,
+      main_branch_repair_enabled: true,
+      main_branch_repair_auto_approve: true,
+      last_health_checked_sha: stale_sha,
+      last_ci_evaluated_sha: stale_sha,
+      last_graded_sha: stale_sha,
+      ci_health: "broken",
+      grader_health: "broken",
+      landing_paused: true
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    health = parse_body.fetch("health_history")
+    expect(health).to include(
+      "ci_health" => "unknown",
+      "grader_health" => "unknown",
+      "main_health" => "unknown",
+      "landing_paused" => false,
+      "main_branch_health_enabled" => false,
+      "main_branch_repair_enabled" => true,
+      "main_branch_repair_auto_approve" => true,
+      "ci_signal_current" => false,
+      "grader_signal_current" => false,
+      "current_health_pending" => false,
+      "current_ci_failed_checks" => [],
+      "current_grader_failed_names" => []
+    )
+    expect(health.fetch("main_branch_repair")).to include(
+      "enabled" => true,
+      "can_request" => false,
+      "can_spawn" => false
+    )
+    expect(health.fetch("records").first).to include(
+      "sha" => stale_sha.first(7),
+      "grader_health" => "broken",
+      "grader_failed_names" => [ "rspec", "react-tests" ]
+    )
+  end
+
   it "returns repository GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")
@@ -977,6 +1028,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   it "updates repositories" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    repository.update!(landing_paused: true, ci_health: "broken")
 
     patch "/api/v1/app/repositories/#{repository.id}", params: {
       repository: {
@@ -1015,6 +1067,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(repository.pr_cost_footer_enabled).to eq(false)
     expect(repository.auto_merge_enabled).to eq(true)
     expect(repository.main_branch_health_enabled).to eq(false)
+    expect(repository.landing_paused).to eq(false)
     expect(repository.main_branch_repair_enabled).to eq(false)
     expect(repository.main_branch_repair_blocks_work).to eq(false)
     expect(repository.main_branch_repair_auto_approve).to eq(true)
