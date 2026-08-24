@@ -35,6 +35,7 @@ class JobBundleDispatcher
 
       raise ActiveRecord::Rollback if landing_job_in_progress
       raise ActiveRecord::Rollback if active_member_work?(members)
+      raise ActiveRecord::Rollback if active_member_lock?(members)
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
 
@@ -85,6 +86,10 @@ class JobBundleDispatcher
       return active_member_work_reason(active_work)
     end
 
+    if (active_lock = active_member_lock(readiness.members))
+      return active_member_lock_reason(active_lock)
+    end
+
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)
       return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
     end
@@ -116,6 +121,10 @@ class JobBundleDispatcher
     active_member_work(members).present?
   end
 
+  def active_member_lock?(members)
+    active_member_lock(members).present?
+  end
+
   def active_member_work(members)
     WorkUnits::Ownership
       .active_workflows_by_job_id(members.map(&:id))
@@ -126,6 +135,22 @@ class JobBundleDispatcher
 
   def active_member_work_reason(active_work)
     "active workflow #{active_work.slug} must finish before the job bundle starts"
+  end
+
+  def active_member_lock(members)
+    members.each do |member|
+      unit = WorkUnits::Ownership.active_unit_for_lock_key("job:#{member.id}")
+      return unit if unit
+    end
+
+    nil
+  end
+
+  def active_member_lock_reason(unit)
+    workflow = unit.workflow
+    return active_member_work_reason(workflow) if workflow
+
+    "active work unit WU-#{unit.id} must finish before the job bundle starts"
   end
 
   # Mirrors MergeTrainDispatcher#cooling_down_failure: transient

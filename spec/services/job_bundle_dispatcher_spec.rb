@@ -157,6 +157,33 @@ RSpec.describe JobBundleDispatcher do
     expect(MergeTrain.count).to eq(0)
   end
 
+  it "does not dispatch while an active WorkUnit lock owns a bundle member without membership" do
+    a = approved_job(1)
+    approved_job(2)
+    intent = WorkIntent.create!(
+      kind: "ci_failure",
+      state: "requested",
+      repository: repository,
+      scope_type: "job",
+      scope_id: a.id,
+      actor: user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "ci_failure",
+      state: "running",
+      repository: repository,
+      scope_type: "job",
+      scope_id: a.id
+    )
+    unit.work_unit_locks.create!(lock_key: "job:#{a.id}")
+
+    expect(described_class.blocker_reason(repository)).to eq("active work unit WU-#{unit.id} must finish before the job bundle starts")
+    expect { described_class.try_dispatch!(repository) }.not_to raise_error
+    expect(MergeTrain.count).to eq(0)
+  end
+
   it "treats a WorkUnit lock race during dispatch as a no-op instead of raising" do
     approved_job(1)
     approved_job(2)
