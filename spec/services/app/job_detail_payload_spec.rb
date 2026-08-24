@@ -773,7 +773,22 @@ RSpec.describe App::JobDetailPayload do
         state: "requested",
         scope_type: "job",
         scope_id: job.id,
+        execution_label: nil,
         execution_status: "running"
+      )
+    end
+
+    it "includes the blocked WorkUnit reason as the intent execution label" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "queued")
+      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "blocked", blocked_reason: "admission_control")
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:current_intent)).to include(
+        id: unit.work_intent_id,
+        execution_status: "blocked",
+        execution_label: "Admission control"
       )
     end
 

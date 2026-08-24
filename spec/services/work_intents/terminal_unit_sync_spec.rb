@@ -57,4 +57,31 @@ RSpec.describe WorkIntents::TerminalUnitSync do
     expect(failed.work_unit.work_intent.reload).to be_requested
     expect(cancelled.work_unit.work_intent.reload).to be_requested
   end
+
+  it "cancels a requested WorkIntent when its only WorkUnit is superseded by a rebase" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+    intent = workflow.work_unit.work_intent
+
+    workflow.work_unit.preempt!(reason: Workflow::SUPERSEDED_BY_REBASE_REASON)
+
+    expect(intent.reload).to have_attributes(state: "cancelled")
+    expect(intent.cancelled_at).to be_present
+  end
+
+  it "does not cancel a superseded WorkIntent while another WorkUnit for it is still active" do
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+    intent = workflow.work_unit.work_intent
+    WorkUnit.create!(
+      work_intent: intent,
+      kind: "ci_failure",
+      state: "queued",
+      repository: repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+
+    workflow.work_unit.preempt!(reason: Workflow::SUPERSEDED_BY_REBASE_REASON)
+
+    expect(intent.reload).to be_requested
+  end
 end

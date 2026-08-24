@@ -542,6 +542,7 @@ export type JobWorkIntent = {
   wait_until: string | null
   wait_details: Record<string, unknown> | null
   execution_status: string
+  execution_label?: string | null
   requested_at: string | null
   satisfied_at: string | null
   cancelled_at: string | null

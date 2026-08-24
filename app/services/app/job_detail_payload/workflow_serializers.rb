@@ -52,6 +52,7 @@ module App
           wait_until: iso8601(intent.wait_until),
           wait_details: intent.wait_details.presence,
           execution_status: intent_execution_status(intent),
+          execution_label: intent_execution_label(intent),
           requested_at: iso8601(intent.requested_at),
           satisfied_at: iso8601(intent.satisfied_at),
           cancelled_at: iso8601(intent.cancelled_at)
@@ -136,6 +137,16 @@ module App
         return "blocked" if intent.waiting?
 
         intent.state
+      end
+
+      def intent_execution_label(intent)
+        blocked_unit = intent.work_units
+          .where(state: "blocked")
+          .order(created_at: :desc, id: :desc)
+          .first
+        return blocked_reason_label(blocked_unit.blocked_reason) if blocked_unit&.blocked_reason.present?
+
+        nil
       end
 
       def intent_label(intent)

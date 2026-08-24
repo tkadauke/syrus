@@ -67,7 +67,10 @@ module Api
           agent_provider = params[:agent_provider].to_s.presence
           return unless valid_configured_agent_provider?(agent_provider)
 
-          superseded_active_workflow = job.cancel_active_workflows_for_rebase!
+          superseded_active_workflow = RebaseWorkflowSelector
+            .related_jobs_for(job)
+            .map(&:cancel_active_workflows_for_rebase!)
+            .any?
 
           workflow = RebaseWorkflowSelector.instantiate(
             job: job,

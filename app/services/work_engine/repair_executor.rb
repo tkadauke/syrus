@@ -886,6 +886,34 @@ module WorkEngine
         end
       end
 
+      class CancelWorkIntentFromSupersededWorkUnit < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not requested/waiting") unless intent.requested? || intent.waiting?
+
+          unit_id = plan.preconditions["work_unit_id"]
+          unit = WorkUnit.find_by(id: unit_id)
+          return skipped("WorkUnit ##{unit_id} no longer exists") unless unit
+          return skipped("WorkUnit ##{unit.id} belongs to WorkIntent ##{unit.work_intent_id}, not ##{intent.id}") unless unit.work_intent_id == intent.id
+          return skipped("WorkUnit ##{unit.id} is #{unit.state}, not cancelled") unless unit.cancelled?
+
+          expected_reason = plan.preconditions["preemption_reason"].to_s
+          allowed_reasons = WorkIntents::TerminalUnitSync::SUPERSEDING_CANCEL_REASONS
+          return skipped("WorkUnit ##{unit.id} preemption reason #{unit.preemption_reason.inspect} is not superseding") unless allowed_reasons.include?(unit.preemption_reason.to_s)
+          return skipped("WorkUnit ##{unit.id} preemption reason changed from #{expected_reason.inspect} to #{unit.preemption_reason.inspect}") if expected_reason.present? && unit.preemption_reason.to_s != expected_reason
+
+          active_sibling_ids = intent.work_units
+            .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+            .where.not(id: unit.id)
+            .pluck(:id)
+          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_sibling_ids.inspect}") if active_sibling_ids.any?
+
+          intent.cancel!
+          success("cancelled WorkIntent ##{intent.id} from superseded WorkUnit ##{unit.id}")
+        end
+      end
+
       class CancelSupersededActiveWorkflow < Base
         def perform
           workflow = target_workflow

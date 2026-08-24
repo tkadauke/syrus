@@ -91,7 +91,7 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText((_content, element) => element?.textContent === "WI-77")).toBeInTheDocument()
     expect(screen.getByText("Waiting on dependency")).toBeInTheDocument()
     expect(screen.getByText("Desired waiting")).toBeInTheDocument()
-    expect(screen.getByText("Attempt blocked")).toBeInTheDocument()
+    expect(screen.getByText("Attempt Waiting")).toBeInTheDocument()
     expect(screen.getByText("Blocked by JOB-9.")).toBeInTheDocument()
     expect(screen.getByText("Diagnostic details")).toBeInTheDocument()
     expect(screen.queryByText("No workflows yet.")).not.toBeInTheDocument()
@@ -312,7 +312,7 @@ describe("WorkflowsTab", () => {
     )
 
     expect(screen.getByText("Desired waiting")).toBeInTheDocument()
-    expect(screen.getByText("Attempt blocked")).toBeInTheDocument()
+    expect(screen.getByText("Attempt Waiting")).toBeInTheDocument()
     expect(screen.getByText("Stack dependencies not ready")).toBeInTheDocument()
     expect(screen.getByText("This stack item is waiting for its parent branch to be ready.")).toBeInTheDocument()
     expect(screen.getByText("selected stack parent is missing an open PR branch or captured head SHA.")).toBeInTheDocument()

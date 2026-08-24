@@ -51,6 +51,13 @@ class RebaseWorkflowSelector
     active_workflows_for_job_ids(job_ids)
   end
 
+  def self.related_jobs_for(job)
+    ids = related_job_ids_for([ job ])
+    return [] if ids.empty?
+
+    Job.where(id: ids).order(:id).to_a
+  end
+
   def self.active_merge_train_for_stack?(job)
     active_merge_trains_for_jobs([ job ]).exists?
   end

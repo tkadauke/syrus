@@ -1209,6 +1209,23 @@ module WorkEngine
         end
       end
 
+      class SupersededWorkUnitUncancelledIntent < Base
+        def plan
+          automatic_plan(
+            "cancel_work_intent_from_superseded_work_unit",
+            primary_work_intent,
+            "The WorkUnit was cancelled by newer work and no active sibling Unit remains for the same Intent, so retire the obsolete desired work.",
+            execution_steps: [ "WorkIntent#cancel!" ],
+            preconditions: {
+              work_intent_state: %w[requested waiting],
+              work_unit_id: issue.evidence["work_unit_id"],
+              work_unit_state: "cancelled",
+              preemption_reason: issue.evidence["preemption_reason"]
+            }
+          )
+        end
+      end
+
       class ResumableAgentSessionPresent < Base
         def plan
           return retry_budget_exhausted_plan unless retry_budget_available?

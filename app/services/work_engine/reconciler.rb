@@ -183,6 +183,7 @@ module WorkEngine
       issues.concat(classify_requested_work_intents_without_active_units)
       issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
+      issues.concat(classify_superseded_work_units_with_uncancelled_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
       issues.concat(classify_active_child_work_units_with_terminal_parents)
       issues.concat(classify_stale_auto_retry_workflows)
@@ -352,9 +353,13 @@ module WorkEngine
         succeeded_unsatisfied_units = WorkUnit
           .joins(:work_intent)
           .where(state: "succeeded", work_intents: { state: %w[requested waiting] })
+        superseded_uncancelled_units = WorkUnit
+          .joins(:work_intent)
+          .where(state: "cancelled", preemption_reason: superseded_work_unit_cancel_reasons, work_intents: { state: %w[requested waiting] })
         WorkUnit.where(id: active_units.select(:id))
           .or(WorkUnit.where(id: terminal_locked_units.select(:id)))
           .or(WorkUnit.where(id: succeeded_unsatisfied_units.select(:id)))
+          .or(WorkUnit.where(id: superseded_uncancelled_units.select(:id)))
       end
     end
 
@@ -985,6 +990,37 @@ module WorkEngine
       end
     end
 
+    def classify_superseded_work_units_with_uncancelled_intents
+      work_units
+        .select(&:cancelled?)
+        .select { |unit| superseded_work_unit_cancel_reasons.include?(unit.preemption_reason.to_s) }
+        .filter_map do |unit|
+          intent = unit.work_intent
+          next unless intent&.requested? || intent&.waiting?
+
+          active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
+          next if active_sibling_ids.any?
+
+          issue(
+            kind: :superseded_work_unit_uncancelled_intent,
+            severity: :error,
+            affected_ids: ids_for(unit).merge(work_intent_ids: [ intent.id ]),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "cancel_work_intent_from_superseded_work_unit",
+            evidence: {
+              work_unit_id: unit.id,
+              work_unit_state: unit.state,
+              workflow_id: unit.workflow_id,
+              work_intent_id: intent.id,
+              work_intent_kind: intent.kind,
+              work_intent_state: intent.state,
+              preemption_reason: unit.preemption_reason
+            },
+            explanation: "Cancelled WorkUnit ##{unit.id} was superseded, but WorkIntent ##{intent.id} is still #{intent.state}."
+          )
+        end
+    end
+
     def classify_active_child_work_units_with_terminal_parents
       active_children_by_parent = work_units
         .select(&:active?)
@@ -1013,6 +1049,10 @@ module WorkEngine
       scope = intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
       scope = scope.where.not(id: excluding.id) if excluding
       scope.pluck(:id)
+    end
+
+    def superseded_work_unit_cancel_reasons
+      WorkIntents::TerminalUnitSync::SUPERSEDING_CANCEL_REASONS
     end
 
     def stale_auto_retry_attempt_for(workflow)

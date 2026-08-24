@@ -55,6 +55,9 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
   const waitLabel = intent.wait_label || (intent.wait_reason ? humanize(intent.wait_reason) : null)
   const executionStatus = intent.execution_status || intent.state
   const showAttemptStatus = executionStatus !== intent.state
+  const attemptLabel = executionStatus === "blocked"
+    ? `Waiting${intent.execution_label ? `: ${intent.execution_label}` : ""}`
+    : humanize(executionStatus)
 
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -78,7 +81,7 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <TonePill tone="gray">Desired {humanize(intent.state)}</TonePill>
-            {showAttemptStatus ? <TonePill active={executionStatus === "active" || executionStatus === "running"} tone={intentExecutionTone(executionStatus)}>Attempt {humanize(executionStatus)}</TonePill> : null}
+            {showAttemptStatus ? <TonePill active={executionStatus === "active" || executionStatus === "running"} tone={intentExecutionTone(executionStatus)}>Attempt {attemptLabel}</TonePill> : null}
           </div>
         </div>
       </div>

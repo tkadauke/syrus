@@ -23,6 +23,29 @@ RSpec.describe "App API job run commands", type: :request do
     finish_work_units_for(job)
   end
 
+  def attach_work_unit(workflow, job:, kind:, state: "running")
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      actor: job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit
+  end
+
   it "checks PR feedback for an open job with a PR" do
     job.update!(pr_number: 42)
 
@@ -98,6 +121,7 @@ RSpec.describe "App API job run commands", type: :request do
       job: job, user: user, trigger_kind: "pr_comment", state: "running",
       agent_provider: job.workflow_agent_provider, started_at: Time.current
     )
+    unit = attach_work_unit(active_workflow, job: job, kind: "pr_comment")
 
     expect {
       post app_job_path("/rebase"), as: :json
@@ -107,7 +131,33 @@ RSpec.describe "App API job run commands", type: :request do
     expect(response).to have_http_status(:ok)
     expect(active_workflow.reload).to be_cancelled
     expect(active_workflow.artifact("cancelled_reason")).to eq("superseded_by_rebase")
+    expect(unit.reload).to have_attributes(state: "cancelled", preemption_reason: "superseded_by_rebase")
+    expect(unit.work_intent.reload).to be_cancelled
     expect(job.reload.state).to eq("running")
+    expect(parse_body).to include("message" => "Cancelled the running workflow. Rebase workflow enqueued.")
+  end
+
+  it "preempts active workflows across the related stack before starting a stack rebase" do
+    job.update!(pr_number: 7, branch_name: "syrus/issue-42-1")
+    finish_initial_workflow!(job)
+    child = Factories.job(repository: repo, issue_number: 43, pr_number: 8, branch_name: "syrus/issue-43-1")
+    child.update_columns(parent_job_id: job.id, state: "running")
+    finish_initial_workflow!(child)
+    active_child_workflow = Workflow.create!(
+      job: child, user: user, trigger_kind: "ci_failure", state: "running",
+      agent_provider: child.workflow_agent_provider, started_at: Time.current
+    )
+    child_unit = attach_work_unit(active_child_workflow, job: child, kind: "ci_failure")
+
+    expect {
+      post app_job_path("/rebase"), as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(active_child_workflow.reload).to be_cancelled
+    expect(child_unit.reload).to have_attributes(state: "cancelled", preemption_reason: "superseded_by_rebase")
+    expect(child_unit.work_intent.reload).to be_cancelled
     expect(parse_body).to include("message" => "Cancelled the running workflow. Rebase workflow enqueued.")
   end
 
