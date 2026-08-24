@@ -15,7 +15,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopJobPreview, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopJobPreview, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
 import { SccacheCard } from "../components/SccacheCard"
@@ -26,7 +26,7 @@ import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
 import { CommandButton, useJobCommand } from "./jobDetail/command"
 import { TagsPanel, NeedsAttentionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
-import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
+import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel, RequestChangesPanel } from "./jobDetail/JobHeader"
 import { PreviewPanel, PreviewStopModal } from "./jobDetail/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
@@ -103,6 +103,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
+  const [requestChangesPanelOpen, setRequestChangesPanelOpen] = useState(false)
   const [previewStopModal, setPreviewStopModal] = useState<{ onProceed: () => void } | null>(null)
   const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, setNotice)
   const bugReportTrigger = useBugReportTrigger()
@@ -137,6 +138,15 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       setNotice(t("feedback_submitted"))
       void queryClient.invalidateQueries({ queryKey })
       if (workflowsQueryKey) void queryClient.invalidateQueries({ queryKey: workflowsQueryKey })
+    }
+  })
+
+  const requestChanges = useMutation({
+    mutationFn: (body: string) => submitJobRequestChanges(payload.paths.app_request_changes_path, body),
+    onSuccess: () => {
+      setRequestChangesPanelOpen(false)
+      setNotice(t("request_changes_submitted"))
+      void queryClient.invalidateQueries({ queryKey })
     }
   })
 
@@ -204,9 +214,11 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             <HeaderActions
               command={command}
               feedbackPanelOpen={feedbackPanelOpen}
-              onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
               onApprove={() => withPreviewStop(() => command.mutate({ method: "post", path: payload.paths.app_approve_path }))}
+              onToggleFeedbackPanel={() => withPreviewStop(() => setFeedbackPanelOpen((current) => !current))}
+              onToggleRequestChangesPanel={() => withPreviewStop(() => setRequestChangesPanelOpen((current) => !current))}
               payload={payload}
+              requestChangesPanelOpen={requestChangesPanelOpen}
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -261,6 +273,14 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
           isPending={feedback.isPending}
           onCancel={() => setFeedbackPanelOpen(false)}
           onSubmit={(body) => withPreviewStop(() => feedback.mutate(body))}
+        />
+      ) : null}
+      {requestChangesPanelOpen ? (
+        <RequestChangesPanel
+          error={requestChanges.error}
+          isPending={requestChanges.isPending}
+          onCancel={() => setRequestChangesPanelOpen(false)}
+          onSubmit={(body) => withPreviewStop(() => requestChanges.mutate(body))}
         />
       ) : null}
       {previewStopModal ? (

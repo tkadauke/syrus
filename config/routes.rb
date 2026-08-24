@@ -151,6 +151,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/retry_pr_ingestion", to: "job_run_commands#retry_pr_ingestion", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/visual_review", to: "job_run_commands#run_visual_review", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/request_changes", to: "job_run_commands#request_changes", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/resume", to: "job_run_commands#resume", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/runs/:run_id/stop", to: "job_run_commands#stop_run", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }

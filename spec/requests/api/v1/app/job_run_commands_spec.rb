@@ -460,4 +460,54 @@ RSpec.describe "App API job run commands", type: :request do
 
     expect(response).to have_http_status(:not_found)
   end
+
+  describe "request_changes" do
+    it "creates a new standalone Job depending on an approved-but-not-yet-landed Job" do
+      job.update_columns(state: "approved", approved_at: Time.current)
+
+      expect {
+        post app_job_path("/request_changes"), params: { feedback: "Please fix the header spacing." }, as: :json
+      }.to change(Job, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("message" => "Created a new Job to track this feedback.")
+
+      new_job = Job.order(:id).last
+      expect(new_job.dependencies.sole.depends_on_job).to eq(job)
+      expect(new_job.issue_body).to eq("Please fix the header spacing.")
+      expect(new_job.epic_id).to be_nil
+    end
+
+    it "creates a new standalone Job depending on an already-closed/merged Job" do
+      job.update_columns(state: "closed", closure_reason: "pr_merged")
+
+      expect {
+        post app_job_path("/request_changes"), params: { feedback: "One more copy tweak." }, as: :json
+      }.to change(Job, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      new_job = Job.order(:id).last
+      expect(new_job.dependencies.sole.depends_on_job).to eq(job)
+    end
+
+    it "rejects a Job that hasn't been implemented yet" do
+      job.update_columns(state: "running")
+
+      expect {
+        post app_job_path("/request_changes"), params: { feedback: "Too soon." }, as: :json
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "rejects blank feedback" do
+      job.update_columns(state: "approved", approved_at: Time.current)
+
+      expect {
+        post app_job_path("/request_changes"), params: { feedback: "   " }, as: :json
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+  end
 end

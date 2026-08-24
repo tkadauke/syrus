@@ -695,6 +695,7 @@ module App
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,
         can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
+        can_request_changes: AppSetting.simple? && (@job.previewable? || @job.closed?) && !simple_epic_child?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
@@ -744,6 +745,7 @@ module App
         app_preview_path: "/api/v1/app/jobs/#{@job.id}/preview",
         app_preview_logs_path: "/api/v1/app/jobs/#{@job.id}/preview/logs",
         app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
+        app_request_changes_path: "/api/v1/app/jobs/#{@job.id}/request_changes",
         admin_resource_admission_path: admin_resource_admission_path
       }
     end
