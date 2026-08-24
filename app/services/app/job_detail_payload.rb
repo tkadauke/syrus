@@ -695,7 +695,7 @@ module App
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,
         can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
-        can_request_changes: AppSetting.simple? && (@job.previewable? || @job.closed?) && !simple_epic_child?,
+        can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
@@ -704,6 +704,15 @@ module App
 
     def simple_epic_child?
       AppSetting.simple? && @job.epic_id.present?
+    end
+
+    # Mirrors JobReviewFeedbackSubmission's own eligibility check: a closed
+    # Job is only "already landed" (and thus safe to depend on) when it
+    # closed for a successful reason. Depending on an unsuccessfully-closed
+    # Job (invalidated/duplicate/cancelled/etc.) would create a
+    # JobDependency that can never resolve.
+    def request_changes_eligible?
+      @job.previewable? || (@job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(@job.closure_reason))
     end
 
     def paths_json

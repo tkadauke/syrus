@@ -2537,6 +2537,12 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:actions, :can_request_changes)).to be(false)
     end
 
+    it "is false for a job closed for an unsuccessful reason" do
+      job = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "invalidated")
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(false)
+    end
+
     it "is false outside simple mode even for an implemented standalone job" do
       AppSetting.current.update!(mode: "advanced")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
