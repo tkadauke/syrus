@@ -25,6 +25,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `autofix_command`
 - `dependency_audit_command`
 - `affected_test_analyzer`
+- `workspace_tab`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -477,6 +478,154 @@ When a job's workflow contains `typed_artifacts`, the job detail page annotates
 each entry with the matching `renderer_type` from registered renderers and
 displays them in the **Artifacts** tab. Artifacts with no registered renderer
 fall back to a raw JSON display.
+
+## `workspace_tab`
+
+Lets a plugin add a tab to the chat sidebar's workspace panel, generalizing
+what used to be a hardcoded closed union (`WorkspaceTab` in
+`app/frontend/routes/chat/workspaceTabs.ts`, with a hardcoded render branch
+per tab in `WorkspacePanels.tsx`).
+
+**Design decision: declarative metadata + core glob discovery, not
+plugin-owned rendering code.** Two shapes were considered for this extension
+point:
+
+- Option A — a plugin ships its own frontend rendering code, discovered by
+  the frontend build from a `plugins/*/app/frontend/...` convention.
+- Option B — a plugin only supplies declarative tab metadata (id, label,
+  component tag) plus a fixed `renderer_type`-style dispatch, mirroring
+  `:artifact_renderer`'s fixed `VALID_RENDERER_TYPES` list — rendering itself
+  stays in core.
+
+`:artifact_renderer` already answered this question one way (Option B, fixed
+`renderer_type`) for a narrower problem: rendering a structured JSON payload
+as one of a handful of known shapes (ERD, diff, table). A workspace tab is a
+different problem — the concrete case this Epic exists to eventually migrate
+is the whiteboard, a fully bespoke interactive Excalidraw canvas with its own
+state, save/load, snapshotting, and fullscreen behavior. No fixed
+`renderer_type` enum could stretch to cover that without either baking
+whiteboard-specific rendering into core forever (defeating the point of
+pluginizing it) or growing a new `renderer_type` for every future tab shape,
+which is really Option A with extra ceremony.
+
+So `:workspace_tab` follows `:admin_page`'s pattern instead (Option A, but
+with the build tooling this codebase already has, not new tooling): a plugin
+supplies declarative tab metadata via `Syrus::Plugin::WorkspaceTab`, and its
+own React component, discovered by
+`app/frontend/pluginWorkspaceTabs.tsx`'s `import.meta.glob("../../plugins/*/app/frontend/workspaceTabs/*.tsx")`
+— the same `import.meta.glob` convention `app/frontend/pluginAdminPages.tsx`
+already uses for admin pages. This was not new build-tooling to invent; it
+was already proven for admin pages before this extension point existed.
+Rendering is fully owned by the plugin's component (a real Excalidraw canvas,
+in the whiteboard-migration Job this Epic sets up), while `.workspace_tabs`
+metadata stays declarative so the core tab bar (id, label, ordering,
+visibility) doesn't need to know anything about what's inside the tab.
+
+Include `Syrus::Plugin::WorkspaceTab` and implement the class methods:
+
+| Method | Signature | Description |
+|---|---|---|
+| `workspace_tabs` | `() → Array<Hash>` | Tab metadata: `id` (unique across all plugins — see collision guard below; conventionally prefixed `"<plugin_name>."`, checked by `spec/lib/syrus/plugin_workspace_tab_contract_spec.rb`), `label` (fallback string), `label_key` (`"<i18n_namespace>:<key>"`), `component` (frontend component key, matching a `frontend.workspace_tabs` manifest entry), and optional `order` (default `0`). |
+| `available_for?` | `(chat_session) → bool` | Optional per-chat visibility gate. Defaults to always available. |
+
+```ruby
+class MyPlugin::WorkspaceTabs
+  include Syrus::Plugin::WorkspaceTab
+
+  def self.workspace_tabs
+    [ { id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status",
+        component: "my_plugin/StatusTab", order: 100 } ]
+  end
+
+  def self.available_for?(chat_session) = chat_session.repository.present?
+end
+
+Syrus::PluginRegistry.register(
+  name: "my_plugin", version: "1.0.0",
+  frontend: {
+    workspace_tabs: { "my_plugin/StatusTab" => "app/frontend/workspaceTabs/StatusTab.tsx" },
+    i18n: [ "app/frontend/i18n/locales/*/my_plugin.json" ]
+  },
+  provides: { workspace_tab: MyPlugin::WorkspaceTabs }
+)
+```
+
+`WorkspaceTabsPayload` resolves every enabled `:workspace_tab` provider's
+`workspace_tabs` (filtered by `available_for?`, sorted by `order` then
+`label`) into the chat payload's `workspace_tabs` array; `chat_payload` in
+`app/controllers/concerns/chat_serialization.rb` includes it the same way it
+already includes `preview_panels`. `Syrus::PluginRegistry.register` rejects a
+second plugin registering a tab `id` already claimed by another plugin — the
+same collision-guard pattern `:mcp_tool_set` uses for tool names — since two
+tabs sharing an id would collide on the frontend's `plugin:<id>` React key
+and tab-selection state.
+
+On the frontend, `workspaceTabs.ts`'s `WorkspaceTab` union gained a
+`PluginTab` variant (`` `plugin:${string}` ``, namespaced so a plugin's id
+space can never collide with the fixed core tab names), the same shape
+`PreviewTab` (`` `preview:${number}` ``) already established for preview
+panels. `availableWorkspaceTabs()` appends one `plugin:<id>` entry per
+payload `workspace_tabs` row; `WorkspacePanels.tsx` renders a tab button from
+the declared `label`/`label_key` and, when active, lazily loads and mounts
+the plugin's component via `pluginWorkspaceTabComponentFor`, passing the full
+chat `payload` as a prop (a workspace tab renders inside one specific chat,
+unlike a standalone admin route that derives its context from the URL).
+
+The bundled `syrus_dev` plugin (default-disabled dev tooling — see below)
+registers a trivial `SyrusDev::WorkspaceTabs` provider as a live, always-built
+proof of this extension point, without moving any real feature into a plugin.
+
+**First real consumer: `whiteboard_tools`.** The whiteboard migration (moving
+the Excalidraw canvas tab, its 14 draw/move/delete/read/update/save/clear/load
+MCP tools, and its REST endpoints out of core) landed as `plugins/whiteboard_tools`,
+confirming the design above end-to-end and surfacing a few things worth
+recording:
+
+- **The `Whiteboard`/`WhiteboardSnapshot` models stayed in core** (`app/models/`),
+  unrenamed. `Syrus::PluginModelNamespaceChecker` only requires namespacing for
+  `ApplicationRecord` subclasses that physically live under `plugins/*/app/models/`
+  — a plugin is free to depend on a core model it doesn't own, same as
+  `preview_tools`' `ChatToolSet`/`ScratchDirectory` already depend on the core
+  `PreviewPanel` model. Moving the model itself (rename + table migration) was a much
+  larger, riskier change for no behavioral gain here, since `chat_session.whiteboard`/
+  `chat_session.whiteboard_snapshots` association method names didn't need to change.
+- **Fullscreen has no core hook, and doesn't need one.** The whiteboard tab's
+  "fullscreen" affordance used to be a Chat.tsx-owned layout shift (hide the
+  chat column and tab bar, resize the grid). `PluginWorkspaceTabProps` only
+  hands a component `payload: ChatPayload` — no fullscreen prop/callback. Since
+  Option A means the plugin owns its own rendering, `WhiteboardTab.tsx` now
+  implements fullscreen entirely itself: local `useState`, a `document.body`
+  portal (`ReactDOM.createPortal`) covering the viewport, and its own Escape-key
+  listener. No core extension-point change was needed — a plugin tab can
+  already do anything a normal React component can from inside `<Suspense>`.
+- **The chat payload's `whiteboard` scene field needed no extension-point
+  change either.** `PluginWorkspaceTabProps.payload` is the *full* `ChatPayload`,
+  so a plugin tab can already read whatever core fields it needs (here,
+  `payload.whiteboard` and `payload.paths.app_whiteboard_path`, both unchanged) —
+  there's no need for a separate "per-tab data channel" on the extension point.
+- **The "default active tab" heuristic became an explicit, documented core→plugin
+  seam.** Before the migration, `defaultWorkspaceTab()` preferred `"whiteboard"`
+  as the initial tab whenever the chat already had drawn content. That heuristic
+  reads `payload.whiteboard` directly, so preserving it after the tab became
+  plugin-owned meant `workspaceTabs.ts` now looks up the plugin tab by
+  `component === "whiteboard_tools/WhiteboardTab"` — a literal string naming one
+  specific plugin's tab, called out with a comment at its definition. This is the
+  one piece of real, acknowledged coupling the migration introduced; there's no
+  generic "which tab should be the default" hook on `:workspace_tab` today.
+- **Found and fixed a real bug in `PluginRouteDispatch`** (`app/controllers/concerns/plugin_route_dispatch.rb`):
+  every existing plugin route (`linear_source`, `syrus_dev`, `tailscale`, ...)
+  happened to have no path parameters, so nobody had hit the fact that
+  `request.path_parameters.merge!(route.params)` mutates the hash in place
+  without invalidating Rails' separately-memoized `request.params`. Whiteboard's
+  routes (`:id`, `:chat_id`) were the first plugin routes to need path params,
+  which surfaced it — `params[:id]` was arriving `nil` at the controller even
+  though `request.path_parameters` looked correct. Fixed by using the
+  `path_parameters=` setter, which does invalidate the memo.
+- **`@excalidraw/excalidraw` stays a root `package.json` dependency.** There's
+  no plugin-scoped frontend dependency mechanism in this codebase (Vite
+  resolves from the single root `node_modules` regardless of which plugin
+  folder imports a package), so this is a known, accepted gap rather than
+  something this migration solved.
 
 ## `grader_augmentor`
 
@@ -1075,7 +1224,10 @@ Bundled plugins:
 - `syrus_dev` — installed but disabled by default. It owns Syrus-development-only
   diagnostics such as Admin → Performance and the `read_performance_diagnostics`
   / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
-  agents or operators should inspect Syrus's own production behavior.
+  agents or operators should inspect Syrus's own production behavior. Also
+  provides `:workspace_tab` (`SyrusDev::WorkspaceTabs` — a trivial "Workspace
+  Tab Demo" tab, visible in chats attached to a repository, that exists only
+  to prove the `:workspace_tab` extension point end-to-end; see above).
 - `ruby` — default-enabled. Provides Ruby-generic extension points usable by
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
   alike), not just Rails: `:grader_augmentor` — registers two providers,
@@ -1230,3 +1382,14 @@ Bundled plugins:
   Disabling the plugin removes the nav entry and makes `PluginSidebarPageRoute`
   render its "page unavailable" fallback for `/insights/spending`, but does
   not affect the JSON API endpoint itself.
+- `whiteboard_tools` — default-enabled. Provides `:workspace_tab`
+  (`WhiteboardTools::WorkspaceTabs`, unconditionally available) rendering the
+  chat sidebar's Whiteboard tab (`plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx`,
+  a real Excalidraw canvas with its own fullscreen handling — see the
+  `:workspace_tab` section above), and `:chat_mcp_tool_set`
+  (`WhiteboardTools::ChatToolSet`, tier `:deferred`): `read_scene`, `draw_shape`,
+  `draw_text`, `draw_line`, `draw_arrow`, `draw_freedraw`, `draw_frame`,
+  `draw_embed`, `draw_image`, `move_element`, `delete_element`, `update_scene`,
+  `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own
+  `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
+  routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.

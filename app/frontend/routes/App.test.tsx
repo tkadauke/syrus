@@ -11433,14 +11433,16 @@ describe("App", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Whiteboard" }))
     })
-    fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }))
+    // Fullscreen is owned entirely by the whiteboard_tools plugin's own tab
+    // component (a fixed, full-viewport portal into document.body) rather
+    // than a core Chat.tsx layout shift, so the chat column/tab bar stay
+    // mounted underneath -- only the toggle/Escape behavior is asserted here.
+    // The tab component is lazily loaded, so wait for it to mount before
+    // reaching for its Fullscreen button.
+    fireEvent.click(await screen.findByRole("button", { name: "Fullscreen" }))
     expect(screen.getByRole("button", { name: "Exit fullscreen" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Resize chat workspace" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("navigation", { name: "Chat workspace tabs" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Exit fullscreen" }))
-    expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
-    expect(screen.getByRole("navigation", { name: "Chat workspace tabs" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Fullscreen" })).toHaveAttribute("aria-pressed", "false")
     fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }))
     fireEvent.keyDown(window, { key: "Escape" })
     expect(screen.getByRole("button", { name: "Fullscreen" })).toHaveAttribute("aria-pressed", "false")
@@ -16911,6 +16913,9 @@ function chatPayload(overrides: {
     ],
     attachment_results: [],
     preview_panels: [],
+    workspace_tabs: [
+      { id: "whiteboard_tools.canvas", label: "Whiteboard", label_key: "whiteboard_tools:tab_whiteboard", component: "whiteboard_tools/WhiteboardTab", order: 0 }
+    ],
     whiteboard: {
       version: 2,
       elements: [{ id: "box-1", type: "rectangle" }],

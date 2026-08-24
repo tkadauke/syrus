@@ -1,0 +1,12 @@
+{
+  "tab_whiteboard": "Whiteboard",
+  "whiteboard_title": "Whiteboard",
+  "whiteboard_unavailable": "Whiteboard nicht verfügbar.",
+  "loading_whiteboard": "Whiteboard wird geladen...",
+  "fullscreen_exit": "Vollbild beenden",
+  "fullscreen_enter": "Vollbild",
+  "canvas_loading": "Canvas wird geladen...",
+  "canvas_empty_hint": "Leeres Canvas. Zeichne etwas oder bitte den Agenten, etwas zu zeichnen.",
+  "canvas_elements_one": "{{count}} Canvas-Element",
+  "canvas_elements_other": "{{count}} Canvas-Elemente"
+}

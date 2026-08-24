@@ -1,0 +1,12 @@
+{
+  "tab_whiteboard": "Tabula Alba",
+  "whiteboard_title": "Tabula Alba",
+  "whiteboard_unavailable": "Tabula alba non praesto est.",
+  "loading_whiteboard": "Tabula alba oneratur...",
+  "fullscreen_exit": "Relinque plenum quadrum",
+  "fullscreen_enter": "Plenum quadrum",
+  "canvas_loading": "Scaena oneratur...",
+  "canvas_empty_hint": "Scaena vacua. Pinge aliquid, vel pete ab agente ut aliquid pingat.",
+  "canvas_elements_one": "{{count}} elementum scaenae",
+  "canvas_elements_other": "{{count}} elementa scaenae"
+}

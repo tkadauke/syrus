@@ -282,6 +282,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     scratchpad_items: [],
     video_walkthroughs: [],
     preview_panels: [],
+    workspace_tabs: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],
@@ -347,31 +348,15 @@ type BookmarkTarget = {
 
 function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey }) {
   const [notice, setNotice] = useState<string | null>(payload.message || null)
-  const [whiteboardFullscreen, setWhiteboardFullscreen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("chat")
 
   const title = chatDisplayTitle(payload.chat)
 
-  useEffect(() => {
-    setWhiteboardFullscreen(false)
-  }, [payload.chat.id])
-
-  useEffect(() => {
-    if (!whiteboardFullscreen) return
-
-    function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setWhiteboardFullscreen(false)
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [whiteboardFullscreen])
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 lg:gap-6">
-      {whiteboardFullscreen || !isDesktop ? null : (
+      {!isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className={`flex min-w-0 items-center gap-2 break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
@@ -414,8 +399,6 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
           prefix={prefix}
           queryKey={queryKey}
           onNotice={setNotice}
-          whiteboardFullscreen={whiteboardFullscreen}
-          onWhiteboardFullscreenChange={setWhiteboardFullscreen}
           settingsOpen={settingsOpen}
           onSettingsOpenChange={setSettingsOpen}
         />
@@ -713,8 +696,6 @@ function ChatWorkspace({
   prefix,
   queryKey,
   onNotice,
-  whiteboardFullscreen,
-  onWhiteboardFullscreenChange,
   settingsOpen,
   onSettingsOpenChange
 }: {
@@ -723,8 +704,6 @@ function ChatWorkspace({
   prefix: string
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
-  whiteboardFullscreen: boolean
-  onWhiteboardFullscreenChange: (fullscreen: boolean) => void
   settingsOpen: boolean
   onSettingsOpenChange: (open: boolean) => void
 }) {
@@ -740,7 +719,6 @@ function ChatWorkspace({
   const simpleMode = useSimpleMode()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
   const availableTabs = availableWorkspaceTabs(payload, simpleMode, hasPins)
-  const expanded = activeTab === "whiteboard" && whiteboardFullscreen
 
   useEffect(() => {
     if (!availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
@@ -778,16 +756,12 @@ function ChatWorkspace({
   }
 
   function selectTab(tab: WorkspaceTab) {
-    if (tab !== "whiteboard") onWhiteboardFullscreenChange(false)
     setActiveTab(tab)
   }
 
   function selectMobileTab(tab: MobileChatTab) {
     setActiveMobileTab(tab)
-    if (tab === "chat") {
-      onWhiteboardFullscreenChange(false)
-      return
-    }
+    if (tab === "chat") return
 
     selectTab(tab)
   }
@@ -799,7 +773,6 @@ function ChatWorkspace({
   }
 
   function selectBookmark(messageId: number) {
-    onWhiteboardFullscreenChange(false)
     setActiveMobileTab("chat")
     bookmarkRequestIdRef.current += 1
     setBookmarkTarget({ messageId, requestId: bookmarkRequestIdRef.current })
@@ -807,19 +780,17 @@ function ChatWorkspace({
 
   const commandHandlers: ChatSystemCommandHandlers = {
     openBookmarks: () => {
-      onWhiteboardFullscreenChange(false)
       setBookmarkPickerOpen(true)
     },
     openAttachments: () => {
       if (simpleMode) return
-      onWhiteboardFullscreenChange(false)
       setActiveTab("context")
       setActiveMobileTab("context")
     },
     openSettings: () => onSettingsOpenChange(true)
   }
 
-  if (!isDesktop && !expanded) {
+  if (!isDesktop) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         <nav aria-label={t("aria_mobile_tabs")} className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700">
@@ -830,7 +801,7 @@ function ChatWorkspace({
               onClick={() => selectMobileTab(tab)}
               type="button"
             >
-              {mobileChatTabLabel(tab, t, payload.preview_panels)}
+              {mobileChatTabLabel(tab, t, payload.preview_panels, payload.workspace_tabs)}
             </button>
           ))}
         </nav>
@@ -841,10 +812,8 @@ function ChatWorkspace({
             <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
               <ChatWorkspacePanel
                 activeTab={activeTab}
-                fullscreen={false}
                 showTabs={false}
                 onSelectTab={selectTab}
-                onToggleWhiteboardFullscreen={() => onWhiteboardFullscreenChange(true)}
                 payload={payload}
                 prefix={prefix}
                 queryKey={queryKey}
@@ -867,20 +836,16 @@ function ChatWorkspace({
 
   return (
     <div
-      className={expanded ? "flex min-h-0 flex-1 flex-col" : "flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"}
-      style={
-        expanded
-          ? undefined
-          : {
-              gridTemplateColumns: panelCollapsed
-                ? "minmax(0,1fr) 0 2.5rem"
-                : `minmax(0,1fr) 0.5rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
-              transition: "grid-template-columns 150ms ease"
-            }
-      }
+      className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"
+      style={{
+        gridTemplateColumns: panelCollapsed
+          ? "minmax(0,1fr) 0 2.5rem"
+          : `minmax(0,1fr) 0.5rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
+        transition: "grid-template-columns 150ms ease"
+      }}
     >
-      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} />}
-      {expanded || panelCollapsed ? null : (
+      <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} />
+      {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
           className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-blue-100 focus:bg-blue-100 focus:outline-none lg:block dark:hover:bg-blue-950 dark:focus:bg-blue-950"
@@ -888,7 +853,7 @@ function ChatWorkspace({
           type="button"
         />
       )}
-      {!expanded && panelCollapsed ? (
+      {panelCollapsed ? (
         <div className="hidden lg:flex lg:flex-col lg:items-start lg:pt-3">
           <button
             aria-label={t("open_workspace")}
@@ -905,14 +870,12 @@ function ChatWorkspace({
           </button>
         </div>
       ) : null}
-      {expanded || !panelCollapsed ? (
+      {!panelCollapsed ? (
         <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
           <ChatWorkspacePanel
             activeTab={activeTab}
-            fullscreen={expanded}
             onSelectTab={selectTab}
-            onToggleCollapse={expanded ? undefined : () => setPanelCollapsed(true)}
-            onToggleWhiteboardFullscreen={() => onWhiteboardFullscreenChange(!expanded)}
+            onToggleCollapse={() => setPanelCollapsed(true)}
             payload={payload}
             prefix={prefix}
             queryKey={queryKey}

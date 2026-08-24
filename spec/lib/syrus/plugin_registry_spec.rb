@@ -69,6 +69,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
+  let(:workspace_tab_class) do
+    Class.new { include Syrus::Plugin::WorkspaceTab }
+  end
+
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer)
@@ -124,6 +128,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "includes :affected_test_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:affected_test_analyzer)
+    end
+
+    it "includes :workspace_tab" do
+      expect(described_class::EXTENSION_POINTS).to include(:workspace_tab)
     end
 
     it "is frozen" do
@@ -249,6 +257,19 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(provider).to respond_to(:affected_files)
       expect { provider.affected_files(repo_path: "/tmp", changed_files: []) }.to raise_error(NotImplementedError, /affected_files is required/)
     end
+
+    it "maps :workspace_tab to Syrus::Plugin::WorkspaceTab" do
+      expect(described_class::INTERFACE_FOR[:workspace_tab].call).to eq(Syrus::Plugin::WorkspaceTab)
+    end
+
+    it "gives workspace tab providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::WorkspaceTab }
+
+      expect(provider).to respond_to(:workspace_tabs)
+      expect(provider).to respond_to(:available_for?)
+      expect { provider.workspace_tabs }.to raise_error(NotImplementedError, /must implement \.workspace_tabs/)
+      expect(provider.available_for?(double("chat_session"))).to be(true)
+    end
   end
 
   describe ".providers_for" do
@@ -325,6 +346,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:sidebar_page)).to eq([ sidebar_page_class ])
+    end
+
+    it "returns workspace tab providers" do
+      described_class.register(
+        name: "workspace_tab_plugin", version: "1.0.0",
+        provides: { workspace_tab: workspace_tab_class }
+      )
+
+      expect(described_class.providers_for(:workspace_tab)).to eq([ workspace_tab_class ])
     end
 
     it "returns an empty array when no plugin provides the requested extension point" do
@@ -481,7 +511,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             chat_mcp_tool_set:  chat_mcp_tool_set_class,
             source_control_provider: source_control_provider_class,
             artifact_renderer:  artifact_renderer_class,
-            platform_delivery: platform_delivery_class
+            platform_delivery: platform_delivery_class,
+            workspace_tab:      workspace_tab_class
           }
         )
       }.not_to raise_error
@@ -609,6 +640,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::PlatformDelivery/)
     end
 
+    it "raises RegistrationError when workspace_tab class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { workspace_tab: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::WorkspaceTab/)
+    end
+
     it "allows the same extension point to be provided by multiple plugins" do
       second_provider = Class.new { include Syrus::Plugin::AgentProvider }
 
@@ -688,6 +730,53 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
         begin
           described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+        rescue described_class::RegistrationError
+          nil
+        end
+
+        expect(described_class.all_plugins.map(&:name)).to eq([ "plugin_a" ])
+      end
+    end
+
+    context "workspace tab id collision detection" do
+      def make_tab_set(*ids)
+        tab_ids = ids
+        Class.new do
+          include Syrus::Plugin::WorkspaceTab
+          define_singleton_method(:workspace_tabs) { tab_ids.map { |id| { id: id, label: id, component: "x/Y" } } }
+        end
+      end
+
+      it "raises RegistrationError when a second plugin registers a tab id already claimed by a first" do
+        set_a = make_tab_set("plugin_a.status")
+        set_b = make_tab_set("plugin_a.status")
+
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
+
+        expect {
+          described_class.register(name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
+        }.to raise_error(described_class::RegistrationError, /Workspace tab id collision.*plugin_a\.status/)
+      end
+
+      it "does not raise when two workspace tab providers use different ids" do
+        set_a = make_tab_set("plugin_a.status")
+        set_b = make_tab_set("plugin_b.status")
+
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
+
+        expect {
+          described_class.register(name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
+        }.not_to raise_error
+      end
+
+      it "does not add the second plugin when its registration raises a tab id collision" do
+        set_a = make_tab_set("colliding_tab")
+        set_b = make_tab_set("colliding_tab")
+
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { workspace_tab: set_a })
+
+        begin
+          described_class.register(name: "plugin_b", version: "1.0.0", provides: { workspace_tab: set_b })
         rescue described_class::RegistrationError
           nil
         end

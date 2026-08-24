@@ -3608,6 +3608,51 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(panel.reload.state).to eq("closed")
   end
 
+  it "includes plugin-registered workspace tabs only while the providing plugin is enabled" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    # whiteboard_tools' tab is unconditionally available (see
+    # WhiteboardTools::WorkspaceTabs#available_for?), so it's always present
+    # alongside syrus_dev's demo tab here.
+    expect(parse_body["workspace_tabs"]).to contain_exactly(
+      include(
+        "id" => "whiteboard_tools.canvas",
+        "component" => "whiteboard_tools/WhiteboardTab",
+        "label_key" => "whiteboard_tools:tab_whiteboard"
+      ),
+      include(
+        "id" => "syrus_dev.workspace_tab_demo",
+        "component" => "syrus_dev/WorkspaceTabDemo",
+        "label_key" => "syrus_dev:workspace_tab_demo_label"
+      )
+    )
+
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: false)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workspace_tabs"]).to contain_exactly(include("id" => "whiteboard_tools.canvas"))
+  end
+
+  it "excludes plugin-registered workspace tabs gated on repository presence from chats with no attached repository" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: true)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    # syrus_dev's demo tab gates on repository presence; whiteboard_tools'
+    # tab has no such gate and stays present regardless.
+    expect(parse_body["workspace_tabs"]).to contain_exactly(include("id" => "whiteboard_tools.canvas"))
+  end
+
   it "renders attached Epics with their titles" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)

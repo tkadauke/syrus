@@ -62,6 +62,7 @@ function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
     local_mode_enabled: false,
     local_tunnel_connected: false,
     preview_panels: [],
+    workspace_tabs: [],
     ...overrides
   } as ChatPayload
 }
