@@ -3,7 +3,7 @@ require_relative "lib/git_history/version"
 Gem::Specification.new do |spec|
   spec.name    = "git_history"
   spec.version = GitHistory::VERSION
-  spec.authors = [ "" ]
+  spec.authors = [ "Thomas Kadauke" ]
   spec.summary = "Syrus plugin: full git history attribution"
 
   spec.files         = Dir["lib/**/*", "app/**/*"]
