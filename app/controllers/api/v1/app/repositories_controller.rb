@@ -656,8 +656,8 @@ module Api
             main_health: repository.main_health,
             landing_paused: repository_main_health_landing_paused?(repository),
             main_branch_health_enabled: repository.main_branch_health_enabled?,
-            main_branch_repair_enabled: repository.main_branch_repair_enabled?,
-            main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
+            main_branch_repair_enabled: repository_main_branch_repair_enabled?(repository),
+            main_branch_repair_blocks_work: repository_main_branch_repair_blocks_work?(repository),
             main_branch_repair_auto_approve: repository.main_branch_repair_auto_approve?,
             treat_grader_timeouts_as_failures: repository.treat_grader_timeouts_as_failures?,
             last_health_checked_sha: repository.last_health_checked_sha
@@ -706,8 +706,8 @@ module Api
             auto_merge_enabled: repository.auto_merge_enabled?,
             trust_clean_rebase_grade: repository.trust_clean_rebase_grade?,
             main_branch_health_enabled: repository.main_branch_health_enabled?,
-            main_branch_repair_enabled: repository.main_branch_repair_enabled?,
-            main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
+            main_branch_repair_enabled: repository_main_branch_repair_enabled?(repository),
+            main_branch_repair_blocks_work: repository_main_branch_repair_blocks_work?(repository),
             main_branch_repair_auto_approve: repository.main_branch_repair_auto_approve?,
             treat_grader_timeouts_as_failures: repository.treat_grader_timeouts_as_failures?,
             fork_syncable: repository.fork_syncable?,
@@ -1003,8 +1003,8 @@ module Api
             main_health: current_health[:main_health],
             landing_paused: repository_main_health_landing_paused?(repository),
             main_branch_health_enabled: repository.main_branch_health_enabled?,
-            main_branch_repair_enabled: repository.main_branch_repair_enabled?,
-            main_branch_repair_blocks_work: repository.main_branch_repair_blocks_work?,
+            main_branch_repair_enabled: repository_main_branch_repair_enabled?(repository),
+            main_branch_repair_blocks_work: repository_main_branch_repair_blocks_work?(repository),
             main_branch_repair_auto_approve: repository.main_branch_repair_auto_approve?,
             treat_grader_timeouts_as_failures: repository.treat_grader_timeouts_as_failures?,
             last_health_checked_sha: repository.last_health_checked_sha,
@@ -1064,10 +1064,18 @@ module Api
           repository.main_branch_health_enabled? && repository.landing_paused?
         end
 
+        def repository_main_branch_repair_enabled?(repository)
+          repository.main_branch_health_enabled? && repository.main_branch_repair_enabled?
+        end
+
+        def repository_main_branch_repair_blocks_work?(repository)
+          repository.main_branch_health_enabled? && repository.main_branch_repair_blocks_work?
+        end
+
         def main_branch_repair_json(repository)
-          unless repository.main_branch_health_enabled? && repository.main_branch_repair_enabled? && repository.main_health_broken?
+          unless repository_main_branch_repair_enabled?(repository) && repository.main_health_broken?
             return {
-              enabled: repository.main_branch_repair_enabled?,
+              enabled: repository_main_branch_repair_enabled?(repository),
               failed_open_jobs_count: 0,
               max_open_failed_jobs: MainHealthChangedService::MAX_OPEN_FAILED_FIX_JOBS,
               blocked_reason: nil,

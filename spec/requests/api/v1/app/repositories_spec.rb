@@ -382,6 +382,36 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
   end
 
+  it "hides stale auto-repair settings when main branch health monitoring is disabled" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, main_branch_health_enabled: true)
+    repository.update_columns(
+      main_branch_health_enabled: false,
+      main_branch_repair_enabled: true,
+      main_branch_repair_blocks_work: true,
+      landing_paused: true
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}/edit"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repository"]).to include(
+      "main_branch_health_enabled" => false,
+      "main_branch_repair_enabled" => false,
+      "main_branch_repair_blocks_work" => false
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("repository", "landing_paused")).to eq(false)
+    expect(body.dig("repository", "main_branch_repair_enabled")).to eq(false)
+    expect(body.dig("repository", "main_branch_repair_blocks_work")).to eq(false)
+    expect(body.dig("health_history", "main_branch_repair_enabled")).to eq(false)
+    expect(body.dig("health_history", "main_branch_repair_blocks_work")).to eq(false)
+  end
+
   it "returns the repository detail payload" do
     sign_in_as(user)
     AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")

@@ -653,6 +653,7 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
 }
 
 function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
+  const mainBranchHealthEnabled = payload.repository.main_branch_health_enabled
   return {
     owner: payload.repository.owner,
     name: payload.repository.name,
@@ -666,9 +667,9 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     pr_cost_footer_enabled: payload.repository.pr_cost_footer_enabled,
     auto_merge_enabled: payload.repository.auto_merge_enabled,
     trust_clean_rebase_grade: payload.repository.trust_clean_rebase_grade,
-    main_branch_health_enabled: payload.repository.main_branch_health_enabled,
-    main_branch_repair_enabled: payload.repository.main_branch_repair_enabled,
-    main_branch_repair_blocks_work: payload.repository.main_branch_repair_blocks_work,
+    main_branch_health_enabled: mainBranchHealthEnabled,
+    main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
+    main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,
     main_branch_repair_auto_approve: payload.repository.main_branch_repair_auto_approve,
     treat_grader_timeouts_as_failures: payload.repository.treat_grader_timeouts_as_failures,
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,
