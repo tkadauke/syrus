@@ -691,6 +691,58 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Feedback submitted — a new workflow will start shortly.")).toBeInTheDocument()
   })
 
+  it("submits feedback on Cmd-Enter", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    const textarea = screen.getByPlaceholderText("What should be changed?")
+    fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Tighten the copy." })
+      }))
+    })
+  })
+
+  it("submits feedback on Ctrl-Enter", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    const textarea = screen.getByPlaceholderText("What should be changed?")
+    fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
+    fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Tighten the copy." })
+      }))
+    })
+  })
+
+  it("does not submit feedback on plain Enter", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    const textarea = screen.getByPlaceholderText("What should be changed?")
+    fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
+    fireEvent.keyDown(textarea, { key: "Enter" })
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it("shows an inline error when feedback submission fails", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ error: { message: "Job already has active feedback." } }, 422))
     renderJobDetail(jobPayload({

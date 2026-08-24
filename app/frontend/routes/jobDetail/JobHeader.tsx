@@ -1,4 +1,4 @@
-import type { FormEvent } from "react"
+import type { FormEvent, KeyboardEvent } from "react"
 import { useRef, useState } from "react"
 import { useT } from "../../hooks/useT"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -106,9 +106,16 @@ export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
     onSubmit(trimmedBody)
   }
 
+  function submitOnShortcut(event: KeyboardEvent<HTMLFormElement>) {
+    if (isPending || event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return
+
+    event.preventDefault()
+    event.currentTarget.requestSubmit()
+  }
+
   return (
     <section aria-labelledby="job-feedback-title" className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
-      <form className="space-y-3" onSubmit={submit}>
+      <form className="space-y-3" onKeyDown={submitOnShortcut} onSubmit={submit}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">{t("feedback_panel_title")}</h2>
         <textarea
           className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
