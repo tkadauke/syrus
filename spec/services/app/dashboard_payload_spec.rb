@@ -831,6 +831,30 @@ RSpec.describe App::DashboardPayload do
       expect(in_progress[:items].map { |row| row[:id] }).not_to include(job.id)
     end
 
+    it "shows blocked WorkUnits with running Runs as in progress" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+      workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job)
+      workflow.update!(state: "running")
+      workflow.work_unit.block!(reason: "resource_safety", details: { "source" => "spec" })
+      step = workflow.steps.create!(kind: "grader", position: 1, state: "running")
+      step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind, state: "running")
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:summary_state]).to eq("running")
+      expect(item[:start_blocked_reason]).to eq("resource_safety")
+
+      paused_folder = SmartFolder.find_builtin_by_attention("paused")
+      in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")
+
+      paused = call(subject: "job", smart_folder_id: paused_folder.id, section: "rows")
+      in_progress = call(subject: "job", smart_folder_id: in_progress_folder.id, section: "rows")
+
+      expect(paused[:items].map { |row| row[:id] }).not_to include(job.id)
+      expect(in_progress[:items].map { |row| row[:id] }).to include(job.id)
+    end
+
     it "does not show stale pause artifacts as paused while WorkUnit-owned work is active" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       owner = Factories.job_record(user: user, repository: repo, state: "running")

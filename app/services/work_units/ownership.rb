@@ -296,6 +296,14 @@ module WorkUnits
       scope.distinct.pluck(:job_id)
     end
 
+    def self.running_unit_job_ids(job_ids, kinds: nil)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: "running" })
+      scope = scope.where(job_id: ids) if ids.any?
+      scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
+      scope.distinct.pluck(:job_id)
+    end
+
     def self.unit_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       scope = WorkUnit.joins(:workflow).where(state: Array(states).map(&:to_s))

@@ -266,7 +266,7 @@ module Filters
         end
 
         def paused_job_ids
-          paused_workflow_job_ids | blocked_work_unit_job_ids
+          (paused_workflow_job_ids | blocked_work_unit_job_ids) - actively_executing_job_ids
         end
 
         def active_repair_work_job_ids
@@ -307,6 +307,14 @@ module Filters
           scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
           scope = scope.where.not(work_units: { kind: Array(excluding_kinds).map(&:to_s) }) if excluding_kinds.present?
           scope.distinct.pluck(:job_id)
+        end
+
+        def running_run_job_ids
+          @running_run_job_ids ||= Run.where(state: "running").distinct.pluck(:job_id)
+        end
+
+        def actively_executing_job_ids
+          @actively_executing_job_ids ||= running_run_job_ids | running_work_unit_job_ids
         end
 
         def awaiting_epic_ids

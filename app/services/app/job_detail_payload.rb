@@ -866,21 +866,33 @@ module App
     def summary_state(job)
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
-      return "paused" if job_apparently_paused?(job)
       return "repairing" if job.failed? && active_repair_work_for_job
+      return job.state if job.landing?
+      return "running" if job_running_runtime_work?
+      return "paused" if job_apparently_paused?(job)
 
       job.state
     end
 
     def job_apparently_paused?(job)
+      return false if job_running_runtime_work?
       return true if WorkUnits::Ownership.blocked_for_job?(job)
-      return false if job.active_runtime_work?
+      return false if job_has_active_runtime_work?
 
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && (
         workflow.artifact("pause_reason").present? ||
           WorkUnits::StartBlock.for(workflow).reason.present?
       )
+    end
+
+    def job_running_runtime_work?
+      return @job_running_runtime_work if defined?(@job_running_runtime_work)
+
+      @job_running_runtime_work = PerformanceLogging.phase("job_detail.job.running_runtime_work", job_id: @job.id) do
+        @job.runs.where(state: "running").exists? ||
+          WorkUnits::Ownership.active_units_for_job(@job).any?(&:running?)
+      end
     end
 
     def pr_url(number)

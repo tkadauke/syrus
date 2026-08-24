@@ -174,6 +174,20 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "shows a blocked WorkUnit with an actively running Run as running" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "blocked", blocked_reason: "resource_safety")
+      step = workflow.steps.create!(kind: "grader", position: 1, state: "running")
+      step.runs.create!(job: job, user: user, trigger_kind: workflow.trigger_kind, state: "running")
+
+      payload = payload_for(job).fetch(:job)
+
+      expect(payload[:summary_state]).to eq("running")
+      expect(payload[:start_blocked_reason]).to eq("resource_safety")
+      expect(payload[:any_active_run]).to be true
+    end
+
     it "keeps blocked landing WorkUnits in the landing state" do
       job = Factories.job_record(user: user, repository: repo, state: "landing")
       workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")

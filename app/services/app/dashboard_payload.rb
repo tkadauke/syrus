@@ -619,6 +619,10 @@ module App
         direct_active_job_ids = job_ids.empty? ? [] : Run.active.where(job_id: job_ids).distinct.pluck(:job_id)
         (direct_active_job_ids | WorkUnits::Ownership.runnable_unit_job_ids(job_ids)).index_with(true)
       end
+      @job_runtime_running_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.running_jobs", count: job_ids.size) do
+        direct_running_job_ids = job_ids.empty? ? [] : Run.where(job_id: job_ids, state: "running").distinct.pluck(:job_id)
+        (direct_running_job_ids | WorkUnits::Ownership.running_unit_job_ids(job_ids)).index_with(true)
+      end
       @job_runtime_paused_job_ids = PerformanceLogging.phase("dashboard_jobs.preload.paused_jobs", count: job_ids.size) { paused_job_ids(job_ids).index_with(true) }
       @job_runtime_active_workflow_trigger_kinds_by_job_id = PerformanceLogging.phase("dashboard_jobs.preload.active_workflow_triggers", count: job_ids.size) do
         active_workflow_trigger_kinds_by_job_id(job_ids)
@@ -741,8 +745,10 @@ module App
     def summary_state(job)
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
-      return "paused" if job_apparently_paused?(job)
       return "repairing" if job.failed? && active_repair_work_for(job)
+      return job.state if job.landing?
+      return "running" if job_running_runtime_work?(job)
+      return "paused" if job_apparently_paused?(job)
 
       job.state
     end
@@ -793,15 +799,25 @@ module App
 
     def job_apparently_paused?(job)
       if defined?(@job_runtime_active_job_ids)
-        return false if @job_runtime_active_job_ids.key?(job.id)
+        return false if job_running_runtime_work?(job)
         return @job_runtime_paused_job_ids.key?(job.id)
       end
 
+      return false if job_running_runtime_work?(job)
       return true if WorkUnits::Ownership.blocked_for_job?(job)
       return false if job.active_runtime_work?
 
       workflow = job.latest_workflow
       workflow&.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)
+    end
+
+    def job_running_runtime_work?(job)
+      if defined?(@job_runtime_running_job_ids)
+        return @job_runtime_running_job_ids.key?(job.id)
+      end
+
+      job.runs.where(state: "running").exists? ||
+        WorkUnits::Ownership.active_units_for_job(job).any?(&:running?)
     end
 
     def workflow_pause_artifact?(workflow)
