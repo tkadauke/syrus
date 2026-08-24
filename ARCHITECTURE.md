@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-08-17._
+_Last reviewed: 2026-08-24._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -19,9 +19,11 @@ domain concepts. File paths are repo-relative.
 - [The big picture](#the-big-picture)
 - [Domain model](#domain-model) — Job, Epic, Workflow, Step, Run,
   JobLog, Repository, User, ScheduledTask, CronTemplate
+- [Access control](#access-control) — Teams, repository membership tiers, Pundit policies
 - [Recurring schedule](#recurring-schedule)
 - [Per-poller flow](#per-poller-flow) — issue ingest, external PR ingest, PR/chat feedback, rebase, scheduled tasks, reaping
 - [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
+- [Work engine](#work-engine) — WorkUnit, WorkIntent, WorkDefinition
 - [End-to-end GitHub workflow](#end-to-end-github-workflow)
 - [Services](#services) — including [Preview hosting](#preview-hosting)
 - [Plugin system](#plugin-system)
@@ -343,11 +345,13 @@ Unique on `(run_id, sequence)`. `before_update` raises
 ### Repository
 
 Unique on `(owner, name)` — a repository is a single shared record that
-multiple users can access through `RepositoryMembership` (roles: `owner`
-/ `collaborator`). The original registering user is the initial `owner`
-membership; repo-scoped actions use the membership's optional
-`agent_provider` override, falling back to the member's user-level
-default. Carries `default_branch`, `polling_enabled`, `trigger_label`
+multiple users can access through `RepositoryMembership` (roles, low to
+high: `read` / `write` / `admin` — see [Access control](#access-control)
+for the tier semantics, Team-granted access, and the Members UI). The
+original registering user gets the initial `admin` membership;
+repo-scoped actions use the membership's optional `agent_provider`
+override, falling back to the member's user-level default. Carries
+`default_branch`, `polling_enabled`, `trigger_label`
 (default `"syrus"`), `archived_at`, `prepare_enabled`,
 `trust_clean_rebase_grade`, `external_pr_ingestion_enabled` (opt-in
 polling for open PRs filed outside Syrus — see
@@ -386,7 +390,11 @@ them). `role` is either `developer` or `product_owner` and is serialized
 into bootstrap/profile/admin-user payloads. Product-owner role limits
 keep planning and backlog refinement separate from developer execution:
 product owners can draft work and refine Epics, while developers/admins
-advance Epics into runnable implementation. `agent_provider` is the
+advance Epics into runnable implementation. `role` is orthogonal to
+`global_role` (`admin` / `user`, see [Access control](#access-control)):
+`role` decides what a user is trusted to *do* with Epics, `global_role`
+decides whether they bypass repository-membership checks entirely.
+`agent_provider` is the
 user's default for new Jobs; a
 Repository can override it and per-Job retry/direct actions can choose
 an explicitly configured provider. `chat_provider` is a separate
@@ -408,8 +416,8 @@ compatibility. `dashboard_preferences` stores subject-level
 view/sort/column/lane choices plus `folder_prefs` slots keyed by active
 smart folder id, so operators can keep different layouts and sort orders
 for Inbox, Landing Queue, All Epics, and custom folders. The first user
-to sign up is auto-promoted to admin (bootstrap convenience, not a core
-architectural concern).
+to sign up is auto-promoted to `global_role: "admin"` (bootstrap
+convenience, not a core architectural concern).
 
 First-run setup is also user-scoped. `AppApi::SetupStatus` feeds the
 React `/onboarding` route and root/navigation guards; `App::SetupStatus`
@@ -520,6 +528,76 @@ external PRs whose head we control, even on closed Jobs. See
 `app/jobs/poll_repository_job.rb` for the detection logic and
 `app/jobs/poll_all_merge_states_job.rb` for why merge-state polling
 deliberately includes preempted Jobs.
+
+## Access control
+
+Landed as Epic #257 (`global_role` enum, `RepositoryMembership` tiers,
+`Team`, Pundit policies, GitHub/Syrus permission-mismatch surfacing).
+Two previously-informal notions — "is this user an admin" and "can this
+user act on this repository" — are now explicit, separate axes.
+
+**`User#global_role`** (`app/models/user.rb`) replaced the old `admin`
+boolean column outright (migrated: backfilled from `admin = TRUE`, then
+the column was dropped). It's a plain string with `GLOBAL_ROLES = %w[admin
+user]` — not an AR `enum` macro, so a future third tier doesn't need a
+disruptive rename. `User#admin?` delegates to `global_role == "admin"`.
+The first user to sign up is still auto-promoted to `global_role: "admin"`
+at creation. This is independent of the pre-existing `User#role`
+(`developer` / `product_owner`, [User](#user)) — `global_role` decides
+whether repository-membership checks are bypassed at all; `role` decides
+what an in-scope user is trusted to do with Epics.
+
+**`RepositoryMembership`** roles are now `read` / `write` / `admin`
+(`ROLE_RANK` orders them low to high; `#at_least?`/`scope :at_least` do
+tier comparisons), up from the old `owner`/`collaborator` pair — `read`
+is visibility only, `write` unlocks Job mutation (approve/retry/cancel/
+feedback, gated by `JobPolicy#write?`), `admin` unlocks repository
+settings/credentials, matching what only the FK `owner` role could do
+before. The migration backfilled conservatively: prior `owner` rows
+became `admin`, prior `collaborator` rows became `read` (not `write` —
+collaborator previously only implied Epic visibility). New memberships
+default to `read`.
+
+**`Team`** (`app/models/team.rb`, `TeamMembership`, `TeamRepository`)
+groups users for bulk repository grants without materializing individual
+`RepositoryMembership` rows: `TeamRepository` grants a role tier
+(`read`/`write`/`admin`, same scale) to every member of a team for a
+repository, and `Repository#effective_role_for(user)` /
+`Repository.accessible_repository_ids_for(user)` compute the max of
+global-admin, direct membership, and best team grant on the fly. A
+`TeamMembership` is `member` or `owner`; team owners manage the team's
+membership and repository grants. Team CRUD lives at `/admin/teams`
+(`AdminTeams.tsx`) — despite the URL prefix, access is gated by
+`TeamPolicy`, not a blanket admin-only check (team owners can manage
+their own team without being global admins).
+
+**Pundit policies** (`app/policies/`: `ApplicationPolicy`,
+`RepositoryPolicy`, `JobPolicy`, `EpicPolicy`, `TeamPolicy`) replaced ad
+hoc `Current.user.repositories` / inline `admin?` checks scattered across
+controllers. `RepositoryPolicy::Scope#resolve` unions direct admin-tier
+memberships and admin-tier team grants (deliberately not admin-bypassed,
+mirroring the old FK-owner semantics); `JobPolicy#write?` and
+`EpicPolicy` gate mutation on write-tier-or-better repository access
+(`EpicPolicy` also still enforces the `product_owner`-role restriction
+against advancing Epics). **Job visibility now follows repository
+access, matching Epic**: `Job.accessible_to(user)` mirrors the
+pre-existing `Epic.accessible_to`, routed through
+`Repository.accessible_repository_ids_for` so any member (direct or via
+a Team) can see Jobs on repositories they have access to; mutation stays
+gated separately.
+
+**GitHub vs. Syrus permission mismatches** are surfaced, not enforced.
+`GithubPermissionSyncer` (run recurring by
+`SyncGithubPermissionsJob`) flags two directions: a Syrus `write`/`admin`
+member with insufficient GitHub access (recorded on the
+`RepositoryMembership` row as `github_permission_mismatch_reason` +
+`_checked_at`), and a GitHub collaborator with write-or-better GitHub
+access but no Syrus access at all (`GithubCollaboratorDiscrepancy`).
+Both show up as warnings on the repository's **Members tab**
+(`RepositoryMembers.tsx`, route `/repositories/:repositoryId/memberships`)
+alongside the add/promote/remove membership controls and the Team-grant
+section — an amber badge per mismatched row, and a separate "GitHub-only
+collaborators" list.
 
 ## Recurring schedule
 
@@ -988,6 +1066,81 @@ disable the feature instance-wide.
   Run detection, and the heartbeat backstop to either fail the abandoned
   `running` Run or re-enqueue an abandoned `queued` successor Run.
 
+## Work engine
+
+A parallel bookkeeping/gating layer, under active rollout, sitting one
+level above Job/Workflow/Step/Run rather than replacing it. It exists
+because ownership questions ("is anything already working on this Job?
+is this landing attempt still live? what should retry next?") had to be
+answered by scanning Workflows/Jobs ad hoc from a dozen call sites
+(dispatcher, reconciler, landing queue, retry, rebase, CI repair, …).
+The design plan lives at `docs/plans/work-units-and-execution-resilience.md`;
+migration coverage is enforced by `spec/architecture/work_unit_migration_matrix_spec.rb`.
+
+Three models, mirroring the existing Step/Run split one level up
+(`WorkIntent : WorkUnit : Workflow` ≈ `1 : N : N`):
+
+- **`WorkIntent`** (`app/models/work_intent.rb`) — durable *desired*
+  work ("land JOB-10," "rebase JOB-10," "run CI repair"). States
+  `requested → waiting → satisfied | failed | cancelled`. Carries scope
+  (job/epic/repository), priority, actor, and a `wait_reason` (
+  `dependency`, `approval`, `epic_not_ready`, `policy_not_eligible`) for
+  why it isn't runnable yet.
+- **`WorkUnit`** (`app/models/work_unit.rb`) — one *concrete execution
+  attempt*: `belongs_to :work_intent`, optionally `belongs_to :workflow`
+  (one Workflow per WorkUnit), plus `parent_work_unit`/`child_work_units`
+  for landing-validation children. States `queued → blocked → running →
+  succeeded | failed | cancelled`, with a typed `blocked_reason`
+  (`admission_control`, `provider_availability`, `manual_pause`,
+  `main_branch_health`, `dependency_failed`, `urgent_job_active`,
+  `auto_retry_backoff`, `preempted`, …). `WorkUnitMember` attaches
+  multiple Jobs to one WorkUnit with a role (`primary`/`member`/
+  `dependency`/`repair_target`/`exported_job`) — how a merge train or a
+  [job bundle](#rebase-and-landing) spans several Jobs under one unit.
+  `WorkUnitLock` gives job/epic/repository/landing mutual exclusion.
+- **`WorkDefinition`** (`WorkDefinitions::Base` +
+  `app/services/work_definitions/built_ins.rb`) — a per-workflow-`kind`
+  policy object, not persisted. Declares scope/member/lock-key
+  derivation, `intent_gates` (dependency, approval, Epic-readiness),
+  `unit_gates` (main-branch health, provider availability, manual pause,
+  admission control), pluggable `retry_policy`/`preemption_policy`
+  objects, and `runtime_role` (`first_class`/`child`/`infrastructure`/
+  `legacy`) for kinds like `initial`, `rebase`, `auto_merge`,
+  `merge_train`, `retry`, `coding_handoff`, `main_grader`.
+
+**`WorkUnits::Launcher`** (`app/services/work_units/launcher.rb`) is the
+single funnel for starting a Workflow: find-or-create the `WorkIntent`,
+create a `WorkUnit`, instantiate the `WorkDefinition`'s workflow
+template, attach members/locks, gate-check via `WorkUnits::Scheduler`,
+then call `StepDispatcher.start_workflow` — the same dispatcher and AASM
+machines described above and in `CLAUDE.md` are still what actually
+advances Job/Workflow/Step/Run; the work engine wraps that call rather
+than replacing it. Every workflow-launching call site (initial, retry,
+rebase, coding handoff, insight, scheduled task, external PR, landing,
+CI repair, PR/chat feedback, merge train, job bundle) has been migrated
+to go through it one at a time.
+
+**Rollout state as of this writing: in progress, not cut over.**
+`WorkUnits::PathOwnership` maps ~21 named paths to one of three `Feature`
+flags (`work_units_scheduler`, `work_units_landing`,
+`work_units_reconciler`) that all default off in `config/features.yml`.
+With those flags off, `WorkUnits::Ownership` unions WorkUnit-derived
+results with a `legacy_active_workflow_*` fallback scan, and the legacy
+scan remains the effective source of truth — WorkUnit/WorkIntent rows
+are populated in parallel today mostly for diagnostics. Only the earlier
+shadow *diagnostics* flag (`work_units_shadow_mode`) has been removed;
+the ownership-cutover flags and the legacy fallback code have not.
+`docs/technical-debt.md` tracks the pending backfill job
+(`WorkUnitsBackfillActiveWorkflowsJob`) and legacy-fallback removal as
+open debt with stated, not-yet-met conditions.
+
+Operator visibility: `GET /api/v1/app/admin/work_units`
+(`Admin::WorkUnitsPayload`) lists WorkIntents with nested WorkUnits,
+members, and workflows. Job detail/job-workflows payloads expose
+`current_intent`, `active_work`, and `work_units`, but only when
+`AppSetting.show_work_unit_debug?` is enabled — an opt-in debug view,
+not a normal operator surface yet.
+
 ## End-to-end GitHub workflow
 
 What happens to a single labeled issue, from label to merge:
@@ -1075,7 +1228,7 @@ Git and GitHub:
 | `GitRunner` | Subprocess wrapper around `git` that streams stdout/stderr into `JobLog` and redacts `https://x-access-token:TOKEN@github.com/...` URLs from error messages. |
 | `GithubClient` | One Octokit client per user. Wraps `issues_with_label`, `pull_request`, `pull_request_comments`, `pull_request_reviews`, `combined_status_for_ref`, etc. Surfaces `Octokit::TooManyRequests` to callers (logged then re-raised). |
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
-| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows, and applies landing state transitions. |
+| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows (or a `job_bundle` Workflow via `JobBundleAssembler`/`JobBundleDispatcher` for epicless same-tier siblings, see [Rebase and landing](#rebase-and-landing)), and applies landing state transitions. |
 | `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
 | `DeploymentStageDetector` | Compares landed merge commits (`Job#landed_sha`) against `.syrus.yml` `deployment_stages` tags and records `JobDeploymentStageStatus` rows. |
 | `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
@@ -1115,6 +1268,20 @@ single integration branch from approved child PRs by fetching each
 member branch with repository credentials (private repos included),
 validates it, merges one integration PR, and comments on/closes member
 PRs as an all-or-nothing unit.
+
+**Epicless job bundling** (`epicless_job_bundling` Labs flag, default
+off) generalizes the same mechanism to non-Epic Jobs: `MergeTrain` now
+validates exactly one of `epic` or a nullable `priority` tier is set.
+`JobBundleAssembler` finds two-or-more same-priority-tier, epicless,
+non-external-PR, approved Jobs per repository (ordered topologically,
+capped at `AppSetting.merge_train_max_size`); `JobBundleDispatcher`
+creates the `MergeTrain`/`MergeTrainMember` rows, locks members into
+`landing`, and starts a `job_bundle` Workflow on the tip member — the
+same integration-branch build/validate/land path merge trains use. A
+lone ready Job without enough same-tier siblings still lands through
+plain `auto_merge`. The landing-queue dashboard marks bundle membership
+(`landing_queue_entry_key` prefixed `"job_bundle:"`) alongside the
+existing Epic-unit grouping.
 
 The landing queue is ordered by landing units, not only individual Jobs.
 Epic children share one unit so the dashboard queue keeps the sibling
@@ -1166,7 +1333,7 @@ and installed the same way.
 
 ### Extension points
 
-The registry defines fifteen extension points:
+The registry defines sixteen extension points:
 
 | Extension point | Purpose |
 |---|---|
@@ -1183,7 +1350,8 @@ The registry defines fifteen extension points:
 | `:coverage_analyzer` | Parse coverage artifacts (lcov, SimpleCov, Cobertura, …) |
 | `:admin_page` | Register admin-only pages with routes and frontend components |
 | `:grader_augmentor` | Extract/augment grader output (e.g. structured RSpec JSON failure logging) |
-| `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop) |
+| `:ci_log_parser` | Claim/parse a CI failure log in a provider-specific format before the built-in `CiLogParser` fallback chain runs; no bundled plugin registers one yet |
+| `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect (e.g. spawning a daemon), drained most-recently-registered-first on disable — the `tailscale` plugin's `DaemonManager` uses this instead of a hand-written teardown method |
 | `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
 
 ### Bundled plugins
@@ -1327,6 +1495,20 @@ plumbing.
 and hands stdio to `SyrusMcp::Sidecar`. For Claude, the MCP config key
 must match the binary basename (`syrus-mcp-sidecar`) so resumed sessions
 keep the same tool prefix. SIGTERM is trapped to drain cleanly.
+
+**Persistent MCP sidecar daemon (in progress, chat-only so far).** The
+per-Run stdio spawn above pays a fresh Rails boot every time. Behind the
+`persistent_mcp_sidecar` Labs flag, `PersistentMcpDaemon`
+(`bin/syrus-mcp-daemon`) is a worker-local Puma process that boots Rails
+once and serves a long-lived `MCP::Server` over streamable HTTP
+(`/mcp`, plus `/healthz`); `WorkflowMcpTransportSelector` /
+`ChatMcpTransportSelector` health-check and capability-gate per call to
+decide daemon vs. stdio fallback. Signed, short-lived
+`McpInvocationContext` tokens carry per-call run/chat identity since the
+daemon is one shared process across Runs/chats. Today the daemon
+advertises chat tools (real dispatch, live) but deliberately does not yet
+advertise workflow tools, so workflow-agent MCP (the tool surface
+documented above) still always falls back to the per-Run stdio sidecar.
 
 ## Chat sidecar and workspaces
 
@@ -1559,7 +1741,12 @@ Several layers, each catching different failure modes:
    `ReconcileJobStatesJob` are thin delegators that call
    `WorkEngine::Reconciler.request`; all mutation is centralized in
    `WorkEngine::ReconcileJob` / `RepairExecutor`, which executes only
-   plans marked `auto_executable` after re-checking preconditions.
+   plans marked `auto_executable` after re-checking preconditions. The
+   newer [Work engine](#work-engine) (`WorkUnit`/`WorkIntent`) is a
+   separate, still-rolling-out layer that is meant to eventually replace
+   this ad hoc evidence-scanning with typed ownership records; today the
+   `work_units_reconciler` feature flag is off, so this reconciler
+   remains the effective mechanism.
 5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips
@@ -1860,6 +2047,16 @@ session outcome.
   image also seeds `/opt/mise-seed` from a cached runtime layer so a cold
   cache directory still has usable shims before the shared cache
   populates.
+- A shared **sccache** compiler cache backs C/C++ (and other
+  sccache-supported) compilation during `prepare`/grader commands: the
+  worker image symlinks `cc`/`c++`/`gcc`/`g++`/`clang`/`clang++` ahead of
+  the real toolchain on `PATH` to sccache's wrapper. It's backed by a
+  dedicated bucket on the same self-hosted MinIO instance used for
+  Active Storage (`SCCACHE_BUCKET`/`SCCACHE_ENDPOINT`/etc.); with no
+  bucket configured it silently falls back to local per-pod disk cache.
+  Hit/miss stats are captured per prepare/grader command and shown on
+  the Job detail page; operators can inspect and clear the cache at
+  **`/admin/build_cache`**.
 - Terminal relay sockets are advertised from worker-side sessions.
   Bare-metal/local development can leave `SYRUS_TERMINAL_HOST` unset and
   the relay uses `127.0.0.1`; Docker Compose points it at the worker
