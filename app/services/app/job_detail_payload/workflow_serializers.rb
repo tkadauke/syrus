@@ -191,7 +191,7 @@ module App
         {
           id: step.id,
           kind: step.kind,
-          display_name: step_display_name(step),
+          display_name: step_display_name(step, workflow: workflow),
           state: projection.visible_state,
           position: step.position
         }
@@ -386,7 +386,7 @@ module App
           {
             id: step.id,
             kind: step.kind,
-            display_name: step_display_name(step),
+            display_name: step_display_name(step, workflow: workflow),
             display_status: step_display_status(step, projection: projection),
             position: step.position,
             iteration: step.iteration,
@@ -407,10 +407,19 @@ module App
         end
       end
 
-      def step_display_name(step)
+      def step_display_name(step, workflow: step.workflow)
         return step.details["name"].presence || step.details["command"].presence || "grader" if step.kind == "grader"
+        return merge_train_land_label(workflow, after_rebase: false) if step.kind == "merge_train_land"
+        return merge_train_land_label(workflow, after_rebase: true) if step.kind == "merge_train_land_after_rebase"
 
         Step::Kind.label_for(step.kind)
+      end
+
+      def merge_train_land_label(workflow, after_rebase:)
+        bundle = workflow&.work_unit&.kind == "job_bundle"
+        subject = bundle ? "job bundle" : "Epic"
+        suffix = after_rebase ? " after rebase" : ""
+        "Land #{subject}#{suffix}"
       end
 
       def step_display_status(step, projection: step_state_projection(step))

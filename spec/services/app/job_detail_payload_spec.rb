@@ -910,6 +910,34 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "labels bundle-backed merge train landing steps as job bundle landings" do
+      first = Factories.job_record(user: user, repository: repo, issue_number: 101)
+      second = Factories.job_record(user: user, repository: repo, issue_number: 102)
+      workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
+      Step.create!(workflow: workflow, kind: "merge_train_land", position: 1)
+      Step.create!(workflow: workflow, kind: "merge_train_land_after_rebase", position: 2)
+      attach_work_unit(workflow, member_jobs: [ first, second ], kind: "job_bundle")
+
+      workflow_payload = workflows_payload_for(second).fetch(:work_units).first.fetch(:workflow)
+      names_by_kind = workflow_payload.fetch(:steps).to_h { |step| [ step.fetch(:kind), step.fetch(:display_name) ] }
+
+      expect(names_by_kind).to include(
+        "merge_train_land" => "Land job bundle",
+        "merge_train_land_after_rebase" => "Land job bundle after rebase"
+      )
+    end
+
+    it "keeps Epic wording for Epic merge train landing steps" do
+      epic = Factories.epic(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
+      workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "running")
+      Step.create!(workflow: workflow, kind: "merge_train_land", position: 1)
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "merge_train")
+
+      workflow_payload = workflows_payload_for(job).fetch(:work_units).first.fetch(:workflow)
+      expect(workflow_payload.fetch(:steps).first.fetch(:display_name)).to eq("Land Epic")
+    end
+
     it "includes parent and preemption relationships for WorkUnit diagnostics" do
       parent_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
       parent = attach_work_unit(parent_workflow, member_jobs: [ job ], kind: "auto_merge")
