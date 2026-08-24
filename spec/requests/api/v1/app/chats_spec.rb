@@ -1536,7 +1536,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     ChatSession.create!(user: Factories.user, title: "Foreign chat", last_message_at: Time.current)
     message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss **aqueducts**." })
     message.bookmarks.create!(label: "Aqueducts", kind: "topic")
-    question = chat.agent_questions.create!(question: "Which path?", options: [ "Fast", "Careful" ], asked_at: Time.current)
+    question = chat.agent_questions.create!(questions: [ { "question" => "Which path?", "options" => [ "Fast", "Careful" ], "multiple" => false } ], asked_at: Time.current)
     chat.create_whiteboard!(
       scene_json: {
         "elements" => [ { "id" => "box-1", "type" => "rectangle" } ],
@@ -1560,8 +1560,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["bookmarks"]).to eq([])
     expect(body["agent_questions"]).to contain_exactly(include(
       "id" => question.id,
-      "question" => "Which path?",
-      "options" => [ "Fast", "Careful" ],
+      "questions" => [ { "question" => "Which path?", "options" => [ "Fast", "Careful" ], "multiple" => false } ],
       "app_answer_path" => "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer"
     ))
     expect(body["recent_chats"]).to eq([])
@@ -2499,24 +2498,39 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "answers an active agent question and enqueues a new chat turn" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    question = chat.agent_questions.create!(question: "Which branch?", options: [ "main", "release" ], asked_at: Time.current)
+    question = chat.agent_questions.create!(questions: [ { "question" => "Which branch?", "options" => [ "main", "release" ], "multiple" => false } ], asked_at: Time.current)
 
-    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: "release" }
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "release" ] }
 
     expect(response).to have_http_status(:ok)
-    expect(question.reload.answer).to eq("release")
+    expect(question.reload.answers).to eq([ "release" ])
     expect(question.answered_at).to be_present
     expect(chat.messages.order(:created_at, :id).last).to have_attributes(
       role: "user",
-      content: { "text" => "release" },
       sender_user_id: user.id
     )
+    expect(chat.messages.order(:created_at, :id).last.content["text"]).to include("A1: release")
     expect(parse_body["agent_questions"]).to eq([])
     expect(parse_body["messages"]).to include(include(
-      "role" => "user",
-      "text" => "release"
+      "role" => "user"
     ))
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
+  end
+
+  it "answers a batch of questions atomically, including a multi-select entry" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    question = chat.agent_questions.create!(questions: [
+      { "question" => "Which branch?", "options" => [ "main", "release" ], "multiple" => false },
+      { "question" => "Which environments?", "options" => [ "staging", "production" ], "multiple" => true }
+    ], asked_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer",
+      params: { answers: [ "release", [ "staging", "production" ] ] }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(question.reload.answers).to eq([ "release", [ "staging", "production" ] ])
+    expect(question.answered_at).to be_present
   end
 
   it "does not enqueue a ChatTurnJob when answering an agent question while a turn is already running" do
@@ -2530,30 +2544,30 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       started_at: Time.current,
       pid: 1234
     )
-    question = chat.agent_questions.create!(question: "Which branch?", options: [ "main", "release" ], asked_at: Time.current)
+    question = chat.agent_questions.create!(questions: [ { "question" => "Which branch?", "options" => [ "main", "release" ], "multiple" => false } ], asked_at: Time.current)
 
-    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: "release" }
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "release" ] }
 
     expect(response).to have_http_status(:ok)
-    expect(question.reload.answer).to eq("release")
+    expect(question.reload.answers).to eq([ "release" ])
     expect(ChatTurnJob).not_to have_been_enqueued
   end
 
   it "rejects blank or inactive agent question answers" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    question = chat.agent_questions.create!(question: "Continue?", asked_at: Time.current)
+    question = chat.agent_questions.create!(questions: [ { "question" => "Continue?", "options" => nil, "multiple" => false } ], asked_at: Time.current)
 
-    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: " " }
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ " " ] }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(question.reload.answer).to be_nil
+    expect(question.reload.answers).to be_nil
 
     question.expire!
-    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: "yes" }
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "yes" ] }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(question.reload.answer).to be_nil
+    expect(question.reload.answers).to be_nil
   end
 
   it "queues, edits, and deletes a message while a chat turn is active" do
