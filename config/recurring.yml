@@ -158,6 +158,10 @@ default: &default
     class: SyncInstallationsJob
     queue: polling
     schedule: every 5 minutes
+  sync_github_permissions:
+    class: SyncGithubPermissionsJob
+    queue: polling
+    schedule: every 30 minutes
   reconcile_job_states:
     class: ReconcileJobStatesJob
     queue: control_plane

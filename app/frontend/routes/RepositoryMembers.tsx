@@ -6,12 +6,14 @@ import type { FormEvent } from "react"
 import { useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { NoticeToast } from "../components/NoticeToast"
+import { TonePill } from "../components/StatusPill"
 import {
   createRepositoryMembership,
   deleteRepositoryMembership,
   fetchRepositoryMemberships,
   updateRepositoryMembershipRole,
   REPOSITORY_MEMBERSHIP_ROLES,
+  type GithubCollaboratorDiscrepancy,
   type RepositoryMembership,
   type RepositoryMembershipRole,
   type RepositoryMembershipsPayload
@@ -101,11 +103,23 @@ function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembers
             {payload.memberships.map((membership) => (
               <li className="flex items-center gap-3 py-3" key={membership.id}>
                 <div className="min-w-0 flex-1">
-                  <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{membership.user.name}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{membership.user.name}</div>
+                    {membership.github_permission_mismatch_reason ? (
+                      <TonePill title={t(`repository_memberships.github_mismatch_hint.${membership.github_permission_mismatch_reason}`)} tone="amber">
+                        {t("repository_memberships.github_mismatch_badge")}
+                      </TonePill>
+                    ) : null}
+                  </div>
                   <div className="break-all text-xs text-gray-500 dark:text-gray-400">{membership.user.email_address}</div>
                   <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {t("repository_memberships.added_at")} <RelativeTimestamp value={membership.created_at} />
                   </div>
+                  {membership.github_permission_mismatch_reason ? (
+                    <div className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                      {t(`repository_memberships.github_mismatch_reason.${membership.github_permission_mismatch_reason}`)}
+                    </div>
+                  ) : null}
                 </div>
                 <RoleSelect
                   disabled={updateRole.isPending}
@@ -133,8 +147,41 @@ function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembers
       <AddMemberForm onNotice={setNotice} payload={payload} />
 
       <TeamGrants onNotice={setNotice} payload={payload} />
+
+      <GithubCollaboratorDiscrepancies discrepancies={payload.github_collaborator_discrepancies} />
       {dialog}
     </>
+  )
+}
+
+// Direction 2 of the GitHub permission-parity check (JOB-3577): GitHub
+// collaborators with write+ access and no corresponding Syrus access at
+// all. Warning-severity, read-only -- Syrus never grants or revokes GitHub
+// access from here. See GithubPermissionSyncer.
+function GithubCollaboratorDiscrepancies({ discrepancies }: { discrepancies: GithubCollaboratorDiscrepancy[] }) {
+  const { t } = useT("settings")
+
+  if (discrepancies.length === 0) return null
+
+  return (
+    <section className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+      <div className="border-b border-amber-200 dark:border-amber-800 px-4 py-3">
+        <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("repository_memberships.github_only_collaborators")}</h2>
+        <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">{t("repository_memberships.github_only_collaborators_description")}</p>
+      </div>
+      <ul className="divide-y divide-amber-100 dark:divide-amber-900 px-4">
+        {discrepancies.map((discrepancy) => (
+          <li className="flex items-center gap-3 py-3" key={discrepancy.id}>
+            <div className="min-w-0 flex-1">
+              <div className="break-words text-sm font-medium text-amber-900 dark:text-amber-100">@{discrepancy.github_login}</div>
+              <div className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                {t(`repository_memberships.role_${discrepancy.github_permission}`)} {t("repository_memberships.github_only_on_github")}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

@@ -16,6 +16,8 @@ function membershipsPayload(overrides: Record<string, unknown> = {}) {
         role: "admin",
         agent_provider: null,
         created_at: "2026-01-01T00:00:00Z",
+        github_permission_mismatch_reason: null,
+        github_permission_mismatch_checked_at: null,
         user: { id: 1, email_address: "owner@example.com", name: "Ada Lovelace" }
       },
       {
@@ -23,10 +25,13 @@ function membershipsPayload(overrides: Record<string, unknown> = {}) {
         role: "read",
         agent_provider: null,
         created_at: "2026-01-02T00:00:00Z",
+        github_permission_mismatch_reason: null,
+        github_permission_mismatch_checked_at: null,
         user: { id: 2, email_address: "reader@example.com", name: "Grace Hopper" }
       }
     ],
     team_grants: [],
+    github_collaborator_discrepancies: [],
     ...overrides
   }
 }
@@ -263,6 +268,48 @@ describe("RepositoryMembersRoute", () => {
           expect.objectContaining({ method: "DELETE" })
         )
       })
+    })
+  })
+
+  describe("GitHub permission mismatch signals", () => {
+    it("shows a warning badge on a member with a mismatch reason", async () => {
+      renderRoute(membershipsPayload({
+        memberships: [
+          {
+            ...membershipsPayload().memberships[0],
+            github_permission_mismatch_reason: "not_a_github_collaborator",
+            github_permission_mismatch_checked_at: "2026-01-05T00:00:00Z"
+          },
+          membershipsPayload().memberships[1]
+        ]
+      }))
+
+      expect(await screen.findByText("GitHub mismatch")).toBeInTheDocument()
+    })
+
+    it("does not show a warning badge when there is no mismatch" , async () => {
+      renderRoute()
+
+      await screen.findByText("Ada Lovelace")
+      expect(screen.queryByText("GitHub mismatch")).not.toBeInTheDocument()
+    })
+
+    it("lists GitHub-only collaborators with write+ access and no Syrus membership", async () => {
+      renderRoute(membershipsPayload({
+        github_collaborator_discrepancies: [
+          { id: 1, github_login: "external-dev", github_permission: "write", checked_at: "2026-01-05T00:00:00Z" }
+        ]
+      }))
+
+      expect(await screen.findByText("GitHub-only collaborators")).toBeInTheDocument()
+      expect(screen.getByText("@external-dev")).toBeInTheDocument()
+    })
+
+    it("hides the GitHub-only collaborators section when there are none" , async () => {
+      renderRoute()
+
+      await screen.findByText("Ada Lovelace")
+      expect(screen.queryByText("GitHub-only collaborators")).not.toBeInTheDocument()
     })
   })
 })
