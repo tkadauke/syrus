@@ -69,6 +69,7 @@ PATH
   remote: plugins/mysql_db_browser
   specs:
     mysql_db_browser (0.1.0)
+      mysql2 (~> 0.5)
       rails (>= 8.1)
 
 PATH
