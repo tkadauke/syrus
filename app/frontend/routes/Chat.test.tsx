@@ -9,7 +9,7 @@ import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
-import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
+import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 
@@ -49,6 +49,31 @@ describe("storedWorkspaceCollapsed", () => {
 
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
     expect(storedWorkspaceCollapsed()).toBe(true)
+  })
+})
+
+describe("storedWorkspaceTab", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("returns null when no preference is stored", () => {
+    expect(storedWorkspaceTab()).toBeNull()
+  })
+
+  it("returns a stored fixed core tab", () => {
+    window.localStorage.setItem("syrus.chat.workspace.tab", "media")
+    expect(storedWorkspaceTab()).toBe("media")
+  })
+
+  it("returns a stored plugin tab, e.g. the whiteboard, so it survives a reload", () => {
+    window.localStorage.setItem("syrus.chat.workspace.tab", "plugin:whiteboard_tools.canvas")
+    expect(storedWorkspaceTab()).toBe("plugin:whiteboard_tools.canvas")
+  })
+
+  it("discards an unrecognized stored value", () => {
+    window.localStorage.setItem("syrus.chat.workspace.tab", "not-a-real-tab")
+    expect(storedWorkspaceTab()).toBeNull()
   })
 })
 
