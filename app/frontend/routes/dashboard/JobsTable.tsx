@@ -16,7 +16,7 @@ import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { StatusPill, TonePill } from "../../components/StatusPill"
 import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
-import { fetchJobPreview, startJobPreview, stopJobPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
+import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 
@@ -133,7 +133,7 @@ function SimplePreviewApprove({ job }: { job: DashboardJobItem }) {
 
   const preview = useQuery({
     queryKey: ["job-preview", job.id],
-    queryFn: () => fetchJobPreview(previewPath!),
+    queryFn: () => fetchPreview(previewPath!),
     select: (data) => data.preview,
     enabled: Boolean(job.can_start_preview && previewPath),
     refetchInterval: (query) => {
@@ -143,12 +143,12 @@ function SimplePreviewApprove({ job }: { job: DashboardJobItem }) {
   })
 
   const start = useMutation({
-    mutationFn: () => startJobPreview(previewPath!),
+    mutationFn: () => startPreview(previewPath!),
     onSuccess: (data) => queryClient.setQueryData(["job-preview", job.id], data.preview)
   })
 
   const stop = useMutation({
-    mutationFn: () => stopJobPreview(previewPath!),
+    mutationFn: () => stopPreview(previewPath!),
     onSuccess: (data) => queryClient.setQueryData(["job-preview", job.id], data.preview)
   })
 
