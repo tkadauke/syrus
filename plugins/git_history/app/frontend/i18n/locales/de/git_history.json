@@ -1,3 +1,29 @@
 {
-  "nav_git_history": "Git-Verlauf"
+  "nav_git_history": "Git-Verlauf",
+  "eyebrow": "Repository",
+  "title": "Git-Verlauf",
+  "aria_label": "Git-Verlauf",
+  "loading": "Commit-Verlauf wird geladen…",
+  "loading_more": "Lädt…",
+  "load_more": "Ältere Commits laden",
+  "error": "Git-Verlauf konnte nicht geladen werden.",
+  "unavailable": "Der Git-Verlauf ist für dieses Repository noch nicht verfügbar. Er wird verfügbar, sobald Syrus einen lokalen Klon synchronisiert hat.",
+  "empty": "Keine Commits gefunden.",
+  "classification": {
+    "syrus_landed": "Syrus",
+    "external_pr": "Externer PR",
+    "external_push": "Direkter Push"
+  },
+  "attribution": {
+    "by": "von {{name}}",
+    "pr": "PR #{{number}}",
+    "opened_by": "eröffnet von {{name}}",
+    "pushed_by": "gepusht von {{name}}",
+    "unknown_author": "unbekannt"
+  },
+  "origin": {
+    "chat": "über Chat",
+    "cron": "über geplante Aufgabe \"{{name}}\"",
+    "issue": "Issue #{{number}}"
+  }
 }
