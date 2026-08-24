@@ -94,6 +94,7 @@ gem "tailscale",     path: "plugins/tailscale"
 gem "discord",       path: "plugins/discord"
 gem "browser",       path: "plugins/browser"
 gem "preview_tools", path: "plugins/preview_tools"
+gem "spending_insights", path: "plugins/spending_insights"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

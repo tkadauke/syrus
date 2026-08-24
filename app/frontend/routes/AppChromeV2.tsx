@@ -1,5 +1,5 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
@@ -105,20 +105,14 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     () => buildSidebarNavItems(sidebarNavContext, sidebarPluginPages.data?.pages ?? [], t),
     [sidebarNavContext, sidebarPluginPages.data, t]
   )
-  const primaryNavItems = useMemo(() => {
-    const spendingItem = { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> }
-    const items = mergedSidebarNavItems.map((item) => ({
-      id: item.id,
-      label: item.label,
-      to: `${prefix}${item.to}`,
-      active: sidebarNavItemActive(item, normalizedPath),
-      icon: item.icon,
-      ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
-    }))
-    const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
-    if (dashboardIndex === -1) return items
-    return [...items.slice(0, dashboardIndex + 1), spendingItem, ...items.slice(dashboardIndex + 1)]
-  }, [mergedSidebarNavItems, normalizedPath, prefix, t, terminalSessionCount])
+  const primaryNavItems = useMemo(() => mergedSidebarNavItems.map((item) => ({
+    id: item.id,
+    label: item.label,
+    to: `${prefix}${item.to}`,
+    active: sidebarNavItemActive(item, normalizedPath),
+    icon: item.icon,
+    ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
+  })), [mergedSidebarNavItems, normalizedPath, prefix, terminalSessionCount])
   const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
     ...(tabsHidden ? [] : primaryNavItems)
