@@ -13,6 +13,32 @@ vi.mock("../lib/pageReload", () => ({
 
 import { AdminPlugins } from "./AdminPlugins"
 
+const pluginFilterSchema = [
+  {
+    field: "category",
+    label: "Category",
+    bucket: "enum",
+    operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"],
+    values: [
+      { value: "language", label: "Language & framework intelligence" },
+      { value: "agent", label: "Agent provider" },
+      { value: "input_source", label: "Input source" },
+      { value: "mcp_tool_set", label: "MCP tool set" },
+      { value: "platform_delivery", label: "Platform delivery" },
+      { value: "connectivity", label: "Connectivity" },
+      { value: "observability", label: "Observability" },
+      { value: "tooling", label: "Tooling" }
+    ]
+  },
+  {
+    field: "search",
+    label: "Search",
+    bucket: "string",
+    operators: ["contains"],
+    values: []
+  }
+]
+
 describe("AdminPlugins", () => {
   it("renders registered plugins and extension points", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
@@ -229,11 +255,46 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Active workflows use Claude Code: 6")).toBeInTheDocument()
   })
 
-  it("searches plugins by query and shows a filtered empty state", async () => {
+  it("renders a category filter chip via the FilterBar add-filter menu", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "codex_agent",
+          display_name: "Codex Agent",
+          disable_blockers: [],
+          version: "1.2.3",
+          enabled: true,
+          disableable: true,
+          default_enabled: true,
+          description: "Codex agent provider",
+          homepage: null,
+          author: null,
+          source: null,
+          extension_points: []
+        }
+      ],
+      filter: { and: [] },
+      controls: { filter_schema: pluginFilterSchema }
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    await screen.findByRole("region", { name: "Registered plugins" })
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    expect(screen.getByRole("button", { name: "Category list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Search text" })).toBeInTheDocument()
+  })
+
+  it("filters plugins by the category chip and shows a filtered empty state", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = String(input)
-      if (url.includes("q=storm")) {
-        return Promise.resolve(jsonResponse({ plugins: [] }))
+      if (url.includes("q=")) {
+        return Promise.resolve(jsonResponse({
+          plugins: [],
+          filter: { and: [{ field: "category", op: "is", value: "language" }] },
+          controls: { filter_schema: pluginFilterSchema }
+        }))
       }
       return Promise.resolve(jsonResponse({
         plugins: [
@@ -251,7 +312,9 @@ describe("AdminPlugins", () => {
             source: null,
             extension_points: []
           }
-        ]
+        ],
+        filter: { and: [] },
+        controls: { filter_schema: pluginFilterSchema }
       }))
     })
 
@@ -259,9 +322,10 @@ describe("AdminPlugins", () => {
 
     await screen.findByRole("region", { name: "Registered plugins" })
 
-    fireEvent.change(screen.getByPlaceholderText("Search plugins..."), { target: { value: "storm" } })
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Category list" }))
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("q=storm"), expect.anything()))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("q="), expect.anything()))
     expect(await screen.findByText("No plugins match your search")).toBeInTheDocument()
     expect(screen.getByText("Try a different name, description, or category.")).toBeInTheDocument()
   })

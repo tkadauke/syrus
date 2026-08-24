@@ -1029,8 +1029,12 @@ disableability, category, extension point classes, and basic author/source
 metadata when available. Disableable
 installed plugins can be toggled live for new requests and sidecars. Installing
 or removing plugins still requires changing the Gemfile and restarting Syrus.
-A search box filters the list by name, description, and category — a simple
-full text search, not a full search-engine integration.
+The list uses the same chip-based filter bar as other admin list pages: a
+Category chip filters by the plugin category taxonomy (language, agent
+provider, input source, MCP tool set, and the rest), and a Search chip
+filters by name, description, and category — a simple full text search, not
+a full search-engine integration. Chips combine together, and there's no
+saved-filter sidebar here, just the filter bar itself.
 
 Plugins can declare dependencies on other plugins (for example, `rails`
 depends on `ruby`). The page shows both directions of that relationship —
