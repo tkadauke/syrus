@@ -14,7 +14,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
 
   before do
     ENV["SYRUS_DATA_ROOT"] = syrus_data_root.to_s
-    repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+    repository.repository_memberships.create!(user: collaborator, role: "read")
   end
 
   after do

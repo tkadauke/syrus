@@ -92,7 +92,7 @@ RSpec.describe "App API insight suggestions", type: :request do
 
     it "allows a RepositoryMembership collaborator to view insight suggestions" do
       collaborator = Factories.user(email_address: "collaborator@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
       sign_in_as(collaborator)
 
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"

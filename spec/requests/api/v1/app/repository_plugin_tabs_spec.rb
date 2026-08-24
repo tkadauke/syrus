@@ -68,7 +68,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
   it "returns repo page tabs for a RepositoryMembership collaborator" do
     register_repo_page_tab_provider
     collaborator = Factories.user(email_address: "collaborator@example.com")
-    repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+    repository.repository_memberships.create!(user: collaborator, role: "read")
     sign_in_as(collaborator)
 
     get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"

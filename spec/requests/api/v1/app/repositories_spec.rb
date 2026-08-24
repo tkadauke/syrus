@@ -543,7 +543,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       register_repo_page_tab_provider
       repository = Factories.repository(user: user, owner: "acme", name: "widgets")
       collaborator = Factories.user(email_address: "collaborator@example.com")
-      repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
       sign_in_as(collaborator)
 
       get "/api/v1/app/repositories/#{repository.id}"

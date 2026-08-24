@@ -7,7 +7,7 @@ RSpec.describe Repositories::PluginRepoTabsPayload do
   let(:repository) { Factories.repository(user: owner) }
 
   before do
-    repository.repository_memberships.create!(user: collaborator, role: "collaborator")
+    repository.repository_memberships.create!(user: collaborator, role: "read")
 
     provider = Class.new do
       include Syrus::Plugin::RepoPageTab

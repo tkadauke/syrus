@@ -122,7 +122,7 @@ RSpec.describe GitHistory::CommitAttributor do
 
     it "redacts chat_session_id and title when the viewer cannot access the originating chat" do
       other_user = Factories.user
-      repository.repository_memberships.create!(user: other_user, role: "collaborator")
+      repository.repository_memberships.create!(user: other_user, role: "read")
       sha = "3" + "c" * 39
       job = Factories.job_record(repository: repository, user: other_user, kind: "direct", landed_sha: sha, issue_number: nil)
       chat_session = ChatSession.create!(user: other_user, repository: repository, title: "Private planning")

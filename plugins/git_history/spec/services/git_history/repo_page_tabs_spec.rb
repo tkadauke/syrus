@@ -6,7 +6,7 @@ RSpec.describe GitHistory::RepoPageTabs do
   let(:unrelated_user) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
 
-  before { repository.repository_memberships.create!(user: collaborator, role: "collaborator") }
+  before { repository.repository_memberships.create!(user: collaborator, role: "read") }
 
   it "returns the Git History tab descriptor for the repository owner" do
     tabs = described_class.repo_page_tabs(repository: repository, user: owner)

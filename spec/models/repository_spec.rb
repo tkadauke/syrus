@@ -413,7 +413,7 @@ RSpec.describe Repository do
       owner = Factories.user(email_address: "owner@example.com")
       collaborator = Factories.user(email_address: "collaborator@example.com")
       shared_repo = Factories.repository(user: owner)
-      shared_repo.repository_memberships.create!(user: collaborator, role: "collaborator")
+      shared_repo.repository_memberships.create!(user: collaborator, role: "read")
 
       expect(Repository.accessible_to(collaborator)).to include(shared_repo)
     end

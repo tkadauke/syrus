@@ -122,7 +122,7 @@ RSpec.describe "App API repository tests", type: :request do
   describe "repository access" do
     it "allows a RepositoryMembership collaborator to view the tests tab" do
       collaborator = Factories.user(email_address: "collaborator@example.com")
-      repo.repository_memberships.create!(user: collaborator, role: "collaborator")
+      repo.repository_memberships.create!(user: collaborator, role: "read")
       sign_in_as(collaborator)
 
       get "/api/v1/app/repositories/#{repo.id}/tests"
