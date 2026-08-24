@@ -85,10 +85,7 @@ module Steps
     end
 
     def successful_implement_run
-      workflow.steps.where(kind: "implement")
-        .order(:position)
-        .flat_map { |step| step.runs.select(&:succeeded?) }
-        .max_by(&:created_at)
+      latest_succeeded_run_for("implement")
     end
 
     def post_review_plan_comment

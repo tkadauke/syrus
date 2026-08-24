@@ -14,7 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/api"
-	"github.com/tkadauke/syrus/cli/internal/config"
 	"github.com/tkadauke/syrus/cli/internal/render"
 	"golang.org/x/term"
 )
@@ -32,21 +31,10 @@ func NewChatCommand() *cobra.Command {
 	}
 }
 
-func StreamTurn(chatID string, message string) error {
-	return streamTurn(context.Background(), chatID, message, os.Stdin, os.Stdout, os.Stderr)
-}
-
 func streamTurn(parent context.Context, chatID string, message string, in io.Reader, out, errOut interface {
 	Write([]byte) (int, error)
 }) error {
-	creds, err := config.LoadDefaultCredentials()
-	if err != nil {
-		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-			return errors.New(loginMessage)
-		}
-		return err
-	}
-	client, err := api.NewClient(creds.URL, creds.Token)
+	client, _, err := apiClient()
 	if err != nil {
 		return err
 	}
