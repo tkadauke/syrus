@@ -2,26 +2,63 @@ module Admin
   class PluginsPayload
     FALLBACK_ICON_URL = "/plugin-icons/spqr_eagle.svg"
 
-    def initialize(query: nil)
+    # `query:` is the legacy plain-text full search param, still used by the
+    # bearer-token REST admin API (Api::V1::Admin::PluginsController) so
+    # external tooling built against `?q=<text>` keeps working unchanged.
+    # `params:`/`user:` drive the newer Filters:: chip framework (category +
+    # search chips) used by the SPA's FilterBar on /admin/plugins — passing
+    # `params:` switches this payload into that mode and adds `filter`/
+    # `controls` to the JSON the same way Admin::Queue::Payload and
+    # Admin::Users::Payload do.
+    def initialize(query: nil, params: nil, user: nil)
       @query = query
+      @params = params
+      @user = user
     end
 
     def as_json(*)
       PerformanceLogging.phase("admin_plugins_payload") do
         all_manifests = Syrus::PluginRegistry.all_plugins
-        manifests = @query.present? ? filter_by_query(all_manifests) : all_manifests
+        manifests = filtered_manifests(all_manifests)
         records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
         # Dependency graph is built from *all* registered manifests, not the
         # filtered set, so a search hit still shows dependents/dependencies
         # that fell outside the query.
         dependency_graph = Admin::PluginDependencyGraph.new(all_manifests)
-        {
+        payload = {
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name], dependency_graph) }
         }
+        payload.merge!(filter: filter.to_h, controls: controls_json) if @params
+        payload
       end
     end
 
     private
+
+    def filter
+      @filter ||= ::Admin::Plugins::Filter.from_params(@params || {}, user: @user)
+    end
+
+    def controls_json
+      { filter_schema: Filters::Schema.for(subject: :admin_plugins, user: @user) }
+    end
+
+    def filtered_manifests(all_manifests)
+      if @params
+        filter.active? ? filter_by_tree(all_manifests) : all_manifests
+      elsif @query.present?
+        filter_by_query(all_manifests)
+      else
+        all_manifests
+      end
+    end
+
+    def filter_by_tree(manifests)
+      matching_names = PerformanceLogging.phase("admin_plugins_payload.filter", tree: filter.to_h) do
+        filter.apply(PluginRecord.all).pluck(:name).to_set
+      end
+      manifests.select { |manifest| matching_names.include?(manifest.name) }
+    end
 
     def filter_by_query(manifests)
       matching_names = PerformanceLogging.phase("admin_plugins_payload.search", query: @query) do

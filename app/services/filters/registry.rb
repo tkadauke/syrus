@@ -211,6 +211,14 @@ module Filters
         "failed_since" => "Filters::Chips::AdminQueue::FailedSince"
       }
     ),
+    admin_plugins: Subject.new(
+      name: :admin_plugins,
+      model: PluginRecord,
+      chips: {
+        "category" => "Filters::Chips::AdminPlugins::Category",
+        "search"   => "Filters::Chips::AdminPlugins::Search"
+      }
+    ),
     spawned_process: Subject.new(
       name: :spawned_process,
       model: SpawnedProcess,

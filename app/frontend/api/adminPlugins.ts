@@ -1,4 +1,5 @@
 import { getJson, postJson } from "./client"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type AdminPluginExtensionPoint = {
   extension_point: "agent_provider" | "mcp_tool_set" | "input_source" | string
@@ -33,6 +34,11 @@ export type AdminPlugin = {
 
 export type AdminPluginsPayload = {
   plugins: AdminPlugin[]
+  // Present on the index response (filtered by the FilterBar chip tree);
+  // absent from the enable/disable cascade responses, which always return
+  // the full unfiltered plugin list.
+  filter?: Record<string, unknown>
+  controls?: { filter_schema: FilterSchemaField[] }
 }
 
 export type AdminPluginDisableConfirmation = {
@@ -41,11 +47,8 @@ export type AdminPluginDisableConfirmation = {
   dependents: string[]
 }
 
-export function fetchAdminPlugins(query = "") {
-  const params = new URLSearchParams()
-  if (query.trim()) params.set("q", query.trim())
-  const search = params.toString()
-  return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search ? `?${search}` : ""}`)
+export function fetchAdminPlugins(search = "") {
+  return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search}`)
 }
 
 export function enableAdminPlugin(name: string) {
