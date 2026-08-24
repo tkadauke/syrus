@@ -902,25 +902,7 @@ module App
     def preview_provider_configured?
       return @preview_provider_configured unless @preview_provider_configured.nil?
 
-      @preview_provider_configured = (
-        Syrus::Plugin::PreviewProvider.configured? || syrus_yml_has_preview?
-      )
-    end
-
-    def syrus_yml_has_preview?
-      clone_path = File.join(
-        ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
-        "clones",
-        "#{@job.repository_id}.git"
-      )
-      return false unless File.directory?(clone_path)
-
-      yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
-      return false unless $?.success? && yml_content.present?
-
-      SyrusYml.new(yml_content).parse.preview.present?
-    rescue StandardError
-      false
+      @preview_provider_configured = App::PreviewAvailability.configured?(@job.repository)
     end
 
     # Mirrors preview_provider_configured?'s read-the-local-bare-clone
