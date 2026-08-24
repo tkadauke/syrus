@@ -165,3 +165,36 @@ The admin performance endpoint returns the raw recent events plus grouped summar
 When the `syrus_dev` plugin is enabled, Admin → Performance and the admin performance API expose the same diagnostics payload. The slow-request table can drill into retained request events and show matching slow phases plus the bounded top SQL fingerprints captured for both the request and each phase; these samples are capped and are diagnostic context, not an exhaustive query log. The SQL tab includes an Explain action for captured SQL samples. It opens a modal with a visual query-plan view, raw EXPLAIN rows, raw JSON, and normalized SQL. The backend endpoint is `POST /api/v1/app/admin/performance/explain` or `POST /api/v1/admin/performance/explain`; it accepts a single read-only SELECT/CTE statement, substitutes `?` bind placeholders with `NULL`, rejects comments/multiple statements/write statements, and returns whether `EXPLAIN ANALYZE` is safe. Analyze is intentionally conservative: it is MySQL-only, must be read-only, rejects user variables, and runs with a short statement timeout because it executes the query.
 
 Implementation workflow agents working on `tkadauke/syrus` or a registered fork whose upstream is `tkadauke/syrus` receive the read-only `read_performance_diagnostics` MCP tool through that plugin. Scheduled prompts that ask agents to improve Syrus performance can tell the agent to call this tool before changing code. It returns the same current-revision/all-revisions filtering semantics as the admin performance payload, plus bounded grouped slow-request, slow-phase, browser-trace, and SQL fingerprint summaries. The payload also includes a current-deploy versus previous-retained-deploy baseline comparison so agents can focus on regressions instead of stale slow paths. Raw recent events are omitted unless `include_events` is true, still capped by `limit`, and sanitized to omit SQL samples, query strings, and obvious secret-bearing metadata.
+
+## mysql_db_browser
+
+**Category:** Labs
+
+Gates the `mysql_db_browser` plugin (`plugins/mysql_db_browser/`), which lets
+admins register connections to external MySQL databases (host, port,
+username, password, default database) for later browsing/querying. This first
+increment ships the plugin scaffold, the `MysqlConnection` model, and a
+session-authed admin CRUD + test-connection API; there is no frontend UI or
+agentic query access yet.
+
+Credentials are stored in `mysql_connections.credentials`, a
+non-deterministic encrypted JSON column (`encrypts :credentials`), the same
+class of secret as `User#github_token` and `InputSource#credentials`.
+Plaintext credentials are never included in API responses; `MysqlConnection#password`
+decrypts server-side only, and list/show payloads expose a `has_password`
+boolean instead. `POST .../mysql_connections/test` and `POST
+.../mysql_connections/:id/test` run a lightweight `Mysql2::Client` connect
+(`MysqlDbBrowser::ConnectionTester`) and report success/failure without
+persisting a `MysqlConnection` row either way.
+
+Every action under `/api/v1/app/admin/mysql_connections` requires both an
+authenticated admin session (`Api::V1::App::Admin::BaseController#require_admin`)
+and this feature flag enabled — the controller 404s with `plugin_disabled`
+otherwise. The `mysql_db_browser` plugin's own `PluginRecord.enabled` toggle
+(default off, disableable) is a second, independent gate: both must be on for
+`MysqlDbBrowser.enabled?` to be true. The `agentic_access_enabled` column on
+`MysqlConnection` (default `false`) is present but unused until a later job
+wires up opt-in workflow/chat agent query access.
+
+Off by default, since a misconfigured connection reaches arbitrary
+staging/prod databases with real credentials.
