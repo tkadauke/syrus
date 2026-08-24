@@ -1,11 +1,11 @@
-import { withRoutePrefix } from "../lib/routing"
-import { formatCurrency } from "../lib/format"
+import { withRoutePrefix } from "@app/lib/routing"
+import { formatCurrency } from "@app/lib/format"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState, type FormEvent } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchSpending, type SpendingBreakdownRow, type SpendingPayload, type SpendingTriggerRow } from "../api/spending"
-import { useT } from "../hooks/useT"
-import { usePageTitle } from "../hooks/usePageTitle"
+import { useT } from "@app/hooks/useT"
+import { usePageTitle } from "@app/hooks/usePageTitle"
 
 type SortKey = "label" | "jobs_count" | "total_usd" | "average_job_usd" | "last_30_days_usd" | "runs_count" | "average_usd"
 type SortState = { key: SortKey; direction: "asc" | "desc" }
@@ -344,3 +344,5 @@ function breakdownLabel(row: SpendingBreakdownRow) {
 function humanize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
+
+export default SpendingInsightsRoute

@@ -1,4 +1,4 @@
-import { getJson } from "./client"
+import { getJson } from "@app/api/client"
 
 export type SpendingBreakdownRow = {
   id: number

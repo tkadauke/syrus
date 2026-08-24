@@ -1133,3 +1133,17 @@ Bundled plugins:
   touching the attached repository checkout. Unavailable in Coding Mode and
   Local Mode, which already have real Write/Edit tools. See
   `config/syrus_docs/preview_panels.md`.
+- `spending_insights` — default-enabled; the first `sidebar_page` plugin.
+  Provides `spending.dashboard`: label "Spending", `path`/`paths`
+  `/insights/spending`, `component: "spending_insights/SpendingInsights"`,
+  `icon: "spending"` (maps to `SpendingIcon` via `sidebarNav.tsx`'s
+  `PLUGIN_ICONS`), `order: 60` — appended after `CORE_NAV_ITEMS`, so it
+  renders at the end of the primary sidebar nav, above the pinned Supervisor
+  chat block. The underlying cost-rollup data service
+  (`App::SpendingPayload`, served over `GET /api/v1/app/insights/spending`)
+  and its SPA shell route (`config/routes.rb`'s `insights/spending`) stay in
+  core — only the nav entry, the `SpendingInsights.tsx` route component, and
+  its `spending.json` locale files (`nav_spending` key) live in the plugin.
+  Disabling the plugin removes the nav entry and makes `PluginSidebarPageRoute`
+  render its "page unavailable" fallback for `/insights/spending`, but does
+  not affect the JSON API endpoint itself.
