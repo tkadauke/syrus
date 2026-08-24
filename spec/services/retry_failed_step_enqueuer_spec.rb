@@ -177,6 +177,66 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(job.landing_failure_reason).to be_nil
   end
 
+  it "rebuilds a failed bundle-backed merge-train without routing through Epic recovery" do
+    user = Factories.user(github_token: "ghp_test")
+    repository = Factories.repository(user: user, auto_merge_enabled: true)
+    Feature.create!(slug: "epicless_job_bundling", category: "Labs", name: "Epicless Job bundling", enabled: true)
+    jobs = [
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: nil,
+        state: "failed",
+        priority: "medium",
+        pr_number: 401,
+        branch_name: "syrus/issue-401",
+        landing_failure_reason: "merge_train failed"
+      ),
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: nil,
+        state: "failed",
+        priority: "medium",
+        pr_number: 402,
+        branch_name: "syrus/issue-402",
+        landing_failure_reason: "merge_train failed"
+      )
+    ]
+    train = MergeTrain.create!(
+      repository: repository,
+      base_branch: "master",
+      priority: "medium",
+      state: "failed",
+      failure_reason: "merge_train failed",
+      finished_at: 1.minute.ago
+    )
+    jobs.each_with_index { |job, index| MergeTrainMember.create!(merge_train: train, job: job, position: index, state: "failed") }
+    workflow = Workflow.create!(job: jobs.last, trigger_kind: "merge_train", artifacts: { "merge_train_id" => train.id })
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    build_step = Step.create!(workflow: workflow, kind: "merge_train_build", position: 5)
+    build_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    allow(StepDispatcher).to receive(:start_workflow) do |new_workflow|
+      new_workflow.first_step.runs.create!(
+        job: new_workflow.job,
+        trigger_kind: new_workflow.trigger_kind,
+        agent_provider: new_workflow.agent_provider
+      )
+    end
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.workflow).not_to eq(workflow)
+    expect(result.workflow.trigger_kind).to eq("merge_train")
+    expect(result.workflow.work_unit.kind).to eq("job_bundle")
+    expect(result.step.kind).to eq("merge_train_assemble")
+    expect(jobs.map(&:reload)).to all(be_landing)
+    expect(jobs.map(&:approved_at)).to all(be_present)
+    expect(jobs.map(&:landing_failure_reason)).to all(be_nil)
+  end
+
   it "explains why a failed merge-train cannot be rebuilt" do
     user = Factories.user(github_token: "ghp_test")
     repository = Factories.repository(user: user, auto_merge_enabled: true)

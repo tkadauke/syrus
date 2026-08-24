@@ -64,6 +64,13 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to include("(no summary provided)")
   end
 
+  it "renders a degraded prompt when the PR head SHA is missing" do
+    out = build(head_sha: nil).to_s
+
+    expect(out).to include("at `unknown head`")
+    expect(out).to include("Fix the failing checks.")
+  end
+
   it "truncates very long summaries" do
     big = "x" * (described_class::MAX_SUMMARY_BYTES + 5_000)
     out = build(

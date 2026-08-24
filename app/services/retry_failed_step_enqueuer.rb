@@ -85,18 +85,38 @@ class RetryFailedStepEnqueuer
     train = MergeTrain.find_by(id: train_id)
     return failure("Merge train record not found - contact an admin or operator to rebuild the merge train.") unless train
 
-    rebuild = EpicLandingRetrier.rebuild_merge_train!(train.epic, source_train: train)
+    rebuild = rebuild_train(train)
     rebuilt_workflow = rebuild.workflow
     unless rebuilt_workflow
-      reason = MergeTrainDispatcher.blocker_reason(train.epic, bypass_cooldown: true).presence ||
+      reason = rebuild_blocker_reason(train).presence ||
         "merge-train dispatch was blocked by a concurrent state change"
-      return failure("Epic is not ready for a merge-train rebuild: #{reason}.")
+      return failure("#{train_rebuild_label(train)} is not ready for a merge-train rebuild: #{reason}.")
     end
 
     run = rebuilt_workflow.runs.order(:created_at).last
     return failure("Merge-train rebuild did not enqueue a run.") unless run
 
     Result.new(run: run, workflow: rebuilt_workflow, step: run.step, error: nil)
+  end
+
+  def rebuild_train(train)
+    if train.bundle_backed?
+      JobBundleRetrier.rebuild_merge_train!(train.repository, source_train: train)
+    else
+      EpicLandingRetrier.rebuild_merge_train!(train.epic, source_train: train)
+    end
+  end
+
+  def rebuild_blocker_reason(train)
+    if train.bundle_backed?
+      JobBundleDispatcher.blocker_reason(train.repository, bypass_cooldown: true)
+    else
+      MergeTrainDispatcher.blocker_reason(train.epic, bypass_cooldown: true)
+    end
+  end
+
+  def train_rebuild_label(train)
+    train.bundle_backed? ? "Job bundle" : "Epic"
   end
 
   def failure(message)

@@ -24,14 +24,31 @@ module Prompts
 
     def context_section
       <<~SECTION.strip
-        This is an Epic merge-train reconciliation run for `#{@repo_slug}`.
+        This is a #{train_kind} reconciliation run for `#{@repo_slug}`.
 
-        Syrus has already built the merge-train integration branch `#{@integration_branch}` from base branch `#{@base_branch}`. You are reviewing the integrated result of all member PRs together before Syrus runs prepare, graders, coverage, and landing.
+        Syrus has already built the integration branch `#{@integration_branch}` from base branch `#{@base_branch}`. You are reviewing the integrated result of all member PRs together before Syrus runs prepare, graders, coverage, and landing.
 
-        Epic: #{@epic.slug}: #{@epic.title}
+        #{owner_context}
 
-        #{@epic.description.to_s.strip.presence || "(no Epic description)"}
+        #{owner_description}
       SECTION
+    end
+
+    def train_kind
+      @epic ? "Epic merge-train" : "job-bundle merge-train"
+    end
+
+    def owner_context
+      return "Epic: #{@epic.slug}: #{@epic.title}" if @epic
+
+      noun = @jobs.size == 1 ? "member PR" : "member PRs"
+      "Job bundle: #{@jobs.size} #{noun}"
+    end
+
+    def owner_description
+      return @epic.description.to_s.strip.presence || "(no Epic description)" if @epic
+
+      "This bundle groups same-repository, same-priority approved Jobs that are being landed together."
     end
 
     def members_section

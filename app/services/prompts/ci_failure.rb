@@ -25,7 +25,7 @@ module Prompts
 
     def to_s
       main_prompt = <<~PROMPT.strip
-        CI is failing on PR `#{@repo_slug}##{@pr_number}` (branch `#{@branch_name}` at `#{@head_sha[0..6]}`). Fix the failing checks.
+        CI is failing on PR `#{@repo_slug}##{@pr_number}` (branch `#{@branch_name}` at `#{head_sha_label}`). Fix the failing checks.
 
         # Original issue
         Title: #{@issue.title}
@@ -66,6 +66,11 @@ module Prompts
 
     def simple_mode_context
       Prompts::SimpleModeAgentContext.to_s.presence
+    end
+
+    def head_sha_label
+      sha = @head_sha.to_s.strip
+      sha.present? ? sha[0..6] : "unknown head"
     end
 
     def epic_context

@@ -40,7 +40,7 @@ module Steps
       reconcile_members!(train, client, pr, integration_sha: integration_sha)
 
       train.update!(state: "succeeded", finished_at: Time.current)
-      log("merge_train: landed Epic ##{epic.id} (#{train.members.size} PR(s)) via integration PR ##{pr.number}")
+      log("merge_train: landed #{train_label(train)} (#{train.members.size} PR(s)) via integration PR ##{pr.number}")
     end
 
     private
@@ -165,7 +165,7 @@ module Steps
       client.merge_pull_request(
         repository.slug,
         pr.number,
-        commit_title: "Merge Epic ##{epic.id} via Syrus merge-train",
+        commit_title: "Merge #{train_label(train)} via Syrus merge-train",
         merge_method: "merge"
       )
     rescue Octokit::MethodNotAllowed => e
@@ -243,7 +243,7 @@ module Steps
         client.add_issue_comment(
           repository.slug,
           member_job.pr_number,
-          "Landed via Epic merge-train (integration PR ##{integration_pr.number}). #{member_job.slug}."
+          "Landed via #{train_label(merge_train)} merge-train (integration PR ##{integration_pr.number}). #{member_job.slug}."
         )
       end
       cleanup_after_landing("close PR ##{member_job.pr_number}") do
@@ -267,18 +267,33 @@ module Steps
     end
 
     def integration_pr_title(train)
-      label = epic.respond_to?(:number) && epic.number ? "Epic ##{epic.number}" : "Epic ##{epic.id}"
-      "Land #{label}: #{epic.title}".strip
+      "Land #{train_label(train)}: #{train_title(train)}".strip
     end
 
     def integration_pr_body(train)
-      lines = [ "Atomic Epic landing via Syrus merge-train.", "", "Members:" ]
+      lines = [ "Atomic #{train_label(train)} landing via Syrus merge-train.", "", "Members:" ]
       train.members.includes(:job).each do |member|
         member_job = member.job
         ref = member_job.pr_number.present? ? "##{member_job.pr_number}" : member_job.slug
         lines << "- #{ref} (#{member_job.branch_name})"
       end
       lines.join("\n")
+    end
+
+    def train_label(train)
+      if train.epic_backed?
+        epic = train.epic
+        label = epic.respond_to?(:number) && epic.number ? "Epic ##{epic.number}" : "Epic ##{epic.id}"
+        return label
+      end
+
+      "job bundle ##{train.id}"
+    end
+
+    def train_title(train)
+      return train.epic.title if train.epic_backed?
+
+      "#{train.members.size} approved Jobs"
     end
   end
 end

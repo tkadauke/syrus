@@ -136,6 +136,32 @@ RSpec.describe "Steps::MergeTrain*" do
       expect { step_handler(described_class, "merge_train_assemble", train, a).call }.not_to raise_error
     end
 
+    it "assembles a bundle-backed train without requiring an Epic" do
+      a = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: nil,
+        issue_number: 1,
+        state: "landing",
+        pr_number: 501,
+        branch_name: "syrus/issue-1"
+      )
+      b = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: nil,
+        issue_number: 2,
+        state: "landing",
+        pr_number: 502,
+        branch_name: "syrus/issue-2"
+      )
+      train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium")
+      [ a, b ].each_with_index { |job, index| MergeTrainMember.create!(merge_train: train, job: job, position: index) }
+
+      expect { step_handler(described_class, "merge_train_assemble", train, b).call }.not_to raise_error
+      expect(train.reload.integration_branch).to eq("syrus/job-bundle-#{train.id}")
+    end
+
     it "blocks on any unapproved Epic sibling" do
       a = member_job(issue_number: 1)
       train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
@@ -654,6 +680,47 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(b.reload).to be_closed
       expect(train.reload.state).to eq("succeeded")
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
+    end
+
+    it "lands a bundle-backed train without requiring an Epic" do
+      a = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: nil,
+        issue_number: 1,
+        state: "landing",
+        pr_number: 501,
+        branch_name: "syrus/issue-1"
+      )
+      b = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: nil,
+        issue_number: 2,
+        state: "landing",
+        pr_number: 502,
+        branch_name: "syrus/issue-2"
+      )
+      train = MergeTrain.create!(
+        repository: repository,
+        base_branch: "master",
+        priority: "medium",
+        integration_branch: "syrus/job-bundle-123"
+      )
+      [ a, b ].each_with_index { |job, index| MergeTrainMember.create!(merge_train: train, job: job, position: index) }
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+
+      handler.call
+
+      expect(client).to have_received(:create_pull_request)
+        .with("acme/widgets", hash_including(title: "Land job bundle ##{train.id}: 2 approved Jobs"))
+      expect(client).to have_received(:merge_pull_request)
+        .with("acme/widgets", 777, hash_including(commit_title: "Merge job bundle ##{train.id} via Syrus merge-train"))
+      expect(a.reload).to be_closed
+      expect(b.reload).to be_closed
+      expect(train.reload.state).to eq("succeeded")
     end
 
     it "stores the integration merge SHA as landed_sha on all member Jobs" do

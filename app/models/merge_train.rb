@@ -22,6 +22,18 @@ class MergeTrain < ApplicationRecord
     members.includes(:job).map(&:job)
   end
 
+  def epic_backed? = epic_id.present?
+
+  def bundle_backed? = epic_id.blank? && priority.present?
+
+  def default_integration_branch
+    if epic_backed?
+      "syrus/merge-train-epic-#{epic_id}-#{id}"
+    else
+      "syrus/job-bundle-#{id}"
+    end
+  end
+
   def terminal?
     TERMINAL_STATES.include?(state)
   end

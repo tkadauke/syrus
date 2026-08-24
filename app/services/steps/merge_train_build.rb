@@ -27,7 +27,7 @@ module Steps
       workspace.setup
       @chdir = workspace.path.to_s
       @git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0", "GIT_EDITOR" => "true" })
-      @integration = train.integration_branch.presence || "syrus/merge-train-epic-#{train.epic_id}-#{train.id}"
+      @integration = train.integration_branch.presence || train.default_integration_branch
 
       fetch_branch!(train.base_branch)
       base_sha = @git.run("rev-parse", "FETCH_HEAD", chdir: @chdir).strip
