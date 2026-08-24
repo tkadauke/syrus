@@ -114,7 +114,7 @@ RSpec.describe JobBundleDispatcher do
     workflow = Workflow.create!(job: a, trigger_kind: "rebase", state: "running")
     Step.create!(workflow: workflow, kind: "agent_rebase", position: 0)
 
-    expect(described_class.blocker_reason(repository)).to eq("active rebase workflow #{workflow.slug} must finish before the job bundle starts")
+    expect(described_class.blocker_reason(repository)).to eq("active workflow #{workflow.slug} must finish before the job bundle starts")
     expect(described_class.try_dispatch!(repository)).to be_nil
     expect(MergeTrain.count).to eq(0)
   end
@@ -144,6 +144,46 @@ RSpec.describe JobBundleDispatcher do
     expect(described_class.blocker_reason(repository)).to eq("active rebase workflow must finish before the job bundle starts")
     expect(described_class.try_dispatch!(repository)).to be_nil
     expect(MergeTrain.count).to eq(0)
+  end
+
+  it "does not dispatch while any active WorkUnit owns a bundle member" do
+    a = approved_job(1)
+    approved_job(2)
+    workflow = WorkUnits::Launcher.instantiate(kind: "ci_failure", job: a)
+    workflow.work_unit.update!(state: "running")
+
+    expect(described_class.blocker_reason(repository)).to eq("active workflow #{workflow.slug} must finish before the job bundle starts")
+    expect(described_class.try_dispatch!(repository)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+  end
+
+  it "treats a WorkUnit lock race during dispatch as a no-op instead of raising" do
+    approved_job(1)
+    approved_job(2)
+
+    allow(WorkUnits::Launcher).to receive(:instantiate).and_raise(
+      WorkUnits::Launcher::LockConflict.new(
+        lock_key: "job:1",
+        work_unit: WorkUnit.create!(
+          work_intent: WorkIntent.create!(
+            kind: "ci_failure",
+            state: "requested",
+            repository: repository,
+            scope_type: "job",
+            scope_id: 1,
+            actor: user,
+            source_type: "spec"
+          ),
+          kind: "ci_failure",
+          state: "running",
+          repository: repository,
+          scope_type: "job",
+          scope_id: 1
+        )
+      )
+    )
+
+    expect { described_class.try_dispatch!(repository) }.not_to raise_error
   end
 
   it "does not re-dispatch during the cooldown after a failed bundle" do

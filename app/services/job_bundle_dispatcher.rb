@@ -34,6 +34,7 @@ class JobBundleDispatcher
       members = result.members.map { |job| job.tap(&:lock!) }
 
       raise ActiveRecord::Rollback if landing_job_in_progress
+      raise ActiveRecord::Rollback if active_member_work?(members)
       raise ActiveRecord::Rollback if RebaseWorkflowSelector.active_for_jobs?(members)
       raise ActiveRecord::Rollback unless members.all? { |job| job.approved? && job.may_start_landing? }
 
@@ -61,6 +62,8 @@ class JobBundleDispatcher
 
     WorkUnits::Launcher.start!(workflow)
     workflow
+  rescue WorkUnits::Launcher::LockConflict
+    nil
   end
 
   def blocker_reason
@@ -77,6 +80,10 @@ class JobBundleDispatcher
 
     readiness = JobBundleAssembler.call(@repository)
     return readiness.reason unless readiness.ready?
+
+    if (active_work = active_member_work(readiness.members))
+      return active_member_work_reason(active_work)
+    end
 
     if (workflow = RebaseWorkflowSelector.active_for_jobs(readiness.members).order(:id).first)
       return "active rebase workflow #{workflow.slug} must finish before the job bundle starts"
@@ -103,6 +110,22 @@ class JobBundleDispatcher
     end
 
     Job.landing.where(repository_id: @repository.id).order(:id).first
+  end
+
+  def active_member_work?(members)
+    active_member_work(members).present?
+  end
+
+  def active_member_work(members)
+    WorkUnits::Ownership
+      .active_workflows_by_job_id(members.map(&:id))
+      .values
+      .compact
+      .first
+  end
+
+  def active_member_work_reason(active_work)
+    "active workflow #{active_work.slug} must finish before the job bundle starts"
   end
 
   # Mirrors MergeTrainDispatcher#cooling_down_failure: transient
