@@ -177,6 +177,7 @@ class WorkflowWorkspace
   # per Job — the largest contributor to PVC fill on wedged stacks.
   def setup
     if path.exist?
+      recover_invalid_checkout_if_safe!
       ensure_exclude_entry
       ensure_clean_working_tree
     else
@@ -384,6 +385,30 @@ class WorkflowWorkspace
   def notify(message)
     Rails.logger.info("[WorkflowWorkspace] #{message}")
     @log&.call(message, kind: "system")
+  end
+
+  def recover_invalid_checkout_if_safe!
+    return if valid_head?
+
+    message = "existing workflow workspace at #{path} has no valid HEAD"
+    unless safe_to_reclone_existing_workspace?
+      raise GitRunner::GitError.new([ "rev-parse", "--verify", "HEAD" ], 128, message)
+    end
+
+    notify("#{message}; recloning")
+    FileUtils.rm_rf(path)
+    clone_and_checkout
+  end
+
+  def valid_head?
+    @git.run("rev-parse", "--verify", "HEAD", chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
+  end
+
+  def safe_to_reclone_existing_workspace?
+    @workflow.steps.where(state: "succeeded").none?
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was

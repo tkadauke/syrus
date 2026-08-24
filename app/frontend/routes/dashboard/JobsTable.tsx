@@ -613,6 +613,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
           <JobSlugMetadata job={job} prefix={prefix} />
+          <IssueMetadata job={job} />
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
@@ -653,6 +654,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
+          <IssueMetadata job={job} />
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
@@ -848,7 +850,11 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
     )
   }
 
-  return <IssueMetadata job={job} />
+  return (
+    <SlugHoverCard id={job.id} kind="job">
+      <CopyableSlug slug={`JOB-${job.id}`} />
+    </SlugHoverCard>
+  )
 }
 
 function ManualPauseInline({ job }: { job: DashboardJobItem }) {
@@ -897,7 +903,7 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
 }
 
 function IssueMetadata({ job }: { job: DashboardJobItem }) {
-  if (!job.issue_number) return <CopyableSlug slug={`JOB-${job.id}`} />
+  if (!job.issue_number) return null
 
   const label = `#${job.issue_number}`
 

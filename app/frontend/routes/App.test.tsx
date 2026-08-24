@@ -3747,6 +3747,8 @@ describe("App", () => {
     const copySlugButton = screen.getByRole("button", { name: "Copy JOB-594 to clipboard" })
     fireEvent.click(copySlugButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-594"))
+    expect(screen.getByRole("button", { name: "Copy JOB-595 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByText("GitHub issue").closest("td")).toHaveTextContent("JOB-595")
     expect(screen.getByRole("link", { name: "#123" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/123")
     expect(screen.queryByText("#594")).not.toBeInTheDocument()
   })

@@ -156,6 +156,23 @@ RSpec.describe RunFailureClassifier do
     expect(classification.classification).not_to eq("rate_limited")
   end
 
+  it "does not classify Git's ambiguous HEAD help text as provider rate-limit evidence" do
+    run.update!(state: "failed", agent_provider: "claude")
+    diagnostic(
+      "GitRunner::GitError",
+      "git rev-parse HEAD exited 128\n" \
+        "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.\n" \
+        "Use '--' to separate paths from revisions, like this:\n" \
+        "'git <command> [<revision>...] -- [<file>...]'\n" \
+        "HEAD"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("git_state_corrupt")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies human-readable provider rate-limit text" do
     run.update!(state: "failed", agent_provider: "claude", agent_summary: "Claude API error: HTTP 429 too many requests")
 
