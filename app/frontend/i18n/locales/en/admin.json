@@ -532,8 +532,6 @@
     "no_extension_points": "No extension points registered.",
     "aria_plugins": "Admin plugins",
     "list_aria": "Registered plugins",
-    "search_placeholder": "Search plugins...",
-    "search_aria": "Search plugins",
     "no_results_heading": "No plugins match your search",
     "no_results_body": "Try a different name, description, or category.",
     "extension_points": {

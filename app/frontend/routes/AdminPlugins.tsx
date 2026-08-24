@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { useEffect, useState, type ReactNode } from "react"
+import { type ReactNode, useState } from "react"
+import { useLocation } from "react-router-dom"
 import {
   disableAdminPlugin,
   enableAdminPlugin,
@@ -9,29 +10,25 @@ import {
   type AdminPluginExtensionPoint,
   type AdminPluginsPayload
 } from "../api/adminPlugins"
+import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
+import { FilterBar, filterTreeFromPayload, topFilterChildren } from "../components/FilterBar"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import * as pageReload from "../lib/pageReload"
 
-const SEARCH_DEBOUNCE_MS = 300
-
 export function AdminPlugins() {
   const { t } = useT("admin")
   usePageTitle(t("page_title_plugins"))
-  const [search, setSearch] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(handle)
-  }, [search])
+  const location = useLocation()
 
   const plugins = useQuery({
-    queryKey: ["admin", "plugins", debouncedSearch],
-    queryFn: () => fetchAdminPlugins(debouncedSearch),
+    queryKey: ["admin", "plugins", location.search],
+    queryFn: () => fetchAdminPlugins(location.search),
     placeholderData: (previousData) => previousData
   })
+
+  const isFiltered = plugins.isSuccess && topFilterChildren(filterTreeFromPayload(plugins.data.filter)).length > 0
 
   return (
     <main aria-label={t("plugins.aria_plugins")} className="mx-auto max-w-6xl space-y-6 p-6">
@@ -40,18 +37,22 @@ export function AdminPlugins() {
         <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("plugins.heading")}</h1>
       </header>
 
-      <input
-        aria-label={t("plugins.search_aria")}
-        className="w-full max-w-sm rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={t("plugins.search_placeholder")}
-        type="search"
-        value={search}
-      />
-
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
-      {plugins.isSuccess ? <PluginsView isFiltered={debouncedSearch.trim().length > 0} plugins={plugins.data.plugins} /> : null}
+      {plugins.isSuccess ? (
+        <AdminFiltersLayout
+          filterBar={
+            <FilterBar
+              filter={plugins.data.filter}
+              filterSchema={plugins.data.controls?.filter_schema || []}
+              pathname={location.pathname}
+              search={location.search}
+            />
+          }
+        >
+          <PluginsView isFiltered={isFiltered} plugins={plugins.data.plugins} />
+        </AdminFiltersLayout>
+      ) : null}
     </main>
   )
 }

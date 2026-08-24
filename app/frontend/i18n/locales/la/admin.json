@@ -426,8 +426,6 @@
     "no_extension_points": "Nulla puncta extensionis relata.",
     "aria_plugins": "Plugin administratoris",
     "list_aria": "Plugin relata",
-    "search_placeholder": "Plugin quaerere...",
-    "search_aria": "Plugin quaerere",
     "no_results_heading": "Nulla plugin quaesito conveniunt",
     "no_results_body": "Aliud nomen, descriptionem, vel categoriam tenta.",
     "extension_points": {
