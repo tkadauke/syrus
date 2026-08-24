@@ -709,6 +709,10 @@ function SidebarContent({
     onCloseDrawer()
   }
 
+  // Reuses the same native HTML5 DnD pattern as RecentChatsSidebar's chat
+  // reordering rather than adding a drag-and-drop dependency. Tradeoff: like
+  // that existing pattern, this is mouse/touch-driven only — there's no
+  // keyboard-accessible way to reorder items yet.
   function startNavItemDrag(index: number, event: DragEvent<HTMLElement>) {
     navDragIndexRef.current = index
     setDraggingNavItemId(orderedNavItemsRef.current[index]?.id ?? null)
@@ -798,21 +802,26 @@ function SidebarContent({
               </Link>
             ) : null}
             {orderedNavItems.map((item, index) => (
-              <div
-                className={`group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
-                draggable
-                key={item.id}
-                onDragEnd={endNavItemDrag}
-                onDragOver={(event) => dragOverNavItem(index, event)}
-                onDragStart={(event) => startNavItemDrag(index, event)}
-                onDrop={dropNavItem}
-              >
-                <Link className={sidebarLinkClass(item.active)} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
-                  {item.icon}
-                  <span>{item.label}</span>
-                  {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
-                </Link>
-                <GripIcon />
+              // The drag handle/grip wrapper stays scoped to just the link row (not
+              // SidebarDashboardNav below it) so an expanded Dashboard subnav doesn't
+              // grow the `relative` positioning context the grip icon centers within,
+              // and isn't itself part of the draggable surface.
+              <div key={item.id}>
+                <div
+                  className={`group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
+                  draggable
+                  onDragEnd={endNavItemDrag}
+                  onDragOver={(event) => dragOverNavItem(index, event)}
+                  onDragStart={(event) => startNavItemDrag(index, event)}
+                  onDrop={dropNavItem}
+                >
+                  <Link className={sidebarLinkClass(item.active)} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
+                  </Link>
+                  <GripIcon />
+                </div>
                 {item.id === "dashboard" && dashboardSubnavEnabled ? (
                   <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
                 ) : null}
