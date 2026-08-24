@@ -106,6 +106,7 @@ module WorkDefinitions
     def preemption_policy = WorkUnits::PreemptionPolicies::None.new
     def retry_policy = WorkUnits::RetryPolicies::Operator.new
     def blocks_ci_failure? = false
+    def preempts_ci_failure? = false
     def active_repair_work? = false
     def retry_workflow_attempt? = false
     def recoverable_cancelled_workflow? = false

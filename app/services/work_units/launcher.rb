@@ -169,6 +169,7 @@ module WorkUnits
         unit.update!(workflow: workflow)
         create_members!(unit)
         create_locks!(unit)
+        preempt_superseded_ci_repairs!(unit) if definition.preempts_ci_failure?
         workflow
       end
     end
@@ -279,6 +280,35 @@ module WorkUnits
       raise LockConflict.new(lock_key: lock_key, work_unit: owner) if owner && lock_conflicts_enforced?
 
       nil
+    end
+
+    def preempt_superseded_ci_repairs!(unit)
+      member_jobs.each do |member_job|
+        active_ci_repair_units_for(member_job, excluding: unit).each do |ci_unit|
+          next unless ci_unit.workflow
+
+          WorkUnits::WorkflowCancellation.cancel!(
+            ci_unit.workflow,
+            reason: "superseded_by_rebase",
+            artifacts: {
+              "cancelled_reason" => Workflow::SUPERSEDED_BY_REBASE_REASON,
+              "preempted_by_work_unit_id" => unit.id,
+              "preempted_by_workflow_id" => unit.workflow_id,
+              "preemption_reason" => "superseded_by_rebase"
+            },
+            by_work_unit: unit
+          )
+        end
+      end
+    end
+
+    def active_ci_repair_units_for(member_job, excluding:)
+      WorkUnit
+        .joins(:work_unit_members)
+        .where(work_unit_members: { job_id: member_job.id })
+        .where(kind: "ci_failure", state: %w[queued blocked running])
+        .where.not(id: excluding.id)
+        .includes(:workflow)
     end
 
     def lock_conflicts_enforced?

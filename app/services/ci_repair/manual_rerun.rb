@@ -73,6 +73,7 @@ module CiRepair
     def artifacts_for(refresh)
       {
         "head_sha" => refresh.head_sha,
+        "base_sha" => refresh.base_sha,
         "failed_checks" => refresh.failed_checks.map { |check| CheckEnricher.call(check) },
         "manual_ci_repair" => {
           "reason" => @reason,

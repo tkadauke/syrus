@@ -538,19 +538,22 @@ module WorkEngine
 
         sq = solid_queue_for_run(run)
         live_process = running_spawned_process_for(run)
+        terminal_process = live_process ? nil : terminal_spawned_process_for(run)
+        terminal_process_ready = terminal_process&.outcome == "orphaned"
         heartbeat_stale = run_stale?(run)
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
-        next if !detached && (fresh_activity?(run.last_heartbeat_at) || live_process)
+        repair_ready = (heartbeat_stale && !live_process) || detached_ready || terminal_process_ready
+        next if !repair_ready && !detached && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
         issue(
           kind: :running_run_without_live_worker_evidence,
-          severity: heartbeat_stale || detached_ready ? :critical : :warning,
-          affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq&.dig(:id) ], spawned_process_ids: [ live_process&.id ]),
-          safe_to_auto_repair: (heartbeat_stale || detached_ready) && run.may_fail?,
-          recommended_repair_action: heartbeat_stale || detached_ready ? "fail_run_as_worker_died" : "capture_diagnostics",
-          check_after: check_after_for_running_run(
+          severity: repair_ready ? :critical : :warning,
+          affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq&.dig(:id) ], spawned_process_ids: [ live_process&.id || terminal_process&.id ]),
+          safe_to_auto_repair: repair_ready && run.may_fail?,
+          recommended_repair_action: repair_ready ? "fail_run_as_worker_died" : "capture_diagnostics",
+          check_after: repair_ready ? nil : check_after_for_running_run(
             heartbeat_stale: heartbeat_stale,
             detached_ready: detached_ready,
             detached: detached,
@@ -561,7 +564,9 @@ module WorkEngine
             detached_worker_evidence: detached,
             detached_worker_evidence_grace_seconds: DETACHED_WORKER_EVIDENCE_GRACE.to_i,
             last_heartbeat_age_seconds: seconds_since(last_activity_at),
-            live_spawned_process: live_process&.id
+            live_spawned_process: live_process&.id,
+            terminal_spawned_process: terminal_process&.id,
+            terminal_spawned_process_outcome: terminal_process&.outcome
           ),
           explanation: "Run ##{run.id} is running without enough evidence of a live worker continuing it."
         )
@@ -2309,6 +2314,13 @@ module WorkEngine
 
     def running_spawned_process_for(run)
       SpawnedProcess.running.where(run_id: run.id).order(Arel.sql("COALESCE(last_chunk_at, started_at) DESC")).first
+    end
+
+    def terminal_spawned_process_for(run)
+      SpawnedProcess.where(run_id: run.id)
+        .where.not(finished_at: nil)
+        .order(Arel.sql("COALESCE(finished_at, last_chunk_at, started_at) DESC"))
+        .first
     end
 
     def issue(kind:, severity:, evidence:, affected_ids:, safe_to_auto_repair:, recommended_repair_action:, explanation:, retry_after: nil, check_after: nil)

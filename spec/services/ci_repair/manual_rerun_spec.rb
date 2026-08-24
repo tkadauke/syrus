@@ -14,8 +14,9 @@ RSpec.describe CiRepair::ManualRerun do
     )
   end
   let(:sha) { "2265abcdef000000000000000000000000000000" }
+  let(:base_sha) { "baseabcdef000000000000000000000000000000" }
   let(:client) { instance_double(GithubClient) }
-  let(:pr) { double("PullRequest", head: double("Head", sha: sha)) }
+  let(:pr) { double("PullRequest", head: double("Head", sha: sha), base: double("Base", sha: base_sha)) }
   let(:detail) do
     {
       pending?: false,
@@ -46,6 +47,7 @@ RSpec.describe CiRepair::ManualRerun do
     expect(job.reload.last_ci_handled_sha).to eq(sha)
     expect(result.cleared_handled_sha).to be true
     expect(result.workflow.artifact("head_sha")).to eq(sha)
+    expect(result.workflow.artifact("base_sha")).to eq(base_sha)
     expect(result.workflow.artifact("failed_checks").first).to include("error_context")
     expect(result.workflow.artifact("manual_ci_repair")).to include(
       "reason" => "JOB-2265 CI repair left the head unchanged.",

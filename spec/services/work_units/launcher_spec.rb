@@ -175,6 +175,27 @@ RSpec.describe WorkUnits::Launcher do
     expect(rebase.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("maintenance:rebase:job:#{job.id}")
   end
 
+  it "preempts active CI repair when a rebase starts for the same job" do
+    ci_repair = described_class.instantiate(
+      kind: "ci_failure",
+      job: job,
+      artifacts: { "head_sha" => "head123", "base_sha" => "base123" }
+    )
+    ci_repair.update!(state: "running")
+    ci_repair.work_unit.update!(state: "running")
+
+    rebase = described_class.instantiate(kind: "rebase", job: job, base_branch: "main")
+
+    expect(ci_repair.reload).to be_cancelled
+    expect(ci_repair.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_REBASE_REASON)
+    expect(ci_repair.artifact("preemption_reason")).to eq("superseded_by_rebase")
+    expect(ci_repair.work_unit.reload).to have_attributes(
+      state: "cancelled",
+      preemption_reason: "superseded_by_rebase",
+      preempted_by_work_unit: rebase.work_unit
+    )
+  end
+
   it "snapshots known ref metadata onto the intent and unit" do
     job.update!(branch_name: "syrus/job-#{job.id}")
 

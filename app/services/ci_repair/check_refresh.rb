@@ -1,6 +1,6 @@
 module CiRepair
   class CheckRefresh
-    Result = Data.define(:job, :head_sha, :state, :detail, :refreshed_at) do
+    Result = Data.define(:job, :head_sha, :base_sha, :state, :detail, :refreshed_at) do
       def failed_checks
         Array(detail[:failed_checks] || detail["failed_checks"])
       end
@@ -22,6 +22,7 @@ module CiRepair
           slug: job.slug,
           pr_number: job.pr_number || job.external_pr_number,
           head_sha: head_sha,
+          base_sha: base_sha,
           pr_checks_state: state,
           pr_checks_checked_at: refreshed_at&.iso8601,
           failing_checks: failed_check_summaries
@@ -40,6 +41,7 @@ module CiRepair
     def call
       pr = client.pull_request(pr_repository.slug, pr_number, bypass_cache: true)
       head_sha = pr.head&.sha
+      base_sha = pr.base&.sha
       raise ArgumentError, "PR head SHA is unavailable." if head_sha.blank?
 
       detail = client.check_runs_detail_for(pr_repository.slug, head_sha)
@@ -51,7 +53,7 @@ module CiRepair
         pr_checks_checked_at: refreshed_at
       )
 
-      Result.new(job: @job.reload, head_sha: head_sha, state: state, detail: detail, refreshed_at: refreshed_at)
+      Result.new(job: @job.reload, head_sha: head_sha, base_sha: base_sha, state: state, detail: detail, refreshed_at: refreshed_at)
     end
 
     private

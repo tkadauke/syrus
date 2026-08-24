@@ -5,6 +5,10 @@ module WorkDefinitions
     def blocks_ci_failure? = true
   end
 
+  module PreemptsCiFailure
+    def preempts_ci_failure? = true
+  end
+
   module ActiveRepairWork
     def active_repair_work? = true
   end
@@ -115,10 +119,13 @@ module WorkDefinitions
     self.workflow_trigger_kind = "ci_failure"
     self.runtime_role = "first_class"
     self.scope = "job"
+
+    def unit_gates = [ WorkUnits::Gates::CiRepairSafety ] + super
   end
 
   class Rebase < Base
     include BlocksCiFailure
+    include PreemptsCiFailure
     include ResumesFailedSteps
     include RebuildOnPreempt
 
@@ -134,6 +141,7 @@ module WorkDefinitions
 
   class StackRebase < Base
     include BlocksCiFailure
+    include PreemptsCiFailure
     include ResumesFailedSteps
     include RebuildOnPreempt
 
