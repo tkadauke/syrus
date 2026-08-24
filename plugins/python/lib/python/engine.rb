@@ -22,6 +22,7 @@ module Python
         homepage:         "https://github.com/tkadauke/syrus",
         author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/python.svg",
+        category:         "language",
         prepare_priority: 30,
         provides: {
           prepare_detector:         Python::PrepareDetector,

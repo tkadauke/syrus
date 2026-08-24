@@ -20,6 +20,7 @@ export type AdminPlugin = {
   default_enabled: boolean
   disableable: boolean
   category: string | null
+  category_label: string | null
   description: string | null
   homepage: string | null
   icon_url: string | null

@@ -20,6 +20,7 @@ RSpec.describe JavaScript::Engine do
           version:          JavaScript::VERSION,
           description:      "Node/JS (and TS) prepare detection and dev-server preview: yarn/pnpm/npm lockfile priority, package.json scripts.dev/start; ESLint grader detail; ESLint/Prettier autofix; npm/yarn/pnpm audit dependency scanning; default `any`-type review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
+          category:         "language",
           prepare_priority: 20,
           provides: {
             prepare_detector:         JavaScript::PrepareDetector,
@@ -44,6 +45,7 @@ RSpec.describe JavaScript::Engine do
     it "registers with the correct metadata" do
       expect(registration.version).to eq(JavaScript::VERSION)
       expect(registration.prepare_priority).to eq(20)
+      expect(registration.category).to eq("language")
     end
 
     it "provides exactly the :prepare_detector, :preview_provider, :grader_augmentor, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do

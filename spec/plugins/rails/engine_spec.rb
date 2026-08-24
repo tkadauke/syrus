@@ -17,6 +17,7 @@ RSpec.describe SyrusRails::Engine do
           version:     SyrusRails::VERSION,
           description: "Ruby on Rails intelligence",
           homepage:    "https://github.com/tkadauke/syrus",
+          category:    "language",
           depends_on:  [ "ruby" ],
           provides: {
             mcp_tool_set:      SyrusRails::McpToolSet,
@@ -39,6 +40,7 @@ RSpec.describe SyrusRails::Engine do
     it "registers with the correct metadata" do
       expect(registration.version).to eq(SyrusRails::VERSION)
       expect(registration.description).to eq("Ruby on Rails intelligence")
+      expect(registration.category).to eq("language")
     end
 
     it "provides all 4 extension point keys" do

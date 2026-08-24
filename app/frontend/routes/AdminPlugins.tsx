@@ -121,7 +121,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category}</span></span> : null}
+            {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span></span> : null}
             <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
             {dependsOn.length > 0 ? <span>{t("plugins.depends_on")}: <span className="font-mono">{dependsOn.join(", ")}</span></span> : null}
             {dependents.length > 0 ? <span>{t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span></span> : null}
