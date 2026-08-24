@@ -167,7 +167,6 @@ per-user/private:
   - app/controllers/api/v1/app/platform_identities_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
-  - app/controllers/api/v1/app/repository_memberships_controller.rb
   - app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
@@ -190,6 +189,10 @@ per-user/private:
   - app/views/spa/show.html.erb
 team-visible:
   - app/controllers/api/v1/app/profiles_controller.rb
+team-tier:
+  - app/controllers/api/v1/app/teams_controller.rb
+  - app/controllers/api/v1/app/team_memberships_controller.rb
+  - app/controllers/concerns/team_serialization.rb
 public/session:
   - app/controllers/concerns/authentication.rb
   - app/controllers/api/v1/app/auth_controller.rb
