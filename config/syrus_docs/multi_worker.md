@@ -50,6 +50,21 @@ under `db/search_migrate`; if they are required even when an older schema
 version was recorded, add them to the task's required-table verification list
 too.
 
+Boot-time replay only covers the moment the table is (re)created. A process
+that never consumes `indexing` — a compute-tier worker in a split
+home/compute deployment, or a per-Run MCP sidecar spawned as its subprocess —
+gets that one seed at container boot and then nothing further, since
+`IndexOperationalLogEventsJob` never runs there. Left alone, the seed
+eventually ages out of `OperationalLogEvent::RETENTION` and every search on
+that host silently returns zero rows despite the primary DB still filling up.
+`OperationalLogIndex.search` guards against this at query time instead of
+requiring an operator to notice: `ensure_fresh!` compares the local table's
+newest `occurred_at` against the primary DB's actual latest event (at most
+once per `FRESHNESS_CHECK_INTERVAL`, 2 minutes) and calls
+`OperationalLogIndex.rebuild!` when the gap exceeds `STALE_AFTER` (5 minutes),
+so a stale mirror repairs itself on the next `read_syrus_logs` /
+`search_syrus_logs` call rather than staying empty until the pod restarts.
+
 **The home worker MUST be a single pod** (`replicas: 1`, `strategy: Recreate`).
 Chat workspaces (`ChatWorkspace`, at
 `$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>`) are local-disk and
