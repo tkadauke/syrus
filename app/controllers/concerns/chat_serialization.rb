@@ -26,12 +26,13 @@ module ChatSerialization
 
   def preview_panels_json(chat_session)
     base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
+    scheme = request.ssl? ? "https" : "http"
     chat_session.preview_panels.where(state: "open").with_attached_files.order(:created_at, :id).map do |panel|
       {
         id: panel.id,
         title: panel.title,
         file_count: panel.files.size,
-        url: panel.preview_url(base_domain),
+        url: panel.preview_url(base_domain, scheme: scheme),
         app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}"
       }
     end
