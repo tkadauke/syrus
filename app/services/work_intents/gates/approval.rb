@@ -34,14 +34,7 @@ module WorkIntents
       attr_reader :intent
 
       def jobs_requiring_approval
-        case intent.scope_type
-        when "job"
-          Job.where(id: intent.scope_id).to_a
-        when "epic"
-          Job.where(epic_id: intent.scope_id).where.not(state: "closed").to_a
-        else
-          []
-        end
+        WorkIntents::Scope.for(intent).jobs_requiring_approval
       end
     end
   end

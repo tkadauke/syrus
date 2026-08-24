@@ -24,6 +24,37 @@ RSpec.describe AgentProviders::Codex do
     end
   end
 
+  describe ".refresh_stale_usage!" do
+    let(:probe_user) { Factories.user(codex_auth_mode: "chatgpt_login") }
+
+    it "refreshes a stale probe when the user authenticates via chatgpt_login" do
+      allow(CodexUsageProbe).to receive(:stale?).with(probe_user, now: anything).and_return(true)
+      allow(CodexUsageProbe).to receive(:refresh_for)
+
+      described_class.refresh_stale_usage!(user: probe_user)
+
+      expect(CodexUsageProbe).to have_received(:refresh_for).with(user: probe_user)
+    end
+
+    it "does not refresh when evidence is still fresh" do
+      allow(CodexUsageProbe).to receive(:stale?).and_return(false)
+      allow(CodexUsageProbe).to receive(:refresh_for)
+
+      described_class.refresh_stale_usage!(user: probe_user)
+
+      expect(CodexUsageProbe).not_to have_received(:refresh_for)
+    end
+
+    it "does not refresh when the user authenticates via api_key" do
+      probe_user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      allow(CodexUsageProbe).to receive(:refresh_for)
+
+      described_class.refresh_stale_usage!(user: probe_user)
+
+      expect(CodexUsageProbe).not_to have_received(:refresh_for)
+    end
+  end
+
   let(:user) { Factories.user(codex_api_key: "sk-test") }
   let(:job) { Factories.job(user: user) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }

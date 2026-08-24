@@ -65,6 +65,13 @@ module AgentProviders
       provider
     end
 
+    # Proactively refreshes this provider's cached usage/availability
+    # evidence when it's stale, so ProviderAvailabilityPause can gate on
+    # current data instead of the last opportunistic probe from a prior
+    # invocation. No-op by default; providers with a usage probe override.
+    def self.refresh_stale_usage!(user:, now: Time.current)
+    end
+
     def provider
       self.class.provider
     end

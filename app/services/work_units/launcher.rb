@@ -126,14 +126,7 @@ module WorkUnits
     end
 
     def self.representative_job_for_intent(intent, snapshot_members)
-      case intent.scope_type
-      when "job"
-        Job.find_by(id: intent.scope_id)
-      when "epic"
-        snapshot_members.last || Job.where(epic_id: intent.scope_id).order(:id).last
-      when "repository"
-        snapshot_members.first || Job.where(repository_id: intent.repository_id).order(created_at: :desc, id: :desc).first
-      end
+      WorkIntents::Scope.for(intent).representative_job(snapshot_members)
     end
 
     def initialize(kind:, job:, artifacts:, agent_provider:, idempotency_key:, source_type:, source_id:, options:, existing_intent: nil)
