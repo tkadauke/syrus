@@ -77,6 +77,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [groupChatPickerOpen, setGroupChatPickerOpen] = useState(false)
   const [groupChatCreating, setGroupChatCreating] = useState(false)
   const [groupChatError, setGroupChatError] = useState<string | null>(null)
+  const [startingChat, setStartingChat] = useState(false)
   const mainRef = useRef<HTMLElement | null>(null)
   const bugReportRef = useRef<BugReportButtonHandle | null>(null)
   const openBugReport = useCallback((options?: BugReportOpenOptions) => {
@@ -129,21 +130,25 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
 
   async function startChat() {
     if (normalizedPath === "/chats/new") return
+    if (startingChat) return
 
+    setStartingChat(true)
     setDrawerOpen(false)
-    const unstartedChat = firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"]))
-    if (unstartedChat) {
-      navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
-      return
-    }
-
     try {
+      const unstartedChat = firstUnstartedChat(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"]))
+      if (unstartedChat) {
+        navigate(withRoutePrefix(unstartedChat.chat_path, prefix))
+        return
+      }
+
       const newChat = await fetchNewChat()
       const created = await createEmptyChat(newChat.default_repository_id)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
       setNotice(t("chat:unable_to_start"))
+    } finally {
+      setStartingChat(false)
     }
   }
 
@@ -245,6 +250,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           prefix={prefix}
           showTeamProfile={(data?.team_user_count || 0) > 1}
           showDashboardSidebarSubjects={showDashboardSidebarSubjects}
+          startingChat={startingChat}
           user={user}
         />
         <div
@@ -298,6 +304,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             prefix={prefix}
             showTeamProfile={(data?.team_user_count || 0) > 1}
             showDashboardSidebarSubjects={showDashboardSidebarSubjects}
+            startingChat={startingChat}
             user={user}
           />
         </div>
@@ -655,6 +662,7 @@ function SidebarContent({
   prefix,
   showDashboardSidebarSubjects,
   showTeamProfile,
+  startingChat,
   user
 }: {
   csrfToken?: string
@@ -669,6 +677,7 @@ function SidebarContent({
   prefix: string
   showDashboardSidebarSubjects: boolean
   showTeamProfile: boolean
+  startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
 }) {
   const { t } = useTranslation("nav")
@@ -775,7 +784,7 @@ function SidebarContent({
         <div className="sticky top-0 z-20 space-y-3 bg-white px-3 py-4 dark:bg-gray-950">
           <button
             className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-            disabled={!user}
+            disabled={!user || startingChat}
             onClick={onStartChat}
             type="button"
           >
