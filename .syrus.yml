@@ -259,7 +259,16 @@ grade:
     phases: [ci]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited
-    timeout_minutes: 30
+    # bin/rspec-ci runs bin/rspec-fast PLUS the :ci_only examples on top —
+    # a strict superset of the `rspec` grader's workload above — yet this
+    # timeout sat at half of `rspec`'s (30 vs 60), which had already been
+    # bumped twice for host-contention skew (see that grader's comment).
+    # Observed twice in a row here: the command ran the full 30 minutes at
+    # 95-100% CPU (confirmed via worker health as outcome "timed_out", not
+    # a hang or a real failure) under a shared worker host, never reaching
+    # completion. Aligned with `rspec`'s 60-minute budget plus headroom for
+    # the additional :ci_only pass.
+    timeout_minutes: 75
 
   - name: react-tests
     description: |
