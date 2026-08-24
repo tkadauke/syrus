@@ -338,6 +338,83 @@ describe("AppChromeV2", () => {
   })
 })
 
+describe("AppChromeV2 primary nav reordering", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("applies the operator's saved order, appending items missing from it at the end", () => {
+    const bootstrap = bootstrapPayload({ team_user_count: 2 })
+    bootstrap.current_user = { ...bootstrap.current_user!, sidebar_nav_order: [ "repositories", "dashboard" ] }
+
+    renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"], bootstrap })
+
+    const primaryNav = screen.getByRole("navigation", { name: "Primary" })
+    const labels = within(primaryNav).getAllByRole("link").map((link) => link.textContent)
+
+    // "repositories" and "dashboard" follow the saved order; "schedules" and
+    // "team" are absent from it, so they're appended at the end in their
+    // original relative order.
+    expect(labels).toEqual(["Repositories", "Dashboard", "Schedules", "Team"])
+  })
+
+  it("persists a new order after dragging a nav item and refetches bootstrap", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/sidebar_nav_order") {
+        return Promise.resolve(jsonResponse({ sidebar_nav_order: ["team", "dashboard", "repositories", "schedules"] }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/repositories"],
+      bootstrap: bootstrapPayload({ team_user_count: 2 })
+    })
+
+    const primaryNav = screen.getByRole("navigation", { name: "Primary" })
+    const teamRow = within(primaryNav).getByRole("link", { name: "Team" }).parentElement!
+    const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
+    const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
+
+    fireEvent.dragStart(teamRow, { dataTransfer })
+    fireEvent.dragOver(dashboardRow, { dataTransfer })
+    fireEvent.drop(dashboardRow)
+    fireEvent.dragEnd(teamRow)
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ order: ["team", "dashboard", "repositories", "schedules"] })
+      }))
+    })
+  })
+
+  it("does not persist when a drag ends without moving the item", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/bootstrap") return Promise.resolve(jsonResponse(bootstrapPayload()))
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"] })
+
+    const primaryNav = screen.getByRole("navigation", { name: "Primary" })
+    const dashboardRow = within(primaryNav).getByRole("link", { name: "Dashboard" }).parentElement!
+    const dataTransfer = { dropEffect: "", effectAllowed: "", setData: vi.fn(), getData: vi.fn() }
+
+    fireEvent.dragStart(dashboardRow, { dataTransfer })
+    fireEvent.dragOver(dashboardRow, { dataTransfer })
+    fireEvent.drop(dashboardRow)
+
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/sidebar_nav_order", expect.anything())
+  })
+})
+
 describe("AppChromeV2 recent chats", () => {
   beforeEach(() => {
     window.localStorage.clear()

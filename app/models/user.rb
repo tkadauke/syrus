@@ -302,6 +302,19 @@ class User < ApplicationRecord
     update!(ui_preferences: ui_preferences.merge("seen_tours" => []))
   end
 
+  # Item IDs (core nav IDs like "dashboard", or plugin-provided sidebar_page
+  # IDs like "spending.dashboard") in the operator's chosen primary sidebar
+  # nav order. Any current nav item whose ID is absent from this list is
+  # appended at the end by the frontend (see sidebarNav.tsx#applySidebarNavOrder)
+  # rather than being dropped or randomly placed.
+  def sidebar_nav_order
+    Array(ui_preferences["sidebar_nav_order"]).map(&:to_s)
+  end
+
+  def update_sidebar_nav_order!(order)
+    update!(ui_preferences: ui_preferences.merge("sidebar_nav_order" => Array(order).map(&:to_s).uniq))
+  end
+
   def notification_preferences
     NOTIFICATION_PREFERENCES_DEFAULTS.merge(normalized_notification_preferences(read_attribute(:notification_preferences)))
   end

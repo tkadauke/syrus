@@ -113,6 +113,22 @@ export function HideIcon() {
   )
 }
 
+// Drag-handle affordance shown on hover for reorderable primary sidebar nav
+// items. Floats over the row's left edge (paired with a `-ml-4 pl-4` wrapper)
+// so it doesn't push the icon/label/badge layout around.
+export function GripIcon() {
+  return (
+    <svg aria-hidden="true" className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500" fill="none" viewBox="0 0 16 16">
+      <circle cx="6" cy="4" fill="currentColor" r="1" />
+      <circle cx="10" cy="4" fill="currentColor" r="1" />
+      <circle cx="6" cy="8" fill="currentColor" r="1" />
+      <circle cx="10" cy="8" fill="currentColor" r="1" />
+      <circle cx="6" cy="12" fill="currentColor" r="1" />
+      <circle cx="10" cy="12" fill="currentColor" r="1" />
+    </svg>
+  )
+}
+
 // Generic fallback for plugin-provided sidebar nav items whose icon
 // reference doesn't match a known built-in icon.
 export function PluginIcon() {

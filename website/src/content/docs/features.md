@@ -87,6 +87,17 @@ supports marking all notifications read.
 On mobile, the bell opens the full `/notifications` page with the same
 recent list and read behavior.
 
+## Primary Sidebar Navigation
+
+The primary sidebar nav (Dashboard, Repositories, Schedules, Team, and any
+enabled plugin-provided items such as Spending) can be reordered by dragging
+an item to a new position. The chosen order is saved per user and follows
+that operator across devices and sessions. If a new item becomes visible
+later — a newly enabled plugin, or a feature-flag-gated item like
+Terminal — it's appended at the end of the list rather than dropped or
+inserted at a random position. The pinned Supervisor chat entry below the
+primary nav is not part of this list and always stays in place.
+
 ## Terminal
 
 When the `terminal` feature flag is enabled, the V2 sidebar shows a
