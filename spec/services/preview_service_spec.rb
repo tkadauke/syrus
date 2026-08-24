@@ -222,7 +222,7 @@ RSpec.describe PreviewService do
     it "tags the failure with error_reason not_reachable when the proxy target can't reach the app" do
       env = create_env(workspace_path: "/nonexistent/path")
       service = described_class.new
-      allow(PreviewWorkspace).to receive(:prepare!).with(env)
+      allow(PreviewWorkspace).to receive(:prepare!).with(env, revision: :head)
         .and_raise(PreviewService::NotReachableError, "preview process is healthy on 127.0.0.1:28009 but is not reachable at preview:28009; configure the preview start command to bind to 0.0.0.0")
 
       service.send(:poll_starting_environments)

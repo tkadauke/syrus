@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { ChatPayload, ChatRenderItem } from "../../api/chats"
+import type { ChatMessageItem, ChatPayload } from "../../api/chats"
 import { availableWorkspaceTabs, mediaTabVisible } from "./workspaceTabs"
 
 function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
@@ -61,11 +61,12 @@ function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
     coding_mode_enabled: false,
     local_mode_enabled: false,
     local_tunnel_connected: false,
+    preview_panels: [],
     ...overrides
   } as ChatPayload
 }
 
-function imageMessage(): ChatRenderItem {
+function imageMessage(): ChatMessageItem {
   return {
     type: "message",
     id: 1,
