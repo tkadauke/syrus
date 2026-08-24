@@ -125,3 +125,10 @@ features:
     description: "Lets reconciler invariant modules act from WorkIntent and WorkUnit state for paths whose scheduler ownership has graduated."
     description_i18n_key: "features.slugs.work_units_reconciler.description"
     default: false
+  - slug: mysql_db_browser
+    category: "Labs"
+    name: "MySQL DB browser"
+    name_i18n_key: "features.slugs.mysql_db_browser.name"
+    description: "Enables the MySQL DB browser plugin, which lets admins register and use connections to external MySQL databases with real credentials."
+    description_i18n_key: "features.slugs.mysql_db_browser.description"
+    default: false

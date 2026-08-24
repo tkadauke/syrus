@@ -360,6 +360,10 @@
       "persistent_mcp_sidecar": {
         "name": "Adiutor MCP Persistens",
         "description": "Activat daemonem adiutoris MCP persistentis et loco laboris proprii, qui semel oriri potest et transportum MCP solum localem cum indicio salutis praebere potest. Vices colloquii vocationes instrumentorum MCP ad eum dirigere possunt, cum reditu automatico ad stdio; cursus agentis laboris eo nondum utuntur et adiutore stdio per cursum semper utuntur. Quo desactivato, omnes agentes solitis adiutoribus stdio per cursum vel sessionem utuntur."
+      },
+      "mysql_db_browser": {
+        "name": "Speculator Databasis MySQL",
+        "description": "Insertum speculatoris databasis MySQL activat, quo administratores connexiones ad databases MySQL externas cum crendentialibus veris inscribere et adhibere possunt."
       }
     }
   },
