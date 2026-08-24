@@ -12,8 +12,8 @@ class JobReviewFeedbackSubmission
   def self.call(source_job:, feedback:, actor:)
     feedback = feedback.to_s.strip
     return Result.new(job: nil, error: "Feedback can't be blank.") if feedback.blank?
-    unless source_job.previewable? || source_job.closed?
-      return Result.new(job: nil, error: "Feedback can only be requested once this Job has been implemented.")
+    unless eligible?(source_job)
+      return Result.new(job: nil, error: "Feedback can only be requested once this Job has been implemented and successfully landed or is awaiting landing.")
     end
 
     job = nil
@@ -43,4 +43,17 @@ class JobReviewFeedbackSubmission
   rescue ActiveRecord::RecordInvalid => e
     Result.new(job: nil, error: e.record.errors.full_messages.to_sentence)
   end
+
+  # previewable? (implemented/approved/landing) covers "still open"; a closed
+  # Job only counts as "already landed" when it closed for a successful
+  # reason. A Job closed as e.g. invalidated/duplicate/cancelled must NOT be
+  # eligible — depending on it would create a JobDependency that can never
+  # be satisfied (JobDependencies#dependency_succeeded? requires closed? AND
+  # a successful closure_reason), permanently stranding the new Job in
+  # "triaging".
+  def self.eligible?(source_job)
+    source_job.previewable? ||
+      (source_job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(source_job.closure_reason))
+  end
+  private_class_method :eligible?
 end
