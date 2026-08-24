@@ -663,16 +663,16 @@ module Api
         def answer_agent_question
           chat_session = find_chat_session
           question = chat_session.agent_questions.find(params[:agent_question_id])
-          answer = params[:answer].to_s.strip
-          if answer.blank?
-            render_error("validation_failed", "Answer cannot be blank.", status: :unprocessable_content)
+          answers = agent_question_answers_param
+          if answers.blank?
+            render_error("validation_failed", "Answers cannot be blank.", status: :unprocessable_content)
             return
           end
 
-          if question.answer_and_record!(answer, sender_user: Current.user)
+          if question.answer_and_record!(answers, sender_user: Current.user)
             render json: chat_payload(chat_session.reload, message: "Answer submitted.")
           else
-            render_error("validation_failed", "Question is no longer active.", status: :unprocessable_content)
+            render_error("validation_failed", "Question is no longer active or answers are invalid.", status: :unprocessable_content)
           end
         end
 
@@ -1169,6 +1169,23 @@ module Api
         end
 
         private
+
+        # params[:answers] is index-aligned with the question's sub-questions:
+        # each entry is either a string (single-select/free-text) or an array
+        # of strings (multi-select). Per-entry validation against the
+        # matching sub-question happens in ChatAgentQuestion#answer_and_record!.
+        def agent_question_answers_param
+          raw = params[:answers]
+          return [] unless raw.is_a?(Array) || raw.is_a?(ActionController::Parameters)
+
+          Array(raw).map do |entry|
+            if entry.is_a?(Array) || entry.is_a?(ActionController::Parameters)
+              Array(entry).map(&:to_s)
+            else
+              entry.to_s
+            end
+          end
+        end
 
         def validate_source_preview_request!(chat_session)
           unless chat_session.repository

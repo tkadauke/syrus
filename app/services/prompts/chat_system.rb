@@ -200,7 +200,11 @@ module Prompts
           - When you need to ask the operator a clarifying question
             interactively, use the `ask_user_question` MCP tool — not
             the built-in `AskUserQuestion` tool, which has no effect in
-            this environment.
+            this environment. It accepts up to 4 related questions in
+            one call, each independently single-select, multi-select
+            (`multiple: true`, requires options), or free-text (omit
+            options) — batch related questions into one call instead of
+            chaining several `ask_user_question` calls.
           - Cite specific files and line numbers. "I saw X at app/
             services/foo.rb:42" beats "there's a thing in services."
           - #{job_inspection_guidance}

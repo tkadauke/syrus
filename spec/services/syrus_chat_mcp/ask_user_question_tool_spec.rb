@@ -26,23 +26,68 @@ RSpec.describe Mcp::Tools::AskUserQuestionTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  it "creates a question and returns immediately with question_id" do
-    response = call_tool(question: "Which implementation path?", options: [ "Fast", "Careful" ])
+  it "creates a single question and returns immediately with question_id" do
+    response = call_tool(questions: [ { question: "Which implementation path?", options: [ "Fast", "Careful" ] } ])
 
     question = chat_session.agent_questions.sole
-    expect(question.question).to eq("Which implementation path?")
-    expect(question.options).to eq([ "Fast", "Careful" ])
-    expect(question.answer).to be_nil
+    expect(question.questions).to eq([ { "question" => "Which implementation path?", "options" => [ "Fast", "Careful" ], "multiple" => false } ])
+    expect(question.answers).to be_nil
     expect(question.answered_at).to be_nil
     expect(response[:result][:isError]).to be_falsey
     expect(response_payload(response)).to include(question_id: question.id)
   end
 
+  it "batches up to 4 questions in one call, each independently shaped" do
+    response = call_tool(questions: [
+      { question: "Which implementation path?", options: [ "Fast", "Careful" ] },
+      { question: "Which environments should this ship to?", options: [ "Staging", "Production" ], multiple: true },
+      { question: "Anything else we should know?" }
+    ])
+
+    question = chat_session.agent_questions.sole
+    expect(question.questions).to eq([
+      { "question" => "Which implementation path?", "options" => [ "Fast", "Careful" ], "multiple" => false },
+      { "question" => "Which environments should this ship to?", "options" => [ "Staging", "Production" ], "multiple" => true },
+      { "question" => "Anything else we should know?", "options" => nil, "multiple" => false }
+    ])
+    expect(response[:result][:isError]).to be_falsey
+    expect(response_payload(response)).to include(question_id: question.id)
+  end
+
+  it "rejects more than 4 questions" do
+    response = call_tool(questions: Array.new(5) { |i| { question: "Question #{i}" } })
+
+    expect(response[:result][:isError]).to eq(true)
+    expect(chat_session.agent_questions).to be_empty
+  end
+
+  it "rejects an empty questions array" do
+    response = call_tool(questions: [])
+
+    expect(response[:result][:isError]).to eq(true)
+    expect(chat_session.agent_questions).to be_empty
+  end
+
   it "rejects invalid options" do
-    response = call_tool(question: "Pick one", options: [ "Yes", "" ])
+    response = call_tool(questions: [ { question: "Pick one", options: [ "Yes", "" ] } ])
 
     expect(response[:result][:isError]).to eq(true)
     expect(response[:result][:content].first[:text]).to match(/options/)
+    expect(chat_session.agent_questions).to be_empty
+  end
+
+  it "rejects multiple:true without options" do
+    response = call_tool(questions: [ { question: "Pick any", multiple: true } ])
+
+    expect(response[:result][:isError]).to eq(true)
+    expect(response[:result][:content].first[:text]).to match(/multiple-select/)
+    expect(chat_session.agent_questions).to be_empty
+  end
+
+  it "rejects a blank question in the batch" do
+    response = call_tool(questions: [ { question: "Fine" }, { question: "  " } ])
+
+    expect(response[:result][:isError]).to eq(true)
     expect(chat_session.agent_questions).to be_empty
   end
 end
