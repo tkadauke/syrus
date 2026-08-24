@@ -1042,6 +1042,26 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "omits nested workflow graphs for historical terminal WorkUnits" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "failed")
+      Step.create!(workflow: workflow, kind: "analyze_and_fix", position: 1, state: "failed")
+      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "failed")
+
+      payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:workflows)).to be_empty
+      expect(payload.fetch(:work_units)).to contain_exactly(
+        include(
+          id: unit.id,
+          workflow_id: workflow.id,
+          workflow_slug: workflow.slug,
+          workflow_state: "failed",
+          workflow: nil
+        )
+      )
+    end
+
     it "reuses serialized WorkUnit workflow payloads within one job detail response" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

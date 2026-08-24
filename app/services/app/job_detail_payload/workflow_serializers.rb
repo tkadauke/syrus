@@ -61,6 +61,7 @@ module App
 
       def work_unit_json(unit, member)
         workflow = unit.workflow
+        embedded_workflow = workflow if embed_workflow_for_work_unit?(unit, member)
         {
           id: unit.id,
           kind: unit.kind,
@@ -86,7 +87,7 @@ module App
           preempted_by_work_unit_id: unit.preempted_by_work_unit_id,
           preempted_by_work_unit_kind: unit.preempted_by_work_unit&.kind,
           preempted_by_work_unit_label: unit.preempted_by_work_unit ? work_unit_label(unit.preempted_by_work_unit) : nil,
-          workflow: workflow ? workflow_json(workflow) : nil,
+          workflow: embedded_workflow ? workflow_json(embedded_workflow) : nil,
           created_at: iso8601(unit.created_at),
           started_at: iso8601(unit.started_at),
           finished_at: iso8601(unit.finished_at)
@@ -343,7 +344,10 @@ module App
       def work_unit_workflows_for_job
         return [] unless work_unit_debug_enabled?
 
-        @work_unit_workflows_for_job ||= work_unit_members_for_job.filter_map { |member| member.work_unit.workflow }
+        @work_unit_workflows_for_job ||= work_unit_members_for_job.filter_map do |member|
+          unit = member.work_unit
+          unit.workflow if embed_workflow_for_work_unit?(unit, member)
+        end
       end
 
       def work_unit_workflow_ids_for_job
@@ -361,6 +365,10 @@ module App
             .distinct
             .pluck("work_units.workflow_id")
         end
+      end
+
+      def embed_workflow_for_work_unit?(unit, member)
+        unit.active? || member == active_work_unit_member_for_job
       end
 
       def ordered_runs_for(step)
