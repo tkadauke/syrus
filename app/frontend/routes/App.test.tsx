@@ -4789,8 +4789,9 @@ describe("App", () => {
       expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveClass("bg-blue-50", "text-blue-700", "ring-blue-600", "dark:bg-blue-950", "dark:text-blue-200")
       expect(within(dashboardSections).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows")
       expect(primaryNav).toContainElement(foldersPanel)
-      expect(dashboardLink.parentElement).toContainElement(dashboardSections)
-      expect(dashboardLink.parentElement).toContainElement(foldersPanel)
+      const dashboardNavItem = dashboardLink.closest("[draggable]")!.parentElement
+      expect(dashboardNavItem).toContainElement(dashboardSections)
+      expect(dashboardNavItem).toContainElement(foldersPanel)
       expect(within(foldersPanel).getByRole("link", { name: "All jobs 1982" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=5")
       expect(within(foldersPanel).getByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=1")
       const moreGroup = within(foldersPanel).getByText("More").closest("details")

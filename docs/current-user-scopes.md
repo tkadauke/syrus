@@ -174,6 +174,7 @@ per-user/private:
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - app/controllers/api/v1/app/search_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
+  - app/controllers/api/v1/app/sidebar_nav_order_controller.rb
   - app/controllers/api/v1/app/skills_controller.rb
   - app/controllers/api/v1/app/smart_folders_controller.rb
   - app/controllers/api/v1/app/speech_to_text_controller.rb
