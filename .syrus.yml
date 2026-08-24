@@ -241,7 +241,14 @@ grade:
     # each, evenly split -- not a hang, just contention-driven skew), so
     # the whole grader exit-124'd with 0 actual failures. Bumped for
     # headroom, same reasoning as the 30->75 serial bump this replaced.
-    timeout_minutes: 45
+    #
+    # 45 recurred: the suite has grown since the last bump, and 3 of 4
+    # workers finished in 41-42 minutes (0 failures) while the 4th was
+    # still running past the 45-minute mark under the same host-contention
+    # pattern. Bumped again with the same absolute margin (~15-18 minutes
+    # past the observed slowest-finishing workers) rather than shrinking
+    # parallelism, since fewer processes cost more total CPU (see above).
+    timeout_minutes: 60
 
   - name: rspec-ci
     description: |
