@@ -54,6 +54,7 @@ class Repository < ApplicationRecord
   has_many :members, through: :repository_memberships, source: :user
   has_many :team_repositories, dependent: :destroy
   has_many :teams, through: :team_repositories
+  has_many :github_collaborator_discrepancies, dependent: :destroy
   has_many :repository_final_approvers, dependent: :destroy
   has_many :final_approvers, through: :repository_final_approvers, source: :user
   has_many :jobs, dependent: :destroy

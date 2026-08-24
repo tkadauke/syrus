@@ -17,12 +17,28 @@ export type RepositoryMembershipUser = {
   name: string
 }
 
+export const GITHUB_PERMISSION_MISMATCH_REASONS = [
+  "no_github_handle",
+  "not_a_github_collaborator",
+  "insufficient_github_permission"
+] as const
+export type GithubPermissionMismatchReason = (typeof GITHUB_PERMISSION_MISMATCH_REASONS)[number]
+
 export type RepositoryMembership = {
   id: number
   role: RepositoryMembershipRole
   agent_provider: string | null
   created_at: string
+  github_permission_mismatch_reason: GithubPermissionMismatchReason | null
+  github_permission_mismatch_checked_at: string | null
   user: RepositoryMembershipUser
+}
+
+export type GithubCollaboratorDiscrepancy = {
+  id: number
+  github_login: string
+  github_permission: "write" | "admin"
+  checked_at: string
 }
 
 export type RepositoryMembershipsPayload = {
@@ -30,6 +46,7 @@ export type RepositoryMembershipsPayload = {
   tabs: RepositoryTab[]
   memberships: RepositoryMembership[]
   team_grants: TeamRepositoryGrant[]
+  github_collaborator_discrepancies: GithubCollaboratorDiscrepancy[]
   message?: string
 }
 

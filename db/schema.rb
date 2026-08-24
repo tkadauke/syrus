@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_23_222308) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_000749) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -783,6 +783,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_222308) do
     t.index ["repository_id", "created_at"], name: "index_github_auth_fallbacks_on_repository_and_created_at"
     t.index ["repository_id"], name: "index_github_auth_fallback_diagnostics_on_repository_id"
     t.index ["run_id"], name: "index_github_auth_fallback_diagnostics_on_run_id"
+  end
+
+  create_table "github_collaborator_discrepancies", force: :cascade do |t|
+    t.datetime "checked_at", null: false
+    t.datetime "created_at", null: false
+    t.string "github_login", null: false
+    t.string "github_permission", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id", "github_login"], name: "index_github_collab_discrepancies_on_repo_id_and_login", unique: true
+    t.index ["repository_id"], name: "index_github_collaborator_discrepancies_on_repository_id"
   end
 
   create_table "grader_conclusions", force: :cascade do |t|
@@ -1614,6 +1625,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_222308) do
   create_table "repository_memberships", force: :cascade do |t|
     t.string "agent_provider"
     t.datetime "created_at", null: false
+    t.datetime "github_permission_mismatch_checked_at"
+    t.string "github_permission_mismatch_reason"
     t.bigint "installation_id"
     t.integer "repository_id", null: false
     t.string "role", default: "read", null: false
@@ -2495,6 +2508,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_23_222308) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
+  add_foreign_key "github_collaborator_discrepancies", "repositories"
   add_foreign_key "team_memberships", "teams"
   add_foreign_key "team_memberships", "users"
   add_foreign_key "team_repositories", "repositories"

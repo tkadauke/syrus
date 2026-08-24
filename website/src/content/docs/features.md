@@ -1072,6 +1072,28 @@ never removes its direct memberships, and vice versa.
 For team workflows, fork-based development, and open source contributions,
 see [Collaboration](/docs/collaboration).
 
+### GitHub Permission Parity
+
+GitHub is still the actual source of truth for who can push code today, so
+a background sync periodically compares Syrus's Write/Admin-tier repository
+members against real GitHub collaborator permissions on repositories with a
+GitHub App installation, and flags drift in either direction. This is
+detection and surfacing only — Syrus never grants, revokes, or otherwise
+changes GitHub access as a result of this check.
+
+A Write/Admin-tier member whose GitHub collaborator permission doesn't back
+up their Syrus access — no linked GitHub handle, not a collaborator on the
+repository, or a GitHub permission below their Syrus tier — gets a "GitHub
+mismatch" badge on their row in the **Members** tab. This is the more
+important direction to know about: Syrus would otherwise let that person
+approve, retry, or cancel Jobs without matching commit rights.
+
+A GitHub collaborator with write or admin access and no corresponding Syrus
+access at all shows up in a separate "GitHub-only collaborators" list on the
+same tab. Both signals refresh automatically; there's nothing to configure.
+This groundwork matters more once self-hosted git removes GitHub as a
+required central host for a repository.
+
 ## Spending Insights
 
 The spending dashboard at `/insights/spending` rolls up captured

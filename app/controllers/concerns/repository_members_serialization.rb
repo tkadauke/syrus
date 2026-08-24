@@ -19,6 +19,7 @@ module RepositoryMembersSerialization
       tabs: repository_tabs_json(repository),
       memberships: repository.repository_memberships.includes(:user).order(:id).map { |m| repository_membership_json(m) },
       team_grants: repository.team_repositories.includes(:team).order(:id).map { |g| repository_team_grant_json(g) },
+      github_collaborator_discrepancies: repository.github_collaborator_discrepancies.order(:id).map { |d| github_collaborator_discrepancy_json(d) },
       message: message
     }
   end
@@ -29,11 +30,22 @@ module RepositoryMembersSerialization
       role: membership.role,
       agent_provider: membership.agent_provider,
       created_at: membership.created_at.iso8601,
+      github_permission_mismatch_reason: membership.github_permission_mismatch_reason,
+      github_permission_mismatch_checked_at: membership.github_permission_mismatch_checked_at&.iso8601,
       user: {
         id: membership.user.id,
         email_address: membership.user.email_address,
         name: membership.user.display_name
       }
+    }
+  end
+
+  def github_collaborator_discrepancy_json(discrepancy)
+    {
+      id: discrepancy.id,
+      github_login: discrepancy.github_login,
+      github_permission: discrepancy.github_permission,
+      checked_at: discrepancy.checked_at.iso8601
     }
   end
 
