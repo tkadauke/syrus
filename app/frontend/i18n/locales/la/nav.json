@@ -1,7 +1,6 @@
 {
   "dashboard": "Tabula",
   "setup": "Constitutio",
-  "spending": "Sumptus",
   "repositories": "Horrea",
   "schedules": "Agenda",
   "terminal": "Terminale",
@@ -264,5 +263,10 @@
   "plugin_repo_tabs": {
     "unavailable_heading": "Pagina non praesto",
     "unavailable_body": "Haec tabula repositorii non praesto est. Insertum quod eam praebet fortasse infirmatum vel deest."
+  },
+  "sidebar_pages": {
+    "loading": "Onerans...",
+    "unavailable_heading": "Pagina non praesto",
+    "unavailable_body": "Haec pagina nunc non praesto est."
   }
 }

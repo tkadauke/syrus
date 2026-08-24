@@ -13,6 +13,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `preview_provider`
 - `admin_page`
 - `repo_page_tab`
+- `sidebar_page`
 - `chat_mcp_tool_set`
 - `source_control_provider`
 - `prompt_injector`
@@ -886,6 +887,25 @@ Plugin pages with an unrecognized or absent `group_id` appear ungrouped at the
 bottom of the sidebar below the named sections. Omit `group_id` (or set it to
 `nil`) for standalone pages that do not belong to any group.
 
+Sidebar-page plugins should declare:
+
+- `sidebar_page` provider metadata with `id`, fallback `label`, `label_key`,
+  `path`, `paths`, `component`, `icon`, and `order`.
+- install-time `frontend.routes` metadata mapping component keys to plugin
+  frontend files, the same way `admin_page` does.
+- install-time `frontend.i18n` metadata listing plugin locale files.
+
+`App::SidebarPagesPayload` (served over `GET /api/v1/app/sidebar_pages`) is
+the sidebar analog of `Admin::PluginPagesPayload`: it calls
+`Syrus::PluginRegistry.providers_for(:sidebar_page)` and returns each page's
+metadata sorted by the declared `order`, falling back to
+provider-registration order for ties. `app/frontend/routes/appChromeV2/sidebarNav.tsx`
+merges those pages onto the end of `CORE_NAV_ITEMS` (the built-in primary
+sidebar entries) for rendering in the primary sidebar nav; a freshly
+registered plugin with `default_enabled: true` and no prior `PluginRecord`
+row is treated as enabled without an operator opt-in step, same as any other
+extension point.
+
 Built-in workflow MCP tools are core app functionality, not a plugin. Optional
 or installation-specific MCP tools should be contributed through plugin
 `mcp_tool_set` providers.
@@ -1113,3 +1133,17 @@ Bundled plugins:
   touching the attached repository checkout. Unavailable in Coding Mode and
   Local Mode, which already have real Write/Edit tools. See
   `config/syrus_docs/preview_panels.md`.
+- `spending_insights` — default-enabled; the first `sidebar_page` plugin.
+  Provides `spending.dashboard`: label "Spending", `path`/`paths`
+  `/insights/spending`, `component: "spending_insights/SpendingInsights"`,
+  `icon: "spending"` (maps to `SpendingIcon` via `sidebarNav.tsx`'s
+  `PLUGIN_ICONS`), `order: 60` — appended after `CORE_NAV_ITEMS`, so it
+  renders at the end of the primary sidebar nav, above the pinned Supervisor
+  chat block. The underlying cost-rollup data service
+  (`App::SpendingPayload`, served over `GET /api/v1/app/insights/spending`)
+  and its SPA shell route (`config/routes.rb`'s `insights/spending`) stay in
+  core — only the nav entry, the `SpendingInsights.tsx` route component, and
+  its `spending.json` locale files (`nav_spending` key) live in the plugin.
+  Disabling the plugin removes the nav entry and makes `PluginSidebarPageRoute`
+  render its "page unavailable" fallback for `/insights/spending`, but does
+  not affect the JSON API endpoint itself.

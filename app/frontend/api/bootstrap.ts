@@ -22,6 +22,7 @@ export type BootstrapPayload = {
     locale: "en" | "de" | "la"
     notification_unread_count?: number
     seen_tours?: string[]
+    sidebar_nav_order?: string[]
   } | null
   team_user_count: number
   provider_availability?: Record<string, ProviderAvailability>

@@ -267,6 +267,8 @@ RSpec.configure do |config|
       )
     end
 
+    SpendingInsights.register! unless registered_names.include?("spending_insights")
+
     Syrus::PluginRegistry.all_plugins
   end
 end

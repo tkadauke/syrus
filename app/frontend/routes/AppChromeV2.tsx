@@ -1,12 +1,13 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, DashboardIcon, MoonIcon, PlusIcon, RepositoryIcon, ScheduleIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, TerminalIcon, UserIcon } from "./appChromeV2/icons"
+import { ChevronDownIcon, GripIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
+import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
-import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
@@ -14,6 +15,8 @@ import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload 
 import { patchJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
+import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
+import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { BugReportContext } from "../lib/bugReportContext"
@@ -33,6 +36,7 @@ import { firstUnstartedChat } from "../lib/unstartedChat"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
+const EMPTY_SIDEBAR_NAV_ORDER: string[] = []
 
 function randomPubliliusSyrusQuote() {
   return PUBLILIUS_SYRUS_QUOTES[Math.floor(Math.random() * PUBLILIUS_SYRUS_QUOTES.length)]
@@ -88,23 +92,39 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     : children ?? <Outlet />
 
   const terminalSessionCount = useTerminalSessionCount(Boolean(data?.feature_flags?.terminal && user))
+  const sidebarPluginPages = useQuery({
+    queryKey: ["sidebar", "plugin_pages"],
+    queryFn: fetchSidebarPluginPages,
+    staleTime: 30_000,
+    enabled: Boolean(user)
+  })
+  const sidebarNavContext = useMemo(() => ({
+    simpleMode,
+    featureFlags: data?.feature_flags ?? {},
+    teamUserCount: data?.team_user_count ?? 0
+  }), [simpleMode, data?.feature_flags, data?.team_user_count])
+  const sidebarNavOrder = data?.current_user?.sidebar_nav_order ?? EMPTY_SIDEBAR_NAV_ORDER
+  const mergedSidebarNavItems = useMemo(
+    () => applySidebarNavOrder(buildSidebarNavItems(sidebarNavContext, sidebarPluginPages.data?.pages ?? [], t), sidebarNavOrder),
+    [sidebarNavContext, sidebarPluginPages.data, sidebarNavOrder, t]
+  )
+  const reorderSidebarNav = useMutation({
+    mutationFn: updateSidebarNavOrder,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+    }
+  })
+  const primaryNavItems = useMemo(() => mergedSidebarNavItems.map((item) => ({
+    id: item.id,
+    label: item.label,
+    to: `${prefix}${item.to}`,
+    active: sidebarNavItemActive(item, normalizedPath),
+    icon: item.icon,
+    ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
+  })), [mergedSidebarNavItems, normalizedPath, prefix, terminalSessionCount])
   const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
     ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
-    ...(tabsHidden ? [] : [
-      { id: "dashboard", label: t("nav:dashboard"), to: simpleMode ? `${prefix}/dashboard/epics` : `${prefix}/dashboard/jobs`, active: normalizedPath === "/" || normalizedPath.startsWith("/dashboard"), icon: <DashboardIcon /> },
-      { id: "spending", label: t("nav:spending"), to: `${prefix}/insights/spending`, active: normalizedPath.startsWith("/insights/spending"), icon: <SpendingIcon /> },
-      { id: "repositories", label: t("nav:repositories"), to: `${prefix}/repositories`, active: normalizedPath.startsWith("/repositories"), icon: <RepositoryIcon /> },
-      ...(simpleMode ? [] : [{ id: "schedules", label: t("nav:schedules"), to: `${prefix}/scheduled_tasks`, active: normalizedPath === "/scheduled_tasks" || normalizedPath.startsWith("/scheduled_tasks/"), icon: <ScheduleIcon /> }]),
-      ...(data?.feature_flags?.terminal ? [{
-        id: "terminal",
-        label: t("nav:terminal"),
-        to: `${prefix}/terminal`,
-        active: normalizedPath.startsWith("/terminal"),
-        icon: <TerminalIcon />,
-        badge: terminalSessionCount
-      }] : []),
-      ...(data && data.team_user_count > 1 ? [{ id: "team", label: t("nav:team"), to: `${prefix}/profiles`, active: normalizedPath.startsWith("/profiles"), icon: <TeamIcon /> }] : [])
-    ])
+    ...(tabsHidden ? [] : primaryNavItems)
   ] : []
 
   async function startChat() {
@@ -219,6 +239,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
           onNotice={setNotice}
+          onReorderNavItems={reorderSidebarNav.mutate}
           onStartChat={startChat}
           onStartGroupChat={startGroupChat}
           prefix={prefix}
@@ -271,6 +292,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             navItems={navItems}
             onCloseDrawer={() => setDrawerOpen(false)}
             onNotice={setNotice}
+            onReorderNavItems={reorderSidebarNav.mutate}
             onStartChat={startChat}
             onStartGroupChat={startGroupChat}
             prefix={prefix}
@@ -627,6 +649,7 @@ function SidebarContent({
   navItems,
   onCloseDrawer,
   onNotice,
+  onReorderNavItems,
   onStartChat,
   onStartGroupChat,
   prefix,
@@ -640,6 +663,7 @@ function SidebarContent({
   navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
   onCloseDrawer: () => void
   onNotice: (message: string | null) => void
+  onReorderNavItems: (order: string[]) => void
   onStartChat: () => void
   onStartGroupChat: () => void
   prefix: string
@@ -650,10 +674,23 @@ function SidebarContent({
   const { t } = useTranslation("nav")
   const dashboardActive = navItems.some((item) => item.id === "dashboard" && item.active)
   const [dashboardNavOpen, setDashboardNavOpen] = useState(dashboardActive)
+  // "setup" (onboarding-only) is excluded from drag reordering; only the
+  // plugin-extensible primary nav below it is reorderable.
+  const setupItem = navItems.find((item) => item.id === "setup")
+  const reorderableNavItems = useMemo(() => navItems.filter((item) => item.id !== "setup"), [navItems])
+  const [orderedNavItems, setOrderedNavItems] = useState(reorderableNavItems)
+  const orderedNavItemsRef = useRef(reorderableNavItems)
+  const navDragIndexRef = useRef<number | null>(null)
+  const [draggingNavItemId, setDraggingNavItemId] = useState<string | null>(null)
 
   useEffect(() => {
     setDashboardNavOpen(dashboardActive)
   }, [dashboardActive])
+
+  useEffect(() => {
+    setOrderedNavItems(reorderableNavItems)
+    orderedNavItemsRef.current = reorderableNavItems
+  }, [reorderableNavItems])
 
   function handlePrimaryNavClick(item: { id: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
     if (item.id === "dashboard" && dashboardSubnavEnabled) {
@@ -670,6 +707,47 @@ function SidebarContent({
 
     setDashboardNavOpen(false)
     onCloseDrawer()
+  }
+
+  // Reuses the same native HTML5 DnD pattern as RecentChatsSidebar's chat
+  // reordering rather than adding a drag-and-drop dependency. Tradeoff: like
+  // that existing pattern, this is mouse/touch-driven only — there's no
+  // keyboard-accessible way to reorder items yet.
+  function startNavItemDrag(index: number, event: DragEvent<HTMLElement>) {
+    navDragIndexRef.current = index
+    setDraggingNavItemId(orderedNavItemsRef.current[index]?.id ?? null)
+    event.dataTransfer.effectAllowed = "move"
+  }
+
+  function dragOverNavItem(index: number, event: DragEvent<HTMLElement>) {
+    const sourceIndex = navDragIndexRef.current
+    if (sourceIndex == null) return
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+    if (sourceIndex === index) return
+
+    const next = [...orderedNavItemsRef.current]
+    const [moved] = next.splice(sourceIndex, 1)
+    next.splice(index, 0, moved)
+    orderedNavItemsRef.current = next
+    navDragIndexRef.current = index
+    setOrderedNavItems(next)
+  }
+
+  function dropNavItem(event: DragEvent<HTMLElement>) {
+    if (navDragIndexRef.current == null) return
+
+    event.preventDefault()
+    const reordered = orderedNavItemsRef.current
+    const changed = reordered.some((item, index) => reorderableNavItems[index]?.id !== item.id)
+    endNavItemDrag()
+    if (changed) onReorderNavItems(reordered.map((item) => item.id))
+  }
+
+  function endNavItemDrag() {
+    navDragIndexRef.current = null
+    setDraggingNavItemId(null)
   }
 
   return (
@@ -717,26 +795,38 @@ function SidebarContent({
         </div>
         <div className="px-3 pb-4">
           <nav aria-label={t("nav:primary_nav_aria")} className="flex flex-col gap-1 text-sm">
-            {navItems.map((item) => {
-              const link = (
-                <Link className={sidebarLinkClass(item.active)} key={item.id} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
-                  {item.icon}
-                  <span>{item.label}</span>
-                  {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
-                </Link>
-              )
-
-              if (item.id !== "dashboard") return link
-
-              return (
-                <div key={item.id}>
-                  {link}
-                  {dashboardSubnavEnabled ? (
-                    <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
-                  ) : null}
+            {setupItem ? (
+              <Link className={sidebarLinkClass(setupItem.active)} key={setupItem.id} onClick={(event) => handlePrimaryNavClick(setupItem, event)} to={setupItem.to}>
+                {setupItem.icon}
+                <span>{setupItem.label}</span>
+              </Link>
+            ) : null}
+            {orderedNavItems.map((item, index) => (
+              // The drag handle/grip wrapper stays scoped to just the link row (not
+              // SidebarDashboardNav below it) so an expanded Dashboard subnav doesn't
+              // grow the `relative` positioning context the grip icon centers within,
+              // and isn't itself part of the draggable surface.
+              <div key={item.id}>
+                <div
+                  className={`group relative -ml-4 cursor-grab rounded pl-4 active:cursor-grabbing ${draggingNavItemId === item.id ? "opacity-50" : ""}`}
+                  draggable
+                  onDragEnd={endNavItemDrag}
+                  onDragOver={(event) => dragOverNavItem(index, event)}
+                  onDragStart={(event) => startNavItemDrag(index, event)}
+                  onDrop={dropNavItem}
+                >
+                  <Link className={sidebarLinkClass(item.active)} onClick={(event) => handlePrimaryNavClick(item, event)} to={item.to}>
+                    {item.icon}
+                    <span>{item.label}</span>
+                    {item.badge ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-xs leading-none text-white">{item.badge}</span> : null}
+                  </Link>
+                  <GripIcon />
                 </div>
-              )
-            })}
+                {item.id === "dashboard" && dashboardSubnavEnabled ? (
+                  <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                ) : null}
+              </div>
+            ))}
           </nav>
         </div>
         <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />

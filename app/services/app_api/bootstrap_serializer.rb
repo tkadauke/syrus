@@ -54,7 +54,8 @@ module AppApi
         # the Gemini setup sheet instead of the recorder/upload.
         gemini_configured: user.gemini_configured?,
         notification_unread_count: user.notifications.unread.count,
-        seen_tours: user.seen_tours
+        seen_tours: user.seen_tours,
+        sidebar_nav_order: user.sidebar_nav_order
       }
     end
 

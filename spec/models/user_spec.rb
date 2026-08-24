@@ -966,4 +966,44 @@ RSpec.describe User do
       end
     end
   end
+
+  describe "sidebar nav order (ui_preferences)" do
+    let(:user) { User.create!(attrs) }
+
+    describe "#sidebar_nav_order" do
+      it "returns an empty array for a new user" do
+        expect(user.sidebar_nav_order).to eq([])
+      end
+
+      it "returns the stored nav item IDs" do
+        user.update!(ui_preferences: { "sidebar_nav_order" => [ "repositories", "dashboard" ] })
+        expect(user.sidebar_nav_order).to eq([ "repositories", "dashboard" ])
+      end
+    end
+
+    describe "#update_sidebar_nav_order!" do
+      it "persists the given order" do
+        user.update_sidebar_nav_order!(%w[ terminal dashboard repositories ])
+        expect(user.reload.sidebar_nav_order).to eq(%w[ terminal dashboard repositories ])
+      end
+
+      it "overwrites a previously saved order" do
+        user.update_sidebar_nav_order!(%w[ dashboard repositories ])
+        user.update_sidebar_nav_order!(%w[ repositories dashboard terminal ])
+        expect(user.reload.sidebar_nav_order).to eq(%w[ repositories dashboard terminal ])
+      end
+
+      it "stringifies and dedupes given IDs" do
+        user.update_sidebar_nav_order!([ :dashboard, "dashboard", "repositories" ])
+        expect(user.reload.sidebar_nav_order).to eq(%w[ dashboard repositories ])
+      end
+
+      it "leaves other ui_preferences keys untouched" do
+        user.mark_tour_seen("dashboard")
+        user.update_sidebar_nav_order!(%w[ repositories dashboard ])
+        expect(user.reload.seen_tours).to eq([ "dashboard" ])
+        expect(user.sidebar_nav_order).to eq(%w[ repositories dashboard ])
+      end
+    end
+  end
 end

@@ -1,7 +1,6 @@
 {
   "dashboard": "Dashboard",
   "setup": "Setup",
-  "spending": "Spending",
   "repositories": "Repositories",
   "schedules": "Schedules",
   "terminal": "Terminal",
@@ -264,5 +263,10 @@
   "plugin_repo_tabs": {
     "unavailable_heading": "Page unavailable",
     "unavailable_body": "This repository tab is not available. The plugin that provides it may be disabled or missing."
+  },
+  "sidebar_pages": {
+    "loading": "Loading...",
+    "unavailable_heading": "Page unavailable",
+    "unavailable_body": "This page is not available right now."
   }
 }

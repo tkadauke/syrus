@@ -90,6 +90,12 @@ PATH
       railties
 
 PATH
+  remote: plugins/spending_insights
+  specs:
+    spending_insights (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/syrus_dev
   specs:
     syrus_dev (0.1.0)
@@ -678,6 +684,7 @@ DEPENDENCIES
   solid_cable
   solid_cache
   solid_queue
+  spending_insights!
   sqlite3 (>= 2.1)
   syrus_dev!
   syrus_rails!
@@ -877,6 +884,7 @@ CHECKSUMS
   solid_cable (4.0.2) sha256=084636a67679ad00d23088b33c84047e614bcf41ee559db24b414d83cdc42d03
   solid_cache (1.0.10) sha256=bc05a2fb3ac78a6f43cbb5946679cf9db67dd30d22939ededc385cb93e120d41
   solid_queue (1.6.0) sha256=b5fc3bb34162e09d8f960df6400d0f9304dc80fe66c2cfface31c32b228de6a1
+  spending_insights (0.1.0)
   sqlite3 (2.9.6-aarch64-linux-gnu) sha256=d8b1f7d23efd7abac285775a9566562fc7debfef79d594e3a20354406fb7907c
   sqlite3 (2.9.6-aarch64-linux-musl) sha256=3579e1c98cdc7ff5c3722847bb63ed4e1efb7ff675cb5e1e48ef2d4da5fb3bc9
   sqlite3 (2.9.6-arm-linux-gnu) sha256=33541500e3615da02afe54a9cc38b17a6985d3cf9d8b76d6d0a83002f114e7ec

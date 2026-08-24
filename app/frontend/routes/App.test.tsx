@@ -976,6 +976,9 @@ describe("App", () => {
       if (path === "/api/v1/app/chats/8") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload({ messages: [] })), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (path === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(new Response(JSON.stringify(sidebarPluginPagesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -992,7 +995,7 @@ describe("App", () => {
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       expectSyrusBrandLink("/app-shell")
       expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
-      expect(within(primaryNav).getByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
+      expect(await within(primaryNav).findByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
       expect(within(primaryNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/profiles")
@@ -1100,6 +1103,9 @@ describe("App", () => {
       if (String(input) === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
+      if (String(input) === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(new Response(JSON.stringify(sidebarPluginPagesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -1116,7 +1122,7 @@ describe("App", () => {
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       expect(within(primaryNav).getByRole("link", { name: "Setup" })).toHaveAttribute("href", "/app-shell/onboarding")
       expect(within(primaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
-      expect(within(primaryNav).getByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
+      expect(await within(primaryNav).findByRole("link", { name: "Spending" })).toHaveAttribute("href", "/app-shell/insights/spending")
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
     } finally {
@@ -2920,7 +2926,12 @@ describe("App", () => {
   })
 
   it("renders the spending insights route from the app API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(new Response(JSON.stringify(sidebarPluginPagesPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(
       new Response(
         JSON.stringify({
           scope: { admin: true, user_id: 1, label: "All users" },
@@ -2966,7 +2977,8 @@ describe("App", () => {
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       )
-    )
+      )
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -4777,8 +4789,9 @@ describe("App", () => {
       expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveClass("bg-blue-50", "text-blue-700", "ring-blue-600", "dark:bg-blue-950", "dark:text-blue-200")
       expect(within(dashboardSections).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows")
       expect(primaryNav).toContainElement(foldersPanel)
-      expect(dashboardLink.parentElement).toContainElement(dashboardSections)
-      expect(dashboardLink.parentElement).toContainElement(foldersPanel)
+      const dashboardNavItem = dashboardLink.closest("[draggable]")!.parentElement
+      expect(dashboardNavItem).toContainElement(dashboardSections)
+      expect(dashboardNavItem).toContainElement(foldersPanel)
       expect(within(foldersPanel).getByRole("link", { name: "All jobs 1982" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=5")
       expect(within(foldersPanel).getByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=1")
       const moreGroup = within(foldersPanel).getByText("More").closest("details")
@@ -14853,6 +14866,23 @@ function incompleteOnboardingBootstrap() {
       onboarding_chat_started: false
     })
   })
+}
+
+function sidebarPluginPagesPayload() {
+  return {
+    pages: [
+      {
+        id: "spending.dashboard",
+        label: "Spending",
+        label_key: "spending:nav_spending",
+        path: "/insights/spending",
+        paths: [ "/insights/spending" ],
+        component: "spending_insights/SpendingInsights",
+        icon: "spending",
+        order: 60
+      }
+    ]
+  }
 }
 
 function bootstrapPayload(overrides: Record<string, unknown> & { setupStatus?: ReturnType<typeof bootstrapSetupStatusPayload> | null } = {}) {
