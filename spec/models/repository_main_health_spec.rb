@@ -167,6 +167,25 @@ RSpec.describe Repository, "#main_health" do
       expect(fork.main_branch_health_enabled).to eq(true)
       expect(fork.main_branch_repair_enabled).to eq(true)
     end
+
+    it "keeps health monitoring enabled when auto-repair is enabled" do
+      repo = Factories.repository(main_branch_health_enabled: false, main_branch_repair_enabled: false)
+
+      repo.update!(main_branch_repair_enabled: true)
+
+      expect(repo.main_branch_health_enabled).to eq(true)
+      expect(repo.main_branch_repair_enabled).to eq(true)
+    end
+
+    it "clears broken-main pausing when health monitoring is disabled" do
+      repo = Factories.repository(main_branch_health_enabled: true, main_branch_repair_blocks_work: true)
+
+      repo.update!(main_branch_health_enabled: false, main_branch_repair_enabled: false)
+
+      expect(repo.main_branch_health_enabled).to eq(false)
+      expect(repo.main_branch_repair_enabled).to eq(false)
+      expect(repo.main_branch_repair_blocks_work).to eq(false)
+    end
   end
 
   describe "main health poll error streak" do

@@ -95,6 +95,7 @@ class Repository < ApplicationRecord
 
   before_validation :normalize_agent_provider
   before_validation :normalize_upstream_metadata
+  before_validation :normalize_main_branch_health_settings
   before_validation :default_main_branch_repair_for_fork, on: :create
   before_save :link_installation_from_owner
   before_save :clear_landing_pause_when_main_branch_health_disabled
@@ -156,6 +157,17 @@ class Repository < ApplicationRecord
 
   def clear_landing_pause_when_main_branch_health_disabled
     self.landing_paused = false unless main_branch_health_enabled?
+  end
+
+  def normalize_main_branch_health_settings
+    if (main_branch_repair_enabled? && will_save_change_to_main_branch_repair_enabled?) ||
+       (main_branch_repair_blocks_work? && will_save_change_to_main_branch_repair_blocks_work?)
+      self.main_branch_health_enabled = true
+    else
+      self.main_branch_repair_enabled = false unless main_branch_health_enabled?
+      self.main_branch_repair_blocks_work = false unless main_branch_health_enabled?
+      self.landing_paused = false unless main_branch_health_enabled?
+    end
   end
 
   # Read-through delegators to the InputSources::Github record.

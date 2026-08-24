@@ -125,6 +125,40 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(pause).not.toBeChecked()
   })
 
+  it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
+    mockFetch({
+      main_branch_health_enabled: false,
+      main_branch_repair_enabled: false,
+      main_branch_repair_blocks_work: false
+    })
+    renderRoute()
+
+    const monitor = await screen.findByLabelText("Monitor main branch health")
+    fireEvent.click(screen.getByLabelText("Automatically create a fix job when main breaks"))
+
+    expect(monitor).toBeChecked()
+
+    fireEvent.click(monitor)
+    expect(monitor).not.toBeChecked()
+
+    fireEvent.click(screen.getByLabelText("Pause work when main is broken and prioritize fix jobs"))
+    expect(monitor).toBeChecked()
+  })
+
+  it("clears repair and pause settings when monitoring is disabled", async () => {
+    mockFetch({
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
+      main_branch_repair_blocks_work: true
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByLabelText("Monitor main branch health"))
+
+    expect(screen.getByLabelText("Automatically create a fix job when main breaks")).not.toBeChecked()
+    expect(screen.getByLabelText("Pause work when main is broken and prioritize fix jobs")).not.toBeChecked()
+  })
+
   it("saves core repository settings even when a plugin's required fields are empty", async () => {
     const fetchSpy = mockFetch()
     renderRoute()

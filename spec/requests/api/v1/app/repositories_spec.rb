@@ -369,7 +369,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "auto_merge_enabled" => true,
       "main_branch_health_enabled" => false,
       "main_branch_repair_enabled" => false,
-      "main_branch_repair_blocks_work" => true,
+      "main_branch_repair_blocks_work" => false,
       "main_branch_repair_auto_approve" => true,
       "treat_grader_timeouts_as_failures" => true,
       "external_pr_ingestion_enabled" => false,
@@ -741,7 +741,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "main_health" => "unknown",
       "landing_paused" => false,
       "main_branch_health_enabled" => false,
-      "main_branch_repair_enabled" => true,
+      "main_branch_repair_enabled" => false,
       "main_branch_repair_auto_approve" => true,
       "ci_signal_current" => false,
       "grader_signal_current" => false,
@@ -750,7 +750,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "current_grader_failed_names" => []
     )
     expect(health.fetch("main_branch_repair")).to include(
-      "enabled" => true,
+      "enabled" => false,
       "can_request" => false,
       "can_spawn" => false
     )
