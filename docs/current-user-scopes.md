@@ -30,6 +30,7 @@ per-user/private:
   - app/controllers/concerns/chat_session_lifecycle.rb
   - app/controllers/concerns/chat_search.rb
   - app/controllers/concerns/performance_logging_context.rb
+  - app/controllers/concerns/repository_tabs_serialization.rb
   - app/controllers/api/v1/app/credentials_controller.rb
   - app/controllers/api/v1/app/credentials/documents_controller.rb
   - app/controllers/api/v1/app/cron_templates_controller.rb
@@ -64,6 +65,7 @@ per-user/private:
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
   - app/controllers/api/v1/app/repository_flaky_tests_controller.rb
+  - app/controllers/api/v1/app/repository_plugin_tabs_controller.rb
   - app/controllers/api/v1/app/repository_tests_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - app/controllers/api/v1/app/search_controller.rb
@@ -147,6 +149,7 @@ instead of broader model scopes.
 | `app/controllers/concerns/chat_provider_options.rb` | per-user/private | Chat-provider picker helpers (extracted from `ChatsController`) build options from `Current.user`'s configured agent providers. |
 | `app/controllers/concerns/chat_search.rb` | per-user/private | Chat-search helpers (extracted from `ChatsController`) search and filter `Current.user`'s chats and serialize the results. |
 | `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
+| `app/controllers/concerns/repository_tabs_serialization.rb` | per-user/private | Plugin-contributed repo-page tab descriptors are computed per repository and the current user, so each viewer only sees the tabs their access permits. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
 | `app/controllers/api/v1/app/admin/settings_controller.rb` | admin-only | App-wide settings are admin-only; `Current.user` stamps the actor for workflow-admission-control audit metadata and `AdminAction` rows. |
 | `app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
@@ -179,6 +182,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
 | `app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
+| `app/controllers/api/v1/app/repository_plugin_tabs_controller.rb` | per-user/private | Plugin-contributed repo-page tab descriptors are scoped to a repository the current user can access and computed for that user. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
