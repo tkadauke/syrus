@@ -238,6 +238,14 @@ review flow for job-centric work; the preview and approve buttons only
 appear when a preview is actually configured for the repository and the
 current user is eligible to approve.
 
+If a standalone Job isn't quite right, its Job Detail page offers a
+**Request changes** action — available once the Job has been implemented
+(implemented, approved, or landing) or has already landed. Unlike the legacy
+Epic review flow, this does not amend the original Job or append onto an
+Epic chain: it opens a brand-new Job carrying your feedback, linked back to
+the original as a dependency, that lands independently once it's approved.
+The original Job (and its PR) are untouched.
+
 Epics created before Syrus switched simple mode to this job-centric dashboard
 are not migrated or deleted — they get a separate "Epics" nav entry instead,
 which stays visible only for as long as the operator has at least one such

@@ -2495,4 +2495,53 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
   end
+
+  describe "#actions_json can_request_changes" do
+    around do |example|
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "simple", mode_configured_at: Time.current)
+      example.run
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+    end
+
+    it "is true for an implemented job" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(true)
+    end
+
+    it "is true for an approved-but-not-yet-landed job" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved", approved_at: Time.current)
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(true)
+    end
+
+    it "is true for an already-closed/merged job" do
+      job = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(true)
+    end
+
+    it "is false for a job still running" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(false)
+    end
+
+    it "is false for a legacy simple-mode Epic child job" do
+      epic = Factories.epic(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, state: "implemented", epic: epic)
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(false)
+    end
+
+    it "is false outside simple mode even for an implemented standalone job" do
+      AppSetting.current.update!(mode: "advanced")
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_request_changes)).to be(false)
+    end
+  end
 end

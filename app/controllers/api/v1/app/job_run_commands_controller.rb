@@ -217,6 +217,21 @@ module Api
           render_job(job.reload, message: "Discarded this workflow's stale branch output.", changed: [ "workflows", "state" ], workflow: workflow.reload, tab: "workflows")
         end
 
+        def request_changes
+          job = find_job
+          result = JobReviewFeedbackSubmission.call(source_job: job, feedback: params[:feedback], actor: Current.user)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render_job(
+            job.reload,
+            message: "Created a new Job to track this feedback.",
+            changed: [ "dependents" ]
+          )
+        end
+
         def diagnose
           job = find_job
           run = job.runs.find_by(id: params[:run_id])
