@@ -39,6 +39,7 @@ Rails.application.routes.draw do
         post "performance_events", to: "performance_events#create"
         post "report_issue", to: "report_issue#create"
         get "sidebar_pages", to: "sidebar_pages#index"
+        patch "sidebar_nav_order", to: "sidebar_nav_order#update"
         get "search", to: "search#index"
         post "filters/usage", to: "filters#usage"
         resources :tags, only: %i[ index create update destroy ]

@@ -519,6 +519,17 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(parse_body.dig("navigation", "default_chat_path")).not_to eq(chat_path(old_chat))
   end
 
+  it "includes the saved sidebar nav order in current_user payload" do
+    user = Factories.user
+    user.update_sidebar_nav_order!(%w[ repositories dashboard ])
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("current_user", "sidebar_nav_order")).to eq(%w[ repositories dashboard ])
+  end
+
   it "includes locale in current_user payload" do
     user = Factories.user(locale: "de")
     sign_in_as(user)

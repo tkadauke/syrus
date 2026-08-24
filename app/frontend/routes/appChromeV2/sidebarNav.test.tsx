@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { SidebarPluginPage } from "../../api/sidebarPages"
-import { CORE_NAV_ITEMS, buildSidebarNavItems, sidebarNavItemActive } from "./sidebarNav"
+import { CORE_NAV_ITEMS, applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./sidebarNav"
 
 const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
 
@@ -92,6 +92,53 @@ describe("buildSidebarNavItems", () => {
     const items = buildSidebarNavItems(baseContext, pluginPages, translate)
 
     expect(items.find((item) => item.id === "extra.page")?.label).toBe("Extra")
+  })
+})
+
+describe("applySidebarNavOrder", () => {
+  const items = [
+    { id: "dashboard" },
+    { id: "repositories" },
+    { id: "schedules" },
+    { id: "terminal" },
+    { id: "team" }
+  ]
+
+  it("returns items unchanged when no order is saved", () => {
+    expect(applySidebarNavOrder(items, []).map((item) => item.id)).toEqual([
+      "dashboard", "repositories", "schedules", "terminal", "team"
+    ])
+  })
+
+  it("reorders items to match the saved order", () => {
+    const order = ["team", "dashboard", "repositories", "schedules", "terminal"]
+
+    expect(applySidebarNavOrder(items, order).map((item) => item.id)).toEqual(order)
+  })
+
+  it("appends items missing from the saved order at the end, preserving their relative order", () => {
+    const order = ["terminal", "dashboard"]
+
+    expect(applySidebarNavOrder(items, order).map((item) => item.id)).toEqual([
+      "terminal", "dashboard", "repositories", "schedules", "team"
+    ])
+  })
+
+  it("ignores saved order entries whose item is no longer present", () => {
+    const order = ["spending.dashboard", "team", "dashboard"]
+
+    expect(applySidebarNavOrder(items, order).map((item) => item.id)).toEqual([
+      "team", "dashboard", "repositories", "schedules", "terminal"
+    ])
+  })
+
+  it("appends a newly enabled plugin item at the end, not in the saved order", () => {
+    const withPlugin = [...items, { id: "spending.dashboard" }]
+    const order = ["team", "dashboard", "repositories", "schedules", "terminal"]
+
+    expect(applySidebarNavOrder(withPlugin, order).map((item) => item.id)).toEqual([
+      "team", "dashboard", "repositories", "schedules", "terminal", "spending.dashboard"
+    ])
   })
 })
 

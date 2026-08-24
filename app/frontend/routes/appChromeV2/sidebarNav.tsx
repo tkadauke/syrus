@@ -81,6 +81,30 @@ export function buildSidebarNavItems(
   return [...coreItems, ...pluginItems]
 }
 
+// Reorders merged nav items to match the operator's saved order (a list of
+// item IDs from User#sidebar_nav_order). Items not present in `order` —
+// a newly enabled plugin, or a feature-flag-gated item that just became
+// visible — are appended at the end, preserving their original relative
+// order, instead of being dropped or randomly placed.
+export function applySidebarNavOrder<T extends { id: string }>(items: T[], order: string[]): T[] {
+  const remaining = new Map(items.map((item) => [ item.id, item ]))
+  const ordered: T[] = []
+
+  for (const id of order) {
+    const item = remaining.get(id)
+    if (!item) continue
+
+    ordered.push(item)
+    remaining.delete(id)
+  }
+
+  for (const item of items) {
+    if (remaining.has(item.id)) ordered.push(item)
+  }
+
+  return ordered
+}
+
 export function sidebarNavItemActive(item: { id: string; to: string }, normalizedPath: string): boolean {
   if (item.id === "dashboard") return normalizedPath === "/" || normalizedPath.startsWith("/dashboard")
   return normalizedPath.startsWith(item.to)
