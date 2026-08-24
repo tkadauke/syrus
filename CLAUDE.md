@@ -44,6 +44,25 @@ carries per-attempt state — prompt, agent metadata, diff, PR copy.
 task — prompt supplied directly at job creation). All three kinds use the
 same Workflow pipeline.
 
+**WorkUnit / WorkIntent / WorkDefinition** (`app/models/work_unit.rb`,
+`app/models/work_intent.rb`, `app/services/work_definitions/`) is a newer
+ownership/scheduling layer being rolled out alongside the AASM machines
+above, not a replacement for them: `WorkUnits::Launcher.start!` still always
+falls through to `StepDispatcher.start_workflow`, which remains the actual
+execution engine. `WorkIntent` is the durable "we want this work done"
+record; `WorkUnit` is one runtime attempt at it, holding `WorkUnitLock`s
+(mutex per job/epic/repo/landing-slot) and `WorkUnitMember`s. `WorkDefinitions::Base`
+subclasses (~28 built-ins — `Initial`, `Rebase`, `AutoMerge`, `MergeTrain`,
+`JobBundle`, etc., auto-registered by kind) centralize the retry/lock/landing
+policy that used to be scattered across `StepDispatcher` and landing-queue
+services. It's gated behind three independent `Feature` flags
+(`work_units_scheduler`, `work_units_landing`, `work_units_reconciler`, all
+off by default) via `WorkUnits::PathOwnership`, which maps each concrete path
+(retry/resume/pause, auto_merge/merge_train/stack_rebase,
+reconciler repairs) to `:work_unit` or `:legacy` ownership. `WorkEngine::Reconciler`
+increasingly targets repairs at `WorkUnit`/`WorkIntent` records. Admin surface:
+`/admin/work_units`, gated further by `AppSetting.show_work_unit_debug?`.
+
 ### Trigger kinds
 
 `Workflow#trigger_kind` distinguishes what an attempt is *for*:
@@ -377,7 +396,13 @@ queued/running, and `ApprovalPropagator#dismiss` looks up and dismisses the
 PR's current `APPROVED` review even when Syrus never captured a
 `github_review_id` locally (e.g. the approval came from a raw GitHub review).
 The same poller skips dispatching a `ci_failure` workflow while `job.landing?`
-is true, so CI repair never fights an in-flight landing attempt.
+is true, so CI repair never fights an in-flight landing attempt. It also gates
+CI repair on a clean base: if the PR is behind its base branch, it dispatches
+a rebase first instead of repairing against a stale diff; if the base SHA's
+health isn't already known-healthy, it defers repair and triggers a main
+branch health check instead of possibly repairing against a broken base; and
+it suppresses a second `ci_failure` workflow when another one is already
+handling the same base SHA for the repository (`PollPullRequestJob#ci_repair_base_not_ready?`).
 
 **Main-branch health & repair** — Syrus grades the default branch itself, not
 just PR branches. An internal `main_grader` Job/Workflow (`Job#kind ==
