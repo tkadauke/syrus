@@ -8,6 +8,13 @@ module AgentProviders
 
     def self.provider = "codex"
 
+    def self.refresh_stale_usage!(user:, now: Time.current)
+      return unless user.codex_auth_mode == "chatgpt_login"
+      return unless CodexUsageProbe.stale?(user, now: now)
+
+      CodexUsageProbe.refresh_for(user: user)
+    end
+
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
       codex_home = File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
       codex_auth = CodexAuth.new(user: user, codex_home: codex_home)
