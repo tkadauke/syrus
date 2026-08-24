@@ -343,6 +343,17 @@ module Steps
         .any? { |chunk| chunk.to_s.match?(/no stored rollout JSONL|no rollout found|thread\/resume failed|No conversation found/i) }
     end
 
+    # Most recent successful Run among this Workflow's Steps of the given
+    # kind(s), in Step order — used by downstream metadata-only steps
+    # (summarize, summarize_amend, test_plan, review_plan) to find the
+    # upstream agentic session/diff/head SHA they resume from or verify against.
+    def latest_succeeded_run_for(kinds)
+      workflow.steps.where(kind: kinds)
+        .order(:position)
+        .flat_map { |step| step.runs.select(&:succeeded?) }
+        .max_by(&:created_at)
+    end
+
     def append_grade_failure_feedback(prompt)
       iterations = Array((workflow.artifacts || {})["iterations"])
       return prompt if iterations.empty?
