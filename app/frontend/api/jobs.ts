@@ -1099,18 +1099,21 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; limit?:
   return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)
 }
 
-export function fetchJobPreview(path: string) {
+// Path-based — used for both job-scoped previews (JobDetail) and
+// repository-scoped "preview main" previews (RepositoryDetail); see
+// components/PreviewPanel.tsx.
+export function fetchPreview(path: string) {
   return getJson<PreviewStatusPayload>(path)
 }
 
-export function fetchJobPreviewLogs(path: string) {
+export function fetchPreviewLogs(path: string) {
   return getJson<PreviewLogsPayload>(path)
 }
 
-export function startJobPreview(path: string) {
+export function startPreview(path: string) {
   return postJson<PreviewActionPayload>(path)
 }
 
-export function stopJobPreview(path: string) {
+export function stopPreview(path: string) {
   return deleteJson<PreviewActionPayload>(path)
 }

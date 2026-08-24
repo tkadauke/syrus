@@ -191,7 +191,7 @@ class Job < ApplicationRecord
   }
 
   def previewable?
-    implemented? || approved? || landing?
+    implemented? || approved? || landing? || (closed? && landed_sha.present?)
   end
 
   def visual_review_runnable?

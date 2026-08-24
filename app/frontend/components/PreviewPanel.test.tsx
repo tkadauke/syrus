@@ -1,9 +1,9 @@
-import { jsonResponse } from "../../testSupport"
+import { jsonResponse } from "../testSupport"
 import { render, screen, waitFor, act, fireEvent, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PreviewPanel, PreviewStopModal } from "./PreviewPanel"
-import type { PreviewEnvironmentRecord } from "../../api/jobs"
+import type { PreviewEnvironmentRecord } from "../api/jobs"
 
 function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -24,7 +24,8 @@ function renderPanel(props: Partial<Parameters<typeof PreviewPanel>[0]> = {}) {
   render(
     <QueryClientProvider client={client()}>
       <PreviewPanel
-        jobId={42}
+        queryKeyPrefix="job"
+        entityId={42}
         previewPath="/api/v1/app/jobs/42/preview"
         previewLogsPath="/api/v1/app/jobs/42/preview/logs"
         canStart={true}
@@ -43,7 +44,8 @@ describe("PreviewPanel", () => {
     const { container } = render(
       <QueryClientProvider client={client()}>
         <PreviewPanel
-          jobId={42}
+          queryKeyPrefix="job"
+          entityId={42}
           previewPath="/api/v1/app/jobs/42/preview"
           previewLogsPath="/api/v1/app/jobs/42/preview/logs"
           canStart={false}
@@ -259,6 +261,27 @@ describe("PreviewPanel", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument()
     })
+  })
+
+  it("keeps job and repository preview caches independent via queryKeyPrefix", async () => {
+    const queryClient = client()
+    const runningPreview = preview({ state: "running" })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PreviewPanel
+          queryKeyPrefix="repository"
+          entityId={7}
+          previewPath="/api/v1/app/repositories/7/preview"
+          previewLogsPath="/api/v1/app/repositories/7/preview/logs"
+          canStart={true}
+          initialPreview={runningPreview}
+          queryKey={["repositories", "7", "detail", ""] as const}
+        />
+      </QueryClientProvider>
+    )
+
+    expect(queryClient.getQueryData(["repository-preview", 7])).toEqual({ preview: runningPreview })
+    expect(queryClient.getQueryData(["job-preview", 7])).toBeUndefined()
   })
 })
 

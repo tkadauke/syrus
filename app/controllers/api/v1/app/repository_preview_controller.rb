@@ -1,20 +1,24 @@
 module Api
   module V1
     module App
-      class JobPreviewController < BaseController
+      # Job-less, repository-scoped preview of the current default branch —
+      # same PreviewEnvironment/PreviewWorkspace/PreviewProxyMiddleware
+      # machinery as JobPreviewController, keyed by repository_id instead of
+      # job_id (PreviewEnvironment#job_id is nil for these rows).
+      class RepositoryPreviewController < BaseController
         PREVIEW_BASE_DOMAIN = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
 
         def show
-          job = find_job
-          env = job.preview_environments.order(created_at: :desc).first
+          repository = find_repository
+          env = repository.preview_environments.order(created_at: :desc).first
           render json: { preview: env ? preview_json(env) : nil }
         end
 
         def logs
-          job = find_job
-          env = job.preview_environments.order(created_at: :desc).first
+          repository = find_repository
+          env = repository.preview_environments.order(created_at: :desc).first
           unless env
-            render_error("not_found", "No preview environment found for this job.", status: :not_found)
+            render_error("not_found", "No preview environment found for this repository.", status: :not_found)
             return
           end
 
@@ -32,24 +36,24 @@ module Api
         end
 
         def create
-          job = find_job
-          unless job.previewable?
-            render_error("validation_failed", "Preview is only available for implemented, approved, or landing jobs, or landed jobs.", status: :unprocessable_content)
+          repository = find_repository
+          if repository.archived?
+            render_error("validation_failed", "Preview is not available for archived repositories.", status: :unprocessable_content)
             return
           end
-          if job.preview_environments.active.exists?
-            render_error("conflict", "A preview environment is already active for this job.", status: :conflict)
+          if repository.preview_environments.active.exists?
+            render_error("conflict", "A preview environment is already active for this repository.", status: :conflict)
             return
           end
-          env = job.preview_environments.create!(state: "starting")
+          env = repository.preview_environments.create!(state: "starting")
           render json: { preview: preview_json(env), message: "Preview environment starting." }, status: :created
         end
 
         def destroy
-          job = find_job
-          env = job.preview_environments.active.first
+          repository = find_repository
+          env = repository.preview_environments.active.first
           unless env
-            render_error("not_found", "No active preview environment found for this job.", status: :not_found)
+            render_error("not_found", "No active preview environment found for this repository.", status: :not_found)
             return
           end
           env.begin_stopping! if env.may_begin_stopping?
@@ -59,8 +63,8 @@ module Api
 
         private
 
-        def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository, :preview_environments), params[:job_id])
+        def find_repository
+          Current.user.repositories.find(params[:repository_id])
         end
 
         def preview_json(env)
