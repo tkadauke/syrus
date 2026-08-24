@@ -5,51 +5,67 @@ module Mcp::Tools
     tool_name "ask_user_question"
 
     description <<~DESC
-      Ask the operator a structured question in the current chat and park the
-      conversation until they answer. Use options for a short multiple-choice
-      question; omit options when a free-form answer is needed.
+      Ask the operator up to 4 related structured questions in one call and
+      park the conversation until they answer all of them. Each question is
+      independently single-select (options, pick one), multi-select (options,
+      multiple: true, pick any number), or free-text (omit options). Prefer
+      batching related questions into one call over chaining several
+      ask_user_question calls.
 
       After calling this tool, you MUST immediately end your turn — do not call
-      any other tools or produce any further text. The operator's answer will
+      any other tools or produce any further text. The operator's answers will
       start a new conversation turn, at which point you should continue the task
-      using that answer.
+      using those answers.
     DESC
 
     input_schema(
       properties: {
-        question: {
-          type: "string",
-          description: "Question text to show to the operator, rendered as Markdown. For multi-line " \
-            "questions, write an actual line break in the string — not the literal two-character " \
-            "sequence backslash-n."
-        },
-        options: {
+        questions: {
           type: "array",
-          items: { type: "string" },
-          description: "Optional multiple-choice answers shown as buttons."
+          minItems: 1,
+          maxItems: 4,
+          items: {
+            type: "object",
+            properties: {
+              question: {
+                type: "string",
+                description: "Question text to show to the operator, rendered as Markdown. For multi-line " \
+                  "questions, write an actual line break in the string — not the literal two-character " \
+                  "sequence backslash-n."
+              },
+              options: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional multiple-choice answers shown as buttons or checkboxes."
+              },
+              multiple: {
+                type: "boolean",
+                description: "When true, the operator may select any number of options (checkboxes). Requires options."
+              }
+            },
+            required: %w[question]
+          },
+          description: "1 to 4 related questions, answered atomically as one set."
         }
       },
-      required: %w[question]
+      required: %w[questions]
     )
 
     class << self
-      def call(question:, server_context:, options: nil)
+      def call(questions:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        question_text = normalize_line_breaks(question.to_s).strip
-        return Mcp::Tools.invalid("question is required") if question_text.blank?
 
-        normalized_options = normalize_options(options)
-        return Mcp::Tools.invalid("options must be an array of non-empty strings") if normalized_options == false
+        normalized_questions = normalize_questions(questions)
+        return normalized_questions if normalized_questions.is_a?(MCP::Tool::Response)
 
         record = chat_session.agent_questions.create!(
-          question: question_text,
-          options: normalized_options,
+          questions: normalized_questions,
           asked_at: Time.current
         )
 
         Mcp::Tools.success(
           question_id: record.id,
-          message: "Question recorded. You MUST end your turn now — do not call any more tools or produce any further output. The operator's answer will arrive as the next message in a new conversation turn."
+          message: "Question(s) recorded. You MUST end your turn now — do not call any more tools or produce any further output. The operator's answer(s) will arrive as the next message in a new conversation turn."
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
@@ -64,6 +80,36 @@ module Mcp::Tools
       # the chat UI instead of producing a line break.
       def normalize_line_breaks(text)
         text.gsub('\n', "\n")
+      end
+
+      # Returns the normalized questions array, or an Mcp::Tools.invalid
+      # MCP::Tool::Response when validation fails.
+      def normalize_questions(questions)
+        return Mcp::Tools.invalid("questions must be an array of 1 to 4 questions") unless questions.is_a?(Array)
+        return Mcp::Tools.invalid("questions must be an array of 1 to 4 questions") if questions.empty? || questions.length > 4
+
+        questions.map do |sub_question|
+          normalized = normalize_question(sub_question)
+          return normalized if normalized.is_a?(MCP::Tool::Response)
+
+          normalized
+        end
+      end
+
+      def normalize_question(sub_question)
+        return Mcp::Tools.invalid("each question must be an object with a question field") unless sub_question.is_a?(Hash)
+
+        sub_question = sub_question.transform_keys(&:to_s)
+        question_text = normalize_line_breaks(sub_question["question"].to_s).strip
+        return Mcp::Tools.invalid("question is required") if question_text.blank?
+
+        normalized_options = normalize_options(sub_question["options"])
+        return Mcp::Tools.invalid("options must be an array of non-empty strings") if normalized_options == false
+
+        multiple = sub_question["multiple"] ? true : false
+        return Mcp::Tools.invalid("multiple-select questions require non-empty options") if multiple && normalized_options.blank?
+
+        { "question" => question_text, "options" => normalized_options, "multiple" => multiple }
       end
 
       def normalize_options(options)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_162000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_231619) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -219,14 +219,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_162000) do
   end
 
   create_table "chat_agent_questions", force: :cascade do |t|
-    t.text "answer"
     t.datetime "answered_at"
+    t.json "answers"
     t.datetime "asked_at", null: false
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "expired_at"
-    t.json "options"
-    t.text "question", null: false
+    t.json "questions"
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "answered_at", "expired_at"], name: "idx_chat_agent_questions_active"
     t.index ["chat_session_id"], name: "index_chat_agent_questions_on_chat_session_id"
