@@ -1,3 +1,21 @@
 {
-  "nav_git_history": "Git History"
+  "nav_git_history": "Git History",
+  "eyebrow": "Repository",
+  "title": "Git History",
+  "aria_label": "Git history",
+  "unavailable": "Git history isn't available yet — the repository hasn't been cloned locally.",
+  "empty": "No commits found.",
+  "unable_to_load": "Unable to load git history.",
+  "load_more": "Load more",
+  "loading_more": "Loading…",
+  "classification_syrus_landed": "Syrus",
+  "classification_external_pr": "External PR",
+  "classification_external_push": "External push",
+  "job_link": "JOB-{{id}}",
+  "epic_link": "EPIC-{{id}}",
+  "chat_link": "View chat",
+  "cron_label": "Scheduled: {{name}}",
+  "issue_number": "#{{number}}",
+  "pr_number": "PR #{{number}}",
+  "by_user": "by {{name}}"
 }

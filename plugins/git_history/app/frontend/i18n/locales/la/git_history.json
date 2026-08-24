@@ -1,3 +1,21 @@
 {
-  "nav_git_history": "Historia Git"
+  "nav_git_history": "Historia Git",
+  "eyebrow": "Repositorium",
+  "title": "Historia Git",
+  "aria_label": "Historia Git",
+  "unavailable": "Historia Git nondum praesto est — repositorium nondum localiter clonatum est.",
+  "empty": "Nulla commissa inventa sunt.",
+  "unable_to_load": "Historia Git onerari non potuit.",
+  "load_more": "Plura onera",
+  "loading_more": "Oneratur…",
+  "classification_syrus_landed": "Syrus",
+  "classification_external_pr": "PR externus",
+  "classification_external_push": "Impulsus externus",
+  "job_link": "JOB-{{id}}",
+  "epic_link": "EPIC-{{id}}",
+  "chat_link": "Colloquium vide",
+  "cron_label": "Constitutum: {{name}}",
+  "issue_number": "#{{number}}",
+  "pr_number": "PR #{{number}}",
+  "by_user": "ab {{name}}"
 }

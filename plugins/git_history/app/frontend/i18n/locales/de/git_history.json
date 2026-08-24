@@ -1,3 +1,21 @@
 {
-  "nav_git_history": "Git-Verlauf"
+  "nav_git_history": "Git-Verlauf",
+  "eyebrow": "Repository",
+  "title": "Git-Verlauf",
+  "aria_label": "Git-Verlauf",
+  "unavailable": "Der Git-Verlauf ist noch nicht verfügbar — das Repository wurde noch nicht lokal geklont.",
+  "empty": "Keine Commits gefunden.",
+  "unable_to_load": "Git-Verlauf konnte nicht geladen werden.",
+  "load_more": "Mehr laden",
+  "loading_more": "Lädt…",
+  "classification_syrus_landed": "Syrus",
+  "classification_external_pr": "Externer PR",
+  "classification_external_push": "Externer Push",
+  "job_link": "JOB-{{id}}",
+  "epic_link": "EPIC-{{id}}",
+  "chat_link": "Chat ansehen",
+  "cron_label": "Geplant: {{name}}",
+  "issue_number": "#{{number}}",
+  "pr_number": "PR #{{number}}",
+  "by_user": "von {{name}}"
 }
