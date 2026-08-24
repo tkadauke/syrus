@@ -7,6 +7,12 @@ class AutoRetryJob < ApplicationJob
     attempt = AutoRetryAttempt.includes(:job, :workflow, run: :provider_session).find(auto_retry_attempt_id)
     return if attempt.performed_at.present? || attempt.skipped_reason.present?
 
+    if (reason = attempt.stale_pending_reason)
+      attempt.skip_stale_pending!(reason)
+      log(attempt, "auto-retry skipped: #{reason}")
+      return
+    end
+
     if stale_attempt?(attempt)
       attempt.update!(skipped_reason: "source workflow was already superseded by a successful workflow")
       WorkUnits::AutoRetryBackoff.clear!(attempt)

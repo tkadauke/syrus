@@ -126,6 +126,10 @@ default: &default
     class: WorkEngineReconcilerActivityPruneJob
     queue: cleanup
     schedule: every day at 3:12am
+  prune_auto_retry_attempts:
+    class: AutoRetryAttemptPruneJob
+    queue: cleanup
+    schedule: every 10 minutes
   prune_old_notifications:
     class: PruneOldNotificationsJob
     queue: cleanup

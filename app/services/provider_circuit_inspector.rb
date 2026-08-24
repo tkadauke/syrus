@@ -134,11 +134,13 @@ class ProviderCircuitInspector
   def delayed_auto_retries
     scope = AutoRetryAttempt
       .includes(:job)
+      .joins(:job)
       .where(agent_provider: provider, performed_at: nil, skipped_reason: nil)
+      .where.not(jobs: { state: Job::TERMINAL_STATES })
       .where("scheduled_at > ?", now)
       .order(:scheduled_at)
       .limit(50)
-    scope = scope.joins(:job).where(jobs: { user_id: user.id }) if user
+    scope = scope.where(jobs: { user_id: user.id }) if user
     scope.map do |attempt|
       {
         auto_retry_attempt_id: attempt.id,

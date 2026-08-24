@@ -26,7 +26,9 @@ class WorkflowAdmissionControlWakeup
   def wake_auto_retries
     AutoRetryAttempt
       .includes(:job)
+      .joins(:job)
       .where(performed_at: nil, skipped_reason: nil)
+      .where.not(jobs: { state: Job::TERMINAL_STATES })
       .where("scheduled_at > ?", Time.current)
       .find_each
       .map do |attempt|

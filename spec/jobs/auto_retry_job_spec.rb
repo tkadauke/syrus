@@ -176,6 +176,18 @@ RSpec.describe AutoRetryJob do
     expect(RetryWorkflowEnqueuer).not_to have_received(:call)
   end
 
+  it "skips pending attempts for terminal jobs" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    job.update_columns(state: "closed", closure_reason: "pr_merged")
+    allow(RetryWorkflowEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("job is terminal")
+    expect(attempt.performed_at).to be_nil
+    expect(RetryWorkflowEnqueuer).not_to have_received(:call)
+  end
+
   it "skips stale provider-delay attempts when fresh classification no longer matches" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     run.update_columns(agent_outcome: nil)

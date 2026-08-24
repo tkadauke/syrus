@@ -98,4 +98,39 @@ RSpec.describe AutoRetryAttempt, type: :model do
       expect(scope).to be_empty
     end
   end
+
+  describe ".prune_stale_pending!" do
+    it "skips pending attempts for terminal jobs" do
+      attempt = described_class.create!(valid_attrs)
+      job.update_columns(state: "closed", closure_reason: "pr_merged")
+
+      expect {
+        expect(described_class.prune_stale_pending!).to eq(1)
+      }.to change { attempt.reload.skipped_reason }.from(nil).to("job is terminal")
+    end
+
+    it "skips pending attempts superseded by a newer successful workflow" do
+      attempt = described_class.create!(valid_attrs)
+      workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "succeeded",
+        created_at: 5.minutes.ago,
+        started_at: 5.minutes.ago,
+        finished_at: 4.minutes.ago
+      )
+
+      expect {
+        expect(described_class.prune_stale_pending!).to eq(1)
+      }.to change { attempt.reload.skipped_reason }.from(nil).to("source workflow was already superseded by a successful workflow")
+    end
+
+    it "leaves still-actionable pending attempts alone" do
+      attempt = described_class.create!(valid_attrs)
+
+      expect(described_class.prune_stale_pending!).to eq(0)
+      expect(attempt.reload.skipped_reason).to be_nil
+    end
+  end
 end

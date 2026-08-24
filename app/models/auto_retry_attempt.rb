@@ -26,4 +26,48 @@ class AutoRetryAttempt < ApplicationRecord
 
   # Not yet performed and not skipped — a retry that is still going to happen.
   scope :pending, -> { where(performed_at: nil, skipped_reason: nil) }
+  scope :pending_in_schedule_order, -> { pending.order(:scheduled_at, :id) }
+
+  def self.prune_stale_pending!(limit: 1_000)
+    count = 0
+
+    pending_in_schedule_order
+      .includes(:job, :workflow)
+      .limit(limit)
+      .each do |attempt|
+        reason = attempt.stale_pending_reason
+        next unless reason
+
+        attempt.skip_stale_pending!(reason)
+        count += 1
+      end
+
+    count
+  end
+
+  def stale_pending_reason
+    return "job is terminal" if job&.state.in?(Job::TERMINAL_STATES)
+    return "source workflow was already superseded by a successful workflow" if superseded_by_successful_workflow?
+
+    nil
+  end
+
+  def skip_stale_pending!(reason)
+    update!(skipped_reason: reason)
+    WorkUnits::AutoRetryBackoff.clear!(self)
+  end
+
+  private
+
+  def superseded_by_successful_workflow?
+    return false unless job && workflow
+
+    cutoff = workflow.finished_at || workflow.created_at
+    return false unless cutoff
+
+    job.workflows
+       .where(state: "succeeded")
+       .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, workflow.id)
+       .exists?
+  end
 end

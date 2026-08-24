@@ -96,10 +96,12 @@ class ProviderAdmissionWakeup
   def attempts
     scope = AutoRetryAttempt
       .includes(:job)
+      .joins(:job)
       .where(agent_provider: provider, performed_at: nil, skipped_reason: nil)
+      .where.not(jobs: { state: Job::TERMINAL_STATES })
       .where("scheduled_at > ?", Time.current)
       .order(:scheduled_at, :id)
-    scope = scope.joins(:job).where(jobs: { user_id: user.id }) if user
+    scope = scope.where(jobs: { user_id: user.id }) if user
     scope.to_a
   end
 
