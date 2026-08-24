@@ -111,6 +111,20 @@ function renderRoute(initialEntry = "/repositories/1/edit") {
 describe("RepositoryForm plugin input-source decoupling", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("labels main branch health monitoring separately from broken-main pausing", async () => {
+    mockFetch({
+      main_branch_health_enabled: true,
+      main_branch_repair_blocks_work: false
+    })
+    renderRoute()
+
+    const monitor = await screen.findByLabelText("Monitor main branch health")
+    const pause = screen.getByLabelText("Pause work when main is broken and prioritize fix jobs")
+
+    expect(monitor).toBeChecked()
+    expect(pause).not.toBeChecked()
+  })
+
   it("saves core repository settings even when a plugin's required fields are empty", async () => {
     const fetchSpy = mockFetch()
     renderRoute()
