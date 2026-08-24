@@ -1,15 +1,30 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { fetchPreview, fetchPreviewLogs, startPreview, stopPreview, type PreviewEnvironmentRecord } from "../api/jobs"
+import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { CloseIcon } from "./CloseIcon"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 const ACTIVE_STATES = ["starting", "seeding", "running", "stopping"] as const
 const POLL_INTERVAL_MS = 3000
 
 function isActive(state: PreviewEnvironmentRecord["state"]) {
   return (ACTIVE_STATES as readonly string[]).includes(state)
+}
+
+// Task language for the coding agent, not UI copy — always English regardless
+// of the operator's locale, matching every other prompt-generation path.
+function buildPreviewFixPrompt(errorMessage: string) {
+  return `Syrus's preview feature diagnosed this repository's preview process as unreachable:
+
+"${errorMessage}"
+
+The app starts and passes its own local health check, but is not reachable from the network host Syrus's preview proxy uses to reach it. This almost always means the preview start command binds its server to 127.0.0.1/localhost only instead of all interfaces.
+
+Please fix this repository's preview start command (in .syrus.yml's \`preview.start\`, or the equivalent dev-server start script) so the app binds to 0.0.0.0 while still listening on the port Syrus provides. Common fixes: pass a \`-b 0.0.0.0\` / \`--host 0.0.0.0\` flag to the server command, or change a hardcoded 127.0.0.1/localhost bind host in code or config to 0.0.0.0. Verify the fix doesn't regress normal local usage.`
 }
 
 function useCountdown(expiresAt: string | null) {
@@ -45,6 +60,7 @@ function useCountdown(expiresAt: string | null) {
 export function PreviewPanel({
   queryKeyPrefix,
   entityId,
+  repositoryId,
   previewPath,
   previewLogsPath,
   canStart,
@@ -53,6 +69,7 @@ export function PreviewPanel({
 }: {
   queryKeyPrefix: string
   entityId: number
+  repositoryId: number
   previewPath: string
   previewLogsPath: string
   canStart: boolean
@@ -61,6 +78,8 @@ export function PreviewPanel({
 }) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const previewQueryKey = [`${queryKeyPrefix}-preview`, entityId] as const
 
@@ -97,6 +116,21 @@ export function PreviewPanel({
     onError: (err) => setError(errorMessage(err, t("preview_failed")))
   })
 
+  const fixPreview = useMutation({
+    mutationFn: () => createDirectJob({
+      repositoryId: String(repositoryId),
+      agentProvider: "",
+      title: t("preview_fix_job_title"),
+      prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
+      priority: "high",
+      createMore: false,
+      files: [],
+      googleDocUrl: ""
+    }),
+    onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, routePrefix(location.pathname))),
+    onError: (err) => setError(errorMessage(err, t("preview_fix_error")))
+  })
+
   const countdown = useCountdown(env?.state === "running" ? env.expires_at : null)
   const expired = env?.state === "running" && env.expires_at != null && new Date(env.expires_at) <= new Date()
 
@@ -127,6 +161,16 @@ export function PreviewPanel({
         ) : null}
         {env?.state === "failed" && env.error_message ? (
           <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
+        ) : null}
+        {env?.state === "failed" && env.error_reason === "not_reachable" ? (
+          <button
+            className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={fixPreview.isPending}
+            onClick={() => fixPreview.mutate()}
+            type="button"
+          >
+            {t("preview_fix_button")}
+          </button>
         ) : null}
       </div>
     </section>

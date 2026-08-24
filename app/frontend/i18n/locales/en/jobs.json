@@ -576,5 +576,8 @@
   "preview_logs_empty": "No preview logs found.",
   "preview_logs_missing": "missing",
   "preview_logs_empty_content": "(empty)",
-  "preview_logs_close": "Close"
+  "preview_logs_close": "Close",
+  "preview_fix_button": "Fix preview",
+  "preview_fix_job_title": "Fix preview: not reachable from the preview proxy",
+  "preview_fix_error": "Could not create a job to fix the preview."
 }

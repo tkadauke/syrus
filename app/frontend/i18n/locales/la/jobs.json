@@ -572,5 +572,8 @@
   "preview_logs_empty": "Nulla acta praevisi inventa.",
   "preview_logs_missing": "deest",
   "preview_logs_empty_content": "(vacuum)",
-  "preview_logs_close": "Claude"
+  "preview_logs_close": "Claude",
+  "preview_fix_button": "Corrige praevisum",
+  "preview_fix_job_title": "Corrige praevisum: per vicarium praevisi non attingibile",
+  "preview_fix_error": "Opus corrigendi praevisum creari non potuit."
 }

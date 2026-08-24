@@ -29,6 +29,12 @@ class PreviewService
 
   ChildProcess = Struct.new(:pid, :environment_id, :port, :spawned_process_id, keyword_init: true)
 
+  # Raised when the local health check passes but the internal proxy host
+  # can't reach the app — the fixable "bind to 0.0.0.0" case. Tagged
+  # separately so PreviewEnvironment#error_reason can drive a "Fix preview"
+  # remediation action in the UI instead of a plain failure message.
+  class NotReachableError < RuntimeError; end
+
   def initialize
     @children = {}  # environment_id → ChildProcess
     @mutex = Mutex.new
@@ -88,7 +94,8 @@ class PreviewService
       start_environment(env)
     rescue => e
       Rails.logger.error("[PreviewService] error starting environment #{env.id}: #{e.class}: #{e.message}")
-      with_connection { mark_failed(env, e.message) }
+      reason = e.is_a?(NotReachableError) ? "not_reachable" : nil
+      with_connection { mark_failed(env, e.message, reason: reason) }
     end
   end
 
@@ -254,7 +261,7 @@ class PreviewService
     url = proxy_health_check_url(port, health_check_path)
     return if http_ok?(url)
 
-    raise "preview process is healthy on 127.0.0.1:#{port} but is not reachable at #{INTERNAL_HOST}:#{port}; configure the preview start command to bind to 0.0.0.0"
+    raise NotReachableError, "preview process is healthy on 127.0.0.1:#{port} but is not reachable at #{INTERNAL_HOST}:#{port}; configure the preview start command to bind to 0.0.0.0"
   end
 
   def loopback_internal_host?
@@ -330,14 +337,14 @@ class PreviewService
     # Already gone.
   end
 
-  def mark_failed(env, message)
+  def mark_failed(env, message, reason: nil)
     child = @mutex.synchronize { @children.delete(env.id) }
     if child
       kill_process_group(child.pid)
       finalize_spawned_process(child, outcome: "failed", exit_status: nil)
     end
 
-    env.update_columns(error_message: message) if env.persisted?
+    env.update_columns(error_message: message, error_reason: reason) if env.persisted?
     env.fail! && env.save! if env.may_fail?
     PreviewWorkspace.cleanup_for(env)
     Rails.logger.error("[PreviewService] environment #{env.id} failed: #{message}")

@@ -14,12 +14,21 @@ import {
   CHAT_WORKSPACE_TAB_KEY,
   CHAT_WORKSPACE_WIDTH_KEY
 } from "./constants"
+import { imageAttachments } from "./messageDisplay"
 import { codingFilesTabVisible, jobsTabVisible } from "./utils"
 
 // Unlike every other workspace tab kind (a hardcoded singleton), preview
 // panels are multi-instance: one tab per open PreviewPanel, keyed by id
 // rather than a fixed name.
 export type PreviewTab = `preview:${number}`
+
+export function mediaTabVisible(payload: ChatPayload): boolean {
+  return imageAttachments(payload.messages).length > 0 ||
+    (payload.video_walkthroughs?.length ?? 0) > 0 ||
+    (payload.chat.whiteboard_snapshot_count ?? 0) > 0 ||
+    (payload.chat.typed_artifact_count ?? 0) > 0
+}
+
 export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs" | PreviewTab
 export type MobileChatTab = "chat" | WorkspaceTab
 
@@ -63,12 +72,12 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t, previewPanels)
 }
 
-export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false): WorkspaceTab[] {
+export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false, hasPins = false): WorkspaceTab[] {
   return [
     "whiteboard",
     ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
-    "media",
-    "pinned",
+    ...(mediaTabVisible(payload) ? (["media"] as WorkspaceTab[]) : []),
+    ...(hasPins ? (["pinned"] as WorkspaceTab[]) : []),
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),
     ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : []),

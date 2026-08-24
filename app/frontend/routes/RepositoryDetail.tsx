@@ -114,6 +114,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
             previewPath={payload.paths.app_preview_path}
             previewLogsPath={payload.paths.app_preview_logs_path}
             queryKey={queryKey}
+            repositoryId={payload.repository.id}
           />
           <CoverageSparkline repositoryId={payload.repository.id} />
           <CredentialNotice payload={payload} />

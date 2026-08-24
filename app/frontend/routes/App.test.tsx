@@ -13161,7 +13161,7 @@ describe("App", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
-      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify(chatPayload({ whiteboardSnapshotCount: 1 })), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -16772,6 +16772,7 @@ function chatPayload(overrides: {
   chatProvider?: string | null
   effectiveChatProvider?: string
   chatProviderOptions?: Array<{ value: string; label: string; configured: boolean; effective_provider: string; effective_label: string }>
+  whiteboardSnapshotCount?: number
 } = {}) {
   const effectiveChatProvider = overrides.effectiveChatProvider ?? overrides.chatProvider ?? "claude"
   const effectiveChatProviderLabel = effectiveChatProvider === "codex" ? "Codex" : "Claude"
@@ -16792,7 +16793,8 @@ function chatPayload(overrides: {
       stop_requested_at: overrides.stopRequestedAt ?? null,
       cumulative_input_tokens: overrides.cumulativeInputTokens ?? 12400,
       cumulative_output_tokens: overrides.cumulativeOutputTokens ?? 3200,
-      cumulative_cost_usd: overrides.cumulativeCostUsd ?? 0.0123
+      cumulative_cost_usd: overrides.cumulativeCostUsd ?? 0.0123,
+      whiteboard_snapshot_count: overrides.whiteboardSnapshotCount ?? 0
     },
     chat_available: true,
     turn_in_flight: overrides.turnInFlight ?? false,

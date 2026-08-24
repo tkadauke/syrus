@@ -22,7 +22,7 @@ module Workflows
     def self.trigger_kind = "skill"
 
     def self.steps_for(job)
-      prepare_then(job, grader_retry_loop(:run_skill), "summarize", "pr_open")
+      prepare_then(job, grader_retry_loop(job, :run_skill), "summarize", "pr_open")
     end
   end
 end

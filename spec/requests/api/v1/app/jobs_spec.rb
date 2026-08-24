@@ -939,122 +939,134 @@ RSpec.describe "App API job detail", type: :request do
     expect(parse_body.dig("error", "message")).to eq("Admin access required.")
   end
 
-  it "returns grade logs as JSON for React rendering" do
-    workflow = job.latest_workflow
-    collect = workflow.steps.find_by!(kind: "grader_collect")
-    collect.update!(position: collect.position + 1)
-    grade_step = Step.create!(
-      workflow: workflow,
-      kind: "grader",
-      position: collect.position - 1,
-      loop_id: collect.loop_id,
-      iteration: collect.iteration,
-      details: { "name" => "tests", "command" => "bin/rspec" }
-    )
-    grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "failed")
-    grade_step.update!(state: "failed")
-    write_grade_log(grade_run, "tests", "rspec output\n")
+  context "grade logs" do
+    before do
+      # Initial workflows only materialize grader_fanout/grader_collect when
+      # RepoGradeLoopPlan reports something configured (see Workflows::Base
+      # .grader_retry_loop); these tests exercise the grade-log endpoints
+      # directly against a grader_collect step, so force that step to exist.
+      allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
+        RepoGradeLoopPlan::Result.new(format_configured: false, generate_configured: false, graders_configured: true, source: ".syrus.yml", note: nil)
+      )
+    end
 
-    get "/api/v1/app/jobs/#{job.id}/workflows"
+    it "returns grade logs as JSON for React rendering" do
+      workflow = job.latest_workflow
+      collect = workflow.steps.find_by!(kind: "grader_collect")
+      collect.update!(position: collect.position + 1)
+      grade_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: collect.position - 1,
+        loop_id: collect.loop_id,
+        iteration: collect.iteration,
+        details: { "name" => "tests", "command" => "bin/rspec" }
+      )
+      grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "failed")
+      grade_step.update!(state: "failed")
+      write_grade_log(grade_run, "tests", "rspec output\n")
 
-    step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == grade_step.id }
-    expect(step_payload).to include("display_name" => "tests", "display_status" => "failed")
-    run_payload = step_payload["runs"].find { |payload| payload["id"] == grade_run.id }
-    expect(run_payload["app_grade_log_path"]).to include("/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", "name=tests")
-    expect(run_payload).not_to have_key("grade_log_path")
+      get "/api/v1/app/jobs/#{job.id}/workflows"
 
-    get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
+      step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == grade_step.id }
+      expect(step_payload).to include("display_name" => "tests", "display_status" => "failed")
+      run_payload = step_payload["runs"].find { |payload| payload["id"] == grade_run.id }
+      expect(run_payload["app_grade_log_path"]).to include("/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", "name=tests")
+      expect(run_payload).not_to have_key("grade_log_path")
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body).to include(
-      "job_id" => job.id,
-      "run_id" => grade_run.id,
-      "name" => "tests",
-      "contents" => "rspec output\n"
-    )
-  end
+      get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
 
-  it "returns grade logs from JobLog rows when the web process cannot see the worker workspace" do
-    workflow = job.latest_workflow
-    collect = workflow.steps.find_by!(kind: "grader_collect")
-    collect.update!(position: collect.position + 1)
-    grade_step = Step.create!(
-      workflow: workflow,
-      kind: "grader",
-      position: collect.position - 1,
-      loop_id: collect.loop_id,
-      iteration: collect.iteration,
-      details: { "name" => "tests", "command" => "bin/rspec" }
-    )
-    grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "running")
-    JobLog.append!(run: grade_run, chunk: "first chunk\n", kind: "grade_log")
-    JobLog.append!(run: grade_run, chunk: "second chunk\n", kind: "grade_log")
-
-    get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
-
-    expect(response).to have_http_status(:ok)
-    expect(parse_body).to include(
-      "job_id" => job.id,
-      "run_id" => grade_run.id,
-      "name" => "tests",
-      "contents" => "first chunk\nsecond chunk\n"
-    )
-  end
-
-  it "falls back to the stored grader output excerpt after the workspace log is gone" do
-    workflow = job.latest_workflow
-    collect = workflow.steps.find_by!(kind: "grader_collect")
-    collect.update!(position: collect.position + 1)
-    grade_step = Step.create!(
-      workflow: workflow,
-      kind: "grader",
-      position: collect.position - 1,
-      loop_id: collect.loop_id,
-      iteration: collect.iteration,
-      details: {
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "job_id" => job.id,
+        "run_id" => grade_run.id,
         "name" => "tests",
-        "command" => "bin/rspec",
-        "output" => "stored excerpt\n"
-      }
-    )
-    grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "succeeded")
+        "contents" => "rspec output\n"
+      )
+    end
 
-    get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
+    it "returns grade logs from JobLog rows when the web process cannot see the worker workspace" do
+      workflow = job.latest_workflow
+      collect = workflow.steps.find_by!(kind: "grader_collect")
+      collect.update!(position: collect.position + 1)
+      grade_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: collect.position - 1,
+        loop_id: collect.loop_id,
+        iteration: collect.iteration,
+        details: { "name" => "tests", "command" => "bin/rspec" }
+      )
+      grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "running")
+      JobLog.append!(run: grade_run, chunk: "first chunk\n", kind: "grade_log")
+      JobLog.append!(run: grade_run, chunk: "second chunk\n", kind: "grade_log")
 
-    expect(response).to have_http_status(:ok)
-    expect(parse_body["contents"]).to eq("stored excerpt\n")
-  end
+      get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
 
-  it "does not advertise a grade log link for the aggregate grader_collect step" do
-    workflow = job.latest_workflow
-    collect = workflow.steps.find_by!(kind: "grader_collect")
-    collect_run = Run.create!(job: job, step: collect, trigger_kind: "initial", iteration: collect.iteration, state: "succeeded")
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "job_id" => job.id,
+        "run_id" => grade_run.id,
+        "name" => "tests",
+        "contents" => "first chunk\nsecond chunk\n"
+      )
+    end
 
-    get "/api/v1/app/jobs/#{job.id}/workflows"
+    it "falls back to the stored grader output excerpt after the workspace log is gone" do
+      workflow = job.latest_workflow
+      collect = workflow.steps.find_by!(kind: "grader_collect")
+      collect.update!(position: collect.position + 1)
+      grade_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: collect.position - 1,
+        loop_id: collect.loop_id,
+        iteration: collect.iteration,
+        details: {
+          "name" => "tests",
+          "command" => "bin/rspec",
+          "output" => "stored excerpt\n"
+        }
+      )
+      grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "succeeded")
 
-    step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == collect.id }
-    run_payload = step_payload["runs"].find { |payload| payload["id"] == collect_run.id }
-    expect(run_payload["app_grade_log_path"]).to be_nil
-  end
+      get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
 
-  it "returns a JSON error when a grade log was pruned" do
-    workflow = job.latest_workflow
-    collect = workflow.steps.find_by!(kind: "grader_collect")
-    collect.update!(position: collect.position + 1)
-    grade_step = Step.create!(
-      workflow: workflow,
-      kind: "grader",
-      position: collect.position - 1,
-      loop_id: collect.loop_id,
-      iteration: collect.iteration,
-      details: { "name" => "tests", "command" => "bin/rspec" }
-    )
-    grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "failed")
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["contents"]).to eq("stored excerpt\n")
+    end
 
-    get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
+    it "does not advertise a grade log link for the aggregate grader_collect step" do
+      workflow = job.latest_workflow
+      collect = workflow.steps.find_by!(kind: "grader_collect")
+      collect_run = Run.create!(job: job, step: collect, trigger_kind: "initial", iteration: collect.iteration, state: "succeeded")
 
-    expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "message")).to include("no longer available")
+      get "/api/v1/app/jobs/#{job.id}/workflows"
+
+      step_payload = serialized_steps(parse_body).find { |payload| payload["id"] == collect.id }
+      run_payload = step_payload["runs"].find { |payload| payload["id"] == collect_run.id }
+      expect(run_payload["app_grade_log_path"]).to be_nil
+    end
+
+    it "returns a JSON error when a grade log was pruned" do
+      workflow = job.latest_workflow
+      collect = workflow.steps.find_by!(kind: "grader_collect")
+      collect.update!(position: collect.position + 1)
+      grade_step = Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: collect.position - 1,
+        loop_id: collect.loop_id,
+        iteration: collect.iteration,
+        details: { "name" => "tests", "command" => "bin/rspec" }
+      )
+      grade_run = Run.create!(job: job, step: grade_step, trigger_kind: "initial", iteration: 1, state: "failed")
+
+      get "/api/v1/app/jobs/#{job.id}/runs/#{grade_run.id}/grade_log", params: { name: "tests" }
+
+      expect(response).to have_http_status(:not_found)
+      expect(parse_body.dig("error", "message")).to include("no longer available")
+    end
   end
 
   it "does not expose another user's job" do
