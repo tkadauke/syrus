@@ -737,10 +737,17 @@ module App
           if ids.empty?
             {}
           else
-            JobLog.where(run_id: ids).group(:run_id, :kind).count.each_with_object({}) do |((run_id, kind), count), memo|
-              stats = memo[run_id] ||= { count: 0, rate_limited: false }
-              stats[:count] += count
-              stats[:rate_limited] = true if kind == "rate_limited"
+            counts_by_run_id = JobLog.where(run_id: ids).group(:run_id).maximum(:sequence).transform_values { |sequence| sequence.to_i + 1 }
+            rate_limited_run_ids = JobLog.where(run_id: ids, kind: "rate_limited").distinct.pluck(:run_id).to_set
+
+            ids.each_with_object({}) do |run_id, memo|
+              count = counts_by_run_id[run_id].to_i
+              next if count.zero? && !rate_limited_run_ids.include?(run_id)
+
+              memo[run_id] = {
+                count: count,
+                rate_limited: rate_limited_run_ids.include?(run_id)
+              }
             end
           end
         end
