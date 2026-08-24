@@ -30,6 +30,7 @@ RSpec.describe SolidQueueCleanupJob do
     stub_const("SolidQueue::Job", cleanup_class)
     allow_any_instance_of(described_class).to receive(:sleep)
     allow_any_instance_of(described_class).to receive(:prune_obsolete_ready_jobs)
+    allow_any_instance_of(described_class).to receive(:prune_duplicate_workflow_phase_admission_jobs)
 
     described_class.perform_now
 
@@ -94,6 +95,7 @@ RSpec.describe SolidQueueCleanupJob do
 
     job = described_class.new
     allow(job).to receive(:prune_finished_jobs)
+    allow(job).to receive(:prune_duplicate_workflow_phase_admission_jobs)
     allow(job).to receive(:obsolete_ready_job_scope).and_return(relation)
     allow(job).to receive(:sleep)
 
@@ -104,6 +106,31 @@ RSpec.describe SolidQueueCleanupJob do
     expect(SolidQueue::Job.deleted_job_ids).to eq([ [ 10, 11 ], [ 12 ] ])
   end
 
+  it "keeps one pending WorkflowPhaseAdmissionJob per workflow and step" do
+    ensure_solid_queue_test_tables!
+    clear_solid_queue_test_tables!
+
+    travel_to Time.zone.local(2026, 8, 24, 12, 0, 0) do
+      keep_workflow = solid_queue_job(arguments: { "arguments" => [ 10153 ] }, created_at: 5.minutes.ago)
+      duplicate_workflow = solid_queue_job(arguments: { "arguments" => [ 10153 ] }, created_at: 4.minutes.ago)
+      keep_step = solid_queue_job(arguments: { "arguments" => [ 10153, 9 ] }, created_at: 3.minutes.ago)
+      duplicate_step = solid_queue_job(arguments: { "arguments" => [ 10153, 9 ] }, created_at: 2.minutes.ago)
+      other_workflow = solid_queue_job(arguments: { "arguments" => [ 10154 ] }, created_at: 1.minute.ago)
+
+      job = described_class.new
+      allow(job).to receive(:prune_finished_jobs)
+      allow(job).to receive(:prune_obsolete_ready_jobs)
+
+      job.perform
+
+      expect(SolidQueue::Job.where(id: [ keep_workflow.id, keep_step.id, other_workflow.id ]).pluck(:id)).to contain_exactly(keep_workflow.id, keep_step.id, other_workflow.id)
+      expect(SolidQueue::Job.where(id: [ duplicate_workflow.id, duplicate_step.id ])).to be_empty
+      expect(SolidQueue::ReadyExecution.where(job_id: [ duplicate_workflow.id, duplicate_step.id ])).to be_empty
+    end
+  ensure
+    clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+  end
+
   it "runs frequently enough to spread cleanup work" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 
@@ -111,6 +138,17 @@ RSpec.describe SolidQueueCleanupJob do
       "class" => "SolidQueueCleanupJob",
       "queue" => "cleanup",
       "schedule" => "every 5 minutes"
+    )
+  end
+
+  def solid_queue_job(arguments:, created_at:)
+    SolidQueue::Job.create!(
+      class_name: "WorkflowPhaseAdmissionJob",
+      queue_name: "control_plane",
+      priority: 0,
+      arguments: arguments,
+      created_at: created_at,
+      updated_at: created_at
     )
   end
 end
