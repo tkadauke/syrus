@@ -2514,11 +2514,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_162000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
-  add_foreign_key "github_collaborator_discrepancies", "repositories"
-  add_foreign_key "preview_environments", "repositories"
-  add_foreign_key "team_memberships", "teams"
-  add_foreign_key "team_memberships", "users"
-  add_foreign_key "team_repositories", "repositories"
-  add_foreign_key "team_repositories", "teams"
 end

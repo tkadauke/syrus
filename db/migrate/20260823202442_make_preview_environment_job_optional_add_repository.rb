@@ -3,7 +3,7 @@ class MakePreviewEnvironmentJobOptionalAddRepository < ActiveRecord::Migration[8
     change_column_null :preview_environments, :job_id, true
 
     unless column_exists?(:preview_environments, :repository_id)
-      add_reference :preview_environments, :repository, null: true, foreign_key: true
+      add_reference :preview_environments, :repository, null: true
     end
   end
 
@@ -12,7 +12,7 @@ class MakePreviewEnvironmentJobOptionalAddRepository < ActiveRecord::Migration[8
     change_column_null :preview_environments, :job_id, false
 
     if column_exists?(:preview_environments, :repository_id)
-      remove_reference :preview_environments, :repository, foreign_key: true
+      remove_reference :preview_environments, :repository
     end
   end
 end
