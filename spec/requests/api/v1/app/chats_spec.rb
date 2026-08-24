@@ -3608,6 +3608,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(panel.reload.state).to eq("closed")
   end
 
+  it "serves an https preview panel URL when the request itself is https" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+
+    get "/api/v1/app/chats/#{chat.id}", headers: { "HTTPS" => "on" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["preview_panels"].first["url"]).to eq("https://preview-panel-#{panel.id}.lvh.me")
+  end
+
   it "renders attached Epics with their titles" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)
