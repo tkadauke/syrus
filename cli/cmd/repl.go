@@ -13,7 +13,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/api"
-	"github.com/tkadauke/syrus/cli/internal/config"
 	"github.com/tkadauke/syrus/cli/internal/render"
 	"github.com/tkadauke/syrus/cli/internal/repo"
 	"golang.org/x/term"
@@ -24,14 +23,7 @@ const chatHistoryMessageLimit = 90
 var errChatPickerCancelled = errors.New("chat selection cancelled")
 
 func runInteractiveChat(cmd *cobra.Command) error {
-	creds, err := config.LoadDefaultCredentials()
-	if err != nil {
-		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-			return errors.New(loginMessage)
-		}
-		return err
-	}
-	client, err := api.NewClient(creds.URL, creds.Token)
+	client, _, err := apiClient()
 	if err != nil {
 		return err
 	}

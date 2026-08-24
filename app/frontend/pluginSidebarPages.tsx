@@ -21,10 +21,6 @@ const componentLoaders = Object.fromEntries(
 
 const componentCache = new Map<string, ComponentType>()
 
-export function pluginSidebarComponentKeys() {
-  return Object.keys(componentLoaders).sort()
-}
-
 export function pluginSidebarComponentFor(key: string | null | undefined) {
   if (!key) return null
   const cached = componentCache.get(key)

@@ -1,5 +1,3 @@
-import { getJson } from "./client"
-
 export type SetupStepKey = "credentials" | "repository" | "chat" | "epic"
 export type SetupNextStep = SetupStepKey | "complete"
 
@@ -71,8 +69,4 @@ export type SetupStatusPayload = {
     new_job_path: string
     dashboard_jobs_path: string
   }
-}
-
-export function fetchSetupStatus() {
-  return getJson<SetupStatusPayload>("/api/v1/app/setup")
 }

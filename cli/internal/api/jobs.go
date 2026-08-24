@@ -150,12 +150,6 @@ func (c *Client) GetAppJob(ctx context.Context, id string) ([]byte, error) {
 	return []byte(out), err
 }
 
-func (c *Client) GetAdminJobRaw(ctx context.Context, id string) (JobResponse, error) {
-	var out json.RawMessage
-	err := c.do(ctx, http.MethodGet, "/api/v1/admin/jobs/"+url.PathEscape(id), nil, &out)
-	return JobResponse(out), err
-}
-
 func (c *Client) GetJobDetail(ctx context.Context, id string) (JobDetail, error) {
 	var out JobDetail
 	err := c.do(ctx, http.MethodGet, "/api/v1/app/jobs/"+url.PathEscape(id), nil, &out)

@@ -49,11 +49,6 @@ func NewClient(baseURL string, token string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) WithHTTPClient(client *http.Client) *Client {
-	c.httpClient = client
-	return c
-}
-
 func (c *Client) newRequest(ctx context.Context, method string, path string, body io.Reader) (*http.Request, error) {
 	relative, err := url.Parse(path)
 	if err != nil {
