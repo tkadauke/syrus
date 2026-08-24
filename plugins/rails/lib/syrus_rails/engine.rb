@@ -18,6 +18,7 @@ module SyrusRails
         homepage:    "https://github.com/tkadauke/syrus",
         author:      "Thomas Kadauke",
         icon_url:    "/plugin-icons/syrus-rails.svg",
+        category:    "language",
         depends_on:  [ "ruby" ],
         provides: {
           mcp_tool_set:      SyrusRails::McpToolSet,

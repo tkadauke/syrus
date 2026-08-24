@@ -318,7 +318,7 @@ RSpec.describe Steps::Prepare do
       # (including the pre-existing "claude" agent_provider against
       # User.agent_providers).
       Syrus::PluginRegistry.register(
-        name: "claude_agent", version: "0", category: "agent_provider",
+        name: "claude_agent", version: "0", category: "agent",
         provides: { agent_provider: AgentProviders::Claude }
       )
       File.write(@ws_path.join(".tool-versions"), "ruby 3.4.0\n")

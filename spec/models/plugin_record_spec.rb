@@ -24,14 +24,14 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
         display_name: "Weather Radar",
         version: "1.0.0",
         description: "Watches storms roll in.",
-        category: "monitoring"
+        category: "observability"
       )
       Syrus::PluginRegistry.register(
         name: "ticket-plugin",
         display_name: "Ticket Sync",
         version: "1.0.0",
         description: "Keeps issues in sync.",
-        category: "integration"
+        category: "connectivity"
       )
     end
 
@@ -44,7 +44,14 @@ RSpec.describe PluginRecord, :reset_plugin_registry do
     end
 
     it "matches on category text" do
-      expect(PluginRecord.search("monitoring").pluck(:name)).to eq([ "weather-plugin" ])
+      # Real bundled plugins (admin_mysql, git_history, spending_insights, ...)
+      # register at boot with their own real categories, including
+      # "observability" — those PluginRecord rows persist independent of the
+      # in-memory registry reset, so assert on inclusion/exclusion rather than
+      # an exact result set.
+      results = PluginRecord.search("observability").pluck(:name)
+      expect(results).to include("weather-plugin")
+      expect(results).not_to include("ticket-plugin")
     end
 
     it "returns no matches for an unrelated query" do

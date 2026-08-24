@@ -18,6 +18,7 @@ RSpec.describe Go::Engine do
           version:          Go::VERSION,
           description:      "Go prepare detection: go.mod → go mod download; gofmt autofix; govulncheck dependency scanning; default swallowed-error review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
+          category:         "language",
           prepare_priority: 40,
           provides: {
             prepare_detector:         Go::PrepareDetector,
@@ -40,6 +41,7 @@ RSpec.describe Go::Engine do
     it "registers with the correct metadata" do
       expect(registration.version).to eq(Go::VERSION)
       expect(registration.prepare_priority).to eq(40)
+      expect(registration.category).to eq("language")
     end
 
     it "provides exactly the :prepare_detector, :review_criteria_provider, :autofix_command, and :dependency_audit_command extension point keys" do

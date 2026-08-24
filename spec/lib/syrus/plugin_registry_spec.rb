@@ -443,6 +443,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.not_to raise_error
     end
 
+    it "raises RegistrationError for an unrecognized category" do
+      expect {
+        described_class.register(name: "test_plugin", version: "1.0.0", category: "not_a_real_category")
+      }.to raise_error(described_class::RegistrationError, /Unknown plugin category "not_a_real_category"/)
+    end
+
+    it "allows registering without a category" do
+      expect {
+        described_class.register(name: "test_plugin", version: "1.0.0")
+      }.not_to raise_error
+    end
+
+    it "accepts every canonical Syrus::Plugin::Category key" do
+      Syrus::Plugin::Category.values.each do |category|
+        expect {
+          described_class.register(name: "test_plugin_#{category}", version: "1.0.0", category: category)
+        }.not_to raise_error
+      end
+    end
+
     it "stores description, homepage, and icon_url on the manifest" do
       described_class.register(
         name:        "rich_plugin",
@@ -795,7 +815,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         homepage:    "https://example.com",
         default_enabled: false,
         disableable: true,
-        category: "dev"
+        category: "tooling"
       )
       manifest = described_class.all_plugins.first
 
@@ -811,7 +831,7 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.enabled).to be(false)
       expect(manifest.default_enabled).to be(false)
       expect(manifest.disableable).to be(true)
-      expect(manifest.category).to eq("dev")
+      expect(manifest.category).to eq("tooling")
     end
 
     it "exposes enabled? as a boolean predicate" do

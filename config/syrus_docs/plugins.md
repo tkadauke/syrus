@@ -60,6 +60,44 @@ runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
 
+## Plugin categories (`category`)
+
+A manifest's `category:` kwarg must resolve to a key from
+`Syrus::Plugin::Category` (`lib/syrus/plugin/category.rb`) — the same small
+registry-of-record pattern `Workflow::TriggerKind`/`Step::Kind` use, applied
+to plugin categories instead of scattering ad hoc strings across engine
+initializers. `Syrus::PluginRegistry.register` validates `category:` (when
+present) against this list and raises `RegistrationError` for anything else;
+a blank/absent category is still allowed, the same as a blank `author`.
+
+| Key | Label | Bundled plugins |
+|---|---|---|
+| `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
+| `agent` | Agent provider | `claude_agent`, `codex_agent` |
+| `input_source` | Input source | `github_source`, `linear_source` |
+| `mcp_tool_set` | MCP tool set | `browser`, `preview_tools` |
+| `platform_delivery` | Platform delivery | `discord` |
+| `connectivity` | Connectivity | `tailscale` |
+| `observability` | Observability | `admin_mysql`, `spending_insights`, `git_history` |
+| `tooling` | Tooling | `syrus_dev` |
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  category: "language",
+  provides: { prepare_detector: MyPlugin::PrepareDetector }
+)
+```
+
+`Syrus::Plugin::Category.values` lists every valid key; `.label_for(key)`
+returns the human-readable label. `Admin::PluginsPayload` emits both the raw
+`category` key and a derived `category_label` in the Admin → Plugins JSON
+payload, so the frontend never has to humanize the machine key itself.
+`spec/plugins/plugin_categories_spec.rb` statically scans every bundled
+plugin's manifest registration and fails if a plugin ships with no category,
+or an unrecognized one — a newly added plugin can't merge without picking a
+category from this table.
+
 ## Plugin icons (`icon_url`)
 
 A manifest can set `icon_url:` to the path of a static SVG asset, e.g.:
