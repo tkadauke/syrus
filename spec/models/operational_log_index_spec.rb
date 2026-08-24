@@ -5,6 +5,10 @@ RSpec.describe OperationalLogIndex do
     prepare_search_tables
   end
 
+  after do
+    described_class.reset_freshness_check!
+  end
+
   it "indexes and searches operational log events with filters" do
     matching = event(message: "grader failed with missing migration", level: "error", role: "worker", hostname: "host-a")
     event(message: "request finished", level: "info", role: "web", hostname: "host-b")
@@ -66,6 +70,37 @@ RSpec.describe OperationalLogIndex do
     expect(described_class.available?).to be(false)
   end
 
+  it "does not trigger a rebuild when the local index already reflects the latest primary-DB event" do
+    described_class.reset_freshness_check!
+    recent = event(message: "already fresh", occurred_at: 1.minute.ago)
+    described_class.upsert(recent)
+
+    expect(upsert_query_count { described_class.search(since: 1.hour.ago) }).to eq(0)
+  end
+
+  it "self-heals a local index that fell behind the primary DB (e.g. a compute-tier worker that never runs indexing jobs)" do
+    described_class.reset_freshness_check!
+    stale_seed = event(message: "seeded at container boot", occurred_at: 50.minutes.ago)
+    described_class.upsert(stale_seed)
+
+    missed = event(message: "written elsewhere, never indexed on this host", occurred_at: 1.minute.ago)
+
+    results = described_class.search(since: 1.hour.ago)
+
+    expect(results.map { |row| row[:operational_log_event_id] }).to include(missed.id)
+  end
+
+  it "only re-checks freshness once per FRESHNESS_CHECK_INTERVAL" do
+    described_class.reset_freshness_check!
+    event(message: "seed", occurred_at: 1.minute.ago)
+
+    # The empty local index is stale relative to the seeded primary-DB event,
+    # so the first search triggers exactly one rebuild (one upsert); the next
+    # two searches happen inside the same freshness-check interval and must
+    # not repeat it.
+    expect(upsert_query_count { 3.times { described_class.search(since: 1.hour.ago) } }).to eq(1)
+  end
+
   it "filters by upper time bound, app revision, limit, and offset" do
     old_revision = event(message: "old revision", occurred_at: 40.minutes.ago, app_revision: "old-sha")
     older = event(message: "older current", occurred_at: 30.minutes.ago, app_revision: "current-sha")
@@ -81,6 +116,16 @@ RSpec.describe OperationalLogIndex do
     )
 
     expect(results.map { |row| row[:operational_log_event_id] }).to eq([ older.id ])
+  end
+
+  def upsert_query_count
+    count = 0
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      count += 1 if payload[:name] == "OperationalLogIndex Upsert"
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    count
   end
 
   def event(**attrs)
