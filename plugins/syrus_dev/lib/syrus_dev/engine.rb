@@ -7,7 +7,7 @@ module SyrusDev
         version:         SyrusDev::VERSION,
         default_enabled: false,
         disableable:     true,
-        category:        "dev",
+        category:        "tooling",
         description:     "Syrus development diagnostics and internal tooling.",
         homepage:        "https://github.com/tkadauke/syrus",
         author:          "Thomas Kadauke",

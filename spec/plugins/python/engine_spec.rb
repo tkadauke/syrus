@@ -20,6 +20,7 @@ RSpec.describe Python::Engine do
                              "pytest JSON-report grader detail, venv/uv prompt reminder, " \
                              "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
           homepage:         "https://github.com/tkadauke/syrus",
+          category:         "language",
           prepare_priority: 30,
           provides: {
             prepare_detector:         Python::PrepareDetector,
@@ -44,6 +45,7 @@ RSpec.describe Python::Engine do
     it "registers with the correct metadata" do
       expect(registration.version).to eq(Python::VERSION)
       expect(registration.prepare_priority).to eq(30)
+      expect(registration.category).to eq("language")
     end
 
     it "provides exactly the 6 extension point keys" do

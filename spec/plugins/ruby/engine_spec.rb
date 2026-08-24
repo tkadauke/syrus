@@ -21,6 +21,7 @@ RSpec.describe Ruby::Engine do
                              "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
                              "require_relative-graph affected-test analysis",
           homepage:         "https://github.com/tkadauke/syrus",
+          category:         "language",
           prepare_priority: 10,
           provides: {
             coverage_analyzer:        Ruby::SimpleCovAnalyzer,
@@ -47,6 +48,7 @@ RSpec.describe Ruby::Engine do
     it "registers with the correct metadata" do
       expect(registration.version).to eq(Ruby::VERSION)
       expect(registration.prepare_priority).to eq(10)
+      expect(registration.category).to eq("language")
     end
 
     it "provides all 8 extension point keys" do

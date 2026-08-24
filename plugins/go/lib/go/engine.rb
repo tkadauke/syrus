@@ -17,6 +17,7 @@ module Go
         homepage:         "https://github.com/tkadauke/syrus",
         author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/go.svg",
+        category:         "language",
         prepare_priority: 40,
         provides: {
           prepare_detector:         Go::PrepareDetector,
