@@ -68,4 +68,13 @@ RSpec.describe JobReviewFeedbackSubmission do
       expect(result).not_to be_success
     }.not_to change(Job, :count)
   end
+
+  it "rejects a source Job closed for an unsuccessful reason" do
+    source_job = Factories.job_record(user: user, repository: repository, state: "closed", closure_reason: "invalidated")
+
+    expect {
+      result = described_class.call(source_job: source_job, feedback: "Still relevant?", actor: user)
+      expect(result).not_to be_success
+    }.not_to change(Job, :count)
+  end
 end
