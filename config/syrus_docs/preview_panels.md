@@ -14,8 +14,15 @@ other workspace tabs.
 
 `PreviewPanel` (`belongs_to :chat_session`, `has_many_attached :files`) has an
 `open`/`closed` state and a derived URL,
-`preview_url(base_domain) = "http://preview-panel-<id>.<base_domain>"`,
-mirroring `PreviewEnvironment#preview_url`. `PreviewPanel::Service` is the
+`preview_url(base_domain, scheme: "http") = "<scheme>://preview-panel-<id>.<base_domain>"`.
+The chat payload serializer (`ChatSerialization#preview_panels_json`) passes
+`scheme: request.ssl? ? "https" : "http"` so the returned URL always matches
+the scheme of the page embedding it — an `http://` URL inside an `<iframe
+src>` on an https page is blocked by browsers as mixed active content, even
+though the same URL loads fine via direct top-level navigation.
+`PreviewEnvironment#preview_url` has the identical hardcoded-`http://`
+shape but is only ever opened via direct top-level navigation (never
+embedded), so it doesn't need the same fix. `PreviewPanel::Service` is the
 sole sanctioned mutation path:
 
 - `open!(chat_session:, title:, files: {})` — creates an open panel.

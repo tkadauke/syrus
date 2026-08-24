@@ -15,7 +15,10 @@ class PreviewPanel < ApplicationRecord
   # base domain can change without touching persisted rows. Uses the
   # distinct "preview-panel-" prefix so PreviewProxyMiddleware can tell
   # panel requests apart from PreviewEnvironment's "preview-<preview_environment_id>" ones.
-  def preview_url(base_domain) = "http://preview-panel-#{id}.#{base_domain}"
+  #
+  # scheme must match the embedding page's scheme (https app -> https panel
+  # URL) or browsers block the iframe load as mixed active content.
+  def preview_url(base_domain, scheme: "http") = "#{scheme}://preview-panel-#{id}.#{base_domain}"
 
   # Looks up an attached file by its stored relative path (e.g.
   # "index.html", "css/app.css"). Blank/root paths resolve to the
