@@ -1178,4 +1178,65 @@ RSpec.describe App::DashboardPayload do
       expect(result[:untagged_issues][:total]).to eq(8)
     end
   end
+
+  describe "simple-mode Preview & Approve row action" do
+    before do
+      AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
+      allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(true)
+    end
+
+    it "exposes can_approve and can_start_preview plus their paths for an implemented standalone job" do
+      job = Factories.job_record(user: user, repository: repo, owner_user: user, state: "implemented")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:can_approve]).to be(true)
+      expect(item[:can_start_preview]).to be(true)
+      expect(item[:paths]).to include(
+        app_approve_path: "/api/v1/app/jobs/#{job.id}/approve",
+        app_preview_path: "/api/v1/app/jobs/#{job.id}/preview",
+        app_preview_logs_path: "/api/v1/app/jobs/#{job.id}/preview/logs"
+      )
+    end
+
+    it "is false outside simple mode even for an otherwise-eligible job" do
+      AppSetting.current.update!(mode: "advanced")
+      job = Factories.job_record(user: user, repository: repo, owner_user: user, state: "implemented")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:can_start_preview]).to be(false)
+    end
+
+    it "is false when no preview provider is configured for the repository" do
+      allow(Syrus::Plugin::PreviewProvider).to receive(:configured?).and_return(false)
+      job = Factories.job_record(user: user, repository: repo, owner_user: user, state: "implemented")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:can_start_preview]).to be(false)
+    end
+
+    it "can_start_preview is false once the job is no longer previewable" do
+      job = Factories.job_record(user: user, repository: repo, owner_user: user, state: "queued")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:can_start_preview]).to be(false)
+    end
+
+    it "hides can_approve for a legacy Epic child job, which keeps reviewing through the Epic rollup flow" do
+      epic = Factories.epic(user: user, repository: repo)
+      job = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, state: "implemented")
+
+      result = call(subject: "job", section: "rows")
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:can_approve]).to be(false)
+    end
+  end
 end

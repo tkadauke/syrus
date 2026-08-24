@@ -229,6 +229,15 @@ behind an Epic status pill. Epics do not appear on this primary dashboard
 list. Scheduled tasks and the repository GitHub Issues tab are also hidden in
 simple mode.
 
+Reviewing a standalone Job (not one that belongs to a legacy Epic) happens
+before it lands, not after: once the Job reaches implemented or approved
+state, its dashboard row shows a one-click **Preview & Approve** action —
+start a live preview of the change with one click, then approve with a plain
+"Looks good, approve" button when it's ready to land. This is the primary
+review flow for job-centric work; the preview and approve buttons only
+appear when a preview is actually configured for the repository and the
+current user is eligible to approve.
+
 Epics created before Syrus switched simple mode to this job-centric dashboard
 are not migrated or deleted — they get a separate "Epics" nav entry instead,
 which stays visible only for as long as the operator has at least one such
