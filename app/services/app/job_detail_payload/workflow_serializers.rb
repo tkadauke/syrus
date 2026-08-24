@@ -198,7 +198,10 @@ module App
       end
 
       def workflow_json(workflow)
-        PerformanceLogging.phase("job_detail.workflow.serialize", job_id: @job.id, workflow_id: workflow.id) do
+        @workflow_json_by_id ||= {}
+        return @workflow_json_by_id[workflow.id] if @workflow_json_by_id.key?(workflow.id)
+
+        @workflow_json_by_id[workflow.id] = PerformanceLogging.phase("job_detail.workflow.serialize", job_id: @job.id, workflow_id: workflow.id) do
           steps = ordered_steps_for(workflow)
           step_count = step_counts_by_workflow_id.fetch(workflow.id, steps.size)
           latest_step = steps.last
