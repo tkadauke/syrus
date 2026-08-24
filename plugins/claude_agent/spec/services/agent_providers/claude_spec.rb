@@ -24,6 +24,37 @@ RSpec.describe AgentProviders::Claude do
     end
   end
 
+  describe ".refresh_stale_usage!" do
+    it "refreshes when the user has a Claude token and the probe is stale" do
+      user = Factories.user(claude_oauth_token: "oat-test")
+      allow(ClaudeUsageProbe).to receive(:stale?).with(user, now: anything).and_return(true)
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      described_class.refresh_stale_usage!(user: user)
+
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user)
+    end
+
+    it "does not refresh when the probe is not stale" do
+      user = Factories.user(claude_oauth_token: "oat-test")
+      allow(ClaudeUsageProbe).to receive(:stale?).and_return(false)
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      described_class.refresh_stale_usage!(user: user)
+
+      expect(ClaudeUsageProbe).not_to have_received(:refresh_for)
+    end
+
+    it "does not refresh when the user has no Claude token" do
+      user = Factories.user(claude_oauth_token: nil)
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      described_class.refresh_stale_usage!(user: user)
+
+      expect(ClaudeUsageProbe).not_to have_received(:refresh_for)
+    end
+  end
+
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
   let(:job) { Factories.job(user: user) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
