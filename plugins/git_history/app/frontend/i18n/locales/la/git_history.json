@@ -1,0 +1,29 @@
+{
+  "nav_git_history": "Historia Git",
+  "eyebrow": "Repositorium",
+  "title": "Historia Git",
+  "aria_label": "Historia Git",
+  "loading": "Historia committendi oneratur…",
+  "loading_more": "Oneratur…",
+  "load_more": "Committa antiquiora onerare",
+  "error": "Historia Git onerari non potuit.",
+  "unavailable": "Historia Git huic repositorio nondum praesto est. Praesto erit ubi Syrus exemplar locale synchronizaverit.",
+  "empty": "Nulla committa inventa sunt.",
+  "classification": {
+    "syrus_landed": "Syrus",
+    "external_pr": "PR externum",
+    "external_push": "Impulsus directus"
+  },
+  "attribution": {
+    "by": "ab {{name}}",
+    "pr": "PR #{{number}}",
+    "opened_by": "apertum ab {{name}}",
+    "pushed_by": "impulsum ab {{name}}",
+    "unknown_author": "ignotus"
+  },
+  "origin": {
+    "chat": "per colloquium",
+    "cron": "per opus statutum \"{{name}}\"",
+    "issue": "Quaestio #{{number}}"
+  }
+}

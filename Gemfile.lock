@@ -36,6 +36,12 @@ PATH
       railties
 
 PATH
+  remote: plugins/git_history
+  specs:
+    git_history (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/github_source
   specs:
     github_source (0.1.0)
@@ -641,6 +647,7 @@ DEPENDENCIES
   docx
   faraday-http-cache
   faraday-retry
+  git_history!
   github_source!
   go!
   image_processing (~> 2.0)
@@ -763,6 +770,7 @@ CHECKSUMS
   ffi (1.17.4-x86_64-linux-gnu) sha256=9d3db14c2eae074b382fa9c083fe95aec6e0a1451da249eab096c34002bc752d
   ffi (1.17.4-x86_64-linux-musl) sha256=3fdf9888483de005f8ef8d1cf2d3b20d86626af206cbf780f6a6a12439a9c49e
   fugit (1.13.0) sha256=a4f093fce740da52f216740a5041e2a594ea763cdb89e8b2754ca4399634ab18
+  git_history (0.1.0)
   github_source (0.1.0)
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427
   go (0.1.0)

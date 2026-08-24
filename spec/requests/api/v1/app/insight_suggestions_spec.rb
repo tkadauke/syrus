@@ -90,6 +90,25 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it "allows a RepositoryMembership collaborator to view insight suggestions" do
+      collaborator = Factories.user(email_address: "collaborator@example.com")
+      repository.repository_memberships.create!(user: collaborator, role: "read")
+      sign_in_as(collaborator)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "returns 404 for a user who is neither the owner nor a member" do
+      unrelated_user = Factories.user(email_address: "unrelated@example.com")
+      sign_in_as(unrelated_user)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "returns an empty suggestions list when none exist" do
       get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
 

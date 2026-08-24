@@ -1101,7 +1101,7 @@ module Api
         end
 
         def find_repository
-          policy_scope(Repository).find(params[:id])
+          Repository.accessible_to(Current.user).find(params[:id])
         end
 
         def repository_command_payload(repository, message:)

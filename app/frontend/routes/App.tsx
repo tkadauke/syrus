@@ -69,6 +69,7 @@ import { TerminalRoute } from "./Terminal"
 import { TeamDirectoryRoute, TeamProfileRoute } from "./Profiles"
 import { ConnectedPlatformsRoute } from "./ConnectedPlatforms"
 import { PluginAdminPageRoute } from "../pluginAdminPages"
+import { PluginRepoPageTabRoute } from "../pluginRepoPageTabs"
 
 type AppRouteDefinition = {
   path: string
@@ -147,6 +148,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/:repositoryId/memberships", element: <RepositoryMembersRoute /> },
+  { path: "/repositories/:repositoryId/plugin/*", element: <PluginRepoPageTabRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
   { path: "/repositories/:id/insights", element: <RepositoryInsightsRoute /> },

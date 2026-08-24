@@ -206,4 +206,23 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
 
     expect(response).to have_http_status(:not_found)
   end
+
+  it "allows a RepositoryMembership collaborator to list repository documents" do
+    collaborator = Factories.user(email_address: "collaborator@example.com")
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/repositories/#{repository.id}/documents"
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "404s listing documents for a user who is neither the owner nor a member" do
+    unrelated_user = Factories.user(email_address: "unrelated@example.com")
+    sign_in_as(unrelated_user)
+
+    get "/api/v1/app/repositories/#{repository.id}/documents"
+
+    expect(response).to have_http_status(:not_found)
+  end
 end

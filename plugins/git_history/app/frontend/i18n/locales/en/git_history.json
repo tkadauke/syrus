@@ -1,0 +1,29 @@
+{
+  "nav_git_history": "Git History",
+  "eyebrow": "Repository",
+  "title": "Git History",
+  "aria_label": "Git history",
+  "loading": "Loading commit history…",
+  "loading_more": "Loading…",
+  "load_more": "Load older commits",
+  "error": "Unable to load git history.",
+  "unavailable": "Git history is not available yet for this repository. It becomes available once Syrus has synced a local clone.",
+  "empty": "No commits found.",
+  "classification": {
+    "syrus_landed": "Syrus",
+    "external_pr": "External PR",
+    "external_push": "Direct push"
+  },
+  "attribution": {
+    "by": "by {{name}}",
+    "pr": "PR #{{number}}",
+    "opened_by": "opened by {{name}}",
+    "pushed_by": "pushed by {{name}}",
+    "unknown_author": "unknown"
+  },
+  "origin": {
+    "chat": "via chat",
+    "cron": "via scheduled task \"{{name}}\"",
+    "issue": "Issue #{{number}}"
+  }
+}
