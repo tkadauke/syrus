@@ -129,7 +129,13 @@ export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): W
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" ? value : null
+    if (value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs") return value
+    // Plugin tabs (e.g. the whiteboard's "plugin:whiteboard_tools.canvas")
+    // are dynamic, so they can't be listed above -- match the "plugin:"
+    // namespace instead. Preserves the pre-migration behavior where the
+    // (then-core) "whiteboard" tab survived a reload.
+    if (value && isPluginTab(value as WorkspaceTab)) return value as PluginTab
+    return null
   } catch (_error) {
     return null
   }
