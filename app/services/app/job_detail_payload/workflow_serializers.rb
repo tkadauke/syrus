@@ -209,7 +209,7 @@ module App
           {
             id: workflow.id,
             slug: workflow.slug,
-            path: App::WorkflowNavigation.path(workflow),
+            path: workflow_navigation_path(workflow),
             trigger_kind: workflow.trigger_kind,
             agent_provider: workflow.agent_provider,
             state: workflow.state,
@@ -287,6 +287,25 @@ module App
 
       def workflow_page_path(page)
         "#{job_path(@job)}?#{ { tab: "workflows", workflows_page: page }.to_query }"
+      end
+
+      def workflow_navigation_path(workflow)
+        return App::WorkflowNavigation.path(workflow) unless workflow.job_id == @job.id
+
+        query = { tab: "workflows" }
+        page = workflow_navigation_page_by_workflow_id[workflow.id]
+        query[:workflows_page] = page if page.to_i > 1
+
+        "#{job_path(@job)}?#{query.to_query}#workflow-#{workflow.id}"
+      end
+
+      def workflow_navigation_page_by_workflow_id
+        @workflow_navigation_page_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.navigation_pages", job_id: @job.id) do
+          ids = @job.workflows.reorder(created_at: :desc, id: :desc).pluck(:id)
+          ids.each_with_index.to_h do |workflow_id, index|
+            [ workflow_id, (index / App::WorkflowNavigation::PER_PAGE) + 1 ]
+          end
+        end
       end
 
       def ordered_steps_for(workflow)

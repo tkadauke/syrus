@@ -774,7 +774,7 @@ module App
         detail: event.detail,
         ref: event.ref,
         ref_label: timeline_ref_label(event.ref, workflow: workflow),
-        workflow_path: workflow ? App::WorkflowNavigation.path(workflow) : nil
+        workflow_path: workflow ? workflow_navigation_path(workflow) : nil
       }
     end
 

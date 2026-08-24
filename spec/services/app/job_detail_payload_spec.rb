@@ -1053,6 +1053,19 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.dig(:active_work, :workflow)).to equal(payload.dig(:work_units, 0, :workflow))
     end
 
+    it "computes same-job workflow paths without per-workflow navigation count queries" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "initial")
+
+      expect(App::WorkflowNavigation).not_to receive(:path)
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:active_work, :workflow, :path)).to eq("/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}")
+    end
+
     it "renders step state from the latest run projection while preserving drift diagnostics" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
