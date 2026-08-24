@@ -90,6 +90,28 @@ RSpec.describe OperationalLogIndex do
     expect(results.map { |row| row[:operational_log_event_id] }).to include(missed.id)
   end
 
+  it "rebuilds in batched transactions instead of one transaction per row" do
+    events = 3.times.map { |i| event(message: "event #{i}", occurred_at: (i + 1).minutes.ago) }
+
+    transaction_count = 0
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      transaction_count += 1 if payload[:name] == "TRANSACTION"
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.rebuild!
+    end
+
+    # One batch's worth of transaction notifications (begin + commit), not
+    # one pair per row — a synchronous rebuild inside a search call (see
+    # #ensure_fresh!) must not turn into one fsync per event on a busy
+    # instance.
+    expect(transaction_count).to be < events.size
+
+    results = described_class.search(since: 1.hour.ago)
+    expect(results.map { |row| row[:operational_log_event_id] }).to match_array(events.map(&:id))
+  end
+
   it "only re-checks freshness once per FRESHNESS_CHECK_INTERVAL" do
     described_class.reset_freshness_check!
     event(message: "seed", occurred_at: 1.minute.ago)
