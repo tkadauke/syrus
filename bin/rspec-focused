@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Syrus review-phase grader: runs only the RSpec files covering the diff so
+# far -- changed spec files plus the conventional spec for each changed
+# app/lib source file -- instead of the full suite. Gives the implementing
+# agent a fast test signal on every review-phase grade iteration; the full
+# suite remains the real gate via the `rspec` grader at landing.
+#
+# Deliberately conservative: no transitive require_relative analysis (that's
+# Ruby::AffectedTestAnalyzer, which is also repo-root-only and not plugin-
+# aware). A same-iteration miss on an indirectly-affected file just means
+# the fast pass didn't happen to catch it this iteration -- it's not a gap
+# in enforcement, since the full suite still runs at landing.
+
+set -euo pipefail
+
+# Detect the default branch ref. Copied from bin/check-migration-collisions
+# rather than extracted, to keep both scripts standalone and dependency-free.
+resolve_default_branch() {
+  local ref
+  ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || ref=""
+  if [ -n "$ref" ] && git rev-parse --verify "origin/$ref" >/dev/null 2>&1; then
+    echo "origin/$ref"
+    return
+  fi
+  for candidate in origin/main origin/master main master; do
+    if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return
+    fi
+  done
+  return 1
+}
+
+# Maps a changed Ruby file to its conventional spec path. Echoes nothing if
+# the file doesn't fit a known app/lib (or plugin app/lib) convention --
+# e.g. bin/, config/, db/migrate/ files have no conventional spec.
+map_to_spec() {
+  local file="$1"
+
+  case "$file" in
+    */spec/*_spec.rb|spec/*_spec.rb)
+      # A changed spec file always runs, as itself.
+      echo "$file"
+      return
+      ;;
+  esac
+
+  case "$file" in
+    plugins/*/app/*.rb)
+      local rest="${file#plugins/}"
+      local plugin="${rest%%/app/*}"
+      local path="${rest#*/app/}"
+      echo "plugins/${plugin}/spec/${path%.rb}_spec.rb"
+      ;;
+    plugins/*/lib/*.rb)
+      local rest="${file#plugins/}"
+      local plugin="${rest%%/lib/*}"
+      local path="${rest#*/lib/}"
+      echo "plugins/${plugin}/spec/lib/${path%.rb}_spec.rb"
+      ;;
+    app/*.rb)
+      echo "spec/${file#app/}" | sed 's/\.rb$/_spec.rb/'
+      ;;
+    lib/*.rb)
+      echo "spec/lib/${file#lib/}" | sed 's/\.rb$/_spec.rb/'
+      ;;
+  esac
+}
+
+default_branch=$(resolve_default_branch) || {
+  echo "[rspec-focused] could not locate the default branch ref -- skipping"
+  exit 0
+}
+
+changed_files=()
+while IFS= read -r line; do
+  [ -n "$line" ] && changed_files+=("$line")
+done < <(git diff --name-only --diff-filter=ACMR "${default_branch}...HEAD" -- '*.rb' 2>/dev/null || true)
+
+if [ "${#changed_files[@]}" -eq 0 ]; then
+  echo "[rspec-focused] no changed Ruby files -- nothing to run"
+  exit 0
+fi
+
+specs=()
+for file in "${changed_files[@]}"; do
+  spec=$(map_to_spec "$file")
+  [ -n "$spec" ] || continue
+  [ -f "$spec" ] || continue
+  specs+=("$spec")
+done
+
+if [ "${#specs[@]}" -eq 0 ]; then
+  echo "[rspec-focused] no related specs found on disk for the changed files -- nothing to run"
+  exit 0
+fi
+
+deduped_specs=()
+while IFS= read -r line; do
+  [ -n "$line" ] && deduped_specs+=("$line")
+done < <(printf '%s\n' "${specs[@]}" | sort -u)
+
+echo "[rspec-focused] running ${#deduped_specs[@]} spec file(s): ${deduped_specs[*]}"
+
+# Distinct from the full-suite `rspec` grader's junit_output so a
+# review-phase iteration's results don't clobber landing's.
+export RSPEC_JUNIT_OUTPUT="${RSPEC_JUNIT_OUTPUT:-.syrus/grade-output/rspec-focused-junit.xml}"
+
+exec bin/rspec-fast "${deduped_specs[@]}"
