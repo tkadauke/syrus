@@ -72,7 +72,7 @@ RSpec.describe IndexOperationalLogEventsJob do
     expect(OperationalLogIndex.search(query: "batched", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to contain_exactly(event_one.id, event_two.id)
   end
 
-  it "deletes stale index rows for missing events" do
+  it "does not delete stale index rows for missing events in the hot indexing path" do
     prepare_search_tables
     event = OperationalLogEvent.create!(
       occurred_at: Time.current,
@@ -88,7 +88,7 @@ RSpec.describe IndexOperationalLogEventsJob do
 
     described_class.perform_now([ event.id ])
 
-    expect(OperationalLogIndex.search(query: "stale", since: 1.hour.ago)).to be_empty
+    expect(OperationalLogIndex.search(query: "stale", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to eq([ event.id ])
   end
 
   it "indexes the whole batch inside a single outer transaction, rolling back all events if insertion fails" do

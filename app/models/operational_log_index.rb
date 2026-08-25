@@ -14,13 +14,13 @@ class OperationalLogIndex < SearchRecord
       end
     end
 
-    def upsert_many(events, delete_ids:)
+    def upsert_many(events, delete_ids: [], cleanup_missing: false)
       events = events.to_a
       indexed_ids = events.map(&:id)
       missing_ids = Array(delete_ids) - indexed_ids
 
       connection.transaction do
-        delete_many(missing_ids)
+        delete_many(missing_ids) if cleanup_missing
         insert_many(events)
       end
     end
