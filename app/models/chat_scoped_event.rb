@@ -85,7 +85,7 @@ class ChatScopedEvent < ApplicationRecord
       return existing if existing
     end
 
-    create!(
+    attributes = {
       chat_session: chat_session,
       source_kind: source_kind,
       payload: payload,
@@ -94,9 +94,22 @@ class ChatScopedEvent < ApplicationRecord
       epic: epic,
       proposal: proposal,
       dedupe_key: normalized_dedupe_key
-    )
-  rescue ActiveRecord::RecordNotUnique
-    find_by!(chat_session: chat_session, dedupe_key: normalized_dedupe_key)
+    }
+
+    attempts = 0
+    begin
+      create!(attributes)
+    rescue ActiveRecord::RecordNotUnique
+      raise unless normalized_dedupe_key
+
+      existing = find_by(chat_session: chat_session, dedupe_key: normalized_dedupe_key)
+      return existing if existing
+
+      attempts += 1
+      retry if attempts < 2
+
+      raise
+    end
   end
 
   def mark_delivered!(chat_message:)
