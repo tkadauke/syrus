@@ -348,7 +348,19 @@ module WorkUnits
       scope = base_scope.left_outer_joins(:work_unit).where(work_units: { id: nil })
       scope = scope.where(job_id: ids) if ids.any?
       scope = scope.where(trigger_kind: requested_kinds) if requested_kinds.present?
+      scope = scope.where.not(trigger_kind: LEGACY_REPLAY_TRIGGER_KIND)
       scope
+    end
+
+    def self.unowned_start_blocked_workflows_scope(job_ids = nil, reasons: nil, patterns: nil, states: ACTIVE_STATES, base_scope: nil)
+      base_scope ||= Workflow.where(state: workflow_states(states))
+      reason_patterns = legacy_start_block_patterns(reasons: reasons, patterns: patterns)
+      blocked_scope = reason_patterns.reduce(nil) do |scope, pattern|
+        pattern_scope = base_scope.where("artifacts LIKE ?", pattern)
+        scope ? scope.or(pattern_scope) : pattern_scope
+      end
+
+      unowned_workflows_scope(job_ids, base_scope: blocked_scope)
     end
 
     def self.legacy_replay_start_blocked_workflows_scope(job_ids = nil, reasons: nil, patterns: nil, states: ACTIVE_STATES, base_scope: nil)

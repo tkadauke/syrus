@@ -97,6 +97,37 @@ RSpec.describe WorkUnits::Ownership do
     expect(result).to contain_exactly(resource_workflow)
   end
 
+  it "separately searches unowned start-block artifacts during the WorkUnit migration" do
+    replay = Factories.job_record(issue_number: 35)
+    migrated = Factories.job_record(repository: replay.repository, issue_number: 36)
+    Workflow.create!(
+      job: replay,
+      trigger_kind: "replay",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
+    )
+    matching = Workflow.create!(
+      job: migrated,
+      trigger_kind: "initial",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
+    )
+    workflow_with_unit = Workflow.create!(
+      job: migrated,
+      trigger_kind: "initial",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
+    )
+    attach_work_unit(workflow_with_unit, member_jobs: [ migrated ], kind: "initial", state: "blocked")
+
+    result = described_class.unowned_start_blocked_workflows_scope(
+      [ replay.id, migrated.id ],
+      reasons: StepDispatcher::ADMISSION_BLOCK_REASON
+    )
+
+    expect(result).to contain_exactly(matching)
+  end
+
   it "ignores landing legacy workflow fallbacks after landing moves to work units" do
     job = Factories.job_record
     Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")

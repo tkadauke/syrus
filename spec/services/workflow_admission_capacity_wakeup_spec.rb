@@ -17,12 +17,12 @@ RSpec.describe WorkflowAdmissionCapacityWakeup do
     workflow
   end
 
-  def replay_sleeper(reason:, state: "queued")
+  def legacy_sleeper(reason:, state: "queued", trigger_kind: "initial")
     job = Factories.job_record(user: user, repository: repository, state: state == "running" ? "running" : "queued")
     Workflow.create!(
       job: job,
       user: user,
-      trigger_kind: "replay",
+      trigger_kind: trigger_kind,
       agent_provider: "codex",
       state: state,
       artifacts: { "start_blocked_reason" => reason }
@@ -55,7 +55,7 @@ RSpec.describe WorkflowAdmissionCapacityWakeup do
   end
 
   it "still wakes replay workflows recorded only in legacy admission artifacts" do
-    workflow = replay_sleeper(reason: StepDispatcher::ADMISSION_BLOCK_REASON)
+    workflow = legacy_sleeper(reason: StepDispatcher::ADMISSION_BLOCK_REASON, trigger_kind: "replay")
 
     expect {
       result = described_class.call
@@ -64,9 +64,7 @@ RSpec.describe WorkflowAdmissionCapacityWakeup do
   end
 
   it "ignores migrated artifact-only admission sleepers without WorkUnit block state" do
-    job = Factories.job_record(user: user, repository: repository, state: "queued")
-    workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
-    workflow.update!(artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON })
+    workflow = legacy_sleeper(reason: StepDispatcher::ADMISSION_BLOCK_REASON)
 
     expect {
       result = described_class.call
