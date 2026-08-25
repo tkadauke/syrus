@@ -424,5 +424,16 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(result).not_to be_nil
       expect(result).to include("system: [WARNING] Queue backlog")
     end
+
+    it "excludes soft-deleted messages from the transcript" do
+      chat.messages.create!(role: "user",      content: { "text" => "What is the plan?" })
+      cleared = chat.messages.create!(role: "assistant", content: { "text" => "Cleared answer." })
+      cleared.soft_delete_by!(user)
+
+      result = host.chat_history_fallback
+      expect(result).not_to be_nil
+      expect(result).to include("user: What is the plan?")
+      expect(result).not_to include("Cleared answer.")
+    end
   end
 end

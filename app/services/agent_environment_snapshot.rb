@@ -347,12 +347,13 @@ class AgentEnvironmentSnapshot
   end
 
   def first_user_message_epic_numbers
-    text = chat_session.messages.where(role: "user").order(:created_at, :id).first&.content&.fetch("text", nil).to_s
+    text = chat_session.messages.active.where(role: "user").order(:created_at, :id).first&.content&.fetch("text", nil).to_s
     text.scan(/\bEPIC-(\d+)\b/i).flatten.map(&:to_i)
   end
 
   def read_epic_result_ids
     chat_session.messages
+                .active
                 .where(role: "tool_result", tool_name: "read_epic")
                 .order(:created_at, :id)
                 .pluck(:content)
