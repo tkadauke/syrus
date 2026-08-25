@@ -139,9 +139,9 @@
     "priority": "Prioritas"
   },
   "broken_main_banner": "Ramus principalis fractus est — officia expectantia tenentur.",
-  "broken_main_banner_not_held": "Ramus principalis fractus est.",
+  "broken_main_banner_not_held": "Ramus principalis fractus est — opera non pausata sunt.",
   "main_health_inconclusive_banner": "Sanitas rami principalis incerta est.",
-  "main_health_inconclusive_banner_not_held": "Sanitas rami principalis incerta est.",
+  "main_health_inconclusive_banner_not_held": "Sanitas rami principalis incerta est — opera non pausata sunt.",
   "broken_main_view_details": "Vide details",
   "broken_main_repair_active": "Reparatio agit:",
   "broken_main_repair_waiting": "Reparatio exspectat:",

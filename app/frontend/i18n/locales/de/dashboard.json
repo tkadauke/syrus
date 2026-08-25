@@ -139,9 +139,9 @@
     "priority": "Priorität"
   },
   "broken_main_banner": "Haupt-Branch ist defekt — Aufgaben in der Warteschlange werden gehalten.",
-  "broken_main_banner_not_held": "Haupt-Branch ist defekt.",
+  "broken_main_banner_not_held": "Haupt-Branch ist defekt — Arbeit ist nicht pausiert.",
   "main_health_inconclusive_banner": "Haupt-Branch-Gesundheit ist uneindeutig.",
-  "main_health_inconclusive_banner_not_held": "Haupt-Branch-Gesundheit ist uneindeutig.",
+  "main_health_inconclusive_banner_not_held": "Haupt-Branch-Gesundheit ist uneindeutig — Arbeit ist nicht pausiert.",
   "broken_main_view_details": "Details ansehen",
   "broken_main_repair_active": "Reparatur läuft:",
   "broken_main_repair_waiting": "Reparatur wartet:",

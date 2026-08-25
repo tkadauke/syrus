@@ -119,7 +119,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     renderRoute()
 
     const monitor = await screen.findByLabelText("Monitor main branch health")
-    const pause = screen.getByLabelText("Pause work when main is broken and prioritize fix jobs")
+    const pause = screen.getByLabelText("Pause work when main is broken")
 
     expect(monitor).toBeChecked()
     expect(pause).not.toBeChecked()
@@ -141,7 +141,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.click(monitor)
     expect(monitor).not.toBeChecked()
 
-    fireEvent.click(screen.getByLabelText("Pause work when main is broken and prioritize fix jobs"))
+    fireEvent.click(screen.getByLabelText("Pause work when main is broken"))
     expect(monitor).toBeChecked()
   })
 
@@ -156,7 +156,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.click(await screen.findByLabelText("Monitor main branch health"))
 
     expect(screen.getByLabelText("Automatically create a fix job when main breaks")).not.toBeChecked()
-    expect(screen.getByLabelText("Pause work when main is broken and prioritize fix jobs")).not.toBeChecked()
+    expect(screen.getByLabelText("Pause work when main is broken")).not.toBeChecked()
   })
 
   it("does not render stale repair settings as enabled when monitoring is disabled", async () => {
@@ -169,7 +169,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
 
     expect(await screen.findByLabelText("Monitor main branch health")).not.toBeChecked()
     expect(screen.getByLabelText("Automatically create a fix job when main breaks")).not.toBeChecked()
-    expect(screen.getByLabelText("Pause work when main is broken and prioritize fix jobs")).not.toBeChecked()
+    expect(screen.getByLabelText("Pause work when main is broken")).not.toBeChecked()
   })
 
   it("saves core repository settings even when a plugin's required fields are empty", async () => {

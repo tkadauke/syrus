@@ -139,9 +139,9 @@
     "priority": "Priority"
   },
   "broken_main_banner": "Main branch is broken — queued jobs are held.",
-  "broken_main_banner_not_held": "Main branch is broken.",
+  "broken_main_banner_not_held": "Main branch is broken — work is not paused.",
   "main_health_inconclusive_banner": "Main branch health is inconclusive.",
-  "main_health_inconclusive_banner_not_held": "Main branch health is inconclusive.",
+  "main_health_inconclusive_banner_not_held": "Main branch health is inconclusive — work is not paused.",
   "broken_main_view_details": "View details",
   "broken_main_repair_active": "Repair running:",
   "broken_main_repair_waiting": "Repair waiting:",
