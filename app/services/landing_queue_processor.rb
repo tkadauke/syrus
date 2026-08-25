@@ -532,6 +532,12 @@ class LandingQueueProcessor
       raise ActiveRecord::Rollback if landing_in_progress_for_repository?(job.repository_id)
       raise ActiveRecord::Rollback if active_landing_workflow_for_job?(job)
       raise ActiveRecord::Rollback unless job.approved?
+      # This re-check is the race guard against state that changed since the
+      # queue snapshot was taken (e.g. an urgent Job going active in between)
+      # — it must see fresh data, not whatever entries() cached earlier on
+      # this same instance. Drop the memoized urgent-jobs cache for this
+      # repository before re-validating.
+      @active_urgent_jobs_by_repository_id&.delete(job.repository_id)
       raise ActiveRecord::Rollback unless blockage_for(job, consume_override: true)[:blocked_reason].blank?
 
       job.landing_failure_reason = nil
