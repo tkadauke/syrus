@@ -435,7 +435,7 @@ RSpec.describe App::DashboardPayload do
       expect(items.fetch(tip.id)[:landing_queue_wait_reason]).to be_nil
     end
 
-    it "reports a WorkUnit-owned merge-train blocker without relying on workflow artifacts" do
+    it "reports a member-owned merge-train blocker without relying on workflow artifacts" do
       AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
@@ -447,8 +447,8 @@ RSpec.describe App::DashboardPayload do
         kind: "merge_train",
         state: "requested",
         repository: repo,
-        scope_type: "epic",
-        scope_id: epic.id,
+        scope_type: "job",
+        scope_id: first.id,
         actor: user,
         source_type: "spec"
       )
@@ -463,8 +463,8 @@ RSpec.describe App::DashboardPayload do
         kind: "merge_train",
         state: "blocked",
         repository: repo,
-        scope_type: "epic",
-        scope_id: epic.id,
+        scope_type: "job",
+        scope_id: first.id,
         workflow: workflow,
         blocked_reason: "urgent_job_active"
       )

@@ -175,16 +175,48 @@ module App
       end
 
       def merge_train_work_unit_data_by_epic_id(epic_ids)
-        WorkUnit
-          .where(kind: WorkDefinitions.for("merge_train").kind, scope_type: "epic", scope_id: epic_ids, state: WorkUnits::Ownership::ACTIVE_STATES)
-          .includes(:workflow)
-          .order(created_at: :desc, id: :desc)
+        active_merge_train_work_units_by_epic_id(epic_ids)
+          .values
+          .flatten
+          .uniq(&:id)
+          .sort_by { |unit| [ unit.created_at || Time.at(0), unit.id || 0 ] }
+          .reverse
           .each_with_object({}) do |unit, map|
-            data = (map[unit.scope_id] ||= {})
-            data[:active] = true
-            data[:start_blocked_reason] ||= unit.blocked_reason if unit.blocked?
-            data[:start_blocked_reason] ||= WorkUnits::StartBlock.for(unit.workflow).reason if unit.workflow&.queued?
+            epic_ids_for_unit(unit, allowed_epic_ids: epic_ids).each do |epic_id|
+              data = (map[epic_id] ||= {})
+              data[:active] = true
+              data[:start_blocked_reason] ||= unit.blocked_reason if unit.blocked?
+              data[:start_blocked_reason] ||= WorkUnits::StartBlock.for(unit.workflow).reason if unit.workflow&.queued?
+            end
           end
+      end
+
+      def active_merge_train_work_units_by_epic_id(epic_ids)
+        allowed_ids = Array(epic_ids).map(&:to_i).select(&:positive?)
+        return {} if allowed_ids.empty?
+
+        epic_scoped_ids = WorkUnit
+          .where(kind: WorkDefinitions.for("merge_train").kind, scope_type: "epic", scope_id: allowed_ids, state: WorkUnits::Ownership::ACTIVE_STATES)
+          .select(:id)
+        member_scoped_ids = WorkUnit
+          .joins(work_unit_members: :job)
+          .where(kind: WorkDefinitions.for("merge_train").kind, state: WorkUnits::Ownership::ACTIVE_STATES, jobs: { epic_id: allowed_ids })
+          .select(:id)
+
+        WorkUnit
+          .where(id: epic_scoped_ids)
+          .or(WorkUnit.where(id: member_scoped_ids))
+          .includes(:workflow, work_unit_members: :job)
+          .each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |unit, map|
+            epic_ids_for_unit(unit, allowed_epic_ids: allowed_ids).each { |epic_id| map[epic_id] << unit }
+          end
+      end
+
+      def epic_ids_for_unit(unit, allowed_epic_ids:)
+        ids = []
+        ids << unit.scope_id if unit.scope_type == "epic"
+        ids.concat(unit.work_unit_members.map { |member| member.job&.epic_id })
+        ids.compact.map(&:to_i).select { |epic_id| allowed_epic_ids.include?(epic_id) }.uniq
       end
 
       def active_merge_train_ids_by_epic_id
