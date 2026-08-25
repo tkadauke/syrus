@@ -442,8 +442,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium && \
     mkdir -p /opt/syrus-browser && \
     ln -s "$(find "${PLAYWRIGHT_BROWSERS_PATH}" -path '*/chrome-linux*/chrome' -type f | sort | tail -n 1)" /opt/syrus-browser/chromium && \
+    mkdir -p /opt/google/chrome && \
+    ln -s /opt/syrus-browser/chromium /opt/google/chrome/chrome && \
     chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}" && \
     chmod a+rx /opt/syrus-browser/chromium && \
+    chmod a+rx /opt/google/chrome/chrome && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

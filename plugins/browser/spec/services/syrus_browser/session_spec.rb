@@ -49,6 +49,35 @@ RSpec.describe SyrusBrowser::Session do
     end
   end
 
+  describe ".spawn" do
+    it "passes browser environment hints to the stdio transport" do
+      described_class.spawn(1)
+
+      expect(MCP::Client::Stdio).to have_received(:new).with(
+        command: "npx",
+        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /opt/syrus-browser/chromium],
+        env: {
+          "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => "/opt/syrus-browser/chromium",
+          "PLAYWRIGHT_BROWSERS_PATH" => "/opt/ms-playwright"
+        }
+      )
+    end
+
+    it "merges caller-provided environment values" do
+      described_class.spawn(1, env: { "FOO" => "bar" })
+
+      expect(MCP::Client::Stdio).to have_received(:new).with(
+        command: "npx",
+        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /opt/syrus-browser/chromium],
+        env: {
+          "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => "/opt/syrus-browser/chromium",
+          "PLAYWRIGHT_BROWSERS_PATH" => "/opt/ms-playwright",
+          "FOO" => "bar"
+        }
+      )
+    end
+  end
+
   describe "#call_tool" do
     it "connects once and then forwards the call to the underlying MCP client" do
       session = described_class.new(1)

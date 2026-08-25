@@ -30,7 +30,14 @@ module SyrusBrowser
     end
 
     def self.spawn(run_id, command: DEFAULT_COMMAND, args: default_args, env: nil)
-      new(run_id, command: command, args: args, env: env)
+      new(run_id, command: command, args: args, env: default_env.merge(env.to_h))
+    end
+
+    def self.default_env
+      {
+        "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => browser_executable_path,
+        "PLAYWRIGHT_BROWSERS_PATH" => ENV.fetch("PLAYWRIGHT_BROWSERS_PATH", "/opt/ms-playwright")
+      }
     end
 
     def initialize(run_id, command: DEFAULT_COMMAND, args: self.class.default_args, env: nil)
