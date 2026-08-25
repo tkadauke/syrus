@@ -632,6 +632,7 @@ class Job < ApplicationRecord
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :finish_stale_work_units_after_close, if: :saved_change_to_closed?
+  after_update_commit :cancel_stale_work_intents_after_close, if: :saved_change_to_closed?
   after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
   after_update_commit :enqueue_close_external_pr, if: :saved_change_to_closed_external_pr_to_close?
   after_update_commit :trigger_insight_if_max_threshold_reached, if: :saved_change_to_closed_coding_job?
@@ -1043,6 +1044,16 @@ class Job < ApplicationRecord
         unit.preempt!(reason: "job_closed")
       end
     end
+  end
+
+  def cancel_stale_work_intents_after_close
+    WorkIntent
+      .where(scope_type: "job", scope_id: id, state: %w[requested waiting])
+      .find_each do |intent|
+        next if intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).exists?
+
+        intent.cancel!
+      end
   end
 
   def generate_slug

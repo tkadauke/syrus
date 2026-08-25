@@ -830,6 +830,71 @@ RSpec.describe Job do
       expect(unit.reload).to be_running
     end
 
+    it "cancels stale job-scoped WorkIntents with only terminal WorkUnits when the job closes normally" do
+      job = Factories.job_record(state: "failed")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "ci_failure",
+        state: "failed",
+        finished_at: 1.minute.ago
+      )
+      intent = WorkIntent.create!(
+        kind: "ci_failure",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "ci_failure",
+        state: "failed",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow,
+        finished_at: 1.minute.ago
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      job.close_with_reason!("pr_merged")
+
+      expect(intent.reload).to be_cancelled
+      expect(intent.cancelled_at).to be_present
+      expect(unit.reload).to be_failed
+    end
+
+    it "keeps job-scoped WorkIntents requested while they still have active WorkUnits" do
+      job = Factories.job_record(state: "landing")
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running", started_at: 1.minute.ago)
+      intent = WorkIntent.create!(
+        kind: "auto_merge",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "auto_merge",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      job.close_with_reason!("pr_merged")
+
+      expect(intent.reload).to be_requested
+      expect(unit.reload).to be_running
+    end
+
     it "cancels WorkUnit-owned active workflows when closing the job" do
       owner = Factories.job_record(state: "running")
       member = Factories.job_record(user: owner.user, repository: owner.repository, state: "running")
