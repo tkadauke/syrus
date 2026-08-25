@@ -123,8 +123,7 @@ module App
         clauses = [
           table[:scope_type].eq("job").and(table[:scope_id].eq(@job.id))
         ]
-        clauses << table[:scope_type].eq("epic").and(table[:scope_id].eq(@job.epic_id)) if @job.epic_id.present?
-        clauses << table[:scope_type].eq("repository").and(table[:scope_id].eq(@job.repository_id)) if @job.repository_id.present?
+        clauses << table[:scope_type].eq("epic").and(table[:scope_id].eq(@job.epic_id)) if @job.open? && @job.epic_id.present?
 
         clauses.reduce { |scope, clause| scope.or(clause) }
       end

@@ -556,8 +556,78 @@ RSpec.describe "App API job detail", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["current_intent"]).to include("id" => unit.work_intent_id, "kind" => "initial")
-    expect(body["work_units"]).to include(include("id" => unit.id, "workflow" => include("id" => run.workflow.id)))
+    expect(body["work_units"]).to include(include(
+      "id" => unit.id,
+      "workflow_id" => run.workflow.id,
+      "workflow_slug" => run.workflow.slug,
+      "workflow" => nil
+    ))
     expect(body.dig("feature_flags", "work_unit_debug")).to be true
+  end
+
+  it "does not show repository-scoped requested intents as current work for unrelated jobs" do
+    AppSetting.current.update!(show_work_unit_debug: true)
+    bare_job = Factories.job_record(
+      user: user,
+      repository: repo,
+      issue_number: 145,
+      issue_title: "Unrelated job",
+      state: "implemented"
+    )
+    WorkIntent.create!(
+      kind: "job_bundle",
+      state: "requested",
+      repository: repo,
+      scope_type: "repository",
+      scope_id: repo.id,
+      actor: user
+    )
+
+    get "/api/v1/app/jobs/#{bare_job.id}/workflows"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["current_intent"]).to be_nil
+    expect(body["work_units"]).to eq([])
+  end
+
+  it "shows repository-scoped work only through WorkUnit membership" do
+    AppSetting.current.update!(show_work_unit_debug: true)
+    bundle_owner = Factories.job_record(user: user, repository: repo, issue_number: 143, issue_title: "Bundle owner")
+    member = Factories.job_record(user: user, repository: repo, issue_number: 144, issue_title: "Bundle member")
+    workflow = Workflow.create!(job: bundle_owner, trigger_kind: "merge_train", state: "queued", agent_provider: "claude")
+    intent = WorkIntent.create!(
+      kind: "job_bundle",
+      state: "requested",
+      repository: repo,
+      scope_type: "repository",
+      scope_id: repo.id,
+      actor: user
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      workflow: workflow,
+      kind: "job_bundle",
+      state: "queued",
+      repository: repo,
+      scope_type: "repository",
+      scope_id: repo.id
+    )
+    unit.work_unit_members.create!(job: member, role: "member")
+
+    get "/api/v1/app/jobs/#{member.id}/workflows"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["current_intent"]).to include("id" => intent.id, "kind" => "job_bundle")
+    expect(body["work_units"]).to include(include(
+      "id" => unit.id,
+      "kind" => "job_bundle",
+      "member_role" => "member",
+      "workflow_id" => workflow.id,
+      "workflow_slug" => workflow.slug,
+      "workflow" => nil
+    ))
   end
 
   it "links cron job details back to their scheduled task" do
