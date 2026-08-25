@@ -341,7 +341,7 @@ module PerformanceLogging
 
   def observability_sql?(sql, name)
     name.start_with?("PerformanceLogEvent ", "OperationalLogEvent ", "WorkflowActivityEvent ", "WorkEngineReconcilerActivityEvent ") ||
-      sql.match?(/\b(?:performance_log_events|operational_log_events|workflow_activity_events|work_engine_reconciler_activity_events)\b/i)
+      sql.match?(/\b(?:performance_log_events|operational_log_events|operational_log_fts|workflow_activity_events|work_engine_reconciler_activity_events)\b/i)
   end
 
   def ignored_request?(payload)

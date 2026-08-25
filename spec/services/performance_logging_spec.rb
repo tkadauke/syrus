@@ -73,6 +73,23 @@ RSpec.describe PerformanceLogging do
     expect(Rails.logger).not_to have_received(:info)
   end
 
+  it "does not record operational log FTS maintenance as slow SQL" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_sql_threshold_ms).and_return(1.0)
+
+    described_class.record_sql(
+      {
+        name: "OperationalLogIndex Delete Many",
+        sql: "DELETE FROM operational_log_fts WHERE operational_log_event_id IN (1, 2, 3)"
+      },
+      750.0
+    )
+
+    expect(described_class::Store.recent).to be_empty
+    expect(Rails.logger).not_to have_received(:info)
+  end
+
   it "records slow request events with SQL counters and top SQL fingerprints" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
