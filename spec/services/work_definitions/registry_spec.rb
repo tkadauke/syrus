@@ -91,6 +91,7 @@ RSpec.describe WorkDefinitions do
       external_pr_ingest
       external_pr_feedback
       skill
+      deploy
     ]
 
     resume_failed_step_kinds.each do |kind|
@@ -132,6 +133,7 @@ RSpec.describe WorkDefinitions do
       external_pr_ingest
       external_pr_feedback
       skill
+      deploy
     ]
     rebuild_kinds = %w[
       rebase
@@ -256,7 +258,8 @@ RSpec.describe WorkDefinitions do
       "resume",
       "coding_handoff",
       "local_mode_handoff",
-      "external_pr_feedback"
+      "external_pr_feedback",
+      "deploy"
     )
     expect(described_class.layered_auto_repair_suppressed_kinds).to contain_exactly(
       "external_pr_ingest"

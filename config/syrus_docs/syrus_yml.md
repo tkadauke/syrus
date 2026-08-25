@@ -366,3 +366,30 @@ Each stage must specify exactly one of `tag` or `tag_pattern` — not both.
 `PollAllDeploymentStagesJob` runs every 5 minutes and fans out to repositories with `deployment_stages` configured. For each landed Job (`landed_sha` present), Syrus compares the merge commit against each configured stage tag. When GitHub reports the tag as `identical` to or `ahead` of the merge commit, Syrus records a `JobDeploymentStageStatus` with the first detected time and the tag commit SHA for audit/debugging.
 
 Configured stages are shown on Job detail pages and as per-stage columns in the Epic detail jobs table. Epic rows show a reached timestamp for landed Jobs that have reached a stage, a pending marker for landed Jobs still waiting on a stage, and an empty marker for Jobs that have not landed yet.
+
+## deploy
+
+Configures a shell command Syrus can run to actually deploy this repository — a manual action on a Job, or (once enabled) an automatic trigger after a landing Workflow succeeds. See [`deploy.md`](deploy.md) for the full feature: the `deploy` trigger_kind, the `prepare → deploy` Workflow chain, and the `Steps::Deploy` handler.
+
+```yaml
+deploy:
+  mode: manual              # or continuous — default manual
+  run: "bin/deploy"
+  allow_unapproved: false
+  min_interval_minutes: 15
+```
+
+`deploy` is an **independent trigger mechanism** from `deployment_stages` above — it is not built on `deployment_stages`' read-only tag tracking. `deployment_stages` only observes an external pipeline's progress via git tags Syrus never writes; `deploy` actually invokes `run` to perform the deployment. A repository can configure either, both, or neither.
+
+Omitting `deploy` entirely disables the feature for the repository — the same safe default `formatters:`/`generated:` use.
+
+### deploy fields
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `run` | yes | — | Shell command that performs the deploy |
+| `mode` | no | `manual` | `manual` or `continuous` |
+| `allow_unapproved` | no | `false` | Allow deploying a Job that hasn't been approved |
+| `min_interval_minutes` | no | — | Positive integer; throttles auto-triggered deploys in `continuous` mode only |
+
+`mode: manual` deploys only run when explicitly launched. `mode: continuous` additionally auto-triggers a deploy after a landing Workflow succeeds, throttled by `min_interval_minutes` when set. `min_interval_minutes` is a plain integer count of minutes — not a duration string — matching `timeout_minutes` and `hitmap_ttl_days` elsewhere in this file.

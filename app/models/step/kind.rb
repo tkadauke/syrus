@@ -208,7 +208,12 @@ class Step
                   failure_rate: 0.0
                 }),
       Entry.new(kind: "preflight_grader_collect", handler: "PreflightGraderCollect", label: "Preflight grader check",   style: "bg-violet-100 text-violet-700", agentic: false,
-                repair_semantics: :deterministic_idempotent)
+                repair_semantics: :deterministic_idempotent),
+      # No repair_semantics override: falls back to :operator_review (the
+      # non-agentic default). A deploy command isn't guaranteed idempotent
+      # the way prepare/format/grader commands are, so a failure here
+      # should surface for a human to look at rather than auto-retry.
+      Entry.new(kind: "deploy",             handler: "Deploy",             label: "Deploy",                     style: "bg-sky-100 text-sky-700",     agentic: false)
     ].freeze
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze
