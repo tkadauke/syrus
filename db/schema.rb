@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_175226) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_182817) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -519,6 +519,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_175226) do
     t.string "daemon_branch"
     t.boolean "daemon_connected", default: false, null: false
     t.string "daemon_repo"
+    t.datetime "deleted_at"
+    t.integer "deleted_by_user_id"
     t.datetime "hidden_at"
     t.datetime "last_message_at"
     t.datetime "last_read_at"
@@ -542,6 +544,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_175226) do
     t.integer "user_id", null: false
     t.string "workspace_path"
     t.index ["cumulative_cost_usd"], name: "idx_chat_sessions_spending_cost"
+    t.index ["deleted_at"], name: "index_chat_sessions_on_deleted_at"
+    t.index ["deleted_by_user_id"], name: "index_chat_sessions_on_deleted_by_user_id"
     t.index ["origin_platform", "user_id"], name: "index_chat_sessions_on_origin_platform_and_user_id"
     t.index ["share_token"], name: "index_chat_sessions_on_share_token", unique: true
     t.index ["turn_in_flight", "last_message_at"], name: "idx_chat_sessions_stale_turns"
@@ -2548,4 +2552,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_175226) do
   end
 
   add_foreign_key "chat_messages", "users", column: "deleted_by_user_id"
+  add_foreign_key "chat_sessions", "users", column: "deleted_by_user_id"
 end

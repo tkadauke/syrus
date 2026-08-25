@@ -8,11 +8,12 @@ class ChatMessageSearchIndex < SearchRecord
       return unless indexable?(message)
       return if indexed?(message.id)
 
-      # A chat deleted mid-flight must not repopulate the index after
-      # ChatSessionCleanupJob purged its rows: re-fetch the ChatSession
-      # from the primary DB (never a possibly-stale cached association)
-      # right before inserting, and skip when it is gone.
-      chat_session = ChatSession.find_by(id: message.chat_session_id)
+      # A chat deleted (or soft-deleted) mid-flight must not repopulate the
+      # index after ChatSessionCleanupJob purged its rows: re-fetch the
+      # ChatSession from the primary DB (never a possibly-stale cached
+      # association) right before inserting, and skip when it is gone or
+      # soft-deleted.
+      chat_session = ChatSession.active.find_by(id: message.chat_session_id)
       return unless chat_session
 
       connection.transaction do

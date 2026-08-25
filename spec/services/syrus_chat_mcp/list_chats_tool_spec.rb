@@ -31,6 +31,8 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     older = ChatSession.create!(user: user, repository: older_repo, title: nil, updated_at: 2.hours.ago)
     newer = ChatSession.create!(user: user, title: "Epic #42 follow-up", updated_at: 1.hour.ago)
     hidden = ChatSession.create!(user: user, title: "Hidden", hidden_at: Time.current, updated_at: Time.current)
+    deleted = ChatSession.create!(user: user, title: "Deleted", updated_at: Time.current)
+    deleted.soft_delete_by!(user)
     ChatSession.create!(user: Factories.user, title: "Other user's chat", updated_at: Time.current)
 
     add_message(older)
@@ -46,6 +48,7 @@ RSpec.describe Mcp::Tools::ListChatsTool do
     expect(response[:result][:isError]).to be_falsey
     expect(chats.map { |chat| chat[:id] }).to eq([ newer.id, older.id, chat_session.id ])
     expect(chats.map { |chat| chat[:id] }).not_to include(hidden.id)
+    expect(chats.map { |chat| chat[:id] }).not_to include(deleted.id)
     expect(chats.first).to include(
       title: "Epic #42 follow-up",
       repository: nil,
