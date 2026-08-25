@@ -1830,6 +1830,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_182817) do
     t.index ["job_id"], name: "index_run_resource_summaries_on_job_id"
     t.index ["process_attributed_duration_seconds", "created_at"], name: "idx_run_resource_summaries_process_duration_created"
     t.index ["repository_id", "step_kind", "created_at"], name: "idx_run_resource_summaries_repo_step_created"
+    t.index ["retention_limited", "created_at", "id"], name: "idx_run_resource_summaries_refresh_created"
+    t.index ["retention_limited", "finished_at", "id"], name: "idx_run_resource_summaries_refresh_finished"
     t.index ["run_id"], name: "index_run_resource_summaries_on_run_id", unique: true
     t.index ["workflow_id"], name: "index_run_resource_summaries_on_workflow_id"
   end

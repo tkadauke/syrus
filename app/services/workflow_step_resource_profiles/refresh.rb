@@ -2,7 +2,7 @@ require "set"
 
 module WorkflowStepResourceProfiles
   class Refresh
-    MAX_INPUT_SUMMARIES = 5_000
+    MAX_INPUT_SUMMARIES = 1_000
     SPAN_SAMPLE_MERGE_GAP = 2.minutes
     MAX_SPAN_SAMPLE_RANGES_PER_HOST = 100
 
@@ -27,13 +27,29 @@ module WorkflowStepResourceProfiles
     attr_reader :now
 
     def input_summaries
-      RunResourceSummary
+      base = RunResourceSummary
         .preload(:job, :step, run: :command_spans)
-        .where.not(repository_id: nil, step_kind: nil)
+        .where.not(repository_id: nil)
+        .where.not(step_kind: nil)
         .where(retention_limited: false)
-        .where("COALESCE(finished_at, created_at) >= ?", now - input_retain_after)
-        .order(Arel.sql("COALESCE(finished_at, created_at) DESC"), id: :desc)
+
+      recent_finished = base
+        .where("finished_at >= ?", now - input_retain_after)
+        .order(finished_at: :desc, id: :desc)
         .limit(MAX_INPUT_SUMMARIES)
+        .to_a
+
+      remaining = MAX_INPUT_SUMMARIES - recent_finished.size
+      return recent_finished unless remaining.positive?
+
+      recent_unfinished = base
+        .where(finished_at: nil)
+        .where("created_at >= ?", now - input_retain_after)
+        .order(created_at: :desc, id: :desc)
+        .limit(remaining)
+        .to_a
+
+      recent_finished + recent_unfinished
     end
 
     def input_retain_after

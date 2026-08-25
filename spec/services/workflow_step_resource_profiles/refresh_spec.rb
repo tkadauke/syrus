@@ -27,6 +27,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
   end
 
   def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_cpu_percent: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
+    run_finished_at = finished_at || now
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
     step = step_for(workflow, kind: step_kind, details: grader_name ? { "name" => grader_name } : {})
@@ -36,8 +37,8 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       trigger_kind: workflow.trigger_kind,
       agent_provider: "codex",
       state: state,
-      started_at: finished_at - duration.seconds,
-      finished_at: finished_at
+      started_at: run_finished_at - duration.seconds,
+      finished_at: run_finished_at
     )
     if command_span
       span = run.command_spans.create!(
@@ -374,6 +375,40 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(profile.sample_count).to eq(2)
     expect(profile.p50_duration_seconds).to eq(200.0)
     expect(profile.p90_duration_seconds).to eq(300.0)
+  end
+
+  it "uses indexable timestamp predicates for refresh inputs" do
+    resource_summary(repository: repository, duration: 100, cpu: 10.0, finished_at: now - 1.minute)
+    resource_summary(repository: repository, duration: 200, cpu: 20.0, finished_at: nil)
+
+    summary_queries = []
+    callback = lambda do |_name, _started, _finished, _unique_id, payload|
+      sql = payload[:sql].to_s
+      summary_queries << sql if sql.start_with?("SELECT") && sql.include?("run_resource_summaries")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new(now: now).refresh_all!
+    end
+
+    expect(summary_queries).not_to be_empty
+    expect(summary_queries.join("\n")).not_to include("COALESCE")
+    expect(summary_queries.join("\n")).to include("finished_at")
+  end
+
+  it "only loads unfinished summaries when recent finished samples do not fill the cap" do
+    stub_const("#{described_class}::MAX_INPUT_SUMMARIES", 2)
+
+    resource_summary(repository: repository, duration: 100, cpu: 10.0, finished_at: now - 2.minutes)
+    resource_summary(repository: repository, duration: 200, cpu: 20.0, finished_at: now - 1.minute)
+    resource_summary(repository: repository, duration: 900, cpu: 90.0, finished_at: nil)
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.sample_count).to eq(2)
+    expect(profile.p50_duration_seconds).to eq(100.0)
+    expect(profile.p90_duration_seconds).to eq(200.0)
   end
 
   it "retains historical profiles after detailed summaries are pruned" do
