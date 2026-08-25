@@ -344,8 +344,13 @@ class ChatSession < ApplicationRecord
     agent_questions.active.map do |question|
       {
         id: question.id,
-        question: question.question,
-        options: question.options,
+        questions: question.questions.map do |sub_question|
+          {
+            question: sub_question["question"],
+            options: sub_question["options"],
+            multiple: sub_question["multiple"]
+          }
+        end,
         asked_at: question.asked_at&.iso8601,
         app_answer_path: "/api/v1/app/chats/#{id}/agent_questions/#{question.id}/answer"
       }

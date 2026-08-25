@@ -341,13 +341,22 @@ export type ChatPendingAction = {
 
 export type ChatPendingActionState = "queued" | "pending" | "confirming" | "confirmed" | "rejected" | "cancelled" | "failed"
 
-export type ChatAgentQuestion = {
-  id: number
+export type ChatAgentSubQuestion = {
   question: string
   options: string[] | null
+  multiple: boolean
+}
+
+export type ChatAgentQuestion = {
+  id: number
+  questions: ChatAgentSubQuestion[]
   asked_at: string | null
   app_answer_path: string
 }
+
+// Index-aligned with ChatAgentQuestion.questions: a string for single-select
+// or free-text sub-questions, a non-empty string array for multi-select ones.
+export type ChatAgentQuestionAnswer = string | string[]
 
 export type ChatQueuedMessage = {
   id: number
@@ -1025,8 +1034,8 @@ export function cancelPendingAction(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
-export function answerAgentQuestion(path: string, answer: string) {
-  return postJson<ChatPayload>(path, { answer })
+export function answerAgentQuestion(path: string, answers: ChatAgentQuestionAnswer[]) {
+  return postJson<ChatPayload>(path, { answers })
 }
 
 export function fetchCodingFileTree(path: string, ref?: string | null) {
