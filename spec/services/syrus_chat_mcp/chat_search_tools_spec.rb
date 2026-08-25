@@ -1,31 +1,37 @@
 require "rails_helper"
 
 RSpec.describe "Mcp::Tools chat search tools" do
+  # Consume the first-user admin-promotion slot so `user` below is not auto-promoted.
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:other_user) { Factories.user }
+  let(:admin) { Factories.user(admin: true) }
   let(:repository) { Factories.repository(user: user, name: "widgets") }
   let(:other_repository) { Factories.repository(user: other_user, name: "other-widgets") }
+  let(:admin_repository) { Factories.repository(user: admin, name: "admin-widgets") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, title: "Current chat") }
   let(:other_user_chat) { ChatSession.create!(user: other_user, repository: other_repository, title: "Other user chat") }
+  let(:admin_chat_session) { ChatSession.create!(user: admin, repository: admin_repository, title: "Admin chat") }
 
   before do
     allow(AppEvents).to receive(:broadcast)
     prepare_search_tables
   end
 
-  def server
+  def server(caller_session = chat_session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
         Mcp::Tools::SearchChatsTool,
         Mcp::Tools::ReadChatMessagesTool
       ],
-      server_context: { chat_session: chat_session }
+      server_context: { chat_session: caller_session }
     )
   end
 
-  def call_tool(name, arguments)
-    raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: name, arguments: arguments } }.to_json)
+  def call_tool(name, arguments, caller_session = chat_session)
+    raw = server(caller_session).handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: name, arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
   end
 
@@ -116,6 +122,39 @@ RSpec.describe "Mcp::Tools chat search tools" do
       expect(results.first[:created_at]).to eq(kept.created_at.iso8601)
       expect(ChatMessage.active.exists?(orphaned.id)).to be(true)
     end
+
+    it "includes soft-deleted messages for an admin caller, annotated with who deleted them" do
+      kept = message(admin_chat_session, text: "needle kept")
+      cleared = message(admin_chat_session, text: "needle cleared")
+      [ kept, cleared ].each { |chat_message| ChatMessageSearchIndex.insert(chat_message) }
+      cleared.soft_delete_by!(admin)
+
+      response = call_tool("search_chats", { query: "needle" }, admin_chat_session)
+      results = response_payload(response).fetch(:results)
+
+      expect(results.size).to eq(2)
+      deleted_result = results.find { |result| result[:snippet].include?("cleared") }
+      expect(deleted_result[:deleted_at]).to eq(cleared.deleted_at.iso8601)
+      expect(deleted_result[:deleted_by]).to include(id: admin.id, email: admin.email_address)
+      kept_result = results.find { |result| result[:snippet].include?("kept") }
+      expect(kept_result).not_to have_key(:deleted_at)
+    end
+
+    it "includes messages from a soft-deleted chat session for an admin caller, annotated with session deletion metadata" do
+      kept = message(admin_chat_session, text: "needle kept")
+      other_chat = ChatSession.create!(user: admin, repository: admin_repository, title: "Deleted chat")
+      orphaned = message(other_chat, text: "needle orphaned")
+      [ kept, orphaned ].each { |chat_message| ChatMessageSearchIndex.insert(chat_message) }
+      other_chat.soft_delete_by!(admin)
+
+      response = call_tool("search_chats", { query: "needle" }, admin_chat_session)
+      results = response_payload(response).fetch(:results)
+
+      expect(results.size).to eq(2)
+      orphaned_result = results.find { |result| result[:created_at] == orphaned.created_at.iso8601 }
+      expect(orphaned_result[:chat_session_deleted_at]).to eq(other_chat.deleted_at.iso8601)
+      expect(orphaned_result[:chat_session_deleted_by]).to include(id: admin.id, email: admin.email_address)
+    end
   end
 
   describe "read_chat_messages" do
@@ -186,6 +225,35 @@ RSpec.describe "Mcp::Tools chat search tools" do
 
       expect(response[:result][:isError]).to be(true)
       expect(response[:result][:content].first[:text]).to include("not_authorized")
+    end
+
+    it "includes soft-deleted messages for an admin caller, annotated with who deleted them" do
+      kept = message(admin_chat_session, text: "kept")
+      cleared = message(admin_chat_session, text: "cleared")
+      cleared.soft_delete_by!(admin)
+
+      response = call_tool("read_chat_messages", { chat_session_id: admin_chat_session.id }, admin_chat_session)
+      payload = response_payload(response)
+
+      expect(payload[:messages].map { |m| m[:id] }).to contain_exactly(kept.id, cleared.id)
+      deleted_message = payload[:messages].find { |m| m[:id] == cleared.id }
+      expect(deleted_message[:deleted_at]).to eq(cleared.deleted_at.iso8601)
+      expect(deleted_message[:deleted_by]).to include(id: admin.id, email: admin.email_address)
+      kept_message = payload[:messages].find { |m| m[:id] == kept.id }
+      expect(kept_message).not_to have_key(:deleted_at)
+    end
+
+    it "lets an admin caller read a fully soft-deleted chat session, annotated with session deletion metadata" do
+      still_here = message(admin_chat_session, text: "still here")
+      admin_chat_session.soft_delete_by!(admin)
+
+      response = call_tool("read_chat_messages", { chat_session_id: admin_chat_session.id }, admin_chat_session)
+      payload = response_payload(response)
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload[:messages].map { |m| m[:id] }).to eq([ still_here.id ])
+      expect(payload[:chat_session_deleted_at]).to eq(admin_chat_session.deleted_at.iso8601)
+      expect(payload[:chat_session_deleted_by]).to include(id: admin.id, email: admin.email_address)
     end
   end
 

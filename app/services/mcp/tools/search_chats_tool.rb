@@ -2,6 +2,9 @@ require "mcp"
 
 module Mcp::Tools
   class SearchChatsTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "search_chats"
 
     description "Search this user's prior chat messages by full-text content."
@@ -28,8 +31,7 @@ module Mcp::Tools
           snippet_end: "</b>",
           snippet_tokens: 50
         )
-        results = reject_deleted_messages(results)
-        results = reject_messages_in_deleted_chats(results)
+        results = admin? ? results : reject_deleted(results)
 
         payload = { results: results.map { |row| result_payload(row) } }
         payload[:message] = "No matching messages found." if payload[:results].empty?
@@ -60,6 +62,10 @@ module Mcp::Tools
         results.select { |row| active_session_ids.include?(row.fetch(:chat_session_id)) }
       end
 
+      def reject_deleted(results)
+        reject_messages_in_deleted_chats(reject_deleted_messages(results))
+      end
+
       def normalize_limit(value)
         value.to_i.clamp(1, 50)
       end
@@ -67,13 +73,40 @@ module Mcp::Tools
       def result_payload(row)
         chat_session = ChatSession.includes(:attached_repositories).find(row.fetch(:chat_session_id))
 
-        {
+        payload = {
           chat_session_id: chat_session.id,
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository),
           role: row.fetch(:role),
           snippet: row.fetch(:snippet),
           created_at: row.fetch(:created_at)
         }
+        payload.merge!(admin_deletion_payload(row, chat_session)) if admin?
+        payload
+      end
+
+      # Admin callers additionally see whether the matched message and/or
+      # its chat session have been soft-deleted, and by whom.
+      def admin_deletion_payload(row, chat_session)
+        payload = {}
+
+        if chat_session.deleted?
+          payload[:chat_session_deleted_at] = chat_session.deleted_at&.iso8601
+          payload[:chat_session_deleted_by] = user_summary(chat_session.deleted_by_user)
+        end
+
+        message = ChatMessage.find_by(id: row.fetch(:chat_message_id))
+        if message&.deleted?
+          payload[:deleted_at] = message.deleted_at&.iso8601
+          payload[:deleted_by] = user_summary(message.deleted_by_user)
+        end
+
+        payload
+      end
+
+      def user_summary(user)
+        return nil unless user
+
+        { id: user.id, name: user.display_name, email: user.email_address }
       end
     end
   end

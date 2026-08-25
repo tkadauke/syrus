@@ -44,6 +44,19 @@ and the agent — the same invisibility `ChatMessage.active` already gives
 soft-deleted messages after `/clear`. Deletion is still refused while a
 turn is in flight or for the enabled Supervisor chat.
 
+`read_chat_messages` and `search_chats` are admin-aware (via
+`AuthorizationSupport#admin?`): a non-admin caller never sees a trace of
+soft-deleted messages or soft-deleted chat sessions, exactly as above. An
+admin caller instead sees everything — `read_chat_messages` can resolve a
+soft-deleted `chat_session_id` and returns every message including deleted
+ones; `search_chats` stops filtering deleted messages/sessions out of its
+results — and both tools attach deletion metadata (`deleted_at` plus the
+resolved `deleted_by` user's id/name/email, at the message level and, when
+the whole chat is gone, at the top level as `chat_session_deleted_at`/
+`chat_session_deleted_by`) so the admin can see who deleted what and when.
+This mirrors `AdminReadMemoryAuditHistoryTool`'s additive-field precedent
+rather than gating the whole tool behind admin status.
+
 ## Group chats
 
 `chat_sessions.conversation_kind` is `direct` (default) or `group`, and is
