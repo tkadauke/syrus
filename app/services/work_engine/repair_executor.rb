@@ -1172,10 +1172,9 @@ module WorkEngine
           intent = target_work_intent
           return skipped("WorkIntent no longer exists") unless intent
           return skipped("WorkIntent is #{intent.state}, not requested/waiting") unless intent.requested? || intent.waiting?
-          return skipped("WorkIntent is not job-scoped") unless intent.scope_type == "job"
 
-          job = Job.find_by(id: intent.scope_id)
-          return skipped("Job ##{intent.scope_id} no longer exists") unless job
+          job = closed_job_for_intent(intent)
+          return skipped("Closed Job for WorkIntent ##{intent.id} no longer exists") unless job
           return skipped("Job ##{job.id} is #{job.state}, not closed") unless job.closed?
 
           active_unit_ids = intent.work_units
@@ -1183,8 +1182,38 @@ module WorkEngine
             .pluck(:id)
           return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_unit_ids.inspect}") if active_unit_ids.any?
 
+          member_ids = member_job_ids_for_intent(intent)
+          if intent.scope_type != "job"
+            return skipped("WorkIntent ##{intent.id} is not attached to Job ##{job.id}") unless member_ids.include?(job.id)
+
+            open_member_ids = Job.where(id: member_ids).where.not(state: "closed").pluck(:id)
+            return skipped("WorkIntent ##{intent.id} still has open member Jobs: #{open_member_ids.inspect}") if open_member_ids.any?
+          end
+
           intent.cancel!
-          success("cancelled WorkIntent ##{intent.id} because Job ##{job.id} is closed")
+          if intent.scope_type == "job"
+            success("cancelled WorkIntent ##{intent.id} because Job ##{job.id} is closed")
+          else
+            success("cancelled WorkIntent ##{intent.id} because member Jobs #{member_ids.inspect} are closed")
+          end
+        end
+
+        private
+
+        def closed_job_for_intent(intent)
+          if intent.scope_type == "job"
+            Job.find_by(id: intent.scope_id)
+          else
+            first_job
+          end
+        end
+
+        def member_job_ids_for_intent(intent)
+          WorkUnitMember
+            .joins(:work_unit)
+            .where(work_units: { work_intent_id: intent.id })
+            .distinct
+            .pluck(:job_id)
         end
       end
 

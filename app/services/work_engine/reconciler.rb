@@ -1114,6 +1114,13 @@ module WorkEngine
       work_units_for_intent(intent).select(&:terminal?).map(&:id)
     end
 
+    def member_job_ids_for_intent(intent)
+      work_units_for_intent(intent)
+        .flat_map { |unit| unit.work_unit_members.map(&:job_id) }
+        .compact
+        .uniq
+    end
+
     def work_units_for_intent(intent)
       @work_units_by_intent_id ||= work_units.group_by(&:work_intent_id)
       @work_units_by_intent_id[intent.id] || []
@@ -1363,10 +1370,7 @@ module WorkEngine
     def classify_closed_jobs_with_requested_work_intents
       jobs.select(&:closed?).flat_map do |job|
         work_intents.select do |intent|
-          intent.scope_type == "job" &&
-            intent.scope_id.to_i == job.id &&
-            (intent.requested? || intent.waiting?) &&
-            active_work_unit_ids_for_intent(intent).empty?
+          closed_job_obsoletes_intent?(job, intent)
         end.map do |intent|
           issue(
             kind: :closed_job_requested_work_intent,
@@ -1381,12 +1385,30 @@ module WorkEngine
               work_intent_id: intent.id,
               work_intent_kind: intent.kind,
               work_intent_state: intent.state,
+              work_intent_scope_type: intent.scope_type,
+              work_intent_scope_id: intent.scope_id,
+              member_job_ids: member_job_ids_for_intent(intent),
               terminal_work_unit_ids: terminal_work_unit_ids_for_intent(intent)
             },
             explanation: "Closed Job ##{job.id} still has requested WorkIntent ##{intent.id}; that desired work is obsolete."
           )
         end
       end
+    end
+
+    def closed_job_obsoletes_intent?(job, intent)
+      return false unless intent.requested? || intent.waiting?
+      return false if active_work_unit_ids_for_intent(intent).any?
+
+      if intent.scope_type == "job"
+        return intent.scope_id.to_i == job.id
+      end
+
+      member_ids = member_job_ids_for_intent(intent)
+      return false unless member_ids.include?(job.id)
+      return false if member_ids.empty?
+
+      Job.where(id: member_ids).where.not(state: "closed").none?
     end
 
     def classify_superseded_active_workflows

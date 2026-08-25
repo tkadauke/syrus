@@ -760,6 +760,103 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to be_requested
   end
 
+  it "cancels shared requested WorkIntents when all member jobs are closed" do
+    first = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 201,
+      state: "closed",
+      finished_at: 10.minutes.ago,
+      closure_reason: "pr_merged"
+    )
+    second = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 202,
+      state: "closed",
+      finished_at: 9.minutes.ago,
+      closure_reason: "pr_merged"
+    )
+    intent = WorkIntent.create!(
+      kind: "job_bundle",
+      state: "requested",
+      repository: first.repository,
+      scope_type: "repository",
+      scope_id: first.repository_id,
+      actor: first.user,
+      source_type: "spec"
+    )
+    terminal_unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "job_bundle",
+      state: "failed",
+      repository: first.repository,
+      scope_type: "repository",
+      scope_id: first.repository_id,
+      finished_at: 5.minutes.ago
+    )
+    terminal_unit.work_unit_members.create!(job: first, role: "primary")
+    terminal_unit.work_unit_members.create!(job: second, role: "member")
+
+    result = reconcile_and_execute(job_id: first.id)
+
+    expect(kind(result, :closed_job_requested_work_intent)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_work_intent_for_closed_job"
+    )
+    expect(plan(result, :cancel_work_intent_for_closed_job)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: intent.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} because member Jobs [#{first.id}, #{second.id}] are closed")
+    expect(intent.reload).to be_cancelled
+  end
+
+  it "does not cancel shared requested WorkIntents while a member job is still open" do
+    closed = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 203,
+      state: "closed",
+      finished_at: 10.minutes.ago,
+      closure_reason: "pr_merged"
+    )
+    open = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 204,
+      state: "approved"
+    )
+    intent = WorkIntent.create!(
+      kind: "job_bundle",
+      state: "requested",
+      repository: closed.repository,
+      scope_type: "repository",
+      scope_id: closed.repository_id,
+      actor: closed.user,
+      source_type: "spec"
+    )
+    terminal_unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "job_bundle",
+      state: "failed",
+      repository: closed.repository,
+      scope_type: "repository",
+      scope_id: closed.repository_id,
+      finished_at: 5.minutes.ago
+    )
+    terminal_unit.work_unit_members.create!(job: closed, role: "primary")
+    terminal_unit.work_unit_members.create!(job: open, role: "member")
+
+    result = reconcile(job_id: closed.id)
+
+    expect(kind(result, :closed_job_requested_work_intent)).to be_nil
+    expect(plan(result, :cancel_work_intent_for_closed_job)).to be_nil
+    expect(intent.reload).to be_requested
+  end
+
   it "classifies running jobs without WorkUnit-owned runtime even when a legacy Workflow row is active" do
     running = Factories.job_record(
       user: job.user,
