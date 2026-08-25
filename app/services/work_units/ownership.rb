@@ -348,10 +348,6 @@ module WorkUnits
       scope.where(trigger_kind: LEGACY_REPLAY_TRIGGER_KIND)
     end
 
-    class << self
-      alias_method :legacy_active_workflows_scope, :legacy_replay_workflows_scope
-    end
-
     def self.workflow_states(states)
       Array(states).map(&:to_s) & %w[queued running]
     end

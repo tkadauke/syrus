@@ -21,7 +21,7 @@ module Filters
 
         def workflow_blocked_job_ids
           WorkUnits::Ownership
-            .legacy_active_workflows_scope(nil, base_scope: Workflow.active.where("artifacts LIKE ?", '%"start_blocked_reason"%'))
+            .legacy_replay_workflows_scope(nil, base_scope: Workflow.active.where("artifacts LIKE ?", '%"start_blocked_reason"%'))
             .distinct
             .pluck(:job_id)
         end

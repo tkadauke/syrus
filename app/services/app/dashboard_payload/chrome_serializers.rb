@@ -74,7 +74,7 @@ module App
         base_scope = Workflow.where(job_id: ids, state: "queued")
                              .where("artifacts LIKE ?", '%"start_blocked_reason"%')
         WorkUnits::Ownership
-          .legacy_active_workflows_scope(ids, base_scope: base_scope)
+          .legacy_replay_workflows_scope(ids, base_scope: base_scope)
           .includes(:work_unit)
           .select { |workflow| WorkUnits::StartBlock.for(workflow).reason.present? }
           .map(&:job_id)

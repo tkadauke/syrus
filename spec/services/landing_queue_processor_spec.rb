@@ -183,12 +183,11 @@ RSpec.describe LandingQueueProcessor do
     blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     blocked.start_landing!
     blocked.save!
-    blocked_workflow = Workflows::AutoMerge.instantiate(job: blocked)
-    blocked_workflow.update!(
-      artifacts: {
-        "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
-        "start_blocked_next_check_at" => 10.minutes.from_now.iso8601
-      }
+    blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: blocked)
+    WorkUnits::WorkflowBlockProjection.record!(
+      blocked_workflow,
+      start_blocked_reason: StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+      blocked_until: 10.minutes.from_now
     )
     fix_job = Factories.job_record(
       user: user,
@@ -223,12 +222,11 @@ RSpec.describe LandingQueueProcessor do
     blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     blocked.start_landing!
     blocked.save!
-    blocked_workflow = Workflows::AutoMerge.instantiate(job: blocked)
-    blocked_workflow.update!(
-      artifacts: {
-        "start_blocked_reason" => StepDispatcher::URGENT_BLOCK_REASON,
-        "start_blocked_next_check_at" => 10.minutes.from_now.iso8601
-      }
+    blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: blocked)
+    WorkUnits::WorkflowBlockProjection.record!(
+      blocked_workflow,
+      start_blocked_reason: StepDispatcher::URGENT_BLOCK_REASON,
+      blocked_until: 10.minutes.from_now
     )
     urgent = queue_job(issue_number: 2, approved_at: 1.minute.ago)
     urgent.update!(priority: "urgent")
@@ -908,7 +906,7 @@ RSpec.describe LandingQueueProcessor do
   describe "CI cleanliness gate" do
     it "blocks a job with an active ci_failure workflow with a specific message" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-      Workflows::CiFailure.instantiate(job: job).update!(state: "running")
+      WorkUnits::Launcher.instantiate(kind: "ci_failure", job: job).work_unit.mark_running!
 
       expect(described_class.call).to be_nil
       expect(job.reload).to be_approved
@@ -928,7 +926,7 @@ RSpec.describe LandingQueueProcessor do
 
     it "blocks a job with a non-ci_failure active workflow using the generic reason" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-      Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+      WorkUnits::Launcher.instantiate(kind: "pr_comment", job: job).work_unit.mark_running!
 
       expect(described_class.call).to be_nil
       expect(job.reload).to be_approved
@@ -1017,7 +1015,7 @@ RSpec.describe LandingQueueProcessor do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       ready = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
       sibling = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
-      Workflows::CiFailure.instantiate(job: sibling).update!(state: "running")
+      WorkUnits::Launcher.instantiate(kind: "ci_failure", job: sibling).work_unit.mark_running!
 
       expect(described_class.call).to be_nil
       expect(ready.reload).to be_approved
@@ -1140,7 +1138,7 @@ RSpec.describe LandingQueueProcessor do
 
     it "no-ops when a blocker (active workflow) is present" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-      Workflows::Rebase.instantiate(job: job).update!(state: "running")
+      WorkUnits::Launcher.instantiate(kind: "rebase", job: job).work_unit.mark_running!
 
       expect(described_class.try_land!(job)).to be_nil
       expect(job.reload).to be_approved
@@ -1178,7 +1176,7 @@ RSpec.describe LandingQueueProcessor do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.start_landing!
       job.save!
-      Workflows::AutoMerge.instantiate(job: job)
+      WorkUnits::Launcher.instantiate(kind: "auto_merge", job: job)
       job.update!(state: "approved")
 
       expect {

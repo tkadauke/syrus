@@ -386,7 +386,7 @@ module App
           legacy_scope = Workflow.where(job_id: active_scope, state: %w[queued running])
                                  .where("artifacts LIKE ?", '%"start_blocked_reason"%')
           legacy = WorkUnits::Ownership
-                  .legacy_active_workflows_scope(job_ids.presence, base_scope: legacy_scope)
+                  .legacy_replay_workflows_scope(job_ids.presence, base_scope: legacy_scope)
                   .includes(:work_unit)
                   .reorder(id: :desc)
                   .select(:id, :job_id, :artifacts)

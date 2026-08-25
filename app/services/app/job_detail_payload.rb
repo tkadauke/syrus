@@ -852,7 +852,7 @@ module App
           .where("artifacts LIKE ?", '%"start_blocked_reason"%')
 
         WorkUnits::Ownership
-          .legacy_active_workflows_scope([ @job.id ], base_scope: base_scope)
+          .legacy_replay_workflows_scope([ @job.id ], base_scope: base_scope)
           .includes(:work_unit)
           .reorder(created_at: :desc, id: :desc)
           .detect { |wf| WorkUnits::StartBlock.for(wf).reason.present? }

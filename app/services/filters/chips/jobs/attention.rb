@@ -293,7 +293,7 @@ module Filters
           relation = Workflow.where(state: "running")
           relation = relation.where.not(trigger_kind: excluding_trigger_kind) if excluding_trigger_kind
           relation = yield(relation) if block_given?
-          relation = WorkUnits::Ownership.legacy_active_workflows_scope(nil, kinds: trigger_kind, base_scope: relation)
+          relation = WorkUnits::Ownership.legacy_replay_workflows_scope(nil, kinds: trigger_kind, base_scope: relation)
 
           relation.distinct.pluck(:job_id)
         end

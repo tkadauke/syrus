@@ -77,7 +77,7 @@ class ProviderAdmissionWakeup
       .where(agent_provider: provider, state: "queued")
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
 
-    scope = WorkUnits::Ownership.legacy_active_workflows_scope(
+    scope = WorkUnits::Ownership.legacy_replay_workflows_scope(
       nil,
       base_scope: base_scope
     ).order(:created_at, :id)

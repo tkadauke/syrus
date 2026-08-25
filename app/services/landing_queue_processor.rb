@@ -661,7 +661,7 @@ class LandingQueueProcessor
   end
 
   def legacy_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
-    WorkUnits::Ownership.legacy_active_workflows_scope(
+    WorkUnits::Ownership.legacy_replay_workflows_scope(
       nil,
       kinds: WorkDefinitions.landing_workflow_kinds,
       base_scope: Workflow.active
