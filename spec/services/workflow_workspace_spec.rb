@@ -75,6 +75,31 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
       end
 
+      it "reclones an invalid workspace when only deterministic steps have succeeded" do
+        workflow.steps.create!(kind: "prepare", position: 1, state: "succeeded")
+
+        ws = described_class.new(workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("clone-output.tmp"), "partial clone after prepare")
+
+        ws.setup
+
+        expect(ws.path.join("clone-output.tmp")).not_to exist
+        expect(sh("git -C #{ws.path} rev-parse --verify HEAD").strip).to match(/\A[0-9a-f]{40}\z/)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("syrus/issue-7-#{job.id}")
+      end
+
+      it "does not reclone an invalid workspace after an agentic step succeeded" do
+        workflow.steps.create!(kind: "implement", position: 1, state: "succeeded")
+
+        ws = described_class.new(workflow)
+        FileUtils.mkdir_p(ws.path)
+        File.write(ws.path.join("agent-output.tmp"), "possibly unpushed agent output")
+
+        expect { ws.setup }.to raise_error(GitRunner::GitError, /no valid HEAD/)
+        expect(ws.path.join("agent-output.tmp")).to exist
+      end
+
       it "creates a fresh branch when the target branch isn't on origin" do
         ws = described_class.new(workflow)
         ws.setup

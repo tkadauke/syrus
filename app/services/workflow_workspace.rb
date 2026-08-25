@@ -420,7 +420,13 @@ class WorkflowWorkspace
   end
 
   def safe_to_reclone_existing_workspace?
-    @workflow.steps.where(state: "succeeded").none?
+    succeeded_steps = @workflow.steps.where(state: "succeeded")
+    return true if succeeded_steps.none?
+
+    # A broken checkout with no valid HEAD cannot preserve meaningful git state.
+    # Reclone when only deterministic/read-only setup has succeeded; keep
+    # failing loudly if a prior agentic step may have produced unpushed commits.
+    succeeded_steps.where(kind: Step::AGENTIC_KINDS).none?
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was
