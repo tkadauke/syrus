@@ -225,6 +225,35 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
       expect(parse_body.dig("error", "code")).to eq("invalid_spec")
     end
 
+    it "returns invalid_spec (not a 500) when the top-level spec JSON is an array" do
+      stub_clients(fake_client(introspection_rows: orders_introspection_rows))
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: [ 1, 2, 3 ].to_json }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_spec")
+    end
+
+    it "returns invalid_spec (not a 500) when join is a string instead of an object" do
+      stub_clients(fake_client(introspection_rows: orders_introspection_rows))
+      spec = { table: "orders", join: "customers" }.to_json
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_spec")
+    end
+
+    it "returns invalid_spec (not a 500) when an aggregation entry is a string instead of an object" do
+      stub_clients(fake_client(introspection_rows: orders_introspection_rows))
+      spec = { table: "orders", aggregations: [ "count(*)" ] }.to_json
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_spec")
+    end
+
     it "returns invalid_spec when the spec references an unknown column" do
       stub_clients(fake_client(introspection_rows: orders_introspection_rows))
       spec = { table: "orders", columns: [ "orders.nope" ] }.to_json

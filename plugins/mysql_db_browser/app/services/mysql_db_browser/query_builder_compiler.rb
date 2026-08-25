@@ -30,7 +30,7 @@ module MysqlDbBrowser
     class InvalidSpec < ArgumentError; end
 
     def initialize(spec:, base_table:, base_columns:, join_table: nil, join_columns: [])
-      @spec = spec || {}
+      @spec = spec.is_a?(Hash) ? spec : {}
       @base_table = base_table.to_s
       @base_column_defs = Array(base_columns)
       @join_spec = @spec[:join]
@@ -99,6 +99,8 @@ module MysqlDbBrowser
     end
 
     def aggregation_expression(aggregation)
+      raise InvalidSpec, "each aggregation must be an object" unless aggregation.is_a?(Hash)
+
       function = aggregation[:function].to_s
       raise InvalidSpec, "unknown aggregation function: #{function.inspect}" unless AGGREGATE_FUNCTIONS.include?(function)
 
@@ -125,6 +127,8 @@ module MysqlDbBrowser
     end
 
     def join_clause
+      raise InvalidSpec, "join must be an object" unless @join_spec.is_a?(Hash)
+
       keyword = @join_spec[:type].to_s.presence || "left"
       raise InvalidSpec, "unknown join type: #{keyword.inspect}" unless JOIN_TYPES.include?(keyword)
 
@@ -135,7 +139,9 @@ module MysqlDbBrowser
 
     def order_by_clause
       sort = @spec[:sort]
-      return nil if sort.blank? || sort[:column].blank?
+      return nil if sort.blank?
+      raise InvalidSpec, "sort must be an object" unless sort.is_a?(Hash)
+      return nil if sort[:column].blank?
 
       direction = sort[:direction].to_s.downcase == "desc" ? "DESC" : "ASC"
       "#{sortable_column(sort[:column].to_s)} #{direction}"
