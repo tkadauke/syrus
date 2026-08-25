@@ -271,8 +271,8 @@ module App
               main_health: repo.main_health,
               ci_health: repo.ci_health,
               grader_health: repo.grader_health,
-              landing_paused: true,
-              main_branch_repair_blocks_work: true,
+              landing_paused: repo.landing_paused?,
+              main_branch_repair_blocks_work: repo.main_branch_repair_blocks_work?,
               repository_path: repository_path(repo),
               repair_path: "/api/v1/app/repositories/#{repo.id}/repair_main_branch",
               main_branch_repair: main_branch_repair_json(repair_status)
