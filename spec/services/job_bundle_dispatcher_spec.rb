@@ -111,8 +111,9 @@ RSpec.describe JobBundleDispatcher do
   it "does not dispatch while a rebase workflow is active for a bundle member" do
     a = approved_job(1)
     approved_job(2)
-    workflow = Workflow.create!(job: a, trigger_kind: "rebase", state: "running")
-    Step.create!(workflow: workflow, kind: "agent_rebase", position: 0)
+    workflow = WorkUnits::Launcher.instantiate(kind: "rebase", job: a)
+    workflow.update!(state: "running")
+    workflow.work_unit.update!(state: "running")
 
     expect(described_class.blocker_reason(repository)).to eq("active workflow #{workflow.slug} must finish before the job bundle starts")
     expect(described_class.try_dispatch!(repository)).to be_nil

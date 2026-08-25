@@ -269,12 +269,15 @@ module WorkUnits
 
     def create_lock!(unit, lock_key)
       if (owner = Ownership.active_unit_for_lock_key(lock_key))
+        raise LockConflict.new(lock_key: lock_key, work_unit: owner) if definition.landing_lock?
+
         return
       end
 
       unit.work_unit_locks.create!(lock_key: lock_key)
     rescue ActiveRecord::RecordNotUnique
-      nil
+      owner = Ownership.active_unit_for_lock_key(lock_key)
+      raise LockConflict.new(lock_key: lock_key, work_unit: owner) if owner && definition.landing_lock?
     end
 
     def preempt_superseded_ci_repairs!(unit)

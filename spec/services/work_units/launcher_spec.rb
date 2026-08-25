@@ -173,6 +173,23 @@ RSpec.describe WorkUnits::Launcher do
     expect(rebase.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("maintenance:rebase:job:#{job.id}")
   end
 
+  it "rolls back landing unit launches when another active unit owns a member lock" do
+    first = Factories.job_record(user: user, repository: repository, issue_number: 101, state: "approved")
+    second = Factories.job_record(user: user, repository: repository, issue_number: 102, state: "approved")
+    train = MergeTrain.create!(repository: repository, base_branch: repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+    MergeTrainMember.create!(merge_train: train, job: second, position: 1)
+    owner = described_class.instantiate(kind: "ci_failure", job: first)
+    owner.work_unit.update!(state: "running")
+
+    expect {
+      described_class.instantiate(kind: "job_bundle", job: second, artifacts: { "merge_train_id" => train.id })
+    }.to raise_error(WorkUnits::Launcher::LockConflict, /job:#{first.id}/)
+
+    expect(Workflow.where(trigger_kind: "merge_train").count).to eq(0)
+    expect(WorkUnit.where(kind: "job_bundle").count).to eq(0)
+  end
+
   it "preempts active CI repair when a rebase starts for the same job" do
     ci_repair = described_class.instantiate(
       kind: "ci_failure",
