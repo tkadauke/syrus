@@ -9,12 +9,34 @@ RSpec.describe SyrusBrowser::Session do
     allow(MCP::Client).to receive(:new).with(transport: transport).and_return(client)
   end
 
+  around do |example|
+    original = ENV["SYRUS_BROWSER_EXECUTABLE_PATH"]
+    ENV.delete("SYRUS_BROWSER_EXECUTABLE_PATH")
+    example.run
+  ensure
+    ENV["SYRUS_BROWSER_EXECUTABLE_PATH"] = original
+  end
+
   describe "#initialize" do
     it "spawns the stdio transport with the default @playwright/mcp command" do
       described_class.new(1)
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
-        command: "npx", args: %w[--yes @playwright/mcp --headless --isolated], env: nil
+        command: "npx",
+        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /opt/syrus-browser/chromium],
+        env: nil
+      )
+    end
+
+    it "allows overriding the browser executable path through the environment" do
+      ENV["SYRUS_BROWSER_EXECUTABLE_PATH"] = "/custom/chromium"
+
+      described_class.new(1)
+
+      expect(MCP::Client::Stdio).to have_received(:new).with(
+        command: "npx",
+        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /custom/chromium],
+        env: nil
       )
     end
 

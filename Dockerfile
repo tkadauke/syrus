@@ -429,7 +429,7 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
 # image. PLAYWRIGHT_BROWSERS_PATH pins the download to a shared,
 # world-readable location instead of $HOME/.cache/ms-playwright, since this
 # RUN executes as root but the worker container ultimately runs as uid 1000
-# (rails). `--with-deps` also apt-installs the system libraries Chrome
+# (rails). `--with-deps` also apt-installs the system libraries Chromium
 # needs (nss, libatk, libgtk, etc.); `@playwright/mcp` is Microsoft's own
 # MCP server, bundled as a stdio subprocess rather than hand-rolled —
 # SyrusBrowser::McpToolSet spawns it and re-exposes granular tools.
@@ -439,8 +439,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     npm install -g "playwright@${PLAYWRIGHT_VERSION}" "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" && \
-    npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chrome && \
+    npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium && \
+    mkdir -p /opt/syrus-browser && \
+    ln -s "$(find "${PLAYWRIGHT_BROWSERS_PATH}" -path '*/chrome-linux*/chrome' -type f | sort | tail -n 1)" /opt/syrus-browser/chromium && \
     chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}" && \
+    chmod a+rx /opt/syrus-browser/chromium && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 

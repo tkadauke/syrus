@@ -14,16 +14,26 @@ module SyrusBrowser
   # required since the worker container has no display server. The command
   # is invoked via `npx` (present alongside Node for the claude-code/codex
   # CLIs) without a version pin so it resolves the copy already installed
-  # globally in the image, offline.
+  # globally in the image, offline. The executable path is explicit because
+  # @playwright/mcp otherwise defaults to the branded Chrome channel in some
+  # environments, while Syrus workers ship Playwright's bundled Chromium.
   class Session
     DEFAULT_COMMAND = "npx".freeze
-    DEFAULT_ARGS = %w[--yes @playwright/mcp --headless --isolated].freeze
+    DEFAULT_EXECUTABLE_PATH = "/opt/syrus-browser/chromium".freeze
 
-    def self.spawn(run_id, command: DEFAULT_COMMAND, args: DEFAULT_ARGS, env: nil)
+    def self.default_args
+      %W[--yes @playwright/mcp --headless --isolated --executable-path #{browser_executable_path}]
+    end
+
+    def self.browser_executable_path
+      ENV.fetch("SYRUS_BROWSER_EXECUTABLE_PATH", DEFAULT_EXECUTABLE_PATH)
+    end
+
+    def self.spawn(run_id, command: DEFAULT_COMMAND, args: default_args, env: nil)
       new(run_id, command: command, args: args, env: env)
     end
 
-    def initialize(run_id, command: DEFAULT_COMMAND, args: DEFAULT_ARGS, env: nil)
+    def initialize(run_id, command: DEFAULT_COMMAND, args: self.class.default_args, env: nil)
       @run_id = run_id
       @transport = MCP::Client::Stdio.new(command: command, args: args, env: env)
       @client = MCP::Client.new(transport: @transport)
