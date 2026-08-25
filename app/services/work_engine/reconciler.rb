@@ -266,6 +266,39 @@ module WorkEngine
       @execute_repairs
     end
 
+    def latest_workflow_for_job(job)
+      return nil unless job
+
+      @latest_workflow_for_job ||= begin
+        job_ids = jobs.map(&:id).compact
+        latest_ids_by_job_id = Job.where(id: job_ids)
+          .with_latest_workflow_snapshot
+          .each_with_object({}) { |snapshot, result| result[snapshot.id] = snapshot.latest_workflow_id }
+        workflows_by_id = Workflow.where(id: latest_ids_by_job_id.values.compact).includes(:steps).index_by(&:id)
+        latest_ids_by_job_id.transform_values { |workflow_id| workflows_by_id[workflow_id] }
+      end
+
+      @latest_workflow_for_job[job.id]
+    end
+
+    def steps_for_workflow(workflow)
+      return [] unless workflow
+
+      @steps_by_workflow_id ||= steps.group_by(&:workflow_id)
+      loaded_steps = @steps_by_workflow_id[workflow.id]
+      return loaded_steps if loaded_steps
+
+      workflow.steps.to_a
+    end
+
+    def latest_run_for_step(step)
+      return nil unless step
+
+      @runs_by_step_id ||= runs.group_by(&:step_id)
+      candidates = @runs_by_step_id[step.id] || []
+      candidates.max_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
+    end
+
     def scoped_jobs
       if job_id.present?
         Job.where(id: job_id)
@@ -1128,7 +1161,8 @@ module WorkEngine
       jobs.filter_map do |job|
         active = active_runtime_workflows_for_job(job)
         next if active.empty? || job.closed? || %w[queued running landing coding approved].include?(job.state)
-        next if job.failed? && job.latest_workflow&.queued? && ReconcileJobStatesJob::Plan.for(job)
+        latest = latest_workflow_for_job(job)
+        next if job.failed? && latest&.queued? && ReconcileJobStatesJob::Plan.for(job)
         next if job.failed? && active_repair_workflows?(active)
         next if active.all? { |workflow| expected_start_blocked_workflow?(job, workflow) }
 
@@ -1174,12 +1208,26 @@ module WorkEngine
 
     def active_runtime_workflows_for_job(job)
       @active_runtime_workflows_for_job ||= {}
-      @active_runtime_workflows_for_job[job.id] ||= job.active_runtime_workflows
+      @active_runtime_workflows_for_job[job.id] ||= begin
+        WorkUnits::TerminalWorkflowSync.for_job(job)
+        unit_workflows = active_work_units_for_job(job).filter_map(&:workflow)
+        legacy_workflows = workflows.select do |workflow|
+          workflow.job_id == job.id &&
+            %w[queued running].include?(workflow.state)
+        end
+        (unit_workflows + legacy_workflows)
+          .uniq(&:id)
+          .sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id || 0 ] }
+      end
     end
 
     def active_work_units_for_job(job)
       @active_work_units_for_job ||= {}
-      @active_work_units_for_job[job.id] ||= WorkUnits::Ownership.active_units_for_job(job)
+      @active_work_units_for_job[job.id] ||= work_units.select do |unit|
+        next false if unit.workflow&.terminal?
+
+        unit.active? && unit.work_unit_members.any? { |member| member.job_id == job.id }
+      end.sort_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id || 0 ] }.reverse
     end
 
     def active_repair_workflows?(workflows)
@@ -1288,7 +1336,8 @@ module WorkEngine
     def classify_unambiguous_job_state_drift
       jobs.filter_map do |job|
         next unless ReconcileJobStatesJob::RECONCILABLE_STATES.include?(job.state)
-        next if job.latest_workflow&.terminal? && active_runtime_work_for_job?(job)
+        latest = latest_workflow_for_job(job)
+        next if latest&.terminal? && active_runtime_work_for_job?(job)
 
         plan = ReconcileJobStatesJob::Plan.for(job)
         next unless plan
@@ -1296,14 +1345,14 @@ module WorkEngine
         issue(
           kind: :unambiguous_job_state_drift,
           severity: :warning,
-          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest&.id ]),
           safe_to_auto_repair: true,
           recommended_repair_action: "reconcile_job_state",
           evidence: {
             job_state: plan.from_state,
             target_state: plan.target_state,
-            latest_workflow_id: job.latest_workflow&.id,
-            latest_workflow_state: job.latest_workflow&.state,
+            latest_workflow_id: latest&.id,
+            latest_workflow_state: latest&.state,
             reason: plan.reason
           },
           explanation: "Job ##{job.id} has unambiguous Workflow-derived state drift."
@@ -1318,6 +1367,7 @@ module WorkEngine
         next if active_workflows.any?
         next if active_runtime_work_for_job?(job)
         next if job.landing? && active_landing_work_for_job?(job)
+        latest = latest_workflow_for_job(job)
 
         if job.landing?
           next unless landing_slot_orphaned?(job)
@@ -1325,14 +1375,14 @@ module WorkEngine
           next issue(
             kind: :landing_job_without_active_workflow,
             severity: :critical,
-            affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+            affected_ids: ids_for(job).merge(workflow_ids: [ latest&.id ]),
             safe_to_auto_repair: job.may_defer_landing?,
             recommended_repair_action: "defer_orphaned_landing_job",
             evidence: {
               job_state: job.state,
-              latest_workflow_id: job.latest_workflow&.id,
-              latest_workflow_state: job.latest_workflow&.state,
-              latest_workflow_trigger_kind: job.latest_workflow&.trigger_kind,
+              latest_workflow_id: latest&.id,
+              latest_workflow_state: latest&.state,
+              latest_workflow_trigger_kind: latest&.trigger_kind,
               updated_at: job.updated_at&.iso8601
             },
             explanation: "Job ##{job.id} is occupying the landing slot, but no active Workflow owns landing work for it."
@@ -1344,13 +1394,13 @@ module WorkEngine
         issue(
           kind: :job_without_active_workflow,
           severity: :critical,
-          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest&.id ]),
           safe_to_auto_repair: false,
           recommended_repair_action: "operator_review_state_transition",
           evidence: {
             job_state: job.state,
-            latest_workflow_id: job.latest_workflow&.id,
-            latest_workflow_state: job.latest_workflow&.state,
+            latest_workflow_id: latest&.id,
+            latest_workflow_state: latest&.state,
             updated_at: job.updated_at&.iso8601
           },
           explanation: "Job ##{job.id} is #{job.state}, but has no active Workflow."
@@ -1363,7 +1413,7 @@ module WorkEngine
         next unless job.queued?
         next if active_runtime_work_for_job?(job)
 
-        latest = job.latest_workflow
+        latest = latest_workflow_for_job(job)
         next unless latest&.cancelled?
         next unless cancelled_workflow_reason(latest) == EpicWorkflowLock::BLOCK_REASON
         next if active_epic_wide_workflow_for_job?(job)
@@ -1393,7 +1443,7 @@ module WorkEngine
         next unless job.queued?
         next if active_runtime_work_for_job?(job)
 
-        latest = job.latest_workflow
+        latest = latest_workflow_for_job(job)
         next unless recoverable_cancelled_workflow_for_queued_job?(job, latest)
         next if ReconcileJobStatesJob::Plan.for(job)
 
@@ -1427,7 +1477,7 @@ module WorkEngine
         issue(
           kind: :approved_job_landing_start_blocked,
           severity: :warning,
-          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow_for_job(job)&.id ]),
           safe_to_auto_repair: true,
           recommended_repair_action: "clear_landing_start_blocker_and_wake_queue",
           evidence: {
@@ -1435,8 +1485,8 @@ module WorkEngine
             epic_id: job.epic_id,
             repository_id: job.repository_id,
             landing_failure_reason: job.landing_failure_reason,
-            latest_workflow_id: job.latest_workflow&.id,
-            latest_workflow_state: job.latest_workflow&.state,
+            latest_workflow_id: latest_workflow_for_job(job)&.id,
+            latest_workflow_state: latest_workflow_for_job(job)&.state,
             active_repository_landing_job_id: Job.landing.where(repository_id: job.repository_id).where.not(id: job.id).order(:id).pick(:id)
           },
           explanation: "Approved Job ##{job.id} has a transient landing-start blocker; it should re-enter the landing queue instead of requiring an immediate manual dispatch."
@@ -1455,14 +1505,14 @@ module WorkEngine
         issue(
           kind: :approved_job_missing_pr,
           severity: :critical,
-          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ].compact),
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow_for_job(job)&.id ].compact),
           safe_to_auto_repair: job.may_force_fail?,
           recommended_repair_action: "fail_approved_job_missing_pr",
           evidence: {
             job_state: job.state,
-            latest_workflow_id: job.latest_workflow&.id,
-            latest_workflow_state: job.latest_workflow&.state,
-            latest_workflow_trigger_kind: job.latest_workflow&.trigger_kind,
+            latest_workflow_id: latest_workflow_for_job(job)&.id,
+            latest_workflow_state: latest_workflow_for_job(job)&.state,
+            latest_workflow_trigger_kind: latest_workflow_for_job(job)&.trigger_kind,
             pr_number: job.pr_number,
             external_pr_number: job.external_pr_number,
             fork_review_pr_number: job.fork_review_pr_number,
@@ -1480,13 +1530,14 @@ module WorkEngine
         next if job.infrastructure_job?
         next if job.main_branch_repair?
 
-        latest_workflow = job.latest_workflow
+        latest_workflow = latest_workflow_for_job(job)
         next unless latest_workflow
         next unless ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
         review_publication_step_kinds = review_publication_step_kinds_for(latest_workflow)
         next if review_publication_step_kinds.empty?
-        next unless latest_workflow.steps.where(kind: review_publication_step_kinds).exists?
-        next if latest_workflow.steps.where(kind: review_publication_step_kinds, state: "succeeded").exists?
+        review_publication_steps = steps_for_workflow(latest_workflow).select { |step| review_publication_step_kinds.include?(step.kind) }
+        next if review_publication_steps.empty?
+        next if review_publication_steps.any?(&:succeeded?)
         next if active_runtime_work_for_job?(job)
 
         issue(
@@ -1500,7 +1551,7 @@ module WorkEngine
             latest_workflow_id: latest_workflow.id,
             latest_workflow_state: latest_workflow.state,
             latest_workflow_trigger_kind: latest_workflow.trigger_kind,
-            review_publication_steps: latest_workflow.steps.where(kind: review_publication_step_kinds).pluck(:id, :kind, :state),
+            review_publication_steps: review_publication_steps.map { |step| [ step.id, step.kind, step.state ] },
             pr_number: job.pr_number,
             external_pr_number: job.external_pr_number,
             fork_review_pr_number: job.fork_review_pr_number
@@ -1540,7 +1591,7 @@ module WorkEngine
       jobs.filter_map do |job|
         next if job.closed?
 
-        latest_workflow = job.latest_workflow
+        latest_workflow = latest_workflow_for_job(job)
         closure_reason = completed_internal_job_closure_reason(job, latest_workflow)
         next unless closure_reason
         next unless job.implemented? || ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
@@ -1824,7 +1875,8 @@ module WorkEngine
         next if workflow&.artifact("branch_divergence_recovery").present?
         next unless divergence_current_pr_head?(job, divergence)
 
-        if workflow == job.latest_workflow && job.failed? && !active_runtime_work_for_job?(job)
+        latest = latest_workflow_for_job(job)
+        if workflow == latest && job.failed? && !active_runtime_work_for_job?(job)
           issue(
             kind: :branch_diverged_pr_open,
             severity: :warning,
@@ -1849,8 +1901,8 @@ module WorkEngine
               classification: run.run_failure_classification&.classification,
               branch_divergence: divergence,
               current_pr_head_sha: current_pr_head_sha(job),
-              latest_workflow_id: job.latest_workflow&.id,
-              latest_workflow_state: job.latest_workflow&.state
+              latest_workflow_id: latest&.id,
+              latest_workflow_state: latest&.state
             ),
             explanation: "Workflow ##{workflow.id} has stale branch-diverged output; the current PR branch is already at the protected remote SHA."
           )
@@ -1952,7 +2004,7 @@ module WorkEngine
         issue(
           kind: :runaway_protection_active,
           severity: :warning,
-          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow_for_job(job)&.id ]),
           safe_to_auto_repair: false,
           recommended_repair_action: "operator_clear_runaway_protection",
           evidence: {
@@ -1960,8 +2012,8 @@ module WorkEngine
             runaway_protection: job.runaway_protection,
             runaway_protection_at: job.runaway_protection_at&.iso8601,
             total_workflows: job.workflows_since_latest_reopen.count,
-            latest_workflow_id: job.latest_workflow&.id,
-            latest_workflow_state: job.latest_workflow&.state
+            latest_workflow_id: latest_workflow_for_job(job)&.id,
+            latest_workflow_state: latest_workflow_for_job(job)&.state
           },
           explanation: "Job ##{job.id} has runaway protection active (#{job.runaway_protection}); automatic retries are blocked until the operator manually retries."
         )
@@ -2568,14 +2620,14 @@ module WorkEngine
     def latest_workflow_run?(run)
       workflow = run.workflow
       job = run.job
-      workflow && job && workflow == job.latest_workflow
+      workflow && job && workflow == latest_workflow_for_job(job)
     end
 
     def failed_run_still_controls_step?(run)
       step = run.step
       return false unless step&.failed?
 
-      step.latest_run == run
+      latest_run_for_step(step) == run
     end
 
     def divergence_current_pr_head?(job, divergence)
