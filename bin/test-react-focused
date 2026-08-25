@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Syrus review-phase grader: runs only the Vitest tests related (via
+# Vitest's native module-graph `related` resolution) to the diff so far,
+# instead of the full suite. Gives the implementing agent a fast test
+# signal on every review-phase grade iteration; the full suite + typecheck
+# still run at landing/ci via the `react-tests` grader.
+#
+# Deliberately skips `tsc --noEmit` here -- TypeScript typechecking is
+# whole-program, not meaningfully "focused" by changed file.
+
+set -euo pipefail
+
+# Detect the default branch ref. Copied from bin/check-migration-collisions
+# rather than extracted, to keep both scripts standalone and dependency-free.
+resolve_default_branch() {
+  local ref
+  ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || ref=""
+  if [ -n "$ref" ] && git rev-parse --verify "origin/$ref" >/dev/null 2>&1; then
+    echo "origin/$ref"
+    return
+  fi
+  for candidate in origin/main origin/master main master; do
+    if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return
+    fi
+  done
+  return 1
+}
+
+default_branch=$(resolve_default_branch) || {
+  echo "[test-react-focused] could not locate the default branch ref -- skipping"
+  exit 0
+}
+
+changed_files=()
+while IFS= read -r line; do
+  case "$line" in
+    *.ts|*.tsx) [ -n "$line" ] && changed_files+=("$line") ;;
+  esac
+done < <(git diff --name-only --diff-filter=ACMR "${default_branch}...HEAD" -- app/frontend plugins desktop/src 2>/dev/null || true)
+
+if [ "${#changed_files[@]}" -eq 0 ]; then
+  echo "[test-react-focused] no changed .ts/.tsx files -- nothing to run"
+  exit 0
+fi
+
+echo "[test-react-focused] running vitest related for ${#changed_files[@]} file(s): ${changed_files[*]}"
+
+# Install node_modules if missing or stale. Same freshness check as
+# bin/test-react, verbatim, so a stale/missing node_modules still installs.
+if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ package-lock.json -nt node_modules/.package-lock.json ] || [ package.json -nt node_modules/.package-lock.json ]; then
+  npm ci
+fi
+
+vitest_junit_output="${VITEST_FOCUSED_JUNIT_OUTPUT:-.syrus/grade-output/react-tests-focused-junit.xml}"
+mkdir -p "$(dirname "$vitest_junit_output")"
+
+exec npx vitest related --run --passWithNoTests --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" "${changed_files[@]}"

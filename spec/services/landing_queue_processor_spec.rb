@@ -1266,6 +1266,43 @@ RSpec.describe LandingQueueProcessor do
 
       expect(entry.blocked_reason).to be_blank
     end
+
+    it "fetches active urgent jobs for a repository once per entries() call, not once per job" do
+      queue_job(issue_number: 1, approved_at: 5.minutes.ago).tap { |j| j.update!(priority: "urgent") }
+      non_urgent_a = queue_job(issue_number: 2, approved_at: 4.minutes.ago)
+      non_urgent_b = queue_job(issue_number: 3, approved_at: 3.minutes.ago)
+
+      query_count = 0
+      counter = lambda do |*, payload|
+        sql = payload[:sql]
+        query_count += 1 if sql.match?(/\ASELECT/i) && sql.include?('"priority" = ?') && sql.include?('"state" IN')
+      end
+
+      entries = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+        described_class.entries(Job.where(id: [ non_urgent_a.id, non_urgent_b.id ]))
+      end
+
+      expect(query_count).to eq(1)
+      expect(entries.map(&:blocked_reason)).to all(eq({ key: "urgent_job_active" }))
+    end
+
+    it "does not let land()'s race-guard re-check use a stale urgent-jobs cache from an earlier entries() snapshot on the same instance" do
+      non_urgent = queue_job(issue_number: 1, approved_at: 5.minutes.ago)
+      processor = described_class.new
+
+      # Mirrors #call: entries() is computed first (and, with no urgent Jobs
+      # yet, memoizes an empty active-urgent-jobs result for this
+      # repository), then land() re-validates blockage_for on the same
+      # instance later.
+      snapshot = processor.entries(Job.where(id: non_urgent.id))
+      expect(snapshot.first.blocked_reason).to be_blank
+
+      # An urgent Job goes active for the same repository between the
+      # snapshot and the actual land attempt.
+      queue_job(issue_number: 2, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "urgent") }
+
+      expect { processor.send(:land, non_urgent) }.not_to change { non_urgent.reload.state }
+    end
   end
 
   describe "external_pr jobs" do
