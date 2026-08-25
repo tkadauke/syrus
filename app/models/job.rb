@@ -11,8 +11,9 @@ class Job < ApplicationRecord
   include JobLifecycle
   include EnqueuesSearchIndex
 
-  KINDS = %w[ issue cron direct main_grader agent_insight external_pr ].freeze
+  KINDS = %w[ issue cron direct main_grader agent_insight external_pr deploy ].freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
+  DEPLOY_CLOSURE_REASON = "deploy".freeze
   SCHEDULED_TASK_OUTCOMES = {
     "too_many_failures"          => :record_failure!,
     "too_many_failed_workflows"  => :record_failure!,
@@ -121,6 +122,7 @@ class Job < ApplicationRecord
   validate  :issue_number_blank_for_agent_insight, if: :agent_insight?
   validate  :agent_insights_feature_enabled, if: :agent_insight?
   validate  :issue_number_blank_for_external_pr, if: :external_pr?
+  validate  :issue_number_blank_for_deploy_job, if: :deploy_job?
   validate  :external_pr_starts_implemented, if: :external_pr?, on: :create
   validates :external_pr_number, presence: true, if: :external_pr?
   validates :external_pr_number, uniqueness: { scope: :repository_id }, if: :external_pr?
@@ -277,11 +279,20 @@ class Job < ApplicationRecord
     kind == "agent_insight"
   end
 
+  # Synthetic anchor Job for a continuous-deploy auto-trigger (see
+  # MaybeDeployJob) — no issue, no PR, no operator review. Distinct from
+  # `deployable?`, which is about whether a *manual* deploy can target an
+  # ordinary user Job; `deploy_job?` is only ever true for the synthetic
+  # anchor Job, never for the ordinary Job a manual deploy targets.
+  def deploy_job?
+    kind == "deploy"
+  end
+
   # Jobs whose sole purpose is running one internal-tooling Workflow and
   # then closing — no PR, no operator review/approval step. See the
   # mark_implemented event and mark_infrastructure_job_closed below.
   def infrastructure_job?
-    main_grader? || agent_insight?
+    main_grader? || agent_insight? || deploy_job?
   end
 
   def external_pr?
@@ -1574,6 +1585,10 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_agent_insight
     errors.add(:issue_number, "must be blank for agent_insight Jobs") if issue_number.present?
+  end
+
+  def issue_number_blank_for_deploy_job
+    errors.add(:issue_number, "must be blank for deploy Jobs") if issue_number.present?
   end
 
   def skill_name_requires_direct_or_cron_kind

@@ -329,6 +329,28 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(main_sha)
         expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("HEAD")
       end
+
+      it "checks out a continuous-deploy anchor workflow at the resolved default-branch SHA" do
+        deploy_sha = sh("git --git-dir=#{bare_remote_dir} rev-parse main").strip
+        anchor_job = Job.create!(
+          user: user,
+          repository: repository,
+          kind: "deploy",
+          issue_title: "deploy:#{deploy_sha}",
+          issue_number: nil
+        )
+        anchor_workflow = Workflow.create!(
+          job: anchor_job,
+          trigger_kind: "deploy",
+          artifacts: { "deploy_sha" => deploy_sha }
+        )
+
+        ws = described_class.new(anchor_workflow)
+        expect { ws.setup }.not_to raise_error
+
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(deploy_sha)
+        expect(sh("git -C #{ws.path} rev-parse --abbrev-ref HEAD").strip).to eq("HEAD")
+      end
     end
 
     context "idempotent re-setup (retry within a step)" do

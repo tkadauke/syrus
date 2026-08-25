@@ -24,8 +24,9 @@ module Workflows
       without_skipped_prepare(job, chain)
     end
 
-    def self.after_success(_workflow)
+    def self.after_success(workflow)
       LandingQueueProcessor.try_land!
+      DeployContinuousTrigger.after_landing!(workflow.job.repository)
     end
 
     def self.after_fail(workflow)

@@ -239,6 +239,8 @@ class WorkflowWorkspace
       "syrus/direct-#{@job.id}"
     elsif @job.main_grader?
       @repository.default_branch
+    elsif @job.deploy_job?
+      @repository.default_branch
     elsif @job.external_pr?
       "external-pr-#{@job.external_pr_number}-#{@job.id}"
     else
@@ -289,6 +291,11 @@ class WorkflowWorkspace
 
     if @job.main_grader?
       checkout_main_sha!
+      return
+    end
+
+    if @job.deploy_job?
+      checkout_deploy_sha!
       return
     end
 
@@ -423,6 +430,19 @@ class WorkflowWorkspace
     return unless @job.main_grader?
 
     sha = @workflow.artifact("main_sha")
+    return if sha.blank?
+
+    @git.run("checkout", sha, chdir: path.to_s)
+  end
+
+  # For continuous-deploy anchor Jobs (MaybeDeployJob): detach HEAD at the
+  # exact default-branch SHA that was resolved when the deploy was
+  # triggered, so the deploy command runs against that commit even if the
+  # default branch advances again before this workspace clones.
+  def checkout_deploy_sha!
+    return unless @job.deploy_job?
+
+    sha = @workflow.artifact("deploy_sha")
     return if sha.blank?
 
     @git.run("checkout", sha, chdir: path.to_s)
