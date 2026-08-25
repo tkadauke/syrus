@@ -149,7 +149,8 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     mockFetch({
       main_branch_health_enabled: true,
       main_branch_repair_enabled: true,
-      main_branch_repair_blocks_work: true
+      main_branch_repair_blocks_work: true,
+      main_branch_repair_auto_approve: true
     })
     renderRoute()
 
@@ -157,19 +158,41 @@ describe("RepositoryForm plugin input-source decoupling", () => {
 
     expect(screen.getByLabelText("Automatically create a fix job when main breaks")).not.toBeChecked()
     expect(screen.getByLabelText("Pause work when main is broken")).not.toBeChecked()
+    expect(screen.getByLabelText("Auto-approve successful main branch fix jobs")).not.toBeChecked()
   })
 
   it("does not render stale repair settings as enabled when monitoring is disabled", async () => {
     mockFetch({
       main_branch_health_enabled: false,
       main_branch_repair_enabled: true,
-      main_branch_repair_blocks_work: true
+      main_branch_repair_blocks_work: true,
+      main_branch_repair_auto_approve: true
     })
     renderRoute()
 
     expect(await screen.findByLabelText("Monitor main branch health")).not.toBeChecked()
     expect(screen.getByLabelText("Automatically create a fix job when main breaks")).not.toBeChecked()
     expect(screen.getByLabelText("Pause work when main is broken")).not.toBeChecked()
+    expect(screen.getByLabelText("Auto-approve successful main branch fix jobs")).not.toBeChecked()
+  })
+
+  it("enables monitoring and repair when enabling main branch repair auto-approval", async () => {
+    mockFetch({
+      main_branch_health_enabled: false,
+      main_branch_repair_enabled: false,
+      main_branch_repair_auto_approve: false
+    })
+    renderRoute()
+
+    const monitor = await screen.findByLabelText("Monitor main branch health")
+    const repair = screen.getByLabelText("Automatically create a fix job when main breaks")
+    const autoApprove = screen.getByLabelText("Auto-approve successful main branch fix jobs")
+
+    fireEvent.click(autoApprove)
+
+    expect(monitor).toBeChecked()
+    expect(repair).toBeChecked()
+    expect(autoApprove).toBeChecked()
   })
 
   it("saves core repository settings even when a plugin's required fields are empty", async () => {

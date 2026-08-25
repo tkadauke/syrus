@@ -444,14 +444,25 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             ...values,
             main_branch_health_enabled: checked,
             main_branch_repair_enabled: checked ? values.main_branch_repair_enabled : false,
-            main_branch_repair_blocks_work: checked ? values.main_branch_repair_blocks_work : false
+            main_branch_repair_blocks_work: checked ? values.main_branch_repair_blocks_work : false,
+            main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
           })} value={values.main_branch_health_enabled} />
           <Checkbox label={t('repository_form.check_main_repair')} onChange={(checked) => {
             setRepairTouched(true)
-            setValues({ ...values, main_branch_health_enabled: checked ? true : values.main_branch_health_enabled, main_branch_repair_enabled: checked })
-          }} value={values.main_branch_repair_enabled} />
+            setValues({
+              ...values,
+              main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
+              main_branch_repair_enabled: checked,
+              main_branch_repair_auto_approve: checked ? values.main_branch_repair_auto_approve : false
+            })
+          }} value={values.main_branch_health_enabled && values.main_branch_repair_enabled} />
           <Checkbox label={t('repository_form.check_main_repair_blocks_work')} onChange={(checked) => setValues({ ...values, main_branch_health_enabled: checked ? true : values.main_branch_health_enabled, main_branch_repair_blocks_work: checked })} value={values.main_branch_repair_blocks_work} />
-          <Checkbox label={t('repository_form.check_repair_auto_approve')} onChange={(checked) => setValues({ ...values, main_branch_repair_auto_approve: checked })} value={values.main_branch_repair_auto_approve} />
+          <Checkbox label={t('repository_form.check_repair_auto_approve')} onChange={(checked) => setValues({
+            ...values,
+            main_branch_health_enabled: checked ? true : values.main_branch_health_enabled,
+            main_branch_repair_enabled: checked ? true : values.main_branch_repair_enabled,
+            main_branch_repair_auto_approve: checked
+          })} value={values.main_branch_health_enabled && values.main_branch_repair_enabled && values.main_branch_repair_auto_approve} />
           <Checkbox
             label={t('repository_form.check_timeout_failures')}
             onChange={(checked) => setValues({ ...values, treat_grader_timeouts_as_failures: checked })}
@@ -670,7 +681,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     main_branch_health_enabled: mainBranchHealthEnabled,
     main_branch_repair_enabled: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled,
     main_branch_repair_blocks_work: mainBranchHealthEnabled && payload.repository.main_branch_repair_blocks_work,
-    main_branch_repair_auto_approve: payload.repository.main_branch_repair_auto_approve,
+    main_branch_repair_auto_approve: mainBranchHealthEnabled && payload.repository.main_branch_repair_enabled && payload.repository.main_branch_repair_auto_approve,
     treat_grader_timeouts_as_failures: payload.repository.treat_grader_timeouts_as_failures,
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,
     external_pr_ingestion_enabled: payload.repository.external_pr_ingestion_enabled,
