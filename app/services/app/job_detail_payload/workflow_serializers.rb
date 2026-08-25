@@ -178,7 +178,7 @@ module App
           WorkUnitMember
             .joins(:work_unit)
             .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
-            .where(job_id: @job.id)
+            .where(job_id: @job.id, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
             .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
             .limit(50)
             .to_a

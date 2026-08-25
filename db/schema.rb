@@ -2317,6 +2317,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_182817) do
     t.datetime "updated_at", null: false
     t.bigint "work_unit_id", null: false
     t.index ["job_id", "role"], name: "idx_work_unit_members_job_role"
+    t.index ["job_id", "work_unit_id"], name: "idx_work_unit_members_job_unit"
     t.index ["work_unit_id", "job_id", "role"], name: "idx_work_unit_members_unique", unique: true
   end
 

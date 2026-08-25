@@ -984,12 +984,12 @@ RSpec.describe App::JobDetailPayload do
       expect(workflow_payload.fetch(:steps).first.fetch(:display_name)).to eq("Land Epic")
     end
 
-    it "includes parent and preemption relationships for WorkUnit diagnostics" do
+    it "includes parent and preemption relationships for active WorkUnit diagnostics" do
       parent_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
       parent = attach_work_unit(parent_workflow, member_jobs: [ job ], kind: "auto_merge")
       child_job = Factories.job_record(user: user, repository: repo, issue_number: 102)
-      child_workflow = Workflow.create!(job: child_job, trigger_kind: "landing_validation", state: "cancelled")
-      child = attach_work_unit(child_workflow, member_jobs: [ child_job ], kind: "landing_validation", state: "cancelled")
+      child_workflow = Workflow.create!(job: child_job, trigger_kind: "landing_validation", state: "queued")
+      child = attach_work_unit(child_workflow, member_jobs: [ child_job ], kind: "landing_validation", state: "blocked")
       child.update!(
         parent_work_unit: parent,
         preemption_reason: "terminal_parent_work_unit",
@@ -1068,24 +1068,16 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
-    it "omits nested workflow graphs for historical terminal WorkUnits" do
+    it "omits historical terminal WorkUnits from the job detail debug panel" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "failed")
       Step.create!(workflow: workflow, kind: "analyze_and_fix", position: 1, state: "failed")
-      unit = attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "failed")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "failed")
 
       payload = workflows_payload_for(job)
 
       expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
-      expect(payload.fetch(:work_units)).to contain_exactly(
-        include(
-          id: unit.id,
-          workflow_id: workflow.id,
-          workflow_slug: workflow.slug,
-          workflow_state: "failed",
-          workflow: nil
-        )
-      )
+      expect(payload.fetch(:work_units)).to be_empty
     end
 
     it "keeps WorkUnit workflow graphs out of the default job detail response" do
@@ -1149,7 +1141,7 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
     end
 
-    it "keeps WorkUnit-owned workflows in the regular paginated workflow list" do
+    it "keeps terminal WorkUnit-owned workflows in the regular paginated workflow list without duplicating them as attempts" do
       job = Factories.job_record(user: user, repository: repo)
       51.times do |index|
         workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", created_at: index.minutes.ago)
@@ -1159,7 +1151,7 @@ RSpec.describe App::JobDetailPayload do
 
       payload = workflows_payload_for(job)
 
-      expect(payload.fetch(:work_units).size).to eq(50)
+      expect(payload.fetch(:work_units)).to be_empty
       expect(payload.fetch(:workflows).size).to eq(App::WorkflowNavigation::PER_PAGE)
       expect(payload.fetch(:workflows_pagination)).to include(total_workflows: 51)
     end
