@@ -22,6 +22,7 @@ function payload() {
   return {
     window: { start: "2026-08-14T00:00:00Z", end: "2026-08-21T00:00:00Z" },
     surface: "all",
+    filters: { tool_name: null, server_name: null },
     totals: { calls: 10, errors: 2 },
     top_tools: [
       { tool_name: "read_live_state", server_name: "syrus-mcp-sidecar", calls: 6, errors: 1, error_rate: 0.1667 }
@@ -113,6 +114,23 @@ describe("AdminMcpToolUsage", () => {
 
     await waitFor(() => {
       expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("surface=chat"))).toBe(true)
+    })
+  })
+
+  it("re-fetches with exact tool and server filters when entered", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+    renderRoute()
+    await screen.findByRole("heading", { name: "MCP tool usage" })
+
+    fireEvent.change(screen.getByLabelText("Tool"), { target: { value: "browser_navigate" } })
+    fireEvent.keyDown(screen.getByLabelText("Tool"), { key: "Enter" })
+    fireEvent.change(screen.getByLabelText("Server"), { target: { value: "syrus-mcp-sidecar" } })
+    fireEvent.blur(screen.getByLabelText("Server"))
+
+    await waitFor(() => {
+      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("tool_name=browser_navigate"))).toBe(true)
+      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("server_name=syrus-mcp-sidecar"))).toBe(true)
     })
   })
 })

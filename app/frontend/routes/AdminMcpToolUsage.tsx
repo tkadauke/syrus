@@ -74,6 +74,8 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
   const params = new URLSearchParams(search)
   const activeSurface = params.get("surface") || "all"
   const activeWindow = params.get("window_preset") || "7d"
+  const activeToolName = params.get("tool_name") || ""
+  const activeServerName = params.get("server_name") || ""
 
   function setWindow(value: string) {
     const preset = WINDOW_PRESETS.find((entry) => entry.value === value)
@@ -100,6 +102,17 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
     onNavigate(next)
   }
 
+  function setTextFilter(key: "tool_name" | "server_name", value: string) {
+    const next = new URLSearchParams(search)
+    const trimmed = value.trim()
+    if (trimmed) {
+      next.set(key, trimmed)
+    } else {
+      next.delete(key)
+    }
+    onNavigate(next)
+  }
+
   return (
     <section className="flex flex-wrap items-end gap-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <label className="space-y-1">
@@ -117,6 +130,32 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
             <option key={value} value={value}>{t(`mcp_tool_usage.surface_${value}`)}</option>
           ))}
         </select>
+      </label>
+      <label className="space-y-1">
+        <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.tool_label")}</span>
+        <input
+          className={compactInputClass()}
+          onBlur={(event) => setTextFilter("tool_name", event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") setTextFilter("tool_name", event.currentTarget.value)
+          }}
+          placeholder={t("mcp_tool_usage.tool_placeholder")}
+          type="text"
+          defaultValue={activeToolName}
+        />
+      </label>
+      <label className="space-y-1">
+        <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.server_label")}</span>
+        <input
+          className={compactInputClass()}
+          onBlur={(event) => setTextFilter("server_name", event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") setTextFilter("server_name", event.currentTarget.value)
+          }}
+          placeholder={t("mcp_tool_usage.server_placeholder")}
+          type="text"
+          defaultValue={activeServerName}
+        />
       </label>
     </section>
   )

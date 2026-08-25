@@ -116,4 +116,47 @@ RSpec.describe "API: /api/v1/admin/mcp_tool_usage", type: :request do
     expect(body["totals"]).to include("calls" => 1)
     expect(body["recent_calls"].map { |call| call["tool_name"] }).to eq([ "read_live_state" ])
   end
+
+  it "filters recent calls and aggregates by tool and server" do
+    repository = Factories.repository(user: admin)
+    run = Factories.job(user: admin, repository: repository).initial_run
+
+    McpToolUsageRecorder.record_workflow_tool_call(
+      run: run,
+      tool_name: "syrus-mcp-sidecar.submit_test_plan",
+      tool_use_id: "wanted",
+      tool_input: {}
+    )
+    McpToolUsageRecorder.record_workflow_tool_call(
+      run: run,
+      tool_name: "syrus-mcp-sidecar.submit_summary",
+      tool_use_id: "other_tool",
+      tool_input: {}
+    )
+    McpToolUsageRecorder.record_workflow_tool_call(
+      run: run,
+      tool_name: "syrus-chat-sidecar.submit_test_plan",
+      tool_use_id: "other_server",
+      tool_input: {}
+    )
+
+    get "/api/v1/admin/mcp_tool_usage", headers: auth, params: {
+      tool_name: "submit_test_plan",
+      server_name: "syrus-mcp-sidecar"
+    }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["filters"]).to eq(
+      "tool_name" => "submit_test_plan",
+      "server_name" => "syrus-mcp-sidecar"
+    )
+    expect(body["totals"]).to include("calls" => 1)
+    expect(body["top_tools"]).to contain_exactly(
+      include("tool_name" => "submit_test_plan", "server_name" => "syrus-mcp-sidecar", "calls" => 1)
+    )
+    expect(body["recent_calls"].map { |call| [ call["tool_name"], call["server_name"] ] }).to eq(
+      [ [ "submit_test_plan", "syrus-mcp-sidecar" ] ]
+    )
+  end
 end

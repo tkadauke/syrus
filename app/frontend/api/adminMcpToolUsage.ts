@@ -45,6 +45,10 @@ export type McpToolUsageRecentCall = {
 export type McpToolUsagePayload = {
   window: { start: string; end: string }
   surface: string
+  filters: {
+    tool_name: string | null
+    server_name: string | null
+  }
   totals: { calls: number; errors: number }
   top_tools: McpToolUsageToolRow[]
   error_rates: McpToolUsageToolRow[]

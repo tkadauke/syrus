@@ -18,6 +18,10 @@ module Admin
           end: window_end.iso8601
         },
         surface: surface.presence || "all",
+        filters: {
+          tool_name: tool_name,
+          server_name: server_name
+        },
         totals: {
           calls: usages.count,
           errors: usages.where(error: true).count
@@ -40,6 +44,8 @@ module Admin
     def scoped_usages
       scope = McpToolUsage.in_window(window_start, window_end)
       scope = scope.where(surface: surface) if surface.present?
+      scope = scope.where(normalized_tool_name: tool_name) if tool_name.present?
+      scope = scope.where(server_name: server_name) if server_name.present?
       scope
     end
 
@@ -48,6 +54,18 @@ module Admin
       return value if McpToolUsage::SURFACES.include?(value)
 
       nil
+    end
+
+    def tool_name
+      @tool_name ||= normalized_filter_value(params[:tool_name] || params[:tool])
+    end
+
+    def server_name
+      @server_name ||= normalized_filter_value(params[:server_name] || params[:server])
+    end
+
+    def normalized_filter_value(value)
+      value.to_s.strip.presence
     end
 
     def window_start
