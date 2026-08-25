@@ -149,6 +149,43 @@ RSpec.describe WorkflowWorkspace, :ci_only do
         expect(ws.path.join("checkpoint.rb")).to exist
       end
 
+      it "checks out landed_sha directly for a closed deploy Job, not the current default-branch tip" do
+        worktree = Pathname.new(@data_root).join("workflows", "_landed")
+        sh("git clone -q file://#{bare_remote_dir} #{worktree}")
+        File.write(worktree.join("landed.rb"), "LANDED\n")
+        sh("git -C #{worktree} add .")
+        sh("git -C #{worktree} -c user.email=t@e -c user.name=t commit -q -m 'landed change'")
+        landed_sha = sh("git -C #{worktree} rev-parse HEAD").strip
+        sh("git -C #{worktree} push -q origin HEAD:main")
+
+        # main advances further after the Job landed — a fix that checks out
+        # base_ref HEAD instead of landed_sha would silently deploy this.
+        File.write(worktree.join("drift.rb"), "DRIFT\n")
+        sh("git -C #{worktree} add .")
+        sh("git -C #{worktree} -c user.email=t@e -c user.name=t commit -q -m 'later drift'")
+        sh("git -C #{worktree} push -q origin HEAD:main")
+        FileUtils.rm_rf(worktree)
+
+        # The Job's own PR branch was never pushed (mirrors reality: GitHub
+        # deletes it right after merge), so a fallback that tries to fetch
+        # or branch from it must not be reached. The Workflow row is created
+        # while the Job is still open (Workflow#job_must_be_open_on_create
+        # rejects new Workflows for an already-closed Job) — the actual
+        # launch path for redeploying a closed Job is a separate, later
+        # concern; this spec only exercises WorkflowWorkspace once the Job
+        # has since closed underneath an already-created deploy Workflow.
+        job.update!(branch_name: "syrus/issue-7-#{job.id}", pr_number: 77)
+        deploy_workflow = Workflow.create!(job: job, trigger_kind: "deploy")
+        job.update_columns(state: "closed", landed_sha: landed_sha)
+
+        ws = described_class.new(deploy_workflow)
+        ws.setup
+
+        expect(sh("git -C #{ws.path} rev-parse HEAD").strip).to eq(landed_sha)
+        expect(ws.path.join("landed.rb")).to exist
+        expect(ws.path.join("drift.rb")).not_to exist
+      end
+
       it "creates a fresh branch from the default branch after the dependency merges" do
         parent = Factories.job(repository: repository, issue_number: 9)
         parent_branch = "syrus/issue-9-#{parent.id}"
