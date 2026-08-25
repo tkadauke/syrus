@@ -7,6 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { MysqlConnections } from "./MysqlConnections"
 
+function querySql(body: Record<string, unknown> | undefined): string | undefined {
+  const mysqlQuery = body?.mysql_query as { sql?: string } | undefined
+  return mysqlQuery?.sql
+}
+
 function stagingConnection(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
@@ -16,6 +21,7 @@ function stagingConnection(overrides: Record<string, unknown> = {}) {
     username: "app",
     default_database: "staging",
     agentic_access_enabled: false,
+    allow_writes: false,
     has_password: true,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
@@ -101,6 +107,41 @@ function setupFetchMock(initial = [stagingConnection()]) {
           truncated: false,
           rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ]
         }
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users\/content/.test(url) && method === "GET") {
+      const params = new URLSearchParams(url.split("?")[1] || "")
+      return Promise.resolve(jsonResponse({
+        available: true,
+        statement: "SELECT * FROM `app_staging`.`users` LIMIT 51 OFFSET 0",
+        read_only: true,
+        columns: [ "id", "email" ],
+        rows: [ { id: 1, email: "grace@example.com" }, { id: 2, email: "ada@example.com" } ],
+        row_count: 2,
+        truncated: false,
+        duration_ms: 3,
+        generated_at: "2026-01-01T00:00:00Z",
+        filter_schema: [
+          { field: "id", label: "Id", bucket: "number", operators: [ "equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset" ] },
+          { field: "email", label: "Email", bucket: "string", operators: [ "contains", "does_not_contain", "starts_with", "does_not_start_with", "ends_with", "does_not_end_with", "equals", "not_equals", "is_set", "is_unset" ] }
+        ],
+        filter: params.get("q") ? { and: [] } : null,
+        page: Number(params.get("page")) || 1,
+        per_page: 50,
+        has_more: false
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/query$/.test(url) && method === "POST") {
+      return Promise.resolve(jsonResponse({
+        available: true,
+        statement: body?.mysql_query?.sql,
+        read_only: true,
+        columns: [ "id" ],
+        rows: [ { id: 1 } ],
+        row_count: 1,
+        truncated: false,
+        duration_ms: 2,
+        generated_at: "2026-01-01T00:00:00Z"
       }))
     }
 
@@ -212,7 +253,7 @@ describe("MysqlConnections", () => {
   })
 
   describe("schema browsing", () => {
-    it("lists databases (including system schemas) and lets an operator drill into a table", async () => {
+    it("lists databases (including system schemas) and shows the table's Content grid by default", async () => {
       setupFetchMock()
       renderConnections()
 
@@ -225,6 +266,21 @@ describe("MysqlConnections", () => {
 
       fireEvent.click(screen.getByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
+
+      expect(await screen.findByText("grace@example.com")).toBeInTheDocument()
+      expect(screen.getByText("ada@example.com")).toBeInTheDocument()
+    })
+
+    it("switches to the Structure sub-tab to see columns and indexes", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      fireEvent.click(screen.getByRole("tab", { name: "Structure" }))
 
       expect(await screen.findByText("app_staging.users")).toBeInTheDocument()
       expect(screen.getByText("id")).toBeInTheDocument()
@@ -242,6 +298,45 @@ describe("MysqlConnections", () => {
       fireEvent.click(screen.getByRole("button", { name: "Back to connections" }))
 
       expect(await screen.findByText("db.staging.internal:3306")).toBeInTheDocument()
+    })
+  })
+
+  describe("Query tab", () => {
+    it("runs a raw SQL statement and shows the results grid", async () => {
+      const { calls } = setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("tab", { name: "Query" }))
+
+      fireEvent.change(screen.getByLabelText("SQL statement"), { target: { value: "SELECT * FROM users" } })
+      fireEvent.click(screen.getByRole("button", { name: "Run query" }))
+
+      expect(await screen.findByText("1 rows in 2ms")).toBeInTheDocument()
+      const queryCall = calls.find((call) => call.method === "POST" && call.url.endsWith("/query"))
+      expect(queryCall?.body).toEqual({ mysql_query: { sql: "SELECT * FROM users" } })
+    })
+  })
+
+  describe("Live tab", () => {
+    it("runs the Process List canned query and lets an operator switch to Global Status", async () => {
+      const { calls } = setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("tab", { name: "Live" }))
+
+      await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/query"))).toBe(true))
+      expect(await screen.findByText("1 rows in 2ms")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("tab", { name: "Global Status" }))
+
+      const statusCall = await waitFor(() => {
+        const found = calls.find((call) => querySql(call.body)?.includes("performance_schema.global_status"))
+        expect(found).toBeTruthy()
+        return found
+      })
+      expect(querySql(statusCall?.body)).toContain("performance_schema.global_status")
     })
   })
 })
