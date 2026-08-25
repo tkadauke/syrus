@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
 import { GeminiSetupSheet } from "./GeminiSetupSheet"
+import { Modal } from "./Modal"
 import { ClaudeConnect, StatusBox } from "./credentials/ClaudeConnect"
 
 type AgentTab = "claude" | "gemini"
@@ -29,26 +30,17 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
   const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
   const [geminiConfigured, setGeminiConfigured] = useState(false)
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      // When the nested Gemini sheet is open, let ITS Escape handler close the
-      // sheet only — both listeners live on document and fire on one keypress,
-      // so without this guard Escape tears down the whole modal too.
-      if (event.key === "Escape" && !geminiSheetOpen) onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose, geminiSheetOpen])
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <section
-        aria-labelledby="configure-agent-title"
-        aria-modal="true"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
-        role="dialog"
-        onClick={(event) => event.stopPropagation()}
-      >
+    // When the nested Gemini sheet is open, closeOnEscape is disabled here so
+    // ITS Escape handler closes the sheet only — otherwise both Modal
+    // instances would react to the same keypress and tear down this modal too.
+    <Modal
+      className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
+      closeOnEscape={!geminiSheetOpen}
+      labelledBy="configure-agent-title"
+      onClose={onClose}
+      open
+    >
         <div className="space-y-5 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -188,7 +180,6 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
             )}
           </div>
         </div>
-      </section>
       {geminiSheetOpen ? (
         // Stop backdrop clicks in the nested sheet from bubbling to this
         // modal's own onClose — otherwise dismissing the sheet also closes
@@ -205,7 +196,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           />
         </div>
       ) : null}
-    </div>
+    </Modal>
   )
 }
 

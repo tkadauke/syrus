@@ -8,6 +8,7 @@ import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSo
 import { CloseIcon } from "../../components/CloseIcon"
 import { PinIcon } from "../../components/PinIcon"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
+import { BANNER_TONE_CLASSES } from "../../components/StatusPill"
 import { Markdown, PlainText } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
@@ -458,12 +459,6 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
 
 function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
   const { t } = useT("chat")
-  const colors = {
-    success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
-    warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
-    error: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100",
-    neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
   const [expanded, setExpanded] = useState(false)
   const canRetry = item.tone === "error" && Boolean(retryText) && Boolean(onRetry)
 
@@ -474,7 +469,7 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
   if (item.prominent) {
     return (
       <div className="flex justify-center">
-        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${colors[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
+        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
           <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
           <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           <div className="mt-2 flex items-center gap-3">
@@ -496,7 +491,7 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
 
   return (
     <div className="flex flex-col items-center justify-center gap-1">
-      <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${colors[item.tone]}`}>
+      <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${BANNER_TONE_CLASSES[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
         <span className="min-w-0 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
         {item.cta ? (
@@ -520,7 +515,7 @@ function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: {
         </button>
       </div>
       {expanded ? (
-        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${colors[item.tone]}`} data-testid="system-message-details">
+        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${BANNER_TONE_CLASSES[item.tone]}`} data-testid="system-message-details">
           <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
         </div>
       ) : null}

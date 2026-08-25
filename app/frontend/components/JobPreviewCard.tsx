@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import { fetchJobDetail } from "../api/jobs"
 import { useT } from "../hooks/useT"
 import { Markdown } from "../lib/Markdown"
+import { Card, Skeleton } from "./Card"
 import { CopyableSlug } from "./CopyableSlug"
 import { DeploymentStagePipeline } from "./DeploymentStagePipeline"
 import { StartBlockedReasonPill } from "./StartBlockedReasonPill"
@@ -26,7 +27,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
   const title = job.issue_title ?? (job.title_pending ? t("preview_generating_title") : "")
 
   return (
-    <div className={compact ? "w-40 min-h-14 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" : "w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"}>
+    <Card compact={compact} variant="preview">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <CopyableSlug className="text-xs" slug={`JOB-${id}`} />
         <StatusPill state={job.state} />
@@ -55,7 +56,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
           {t("preview_see_more")}
         </Link>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -115,20 +116,20 @@ JobCompactCard.displayName = "JobCompactCard"
 
 export function JobPreviewSkeleton() {
   return (
-    <div className="w-80 animate-pulse rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+    <Card variant="preview">
       <div className="mb-2 flex items-center gap-2">
-        <div className="h-3 w-12 rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-4 w-16 rounded-full bg-gray-200 dark:bg-gray-700" />
+        <Skeleton className="h-3 w-12" />
+        <Skeleton className="h-4 w-16 rounded-full" />
       </div>
       <div className="mb-3 space-y-1.5">
-        <div className="h-4 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
       </div>
       <div className="space-y-1">
-        <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-700" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-2/3" />
       </div>
-    </div>
+    </Card>
   )
 }

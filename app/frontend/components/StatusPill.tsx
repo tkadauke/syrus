@@ -1,7 +1,31 @@
 import type { ReactNode } from "react"
 import { useT } from "../hooks/useT"
 
-type PillTone = "red" | "green" | "blue" | "gray" | "amber"
+export type PillTone = "red" | "green" | "blue" | "gray" | "amber"
+
+// Shared tone → Tailwind class-string map, so call sites that can't render a
+// full TonePill (e.g. a react-router Link, or a composite pill with nested
+// interactive children) can still reuse the same status colors instead of
+// hand-rolling their own bg/text/ring literals.
+export const PILL_TONE_CLASSES: Record<PillTone, string> = {
+  amber: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800",
+  blue: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800",
+  gray: "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700",
+  green: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800",
+  red: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800"
+}
+
+// Higher-contrast tone → class-string map for bordered notice banners (a
+// system-message/alert box, not a small inline pill) — same tone vocabulary
+// as PILL_TONE_CLASSES, bolder text/background weights for banner readability.
+export type BannerTone = "success" | "warning" | "error" | "neutral"
+
+export const BANNER_TONE_CLASSES: Record<BannerTone, string> = {
+  success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
+  warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
+  error: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100",
+  neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+}
 
 const STATE_LATIN: Record<string, string> = {
   // Job states
@@ -44,16 +68,8 @@ export function StatusPill({ state }: { state: string }) {
 }
 
 export function TonePill({ children, tone, active = false, title, ariaLabel }: { children: ReactNode; tone: PillTone; active?: boolean; title?: string; ariaLabel?: string }) {
-  const colors = {
-    amber: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800",
-    blue: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800",
-    gray: "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800",
-    red: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800"
-  }
-
   return (
-    <span aria-label={ariaLabel} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${colors[tone]}`} data-status-pill="true" title={title}>
+    <span aria-label={ariaLabel} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${PILL_TONE_CLASSES[tone]}`} data-status-pill="true" title={title}>
       {active ? <RunningSpinner /> : null}
       <span>{children}</span>
     </span>

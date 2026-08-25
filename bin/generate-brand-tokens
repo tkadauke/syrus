@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Regenerates desktop/src/styles/brand-tokens.generated.css from
+# config/design_tokens/terracotta.json — the shared source for the
+# terracotta brand scale. Run this after editing the JSON. Never
+# hand-edit the generated CSS file; spec/desktop/brand_palette_spec.rb
+# fails the build if it drifts from what this script would produce.
+
+require_relative "../lib/design_tokens/terracotta_theme"
+
+output_path = DesignTokens::TerracottaTheme::DESKTOP_OUTPUT_PATH
+File.write(output_path, DesignTokens::TerracottaTheme.desktop_css)
+puts "[generate-brand-tokens] wrote #{output_path}"

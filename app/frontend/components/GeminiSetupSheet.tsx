@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useT } from "../hooks/useT"
 import { useQueryClient } from "@tanstack/react-query"
 import { testGeminiKey, updateCredentials } from "../api/credentials"
 import { openInNewTab } from "../lib/desktopShell"
 import { CloseIcon } from "./CloseIcon"
+import { Modal } from "./Modal"
 import { ValidationStages, type StageStatus, type ValidationStage as GenericValidationStage } from "./credentials/ValidationStages"
 
 // Gemini onboarding, invoked lazily the first time it matters — the user
@@ -62,15 +63,6 @@ export function GeminiSetupSheet({
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
 
   function setStage(stageKey: ValidationStage["key"], status: StageStatus, detail?: string) {
     setStages((current) => current.map((stage) => (stage.key === stageKey ? { ...stage, status, detail } : stage)))
@@ -141,88 +133,86 @@ export function GeminiSetupSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose} role="presentation">
-      <section
-        aria-labelledby="gemini-setup-title"
-        aria-modal="true"
-        className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-950"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
+    <Modal
+      className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-950"
+      initialFocusRef={inputRef}
+      labelledBy="gemini-setup-title"
+      onClose={onClose}
+      open
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="gemini-setup-title">
+          {labels.title}
+        </h2>
+        <button aria-label={t("close")} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800" onClick={onClose} type="button">
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+
+      <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{labels.intro}</p>
+
+      <button
+        className="mt-3 text-sm font-medium text-terracotta-700 underline hover:text-terracotta-800 dark:text-terracotta-300"
+        onClick={() => openInNewTab("https://aistudio.google.com/apikey")}
+        type="button"
       >
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="gemini-setup-title">
-            {labels.title}
-          </h2>
-          <button aria-label={t("close")} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800" onClick={onClose} type="button">
-            <CloseIcon className="h-4 w-4" />
+        {labels.getKey}
+      </button>
+
+      <form
+        className="mt-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void validateAndSave()
+        }}
+      >
+        <input
+          aria-label={labels.keyPlaceholder}
+          autoComplete="off"
+          className="w-full rounded border border-gray-300 px-3 py-2 font-mono text-sm focus:border-terracotta-500 focus:ring-terracotta-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          disabled={busy || saved}
+          onChange={(event) => setKey(event.target.value)}
+          // Paste-to-validate, mirroring the Claude OAuth connector: pasting
+          // the key kicks off validation immediately so the user doesn't hunt
+          // for a button after switching back from AI Studio.
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData("text").trim()
+            if (pasted.length === 0 || busy || saved) return
+            event.preventDefault()
+            setKey(pasted)
+            setTimeout(() => void validateAndSave(pasted), 0)
+          }}
+          placeholder={labels.keyPlaceholder}
+          ref={inputRef}
+          spellCheck={false}
+          type="password"
+          value={key}
+        />
+
+        <ValidationStages labels={stageLabels} stages={stages} testIdPrefix="gemini" />
+
+        {error ? (
+          <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {saved ? (
+          <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300" role="status">
+            {labels.saved}
+          </p>
+        ) : null}
+
+        <div className="mt-4 flex justify-end">
+          <button
+            className="rounded bg-terracotta-600 px-4 py-2 text-sm font-semibold text-white hover:bg-terracotta-700 disabled:opacity-50"
+            disabled={busy || saved || key.trim().length === 0}
+            type="submit"
+          >
+            {busy ? labels.validating : labels.validateAndSave}
           </button>
         </div>
-
-        <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{labels.intro}</p>
-
-        <button
-          className="mt-3 text-sm font-medium text-terracotta-700 underline hover:text-terracotta-800 dark:text-terracotta-300"
-          onClick={() => openInNewTab("https://aistudio.google.com/apikey")}
-          type="button"
-        >
-          {labels.getKey}
-        </button>
-
-        <form
-          className="mt-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void validateAndSave()
-          }}
-        >
-          <input
-            aria-label={labels.keyPlaceholder}
-            autoComplete="off"
-            className="w-full rounded border border-gray-300 px-3 py-2 font-mono text-sm focus:border-terracotta-500 focus:ring-terracotta-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
-            disabled={busy || saved}
-            onChange={(event) => setKey(event.target.value)}
-            // Paste-to-validate, mirroring the Claude OAuth connector: pasting
-            // the key kicks off validation immediately so the user doesn't hunt
-            // for a button after switching back from AI Studio.
-            onPaste={(event) => {
-              const pasted = event.clipboardData.getData("text").trim()
-              if (pasted.length === 0 || busy || saved) return
-              event.preventDefault()
-              setKey(pasted)
-              setTimeout(() => void validateAndSave(pasted), 0)
-            }}
-            placeholder={labels.keyPlaceholder}
-            ref={inputRef}
-            spellCheck={false}
-            type="password"
-            value={key}
-          />
-
-          <ValidationStages labels={stageLabels} stages={stages} testIdPrefix="gemini" />
-
-          {error ? (
-            <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {saved ? (
-            <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300" role="status">
-              {labels.saved}
-            </p>
-          ) : null}
-
-          <div className="mt-4 flex justify-end">
-            <button
-              className="rounded bg-terracotta-600 px-4 py-2 text-sm font-semibold text-white hover:bg-terracotta-700 disabled:opacity-50"
-              disabled={busy || saved || key.trim().length === 0}
-              type="submit"
-            >
-              {busy ? labels.validating : labels.validateAndSave}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+      </form>
+    </Modal>
   )
 }
 

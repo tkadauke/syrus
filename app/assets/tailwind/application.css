@@ -2,6 +2,88 @@
 @config "../../../config/tailwind.config.js";
 
 /*
+ * Semantic color design tokens
+ * ============================================================
+ * One canonical catalog of CSS custom-property color tokens, meant as
+ * the long-term replacement for ad hoc `blue-*`/`terracotta-*`/`gray-*`
+ * utility usage across app/frontend (see the design-system epic in
+ * CLAUDE.md). The Button/Input/Select/Checkbox/Toggle/Modal/Card
+ * primitives consume these; most existing call sites still use raw
+ * utility classes and migrate onto the primitives (and these tokens)
+ * incrementally.
+ *
+ * Cascade convention: each token is declared once under `:root` (the
+ * light default) and again under `.dark` (the override). `.dark` is the
+ * same class AppChromeV2 toggles on `document.documentElement` for the
+ * existing per-user dark-mode setting, so no extra wiring is needed —
+ * a token simply changes value when that class is present. `@theme
+ * inline` below re-exposes each token under Tailwind's `--color-*`
+ * theme namespace so it is also usable as a utility class (`bg-brand`,
+ * `text-text-secondary`, `border-border`, etc); `inline` is required
+ * because these theme variables alias same-named custom properties
+ * declared elsewhere in this file rather than static values Tailwind
+ * could inline itself.
+ *
+ * Initial values intentionally mirror current usage exactly (no visual
+ * change): `brand`/`brand-emphasis` are the existing terracotta-600/700
+ * (700 becomes terracotta-300 in `.dark`, mirroring the dominant
+ * text-terracotta-700 dark:text-terracotta-300 pairing already used for
+ * accent text); `surface`/`surface-raised`/`border`/`text-primary`/
+ * `text-secondary` are the dominant white/gray-50/gray-200/gray-900/
+ * gray-500 (light) and gray-900/gray-800/gray-700/gray-100/gray-400
+ * (dark) pairings already used across app/frontend; `success`/
+ * `warning`/`danger`/`neutral` match the emerald/amber/red/gray stops
+ * StatusPill's `TonePill` already uses for those tones. `info` uses
+ * real blue (blue-700/blue-200), not the `blue`→terracotta Tailwind
+ * alias in config/tailwind.config.js — semantic "info" should stay
+ * independent of the brand color once components migrate to it.
+ */
+:root {
+  --color-brand: #b6492e;
+  --color-brand-emphasis: #973b25;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-success: #047857;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #1d4ed8;
+  --color-neutral: #374151;
+}
+
+.dark {
+  --color-brand: #b6492e;
+  --color-brand-emphasis: #dba28b;
+  --color-surface: #111827;
+  --color-surface-raised: #1f2937;
+  --color-border: #374151;
+  --color-text-primary: #f3f4f6;
+  --color-text-secondary: #9ca3af;
+  --color-success: #a7f3d0;
+  --color-warning: #fde68a;
+  --color-danger: #fecaca;
+  --color-info: #bfdbfe;
+  --color-neutral: #e5e7eb;
+}
+
+@theme inline {
+  --color-brand: var(--color-brand);
+  --color-brand-emphasis: var(--color-brand-emphasis);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-border: var(--color-border);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-info: var(--color-info);
+  --color-neutral: var(--color-neutral);
+}
+
+/*
  * iOS Safari zooms the page when focused form controls render below 16px.
  * Keep the mobile app shell stable while preserving desktop's denser controls.
  */

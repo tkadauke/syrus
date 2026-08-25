@@ -19,18 +19,18 @@ export function AdoptExisting({ error = null, onLocateEnv, onWipe, onBack }: Ado
 
   return (
     <OnboardingScreen title="Found an existing Syrus installation">
-      <p className="mt-3 text-sm leading-relaxed text-slate-600">
+      <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
         This machine already has Syrus data from a previous install (for example from running{" "}
-        <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{installScript}</code> in a checkout). That
+        <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">{installScript}</code> in a checkout). That
         data is encrypted with keys stored in that install&apos;s{" "}
-        <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">.env</code> file. To keep your existing
+        <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">.env</code> file. To keep your existing
         Jobs, repositories, and credentials, point us at it.
       </p>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-slate-900">Keep my data</p>
-        <p className="mt-1 text-sm text-slate-600">
-          Locate the original <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">.env</code> — we
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Keep my data</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Locate the original <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">.env</code> — we
           copy it, never move it.
         </p>
         <button type="button" className="primary-button mt-3" onClick={onLocateEnv}>
@@ -38,9 +38,9 @@ export function AdoptExisting({ error = null, onLocateEnv, onWipe, onBack }: Ado
         </button>
       </div>
 
-      <div className="mt-4 rounded-xl border border-red-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-medium text-red-700">Start fresh instead</p>
-        <p className="mt-1 text-sm text-slate-600">
+      <div className="mt-4 rounded-xl border border-red-200 bg-white p-4 shadow-sm dark:border-red-900 dark:bg-slate-900">
+        <p className="text-sm font-medium text-red-700 dark:text-red-400">Start fresh instead</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Permanently deletes the previous install&apos;s database, clone cache, and search index. Type{" "}
           <span className="font-semibold">delete</span> to enable.
         </p>

@@ -11,7 +11,7 @@ export const SIDEBAR_DEFAULT_WIDTH = 240
 export const SIDEBAR_MIN_WIDTH = 208
 export const SIDEBAR_MAX_WIDTH = 420
 
-export function updateBootstrapTheme(payload: BootstrapPayload | undefined, theme: "light" | "dark") {
+export function updateBootstrapTheme(payload: BootstrapPayload | undefined, theme: "light" | "dark" | "system") {
   if (!payload?.current_user) return payload
 
   return {
