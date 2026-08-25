@@ -30,6 +30,9 @@ class RetryFailedStepEnqueuer
     return failure("No failed step to retry.") unless failed_step
     return rebuild_merge_train if retry_policy.rebuild_unit?(failed_step)
     return failure("Failed step requires a new workflow attempt.") unless retry_policy.continuation?(failed_step)
+    if (lock_error = active_work_lock_error)
+      return failure(lock_error)
+    end
 
     workflow.reopen!
     workflow.save!
@@ -67,6 +70,40 @@ class RetryFailedStepEnqueuer
 
   def retry_policy
     workflow.work_definition.retry_policy
+  end
+
+  def active_work_lock_error
+    lock_keys_for_retry.each do |lock_key|
+      owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
+      next unless owner
+      next if same_runtime_lock_owner?(owner)
+
+      return "#{ACTIVE_WORK_LOCK_ERROR}: active WorkUnit ##{owner.id} already owns #{lock_key}"
+    end
+
+    nil
+  end
+
+  def lock_keys_for_retry
+    workflow.work_definition.lock_keys_for(
+      job: workflow.job,
+      member_jobs: member_jobs_for_retry,
+      artifacts: workflow.artifacts.to_h
+    )
+  end
+
+  def member_jobs_for_retry
+    unit = workflow.work_unit
+    jobs = unit&.work_unit_members&.includes(:job)&.order(:id)&.map(&:job)&.compact
+    jobs.presence || [ workflow.job ].compact
+  end
+
+  def same_runtime_lock_owner?(owner)
+    unit = workflow.work_unit
+    return false unless owner && unit
+    return true if owner.id.to_i == unit.id.to_i
+
+    owner.workflow_id.present? && owner.workflow_id.to_i == workflow.id.to_i
   end
 
   def revive_cancelled_downstream_steps!(failed_step)
