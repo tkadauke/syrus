@@ -489,10 +489,6 @@ RSpec.describe WorkEngine::Reconciler do
   end
 
   it "declines to defer a landing Job through the executor precondition re-check when active landing work exists" do
-    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units landing"
-    end.update!(enabled: true)
     workflow.update_columns(state: "succeeded", finished_at: 1.minute.ago)
     job.update!(state: "landing", approved_at: 2.minutes.ago, approved_via: "operator")
     intent = WorkIntent.create!(
@@ -3120,6 +3116,7 @@ RSpec.describe WorkEngine::Reconciler do
     MergeTrainMember.create!(merge_train: train, job: second, position: 1)
     train_workflow = Workflows::MergeTrain.instantiate(job: second, artifacts: { "merge_train_id" => train.id })
     train_workflow.update!(state: "queued")
+    WorkUnits::Backfill.workflow!(train_workflow)
 
     result = reconcile(job_id: first.id)
 
@@ -3132,10 +3129,6 @@ RSpec.describe WorkEngine::Reconciler do
   end
 
   it "does not auto-defer a landing Job owned by an active landing WorkUnit" do
-    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units landing"
-    end.update!(enabled: true)
     workflow.update_columns(state: "succeeded", finished_at: 1.minute.ago)
     step.update_columns(state: "succeeded", finished_at: 1.minute.ago)
     run.update_columns(state: "succeeded", finished_at: 1.minute.ago)
@@ -3827,11 +3820,6 @@ RSpec.describe WorkEngine::Reconciler do
   end
 
   it "executes safe retry plans through AutoRetryAttempt and AutoRetryJob" do
-    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units scheduler"
-    end.update!(enabled: true)
-
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
     run.update_columns(state: "failed", finished_at: Time.current)

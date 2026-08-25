@@ -1,20 +1,6 @@
 require "rails_helper"
 
 RSpec.describe WorkUnits::Ownership do
-  before do
-    set_feature("work_units_scheduler", false)
-    set_feature("work_units_landing", false)
-    set_feature("work_units_reconciler", false)
-  end
-
-  def set_feature(slug, enabled)
-    Feature.find_or_create_by!(slug: slug) do |feature|
-      feature.category = "Operations"
-      feature.name = slug.humanize
-    end.update!(enabled: enabled)
-    Feature.clear_enabled_cache!(slug)
-  end
-
   def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running")
     primary = member_jobs.first
     intent = WorkIntent.create!(
@@ -41,26 +27,24 @@ RSpec.describe WorkUnits::Ownership do
     unit
   end
 
-  it "falls back to active workflows for legacy rows without work units" do
-    job = Factories.job
-    Workflow.create!(job: job, trigger_kind: "initial", state: "running")
-
-    expect(described_class.active_job_ids([ job.id ])).to include(job.id)
-    expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq(job.id => "initial")
-  end
-
-  it "hides scheduler-owned legacy workflow fallbacks after the scheduler path moves to work units" do
-    set_feature("work_units_scheduler", true)
+  it "ignores active legacy workflows for migrated paths without work units" do
     job = Factories.job_record
     Workflow.create!(job: job, trigger_kind: "initial", state: "running")
 
     expect(described_class.active_job_ids([ job.id ])).not_to include(job.id)
     expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq({})
-    expect(described_class.active_trigger_kind_lists_by_job_id([ job.id ])).to eq({})
   end
 
-  it "hides landing-owned legacy workflow fallbacks after the landing path moves to work units" do
-    set_feature("work_units_landing", true)
+  it "preserves the replay legacy fallback while replay migrates separately" do
+    job = Factories.job_record
+    Workflow.create!(job: job, trigger_kind: "replay", state: "running")
+
+    expect(described_class.active_job_ids([ job.id ])).to include(job.id)
+    expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq(job.id => "replay")
+    expect(described_class.active_trigger_kind_lists_by_job_id([ job.id ])).to eq(job.id => [ "replay" ])
+  end
+
+  it "ignores landing legacy workflow fallbacks after landing moves to work units" do
     job = Factories.job_record
     Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
 
@@ -68,8 +52,7 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_workflow_ids([ job.id ], kinds: "auto_merge")).to be_empty
   end
 
-  it "derives landing-owned legacy workflow fallbacks from WorkDefinition policy" do
-    set_feature("work_units_landing", true)
+  it "derives migrated landing legacy exclusions from WorkDefinition policy" do
     auto_merge = Factories.job_record(issue_number: 421)
     bundle = Factories.job_record(repository: auto_merge.repository, issue_number: 422)
     validation = Factories.job_record(repository: auto_merge.repository, issue_number: 423)
@@ -83,21 +66,7 @@ RSpec.describe WorkUnits::Ownership do
 
     ids = [ auto_merge.id, bundle.id, validation.id, stack_rebase.id, manual.id ]
 
-    expect(described_class.active_job_ids(ids)).to contain_exactly(manual.id)
-  end
-
-  it "keeps legacy fallbacks for paths whose ownership gate is still disabled" do
-    set_feature("work_units_scheduler", true)
-    set_feature("work_units_landing", false)
-    scheduler_job = Factories.job_record(issue_number: 411)
-    landing_job = Factories.job_record(repository: scheduler_job.repository, issue_number: 412)
-    Workflow.create!(job: scheduler_job, trigger_kind: "initial", state: "running")
-    Workflow.create!(job: landing_job, trigger_kind: "auto_merge", state: "running")
-
-    expect(described_class.active_job_ids([ scheduler_job.id, landing_job.id ])).to contain_exactly(landing_job.id)
-    expect(described_class.active_trigger_kind_lists_by_job_id([ scheduler_job.id, landing_job.id ])).to eq(
-      landing_job.id => [ "auto_merge" ]
-    )
+    expect(described_class.active_job_ids(ids)).to be_empty
   end
 
   it "uses work unit membership to report active epic-wide work on member jobs" do
@@ -111,32 +80,32 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kinds_by_job_id([ second.id ])).to eq(second.id => "merge_train")
   end
 
-  it "reports every active trigger kind from WorkUnit membership and legacy workflows" do
+  it "reports every active trigger kind from WorkUnit membership and replay legacy workflows" do
     job = Factories.job_record(issue_number: 151)
     workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
     attach_work_unit(workflow, member_jobs: [ job ], kind: "pr_comment")
     attach_work_unit(nil, member_jobs: [ job ], kind: "ci_failure")
-    Workflow.create!(job: job, trigger_kind: "manual", state: "queued")
+    Workflow.create!(job: job, trigger_kind: "replay", state: "queued")
 
     result = described_class.active_trigger_kind_lists_by_job_id([ job.id ])
 
     expect(result.keys).to eq([ job.id ])
-    expect(result[job.id]).to contain_exactly("pr_comment", "ci_failure", "manual")
+    expect(result[job.id]).to contain_exactly("pr_comment", "ci_failure", "replay")
   end
 
-  it "reports all active job ids from work unit membership and legacy workflows" do
+  it "reports all active job ids from work unit membership and replay legacy workflows" do
     work_unit_job = Factories.job_record(issue_number: 201)
     legacy_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 202)
     idle_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 203)
     workflow = Workflow.create!(job: work_unit_job, trigger_kind: "manual", state: "succeeded")
     attach_work_unit(workflow, member_jobs: [ work_unit_job ], kind: "manual", state: "blocked")
-    Workflow.create!(job: legacy_job, trigger_kind: "initial", state: "queued")
+    Workflow.create!(job: legacy_job, trigger_kind: "replay", state: "queued")
 
     expect(described_class.all_active_job_ids).to include(work_unit_job.id, legacy_job.id)
     expect(described_class.all_active_job_ids).not_to include(idle_job.id)
   end
 
-  it "reports active workflow ids from work units and legacy active workflows" do
+  it "reports active workflow ids from work units and replay legacy workflows" do
     work_unit_job = Factories.job_record(issue_number: 211)
     legacy_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 212)
     terminal_workflow = Workflow.create!(
@@ -147,7 +116,7 @@ RSpec.describe WorkUnits::Ownership do
     )
     legacy_workflow = Workflow.create!(
       job: legacy_job,
-      trigger_kind: "initial",
+      trigger_kind: "replay",
       agent_provider: "codex",
       state: "queued"
     )
@@ -180,16 +149,16 @@ RSpec.describe WorkUnits::Ownership do
     expect(result).to eq(member.id => workflow)
   end
 
-  it "falls back to legacy workflows when no active work unit owns the job" do
+  it "does not fall back to migrated legacy workflows when no active work unit owns the job" do
     job = Factories.job_record(issue_number: 223)
-    workflow = Workflow.create!(
+    Workflow.create!(
       job: job,
       trigger_kind: "initial",
       agent_provider: "claude",
       state: "queued"
     )
 
-    expect(described_class.active_workflows_by_job_id([ job.id ], agent_provider: "claude")).to eq(job.id => workflow)
+    expect(described_class.active_workflows_by_job_id([ job.id ], agent_provider: "claude")).to eq({})
     expect(described_class.active_workflows_by_job_id([ job.id ], agent_provider: "codex")).to eq({})
   end
 

@@ -37,10 +37,6 @@ RSpec.describe RetryFailedStepEnqueuer do
   end
 
   it "returns an active-work-lock result when retrying would contend with another WorkUnit" do
-    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units scheduler"
-    end.update!(enabled: true)
     job = Factories.job_record(state: "failed")
     workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
     unit = workflow.work_unit

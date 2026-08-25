@@ -137,10 +137,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "persistent_mcp_sidecar" => false,
       "terminal" => false,
       "video_walkthroughs" => false,
-      "visual_review" => false,
-      "work_units_landing" => false,
-      "work_units_reconciler" => false,
-      "work_units_scheduler" => false
+      "visual_review" => false
     )
   end
 

@@ -31,17 +31,6 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
     end
   end
 
-  before do
-    set_scheduler_gate(true)
-  end
-
-  def set_scheduler_gate(enabled)
-    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units scheduler"
-    end.update!(enabled: enabled)
-  end
-
   def attempt!(retry_kind:, scheduled_at: 5.minutes.from_now)
     AutoRetryAttempt.create!(
       job: job,
@@ -77,17 +66,6 @@ RSpec.describe WorkUnits::AutoRetryBackoff do
   it "does not block the old unit for retry workflows that create a new attempt" do
     workflow.update!(work_unit: unit)
     attempt = attempt!(retry_kind: "retry_workflow")
-
-    described_class.record!(attempt)
-
-    expect(unit.reload).to have_attributes(state: "failed", blocked_reason: nil)
-    expect(unit.work_unit_locks.active).to be_empty
-  end
-
-  it "does not record a WorkUnit block while the scheduler path is legacy-owned" do
-    set_scheduler_gate(false)
-    workflow.update!(work_unit: unit)
-    attempt = attempt!(retry_kind: "failed_step")
 
     described_class.record!(attempt)
 

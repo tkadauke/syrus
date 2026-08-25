@@ -145,6 +145,7 @@ module Filters
           active = scope.where(manual_paused: false)
           active.where(state: "running").where.not(id: paused_job_ids)
                 .or(active.open_threads.where(id: unpaused_running_workflow_job_ids))
+                .or(active.open_threads.where(id: actively_executing_job_ids))
                 .or(active.where(id: running_repair_work_job_ids))
         end
 

@@ -110,6 +110,7 @@ RSpec.describe StepDispatcher do
       job.update!(epic: epic)
       keeper = Workflow.create!(job: keeper_job, trigger_kind: "stack_rebase")
       keeper.update_columns(state: "running", started_at: 1.minute.ago)
+      WorkUnits::Backfill.workflow!(keeper)
 
       expect {
         described_class.start_workflow(workflow)
@@ -129,6 +130,7 @@ RSpec.describe StepDispatcher do
       job.update!(epic: epic)
       keeper = Workflow.create!(job: keeper_job, trigger_kind: "stack_rebase")
       keeper.update_columns(state: "running", started_at: 1.minute.ago)
+      WorkUnits::Backfill.workflow!(keeper)
       workflow.update!(trigger_kind: "merge_train", artifacts: { "merge_train_id" => 123 })
 
       expect {
@@ -185,11 +187,7 @@ RSpec.describe StepDispatcher do
       expect(workflow.artifact("start_blocked_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
     end
 
-    it "uses work unit pause requests when the scheduler path owns manual pause" do
-      Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-        feature.category = "Operations"
-        feature.name = "Work units scheduler"
-      end.update!(enabled: true)
+    it "uses work unit pause requests for manual pause" do
       unit = attach_work_unit(workflow)
       unit.request_pause!
 
@@ -200,8 +198,6 @@ RSpec.describe StepDispatcher do
       expect(job.reload.manual_paused?).to be false
       expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
       expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
-    ensure
-      Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
     end
 
     it "does not create the first Run when provider usage is below the user's provider threshold" do
@@ -776,10 +772,6 @@ RSpec.describe StepDispatcher do
     end
 
     it "lets WorkUnit runtime gates block before creating the next Run" do
-      Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-        feature.category = "Operations"
-        feature.name = "Work units scheduler"
-      end.update!(enabled: true)
       unit = attach_work_unit(workflow, state: "running")
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
@@ -813,15 +805,9 @@ RSpec.describe StepDispatcher do
         "phase_step_kind" => "summarize"
       )
       expect(enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }.last[:at]).to be_within(2.seconds).of(retry_at.to_f)
-    ensure
-      Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
     end
 
     it "records WorkUnit pause details when a pause request blocks the next Run" do
-      Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-        feature.category = "Operations"
-        feature.name = "Work units scheduler"
-      end.update!(enabled: true)
       unit = attach_work_unit(workflow, state: "running")
       unit.request_pause!
       workflow.update!(state: "running", started_at: 1.minute.ago)
@@ -837,8 +823,6 @@ RSpec.describe StepDispatcher do
         "phase_step_kind" => "summarize"
       )
       expect(unit.reload).to have_attributes(state: "blocked", blocked_reason: "manual_pause")
-    ensure
-      Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
     end
 
     it "creates a Run on the next runnable step" do

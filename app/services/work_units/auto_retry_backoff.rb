@@ -10,7 +10,6 @@ module WorkUnits
     end
 
     def record!
-      return unless WorkUnits::PathOwnership.work_unit_owned?("auto_retry_backoff")
       return unless same_attempt_retry?
       return unless unit
       return unless workflow&.work_unit&.id == unit.id

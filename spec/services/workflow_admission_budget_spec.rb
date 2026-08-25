@@ -4,10 +4,11 @@ RSpec.describe WorkflowAdmissionBudget do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 
-  def workflow_for(priority: "medium", state: "queued", trigger_kind: "initial")
+  def workflow_for(priority: "medium", state: "queued", trigger_kind: "initial", work_unit: true)
     job = Factories.job_record(user: user, repository: repository, priority: priority, state: "queued")
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
     workflow.update!(state: state, trigger_kind: trigger_kind)
+    WorkUnits::Backfill.workflow!(workflow) if work_unit
     workflow
   end
 
@@ -81,20 +82,10 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   before do
-    set_feature("work_units_landing", false)
-    set_feature("work_units_scheduler", false)
     allow(RepoGradeLoopPlan).to receive(:for_job).and_return(
       RepoGradeLoopPlan::Result.new(format_configured: true, generate_configured: true, graders_configured: true, source: ".syrus.yml", note: nil)
     )
     seed_low_cost_profiles
-  end
-
-  def set_feature(slug, enabled)
-    Feature.find_or_create_by!(slug: slug) do |feature|
-      feature.category = "Operations"
-      feature.name = slug.humanize
-    end.update!(enabled: enabled)
-    Feature.clear_enabled_cache!(slug)
   end
 
   it "admits a workflow when projected pressure is within budget" do
@@ -173,12 +164,11 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("projected", "cpu_pressure")).to be >= 100.0
   end
 
-  it "ignores legacy landing workflows in admission pressure after landing moves to WorkUnits" do
-    set_feature("work_units_landing", true)
+  it "ignores legacy landing workflows in admission pressure" do
     WorkflowStepResourceProfile.delete_all
     seed_low_cost_profiles(except: [ "prepare" ])
     profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
-    legacy = workflow_for(state: "running", trigger_kind: "auto_merge")
+    legacy = workflow_for(state: "running", trigger_kind: "auto_merge", work_unit: false)
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)
@@ -191,12 +181,10 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   it "counts WorkUnit-owned landing workflows in admission pressure" do
-    set_feature("work_units_landing", true)
     WorkflowStepResourceProfile.delete_all
     seed_low_cost_profiles(except: [ "prepare" ])
     profile(step_kind: "prepare", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
     active = workflow_for(state: "running", trigger_kind: "auto_merge")
-    WorkUnits::Backfill.workflow!(active)
     candidate = workflow_for
 
     decision = described_class.call(workflow: candidate)

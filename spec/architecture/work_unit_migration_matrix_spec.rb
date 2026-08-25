@@ -22,13 +22,13 @@ RSpec.describe "work unit migration matrix" do
 
   it "keeps documented migration paths in sync with executable path ownership" do
     documented = matrix_paths
-    registered = WorkUnits::PathOwnership::PATH_GATES.keys.sort
+    registered = WorkUnits::PathOwnership::PATH_GROUPS.keys.sort
 
     expect(documented.sort).to eq(registered), <<~MESSAGE
       docs/plans/work-units-and-execution-resilience.md is the migration
       contract for path ownership. Keep the matrix and WorkUnits::PathOwnership
-      in sync so every documented path has a feature-gated owner and every
-      executable path has graduation criteria.
+      in sync so every documented path has a WorkUnit owner and every executable
+      path has a stable ownership contract.
     MESSAGE
   end
 end

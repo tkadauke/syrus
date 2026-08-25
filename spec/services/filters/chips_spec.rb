@@ -212,7 +212,7 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "pinned")).to contain_exactly(pinned)
     end
 
-    it "in_progress: includes any unpaused running workflow but excludes queued and paused workflows" do
+    it "in_progress: includes WorkUnit-owned running work but excludes queued and paused work" do
       running = Factories.job_record(repository: repo, issue_number: 1, state: "running")
       landing_running = Factories.job_record(repository: repo, issue_number: 2, state: "landing")
       queued_rebase = Factories.job_record(repository: repo, issue_number: 3, state: "approved")
@@ -223,7 +223,7 @@ RSpec.describe "Filters::Chips" do
       running_retry = Factories.job_record(repository: repo, issue_number: 9, state: "failed")
       running_ci_failure = Factories.job_record(repository: repo, issue_number: 10, state: "implemented")
       old_running_workflow = Factories.job_record(repository: repo, issue_number: 11, state: "approved")
-      paused_running = Factories.job_record(repository: repo, issue_number: 12, state: "running")
+      paused_running = Factories.job_record(repository: repo, issue_number: 12, state: "approved")
       manually_paused_running = Factories.job_record(repository: repo, issue_number: 13, state: "running", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
       blocked_work_unit = Factories.job_record(repository: repo, issue_number: 14, state: "running")
       work_unit_owner = Factories.job_record(repository: repo, issue_number: 15, state: "running")
@@ -232,14 +232,14 @@ RSpec.describe "Filters::Chips" do
       queued_repairing = Factories.job_record(repository: repo, issue_number: 18, state: "approved")
       Factories.job_record(repository: repo, issue_number: 7, state: "approved")
 
-      Workflow.create!(job: queued_rebase, trigger_kind: "rebase", state: "queued")
-      Workflow.create!(job: running_rebase, trigger_kind: "rebase", state: "running")
+      create_queued_work_unit_for(queued_rebase, kind: "rebase")
+      create_running_work_unit_for(running_rebase, kind: "rebase")
       Workflow.create!(job: finished_rebase, trigger_kind: "rebase", state: "succeeded")
-      Workflow.create!(job: landing_running, trigger_kind: "auto_merge", state: "running")
-      Workflow.create!(job: landing_queued, trigger_kind: "auto_merge", state: "queued")
-      Workflow.create!(job: running_merge_train, trigger_kind: "merge_train", state: "running")
-      Workflow.create!(job: running_retry, trigger_kind: "retry", state: "running")
-      Workflow.create!(job: running_ci_failure, trigger_kind: "ci_failure", state: "running")
+      create_running_work_unit_for(landing_running, kind: "auto_merge")
+      create_queued_work_unit_for(landing_queued, kind: "auto_merge")
+      create_running_work_unit_for(running_merge_train, kind: "merge_train")
+      create_running_work_unit_for(running_retry, kind: "retry")
+      create_running_work_unit_for(running_ci_failure, kind: "ci_failure")
       Workflow.create!(job: old_running_workflow, trigger_kind: "rebase", state: "running")
       Workflow.create!(job: old_running_workflow, trigger_kind: "retry", state: "succeeded")
       Workflow.create!(
@@ -260,7 +260,6 @@ RSpec.describe "Filters::Chips" do
         running_merge_train,
         running_retry,
         running_ci_failure,
-        old_running_workflow,
         work_unit_owner,
         work_unit_member,
         work_unit_repairing
@@ -269,8 +268,7 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(queued_repairing)
     end
 
-    it "in_progress: ignores legacy landing workflows after landing ownership moves to WorkUnits" do
-      set_feature("work_units_landing", true)
+    it "in_progress: ignores legacy landing workflows" do
       stale_legacy = Factories.job_record(repository: repo, issue_number: 18, state: "landing")
       work_unit_owner = Factories.job_record(repository: repo, issue_number: 19, state: "landing")
 
@@ -289,11 +287,11 @@ RSpec.describe "Filters::Chips" do
       superseded_queue = Factories.job_record(repository: repo, issue_number: 26, state: "approved")
       Factories.job_record(repository: repo, issue_number: 27, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
 
-      Workflow.create!(job: queued_rebase, trigger_kind: "rebase", state: "queued")
+      create_queued_work_unit_for(queued_rebase, kind: "rebase")
       Workflow.create!(job: queued_landing, trigger_kind: "auto_merge", state: "queued")
-      Workflow.create!(job: running_rebase, trigger_kind: "rebase", state: "running")
-      Workflow.create!(job: superseded_queue, trigger_kind: "rebase", state: "queued")
-      Workflow.create!(job: superseded_queue, trigger_kind: "rebase", state: "running")
+      create_running_work_unit_for(running_rebase, kind: "rebase")
+      create_queued_work_unit_for(superseded_queue, kind: "rebase")
+      create_running_work_unit_for(superseded_queue, kind: "rebase")
 
       expect(run(field: "attention", op: "is", value: "queued")).to contain_exactly(
         queued,
@@ -301,28 +299,20 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
-    it "paused: returns manually paused jobs and workflow-paused jobs" do
+    it "paused: returns manually paused jobs and WorkUnit-paused jobs" do
       manual = Factories.job_record(repository: repo, issue_number: 28, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
-      workflow_paused = Factories.job_record(repository: repo, issue_number: 29, state: "running")
       work_unit_paused = Factories.job_record(repository: repo, issue_number: 31, state: "running")
       landing_paused = Factories.job_record(repository: repo, issue_number: 32, state: "landing")
       repair_paused = Factories.job_record(repository: repo, issue_number: 37, state: "failed")
       Factories.job_record(repository: repo, issue_number: 30, state: "queued")
-      Workflow.create!(
-        job: workflow_paused,
-        trigger_kind: "initial",
-        state: "running",
-        artifacts: { "pause_reason" => "workflow_admission_budget" }
-      )
       create_blocked_work_unit_for(work_unit_paused)
       create_blocked_work_unit_for(landing_paused, kind: "auto_merge")
       create_blocked_work_unit_for(repair_paused, kind: "ci_failure")
 
-      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, workflow_paused, work_unit_paused, repair_paused)
+      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(manual, work_unit_paused, repair_paused)
     end
 
-    it "paused: ignores legacy landing start-block artifacts after landing ownership moves to WorkUnits" do
-      set_feature("work_units_landing", true)
+    it "paused: ignores legacy landing start-block artifacts" do
       stale_legacy = Factories.job_record(repository: repo, issue_number: 38, state: "landing")
       work_unit_paused = Factories.job_record(repository: repo, issue_number: 39, state: "running")
 
@@ -343,7 +333,7 @@ RSpec.describe "Filters::Chips" do
       grader_running = Factories.job_record(repository: repo, issue_number: 31, state: "queued")
       grader_done = Factories.job_record(repository: repo, issue_number: 32, state: "queued")
 
-      Workflow.create!(job: grader_running, trigger_kind: "main_grader", state: "running")
+      create_running_work_unit_for(grader_running, kind: "main_grader")
       Workflow.create!(job: grader_done, trigger_kind: "main_grader", state: "succeeded")
 
       expect(run(field: "attention", op: "is", value: "queued")).to contain_exactly(
@@ -356,7 +346,7 @@ RSpec.describe "Filters::Chips" do
       grader_running = Factories.job_record(repository: repo, issue_number: 33, state: "queued")
       plain_queued = Factories.job_record(repository: repo, issue_number: 34, state: "queued")
 
-      Workflow.create!(job: grader_running, trigger_kind: "main_grader", state: "running")
+      create_running_work_unit_for(grader_running, kind: "main_grader")
 
       expect(run(field: "attention", op: "is", value: "in_progress")).to include(grader_running)
       expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(plain_queued)
@@ -400,8 +390,8 @@ RSpec.describe "Filters::Chips" do
         last_feedback_addressed_at: 10.minutes.ago
       )
       Factories.job_record(repository: repo, issue_number: 17, state: "triaging", triaging_reason: "pending_epic_ref")
-      Workflow.create!(job: active_failed, trigger_kind: "manual", state: "running")
-      Workflow.create!(job: active_implemented, trigger_kind: "manual", state: "queued")
+      create_running_work_unit_for(active_failed, kind: "manual")
+      create_queued_work_unit_for(active_implemented, kind: "manual")
       create_running_work_unit_for(repairing_failed, kind: "ci_failure")
 
       expect(run(field: "attention", op: "is", value: "inbox")).to contain_exactly(
@@ -445,8 +435,8 @@ RSpec.describe "Filters::Chips" do
       running_retry = Factories.job_record(repository: repo, issue_number: 33, state: "implemented")
       completed_feedback = Factories.job_record(repository: repo, issue_number: 34, state: "implemented")
 
-      Workflow.create!(job: queued_feedback, trigger_kind: "pr_comment", state: "queued")
-      Workflow.create!(job: running_retry, trigger_kind: "retry", state: "running")
+      create_queued_work_unit_for(queued_feedback, kind: "pr_comment")
+      create_running_work_unit_for(running_retry, kind: "retry")
       Workflow.create!(job: completed_feedback, trigger_kind: "pr_comment", state: "succeeded")
 
       expect(run(field: "attention", op: "is", value: "awaiting_approval")).to contain_exactly(
@@ -461,11 +451,11 @@ RSpec.describe "Filters::Chips" do
 
       # Not blocked: unmergeable PR, but a running workflow is actively fixing it
       running_workflow = Factories.job_record(repository: repo, issue_number: 62, state: "running", pr_mergeable: false)
-      Workflow.create!(job: running_workflow, trigger_kind: "auto_merge", state: "running")
+      create_running_work_unit_for(running_workflow, kind: "auto_merge")
 
       # Not blocked: unmergeable PR, but a queued workflow is about to run
       queued_workflow = Factories.job_record(repository: repo, issue_number: 63, state: "approved", pr_mergeable: false)
-      Workflow.create!(job: queued_workflow, trigger_kind: "rebase", state: "queued")
+      create_queued_work_unit_for(queued_workflow, kind: "rebase")
 
       # Not blocked: PR is mergeable
       Factories.job_record(repository: repo, issue_number: 64, state: "approved", pr_mergeable: true)

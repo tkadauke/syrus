@@ -104,27 +104,6 @@ features:
     description: "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns can route their MCP tool calls to it, with automatic fallback to stdio; workflow agent runs do not yet use it and always fall back to the per-run stdio sidecar. When disabled, all agents keep using the default per-run/per-session stdio sidecars."
     description_i18n_key: "features.slugs.persistent_mcp_sidecar.description"
     default: false
-  - slug: work_units_scheduler
-    category: "Operations"
-    name: "Work units scheduler"
-    name_i18n_key: "features.slugs.work_units_scheduler.name"
-    description: "Lets WorkUnit-owned adapters control lower-risk scheduler paths such as retry, resume, manual pause, provider availability pauses, and admission-control pauses."
-    description_i18n_key: "features.slugs.work_units_scheduler.description"
-    default: false
-  - slug: work_units_landing
-    category: "Operations"
-    name: "Work units landing"
-    name_i18n_key: "features.slugs.work_units_landing.name"
-    description: "Lets WorkUnit-owned adapters control landing, merge-train, stack-rebase, and landing-validation ownership paths."
-    description_i18n_key: "features.slugs.work_units_landing.description"
-    default: false
-  - slug: work_units_reconciler
-    category: "Operations"
-    name: "Work units reconciler"
-    name_i18n_key: "features.slugs.work_units_reconciler.name"
-    description: "Lets reconciler invariant modules act from WorkIntent and WorkUnit state for paths whose scheduler ownership has graduated."
-    description_i18n_key: "features.slugs.work_units_reconciler.description"
-    default: false
   - slug: mysql_db_browser
     category: "Labs"
     name: "MySQL DB browser"

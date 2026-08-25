@@ -77,21 +77,20 @@ module Api
           end
 
           def work_unit_ownership_payload
-            WorkUnits::PathOwnership::PATH_GATES
+            WorkUnits::PathOwnership::PATH_GROUPS
               .keys
               .sort
               .map { |path| WorkUnits::PathOwnership.for(path) }
-              .group_by(&:gate)
-              .map do |gate, paths|
-                gate_feature = declared_features.find { |feature| feature.slug == gate }
+              .group_by(&:group)
+              .map do |group, paths|
                 {
-                  gate: gate,
-                  enabled: gate_feature&.enabled? || false,
+                  group: group,
+                  enabled: true,
                   paths: paths.map do |path|
                     {
                       path: path.path,
                       owner: path.owner.to_s,
-                      gate: path.gate
+                      group: path.group
                     }
                   end
                 }

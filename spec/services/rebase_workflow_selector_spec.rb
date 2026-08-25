@@ -43,19 +43,6 @@ RSpec.describe RebaseWorkflowSelector do
     unit
   end
 
-  def set_feature(slug, enabled)
-    Feature.find_or_create_by!(slug: slug) do |feature|
-      feature.category = "Operations"
-      feature.name = slug.humanize
-    end.update!(enabled: enabled)
-    Feature.clear_enabled_cache!(slug)
-  end
-
-  before do
-    set_feature("work_units_scheduler", false)
-    set_feature("work_units_landing", false)
-  end
-
   describe ".stack_rebase?" do
     it "returns false when the job has no stack children" do
       expect(described_class.stack_rebase?(job)).to be false
@@ -129,11 +116,12 @@ RSpec.describe RebaseWorkflowSelector do
       expect(described_class.active_for_stack?(job)).to be false
     end
 
-    it "returns true when a running rebase workflow exists for a related job" do
+    it "ignores a running legacy rebase workflow without WorkUnit ownership" do
       workflow = Workflow.create!(job: job, trigger_kind: "rebase")
       workflow.update_columns(state: "running")
 
-      expect(described_class.active_for_stack?(job)).to be true
+      expect(described_class.active_for_stack?(job)).to be false
+      expect(described_class.active_for_jobs([ job ])).to be_empty
     end
 
     it "returns true when a related Job is owned by an active rebase WorkUnit with a terminal workflow" do
@@ -151,8 +139,7 @@ RSpec.describe RebaseWorkflowSelector do
       expect(described_class.active_for_jobs([ job ])).to be_empty
     end
 
-    it "ignores legacy rebase workflows after scheduler ownership moves to WorkUnits" do
-      set_feature("work_units_scheduler", true)
+    it "ignores legacy rebase workflows" do
       workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
       Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)
 
@@ -160,8 +147,7 @@ RSpec.describe RebaseWorkflowSelector do
       expect(described_class.active_for_jobs([ job ])).to be_empty
     end
 
-    it "ignores legacy stack-rebase workflows after landing ownership moves to WorkUnits" do
-      set_feature("work_units_landing", true)
+    it "ignores legacy stack-rebase workflows" do
       workflow = Workflow.create!(job: job, trigger_kind: "stack_rebase", state: "running")
       Step.create!(workflow: workflow, kind: "stack_auto_rebase", position: 0)
 
@@ -206,18 +192,17 @@ RSpec.describe RebaseWorkflowSelector do
       expect(described_class.active_in_repository(repository)).to be_empty
     end
 
-    it "returns running rebase workflows in the given repository" do
-      workflow = Workflow.create!(job: job, trigger_kind: "rebase")
-      workflow.update_columns(state: "running")
+    it "returns WorkUnit-owned rebase workflows in the given repository" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "failed", finished_at: Time.current)
       Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)
+      create_rebase_work_unit(job: job, workflow: workflow)
 
       result = described_class.active_in_repository(repository)
 
       expect(result).to include(workflow)
     end
 
-    it "does not return legacy repository rebase workflows after scheduler ownership moves to WorkUnits" do
-      set_feature("work_units_scheduler", true)
+    it "does not return legacy repository rebase workflows" do
       workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
       Step.create!(workflow: workflow, kind: "auto_rebase", position: 0)
 

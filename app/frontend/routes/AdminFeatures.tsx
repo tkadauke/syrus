@@ -71,24 +71,24 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
 
 function WorkUnitOwnershipPanel({ ownership }: { ownership: NonNullable<AdminFeaturesPayload["work_unit_ownership"]> }) {
   return (
-    <section aria-label="Work unit rollout" className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <section aria-label="Work unit ownership" className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Work unit rollout</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Work unit ownership</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-          Runtime paths switch from legacy inference to WorkUnit ownership when their gate is enabled.
+          Runtime paths are owned by WorkUnits; this diagnostic groups the active ownership surface.
         </p>
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {ownership.map((gate) => (
-          <div className="rounded border border-gray-200 p-3 dark:border-gray-700" key={gate.gate}>
+        {ownership.map((group) => (
+          <div className="rounded border border-gray-200 p-3 dark:border-gray-700" key={group.group}>
             <div className="flex items-center justify-between gap-3">
-              <h3 className="break-all font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{gate.gate}</h3>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${gate.enabled ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>
-                {gate.enabled ? "enabled" : "disabled"}
+              <h3 className="break-all font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{group.group}</h3>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${group.enabled ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>
+                {group.enabled ? "active" : "inactive"}
               </span>
             </div>
             <ul className="mt-3 space-y-1">
-              {gate.paths.map((path) => (
+              {group.paths.map((path) => (
                 <li className="flex items-center justify-between gap-3 text-xs" key={path.path}>
                   <span className="break-all font-mono text-gray-700 dark:text-gray-300">{path.path}</span>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 font-semibold ${path.owner === "work_unit" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>

@@ -1,9 +1,8 @@
 module WorkUnits
   class PathOwnership
-    Result = Data.define(:path, :owner, :gate) do
+    Result = Data.define(:path, :owner, :group) do
       def legacy? = owner == :legacy
       def work_unit? = owner == :work_unit
-      def gated? = gate.present?
     end
 
     SCHEDULER_PATHS = %w[
@@ -36,9 +35,9 @@ module WorkUnits
       workflow_repair
     ].freeze
 
-    PATH_GATES = SCHEDULER_PATHS.index_with("work_units_scheduler")
-      .merge(LANDING_PATHS.index_with("work_units_landing"))
-      .merge(RECONCILER_PATHS.index_with("work_units_reconciler"))
+    PATH_GROUPS = SCHEDULER_PATHS.index_with("scheduler")
+      .merge(LANDING_PATHS.index_with("landing"))
+      .merge(RECONCILER_PATHS.index_with("reconciler"))
       .freeze
 
     def self.for(path)
@@ -54,9 +53,8 @@ module WorkUnits
     end
 
     def result
-      gate = PATH_GATES.fetch(path) { raise KeyError, "unknown work unit ownership path: #{path.inspect}" }
-      owner = Feature.enabled?(gate) ? :work_unit : :legacy
-      Result.new(path: path, owner: owner, gate: gate)
+      group = PATH_GROUPS.fetch(path) { raise KeyError, "unknown work unit ownership path: #{path.inspect}" }
+      Result.new(path: path, owner: :work_unit, group: group)
     end
 
     private

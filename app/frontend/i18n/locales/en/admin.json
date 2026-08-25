@@ -448,18 +448,6 @@
         "name": "Persistent MCP sidecar",
         "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns can route their MCP tool calls to it, with automatic fallback to stdio; workflow agent runs do not yet use it and always fall back to the per-run stdio sidecar. When disabled, all agents keep using the default per-run/per-session stdio sidecars."
       },
-      "work_units_scheduler": {
-        "name": "Work units scheduler",
-        "description": "Lets WorkUnit-owned adapters control lower-risk scheduler paths such as retry, resume, manual pause, provider availability pauses, and admission-control pauses."
-      },
-      "work_units_landing": {
-        "name": "Work units landing",
-        "description": "Lets WorkUnit-owned adapters control landing, merge-train, stack-rebase, and landing-validation ownership paths."
-      },
-      "work_units_reconciler": {
-        "name": "Work units reconciler",
-        "description": "Lets reconciler invariant modules act from WorkIntent and WorkUnit state for paths whose scheduler ownership has graduated."
-      },
       "mysql_db_browser": {
         "name": "MySQL DB browser",
         "description": "Enables the MySQL DB browser plugin, which lets admins register and use connections to external MySQL databases with real credentials."

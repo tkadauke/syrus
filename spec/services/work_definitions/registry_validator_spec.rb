@@ -45,7 +45,7 @@ RSpec.describe WorkDefinitions::RegistryValidator do
     )
   end
 
-  it "requires landing-lock definitions to have a feature-gated path owner" do
+  it "requires landing-lock definitions to have a WorkUnit path owner" do
     stub_const(
       "WorkUnits::PathOwnership::LANDING_PATHS",
       WorkUnits::PathOwnership::LANDING_PATHS - %w[auto_merge]

@@ -53,14 +53,6 @@ RSpec.describe ProviderAdmissionWakeup do
     )
   end
 
-  def set_feature(slug, enabled)
-    Feature.find_or_create_by!(slug: slug) do |feature|
-      feature.category = "Operations"
-      feature.name = slug.humanize
-    end.update!(enabled: enabled)
-    Feature.clear_enabled_cache!(slug)
-  end
-
   describe ".call" do
     it "cancels future-scheduled auto-retry attempts and requests a reconcile for each affected job" do
       attempt = pending_attempt
@@ -99,6 +91,10 @@ RSpec.describe ProviderAdmissionWakeup do
           "pause_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
         }
       )
+      queued_workflow.work_unit.update!(
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON
+      )
       allow(ProviderCircuitBreaker).to receive(:call).and_return(closed_circuit)
 
       expect(WorkUnits::Launcher).to receive(:start!).with(queued_workflow).once.and_call_original
@@ -110,8 +106,7 @@ RSpec.describe ProviderAdmissionWakeup do
       expect(queued_workflow.first_step.runs.count).to eq(1)
     end
 
-    it "does not wake stale legacy landing workflows after landing ownership moves to WorkUnits" do
-      set_feature("work_units_landing", true)
+    it "does not wake stale legacy landing workflows" do
       legacy_job = Factories.job_record(user: job.user, repository: job.repository, agent_provider: "claude", state: "landing")
       legacy_workflow = Workflow.create!(
         job: legacy_job,

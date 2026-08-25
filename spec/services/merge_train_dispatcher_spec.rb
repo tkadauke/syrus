@@ -151,18 +151,14 @@ RSpec.describe MergeTrainDispatcher do
 
   it "does not dispatch a second train when the Epic already has an active merge-train workflow" do
     child = approved_child(1)
-    Workflow.create!(job: child, trigger_kind: "merge_train", state: "running")
+    WorkUnits::Backfill.workflow!(Workflow.create!(job: child, trigger_kind: "merge_train", state: "running"))
 
     expect(described_class.try_dispatch!(epic)).to be_nil
     expect(MergeTrain.count).to eq(0)
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
-  it "ignores legacy merge-train workflows as active train blockers when WorkUnit landing owns the path" do
-    Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units landing"
-    end.update!(enabled: true)
+  it "ignores legacy merge-train workflows as active train blockers" do
     child = approved_child(1)
     Workflow.create!(job: child, trigger_kind: "merge_train", state: "running")
 
@@ -203,7 +199,7 @@ RSpec.describe MergeTrainDispatcher do
 
   it "does not dispatch the real train while speculative train validation is active" do
     child = approved_child(1)
-    Workflow.create!(job: child, trigger_kind: "merge_train_validation", state: "running")
+    WorkUnits::Backfill.workflow!(Workflow.create!(job: child, trigger_kind: "merge_train_validation", state: "running"))
 
     expect(described_class.try_dispatch!(epic)).to be_nil
     expect(MergeTrain.count).to eq(0)
@@ -214,6 +210,7 @@ RSpec.describe MergeTrainDispatcher do
     child = approved_child(1)
     workflow = Workflow.create!(job: child, trigger_kind: "stack_rebase", state: "running")
     Step.create!(workflow: workflow, kind: "stack_agent_rebase", position: 0)
+    WorkUnits::Backfill.workflow!(workflow)
 
     expect(described_class.blocker_reason(epic)).to eq("active rebase workflow #{workflow.slug} must finish before the merge train starts")
     expect(described_class.try_dispatch!(epic)).to be_nil

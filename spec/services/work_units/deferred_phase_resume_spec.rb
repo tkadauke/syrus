@@ -7,17 +7,10 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
   let(:repository) { Factories.repository(user: user) }
 
   before do
-    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-      feature.category = "operations"
-      feature.name = "Work units scheduler"
-    end.update!(enabled: true)
-    Feature.clear_enabled_cache!
     clear_enqueued_jobs
   end
 
   after do
-    Feature.find_by(slug: "work_units_scheduler")&.update!(enabled: false)
-    Feature.clear_enabled_cache!
     clear_enqueued_jobs
   end
 

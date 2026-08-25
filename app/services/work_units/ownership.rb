@@ -13,7 +13,7 @@ module WorkUnits
       active_job_ids([ job.id ], kinds: kinds).include?(job.id)
     end
 
-    def self.active_for_epic?(epic, kinds: nil, include_legacy: true)
+    def self.active_for_epic?(epic, kinds: nil, include_legacy: false)
       return false unless epic
 
       return true if active_units_for_epic(epic, kinds: kinds).any?
@@ -355,9 +355,8 @@ module WorkUnits
       kind = kind.to_s
       return true if kind == "replay"
       return false unless Workflow::TriggerKind.values.include?(kind)
-      return !WorkUnits::PathOwnership.work_unit_owned?("landing_queue") if landing_owned_trigger_kinds.include?(kind)
 
-      !WorkUnits::PathOwnership.work_unit_owned?("retry")
+      false
     end
 
     def self.landing_owned_trigger_kinds

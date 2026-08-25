@@ -477,8 +477,8 @@ RSpec.describe Job do
       running = Factories.job_record(repository: idle.repository, issue_number: 3, issue_title: "Running workflow")
       terminal = Factories.job_record(repository: idle.repository, issue_number: 4, issue_title: "Done workflow")
 
-      Workflow.create!(job: queued, trigger_kind: "manual", state: "queued")
-      Workflow.create!(job: running, trigger_kind: "manual", state: "running")
+      WorkUnits::Backfill.workflow!(Workflow.create!(job: queued, trigger_kind: "manual", state: "queued"))
+      WorkUnits::Backfill.workflow!(Workflow.create!(job: running, trigger_kind: "manual", state: "running"))
       Workflow.create!(job: terminal, trigger_kind: "manual", state: "succeeded")
 
       expect(described_class.where(id: [ idle.id, queued.id, running.id, terminal.id ]).without_active_workflows).to contain_exactly(
@@ -870,22 +870,7 @@ RSpec.describe Job do
       )
     end
 
-    it "includes legacy active workflows while their WorkUnit path is legacy-owned" do
-      Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
-        feature.category = "Operations"
-        feature.name = "Work units landing"
-      end.update!(enabled: false)
-      job = Factories.job_record(state: "landing")
-      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
-
-      expect(job.active_runtime_workflows).to contain_exactly(workflow)
-    end
-
-    it "ignores legacy active workflows once their WorkUnit path is authoritative" do
-      Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
-        feature.category = "Operations"
-        feature.name = "Work units landing"
-      end.update!(enabled: true)
+    it "ignores legacy active workflows because WorkUnit ownership is authoritative" do
       job = Factories.job_record(state: "landing")
       Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
 
@@ -971,8 +956,7 @@ RSpec.describe Job do
 
     describe "#record_github_review_approval!" do
       it "creates a JobApproval for the reviewer and approves when policy is satisfied" do
-        job = Factories.job
-        job.update!(state: "implemented")
+        job = Factories.job_record(state: "implemented")
         submitted = 2.hours.ago
 
         # Pass the job owner as reviewer; SelfPolicy (default) requires the owner's approval
@@ -992,8 +976,7 @@ RSpec.describe Job do
       end
 
       it "falls back to the job owner when reviewer_user is nil" do
-        job = Factories.job
-        job.update!(state: "implemented")
+        job = Factories.job_record(state: "implemented")
 
         job.record_github_review_approval!(
           review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
@@ -1005,7 +988,7 @@ RSpec.describe Job do
       end
 
       it "is idempotent: does not duplicate an existing JobApproval" do
-        job = Factories.job
+        job = Factories.job_record
         job.update!(state: "implemented")
         job.job_approvals.create!(user: job.user, approved_at: 2.hours.ago)
 
@@ -1039,7 +1022,7 @@ RSpec.describe Job do
       end
 
       it "returns false and does nothing when job cannot transition to approved" do
-        job = Factories.job
+        job = Factories.job_record
         job.update!(state: "approved")
 
         expect {
@@ -1051,9 +1034,8 @@ RSpec.describe Job do
       end
 
       it "does not re-approve while a chat_feedback workflow is queued or running" do
-        job = Factories.job
-        job.update!(state: "implemented")
-        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+        job = Factories.job_record(state: "implemented")
+        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running"))
 
         result = job.record_github_review_approval!(
           review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
@@ -1066,9 +1048,8 @@ RSpec.describe Job do
       end
 
       it "does not re-approve while a pr_comment workflow is queued" do
-        job = Factories.job
-        job.update!(state: "implemented")
-        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued")
+        job = Factories.job_record(state: "implemented")
+        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued"))
 
         result = job.record_github_review_approval!(
           review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
@@ -1081,7 +1062,7 @@ RSpec.describe Job do
       end
 
       it "approves once the active feedback workflow reaches a terminal state" do
-        job = Factories.job
+        job = Factories.job_record
         job.update!(state: "implemented")
         Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "succeeded")
 
@@ -1098,15 +1079,15 @@ RSpec.describe Job do
 
     describe "#active_feedback_workflow?" do
       it "is true when a chat_feedback workflow is queued or running" do
-        job = Factories.job
-        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+        job = Factories.job_record
+        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued"))
 
         expect(job.active_feedback_workflow?).to be true
       end
 
       it "is true when a pr_comment workflow is running" do
-        job = Factories.job
-        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+        job = Factories.job_record
+        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running"))
 
         expect(job.active_feedback_workflow?).to be true
       end

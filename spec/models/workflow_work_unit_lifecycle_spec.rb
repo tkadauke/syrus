@@ -5,13 +5,6 @@ RSpec.describe "Workflow work unit lifecycle" do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository) }
 
-  def set_scheduler_gate(enabled)
-    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
-      feature.category = "Operations"
-      feature.name = "Work units scheduler"
-    end.update!(enabled: enabled)
-  end
-
   it "mirrors workflow start on its work unit" do
     workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
 
@@ -51,7 +44,6 @@ RSpec.describe "Workflow work unit lifecycle" do
   end
 
   it "does not reopen a failed workflow when another active unit owns its lock" do
-    set_scheduler_gate(true)
     workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
     unit = workflow.work_unit
     workflow.fail!

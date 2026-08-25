@@ -8,6 +8,19 @@ RSpec.describe App::DashboardPayload do
     described_class.call(user: user, params: ActionController::Parameters.new(params))
   end
 
+  def backfill_work_unit(workflow, state: workflow.state, blocked_reason: nil, blocked_details: nil, blocked_until: nil)
+    result = WorkUnits::Backfill.workflow!(workflow)
+    unit = result.work_unit || workflow.reload.work_unit
+    return unit unless unit
+
+    attrs = { state: state }
+    attrs[:blocked_reason] = blocked_reason if blocked_reason
+    attrs[:blocked_details] = blocked_details if blocked_details
+    attrs[:blocked_until] = blocked_until if blocked_until
+    unit.update!(attrs)
+    unit
+  end
+
   describe "provider availability" do
     it "exposes user-level provider availability with Codex usage windows" do
       user.update!(
@@ -93,7 +106,8 @@ RSpec.describe App::DashboardPayload do
   describe "active workflow trigger on job items" do
     it "uses preloaded active workflow trigger data for running jobs" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
-      Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running", started_at: Time.current)
+      workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running", started_at: Time.current)
+      backfill_work_unit(workflow)
 
       allow_any_instance_of(Job).to receive(:active_workflow_trigger_kind).and_raise("unexpected fallback query")
 
@@ -108,12 +122,13 @@ RSpec.describe App::DashboardPayload do
     it "only scans start-blocked workflow artifacts for the current job page" do
       visible = Factories.job_record(user: user, repository: repo, state: "queued")
       unrelated = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      visible_workflow = Workflow.create!(
         job: visible,
         trigger_kind: "initial",
         state: "queued",
         artifacts: { "start_blocked_reason" => "admission_control" }
       )
+      backfill_work_unit(visible_workflow, state: "blocked", blocked_reason: "admission_control")
       Workflow.create!(
         job: unrelated,
         trigger_kind: "initial",
@@ -395,12 +410,13 @@ RSpec.describe App::DashboardPayload do
       train = MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch)
       MergeTrainMember.create!(merge_train: train, job: first, position: 0)
       MergeTrainMember.create!(merge_train: train, job: tip, position: 1)
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: tip,
         trigger_kind: "merge_train",
         state: "queued",
         artifacts: { "merge_train_id" => train.id, "start_blocked_reason" => "urgent_job_active" }
       )
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "urgent_job_active")
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
       items = result[:items].index_by { |item| item[:id] }
@@ -412,10 +428,6 @@ RSpec.describe App::DashboardPayload do
     end
 
     it "reports a WorkUnit-owned merge-train blocker without relying on workflow artifacts" do
-      Feature.find_or_create_by!(slug: "work_units_landing") do |feature|
-        feature.category = "Operations"
-        feature.name = "Work units landing"
-      end.update!(enabled: true)
       AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
@@ -698,7 +710,7 @@ RSpec.describe App::DashboardPayload do
 
     it "includes start_blocked_reason from the queued workflow's artifacts" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: job,
         trigger_kind: "initial",
         state: "queued",
@@ -708,6 +720,15 @@ RSpec.describe App::DashboardPayload do
             "kind" => "fan_in_base_unavailable",
             "dependencies" => [ { "slug" => "JOB-1574" } ]
           }
+        }
+      )
+      backfill_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "stack_fan_in_base_unavailable",
+        blocked_details: {
+          "kind" => "fan_in_base_unavailable",
+          "dependencies" => [ { "slug" => "JOB-1574" } ]
         }
       )
 
@@ -733,10 +754,10 @@ RSpec.describe App::DashboardPayload do
       expect(item).to include(start_blocked_reason: nil)
     end
 
-    it "includes start_blocked_next_check_at and start_blocked_count from the workflow artifacts" do
+    it "includes start_blocked_next_check_at from the WorkUnit block" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       next_check = 5.minutes.from_now.iso8601
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: job,
         trigger_kind: "initial",
         state: "queued",
@@ -747,24 +768,26 @@ RSpec.describe App::DashboardPayload do
           "start_blocked_count" => 3
         }
       )
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "urgent_job_active", blocked_until: Time.zone.parse(next_check))
 
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
       expect(item).to include(
         start_blocked_next_check_at: next_check,
-        start_blocked_count: 3
+        start_blocked_count: nil
       )
     end
 
     it "includes nil for start_blocked_next_check_at and start_blocked_count when absent from artifacts" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: job,
         trigger_kind: "initial",
         state: "queued",
         artifacts: { "start_blocked_reason" => "urgent_job_active" }
       )
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "urgent_job_active")
 
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
@@ -777,7 +800,7 @@ RSpec.describe App::DashboardPayload do
 
     it "shows running workflows with deferred progress as paused instead of in progress" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: job,
         trigger_kind: "initial",
         state: "running",
@@ -787,11 +810,17 @@ RSpec.describe App::DashboardPayload do
           "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
         }
       )
+      backfill_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "admission_control",
+        blocked_details: { "start_blocked_reason" => "workflow_admission_budget" }
+      )
 
       rows = call(subject: "job", section: "rows")
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
-      expect(item[:start_blocked_reason]).to eq("workflow_admission_budget")
+      expect(item[:start_blocked_reason]).to eq("admission_control")
 
       paused_folder = SmartFolder.find_builtin_by_attention("paused")
       in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")
@@ -918,7 +947,7 @@ RSpec.describe App::DashboardPayload do
         branch_name: "syrus/issue-77",
         approved_at: 1.minute.ago
       )
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: job,
         trigger_kind: "auto_merge",
         state: "queued",
@@ -926,6 +955,12 @@ RSpec.describe App::DashboardPayload do
           "start_blocked_reason" => "landing start blocked: workflow admission budget",
           "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
         }
+      )
+      backfill_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "admission_control",
+        blocked_details: { "start_blocked_reason" => "landing start blocked: workflow admission budget" }
       )
       paused_folder = SmartFolder.find_builtin_by_attention("paused")
       landing_folder = SmartFolder.find_builtin_by_attention("landing_queue")
@@ -943,12 +978,13 @@ RSpec.describe App::DashboardPayload do
 
     it "includes blocked_count on the queued folder when blocked jobs exist" do
       queued_job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: queued_job,
         trigger_kind: "initial",
         state: "queued",
         artifacts: { "start_blocked_reason" => "urgent_job_active" }
       )
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "urgent_job_active")
 
       result = call(subject: "job")
       queued_folder = result[:smart_folders].find { |f| f[:key] == "queued" }
@@ -963,12 +999,13 @@ RSpec.describe App::DashboardPayload do
       theirs = Factories.job_record(user: other_user, repository: other_repo, state: "queued", owner_user: other_user)
 
       [ mine, theirs ].each do |job|
-        Workflow.create!(
+        workflow = Workflow.create!(
           job: job,
           trigger_kind: "initial",
           state: "queued",
           artifacts: { "start_blocked_reason" => "urgent_job_active" }
         )
+        backfill_work_unit(workflow, state: "blocked", blocked_reason: "urgent_job_active")
       end
 
       result = call(subject: "job", ownership_scope: "team")
@@ -1027,7 +1064,8 @@ RSpec.describe App::DashboardPayload do
       implemented = Factories.job_record(user: user, repository: repo, state: "implemented")
       failed = Factories.job_record(user: user, repository: repo, state: "failed")
       running = Factories.job_record(user: user, repository: repo, state: "implemented")
-      Workflow.create!(job: running, trigger_kind: "initial", state: "running")
+      workflow = Workflow.create!(job: running, trigger_kind: "initial", state: "running")
+      backfill_work_unit(workflow)
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "acme", name: "other")
       Factories.job_record(user: other_user, owner_user: other_user, repository: other_repo, state: "implemented")
@@ -1095,11 +1133,17 @@ RSpec.describe App::DashboardPayload do
     it "filters job items to queued workflows with a start blocked reason" do
       blocked_job = Factories.job_record(user: user, repository: repo, state: "queued")
       unblocked_job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      workflow = Workflow.create!(
         job: blocked_job,
         trigger_kind: "initial",
         state: "queued",
         artifacts: { "start_blocked_reason" => "main_branch_broken" }
+      )
+      backfill_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "main_branch_health",
+        blocked_details: { "start_blocked_reason" => "main_branch_broken" }
       )
       Workflow.create!(job: unblocked_job, trigger_kind: "initial", state: "queued")
 

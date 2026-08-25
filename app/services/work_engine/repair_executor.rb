@@ -463,6 +463,14 @@ module WorkEngine
           return skipped("#{repair_job.slug} is #{repair_job.state}, not approved") unless repair_job.approved?
           return skipped("#{repair_job.slug} is not a main-branch repair Job") unless MainHealthChangedService.fix_main_job?(repair_job)
 
+          with_transition_reason do
+            if workflow.job&.landing? && workflow.job.may_defer_landing?
+              workflow.job.defer_landing!
+              workflow.job.save!
+            end
+            StepDispatcher.fail_unstartable_landing_workflow!(workflow, StepDispatcher::MAIN_HEALTH_BLOCK_REASON)
+          end
+
           repair_workflow = LandingQueueProcessor.try_land!(repair_job)
           repair_workflow ? success("released blocked landing slot and dispatched #{repair_workflow.slug} for #{repair_job.slug}") : skipped("main repair Job did not land")
         end
