@@ -188,6 +188,7 @@ class LandingQueueProcessor
   end
 
   def entries(scope = Job.all)
+    reset_blockage_caches!
     position = 0
     landing_units(scope).flat_map do |unit|
       unit.jobs.map do |job|
@@ -860,16 +861,31 @@ class LandingQueueProcessor
   # the whole unit is "related" and must not block `job` — blocking it
   # would deadlock the unit against its own prerequisite.
   def unrelated_urgent_job_active_for_repository?(job)
-    active_urgent_jobs = job.repository.jobs
-      .where(priority: "urgent")
-      .where(state: URGENT_ACTIVE_STATES)
-      .where.not(id: job.id)
-      .to_a
+    active_urgent_jobs = active_urgent_jobs_for_repository(job.repository_id).reject { |urgent_job| urgent_job.id == job.id }
     return false if active_urgent_jobs.empty?
 
     active_urgent_jobs.group_by { |urgent_job| landing_unit_key(urgent_job) }.each_value.any? do |unit_jobs|
       unit_jobs.none? { |urgent_job| landing_queue_prerequisite_ids(urgent_job).include?(job.id) }
     end
+  end
+
+  # Memoized per repository_id so a single entries()/refresh_snapshot! pass
+  # over many Jobs in the same repository issues this query once instead of
+  # once per Job (LandingQueueProcessor.new is instantiated fresh per class-
+  # method call, and reset_blockage_caches! clears this at the top of every
+  # entries() call, so the cache never leaks stale state across separate
+  # snapshots — see #call, which reuses one instance across two entries()
+  # passes with Job state changes in between).
+  def active_urgent_jobs_for_repository(repository_id)
+    @active_urgent_jobs_by_repository_id ||= {}
+    @active_urgent_jobs_by_repository_id[repository_id] ||= Job
+      .where(repository_id: repository_id, priority: "urgent")
+      .where(state: URGENT_ACTIVE_STATES)
+      .to_a
+  end
+
+  def reset_blockage_caches!
+    @active_urgent_jobs_by_repository_id = {}
   end
 
   def unapproved_epic_siblings(job)
