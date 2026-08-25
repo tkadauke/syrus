@@ -383,13 +383,14 @@ module App
           end
           runnable_work_unit_job_ids = WorkUnits::Ownership.runnable_unit_job_ids(job_ids).to_set
 
-          legacy_scope = Workflow.where(job_id: active_scope, state: %w[queued running])
-                                 .where("artifacts LIKE ?", '%"start_blocked_reason"%')
           legacy = WorkUnits::Ownership
-                  .legacy_replay_workflows_scope(job_ids.presence, base_scope: legacy_scope)
+                  .legacy_replay_start_blocked_workflows_scope(
+                    job_ids.presence,
+                    base_scope: Workflow.where(job_id: active_scope, state: %w[queued running])
+                  )
                   .includes(:work_unit)
                   .reorder(id: :desc)
-                  .select(:id, :job_id, :artifacts)
+                  .select(:id, :job_id, :trigger_kind, :artifacts)
                   .each_with_object({}) do |wf, map|
             next if map.key?(wf.job_id)
             next if runnable_work_unit_job_ids.include?(wf.job_id)

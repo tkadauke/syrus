@@ -60,14 +60,17 @@ module Admin
         .limit(DELAYED_LIMIT)
         .map(&:workflow)
 
-      legacy_scope = Workflow.where(state: "queued")
+      legacy_workflows = WorkUnits::Ownership
+        .legacy_replay_start_blocked_workflows_scope(
+          nil,
+          reasons: StepDispatcher::ADMISSION_BLOCK_REASON,
+          base_scope: Workflow.where(state: "queued")
+        )
         .includes(:work_unit)
         .includes(:job)
-        .where("artifacts LIKE ?", "%#{StepDispatcher::ADMISSION_BLOCK_REASON}%")
         .where("updated_at >= ?", now - DELAYED_WINDOW)
         .order(updated_at: :desc)
         .limit(DELAYED_LIMIT)
-      legacy_workflows = WorkUnits::Ownership.legacy_replay_workflows_scope(nil, base_scope: legacy_scope)
 
       (work_unit_workflows + legacy_workflows.to_a)
         .uniq(&:id)

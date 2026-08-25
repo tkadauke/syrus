@@ -40,7 +40,11 @@ class UrgentJobClosedJob < ApplicationJob
       .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
 
     WorkUnits::Ownership
-      .legacy_replay_workflows_scope(nil, base_scope: base_scope)
+      .legacy_replay_start_blocked_workflows_scope(
+        nil,
+        reasons: StepDispatcher::URGENT_BLOCK_REASON,
+        base_scope: base_scope
+      )
       .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::URGENT_BLOCK_REASON) }
   end
 end

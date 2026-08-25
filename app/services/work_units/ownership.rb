@@ -339,8 +339,29 @@ module WorkUnits
       scope.where(trigger_kind: LEGACY_REPLAY_TRIGGER_KIND)
     end
 
+    def self.legacy_replay_start_blocked_workflows_scope(job_ids = nil, reasons: nil, patterns: nil, states: ACTIVE_STATES, base_scope: nil)
+      base_scope ||= Workflow.where(state: workflow_states(states))
+      reason_patterns = legacy_start_block_patterns(reasons: reasons, patterns: patterns)
+      blocked_scope = reason_patterns.reduce(nil) do |scope, pattern|
+        pattern_scope = base_scope.where("artifacts LIKE ?", pattern)
+        scope ? scope.or(pattern_scope) : pattern_scope
+      end
+
+      legacy_replay_workflows_scope(job_ids, base_scope: blocked_scope)
+    end
+
     def self.workflow_states(states)
       Array(states).map(&:to_s) & %w[queued running]
+    end
+
+    def self.legacy_start_block_patterns(reasons: nil, patterns: nil)
+      explicit_patterns = Array(patterns).compact
+      return explicit_patterns if explicit_patterns.any?
+
+      explicit_reasons = Array(reasons).compact
+      return [ '%"start_blocked_reason"%' ] if explicit_reasons.empty?
+
+      explicit_reasons.map { |reason| "%#{reason}%" }
     end
   end
 end

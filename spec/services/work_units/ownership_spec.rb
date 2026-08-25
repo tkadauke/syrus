@@ -44,6 +44,59 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kind_lists_by_job_id([ job.id ])).to eq(job.id => [ "replay" ])
   end
 
+  it "centralizes replay-only start-block artifact fallback" do
+    replay = Factories.job_record(issue_number: 31)
+    migrated = Factories.job_record(repository: replay.repository, issue_number: 32)
+    matching = Workflow.create!(
+      job: replay,
+      trigger_kind: "replay",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
+    )
+    Workflow.create!(
+      job: replay,
+      trigger_kind: "replay",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON }
+    )
+    Workflow.create!(
+      job: migrated,
+      trigger_kind: "initial",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
+    )
+
+    result = described_class.legacy_replay_start_blocked_workflows_scope(
+      [ replay.id, migrated.id ],
+      reasons: StepDispatcher::ADMISSION_BLOCK_REASON
+    )
+
+    expect(result).to contain_exactly(matching)
+  end
+
+  it "can search replay start-block artifacts by migration-era patterns" do
+    admission = Factories.job_record(issue_number: 33)
+    resource = Factories.job_record(repository: admission.repository, issue_number: 34)
+    Workflow.create!(
+      job: admission,
+      trigger_kind: "replay",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
+    )
+    resource_workflow = Workflow.create!(
+      job: resource,
+      trigger_kind: "replay",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY }
+    )
+
+    result = described_class.legacy_replay_start_blocked_workflows_scope(
+      patterns: [ "%#{StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY}%" ]
+    )
+
+    expect(result).to contain_exactly(resource_workflow)
+  end
+
   it "ignores landing legacy workflow fallbacks after landing moves to work units" do
     job = Factories.job_record
     Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")

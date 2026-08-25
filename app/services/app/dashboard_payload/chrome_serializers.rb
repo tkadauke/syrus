@@ -71,10 +71,8 @@ module App
         ids = Array(queued_job_ids).map(&:to_i).select(&:positive?)
         return [] if ids.empty?
 
-        base_scope = Workflow.where(job_id: ids, state: "queued")
-                             .where("artifacts LIKE ?", '%"start_blocked_reason"%')
         WorkUnits::Ownership
-          .legacy_replay_workflows_scope(ids, base_scope: base_scope)
+          .legacy_replay_start_blocked_workflows_scope(ids, base_scope: Workflow.where(job_id: ids, state: "queued"))
           .includes(:work_unit)
           .select { |workflow| WorkUnits::StartBlock.for(workflow).reason.present? }
           .map(&:job_id)

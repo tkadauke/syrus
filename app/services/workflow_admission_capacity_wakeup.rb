@@ -29,12 +29,6 @@ class WorkflowAdmissionCapacityWakeup
       (LandingQueueReentry.landing_start_blocker?(reason) && reason.include?("workflow admission budget"))
   end
 
-  def self.sleeper_scope
-    ARTIFACT_PATTERNS.reduce(Workflow.where(state: %w[queued running]).none) do |scope, pattern|
-      scope.or(Workflow.where(state: %w[queued running]).where("artifacts LIKE ?", pattern))
-    end
-  end
-
   def self.sleeper_workflows
     work_unit_workflows = work_unit_sleeper_scope.includes(:workflow).order(:id).map(&:workflow)
     legacy_workflows = legacy_sleeper_scope.to_a.select { |workflow| admission_or_resource_paused?(workflow) }
@@ -42,7 +36,7 @@ class WorkflowAdmissionCapacityWakeup
   end
 
   def self.legacy_sleeper_scope
-    WorkUnits::Ownership.legacy_replay_workflows_scope(nil, base_scope: sleeper_scope)
+    WorkUnits::Ownership.legacy_replay_start_blocked_workflows_scope(nil, patterns: ARTIFACT_PATTERNS)
   end
 
   def self.work_unit_sleeper_scope
