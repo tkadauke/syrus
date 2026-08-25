@@ -830,6 +830,24 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "prefers running WorkUnit attempts over newer blocked attempts in the active work card" do
+      job = Factories.job_record(user: user, repository: repo)
+      running_workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running", created_at: 5.minutes.ago)
+      running_unit = attach_work_unit(running_workflow, member_jobs: [ job ], kind: "ci_failure", state: "running")
+      blocked_workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "queued")
+      blocked_unit = attach_work_unit(blocked_workflow, member_jobs: [ job ], kind: "rebase", state: "blocked", blocked_reason: "resource_safety")
+
+      payload = payload_for(job)
+
+      expect(payload.fetch(:active_work)).to include(
+        id: running_unit.id,
+        kind: "ci_failure",
+        state: "running",
+        workflow_id: running_workflow.id
+      )
+      expect(workflows_payload_for(job).fetch(:work_units).map { |unit| unit[:id] }).to include(blocked_unit.id)
+    end
+
     it "includes a waiting job-scoped intent even when no work unit exists yet" do
       job = Factories.job_record(user: user, repository: repo)
       intent = WorkIntent.create!(
