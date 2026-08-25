@@ -88,15 +88,15 @@ module Skills
 
     def digest_body
       job = target_job
-      return "Job ##{job_id} was not found in this repository. Report that you could not find the target Job and stop." unless job
+      return "Job id #{job_id} was not found in this repository. Report that you could not find the target Job and stop." unless job
 
       pr_number = job.pr_number || job.external_pr_number
-      return "Job ##{job.id} (#{job.slug}) has no associated pull request to check. Report that and stop." if pr_number.blank?
+      return "#{job.slug} has no associated pull request to check. Report that and stop." if pr_number.blank?
 
       begin
         result = CiRepair::CheckRefresh.call(job)
       rescue StandardError => e
-        return "Could not fetch CI status for Job ##{job.id} (#{job.slug}): #{e.class}: #{e.message}. " \
+        return "Could not fetch CI status for #{job.slug}: #{e.class}: #{e.message}. " \
           "Report the failure and stop."
       end
 

@@ -31,10 +31,10 @@ module Mcp::Tools
         return error if error
 
         unless job.coding?
-          return Mcp::Tools.invalid("Job #{job_id} is not in coding state (current: #{job.state}).")
+          return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).")
         end
         unless job.linked_chat_id == chat_session.id
-          return Mcp::Tools.invalid("Job #{job_id} is not linked to this chat session.")
+          return Mcp::Tools.invalid("#{job.slug} is not linked to this chat session.")
         end
 
         new_state = ApplicationRecord.transaction do
@@ -55,7 +55,7 @@ module Mcp::Tools
         Mcp::Tools.success(
           job_id: job.id,
           job_state: new_state,
-          message: "Local mode session cancelled. Job #{job_id} is now #{new_state}."
+          message: "Local mode session cancelled. #{job.slug} is now #{new_state}."
         )
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)

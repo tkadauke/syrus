@@ -61,7 +61,7 @@
   "legacy_revision_body": "Haec vetus perspectiva correctionem perspectivae #{{id}} suggessit. Novi cursus perspectivas nondum acceptas directe mutant, ergo haec charta tantum contextus servatur.",
   "retired_heading": "Deposita",
   "superseded_by_insight_label": "Perspectiva #{{id}} hanc supersedit",
-  "superseded_by_job_label": "Officium #{{id}} hanc supersedit",
+  "superseded_by_job_label": "{{slug}} hanc supersedit",
   "created_job_label": "Officium creatum",
   "evidence_heading": "Indicia ({{count}})",
   "evidence_col_job": "Officium",

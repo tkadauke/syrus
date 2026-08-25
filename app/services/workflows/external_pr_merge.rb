@@ -82,7 +82,7 @@ module Workflows
       pr = client.pull_request(job.repository.slug, job.external_pr_number, bypass_cache: true)
       pr.head&.repo&.full_name == job.repository.slug
     rescue StandardError => e
-      Rails.logger.warn("[ExternalPrMerge] could not classify external PR ##{job.external_pr_number} for Job ##{job.id}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[ExternalPrMerge] could not classify external PR ##{job.external_pr_number} for #{job.slug}: #{e.class}: #{e.message}")
       false
     end
 
@@ -106,7 +106,7 @@ module Workflows
       client.create_pr_review(job.repository.slug, job.external_pr_number,
                               event: "REQUEST_CHANGES", body: body)
     rescue StandardError => e
-      Rails.logger.warn("[ExternalPrMerge] grader failure review failed for Job ##{job.id}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[ExternalPrMerge] grader failure review failed for #{job.slug}: #{e.class}: #{e.message}")
     end
 
     def self.build_grader_failure_body(failed_names, is_fork)

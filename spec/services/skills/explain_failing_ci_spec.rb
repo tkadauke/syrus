@@ -52,7 +52,7 @@ RSpec.describe Skills::ExplainFailingCi do
       instructions = definition_for(999_999).instructions
 
       expect(instructions).to include("Automated pre-fetch results")
-      expect(instructions).to match(/Job #999999 was not found in this repository/)
+      expect(instructions).to match(/Job id 999999 was not found in this repository/)
     end
 
     it "does not leak a Job that belongs to a different repository" do
@@ -77,7 +77,7 @@ RSpec.describe Skills::ExplainFailingCi do
       let(:sha) { "abc1234567890000000000000000000000000000" }
 
       before do
-        pr = double("PullRequest", head: double("Head", sha: sha))
+        pr = double("PullRequest", head: double("Head", sha: sha), base: double("Base", sha: "base123"))
         allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
         allow(client).to receive(:pull_request).with("acme/widgets", 7, bypass_cache: true).and_return(pr)
       end

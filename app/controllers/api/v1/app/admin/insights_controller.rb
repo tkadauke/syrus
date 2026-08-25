@@ -110,6 +110,7 @@ module Api
               retired_reason: suggestion.redacted_retired_reason,
               superseded_by_insight_id: suggestion.superseded_by_insight_id,
               superseded_by_job_id: suggestion.superseded_by_job_id,
+              superseded_by_job_slug: suggestion.superseded_by_job&.slug,
               evidence: evidence_json(suggestion.redacted_evidence),
               repository: {
                 id: suggestion.repository.id,

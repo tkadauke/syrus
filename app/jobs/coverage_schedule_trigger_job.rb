@@ -40,6 +40,6 @@ class CoverageScheduleTriggerJob < ApplicationJob
 
     job.advance_after_triage! if job.may_advance_after_triage?
 
-    Rails.logger.info("[CoverageScheduleTrigger] created Job ##{job.id} for Workflow ##{workflow_id}")
+    Rails.logger.info("[CoverageScheduleTrigger] created #{job.slug} for Workflow ##{workflow_id}")
   end
 end

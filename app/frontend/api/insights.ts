@@ -35,6 +35,7 @@ export type InsightSuggestion = {
   retired_reason: string | null
   superseded_by_insight_id: number | null
   superseded_by_job_id: number | null
+  superseded_by_job_slug: string | null
   evidence: InsightEvidenceItem[]
   job_slug: string
   job_path: string

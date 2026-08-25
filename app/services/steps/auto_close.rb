@@ -21,7 +21,7 @@ module Steps
         end
       end
 
-      raise StepFailed, "auto_close ran but Job ##{job.id} is still #{job.state}, not closed" unless job.closed?
+      raise StepFailed, "auto_close ran but #{job.slug} is still #{job.state}, not closed" unless job.closed?
     end
   end
 end

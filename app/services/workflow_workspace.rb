@@ -223,11 +223,11 @@ class WorkflowWorkspace
   def sweep_sibling_workspaces!
     @job.workflows.where.not(id: @workflow.id).find_each do |sibling|
       next unless sibling.terminal?
-      Rails.logger.info("[WorkflowWorkspace] eager sweep of sibling Workflow ##{sibling.id} for Job ##{@job.id}")
+      Rails.logger.info("[WorkflowWorkspace] eager sweep of sibling Workflow ##{sibling.id} for #{@job.slug}")
       self.class.cleanup_for(sibling)
     end
   rescue StandardError => e
-    Rails.logger.warn("[WorkflowWorkspace] sweep_sibling_workspaces! failed for Job ##{@job.id}: #{e.class}: #{e.message}")
+    Rails.logger.warn("[WorkflowWorkspace] sweep_sibling_workspaces! failed for #{@job.slug}: #{e.class}: #{e.message}")
   end
 
   def initial_branch_name

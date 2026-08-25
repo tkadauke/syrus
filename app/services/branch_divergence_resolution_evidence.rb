@@ -82,7 +82,7 @@ class BranchDivergenceResolutionEvidence
       GithubClient.for(repository: pr_repository, user: job.user)
         .pull_request(pr_repository.slug, pr_number, bypass_cache: true)
     rescue StandardError => e
-      Rails.logger.warn("[BranchDivergenceResolutionEvidence] failed to fetch PR for Job ##{job.id}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[BranchDivergenceResolutionEvidence] failed to fetch PR for #{job.slug}: #{e.class}: #{e.message}")
       nil
     end
   end

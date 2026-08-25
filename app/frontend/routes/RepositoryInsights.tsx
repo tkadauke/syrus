@@ -358,8 +358,8 @@ function SuggestionCard({
                 {suggestion.superseded_by_insight_id && (
                   <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>
                 )}
-                {suggestion.superseded_by_job_id && (
-                  <p className="mt-1">{t("superseded_by_job_label", { id: suggestion.superseded_by_job_id })}</p>
+                {suggestion.superseded_by_job_slug && (
+                  <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>
                 )}
               </div>
             )}

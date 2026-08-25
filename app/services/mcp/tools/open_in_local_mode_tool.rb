@@ -31,10 +31,10 @@ module Mcp::Tools
         return error if error
 
         if job.linked_chat_id.present?
-          return Mcp::Tools.invalid("Job #{job_id} is already linked to a local coding session.")
+          return Mcp::Tools.invalid("#{job.slug} is already linked to a local coding session.")
         end
         unless job.implemented? || job.approved?
-          return Mcp::Tools.invalid("Job #{job_id} must be in implemented or approved state (current: #{job.state}).")
+          return Mcp::Tools.invalid("#{job.slug} must be in implemented or approved state (current: #{job.state}).")
         end
 
         ApplicationRecord.transaction do
@@ -51,7 +51,7 @@ module Mcp::Tools
           job_state: job.reload.state,
           branch_name: job.branch_name,
           repository_slug: job.repository.slug,
-          message: "Job #{job_id} is now open for local implementation on branch `#{job.branch_name}`."
+          message: "#{job.slug} is now open for local implementation on branch `#{job.branch_name}`."
         )
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)

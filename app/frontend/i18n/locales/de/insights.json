@@ -61,7 +61,7 @@
   "legacy_revision_body": "Dieser ältere Einblick schlug vor, Einblick #{{id}} zu überarbeiten. Neue Einblicksläufe aktualisieren nicht akzeptierte Einblicke direkt, daher bleibt diese Karte nur als Kontext erhalten.",
   "retired_heading": "Zurückgezogen",
   "superseded_by_insight_label": "Ersetzt durch Einblick #{{id}}",
-  "superseded_by_job_label": "Ersetzt durch Job #{{id}}",
+  "superseded_by_job_label": "Ersetzt durch {{slug}}",
   "created_job_label": "Erstellter Job",
   "evidence_heading": "Belege ({{count}})",
   "evidence_col_job": "Job",

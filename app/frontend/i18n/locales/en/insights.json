@@ -61,7 +61,7 @@
   "legacy_revision_body": "This older insight suggested revising insight #{{id}}. New insight runs update unaccepted insights in place instead, so this card is preserved as context only.",
   "retired_heading": "Retired",
   "superseded_by_insight_label": "Superseded by insight #{{id}}",
-  "superseded_by_job_label": "Superseded by job #{{id}}",
+  "superseded_by_job_label": "Superseded by {{slug}}",
   "created_job_label": "Created job",
   "evidence_heading": "Evidence ({{count}})",
   "evidence_col_job": "Job",

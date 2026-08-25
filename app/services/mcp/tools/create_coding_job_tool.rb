@@ -68,7 +68,7 @@ module Mcp::Tools
           job_id: job.id,
           job_state: job.state,
           repository_slug: repository.slug,
-          message: "Job #{job.id} created in coding state and linked to this chat. Implement with local tools, then call complete_implement_step."
+          message: "#{job.slug} created in coding state and linked to this chat. Implement with local tools, then call complete_implement_step."
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

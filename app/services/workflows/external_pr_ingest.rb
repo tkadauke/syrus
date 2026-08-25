@@ -84,7 +84,7 @@ module Workflows
       )
       Rails.logger.info("[Workflows::ExternalPrIngest] posted REQUEST_CHANGES review on #{job.repository.slug}##{job.external_pr_number} (#{failed_names.size} failed graders)")
     rescue StandardError => e
-      Rails.logger.warn("[Workflows::ExternalPrIngest] review comment failed for Job ##{workflow.job.id}: #{e.class}: #{e.message}")
+      Rails.logger.warn("[Workflows::ExternalPrIngest] review comment failed for #{workflow.job.slug}: #{e.class}: #{e.message}")
     end
 
     private_class_method def self.failed_required_grader_names(workflow)

@@ -35,10 +35,10 @@ module Mcp::Tools
         normalized_branch = normalize_branch_name(branch_name)
 
         unless job.coding?
-          return Mcp::Tools.invalid("Job #{job_id} is not in coding state (current: #{job.state}).")
+          return Mcp::Tools.invalid("#{job.slug} is not in coding state (current: #{job.state}).")
         end
         unless job.linked_chat_id == chat_session.id
-          return Mcp::Tools.invalid("Job #{job_id} is not linked to this chat session.")
+          return Mcp::Tools.invalid("#{job.slug} is not linked to this chat session.")
         end
         unless chat_session.local? || chat_session.coding?
           return Mcp::Tools.invalid("complete_implement_step is only available in Coding Mode or Local Mode.")

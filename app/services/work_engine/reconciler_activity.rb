@@ -198,10 +198,14 @@ module WorkEngine
 
     def context_description
       parts = []
-      parts << "Job ##{job_id}" if job_id.present?
+      parts << job_context_description if job_id.present?
       parts << "Workflow ##{workflow_id}" if workflow_id.present?
       parts << "Run ##{run_id}" if run_id.present?
       parts.empty? ? "" : " for #{parts.join(", ")}"
+    end
+
+    def job_context_description
+      Job.find_by(id: job_id)&.slug || "job_id=#{job_id}"
     end
   end
 end
