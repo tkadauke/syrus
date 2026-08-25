@@ -72,6 +72,25 @@ RSpec.describe WorkUnits::StartBlock do
     expect(block.blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON)).to be(true)
   end
 
+  it "ignores start-block artifacts on unowned non-replay workflows" do
+    migrated = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+    migrated.update!(
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "start_blocked_details" => { "reason" => "budget" },
+        "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
+      }
+    )
+
+    block = described_class.for(migrated)
+
+    expect(block.reason).to be_nil
+    expect(block.details).to eq({})
+    expect(block.next_check_at).to be_nil
+    expect(block.blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON)).to be(false)
+    expect(block.data).to eq({})
+  end
+
   it "falls back to WorkUnit blocked state when workflow artifacts are absent" do
     blocked_until = 10.minutes.from_now
     workflow.work_unit.block!(

@@ -58,7 +58,7 @@ module WorkUnits
     end
 
     def legacy_artifact_fallback?
-      workflow.work_unit.blank? || workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
+      workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
     end
 
     def artifact_data
