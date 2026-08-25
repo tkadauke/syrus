@@ -1,33 +1,12 @@
 @import "tailwindcss";
 
 /* Brand terracotta (the winged-stylus mark, #b6492e at 600) remapped over
-   the default blue scale — same values as config/tailwind.config.js in the
-   web app, so both surfaces share one accent. terracotta-* is the preferred
-   name for new code. */
-@theme {
-  --color-terracotta-50: #faf3ef;
-  --color-terracotta-100: #f4e2d9;
-  --color-terracotta-200: #e8c3b3;
-  --color-terracotta-300: #dba28b;
-  --color-terracotta-400: #cd7a5c;
-  --color-terracotta-500: #c05c3f;
-  --color-terracotta-600: #b6492e;
-  --color-terracotta-700: #973b25;
-  --color-terracotta-800: #7a2f1e;
-  --color-terracotta-900: #632718;
-  --color-terracotta-950: #361208;
-  --color-blue-50: #faf3ef;
-  --color-blue-100: #f4e2d9;
-  --color-blue-200: #e8c3b3;
-  --color-blue-300: #dba28b;
-  --color-blue-400: #cd7a5c;
-  --color-blue-500: #c05c3f;
-  --color-blue-600: #b6492e;
-  --color-blue-700: #973b25;
-  --color-blue-800: #7a2f1e;
-  --color-blue-900: #632718;
-  --color-blue-950: #361208;
-}
+   the default blue scale, generated from config/design_tokens/terracotta.json
+   — the same shared source config/tailwind.config.js requires in the web
+   app, so both surfaces read one accent instead of hand-copying literals.
+   terracotta-* is the preferred name for new code. Run
+   bin/generate-brand-tokens after editing the source JSON. */
+@import "./styles/brand-tokens.generated.css";
 
 :root {
   color: #15171a;
