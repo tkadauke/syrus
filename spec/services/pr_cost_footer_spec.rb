@@ -60,7 +60,7 @@ RSpec.describe PrCostFooter do
     it "appends a JOB backlink for epicless jobs" do
       body = described_class.apply("Body", job)
 
-      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include("[#{job.slug}](https://syrus.example.com/jobs/#{job.id})")
       expect(body).not_to include("EPIC-")
     end
 
@@ -71,11 +71,11 @@ RSpec.describe PrCostFooter do
       body = described_class.apply("Body", job)
 
       expect(body).to include("[EPIC-#{epic.number}](https://syrus.example.com/epics/#{epic.number})")
-      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include("[#{job.slug}](https://syrus.example.com/jobs/#{job.id})")
       expect(body).to include(
         "[EPIC-#{epic.number}](https://syrus.example.com/epics/#{epic.number})" \
         " / " \
-        "[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})"
+        "[#{job.slug}](https://syrus.example.com/jobs/#{job.id})"
       )
     end
 
@@ -84,7 +84,7 @@ RSpec.describe PrCostFooter do
 
       body = described_class.apply("Body", job)
 
-      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include("[#{job.slug}](https://syrus.example.com/jobs/#{job.id})")
       expect(body).not_to include("//jobs/")
     end
   end
@@ -101,7 +101,7 @@ RSpec.describe PrCostFooter do
     it "prepends https:// so backlinks are absolute URLs" do
       body = described_class.apply("Body", job)
 
-      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include("[#{job.slug}](https://syrus.example.com/jobs/#{job.id})")
       expect(body).not_to include("(syrus.example.com/")
     end
 
@@ -110,7 +110,7 @@ RSpec.describe PrCostFooter do
 
       body = described_class.apply("Body", job)
 
-      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include("[#{job.slug}](https://syrus.example.com/jobs/#{job.id})")
       expect(body).not_to include("//jobs/")
     end
   end
@@ -127,7 +127,7 @@ RSpec.describe PrCostFooter do
     it "leaves the existing http:// scheme untouched" do
       body = described_class.apply("Body", job)
 
-      expect(body).to include("[JOB-#{job.id}](http://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include("[#{job.slug}](http://syrus.example.com/jobs/#{job.id})")
     end
   end
 

@@ -224,9 +224,9 @@ RSpec.describe Steps::AgentInsightRun do
         handler.call
 
         prompt = run.reload.prompt
-        expect(prompt).to include("JOB-#{direct.id} (direct, closed")
+        expect(prompt).to include("#{direct.slug} (direct, closed")
         expect(prompt).to include("Operator asked for terminal polish")
-        expect(prompt).to include("JOB-#{cron.id} (cron, closed")
+        expect(prompt).to include("#{cron.slug} (cron, closed")
         expect(prompt).to include("Scheduled dependency sweep")
       end
 
@@ -274,9 +274,9 @@ RSpec.describe Steps::AgentInsightRun do
         handler.call
 
         prompt = run.reload.prompt
-        expect(prompt).to include("JOB-#{old_issue.id} (issue, closed")
-        expect(prompt).to include("JOB-#{direct.id} (direct, closed")
-        expect(prompt).not_to include("JOB-#{too_old.id}")
+        expect(prompt).to include("#{old_issue.slug} (issue, closed")
+        expect(prompt).to include("#{direct.slug} (direct, closed")
+        expect(prompt).not_to include(too_old.slug)
       end
     end
   end

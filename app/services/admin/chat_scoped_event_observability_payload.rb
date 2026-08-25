@@ -109,7 +109,7 @@ module Admin
 
       {
         "id" => job.id,
-        "slug" => "JOB-#{job.id}",
+        "slug" => job.slug,
         "path" => "/jobs/#{job.id}"
       }
     end

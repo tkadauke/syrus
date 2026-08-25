@@ -51,7 +51,7 @@ module Prompts
 
       lines = @recent_jobs.map do |job|
         title = job.issue_title.to_s.truncate(80)
-        "- JOB-#{job.id} (#{job.kind}, #{job.state}; #{workflow_summary(job)}; #{run_summary(job)}): #{title}"
+        "- #{job.slug} (#{job.kind}, #{job.state}; #{workflow_summary(job)}; #{run_summary(job)}): #{title}"
       end
 
       "## Recent Completed Jobs\n\n#{lines.join("\n")}"

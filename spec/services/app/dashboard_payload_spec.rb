@@ -695,7 +695,7 @@ RSpec.describe App::DashboardPayload do
       result = call(subject: "job", smart_folder_id: blocked_folder.id)
       item = result[:items].find { |i| i[:id] == blocked_job.id }
 
-      expect(item[:blocked_reason]).to eq({ key: "waiting_to_merge", params: { slug: "JOB-#{blocker.id}" } })
+      expect(item[:blocked_reason]).to eq({ key: "waiting_to_merge", params: { slug: blocker.slug } })
     end
 
     it "does not show dep reason when the only dependency is already satisfied" do

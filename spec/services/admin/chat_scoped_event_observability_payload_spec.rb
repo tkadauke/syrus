@@ -58,7 +58,7 @@ RSpec.describe Admin::ChatScopedEventObservabilityPayload do
       "summary" => "Workflow failed",
       "chat" => include("path" => "/chats/#{chat_session.id}"),
       "repository" => include("slug" => "acme/widgets"),
-      "job" => include("slug" => "JOB-#{job.id}", "path" => "/jobs/#{job.id}")
+      "job" => include("slug" => job.slug, "path" => "/jobs/#{job.id}")
     )
   end
 end

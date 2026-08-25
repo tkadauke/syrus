@@ -263,12 +263,16 @@ module Api
         def evidence_json(evidence)
           return [] unless evidence.is_a?(Array)
 
+          job_ids = evidence.filter_map { |entry| entry["job_id"].to_i if entry.is_a?(Hash) && entry["job_id"].present? }.uniq
+          job_slugs_by_id = Job.where(id: job_ids).pluck(:id, :slug).to_h
+
           evidence.map do |entry|
             next unless entry.is_a?(Hash)
-            job_id = entry["job_id"]
+            job_id = entry["job_id"].presence&.to_i
             run_id = entry["run_id"]
             {
               job_id: job_id,
+              job_slug: job_slugs_by_id[job_id],
               run_id: run_id,
               kind: entry["kind"],
               job_path: job_id ? "/jobs/#{job_id}" : nil,
@@ -304,7 +308,7 @@ module Api
         def insight_evidence_lines(suggestion)
           evidence_json(suggestion.evidence).filter_map do |entry|
             links = []
-            links << "job #{entry[:job_id]}: #{entry[:job_path]}" if entry[:job_path]
+            links << "#{entry[:job_slug] || ::App::Presentation.job_slug(entry[:job_id])}: #{entry[:job_path]}" if entry[:job_path]
             links << "run transcript #{entry[:run_id]}: #{entry[:run_transcript_path]}" if entry[:run_transcript_path]
             next if links.empty?
 

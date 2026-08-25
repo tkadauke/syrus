@@ -222,7 +222,7 @@ RSpec.describe Prompts::AgentInsight do
         job.update!(issue_title: "Fix the thing")
         out = prompt(recent_jobs: [job])
         expect(out).to include("## Recent Completed Jobs")
-        expect(out).to include("JOB-#{job.id}")
+        expect(out).to include(job.slug)
         expect(out).to include("Fix the thing")
       end
 

@@ -17,6 +17,9 @@ module App
     end
 
     def job_slug(job_or_id)
+      persisted_slug = job_or_id[:slug] if job_or_id.respond_to?(:has_attribute?) && job_or_id.has_attribute?(:slug)
+      return persisted_slug if persisted_slug.present?
+
       id = job_or_id.respond_to?(:id) ? job_or_id.id : job_or_id
       "JOB-#{id}"
     end
