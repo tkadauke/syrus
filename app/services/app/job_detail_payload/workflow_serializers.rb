@@ -22,6 +22,8 @@ module App
       end
 
       def work_units_json
+        return [] if @job.closed?
+
         work_unit_members_for_job.map do |member|
           work_unit_json(member.work_unit, member)
         end
@@ -105,6 +107,8 @@ module App
       end
 
       def current_work_intent_for_job
+        return nil if @job.closed?
+
         @current_work_intent_for_job ||= begin
           active_work_unit_member_for_job&.work_unit&.work_intent || latest_relevant_work_intent
         end
@@ -168,6 +172,8 @@ module App
       end
 
       def work_unit_members_for_job
+        return [] if @job.closed?
+
         @work_unit_members_for_job ||= PerformanceLogging.phase("job_detail.work_units.query", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)

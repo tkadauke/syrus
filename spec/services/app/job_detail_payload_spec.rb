@@ -872,6 +872,31 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "does not present stale work-unit debug state as current work after a job closes" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "failed")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "failed")
+      WorkIntent.create!(
+        kind: "ci_failure",
+        state: "requested",
+        repository: repo,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: user,
+        source_type: "spec"
+      )
+      job.update!(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+
+      payload = payload_for(job)
+      workflows_payload = workflows_payload_for(job)
+
+      expect(payload.fetch(:current_intent)).to be_nil
+      expect(payload.fetch(:active_work)).to be_nil
+      expect(payload.fetch(:work_units)).to be_empty
+      expect(workflows_payload.fetch(:current_intent)).to be_nil
+      expect(workflows_payload.fetch(:work_units)).to be_empty
+    end
+
     it "includes a waiting epic-scoped intent for member jobs before a work unit exists" do
       epic = Factories.epic(user: user, repository: repo)
       job = Factories.job_record(user: user, repository: repo, epic: epic)
