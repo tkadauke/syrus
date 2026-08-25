@@ -331,10 +331,13 @@ module WorkEngine
         Workflow.where(id: active_workflows.select(:id))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       else
-        active_workflows = Workflow.where(job_id: jobs.map(&:id), state: %w[ queued running failed ])
+        job_ids = jobs.map(&:id)
+        active_workflows = Workflow.where(job_id: job_ids, state: %w[ queued running ])
+        latest_failed_workflows = latest_failed_workflows_for_jobs(job_ids)
         terminal_descendant_workflows = terminal_workflows_with_active_descendants
 
         Workflow.where(id: active_workflows.select(:id))
+          .or(Workflow.where(id: latest_failed_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       end
     end
@@ -423,6 +426,17 @@ module WorkEngine
 
       Workflow.terminal.where(id: active_steps.select(:workflow_id))
         .or(Workflow.terminal.where(id: steps_with_active_runs.select(:workflow_id)))
+    end
+
+    def latest_failed_workflows_for_jobs(job_ids)
+      ids = Array(job_ids).compact
+      return Workflow.none if ids.empty?
+
+      latest_ids = Job
+        .where(id: ids)
+        .with_latest_workflow_snapshot
+        .filter_map { |job| job.latest_workflow_id if job.latest_workflow_state == "failed" }
+      Workflow.where(id: latest_ids)
     end
 
     def classify_queued_runs

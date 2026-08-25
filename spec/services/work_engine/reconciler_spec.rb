@@ -214,6 +214,47 @@ RSpec.describe WorkEngine::Reconciler do
     expect(run.reload.state).to eq("queued")
   end
 
+  it "does not load every historical failed workflow during global reconciliation" do
+    old_failed_workflow_ids = 3.times.map do |index|
+      failed_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "ci_failure",
+        agent_provider: job.agent_provider,
+        state: "failed",
+        started_at: 3.hours.ago + index.minutes,
+        finished_at: 2.hours.ago + index.minutes,
+        chain_template: []
+      )
+      failed_step = failed_workflow.steps.create!(kind: "grader_collect", position: 1, state: "failed")
+      failed_step.runs.create!(
+        job: job,
+        trigger_kind: "ci_failure",
+        agent_provider: job.agent_provider,
+        state: "failed"
+      )
+      failed_workflow.id
+    end
+    fresh_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      agent_provider: job.agent_provider,
+      state: "queued",
+      chain_template: []
+    )
+    fresh_step = fresh_workflow.steps.create!(kind: "prepare", position: 1, state: "queued")
+    fresh_step.runs.create!(
+      job: job,
+      trigger_kind: "retry",
+      agent_provider: job.agent_provider,
+      state: "queued"
+    )
+
+    result = reconcile
+
+    expect(result.snapshot.workflow_ids).to include(fresh_workflow.id)
+    expect(result.snapshot.workflow_ids & old_failed_workflow_ids).to be_empty
+  end
+
   it "classifies a queued Run with no SolidQueue claim" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
