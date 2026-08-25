@@ -141,6 +141,8 @@ Rails.application.routes.draw do
         get "jobs/:job_id/preview/logs", to: "job_preview#logs", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/preview", to: "job_preview#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/preview", to: "job_preview#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:job_id/deploy", to: "job_deploy#show", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/deploy", to: "job_deploy#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:id/chat_feedback", to: "jobs#chat_feedback", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/pending_feedback", to: "pending_feedback#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/pending_feedback/:id/apply", to: "pending_feedback#apply", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }

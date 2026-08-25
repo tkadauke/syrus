@@ -47,12 +47,18 @@ GitHub deletes a PR's branch shortly after merge, so `WorkflowWorkspace` (which 
 
 A `deploy` Workflow launched on a Job that hasn't landed yet (still open, with a live branch) is unaffected by this fallback and clones/checks out `job.branch_name` as normal.
 
-## Current status
+## Manually triggering a deploy
 
-This is backend plumbing only — there is no UI entry point yet. What exists today:
+A Job's detail page shows a **Deploy** control next to **Preview**, inside the same panel (`PreviewPanel.tsx`, `DeployControls`). It is visible whenever the repository has a `deploy:` block configured (`App::DeployAvailability.configured?`) and the Job is `deployable?` — `implemented`, `approved`, `landing`, or `closed` with a `landed_sha` (the same "resolvable revision" shape `previewable?` uses; see "Redeploying a closed Job" above for how the closed case checks out the right commit). Clicking it shows the latest deploy Workflow's state (queued/running/succeeded/failed/cancelled) and links to it in the Workflows tab; it polls while a deploy is in flight the same way the Preview control polls its own environment, since a Workflow's own state-change events only refresh the Workflows tab's query, not this panel.
 
-- The `.syrus.yml` `deploy:` schema and its parser.
-- The `deploy` trigger_kind, `Workflows::Deploy` chain, and `Steps::Deploy` handler.
-- The `WorkflowWorkspace` fix so a `deploy` Workflow on a closed, landed Job checks out the right commit.
+The same action is available over the API: `POST /api/v1/app/jobs/:job_id/deploy` launches a `deploy` Workflow via `WorkUnits::Launcher.instantiate(kind: "deploy", job:)` + `.start!` (`Api::V1::App::JobDeployController#create`); `GET /api/v1/app/jobs/:job_id/deploy` returns the latest deploy Workflow's status. `Job#deployable?` gates both: a Job with no resolvable revision (still triaging, queued, running, coding, or closed without a `landed_sha`) is rejected with `422 validation_failed`.
 
-Not yet built (tracked as follow-up work under the same Epic): the "Deploy" action on a Job's detail page for manual deploys, the `allow_unapproved` authorization gate, and the continuous-deploy auto-trigger (an `after_success` hook on landing Workflows, concurrency-limited to one in-flight deploy per repository and throttled by `min_interval_minutes`). Until those land, a `deploy` Workflow has no operator-facing way to be launched.
+### Approval gate
+
+Deploying an unapproved Job is forbidden by default — `403 forbidden` unless the Job is `approved?` or the repository's `.syrus.yml` sets `deploy.allow_unapproved: true` (checked via `App::DeployAvailability.allow_unapproved?`, which reads the same bare-clone `.syrus.yml` copy `configured?` uses). This is separate authorization logic from Preview, which has no approval gate at all — previewing an implemented-but-unapproved Job is fine, since it doesn't touch anything outside Syrus's own preview infrastructure; deploying does, so it defaults to approved-only.
+
+Only one deploy Workflow may be queued or running per Job at a time — a second `POST` while one is active returns `409 conflict` rather than piling deploys up behind Solid Queue's per-Job concurrency limit.
+
+## Continuous deploy
+
+Not yet built (tracked as follow-up work under the same Epic): the continuous-deploy auto-trigger (an `after_success` hook on landing Workflows, concurrency-limited to one in-flight deploy per repository and throttled by `min_interval_minutes`). `deploy.mode: continuous` is parsed and stored today but has no effect yet — until that trigger lands, every deploy is manual regardless of `mode`.

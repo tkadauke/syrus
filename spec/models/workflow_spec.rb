@@ -66,6 +66,23 @@ RSpec.describe Workflow do
       expect(workflow.errors[:job]).to include("is closed")
     end
 
+    it "rejects a deploy workflow for a closed job with no landed_sha" do
+      job.update_columns(state: "closed", finished_at: Time.current, closure_reason: "operator_cancelled", landed_sha: nil)
+
+      workflow = build_wf(trigger_kind: "deploy")
+
+      expect(workflow).not_to be_valid
+      expect(workflow.errors[:job]).to include("is closed")
+    end
+
+    it "allows a deploy workflow for a closed job that landed (redeploy)" do
+      job.update_columns(state: "closed", finished_at: Time.current, closure_reason: "pr_merged", landed_sha: "abc123")
+
+      workflow = build_wf(trigger_kind: "deploy")
+
+      expect(workflow).to be_valid
+    end
+
     it "defaults the execution owner from the job" do
       workflow = described_class.create!(job: job, trigger_kind: "initial")
 

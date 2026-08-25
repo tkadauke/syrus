@@ -586,5 +586,14 @@
   "preview_logs_close": "Claude",
   "preview_fix_button": "Corrige praevisum",
   "preview_fix_job_title": "Corrige praevisum: per vicarium praevisi non attingibile",
-  "preview_fix_error": "Opus corrigendi praevisum creari non potuit."
+  "preview_fix_error": "Opus corrigendi praevisum creari non potuit.",
+  "deploy_button": "Explica",
+  "deploy_again_button": "Iterum explica",
+  "deploy_queued": "Explicatio exspectat…",
+  "deploy_running": "Explicatur…",
+  "deploy_succeeded": "Explicatum",
+  "deploy_failed_status": "Explicatio defecit",
+  "deploy_cancelled": "Explicatio abrupta",
+  "deploy_view": "Vide explicationem",
+  "deploy_failed": "Explicatio incipi non potuit"
 }

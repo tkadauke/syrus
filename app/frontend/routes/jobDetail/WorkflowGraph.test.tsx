@@ -28,6 +28,7 @@ function payload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
     feedback_history: [],
     landing_queue_entry: null,
     preview: null,
+    deploy: null,
     current_intent: null,
     active_work: null,
     work_units: [],
