@@ -31,20 +31,17 @@ RSpec.describe JobManualPause do
     unit
   end
 
-  it "keeps legacy manual pause behavior when the scheduler gate is disabled" do
+  it "preserves manual pause on the Job when there are no active WorkUnits" do
     set_scheduler_gate(false)
     job = Factories.job_record
-    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
-    unit = attach_work_unit(job, workflow)
 
     described_class.pause!(job, by_user: job.user)
 
     expect(job.reload.manual_paused?).to be true
-    expect(unit.reload.pause_requested?).to be false
   end
 
-  it "requests pause on active work units when the scheduler gate is enabled" do
-    set_scheduler_gate(true)
+  it "requests pause on active work units" do
+    set_scheduler_gate(false)
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
     unit = attach_work_unit(job, workflow)
@@ -55,8 +52,8 @@ RSpec.describe JobManualPause do
     expect(unit.reload.pause_requested?).to be true
   end
 
-  it "clears active work unit pause requests when unpausing with the scheduler gate enabled" do
-    set_scheduler_gate(true)
+  it "clears active work unit pause requests when unpausing" do
+    set_scheduler_gate(false)
     job = Factories.job_record(manual_paused: true, manual_paused_at: Time.current)
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
     unit = attach_work_unit(job, workflow)

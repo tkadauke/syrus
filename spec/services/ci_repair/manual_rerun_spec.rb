@@ -32,6 +32,21 @@ RSpec.describe CiRepair::ManualRerun do
     allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
     allow(client).to receive(:pull_request).with("acme/widgets", 2265, bypass_cache: true).and_return(pr)
     allow(client).to receive(:check_runs_detail_for).with("acme/widgets", sha).and_return(detail)
+    repository.update!(
+      last_health_checked_sha: base_sha,
+      last_ci_evaluated_sha: base_sha,
+      last_graded_sha: base_sha,
+      ci_health: "healthy",
+      grader_health: "healthy"
+    )
+    finish_work_units_for(job)
+  end
+
+  def finish_work_units_for(job_record)
+    WorkUnit
+      .joins(:work_unit_members)
+      .where(work_unit_members: { job_id: job_record.id }, state: WorkUnits::Ownership::ACTIVE_STATES)
+      .find_each { |unit| unit.mark_terminal!("succeeded") }
   end
 
   it "reruns CI repair for JOB-2265 even when the handled SHA already matches" do

@@ -59,7 +59,7 @@ RSpec.describe WorkUnits::Launcher do
     expect(workflow.work_unit.work_intent).to have_attributes(kind: "initial", scope_type: "job", scope_id: job.id)
   end
 
-  it "allows repeated non-idempotent launches while locks are shadow-only" do
+  it "creates repeated non-idempotent launch attempts without granting duplicate active locks" do
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
 
     second = described_class.instantiate(kind: "manual_visual_review", job: job)
@@ -70,8 +70,7 @@ RSpec.describe WorkUnits::Launcher do
     expect(second.work_unit.work_unit_locks.active).to be_empty
   end
 
-  it "blocks repeated non-idempotent launches when the scheduler gate owns job work" do
-    set_scheduler_gate(true)
+  it "blocks repeated non-idempotent launches when another WorkUnit owns job work" do
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
 
     second = described_class.instantiate(kind: "manual_visual_review", job: job)

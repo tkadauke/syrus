@@ -13,7 +13,7 @@ module WorkUnits
       def call
         conflict = lock_keys.filter_map do |lock_key|
           owner = WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
-          next if owner.blank? || owner.id == work_unit.id
+          next if owner.blank? || same_runtime_lock_owner?(owner)
 
           { "lock_key" => lock_key, "work_unit_id" => owner.id, "workflow_id" => owner.workflow_id }
         end.first
@@ -47,6 +47,14 @@ module WorkUnits
 
       def member_jobs
         @member_jobs ||= work_unit.work_unit_members.includes(:job).order(:id).filter_map(&:job)
+      end
+
+      def same_runtime_lock_owner?(owner)
+        return true if owner.id.to_i == work_unit.id.to_i
+
+        owner.workflow_id.present? &&
+          work_unit.workflow_id.present? &&
+          owner.workflow_id.to_i == work_unit.workflow_id.to_i
       end
     end
   end

@@ -20,18 +20,19 @@ module WorkUnits
 
     def call
       return result("terminal") unless workflow.queued? || workflow.running?
-      return legacy_resume unless Feature.work_units_scheduler_enabled?
       return legacy_resume unless work_unit&.active?
 
       step = target_step
       return result("no_step") unless step&.queued?
       return result("run_exists") if step.runs.any?
 
+      prior_block_reason = WorkUnits::StartBlock.for(workflow).reason
       gate_result = WorkUnits::Scheduler.evaluate!(work_unit, step: step)
       if gate_result.blocked?
         WorkUnits::Launcher.schedule_blocked_recheck!(workflow, gate_result)
         return result("blocked", reason: gate_result.reason)
       end
+      StepDispatcher.clear_start_blocked!(workflow.reload, prior_block_reason) if prior_block_reason.present?
 
       if first_step?(step)
         launcher_result = WorkUnits::Launcher.start!(workflow)

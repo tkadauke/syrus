@@ -1,26 +1,21 @@
 class JobManualPause
   def self.pause!(job, by_user:)
     job.pause_manually!(by_user: by_user)
-    active_work_units(job).each(&:request_pause!) if WorkUnits::PathOwnership.work_unit_owned?("manual_pause")
+    active_work_units(job).each(&:request_pause!)
   end
 
   def self.unpause!(job)
     job.unpause_manually!
-    resume_active_work_units(job) if WorkUnits::PathOwnership.work_unit_owned?("manual_pause")
+    resume_active_work_units(job)
     resume_active_workflows(job)
     LandingQueueProcessorJob.perform_later if job.approved? || job.landing?
   end
 
   def self.resume_active_work_units(job)
     active_work_units(job).each do |unit|
+      was_manual_pause_blocked = unit.blocked? && unit.blocked_reason == WorkUnits::Gates::ManualPause::REASON
       unit.clear_pause!
-      next unless unit.blocked? && unit.blocked_reason == WorkUnits::Gates::ManualPause::REASON
-
-      result = WorkUnits::Scheduler.evaluate!(unit)
-      next unless result.pass?
-      next unless unit.workflow
-
-      WorkUnits::Launcher.start!(unit.workflow)
+      unit.unblock! if was_manual_pause_blocked
     end
   end
 

@@ -342,9 +342,18 @@ module Api
         def start_blocked_message(workflow)
           reason = WorkUnits::StartBlock.for(workflow).reason || workflow.artifact("start_cancelled_reason")
           if reason.present?
-            "Blocked: #{reason.to_s.tr('_', ' ')} — see job card for details."
+            "Blocked: #{display_start_blocked_reason(reason)} — see job card for details."
           else
             "Initial workflow could not be started right now. Refresh and check the job card for details."
+          end
+        end
+
+        def display_start_blocked_reason(reason)
+          case reason.to_s
+          when "admission_control", StepDispatcher::ADMISSION_BLOCK_REASON
+            "workflow admission budget"
+          else
+            reason.to_s.tr("_", " ")
           end
         end
 

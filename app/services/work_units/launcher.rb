@@ -61,7 +61,7 @@ module WorkUnits
 
     def self.start!(workflow, **options)
       unit = workflow.work_unit
-      if unit && Feature.work_units_scheduler_enabled?
+      if unit
         gate_result = Scheduler.evaluate!(unit)
         if gate_result.blocked?
           schedule_blocked_recheck!(workflow, gate_result)

@@ -15,6 +15,27 @@ RSpec.describe StepDispatcher do
   end
 
   def attach_work_unit(workflow, state: "queued")
+    WorkUnit
+      .joins(:work_unit_members)
+      .where(work_unit_members: { job_id: workflow.job_id }, state: WorkUnits::Ownership::ACTIVE_STATES)
+      .where.not(workflow_id: workflow.id)
+      .find_each do |other_unit|
+        other_unit.work_unit_locks.active.find_each(&:release!)
+        other_unit.update_columns(state: "cancelled", finished_at: Time.current)
+      end
+
+    if (unit = WorkUnit.find_by(workflow: workflow))
+      unit.update!(
+        state: state,
+        blocked_reason: nil,
+        blocked_until: nil,
+        blocked_details: {},
+        pause_requested: false
+      )
+      unit.work_unit_members.find_or_create_by!(job: workflow.job) { |member| member.role = "primary" }
+      return unit
+    end
+
     intent = WorkIntent.create!(
       kind: workflow.trigger_kind,
       state: "requested",
@@ -131,7 +152,7 @@ RSpec.describe StepDispatcher do
 
     it "does not create the first Run while the job is manually paused" do
       unit = attach_work_unit(workflow)
-      job.pause_manually!(by_user: job.user)
+      JobManualPause.pause!(job, by_user: job.user)
 
       expect {
         described_class.start_workflow(workflow)
@@ -737,7 +758,7 @@ RSpec.describe StepDispatcher do
       unit = attach_work_unit(workflow, state: "running")
       workflow.update!(state: "running", started_at: 1.minute.ago)
       s1.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
-      job.pause_manually!(by_user: job.user)
+      JobManualPause.pause!(job, by_user: job.user)
       described_class.advance_from(s1)
 
       expect {

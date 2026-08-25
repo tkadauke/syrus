@@ -77,12 +77,10 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(workflow.work_unit.reload).to be_blocked
   end
 
-  it "preserves legacy resume behavior while the scheduler gate is disabled" do
-    Feature.find_by(slug: "work_units_scheduler").update!(enabled: false)
-    Feature.clear_enabled_cache!
-
+  it "preserves legacy resume behavior for workflows without WorkUnits" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex")
-    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", agent_provider: "codex")
+    Step.create!(workflow: workflow, kind: "prepare", position: 1)
 
     expect(StepDispatcher).to receive(:resume_deferred_phase).with(workflow.id, nil).and_return(:legacy_run)
 

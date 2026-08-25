@@ -65,8 +65,8 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(parse_body.dig("error", "message")).to eq(
       "Blocked: workflow admission budget — see job card for details."
     )
-    expect(direct.reload.workflows.where(trigger_kind: "initial").last.artifact("start_blocked_reason"))
-      .to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
+    blocked_workflow = direct.reload.workflows.where(trigger_kind: "initial").last
+    expect(WorkUnits::StartBlock.for(blocked_workflow).reason).to eq("admission_control")
   end
 
   it "retries a completed job" do

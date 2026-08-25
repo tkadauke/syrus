@@ -214,7 +214,7 @@ class StepDispatcher
 
   def self.manually_paused?(workflow)
     if WorkUnits::PathOwnership.work_unit_owned?("manual_pause") && workflow.work_unit
-      return workflow.work_unit.pause_requested?
+      return workflow.work_unit.pause_requested? || workflow.job.manual_paused?
     end
 
     workflow.job.manual_paused?
@@ -488,8 +488,6 @@ class StepDispatcher
   end
 
   def self.work_unit_runtime_deferred?(step, workflow)
-    return false unless Feature.work_units_scheduler_enabled?
-
     work_unit = workflow.work_unit
     return false unless work_unit&.active?
 
