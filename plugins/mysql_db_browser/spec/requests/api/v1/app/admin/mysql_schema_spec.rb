@@ -100,7 +100,8 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/schema", type: :req
           generated_at: "2026-08-24T00:00:00Z",
           info: { available: true, engine: "InnoDB" },
           columns: { available: true, truncated: false, rows: [ { name: "id" } ] },
-          indexes: { available: true, truncated: false, rows: [] }
+          indexes: { available: true, truncated: false, rows: [] },
+          foreign_keys: { available: true, truncated: false, rows: [] }
         })
       )
 

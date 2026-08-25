@@ -106,7 +106,52 @@ function setupFetchMock(initial = [stagingConnection()]) {
           available: true,
           truncated: false,
           rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ]
+        },
+        foreign_keys: {
+          available: true,
+          truncated: false,
+          rows: [
+            { constraint_name: "fk_users_account", direction: "outgoing", from_table: "users", from_column: "account_id", to_table: "accounts", to_column: "id" }
+          ]
         }
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/accounts$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        database: "app_staging",
+        table: "accounts",
+        system_schema: false,
+        generated_at: "2026-01-01T00:00:00Z",
+        info: { available: true, type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 3, data_length_bytes: 100, index_length_bytes: 50, auto_increment: 4, created_at: null, updated_at: null, collation: "utf8mb4_0900_ai_ci", comment: null },
+        columns: {
+          available: true,
+          truncated: false,
+          rows: [
+            { name: "id", column_type: "bigint", data_type: "bigint", nullable: false, key: "PRI", default: null, extra: "auto_increment", character_max_length: null, numeric_precision: 20, numeric_scale: 0, comment: null },
+            { name: "name", column_type: "varchar(255)", data_type: "varchar", nullable: true, key: null, default: null, extra: null, character_max_length: 255, numeric_precision: null, numeric_scale: null, comment: null }
+          ]
+        },
+        indexes: { available: true, truncated: false, rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ] },
+        foreign_keys: { available: true, truncated: false, rows: [] }
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/query_builder/.test(url) && method === "GET") {
+      const params = new URLSearchParams(url.split("?")[1] || "")
+      const spec = JSON.parse(params.get("spec") || "{}")
+      return Promise.resolve(jsonResponse({
+        available: true,
+        statement: `SELECT ... FROM \`${spec.table}\` LIMIT ${spec.limit ?? 100}`,
+        read_only: true,
+        columns: [ "id", "email" ],
+        rows: [ { id: 1, email: "grace@example.com" } ],
+        row_count: 1,
+        truncated: false,
+        duration_ms: 1,
+        generated_at: "2026-01-01T00:00:00Z",
+        filter_schema: [
+          { field: "users.id", label: "Users: Id", bucket: "number", operators: [ "equals", "not_equals", "greater_than", "less_than", "between", "is_set", "is_unset" ] }
+        ],
+        filter: params.get("q") ? { and: [] } : null
       }))
     }
     if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users\/content/.test(url) && method === "GET") {
@@ -315,6 +360,61 @@ describe("MysqlConnections", () => {
       expect(await screen.findByText("1 rows in 2ms")).toBeInTheDocument()
       const queryCall = calls.find((call) => call.method === "POST" && call.url.endsWith("/query"))
       expect(queryCall?.body).toEqual({ mysql_query: { sql: "SELECT * FROM users" } })
+    })
+  })
+
+  describe("Query Builder tab", () => {
+    it("auto-runs a default query for the selected table and shows the compiled SQL", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      fireEvent.click(screen.getByRole("tab", { name: "Query Builder" }))
+
+      expect(await screen.findByText("Compiled SQL")).toBeInTheDocument()
+      expect(await screen.findByText(/SELECT \.\.\. FROM `users`/)).toBeInTheDocument()
+    })
+
+    it("lets an operator add a join through a foreign key the schema explorer surfaced", async () => {
+      const { calls } = setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+      fireEvent.click(screen.getByRole("tab", { name: "Query Builder" }))
+      await screen.findByText("Compiled SQL")
+
+      fireEvent.click(screen.getByRole("button", { name: "Join" }))
+      fireEvent.click(await screen.findByText("users.account_id → accounts.id"))
+
+      expect(await screen.findByRole("button", { name: "Remove join" })).toBeInTheDocument()
+      await waitFor(() => expect(calls.some((call) => call.url.includes("/schema/app_staging/tables/accounts"))).toBe(true))
+    })
+
+    it("compiles an aggregation/group-by summary spec into the query_builder request", async () => {
+      const { calls } = setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+      fireEvent.click(screen.getByRole("tab", { name: "Query Builder" }))
+      await screen.findByText("Compiled SQL")
+
+      fireEvent.click(screen.getByRole("button", { name: "Summarize" }))
+      fireEvent.click(screen.getByRole("button", { name: "Add aggregation" }))
+
+      await waitFor(() => {
+        const call = calls.find((c) => c.url.includes("/query_builder") && JSON.parse(new URLSearchParams(c.url.split("?")[1]).get("spec") || "{}").aggregations?.length)
+        expect(call).toBeTruthy()
+      })
     })
   })
 

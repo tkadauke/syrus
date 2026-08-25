@@ -20,6 +20,7 @@ import {
   fetchMysqlTableDetail,
   fetchMysqlTables,
   type MysqlColumn,
+  type MysqlForeignKey,
   type MysqlIndex,
   type MysqlSection,
   type MysqlTableDetailResponse
@@ -27,6 +28,7 @@ import {
 import { MysqlContentTab } from "../components/MysqlContentTab"
 import { MysqlQueryTab } from "../components/MysqlQueryTab"
 import { MysqlLiveTab } from "../components/MysqlLiveTab"
+import { MysqlQueryBuilderTab } from "../components/MysqlQueryBuilderTab"
 
 const queryKey = ["mysql_db_browser", "connections"] as const
 
@@ -488,7 +490,7 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
   const [browserTab, setBrowserTab] = useState<"browse" | "query" | "live">("browse")
   const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<{ database: string; table: string } | null>(null)
-  const [tableTab, setTableTab] = useState<"content" | "structure">("content")
+  const [tableTab, setTableTab] = useState<"content" | "structure" | "builder">("content")
   const databases = useQuery({
     queryKey: ["mysql_db_browser", "schema", connectionId, "databases"],
     queryFn: () => fetchMysqlDatabases(connectionId)
@@ -565,11 +567,14 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
                     <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
                       <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>{t("tab_content")}</TabButton>
                       <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>{t("tab_structure")}</TabButton>
+                      <TabButton active={tableTab === "builder"} onClick={() => setTableTab("builder")}>{t("tab_builder")}</TabButton>
                     </div>
                     {tableTab === "content" ? (
                       <MysqlContentTab connectionId={connectionId} database={selected.database} table={selected.table} />
-                    ) : (
+                    ) : tableTab === "structure" ? (
                       <TableDetail connectionId={connectionId} database={selected.database} table={selected.table} />
+                    ) : (
+                      <MysqlQueryBuilderTab connectionId={connectionId} database={selected.database} table={selected.table} />
                     )}
                   </div>
                 ) : (
@@ -777,6 +782,22 @@ function TableDetail({ connectionId, database, table }: { connectionId: number; 
                   <span className="text-gray-500 dark:text-gray-400">
                     ({index.columns.join(", ")}){index.unique ? ` · ${t("unique_badge")}` : ""}
                   </span>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </SchemaSection>
+
+      <SchemaSection heading={t("foreign_keys_heading")} section={data.foreign_keys}>
+        {(foreignKeys: MysqlForeignKey[]) =>
+          foreignKeys.length === 0 ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t("no_foreign_keys")}</p>
+          ) : (
+            <ul className="space-y-1 text-xs">
+              {foreignKeys.map((fk) => (
+                <li className="font-mono text-gray-700 dark:text-gray-300" key={fk.constraint_name}>
+                  {fk.from_table}.{fk.from_column} <span aria-hidden="true">→</span> {fk.to_table}.{fk.to_column}
                 </li>
               ))}
             </ul>

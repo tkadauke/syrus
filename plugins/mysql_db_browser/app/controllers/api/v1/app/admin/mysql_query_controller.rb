@@ -54,7 +54,55 @@ module Api
             render_error("invalid_filter", e.message, status: :unprocessable_content)
           end
 
+          # No-code query builder: compiles a Metabase-notebook-style spec
+          # (table, columns or aggregations/group_by, an optional single
+          # join, sort, limit) plus an optional FilterBar filter tree into a
+          # SELECT and runs it through the same guardrailed executor.
+          def query_builder
+            spec = parse_spec(params[:spec])
+            base_columns = table_columns(params[:database], spec[:table])
+            join = spec[:join]
+            join_columns = join.present? ? table_columns(params[:database], join[:table]) : []
+
+            compiler = ::MysqlDbBrowser::QueryBuilderCompiler.new(
+              spec: spec,
+              base_table: spec[:table],
+              base_columns: base_columns,
+              join_table: join&.dig(:table),
+              join_columns: join_columns
+            )
+            filter_tree = ::Filters::QueryParam.decode(params[:q])
+
+            result = executor.execute_select(user: Current.user, limit: compiler.limit) do |client|
+              where_clause = filter_tree.present? ? ::MysqlDbBrowser::FilterTreeSqlCompiler.new(client: client, filter_schema: compiler.filter_schema).compile(filter_tree) : nil
+              compiler.sql(where_clause: where_clause)
+            end
+
+            render json: result.merge(filter_schema: compiler.filter_schema, filter: filter_tree)
+          rescue JSON::ParserError
+            render_error("invalid_spec", "spec must be valid JSON", status: :unprocessable_content)
+          rescue ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec => e
+            render_error("invalid_spec", e.message, status: :unprocessable_content)
+          rescue ::MysqlDbBrowser::SchemaInspector::Unavailable, ::MysqlDbBrowser::QueryExecutor::Unavailable => e
+            render_error("connection_unavailable", e.message, status: :bad_gateway)
+          rescue ::MysqlDbBrowser::SchemaInspector::NotFound => e
+            render_error("not_found", e.message, status: :not_found)
+          rescue ::MysqlDbBrowser::FilterTreeSqlCompiler::UnknownField, ::MysqlDbBrowser::FilterTreeSqlCompiler::UnsupportedOperator => e
+            render_error("invalid_filter", e.message, status: :unprocessable_content)
+          end
+
           private
+
+          def parse_spec(raw)
+            JSON.parse(raw.presence || "{}").deep_symbolize_keys
+          end
+
+          def table_columns(database, table_name)
+            raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "table is required" if table_name.blank?
+
+            payload = schema_inspector.table(database, table_name)
+            payload.dig(:columns, :available) ? payload[:columns][:rows] : []
+          end
 
           def executor
             @executor ||= ::MysqlDbBrowser::QueryExecutor.new(@connection)
@@ -74,7 +122,7 @@ module Api
           end
 
           def quote_identifier(name)
-            "`#{name.to_s.gsub('`', '``')}`"
+            ::MysqlDbBrowser::SqlIdentifier.quote(name)
           end
 
           def sortable_column(columns, requested)

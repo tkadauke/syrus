@@ -167,7 +167,7 @@ module MysqlDbBrowser
     end
 
     def quote_identifier(name)
-      "`#{name.to_s.gsub('`', '``')}`"
+      SqlIdentifier.quote(name)
     end
   end
 end

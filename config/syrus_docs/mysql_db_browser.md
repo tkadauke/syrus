@@ -79,6 +79,71 @@ tabs, **Query** and **Live**.
   are ordinary SELECTs against schemas the schema explorer already treats as
   browsable, so no bespoke diagnostics controller/service was needed.
 
+## Query builder
+
+The **Query Builder** sub-tab (alongside Content/Structure for a selected
+table) is a Metabase-notebook-style no-code sequence of steps that compiles
+to SQL and runs through the same guardrailed executor as Content/Query,
+rendering into the same results grid. Steps:
+
+- **Table** - a picker (the `button[aria-haspopup=listbox]` +
+  `div[role=listbox]` dropdown pattern from `ChatModeSelector`/
+  `ChatModelSelector` in `Compose.tsx`, generalized into
+  `MysqlPickerDropdown.tsx`) defaulting to the table selected in the schema
+  tree, changeable to any table in the same database.
+- **Columns or Summarize** - either a raw column checklist (unchecked =
+  `SELECT *`), or an aggregate/group-by summary: repeatable
+  `{function, column, alias}` rows (`count`/`sum`/`avg`/`min`/`max`, `count`
+  additionally accepts `*`) plus a group-by column checklist.
+- **Join** - optional, single join, picked from the base table's foreign
+  keys as surfaced by the schema explorer (`SchemaInspector#table`'s new
+  `foreign_keys` section - see below) rather than a free-form table+column
+  picker. Selecting a relationship (either its outgoing or incoming
+  direction) fills in the join table and both join columns; inner/left is a
+  separate toggle (left by default).
+- **Filter** - `FilterBar`, exactly like the Content tab, driven by a
+  `filter_schema` the server derives from the base table's columns (and the
+  joined table's, qualified `table.column`, when a join is present) via
+  `FilterSchemaBuilder.build(columns, table_prefix:)`.
+- **Sort** - a column (or, in Summarize mode, a group-by column or
+  aggregation alias) plus direction.
+- **Limit** - 1-500, default 100.
+
+`GET .../mysql_connections/:id/schema/:database/query_builder?spec=<json>&q=<filter>`
+(`MysqlQueryController#query_builder`) parses the JSON `spec`, fetches real
+column lists for the base table (and join table, if any) via
+`SchemaInspector`, and hands both to
+`MysqlDbBrowser::QueryBuilderCompiler`, which validates every table/column/
+aggregation-function/join-type/sort reference against that real schema
+before compiling a single SELECT (raising `InvalidSpec`, rendered as `422
+invalid_spec`, on anything unrecognized) - identifiers are still quoted
+through `SqlIdentifier.quote` (shared with `FilterTreeSqlCompiler` and the
+Content tab's raw SELECT builder; now dot-aware, so `table.column` refs
+quote each segment independently) so nothing can break out of identifier
+position even if validation were somehow bypassed. Column references
+throughout the spec (`columns`, `aggregations[].column`, `group_by`,
+`join.from_column`/`join.to_column`, `sort.column`) are always
+`"table.column"` qualified strings - the frontend always knows which table
+a picker belongs to, so the compiler has one column-resolution code path
+regardless of whether a join is present. The endpoint is auto-run
+(declarative `useQuery`, keyed on the JSON-stringified spec plus the `q`
+filter param) the same way the Content tab is - there is no manual "Run"
+step - so the filter step's `filter_schema` is available as soon as a valid
+table/column selection exists, before the operator has added any filter.
+The response includes the compiled `statement` (already part of
+`QueryExecutor`'s result payload), rendered read-only above the results
+grid so the operator can see exactly what ran.
+
+`SchemaInspector#table`'s new `foreign_keys` section returns both
+directions symmetrically: `{constraint_name, direction, from_table,
+from_column, to_table, to_column}`, where `from_table`/`from_column` is
+always the FK-holding side and `to_table`/`to_column` is what it
+references, regardless of whether the row is "outgoing" (this table holds
+the FK) or "incoming" (another table's FK points back at this one). The
+Structure tab renders this alongside Columns/Indexes; the query builder's
+join step filters it to rows touching the currently selected table and
+derives the join spec from whichever side isn't that table.
+
 ## Read-only guardrails and audit log
 
 `MysqlDbBrowser::QueryExecutor` is the single execution path for both the

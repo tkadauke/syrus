@@ -13,6 +13,7 @@ module MysqlDbBrowser
     MAX_TABLES = 500
     MAX_COLUMNS = 1_000
     MAX_INDEXES = 500
+    MAX_FOREIGN_KEYS = 500
 
     # Always browsable alongside user databases, per the issue - these are
     # ordinary rows in information_schema.SCHEMATA so no special-casing is
@@ -76,7 +77,8 @@ module MysqlDbBrowser
           generated_at: Time.current.iso8601,
           info: safe_section { table_info(client, database, table_name) },
           columns: safe_section { columns(client, database, table_name) },
-          indexes: safe_section { indexes(client, database, table_name) }
+          indexes: safe_section { indexes(client, database, table_name) },
+          foreign_keys: safe_section { foreign_keys(client, database, table_name) }
         }
       end
     end
@@ -230,6 +232,55 @@ module MysqlDbBrowser
       end
 
       { available: true, truncated: list.length > MAX_INDEXES, rows: list.first(MAX_INDEXES) }
+    end
+
+    # Both directions: this table's own FK columns pointing at other tables
+    # ("outgoing"), and other tables' FK columns pointing back at this one
+    # ("incoming"). Each row is symmetric - from_table/from_column is the
+    # FK-holding side, to_table/to_column is what it references - so the
+    # query builder's join step can pick either direction and derive the
+    # join condition without caring which side is "this" table.
+    def foreign_keys(client, database, table_name)
+      outgoing = query(client, <<~SQL.squish)
+        SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = #{quote(client, database)} AND TABLE_NAME = #{quote(client, table_name)}
+          AND REFERENCED_TABLE_NAME IS NOT NULL
+        ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION
+      SQL
+
+      incoming = query(client, <<~SQL.squish)
+        SELECT CONSTRAINT_NAME, TABLE_NAME, COLUMN_NAME, REFERENCED_COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE REFERENCED_TABLE_SCHEMA = #{quote(client, database)} AND REFERENCED_TABLE_NAME = #{quote(client, table_name)}
+        ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION
+      SQL
+
+      rows = outgoing.map { |row| outgoing_fk_payload(row, table_name) } + incoming.map { |row| incoming_fk_payload(row, table_name) }
+
+      { available: true, truncated: rows.length > MAX_FOREIGN_KEYS, rows: rows.first(MAX_FOREIGN_KEYS) }
+    end
+
+    def outgoing_fk_payload(row, table_name)
+      {
+        constraint_name: row["CONSTRAINT_NAME"],
+        direction: "outgoing",
+        from_table: table_name,
+        from_column: row["COLUMN_NAME"],
+        to_table: row["REFERENCED_TABLE_NAME"],
+        to_column: row["REFERENCED_COLUMN_NAME"]
+      }
+    end
+
+    def incoming_fk_payload(row, table_name)
+      {
+        constraint_name: row["CONSTRAINT_NAME"],
+        direction: "incoming",
+        from_table: row["TABLE_NAME"],
+        from_column: row["COLUMN_NAME"],
+        to_table: table_name,
+        to_column: row["REFERENCED_COLUMN_NAME"]
+      }
     end
 
     def integer(value)

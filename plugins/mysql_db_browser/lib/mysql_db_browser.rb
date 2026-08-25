@@ -74,6 +74,11 @@ module MysqlDbBrowser
           verb: "POST",
           path: "/api/v1/app/admin/mysql_connections/:id/query",
           controller: "api/v1/app/admin/mysql_query#execute"
+        },
+        {
+          verb: "GET",
+          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/query_builder",
+          controller: "api/v1/app/admin/mysql_query#query_builder"
         }
       ],
       provides: {

@@ -63,6 +63,20 @@ export type MysqlIndex = {
   columns: string[]
 }
 
+// Symmetric either direction: from_table/from_column is the FK-holding
+// side, to_table/to_column is what it references. For the table this was
+// fetched for, "outgoing" rows have from_table === table; "incoming" rows
+// have to_table === table - the query builder's join step uses whichever
+// side isn't the currently selected table as the join target.
+export type MysqlForeignKey = {
+  constraint_name: string
+  direction: "outgoing" | "incoming"
+  from_table: string
+  from_column: string
+  to_table: string
+  to_column: string
+}
+
 export type MysqlSection<TRow> =
   | { available: true; truncated: boolean; rows: TRow[] }
   | { available: false; error: { class: string; message: string; hint?: string } }
@@ -75,6 +89,7 @@ export type MysqlTableDetailResponse = {
   info: { available: true } & MysqlTableInfo | { available: false; error: { class: string; message: string; hint?: string } }
   columns: MysqlSection<MysqlColumn>
   indexes: MysqlSection<MysqlIndex>
+  foreign_keys: MysqlSection<MysqlForeignKey>
 }
 
 export function fetchMysqlDatabases(connectionId: number) {
