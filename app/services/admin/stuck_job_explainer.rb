@@ -123,7 +123,7 @@ module Admin
         .joins(:work_unit)
         .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
         .where(job_id: job.id)
-        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .order(WorkUnits::Ownership.active_priority_order)
         .limit(25)
         .to_a
 
@@ -164,7 +164,7 @@ module Admin
         .joins(:work_unit)
         .includes(work_unit: :work_intent)
         .where(job_id: job.id, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
-        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .order(WorkUnits::Ownership.active_priority_order)
         .first
         &.work_unit
     end

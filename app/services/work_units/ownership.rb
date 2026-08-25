@@ -5,6 +5,8 @@ module WorkUnits
     ACTIVE_STATES = %w[queued blocked running].freeze
     RUNNABLE_STATES = %w[queued running].freeze
     LEGACY_REPLAY_TRIGGER_KIND = "replay".freeze
+    ACTIVE_PRIORITY_ORDER_SQL = "CASE work_units.state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END, work_units.created_at DESC, work_units.id DESC".freeze
+    BLOCKED_PRIORITY_ORDER_SQL = "work_units.updated_at DESC, work_units.id DESC".freeze
     ActiveWork = Data.define(:kind, :workflow, :work_unit)
     def self.active_for_job?(job)
       active_job_ids([ job.id ]).include?(job.id)
@@ -116,7 +118,7 @@ module WorkUnits
       unit_scope = unit_scope.where(workflows: { agent_provider: agent_provider.to_s }) if agent_provider.present?
 
       unit_scope
-        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .order(active_priority_order)
         .each do |member|
           workflow = member.work_unit.workflow
           next unless workflow
@@ -175,7 +177,7 @@ module WorkUnits
       return {} if ids.empty?
 
       active_unit_members_for_job_ids(ids, kinds: kinds)
-        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .order(active_priority_order)
         .each_with_object({}) do |member, result|
           result[member.job_id] ||= member.work_unit
         end
@@ -185,7 +187,7 @@ module WorkUnits
       return [] unless job
 
       active_unit_members_for_job_ids([ job.id ], kinds: kinds)
-        .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+        .order(active_priority_order)
         .map(&:work_unit)
         .uniq
     end
@@ -221,7 +223,7 @@ module WorkUnits
       blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
         .where(job_id: ids)
         .includes(:work_unit)
-        .order(Arel.sql("work_units.updated_at DESC, work_units.id DESC"))
+        .order(blocked_priority_order)
         .each_with_object({}) do |member, result|
           next if result.key?(member.job_id)
 
@@ -257,6 +259,14 @@ module WorkUnits
         .where(job_id: ids, work_units: { state: Array(states).map(&:to_s) })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       scope
+    end
+
+    def self.active_priority_order
+      Arel.sql(ACTIVE_PRIORITY_ORDER_SQL)
+    end
+
+    def self.blocked_priority_order
+      Arel.sql(BLOCKED_PRIORITY_ORDER_SQL)
     end
 
     def self.active_units_for_epic(epic, kinds: nil)

@@ -233,6 +233,19 @@ RSpec.describe WorkUnits::Ownership do
     expect(result).to eq(member.id => workflow)
   end
 
+  it "prefers running active units over newer blocked attempts" do
+    job = Factories.job_record(issue_number: 225)
+    running_workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")
+    blocked_workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "queued")
+    running_unit = attach_work_unit(running_workflow, member_jobs: [ job ], kind: "ci_failure", state: "running")
+    blocked_unit = attach_work_unit(blocked_workflow, member_jobs: [ job ], kind: "rebase", state: "blocked")
+    blocked_unit.update!(created_at: 5.minutes.from_now)
+
+    expect(described_class.active_units_by_job_id([ job.id ])).to eq(job.id => running_unit)
+    expect(described_class.active_workflows_by_job_id([ job.id ])).to eq(job.id => running_workflow)
+    expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq(job.id => "ci_failure")
+  end
+
   it "does not fall back to migrated legacy workflows when no active work unit owns the job" do
     job = Factories.job_record(issue_number: 223)
     Workflow.create!(

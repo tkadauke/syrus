@@ -101,7 +101,7 @@ module App
             .joins(:work_unit)
             .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
             .where(job_id: @job.id, work_units: { state: %w[queued blocked running] })
-            .order(Arel.sql("CASE work_units.state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END, work_units.created_at DESC, work_units.id DESC"))
+            .order(WorkUnits::Ownership.active_priority_order)
             .first
         end
       end
@@ -179,7 +179,7 @@ module App
             .joins(:work_unit)
             .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
             .where(job_id: @job.id, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
-            .order(Arel.sql("work_units.created_at DESC, work_units.id DESC"))
+            .order(WorkUnits::Ownership.active_priority_order)
             .limit(50)
             .to_a
         end
