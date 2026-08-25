@@ -210,7 +210,7 @@ module Admin
     # instead of duplicating their data.
     def recent_call_rows(usages)
       usages.includes(:job, :run, :chat_session, workflow: :job)
-            .order(Arel.sql("COALESCE(mcp_tool_usages.completed_at, mcp_tool_usages.started_at, mcp_tool_usages.created_at) DESC"))
+            .order(created_at: :desc)
             .limit(recent_limit)
             .map { |usage| recent_call_row(usage) }
     end

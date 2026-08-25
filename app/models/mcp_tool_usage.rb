@@ -17,6 +17,6 @@ class McpToolUsage < ApplicationRecord
   validates :sidecar_mode, inclusion: { in: SIDECAR_MODES }, allow_nil: true
 
   scope :in_window, ->(started_at, ended_at) {
-    where("COALESCE(started_at, created_at) >= ? AND COALESCE(started_at, created_at) < ?", started_at, ended_at)
+    where(created_at: started_at...ended_at)
   }
 end
