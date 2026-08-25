@@ -70,9 +70,22 @@ RSpec.describe WorkUnits::DeferredPhaseResume do
     expect(workflow.work_unit.reload).to be_blocked
   end
 
-  it "preserves legacy resume behavior for workflows without WorkUnits" do
+  it "does not resume normal workflows without WorkUnits" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", agent_provider: "codex")
+    Step.create!(workflow: workflow, kind: "prepare", position: 1)
+
+    expect(StepDispatcher).not_to receive(:resume_deferred_phase)
+
+    result = described_class.call(workflow.id)
+
+    expect(result.status).to eq("missing_work_unit")
+    expect(result.run).to be_nil
+  end
+
+  it "preserves legacy resume behavior for replay workflows without WorkUnits" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex")
+    workflow = Workflow.create!(job: job, trigger_kind: "replay", state: "queued", agent_provider: "codex")
     Step.create!(workflow: workflow, kind: "prepare", position: 1)
 
     expect(StepDispatcher).to receive(:resume_deferred_phase).with(workflow.id, nil).and_return(:legacy_run)

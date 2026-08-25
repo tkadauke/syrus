@@ -108,9 +108,20 @@ RSpec.describe WorkIntents::JobWakeup do
     expect(workflow.work_unit.work_intent.reload).to have_attributes(state: "requested", wait_reason: nil)
   end
 
-  it "still starts legacy queued workflows that do not have WorkUnit ownership yet" do
+  it "does not start normal queued workflows that do not have WorkUnit ownership" do
     job = Factories.job_record(user: user, repository: repository, state: "queued")
     workflow = Workflows::Initial.instantiate(job: job)
+
+    expect {
+      result = described_class.call(job)
+      expect(result).to be(false)
+    }.not_to change { workflow.first_step.runs.reload.count }
+  end
+
+  it "still starts replay queued workflows that do not have WorkUnit ownership yet" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    workflow = Workflow.create!(job: job, trigger_kind: "replay", state: "queued", agent_provider: job.agent_provider)
+    Step.create!(workflow: workflow, kind: "prepare", position: 0)
 
     expect {
       result = described_class.call(job)
