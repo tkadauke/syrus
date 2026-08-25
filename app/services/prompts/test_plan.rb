@@ -18,14 +18,16 @@ module Prompts
         exact prefixed name shown there; do not call bare `submit_test_plan`
         unless that exact bare name is available.
 
-        - `steps`: an array of exact user flows to exercise, URLs or
-          commands where relevant, and edge cases you know about from
-          writing the code.
-        - `notes`: optional short context for reviewers.
+        - `steps`: a JSON array of 1-5 short strings. Each string should be
+          one reviewer action: an exact user flow, URL, command, or edge case.
+          Keep each step under 240 characters; split or omit detail instead
+          of writing long paragraphs.
+        - `notes`: optional short context for reviewers, under 500 characters.
 
         Use normal JSON arguments only. For example:
         `{ "steps": ["Run bin/rspec spec/services/example_spec.rb", "Open /jobs/123 and verify the changed UI."], "notes": "Focus on the new workflow state." }`
         Never use placeholder syntax such as `<parameter name="item">`.
+        Never use object keys like `"0"`, `"item"`, or duplicate `"steps"` keys.
 
         Don't recap the whole conversation in your reply. Don't make
         additional commits. Just call the available `submit_test_plan` tool

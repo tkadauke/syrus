@@ -6,6 +6,10 @@ module Mcp::Tools
   class SubmitTestPlanTool < MCP::Tool
     tool_name "submit_test_plan"
 
+    MAX_STEPS = 5
+    MAX_STEP_LENGTH = 240
+    MAX_NOTES_LENGTH = 500
+
     description <<~DESC
       Stores a concise, actionable test plan on the current Workflow.
       The Syrus harness invokes this tool from the test_plan step after
@@ -23,10 +27,12 @@ module Mcp::Tools
         steps: {
           type: "array",
           items: { type: "string" },
-          description: "Concise, actionable test steps: user flows, URLs, commands, and known edge cases. Pass a JSON array of strings, never placeholder syntax."
+          maxItems: MAX_STEPS,
+          description: "Concise, actionable test steps: user flows, URLs, commands, and known edge cases. Pass a JSON array of at most #{MAX_STEPS} short strings, never placeholder syntax."
         },
         notes: {
           type: "string",
+          maxLength: MAX_NOTES_LENGTH,
           description: "Optional short context for reviewers."
         },
         visual_review_recommended: {
@@ -56,8 +62,8 @@ module Mcp::Tools
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_test_plan)
 
-        normalized_steps = Array(steps).map { |step| Mcp::Tools.utf8(step).strip }.reject(&:empty?)
-        normalized_notes = Mcp::Tools.utf8(notes).strip.presence
+        normalized_steps = Array(steps).map { |step| truncate_step(Mcp::Tools.utf8(step).strip) }.reject(&:empty?).first(MAX_STEPS)
+        normalized_notes = truncate_notes(Mcp::Tools.utf8(notes).strip).presence
         normalized_visual_review_reason = Mcp::Tools.utf8(visual_review_reason).strip.presence
 
         return Mcp::Tools.invalid("steps must include at least one item") if normalized_steps.empty?
@@ -74,6 +80,16 @@ module Mcp::Tools
       rescue StandardError => e
         Rails.logger.error("[Mcp::Tools::SubmitTestPlanTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
+      end
+
+      private
+
+      def truncate_step(step)
+        step.truncate(MAX_STEP_LENGTH)
+      end
+
+      def truncate_notes(notes)
+        notes.truncate(MAX_NOTES_LENGTH)
       end
     end
   end

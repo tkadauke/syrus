@@ -46,6 +46,28 @@ RSpec.describe Mcp::Tools::SubmitTestPlanTool do
     expect(artifact["steps"].first.encoding).to eq(Encoding::UTF_8)
   end
 
+  it "keeps generated test plans compact" do
+    long_step = "Open /jobs/1 and " + ("verify the changed dashboard filter behavior " * 20)
+    response = call(
+      steps: [
+        "Run bin/rspec",
+        long_step,
+        "Open the PR",
+        "Check the summary",
+        "Review the source diff",
+        "This sixth step should be ignored"
+      ],
+      notes: "Reviewer context. " * 80
+    )
+
+    expect(response).not_to be_error
+    artifact = run.workflow.reload.artifact("test_plan")
+    expect(artifact["steps"].size).to eq(5)
+    expect(artifact["steps"].second.length).to be <= described_class::MAX_STEP_LENGTH
+    expect(artifact["steps"]).not_to include("This sixth step should be ignored")
+    expect(artifact["notes"].length).to be <= described_class::MAX_NOTES_LENGTH
+  end
+
   it "persists the implementer's visual_review recommendation and reason" do
     described_class.call(
       steps: [ "Open /dashboard and check the new banner." ],
@@ -90,6 +112,9 @@ RSpec.describe Mcp::Tools::SubmitTestPlanTool do
 
   it "exposes the expected tool name and required schema" do
     expect(described_class.tool_name).to eq("submit_test_plan")
-    expect(described_class.input_schema_value.to_h[:required]).to eq(%w[steps])
+    schema = described_class.input_schema_value.to_h
+    expect(schema[:required]).to eq(%w[steps])
+    expect(schema.dig(:properties, :steps, :maxItems)).to eq(described_class::MAX_STEPS)
+    expect(schema.dig(:properties, :notes, :maxLength)).to eq(described_class::MAX_NOTES_LENGTH)
   end
 end

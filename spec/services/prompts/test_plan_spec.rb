@@ -10,6 +10,9 @@ RSpec.describe Prompts::TestPlan do
     expect(text).to include("not instructions for another agent")
     expect(text).to include("steps")
     expect(text).to include("notes")
+    expect(text).to include("1-5 short strings")
+    expect(text).to include("under 240 characters")
+    expect(text).to include('duplicate `"steps"` keys')
     expect(text).to include("Don't make")
   end
 end
