@@ -196,6 +196,24 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :summary_state)).to eq("landing")
     end
 
+    it "detects historical prepare skip artifacts without a workflow artifact LIKE query" do
+      job = Factories.job_record(user: user, repository: repo)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        artifacts: { "prepare_skipped_reason" => "issue_label" }
+      )
+      queries = capture_sql do
+        expect(payload_for(job).fetch(:job)).to include(
+          prepare_skipped: true,
+          prepare_skip_reason: "issue_label"
+        )
+      end
+
+      expect(queries.grep(/prepare_skipped_reason/)).to be_empty
+    end
+
     it "shows failed jobs with active repair WorkUnits as repairing" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")
       workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")

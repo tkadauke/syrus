@@ -149,7 +149,7 @@ module App
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { @job.workflows.size }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.size }
-      prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { @job.prepare_skip_reason }
+      prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { payload_prepare_skip_reason }
       start_blocked = PerformanceLogging.phase("job_detail.job.start_blocked", job_id: @job.id) do
         {
           reason: job_start_blocked_reason,
@@ -252,6 +252,15 @@ module App
           .select(:id, :job_id, :step_id, :state, :created_at, :finished_at, :updated_at)
           .includes(:run_diagnostic)
           .first
+    end
+
+    def payload_prepare_skip_reason
+      return "repository_configuration" unless @job.repository.effective_prepare_enabled
+      return "issue_label" if @job.prepare_skip_reason_override == "issue_label"
+      return "issue_label" if @job.skip_prepare?
+      return "issue_label" if artifact_workflows.any? { |workflow| workflow.artifact("prepare_skipped_reason") == "issue_label" }
+
+      nil
     end
 
     def job_has_active_runtime_work?
