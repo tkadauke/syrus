@@ -47,6 +47,17 @@ RSpec.describe EpicWorkflowLock do
     expect(described_class.blocking_workflow_for(candidate)).to eq(blocker)
   end
 
+  it "uses WorkUnit membership when Epic-wide work is not directly epic-scoped" do
+    epic = Factories.epic
+    first = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 1)
+    second = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 2)
+    blocker = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
+    attach_epic_unit(epic, blocker, member_jobs: [ first, second ], scope_type: "job", scope_id: first.id)
+    candidate = Workflow.create!(job: second, trigger_kind: "initial", state: "queued")
+
+    expect(described_class.blocking_workflow_for(candidate)).to eq(blocker)
+  end
+
   it "ignores active Epic WorkUnits whose workflow already finished" do
     epic = Factories.epic
     first = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 1)

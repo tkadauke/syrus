@@ -237,11 +237,22 @@ module WorkUnits
     def self.active_units_for_epic(epic, kinds: nil)
       return [] unless epic
 
+      epic_scoped = WorkUnit.where(state: ACTIVE_STATES, scope_type: "epic", scope_id: epic.id)
+      member_scoped = WorkUnit
+        .joins(:work_unit_members)
+        .where(
+          state: ACTIVE_STATES,
+          work_unit_members: {
+            job_id: Job.where(epic_id: epic.id).select(:id)
+          }
+        )
+
       scope = WorkUnit
-        .where(state: ACTIVE_STATES, scope_type: "epic", scope_id: epic.id)
+        .where(id: epic_scoped.select(:id))
+        .or(WorkUnit.where(id: member_scoped.select(:id)))
         .includes(:workflow)
       scope = scope.where(kind: Array(kinds).map(&:to_s)) if kinds.present?
-      scope.order(:created_at, :id).to_a
+      scope.order(:created_at, :id).to_a.uniq(&:id)
     end
 
     def self.all_active_unit_job_ids(kinds: nil)

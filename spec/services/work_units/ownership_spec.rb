@@ -198,6 +198,18 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_for_epic?(epic, kinds: "retry")).to be false
   end
 
+  it "reports active epic units through member jobs even when the unit scope is job-shaped" do
+    epic = Factories.epic
+    first = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 102)
+    second = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic, issue_number: 103)
+    workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
+    unit = attach_work_unit(workflow, member_jobs: [ first, second ], kind: "merge_train")
+    unit.update!(scope_type: "job", scope_id: first.id)
+
+    expect(described_class.active_units_for_epic(epic, kinds: "merge_train")).to contain_exactly(unit)
+    expect(described_class.active_for_epic?(epic, kinds: "merge_train")).to be true
+  end
+
   it "reports active units by persisted lock key" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
