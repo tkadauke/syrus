@@ -186,6 +186,7 @@ module WorkEngine
       issues.concat(classify_active_work_units_without_workflows)
       issues.concat(classify_succeeded_work_units_with_unsatisfied_intents)
       issues.concat(classify_superseded_work_units_with_uncancelled_intents)
+      issues.concat(classify_failed_work_units_with_unfailed_intents)
       issues.concat(classify_terminal_work_units_with_active_locks)
       issues.concat(classify_active_child_work_units_with_terminal_parents)
       issues.concat(classify_stale_auto_retry_workflows)
@@ -398,10 +399,14 @@ module WorkEngine
         superseded_uncancelled_units = WorkUnit
           .joins(:work_intent)
           .where(state: "cancelled", preemption_reason: superseded_work_unit_cancel_reasons, work_intents: { state: %w[requested waiting] })
+        failed_unfailed_units = WorkUnit
+          .joins(:work_intent)
+          .where(state: "failed", work_intents: { state: %w[requested waiting] })
         WorkUnit.where(id: active_units.select(:id))
           .or(WorkUnit.where(id: terminal_locked_units.select(:id)))
           .or(WorkUnit.where(id: succeeded_unsatisfied_units.select(:id)))
           .or(WorkUnit.where(id: superseded_uncancelled_units.select(:id)))
+          .or(WorkUnit.where(id: failed_unfailed_units.select(:id)))
       end
     end
 
@@ -1076,6 +1081,35 @@ module WorkEngine
             explanation: "Cancelled WorkUnit ##{unit.id} was superseded, but WorkIntent ##{intent.id} is still #{intent.state}."
           )
         end
+    end
+
+    def classify_failed_work_units_with_unfailed_intents
+      work_units.select(&:failed?).filter_map do |unit|
+        intent = unit.work_intent
+        next unless intent&.requested? || intent&.waiting?
+        next if closed_job_scoped_intent?(intent)
+
+        active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
+        next if active_sibling_ids.any?
+
+        issue(
+          kind: :failed_work_unit_unfailed_intent,
+          severity: :error,
+          affected_ids: ids_for(unit).merge(work_intent_ids: [ intent.id ]),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "fail_work_intent_from_failed_work_unit",
+          evidence: {
+            work_unit_id: unit.id,
+            work_unit_state: unit.state,
+            workflow_id: unit.workflow_id,
+            work_intent_id: intent.id,
+            work_intent_kind: intent.kind,
+            work_intent_state: intent.state,
+            work_intent_wait_reason: intent.wait_reason
+          },
+          explanation: "Failed WorkUnit ##{unit.id} exhausted WorkIntent ##{intent.id}, but the intent is still #{intent.state}."
+        )
+      end
     end
 
     def classify_active_child_work_units_with_terminal_parents

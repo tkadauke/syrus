@@ -1264,6 +1264,22 @@ module WorkEngine
         end
       end
 
+      class FailedWorkUnitUnfailedIntent < Base
+        def plan
+          automatic_plan(
+            "fail_work_intent_from_failed_work_unit",
+            primary_work_intent,
+            "The WorkUnit failed and no active sibling Unit remains for the same Intent, so mark the desired work failed instead of leaving it requested.",
+            execution_steps: [ "WorkIntent#fail!" ],
+            preconditions: {
+              work_intent_state: %w[requested waiting],
+              work_unit_id: issue.evidence["work_unit_id"],
+              work_unit_state: "failed"
+            }
+          )
+        end
+      end
+
       class ResumableAgentSessionPresent < Base
         def plan
           return retry_budget_exhausted_plan unless retry_budget_available?

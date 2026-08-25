@@ -3,7 +3,8 @@ module WorkIntents
     ACTIVE_UNIT_STATES = %w[queued blocked running].freeze
     SUPERSEDING_CANCEL_REASONS = [
       Workflow::SUPERSEDED_BY_REBASE_REASON,
-      "operator_cancelled"
+      "operator_cancelled",
+      "job_approved"
     ].freeze
 
     def self.call(work_unit) = new(work_unit).call
@@ -21,6 +22,8 @@ module WorkIntents
 
       if work_unit.succeeded?
         intent.satisfy!
+      elsif work_unit.failed?
+        intent.fail!
       elsif cancelled_by_superseding_work?(work_unit)
         intent.cancel!
       end

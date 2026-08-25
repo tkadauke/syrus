@@ -1436,6 +1436,48 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to be_requested
   end
 
+  it "fails requested WorkIntents left behind by failed WorkUnits" do
+    workflow = job.latest_workflow
+    unit = workflow.work_unit
+    intent = unit.work_intent
+    unit.update_columns(state: "failed", finished_at: 5.minutes.ago)
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :failed_work_unit_unfailed_intent)).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_work_intent_from_failed_work_unit"
+    )
+    expect(plan(result, :fail_work_intent_from_failed_work_unit)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: intent.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("failed WorkIntent ##{intent.id} from failed WorkUnit ##{unit.id}")
+    expect(intent.reload).to be_failed
+  end
+
+  it "does not fail a WorkIntent from a failed WorkUnit while another sibling WorkUnit remains active" do
+    workflow = job.latest_workflow
+    unit = workflow.work_unit
+    intent = unit.work_intent
+    unit.update_columns(state: "failed", finished_at: 5.minutes.ago)
+    WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "queued",
+      repository: job.repository,
+      scope_type: "job",
+      scope_id: job.id
+    )
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :failed_work_unit_unfailed_intent)).to be_nil
+    expect(intent.reload).to be_requested
+  end
+
   it "retries a queued Job whose latest workflow was cancelled by a cleared Epic-wide workflow conflict" do
     epic = Factories.epic(user: job.user, repository: job.repository)
     epic.update!(state: "in_progress")
