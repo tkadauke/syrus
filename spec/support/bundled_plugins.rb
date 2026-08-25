@@ -25,7 +25,7 @@ RSpec.configure do |config|
         author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
-        category:        "agent_provider",
+        category:        "agent",
         provides: {
           agent_provider: AgentProviders::Claude,
           chat_provider:  ChatProviders::Claude
@@ -43,7 +43,7 @@ RSpec.configure do |config|
         author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
-        category:        "agent_provider",
+        category:        "agent",
         provides: {
           agent_provider: AgentProviders::Codex,
           chat_provider:  ChatProviders::Codex
@@ -98,7 +98,7 @@ RSpec.configure do |config|
         version:         SyrusDev::VERSION,
         default_enabled: false,
         disableable:     true,
-        category:        "dev",
+        category:        "tooling",
         description:     "Syrus development diagnostics and internal tooling.",
         homepage:        "https://github.com/tkadauke/syrus",
         author:          "Thomas Kadauke",
@@ -271,7 +271,7 @@ RSpec.configure do |config|
         author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
-        category:        "workspace_tab",
+        category:        "mcp_tool_set",
         frontend: {
           workspace_tabs: {
             "whiteboard_tools/WhiteboardTab" => "app/frontend/workspaceTabs/WhiteboardTab.tsx"

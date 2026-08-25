@@ -81,6 +81,7 @@ module Syrus
 
         validate_provides!(provides)
         validate_author!(metadata[:author])
+        validate_category!(category)
 
         @mutex.synchronize do
           validate_mcp_tool_name_uniqueness!(provides)
@@ -352,6 +353,18 @@ module Syrus
 
         if author.to_s.strip.casecmp("syrus").zero?
           raise RegistrationError, "\"Syrus\" is not a valid plugin author"
+        end
+      end
+
+      # Blank/absent category is still allowed (lightweight test registrations
+      # and register_direct providers don't carry one), but a present value
+      # must resolve to a known Syrus::Plugin::Category key.
+      def validate_category!(category)
+        return if category.blank?
+
+        unless Syrus::Plugin::Category.valid?(category)
+          raise RegistrationError,
+            "Unknown plugin category #{category.inspect}. Valid: #{Syrus::Plugin::Category.values.inspect}"
         end
       end
 

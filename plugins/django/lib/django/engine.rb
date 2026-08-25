@@ -15,6 +15,7 @@ module Django
         homepage:    "https://github.com/tkadauke/syrus",
         author:      "Thomas Kadauke",
         icon_url:    "/plugin-icons/django.svg",
+        category:    "language",
         depends_on:  [ "python" ],
         provides: {
           preview_provider: Django::PreviewProvider

@@ -34,15 +34,29 @@ when available, and every class registered for an extension point. Disableable
 installed plugins can be enabled or disabled live; new requests and sidecars use
 the latest `PluginRecord` state through `PluginRegistry.providers_for`.
 
-The page's search box filters plugins by name, display name, description, and
-category via a `q` query param on `GET /api/v1/app/admin/plugins` (and the
-bearer-token `GET /api/v1/admin/plugins`). `PluginRecord` mirrors those
-manifest fields onto plain columns (kept in sync by
-`Syrus::PluginRegistry.upsert_plugin_record!`) so the search can run as a real
-MySQL `FULLTEXT` `MATCH ... AGAINST` query in production; SQLite (dev/test)
-falls back to a `LIKE` scan via `PluginRecord.search`. This is a plain
-per-table full text search, not the SQLite FTS5 `SearchRecord` search engine
-used for Jobs/Epics/chat/operational logs.
+The page filters plugins with the same chip-based `FilterBar` query builder
+used on `/admin/queue` and `/admin/users` (no smart-folder saved-filter nav —
+the `admin_plugins` `Filters::Subject` only needs the two chips below). A
+`category` chip (`Filters::Chips::AdminPlugins::Category`, bucket `enum`,
+values from `Syrus::Plugin::Category::ENTRIES`) filters by the taxonomy key;
+its `is`/`is_not`/`is_one_of`/`is_none_of`/`is_set`/`is_unset` operators (from
+the shared `Filters::Chips::EnumColumn` base) also make "uncategorized
+plugins" (`is_unset`) directly filterable. A `search` chip
+(`Filters::Chips::AdminPlugins::Search`, bucket `string`, `contains` only)
+replaces the old plain-text search box and filters by name, display name,
+description, and category — it delegates to `PluginRecord.search`, so it
+keeps running as a real MySQL `FULLTEXT` `MATCH ... AGAINST` query in
+production, with SQLite (dev/test) falling back to a `LIKE` scan. This is
+still a plain per-table full text search, not the SQLite FTS5 `SearchRecord`
+search engine used for Jobs/Epics/chat/operational logs. Both chips combine
+with AND semantics. The filter tree is base64url-encoded into the `q` query
+param on `GET /api/v1/app/admin/plugins`, which also returns `filter` (the
+active tree) and `controls.filter_schema` (the chip definitions) for the
+`FilterBar` component, exactly like `Admin::Queue::Payload`/`Admin::Users::Payload`.
+The bearer-token `GET /api/v1/admin/plugins` API is unchanged: it keeps its
+original plain-text `q=<text>` full-text search (via `Admin::PluginsPayload`'s
+legacy `query:` argument), independent of the chip filter framework, so
+existing external tooling built against it keeps working.
 
 Installation and enablement are deliberately separate. Installed plugin gems are
 loaded at boot, so their Ruby code, controllers, frontend modules, and i18n
@@ -60,6 +74,44 @@ the same capability. MCP tool sets are listed as registered because their
 runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
+
+## Plugin categories (`category`)
+
+A manifest's `category:` kwarg must resolve to a key from
+`Syrus::Plugin::Category` (`lib/syrus/plugin/category.rb`) — the same small
+registry-of-record pattern `Workflow::TriggerKind`/`Step::Kind` use, applied
+to plugin categories instead of scattering ad hoc strings across engine
+initializers. `Syrus::PluginRegistry.register` validates `category:` (when
+present) against this list and raises `RegistrationError` for anything else;
+a blank/absent category is still allowed, the same as a blank `author`.
+
+| Key | Label | Bundled plugins |
+|---|---|---|
+| `language` | Language & framework intelligence | `ruby`, `javascript`, `python`, `go`, `syrus-rails`, `django` |
+| `agent` | Agent provider | `claude_agent`, `codex_agent` |
+| `input_source` | Input source | `github_source`, `linear_source` |
+| `mcp_tool_set` | MCP tool set | `browser`, `preview_tools` |
+| `platform_delivery` | Platform delivery | `discord` |
+| `connectivity` | Connectivity | `tailscale` |
+| `observability` | Observability | `admin_mysql`, `spending_insights`, `git_history` |
+| `tooling` | Tooling | `syrus_dev` |
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  category: "language",
+  provides: { prepare_detector: MyPlugin::PrepareDetector }
+)
+```
+
+`Syrus::Plugin::Category.values` lists every valid key; `.label_for(key)`
+returns the human-readable label. `Admin::PluginsPayload` emits both the raw
+`category` key and a derived `category_label` in the Admin → Plugins JSON
+payload, so the frontend never has to humanize the machine key itself.
+`spec/plugins/plugin_categories_spec.rb` statically scans every bundled
+plugin's manifest registration and fails if a plugin ships with no category,
+or an unrecognized one — a newly added plugin can't merge without picking a
+category from this table.
 
 ## Plugin icons (`icon_url`)
 

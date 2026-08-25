@@ -20,6 +20,7 @@ module JavaScript
         homepage:         "https://github.com/tkadauke/syrus",
         author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/javascript.svg",
+        category:         "language",
         prepare_priority: 20,
         provides: {
           prepare_detector:         JavaScript::PrepareDetector,

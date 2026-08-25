@@ -18,6 +18,7 @@ RSpec.describe Django::Engine do
           description: "Django framework intelligence: preview hosting via manage.py runserver, " \
                         "migrate + fixtures seeding",
           homepage:    "https://github.com/tkadauke/syrus",
+          category:    "language",
           depends_on:  [ "python" ],
           provides: {
             preview_provider: Django::PreviewProvider
@@ -36,6 +37,10 @@ RSpec.describe Django::Engine do
 
     it "declares a dependency on the python plugin" do
       expect(registration.depends_on).to eq([ "python" ])
+    end
+
+    it "registers under the language category" do
+      expect(registration.category).to eq("language")
     end
 
     it "provides exactly the :preview_provider extension point" do

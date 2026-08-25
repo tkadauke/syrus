@@ -13,7 +13,7 @@ module SyrusClaudeAgent
         author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
-        category:        "agent_provider",
+        category:        "agent",
         provides: {
           agent_provider: AgentProviders::Claude,
           chat_provider:  ChatProviders::Claude

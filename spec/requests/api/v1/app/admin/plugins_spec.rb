@@ -8,6 +8,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
   end
 
   def parse_body = JSON.parse(response.body)
+  def encoded_filter(tree) = Filters::QueryParam.encode(tree)
 
   after do
     Syrus::PluginRegistry.reset!
@@ -137,7 +138,36 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole).to include("icon_url" => "/plugin-icons/spqr_eagle.svg")
   end
 
-  it "filters plugins by a full text search query" do
+  it "includes a human-readable category_label alongside the raw category key" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "categorized-plugin",
+      version: "1.0.0",
+      category: "mcp_tool_set"
+    )
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").sole).to include(
+      "category" => "mcp_tool_set",
+      "category_label" => "MCP tool set"
+    )
+  end
+
+  it "returns a nil category_label when the manifest has no category" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "uncategorized-plugin", version: "1.0.0")
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").sole).to include("category" => nil, "category_label" => nil)
+  end
+
+  it "filters plugins by a full text search chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
     Syrus::PluginRegistry.register(
@@ -145,7 +175,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       display_name: "Weather Radar",
       version: "1.0.0",
       description: "Watches storms roll in.",
-      category: "monitoring",
+      category: "observability",
       provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
     )
     Syrus::PluginRegistry.register(
@@ -153,24 +183,79 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       display_name: "Ticket Sync",
       version: "1.0.0",
       description: "Keeps issues in sync.",
-      category: "integration"
+      category: "connectivity"
     )
 
-    get "/api/v1/app/admin/plugins", params: { q: "storms" }
+    tree = { "and" => [ { "field" => "search", "op" => "contains", "value" => "storms" } ] }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "search-target-plugin" ])
+    expect(parse_body.fetch("filter")).to eq(tree)
   end
 
-  it "returns every plugin when the search query is blank" do
+  it "filters plugins by category chip" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
-    Syrus::PluginRegistry.register(name: "blank-query-plugin", version: "1.0.0")
+    Syrus::PluginRegistry.register(name: "observability-plugin", version: "1.0.0", category: "observability")
+    Syrus::PluginRegistry.register(name: "connectivity-plugin", version: "1.0.0", category: "connectivity")
+    Syrus::PluginRegistry.register(name: "uncategorized-search-plugin", version: "1.0.0")
 
-    get "/api/v1/app/admin/plugins", params: { q: "" }
+    tree = { "and" => [ { "field" => "category", "op" => "is", "value" => "observability" } ] }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "blank-query-plugin" ])
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "observability-plugin" ])
+  end
+
+  it "combines category and search chips with AND semantics" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "both-match-plugin", version: "1.0.0", category: "observability",
+      description: "Watches storms roll in."
+    )
+    Syrus::PluginRegistry.register(
+      name: "category-only-plugin", version: "1.0.0", category: "observability",
+      description: "Nothing weather related here."
+    )
+
+    tree = {
+      "and" => [
+        { "field" => "category", "op" => "is", "value" => "observability" },
+        { "field" => "search", "op" => "contains", "value" => "storms" }
+      ]
+    }
+    get "/api/v1/app/admin/plugins", params: { q: encoded_filter(tree) }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "both-match-plugin" ])
+  end
+
+  it "exposes the admin_plugins filter_schema for the chip filter UI" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(response).to have_http_status(:ok)
+    fields = parse_body.dig("controls", "filter_schema").map { |chip| chip["field"] }
+    expect(fields).to contain_exactly("category", "search")
+    category_chip = parse_body.dig("controls", "filter_schema").find { |chip| chip["field"] == "category" }
+    expect(category_chip["bucket"]).to eq("enum")
+    expect(category_chip["values"]).to include("value" => "observability", "label" => "Observability")
+  end
+
+  it "returns every plugin when no filter is applied" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "unfiltered-plugin", version: "1.0.0")
+
+    get "/api/v1/app/admin/plugins"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "unfiltered-plugin" ])
+    expect(parse_body.fetch("filter")).to eq("and" => [])
   end
 
   it "handles zero plugins gracefully" do
@@ -180,7 +265,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     get "/api/v1/app/admin/plugins"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("plugins" => [])
+    expect(parse_body.fetch("plugins")).to eq([])
   end
 
   it "includes depends_on and derived dependents in the plugin payload" do
