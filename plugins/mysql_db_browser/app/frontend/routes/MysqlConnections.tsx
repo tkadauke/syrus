@@ -15,6 +15,15 @@ import {
   type MysqlConnectionRow,
   type MysqlConnectionTestResult
 } from "../api/mysqlConnections"
+import {
+  fetchMysqlDatabases,
+  fetchMysqlTableDetail,
+  fetchMysqlTables,
+  type MysqlColumn,
+  type MysqlIndex,
+  type MysqlSection,
+  type MysqlTableDetailResponse
+} from "../api/mysqlSchema"
 
 const queryKey = ["mysql_db_browser", "connections"] as const
 
@@ -30,14 +39,25 @@ const EMPTY_FORM: MysqlConnectionInput = {
 
 const INPUT_CLASSES = "mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
 
+type BrowseTarget = { connectionId: number; label: string }
+
 export function MysqlConnections() {
   const { t } = useT("mysql_db_browser")
   usePageTitle(t("heading"))
   const [notice, setNotice] = useState<string | null>(null)
+  const [browsing, setBrowsing] = useState<BrowseTarget | null>(null)
   const connections = useQuery({
     queryKey,
     queryFn: fetchMysqlConnections
   })
+
+  if (browsing) {
+    return (
+      <main aria-label={t("aria_page")} className="mx-auto max-w-6xl space-y-6 p-6">
+        <SchemaBrowser connectionId={browsing.connectionId} label={browsing.label} onBack={() => setBrowsing(null)} />
+      </main>
+    )
+  }
 
   return (
     <main aria-label={t("aria_page")} className="mx-auto max-w-5xl space-y-6 p-6">
@@ -53,7 +73,11 @@ export function MysqlConnections() {
       {connections.isSuccess ? (
         <>
           <ConnectionCreateForm onNotice={setNotice} />
-          <ConnectionsTable connections={connections.data.mysql_connections} onNotice={setNotice} />
+          <ConnectionsTable
+            connections={connections.data.mysql_connections}
+            onBrowse={(connection) => setBrowsing({ connectionId: connection.id, label: connection.label })}
+            onNotice={setNotice}
+          />
         </>
       ) : null}
     </main>
@@ -100,7 +124,15 @@ function ConnectionCreateForm({ onNotice }: { onNotice: (message: string | null)
   )
 }
 
-function ConnectionsTable({ connections, onNotice }: { connections: MysqlConnectionRow[]; onNotice: (message: string | null) => void }) {
+function ConnectionsTable({
+  connections,
+  onBrowse,
+  onNotice
+}: {
+  connections: MysqlConnectionRow[]
+  onBrowse: (connection: MysqlConnectionRow) => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("mysql_db_browser")
   const [editingId, setEditingId] = useState<number | null>(null)
 
@@ -135,6 +167,7 @@ function ConnectionsTable({ connections, onNotice }: { connections: MysqlConnect
                 <ConnectionRow
                   connection={connection}
                   key={connection.id}
+                  onBrowse={() => onBrowse(connection)}
                   onEdit={() => setEditingId(connection.id)}
                   onNotice={onNotice}
                 />
@@ -147,7 +180,17 @@ function ConnectionsTable({ connections, onNotice }: { connections: MysqlConnect
   )
 }
 
-function ConnectionRow({ connection, onEdit, onNotice }: { connection: MysqlConnectionRow; onEdit: () => void; onNotice: (message: string | null) => void }) {
+function ConnectionRow({
+  connection,
+  onBrowse,
+  onEdit,
+  onNotice
+}: {
+  connection: MysqlConnectionRow
+  onBrowse: () => void
+  onEdit: () => void
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("mysql_db_browser")
   const queryClient = useQueryClient()
   const destroy = useMutation({
@@ -176,6 +219,13 @@ function ConnectionRow({ connection, onEdit, onNotice }: { connection: MysqlConn
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-start justify-end gap-2">
+          <button
+            className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500"
+            onClick={onBrowse}
+            type="button"
+          >
+            {t("browse_button")}
+          </button>
           <TestButton onTest={() => testMysqlConnection(connection.id)} />
           <button
             className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -407,6 +457,293 @@ function TestButton({ onTest }: { onTest: () => Promise<MysqlConnectionTestResul
       {test.isError ? <p className="text-xs text-red-700 dark:text-red-300">{errorMessage(test.error, t("test_error_fallback"))}</p> : null}
     </div>
   )
+}
+
+function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; label: string; onBack: () => void }) {
+  const { t } = useT("mysql_db_browser")
+  const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<{ database: string; table: string } | null>(null)
+  const databases = useQuery({
+    queryKey: ["mysql_db_browser", "schema", connectionId, "databases"],
+    queryFn: () => fetchMysqlDatabases(connectionId)
+  })
+
+  function toggleDatabase(name: string) {
+    setExpandedDatabases((previous) => {
+      const next = new Set(previous)
+      if (next.has(name)) {
+        next.delete(name)
+      } else {
+        next.add(name)
+      }
+      return next
+    })
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("browse_heading", { label })}</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("browse_description")}</p>
+        </div>
+        <button
+          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          onClick={onBack}
+          type="button"
+        >
+          {t("back_to_connections")}
+        </button>
+      </div>
+
+      {databases.isPending ? <Panel>{t("loading_databases")}</Panel> : null}
+      {databases.isError ? <Panel tone="error">{errorMessage(databases.error, t("error_loading_databases"))}</Panel> : null}
+
+      {databases.isSuccess ? (
+        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+          <nav
+            aria-label={t("aria_schema_tree")}
+            className="max-h-[70vh] overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950"
+          >
+            <ul className="divide-y divide-gray-100 dark:divide-gray-900 text-sm">
+              {databases.data.databases.map((database) => (
+                <DatabaseNode
+                  connectionId={connectionId}
+                  database={database}
+                  expanded={expandedDatabases.has(database.name)}
+                  key={database.name}
+                  onSelectTable={(table) => setSelected({ database: database.name, table })}
+                  onToggle={() => toggleDatabase(database.name)}
+                  selectedTable={selected?.database === database.name ? selected.table : null}
+                />
+              ))}
+            </ul>
+          </nav>
+
+          <div className="min-h-[200px] rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+            {selected ? (
+              <TableDetail connectionId={connectionId} database={selected.database} table={selected.table} />
+            ) : (
+              <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t("select_table_hint")}</p>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function DatabaseNode({
+  connectionId,
+  database,
+  expanded,
+  onSelectTable,
+  onToggle,
+  selectedTable
+}: {
+  connectionId: number
+  database: { name: string; system_schema: boolean }
+  expanded: boolean
+  onSelectTable: (table: string) => void
+  onToggle: () => void
+  selectedTable: string | null
+}) {
+  const { t } = useT("mysql_db_browser")
+  const tables = useQuery({
+    queryKey: ["mysql_db_browser", "schema", connectionId, "tables", database.name],
+    queryFn: () => fetchMysqlTables(connectionId, database.name),
+    enabled: expanded
+  })
+
+  return (
+    <li>
+      <button
+        aria-expanded={expanded}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-900"
+        onClick={onToggle}
+        type="button"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden className="text-gray-400 dark:text-gray-600">{expanded ? "▾" : "▸"}</span>
+          <span className="truncate font-medium text-gray-900 dark:text-gray-100">{database.name}</span>
+        </span>
+        {database.system_schema ? (
+          <span className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">
+            {t("system_schema_badge")}
+          </span>
+        ) : null}
+      </button>
+
+      {expanded ? (
+        <div className="pb-1 pl-5 pr-2">
+          {tables.isPending ? <p className="py-1 text-xs text-gray-500 dark:text-gray-400">{t("loading_tables")}</p> : null}
+          {tables.isError ? (
+            <p className="py-1 text-xs text-red-700 dark:text-red-300">{errorMessage(tables.error, t("error_loading_tables"))}</p>
+          ) : null}
+          {tables.isSuccess && !tables.data.available ? (
+            <p className="py-1 text-xs text-red-700 dark:text-red-300">{tables.data.error.hint || tables.data.error.message}</p>
+          ) : null}
+          {tables.isSuccess && tables.data.available ? (
+            tables.data.tables.length === 0 ? (
+              <p className="py-1 text-xs text-gray-500 dark:text-gray-400">{t("no_tables")}</p>
+            ) : (
+              <>
+                <ul className="space-y-0.5">
+                  {tables.data.tables.map((table) => (
+                    <li key={table.name}>
+                      <button
+                        className={`block w-full truncate rounded px-2 py-1 text-left text-xs ${
+                          selectedTable === table.name
+                            ? "bg-terracotta-50 dark:bg-terracotta-950 font-medium text-terracotta-700 dark:text-terracotta-300"
+                            : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900"
+                        }`}
+                        onClick={() => onSelectTable(table.name)}
+                        type="button"
+                      >
+                        {table.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {tables.data.truncated ? (
+                  <p className="py-1 text-xs text-amber-700 dark:text-amber-400">{t("tables_truncated")}</p>
+                ) : null}
+              </>
+            )
+          ) : null}
+        </div>
+      ) : null}
+    </li>
+  )
+}
+
+function TableDetail({ connectionId, database, table }: { connectionId: number; database: string; table: string }) {
+  const { t } = useT("mysql_db_browser")
+  const detail = useQuery({
+    queryKey: ["mysql_db_browser", "schema", connectionId, "table", database, table],
+    queryFn: () => fetchMysqlTableDetail(connectionId, database, table)
+  })
+
+  if (detail.isPending) {
+    return <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t("loading_table")}</p>
+  }
+
+  if (detail.isError) {
+    return <p className="p-4 text-sm text-red-700 dark:text-red-300">{errorMessage(detail.error, t("error_loading_table"))}</p>
+  }
+
+  const data: MysqlTableDetailResponse = detail.data
+
+  return (
+    <div className="space-y-4 p-4">
+      <header>
+        <h3 className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {data.database}.{data.table}
+        </h3>
+        {data.info.available ? (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t("table_meta", {
+              engine: data.info.engine || "-",
+              rows: formatApproxCount(data.info.approximate_row_count),
+              size: formatBytes((data.info.data_length_bytes || 0) + (data.info.index_length_bytes || 0))
+            })}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-red-700 dark:text-red-300">{data.info.error.hint || data.info.error.message}</p>
+        )}
+      </header>
+
+      <SchemaSection heading={t("columns_heading")} section={data.columns}>
+        {(columns: MysqlColumn[]) => (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
+              <thead className="text-left uppercase text-gray-500 dark:text-gray-400">
+                <tr>
+                  <th className="py-1 pr-3">{t("col_column_name")}</th>
+                  <th className="py-1 pr-3">{t("col_column_type")}</th>
+                  <th className="py-1 pr-3">{t("col_column_nullable")}</th>
+                  <th className="py-1 pr-3">{t("col_column_key")}</th>
+                  <th className="py-1 pr-3">{t("col_column_default")}</th>
+                  <th className="py-1">{t("col_column_extra")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+                {columns.map((column) => (
+                  <tr key={column.name}>
+                    <td className="py-1 pr-3 font-mono text-gray-900 dark:text-gray-100">{column.name}</td>
+                    <td className="py-1 pr-3 text-gray-600 dark:text-gray-400">{column.column_type}</td>
+                    <td className="py-1 pr-3 text-gray-600 dark:text-gray-400">{column.nullable ? t("yes") : t("no")}</td>
+                    <td className="py-1 pr-3 text-gray-600 dark:text-gray-400">{column.key || "-"}</td>
+                    <td className="max-w-[160px] truncate py-1 pr-3 text-gray-600 dark:text-gray-400">{column.default ?? "-"}</td>
+                    <td className="py-1 text-gray-600 dark:text-gray-400">{column.extra || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SchemaSection>
+
+      <SchemaSection heading={t("indexes_heading")} section={data.indexes}>
+        {(indexes: MysqlIndex[]) =>
+          indexes.length === 0 ? (
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t("no_indexes")}</p>
+          ) : (
+            <ul className="space-y-1 text-xs">
+              {indexes.map((index) => (
+                <li className="text-gray-700 dark:text-gray-300" key={index.name}>
+                  <span className="font-mono font-medium">{index.name}</span>{" "}
+                  <span className="text-gray-500 dark:text-gray-400">
+                    ({index.columns.join(", ")}){index.unique ? ` · ${t("unique_badge")}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </SchemaSection>
+    </div>
+  )
+}
+
+function SchemaSection<TRow>({
+  children,
+  heading,
+  section
+}: {
+  children: (rows: TRow[]) => ReactNode
+  heading: string
+  section: MysqlSection<TRow>
+}) {
+  const { t } = useT("mysql_db_browser")
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{heading}</h4>
+      <div className="mt-2">
+        {section.available ? (
+          <>
+            {children(section.rows)}
+            {section.truncated ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("rows_truncated")}</p> : null}
+          </>
+        ) : (
+          <p className="text-xs text-red-700 dark:text-red-300">{section.error.hint || section.error.message}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function formatApproxCount(value: number | null) {
+  return value === null ? "-" : value.toLocaleString()
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "0 B"
+  const units = [ "B", "KB", "MB", "GB", "TB" ]
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / 1024 ** exponent
+  return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
 
 function StatusBadge({ children, tone }: { children: ReactNode; tone: "success" | "neutral" }) {

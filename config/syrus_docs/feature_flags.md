@@ -176,8 +176,40 @@ username, password, default database) for later browsing/querying. It ships
 the plugin scaffold, the `MysqlConnection` model, a session-authed admin CRUD
 + test-connection API, and a "DB Browser" primary-sidebar page
 (`plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx`) that
-lists, adds, edits, deletes, and tests connections; there is no schema
-browsing/query grid or agentic query access yet.
+lists, adds, edits, deletes, and tests connections. There is no data grid or
+agentic query access yet, but schema browsing is in: a "Browse Schema" button
+per connection switches the page into a two-pane explorer — a left-hand
+database/table tree (Sequel Pro/TablePlus convention) and a right-hand detail
+panel showing a selected table's columns, indexes, engine, approximate row
+count, and size.
+
+Schema introspection is `MysqlDbBrowser::SchemaInspector`
+(`plugins/mysql_db_browser/app/services/mysql_db_browser/schema_inspector.rb`),
+built around a standalone `Mysql2::Client` constructed from a
+`MysqlConnection`'s decrypted credentials — never `ActiveRecord::Base.connection`,
+since the whole point is reaching an *external* database. It queries
+`information_schema.SCHEMATA`/`TABLES`/`COLUMNS`/`STATISTICS` rather than
+running `SHOW` commands against a `USE`d database, so it can list an arbitrary
+schema without switching connection context. `information_schema`,
+`performance_schema`, `mysql`, and `sys` are always listed alongside user
+databases (flagged `system_schema: true`) since they are ordinary rows in
+`SCHEMATA` — no special-casing needed beyond the flag. Row counts
+(`TABLE_ROWS`) are approximate, as MySQL itself documents for InnoDB. Mirrors
+`AdminMysql::Inspector`'s design: every `SELECT` gets a
+`MAX_EXECUTION_TIME(3000)` optimizer hint so a slow/unreachable external host
+can't hang a request; per-table sections (`tables`, `columns`, `indexes`) are
+wrapped in a `safe_section` that degrades a `Mysql2::Error` (e.g. a denied
+grant) into an `available: false` section with an actionable hint instead of
+raising; table/column/index lists are capped (500 tables, 1,000 columns, 500
+indexes) with a `truncated` flag rather than silently dropping rows with no
+signal. A connection-level failure (bad host/credentials) raises
+`SchemaInspector::Unavailable`, rendered as `502 connection_unavailable`; a
+table that doesn't exist in the given database raises
+`SchemaInspector::NotFound`, rendered as `404 not_found`. The three endpoints
+— `GET .../mysql_connections/:id/schema`, `GET .../schema/:database/tables`,
+and `GET .../schema/:database/tables/:table` — sit under the same
+`Api::V1::App::Admin::BaseController` (admin session required) and the same
+`MysqlDbBrowser.enabled?` gate as the connections CRUD API.
 
 Credentials are stored in `mysql_connections.credentials`, a
 non-deterministic encrypted JSON column (`encrypts :credentials`), the same

@@ -49,6 +49,21 @@ module MysqlDbBrowser
           verb: "POST",
           path: "/api/v1/app/admin/mysql_connections/:id/test",
           controller: "api/v1/app/admin/mysql_connections#test_connection"
+        },
+        {
+          verb: "GET",
+          path: "/api/v1/app/admin/mysql_connections/:id/schema",
+          controller: "api/v1/app/admin/mysql_schema#databases"
+        },
+        {
+          verb: "GET",
+          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables",
+          controller: "api/v1/app/admin/mysql_schema#tables"
+        },
+        {
+          verb: "GET",
+          path: "/api/v1/app/admin/mysql_connections/:id/schema/:database/tables/:table",
+          controller: "api/v1/app/admin/mysql_schema#show"
         }
       ],
       provides: {

@@ -59,6 +59,50 @@ function setupFetchMock(initial = [stagingConnection()]) {
       connections = connections.filter((connection) => connection.id !== id)
       return Promise.resolve(new Response(null, { status: 204 }))
     }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        available: true,
+        generated_at: "2026-01-01T00:00:00Z",
+        databases: [
+          { name: "app_staging", system_schema: false, default_character_set: "utf8mb4", default_collation: "utf8mb4_0900_ai_ci" },
+          { name: "information_schema", system_schema: true, default_character_set: "utf8", default_collation: "utf8_general_ci" }
+        ]
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        available: true,
+        generated_at: "2026-01-01T00:00:00Z",
+        database: "app_staging",
+        system_schema: false,
+        truncated: false,
+        tables: [
+          { name: "users", type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 12, data_length_bytes: 1024, index_length_bytes: 512, created_at: null, updated_at: null, comment: null }
+        ]
+      }))
+    }
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users$/.test(url) && method === "GET") {
+      return Promise.resolve(jsonResponse({
+        database: "app_staging",
+        table: "users",
+        system_schema: false,
+        generated_at: "2026-01-01T00:00:00Z",
+        info: { available: true, type: "BASE TABLE", engine: "InnoDB", approximate_row_count: 12, data_length_bytes: 1024, index_length_bytes: 512, auto_increment: 13, created_at: null, updated_at: null, collation: "utf8mb4_0900_ai_ci", comment: null },
+        columns: {
+          available: true,
+          truncated: false,
+          rows: [
+            { name: "id", column_type: "bigint", data_type: "bigint", nullable: false, key: "PRI", default: null, extra: "auto_increment", character_max_length: null, numeric_precision: 20, numeric_scale: 0, comment: null },
+            { name: "email", column_type: "varchar(255)", data_type: "varchar", nullable: true, key: null, default: null, extra: null, character_max_length: 255, numeric_precision: null, numeric_scale: null, comment: null }
+          ]
+        },
+        indexes: {
+          available: true,
+          truncated: false,
+          rows: [ { name: "PRIMARY", unique: true, type: "BTREE", columns: [ "id" ] } ]
+        }
+      }))
+    }
 
     throw new Error(`Unhandled fetch: ${method} ${url}`)
   }) as typeof window.fetch)
@@ -165,5 +209,39 @@ describe("MysqlConnections", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Test connection" }))
 
     expect(await within(row).findByText("Connection succeeded.")).toBeInTheDocument()
+  })
+
+  describe("schema browsing", () => {
+    it("lists databases (including system schemas) and lets an operator drill into a table", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+
+      expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+      expect(await screen.findByText("app_staging")).toBeInTheDocument()
+      expect(screen.getByText("information_schema")).toBeInTheDocument()
+      expect(screen.getByText("System")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+
+      expect(await screen.findByText("app_staging.users")).toBeInTheDocument()
+      expect(screen.getByText("id")).toBeInTheDocument()
+      expect(screen.getByText("email")).toBeInTheDocument()
+      expect(screen.getByText("PRIMARY", { exact: false })).toBeInTheDocument()
+    })
+
+    it("returns to the connection list", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Back to connections" }))
+
+      expect(await screen.findByText("db.staging.internal:3306")).toBeInTheDocument()
+    })
   })
 })
