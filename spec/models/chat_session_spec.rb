@@ -306,6 +306,18 @@ RSpec.describe ChatSession do
     expect(session.bookmarks).to eq([ earlier_bookmark, middle_bookmark, later_bookmark ])
   end
 
+  it "excludes bookmarks on soft-deleted messages" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    kept = session.messages.create!(role: "assistant", content: { "text" => "Kept" })
+    cleared = session.messages.create!(role: "assistant", content: { "text" => "Cleared" })
+
+    kept_bookmark = kept.bookmarks.create!(label: "Kept topic", kind: "topic")
+    cleared.bookmarks.create!(label: "Cleared topic", kind: "topic")
+    cleared.soft_delete_by!(repo.user)
+
+    expect(session.bookmarks).to eq([ kept_bookmark ])
+  end
+
   it "reports a turn in flight until a non-user response follows the latest user message" do
     session = described_class.create!(repository: repo, user: repo.user)
 

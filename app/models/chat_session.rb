@@ -60,7 +60,7 @@ class ChatSession < ApplicationRecord
   has_many :scheduled_messages, class_name: "ScheduledChatMessage", dependent: :destroy
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
   has_many :bookmarks,
-           -> { order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
+           -> { where(chat_messages: { deleted_at: nil }).order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
            through: :messages,
            source: :bookmarks
   has_many :proposals, class_name: "ChatProposal", dependent: :destroy

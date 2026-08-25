@@ -28,6 +28,7 @@ module Mcp::Tools
           snippet_end: "</b>",
           snippet_tokens: 50
         )
+        results = reject_deleted_messages(results)
 
         payload = { results: results.map { |row| result_payload(row) } }
         payload[:message] = "No matching messages found." if payload[:results].empty?
@@ -36,6 +37,16 @@ module Mcp::Tools
       end
 
       private
+
+      # The FTS index lives in a separate `search` database connection, so
+      # deletion state can't be joined in SQL; filter out rows whose
+      # underlying message has been soft-deleted against the primary DB.
+      def reject_deleted_messages(results)
+        return results if results.empty?
+
+        active_ids = ChatMessage.active.where(id: results.map { |row| row.fetch(:chat_message_id) }).ids.to_set
+        results.select { |row| active_ids.include?(row.fetch(:chat_message_id)) }
+      end
 
       def normalize_limit(value)
         value.to_i.clamp(1, 50)
