@@ -7,8 +7,10 @@
  * One canonical catalog of CSS custom-property color tokens, meant as
  * the long-term replacement for ad hoc `blue-*`/`terracotta-*`/`gray-*`
  * utility usage across app/frontend (see the design-system epic in
- * CLAUDE.md). Nothing consumes these yet — this PR only introduces the
- * layer; migrating existing components is later work.
+ * CLAUDE.md). The Button/Input/Select/Checkbox/Toggle/Modal/Card
+ * primitives consume these; most existing call sites still use raw
+ * utility classes and migrate onto the primitives (and these tokens)
+ * incrementally.
  *
  * Cascade convention: each token is declared once under `:root` (the
  * light default) and again under `.dark` (the override). `.dark` is the
