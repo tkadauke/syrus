@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PreviewPanel, PreviewStopModal } from "./PreviewPanel"
-import type { PreviewEnvironmentRecord } from "../api/jobs"
+import type { DeployWorkflowRecord, PreviewEnvironmentRecord } from "../api/jobs"
 
 function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -22,6 +22,19 @@ function preview(overrides: Partial<PreviewEnvironmentRecord> = {}): PreviewEnvi
   }
 }
 
+function deploy(overrides: Partial<DeployWorkflowRecord> = {}): DeployWorkflowRecord {
+  return {
+    id: 1,
+    state: "running",
+    failure_reason: null,
+    created_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
+    finished_at: null,
+    path: "/jobs/42?tab=workflows#workflow-1",
+    ...overrides
+  }
+}
+
 function renderPanel(props: Partial<Parameters<typeof PreviewPanel>[0]> = {}) {
   render(
     <MemoryRouter>
@@ -34,6 +47,9 @@ function renderPanel(props: Partial<Parameters<typeof PreviewPanel>[0]> = {}) {
           previewLogsPath="/api/v1/app/jobs/42/preview/logs"
           canStart={true}
           initialPreview={null}
+          deployPath="/api/v1/app/jobs/42/deploy"
+          canDeploy={false}
+          initialDeploy={null}
           queryKey={["jobs", "42", "detail", ""] as const}
           {...props}
         />
@@ -349,6 +365,114 @@ describe("PreviewPanel", () => {
 
     expect(queryClient.getQueryData(["repository-preview", 7])).toEqual({ preview: runningPreview })
     expect(queryClient.getQueryData(["job-preview", 7])).toBeUndefined()
+  })
+})
+
+describe("PreviewPanel Deploy controls", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("renders nothing when neither preview nor deploy are available", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <QueryClientProvider client={client()}>
+          <PreviewPanel
+            queryKeyPrefix="job"
+            entityId={42}
+            repositoryId={7}
+            previewPath="/api/v1/app/jobs/42/preview"
+            previewLogsPath="/api/v1/app/jobs/42/preview/logs"
+            canStart={false}
+            initialPreview={null}
+            deployPath="/api/v1/app/jobs/42/deploy"
+            canDeploy={false}
+            initialDeploy={null}
+            queryKey={["jobs", "42", "detail", ""] as const}
+          />
+        </QueryClientProvider>
+      </MemoryRouter>
+    )
+    expect(container.firstChild).toBeNull()
+  })
+
+  it("does not show a Deploy button when canDeploy is false and no deploy exists", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: false, initialDeploy: null })
+    expect(screen.queryByRole("button", { name: "Deploy" })).not.toBeInTheDocument()
+  })
+
+  it("shows a Deploy button in the same section as Preview when canDeploy is true", () => {
+    renderPanel({ canStart: true, initialPreview: null, canDeploy: true, initialDeploy: null })
+
+    const section = screen.getByRole("region", { name: "Preview" })
+    expect(within(section).getByRole("button", { name: "Start Preview" })).toBeInTheDocument()
+    expect(within(section).getByRole("button", { name: "Deploy" })).toBeInTheDocument()
+  })
+
+  it("shows deploy button even when Preview is unavailable", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: null })
+    expect(screen.getByRole("button", { name: "Deploy" })).toBeInTheDocument()
+  })
+
+  it("shows a queued status while the deploy is queued", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: deploy({ state: "queued" }) })
+    expect(screen.getByText("Deploy queued…")).toBeInTheDocument()
+  })
+
+  it("shows a running status while the deploy is running", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: deploy({ state: "running" }) })
+    expect(screen.getByText("Deploying…")).toBeInTheDocument()
+  })
+
+  it("shows a succeeded status and a Deploy again button once finished", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: deploy({ state: "succeeded" }) })
+    expect(screen.getByText("Deployed")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Deploy again" })).toBeInTheDocument()
+  })
+
+  it("shows a failed status and a Deploy again button when the deploy failed" , () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: deploy({ state: "failed", failure_reason: "boom" }) })
+    expect(screen.getByText("Deploy failed")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Deploy again" })).toBeInTheDocument()
+  })
+
+  it("does not show a Deploy again button once finished when canDeploy is false", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: false, initialDeploy: deploy({ state: "succeeded" }) })
+    expect(screen.getByText("Deployed")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Deploy again" })).not.toBeInTheDocument()
+  })
+
+  it("links to the deploy workflow", () => {
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: deploy({ path: "/jobs/42?tab=workflows#workflow-7" }) })
+    expect(screen.getByRole("link", { name: "View deploy" })).toHaveAttribute("href", "/jobs/42?tab=workflows#workflow-7")
+  })
+
+  it("starts a deploy when the Deploy button is clicked", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(jsonResponse({ deploy: deploy({ state: "queued" }), message: "Deploy workflow enqueued." }, 201))
+    )
+
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: null })
+    fireEvent.click(screen.getByRole("button", { name: "Deploy" }))
+
+    await waitFor(() => {
+      expect(window.fetch).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/42/deploy",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(await screen.findByText("Deploy queued…")).toBeInTheDocument()
+  })
+
+  it("shows an error message when starting a deploy fails" , async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(jsonResponse({ error: { code: "forbidden", message: "Approve the Job first." } }, 403))
+    )
+
+    renderPanel({ canStart: false, initialPreview: null, canDeploy: true, initialDeploy: null })
+    fireEvent.click(screen.getByRole("button", { name: "Deploy" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument()
+    })
   })
 })
 

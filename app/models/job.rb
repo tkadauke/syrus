@@ -194,6 +194,16 @@ class Job < ApplicationRecord
     implemented? || approved? || landing? || (closed? && landed_sha.present?)
   end
 
+  # Same "resolvable revision" shape as previewable? — a live branch head
+  # (implemented/approved/landing) or a landed commit sha on a closed Job
+  # (WorkflowWorkspace's :deploy-scoped commit_sha_revision? fallback
+  # checks out landed_sha directly for that case). Kept as its own
+  # predicate rather than reusing previewable? since Preview and Deploy are
+  # independent features that may diverge later.
+  def deployable?
+    implemented? || approved? || landing? || (closed? && landed_sha.present?)
+  end
+
   def visual_review_runnable?
     (implemented? || approved?) && !active_runtime_work?
   end

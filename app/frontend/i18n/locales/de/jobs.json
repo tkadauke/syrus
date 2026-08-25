@@ -590,5 +590,14 @@
   "preview_logs_close": "Schließen",
   "preview_fix_button": "Vorschau reparieren",
   "preview_fix_job_title": "Vorschau reparieren: über den Vorschau-Proxy nicht erreichbar",
-  "preview_fix_error": "Der Job zur Reparatur der Vorschau konnte nicht erstellt werden."
+  "preview_fix_error": "Der Job zur Reparatur der Vorschau konnte nicht erstellt werden.",
+  "deploy_button": "Bereitstellen",
+  "deploy_again_button": "Erneut bereitstellen",
+  "deploy_queued": "Bereitstellung wartet…",
+  "deploy_running": "Wird bereitgestellt…",
+  "deploy_succeeded": "Bereitgestellt",
+  "deploy_failed_status": "Bereitstellung fehlgeschlagen",
+  "deploy_cancelled": "Bereitstellung abgebrochen",
+  "deploy_view": "Bereitstellung ansehen",
+  "deploy_failed": "Bereitstellung konnte nicht gestartet werden"
 }
