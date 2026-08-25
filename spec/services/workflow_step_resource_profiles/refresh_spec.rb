@@ -266,6 +266,41 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(sample_queries.size).to eq(1)
   end
 
+  it "preloads command-span worker samples through narrow merged windows" do
+    resource_summary(
+      repository: repository,
+      duration: 900,
+      finished_at: now - 1.day,
+      command_span: true,
+      command_cpu: 10.0,
+      command_io: 5.0,
+      command_memory: 40.0
+    )
+    resource_summary(
+      repository: repository,
+      duration: 900,
+      finished_at: now,
+      command_span: true,
+      command_cpu: 20.0,
+      command_io: 6.0,
+      command_memory: 45.0
+    )
+
+    sample_queries = []
+    callback = lambda do |_name, _started, _finished, _unique_id, payload|
+      sql = payload[:sql].to_s
+      sample_queries << sql if sql.start_with?("SELECT") && sql.include?("worker_host_health_samples")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new(now: now).refresh_all!
+    end
+
+    expect(sample_queries.size).to eq(1)
+    expect(sample_queries.first.scan(/\bBETWEEN\b/i).size).to eq(2)
+    expect(sample_queries.first).to match(/\bOR\b/i)
+  end
+
   it "excludes retention-limited summaries from aggregate inputs" do
     resource_summary(repository: repository, duration: 100, cpu: 10.0)
     resource_summary(repository: repository, duration: 1_000, cpu: 99.0, retention_limited: true)

@@ -3,6 +3,8 @@ require "set"
 module WorkflowStepResourceProfiles
   class Refresh
     MAX_INPUT_SUMMARIES = 5_000
+    SPAN_SAMPLE_MERGE_GAP = 2.minutes
+    MAX_SPAN_SAMPLE_RANGES_PER_HOST = 100
 
     def initialize(now: Time.current)
       @now = now
@@ -261,28 +263,65 @@ module WorkflowStepResourceProfiles
     end
 
     def preload_span_samples_by_hostname(summaries)
+      ranges_by_hostname = span_sample_ranges_by_hostname(summaries)
+      return {} if ranges_by_hostname.empty?
+
+      ranges_by_hostname.each_with_object({}) do |(hostname, ranges), samples_by_hostname|
+        samples_by_hostname[hostname] = samples_for_hostname_ranges(hostname, ranges)
+      end
+    end
+
+    def span_sample_ranges_by_hostname(summaries)
       retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
-      hostnames = Set.new
-      starts = []
-      finishes = []
+      intervals_by_hostname = Hash.new { |hash, hostname| hash[hostname] = [] }
 
       summaries.each do |summary|
         Array(summary.run&.command_spans).each do |span|
           next if span.hostname.blank? || span.started_at.blank?
 
-          hostnames << span.hostname
-          starts << [ span.started_at, retained_since ].max
-          finishes << (span.finished_at || now)
+          started_at = [ span.started_at, retained_since ].max
+          finished_at = span.finished_at || now
+          next if started_at > finished_at
+
+          intervals_by_hostname[span.hostname] << [ started_at, finished_at ]
         end
       end
 
-      return {} if hostnames.empty? || starts.empty? || finishes.empty?
+      intervals_by_hostname.transform_values do |intervals|
+        merge_span_sample_intervals(intervals)
+      end
+    end
 
-      WorkerHealthRunCorrelation.sample_scope
-        .where(hostname: hostnames.to_a, observed_at: starts.min..finishes.max)
-        .order(:hostname, :observed_at)
+    def merge_span_sample_intervals(intervals)
+      gap = SPAN_SAMPLE_MERGE_GAP
+      merged = merge_intervals(intervals, gap: gap)
+
+      while merged.size > MAX_SPAN_SAMPLE_RANGES_PER_HOST
+        gap *= 2
+        merged = merge_intervals(intervals, gap: gap)
+      end
+
+      merged
+    end
+
+    def merge_intervals(intervals, gap:)
+      intervals.sort_by(&:first).each_with_object([]) do |(started_at, finished_at), merged|
+        if merged.empty? || started_at > merged.last.last + gap
+          merged << [ started_at, finished_at ]
+        else
+          merged.last[1] = [ merged.last.last, finished_at ].max
+        end
+      end
+    end
+
+    def samples_for_hostname_ranges(hostname, ranges)
+      base = WorkerHealthRunCorrelation.sample_scope.where(hostname: hostname)
+      scoped_ranges = ranges.map { |started_at, finished_at| base.where(observed_at: started_at..finished_at) }
+      return [] if scoped_ranges.empty?
+
+      scoped_ranges.reduce { |combined, scope| combined.or(scope) }
+        .order(:observed_at)
         .to_a
-        .group_by(&:hostname)
     end
 
     def normalized_grader_name(summary)
