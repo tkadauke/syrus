@@ -598,7 +598,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: workflow.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{workflow.id} because #{job.slug} is closed")
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{workflow.slug} because #{job.slug} is closed")
     expect(workflow.reload).to be_cancelled
     expect(step.reload).to be_cancelled
     expect(run.reload).to be_cancelled
@@ -697,7 +697,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} because #{closed.slug} is closed")
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{intent.slug} because #{closed.slug} is closed")
     expect(intent.reload).to be_cancelled
   end
 
@@ -787,7 +787,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} because member Jobs [#{first.id}, #{second.id}] are closed")
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{intent.slug} because member Jobs [#{first.id}, #{second.id}] are closed")
     expect(intent.reload).to be_cancelled
   end
 
@@ -891,7 +891,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: older.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled superseded Workflow ##{older.id} because newer Workflow ##{newer.id} is active")
+    expect(result.repair_executions.map(&:message)).to include("cancelled superseded #{older.slug} because newer #{newer.slug} is active")
     expect(older.reload).to be_cancelled
     expect(older.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
     expect(older_unit.reload).to have_attributes(
@@ -937,7 +937,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: conflict.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{conflict.id} because Epic-wide Workflow ##{keeper.id} is active")
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{conflict.slug} because Epic-wide #{keeper.slug} is active")
     expect(keeper.reload).to be_running
     expect(conflict.reload).to be_cancelled
     expect(conflict_unit.reload).to have_attributes(
@@ -967,7 +967,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkUnit",
       target_id: unit.id
     )
-    expect(result.repair_executions.map(&:message)).to include("released 1 active locks for terminal WorkUnit ##{unit.id}")
+    expect(result.repair_executions.map(&:message)).to include("released 1 active locks for terminal #{unit.slug}")
     expect(lock.reload).not_to be_active
   end
 
@@ -1025,7 +1025,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkUnit",
       target_id: parent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled 1 active child WorkUnit(s) for terminal parent ##{parent.id}")
+    expect(result.repair_executions.map(&:message)).to include("cancelled 1 active child WorkUnit(s) for terminal parent #{parent.slug}")
     expect(parent.reload).to be_succeeded
     expect(child.reload).to be_cancelled
     expect(child_workflow.reload).to be_cancelled
@@ -1064,7 +1064,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkUnit",
       target_id: unit.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled active WorkUnit ##{unit.id} without a Workflow")
+    expect(result.repair_executions.map(&:message)).to include("cancelled active #{unit.slug} without a Workflow")
     expect(unit.reload).to be_cancelled
     expect(unit.preemption_reason).to eq("missing_workflow")
     expect(lock.reload).not_to be_active
@@ -1115,7 +1115,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkUnit",
       target_id: unit.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled WorkUnit ##{unit.id} because #{closed_job.slug} is closed and no Workflow is attached")
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{unit.slug} because #{closed_job.slug} is closed and no Workflow is attached")
     expect(unit.reload).to be_cancelled
     expect(unit.preemption_reason).to eq("job_closed")
     expect(lock.reload).not_to be_active
@@ -1165,7 +1165,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_id: intent.id
     )
     expect(result.snapshot.work_intent_ids).to include(intent.id)
-    expect(result.repair_executions.map(&:message)).to include("rechecked WorkIntent ##{intent.id}; wait cleared=true")
+    expect(result.repair_executions.map(&:message)).to include("rechecked #{intent.slug}; wait cleared=true")
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil)
   end
 
@@ -1203,7 +1203,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cleared stale wait on WorkIntent ##{intent.id}; active WorkUnits: [#{unit.id}]")
+    expect(result.repair_executions.map(&:message)).to include("cleared stale wait on #{intent.slug}; active WorkUnits: [\"#{unit.slug}\"]")
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
   end
 
@@ -1255,7 +1255,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(unit).to be_present
     expect(unit.workflow).to be_present
     expect(unit.work_unit_members.pluck(:job_id)).to eq([ target.id ])
-    expect(result.repair_executions.map(&:message)).to include("launched WorkIntent ##{intent.id} as Workflow ##{unit.workflow_id}")
+    expect(result.repair_executions.map(&:message)).to include("launched #{intent.slug} as #{unit.workflow.slug}")
   end
 
   it "wakes the landing dispatcher for requested landing-owned WorkIntents instead of launching them directly" do
@@ -1289,7 +1289,7 @@ RSpec.describe WorkEngine::Reconciler do
     )
     expect(old_intent.reload.work_units.order(:id).last).to eq(old_unit)
     expect(enqueued_jobs.map { |entry| entry[:job] }).to include(LandingQueueProcessorJob)
-    expect(result.repair_executions.map(&:message)).to include("woke landing queue for WorkIntent ##{old_intent.id} (merge_train)")
+    expect(result.repair_executions.map(&:message)).to include("woke landing queue for #{old_intent.slug} (merge_train)")
   end
 
   it "does not launch requested WorkIntents that already have active WorkUnits" do
@@ -1339,7 +1339,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("satisfied WorkIntent ##{intent.id} from succeeded WorkUnit ##{unit.id}")
+    expect(result.repair_executions.map(&:message)).to include("satisfied #{intent.slug} from succeeded #{unit.slug}")
     expect(intent.reload).to be_satisfied
   end
 
@@ -1385,7 +1385,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} from superseded WorkUnit ##{unit.id}")
+    expect(result.repair_executions.map(&:message)).to include("cancelled #{intent.slug} from superseded #{unit.slug}")
     expect(intent.reload).to be_cancelled
   end
 
@@ -1431,7 +1431,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("failed WorkIntent ##{intent.id} from failed WorkUnit ##{unit.id}")
+    expect(result.repair_executions.map(&:message)).to include("failed #{intent.slug} from failed #{unit.slug}")
     expect(intent.reload).to be_failed
   end
 
@@ -1490,7 +1490,7 @@ RSpec.describe WorkEngine::Reconciler do
         target_id: child.id,
         auto_executable: true
       )
-      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry Workflow #\d+ for #{child.slug}/))
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry WF-\d+ for #{child.slug}/))
     }.to change { child.workflows.where(trigger_kind: "retry").count }.by(1)
 
     retry_workflow = child.reload.latest_workflow
@@ -1568,7 +1568,7 @@ RSpec.describe WorkEngine::Reconciler do
         recommended_repair_action: "retry_job_after_epic_workflow_conflict",
         safe_to_auto_repair: true
       )
-      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started chat_feedback Workflow #\d+ for #{child.slug}/))
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started chat_feedback WF-\d+ for #{child.slug}/))
     }.to change { child.workflows.where(trigger_kind: "chat_feedback").count }.by(1)
 
     expect(child.workflows.where(trigger_kind: "retry").count).to eq(retry_count)
@@ -1611,7 +1611,7 @@ RSpec.describe WorkEngine::Reconciler do
         target_id: child.id,
         auto_executable: true
       )
-      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry Workflow #\d+ for #{child.slug}/))
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry WF-\d+ for #{child.slug}/))
     }.to change { child.workflows.where(trigger_kind: "retry").count }.by(1)
 
     retry_workflow = child.reload.latest_workflow
@@ -1739,7 +1739,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: stale.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled stale auto-retry Workflow ##{stale.id}")
+    expect(result.repair_executions.map(&:message)).to include("cancelled stale auto-retry #{stale.slug}")
     expect(stale.reload).to be_cancelled
     expect(stale.first_step.runs.first.reload).to be_cancelled
     expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded")
@@ -2164,7 +2164,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: workflow.id
     )
-    expect(result.repair_executions.map(&:message)).to include("discarded superseded branch output for Workflow ##{workflow.id}")
+    expect(result.repair_executions.map(&:message)).to include("discarded superseded branch output for #{workflow.slug}")
     expect(workflow.reload.artifact("branch_divergence_recovery")).to include(
       "action" => "superseded_by_current_pr_branch"
     )
@@ -2687,8 +2687,8 @@ RSpec.describe WorkEngine::Reconciler do
     expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
     replacement_run = step.runs.where.not(id: run.id).last
     expect(replacement_run).to have_attributes(state: "queued")
-    expect(result.repair_executions.map(&:message)).to include("marked Run ##{run.id} worker_died; queued replacement Run ##{replacement_run.id} on Step ##{step.id}")
-    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked Run ##{run.id} worker_died; queued replacement Run ##{replacement_run.id} on Step ##{step.id}/))
+    expect(result.repair_executions.map(&:message)).to include("marked #{run.slug} worker_died; queued replacement #{replacement_run.slug} on #{step.slug}")
+    expect(JobLog.where(run: run).pluck(:chunk)).to include(match(/applied mark_worker_died: marked #{run.slug} worker_died; queued replacement #{replacement_run.slug} on #{step.slug}/))
   end
 
   it "defers repair execution on transient database lock timeouts" do
@@ -2848,7 +2848,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(job.reload).to be_failed
     expect(step.reload).to be_failed
     expect(pr_open.reload).to be_queued
-    expect(result.repair_executions.map(&:message)).to include("marked Workflow ##{workflow.id} failed from failed Step ##{step.id}")
+    expect(result.repair_executions.map(&:message)).to include("marked #{workflow.slug} failed from failed #{step.slug}")
   end
 
   it "reconciles a running Step whose only Run already succeeded" do
@@ -2896,7 +2896,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_id: prepare.id
     )
     expect(prepare.reload.runs.last).to have_attributes(state: "queued", job_id: job.id, trigger_kind: "auto_merge")
-    expect(result.repair_executions.map(&:message)).to include("resumed Step ##{prepare.id} with Run ##{prepare.runs.last.id}")
+    expect(result.repair_executions.map(&:message)).to include("resumed #{prepare.slug} with #{prepare.runs.last.slug}")
   end
 
   it "does not resume a queued step whose predecessor has not succeeded" do
@@ -4588,7 +4588,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: workflow.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled active descendants for terminal Workflow ##{workflow.id}")
+    expect(result.repair_executions.map(&:message)).to include("cancelled active descendants for terminal #{workflow.slug}")
     expect(workflow.reload).to be_failed
     expect(queued_tail.reload).to be_cancelled
     expect(queued_tail_run.reload).to be_cancelled

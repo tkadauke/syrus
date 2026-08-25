@@ -142,6 +142,42 @@ module WorkEngine
           job.slug
         end
 
+        def workflow_label(workflow)
+          workflow&.slug || "Workflow missing"
+        end
+
+        def workflow_id_label(id)
+          id.present? ? "WF-#{id}" : "Workflow missing"
+        end
+
+        def step_label(step)
+          step&.slug || "Step missing"
+        end
+
+        def run_label(run)
+          run&.slug || "Run missing"
+        end
+
+        def work_unit_label(unit)
+          unit&.slug || "WorkUnit missing"
+        end
+
+        def work_unit_id_label(id)
+          id.present? ? "WU-#{id}" : "WorkUnit missing"
+        end
+
+        def work_unit_id_list_label(ids)
+          Array(ids).map { |id| work_unit_id_label(id) }.inspect
+        end
+
+        def work_intent_label(intent)
+          intent&.slug || "WorkIntent missing"
+        end
+
+        def work_intent_id_label(id)
+          id.present? ? "WI-#{id}" : "WorkIntent missing"
+        end
+
         def target_work_unit
           @target_work_unit ||= if plan.target_type == "WorkUnit"
             WorkUnit.includes(:work_unit_locks, :workflow, :work_unit_members).find_by(id: plan.target_id)
@@ -324,10 +360,10 @@ module WorkEngine
             run.save!
           end
           if (replacement_run = worker_died_replacement_run(run, existing_run_ids: existing_run_ids))
-            return success("marked Run ##{run.id} worker_died; queued replacement Run ##{replacement_run.id} on Step ##{run.step_id}")
+            return success("marked #{run_label(run)} worker_died; queued replacement #{run_label(replacement_run)} on #{step_label(run.step)}")
           end
 
-          success("marked Run ##{run.id} worker_died; no automatic retry was scheduled, leaving follow-up to terminal-state reconciliation or operator review")
+          success("marked #{run_label(run)} worker_died; no automatic retry was scheduled, leaving follow-up to terminal-state reconciliation or operator review")
         end
 
         def worker_died_replacement_run(run, existing_run_ids:)
@@ -354,7 +390,7 @@ module WorkEngine
           return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
           run.reenqueue!
-          success("re-enqueued Run ##{run.id}")
+          success("re-enqueued #{run_label(run)}")
         end
 
         private
@@ -388,7 +424,7 @@ module WorkEngine
             run.skip!
             run.save!
           end
-          success("skipped obsolete Run ##{run.id} on terminal Step ##{step.id}")
+          success("skipped obsolete #{run_label(run)} on terminal #{step_label(step)}")
         end
       end
 
@@ -416,7 +452,7 @@ module WorkEngine
             run.save!
           end
 
-          success("marked cached grader_collect Run ##{run.id} failed so retry-until can continue")
+          success("marked cached grader_collect #{run_label(run)} failed so retry-until can continue")
         end
       end
 
@@ -435,7 +471,7 @@ module WorkEngine
           return skipped("Previous Step is not succeeded") unless previous&.succeeded?
 
           run = WorkUnits::DeferredPhaseResume.call(workflow.id, step.id).run
-          run ? success("resumed Step ##{step.id} with Run ##{run.id}") : skipped("queued Step remained deferred")
+          run ? success("resumed #{step_label(step)} with #{run_label(run)}") : skipped("queued Step remained deferred")
         end
       end
 
@@ -449,7 +485,7 @@ module WorkEngine
           return skipped("First Step already has a Run") if first.runs.exists?
 
           run = WorkUnits::Launcher.start!(workflow).run
-          run ? success("started Workflow ##{workflow.id} with Run ##{run.id}") : skipped("workflow start remained blocked")
+          run ? success("started #{workflow_label(workflow)} with #{run_label(run)}") : skipped("workflow start remained blocked")
         end
       end
 
@@ -492,7 +528,7 @@ module WorkEngine
           StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
           workflow.work_unit&.unblock! if workflow.work_unit&.blocked_reason == "stack_dependencies_not_ready"
           run = WorkUnits::Launcher.start!(workflow.reload).run
-          run ? success("cleared stale dependency block and started Workflow ##{workflow.id} with Run ##{run.id}") : skipped("workflow start remained blocked")
+          run ? success("cleared stale dependency block and started #{workflow_label(workflow)} with #{run_label(run)}") : skipped("workflow start remained blocked")
         end
       end
 
@@ -515,11 +551,11 @@ module WorkEngine
           step.reload
           new_run = result.run || step.runs.where.not(id: before_run_ids).order(:id).last
           if new_run
-            success("resumed deferred phase for Workflow ##{workflow.id} with Run ##{new_run.id}")
+            success("resumed deferred phase for #{workflow_label(workflow)} with #{run_label(new_run)}")
           elsif result.blocked? || WorkflowAdmissionCapacityWakeup.admission_or_resource_paused?(workflow.reload)
             skipped("phase remains paused after admission recheck")
           else
-            success("cleared deferred phase block for Workflow ##{workflow.id}")
+            success("cleared deferred phase block for #{workflow_label(workflow)}")
           end
         end
       end
@@ -544,7 +580,7 @@ module WorkEngine
             StepDispatcher.fail_unstartable_landing_workflow!(workflow, reason)
           end
 
-          success("failed blocked landing Workflow ##{workflow.id} and deferred #{job_label(workflow.job)} back to approved")
+          success("failed blocked landing #{workflow_label(workflow)} and deferred #{job_label(workflow.job)} back to approved")
         end
       end
 
@@ -573,7 +609,7 @@ module WorkEngine
             attempt.update!(skipped_reason: "source workflow was already superseded") if attempt.skipped_reason.blank?
           end
           WorkEngine::Reconciler.request(source: self.class.name, job: workflow.job)
-          success("cancelled stale auto-retry Workflow ##{workflow.id}")
+          success("cancelled stale auto-retry #{workflow_label(workflow)}")
         end
 
         private
@@ -627,7 +663,7 @@ module WorkEngine
             end
             workflow.save!
           end
-          success("marked Workflow ##{workflow.id} #{outcome}")
+          success("marked #{workflow_label(workflow)} #{outcome}")
         end
 
         private
@@ -659,7 +695,7 @@ module WorkEngine
             workflow.fail!
             workflow.save!
           end
-          success("marked Workflow ##{workflow.id} failed from failed Step ##{failed_step.id}")
+          success("marked #{workflow_label(workflow)} failed from failed #{step_label(failed_step)}")
         end
       end
 
@@ -702,7 +738,7 @@ module WorkEngine
             )
           end
 
-          success("cancelled Workflow ##{workflow.id} because #{job_label(workflow.job)} is closed")
+          success("cancelled #{workflow_label(workflow)} because #{job_label(workflow.job)} is closed")
         end
       end
 
@@ -719,16 +755,16 @@ module WorkEngine
 
           workflow = unit.workflow
           if workflow&.active?
-            return skipped("Workflow ##{workflow.id} is still active; closed-job workflow repair owns that cleanup")
+            return skipped("#{workflow_label(workflow)} is still active; closed-job workflow repair owns that cleanup")
           end
 
           with_transition_reason do
             if workflow&.terminal?
               unit.mark_terminal!(workflow.state)
-              @message = "marked WorkUnit ##{unit.id} #{workflow.state} because closed #{job_label(job)}'s Workflow is #{workflow.state}"
+              @message = "marked #{work_unit_label(unit)} #{workflow.state} because closed #{job_label(job)}'s #{workflow_label(workflow)} is #{workflow.state}"
             else
               unit.preempt!(reason: "job_closed")
-              @message = "cancelled WorkUnit ##{unit.id} because #{job_label(job)} is closed and no Workflow is attached"
+              @message = "cancelled #{work_unit_label(unit)} because #{job_label(job)} is closed and no Workflow is attached"
             end
           end
 
@@ -753,7 +789,7 @@ module WorkEngine
           if remaining_steps.any? || remaining_runs.any?
             failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")
           else
-            success("cancelled active descendants for terminal Workflow ##{workflow.id}")
+            success("cancelled active descendants for terminal #{workflow_label(workflow)}")
           end
         end
       end
@@ -770,9 +806,9 @@ module WorkEngine
           active_locks.each(&:release!)
           remaining = unit.work_unit_locks.active.pluck(:id)
           if remaining.any?
-            failure("active locks remain for WorkUnit ##{unit.id}: #{remaining.inspect}")
+            failure("active locks remain for #{work_unit_label(unit)}: #{remaining.inspect}")
           else
-            success("released #{active_locks.size} active locks for terminal WorkUnit ##{unit.id}")
+            success("released #{active_locks.size} active locks for terminal #{work_unit_label(unit)}")
           end
         end
       end
@@ -792,9 +828,9 @@ module WorkEngine
 
           remaining_ids = WorkUnit.where(id: child_ids, parent_work_unit_id: parent.id, state: WorkUnits::Ownership::ACTIVE_STATES).pluck(:id)
           if remaining_ids.any?
-            failure("active child WorkUnits remain for terminal parent ##{parent.id}: #{remaining_ids.inspect}")
+            failure("active child WorkUnits remain for terminal parent #{work_unit_label(parent)}: #{work_unit_id_list_label(remaining_ids)}")
           else
-            success("cancelled #{active_children.size} active child WorkUnit(s) for terminal parent ##{parent.id}")
+            success("cancelled #{active_children.size} active child WorkUnit(s) for terminal parent #{work_unit_label(parent)}")
           end
         end
 
@@ -825,14 +861,14 @@ module WorkEngine
           unit = target_work_unit
           return skipped("WorkUnit no longer exists") unless unit
           return skipped("WorkUnit is #{unit.state}, not active") unless unit.active?
-          return skipped("WorkUnit already has Workflow ##{unit.workflow_id}") if unit.workflow_id.present?
+          return skipped("WorkUnit already has #{workflow_id_label(unit.workflow_id)}") if unit.workflow_id.present?
 
           unit.preempt!(reason: "missing_workflow")
           remaining_lock_ids = unit.work_unit_locks.active.pluck(:id)
           if remaining_lock_ids.any?
-            failure("cancelled WorkUnit ##{unit.id}, but active locks remain: #{remaining_lock_ids.inspect}")
+            failure("cancelled #{work_unit_label(unit)}, but active locks remain: #{remaining_lock_ids.inspect}")
           else
-            success("cancelled active WorkUnit ##{unit.id} without a Workflow")
+            success("cancelled active #{work_unit_label(unit)} without a Workflow")
           end
         end
       end
@@ -846,9 +882,9 @@ module WorkEngine
           result = WorkIntents::Scheduler.evaluate!(intent)
           intent.reload
           if result.pass?
-            success("rechecked WorkIntent ##{intent.id}; wait cleared=#{intent.requested?}")
+            success("rechecked #{work_intent_label(intent)}; wait cleared=#{intent.requested?}")
           else
-            skipped("WorkIntent ##{intent.id} still waits on #{result.reason}")
+            skipped("#{work_intent_label(intent)} still waits on #{result.reason}")
           end
         end
       end
@@ -862,10 +898,10 @@ module WorkEngine
           active_unit_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .pluck(:id)
-          return skipped("WorkIntent ##{intent.id} no longer has active WorkUnits") if active_unit_ids.empty?
+          return skipped("#{work_intent_label(intent)} no longer has active WorkUnits") if active_unit_ids.empty?
 
           intent.request!
-          success("cleared stale wait on WorkIntent ##{intent.id}; active WorkUnits: #{active_unit_ids.inspect}")
+          success("cleared stale wait on #{work_intent_label(intent)}; active WorkUnits: #{work_unit_id_list_label(active_unit_ids)}")
         end
       end
 
@@ -882,13 +918,13 @@ module WorkEngine
           )
 
           if result.already_active?
-            skipped("WorkIntent ##{intent.id} already has #{result.reason}")
+            skipped("#{work_intent_label(intent)} already has #{result.reason}")
           elsif result.waiting?
-            skipped("WorkIntent ##{intent.id} now waits on #{result.reason}")
+            skipped("#{work_intent_label(intent)} now waits on #{result.reason}")
           elsif result.blocked?
-            success("launched WorkIntent ##{intent.id} as blocked WorkUnit ##{result.work_unit&.id}: #{result.reason}")
+            success("launched #{work_intent_label(intent)} as blocked #{work_unit_label(result.work_unit)}: #{result.reason}")
           else
-            success("launched WorkIntent ##{intent.id} as Workflow ##{result.workflow.id}")
+            success("launched #{work_intent_label(intent)} as #{workflow_label(result.workflow)}")
           end
         end
 
@@ -923,7 +959,7 @@ module WorkEngine
           return skipped("unsupported dispatcher #{dispatcher.inspect}") unless dispatcher == "landing_queue"
 
           LandingQueueProcessorJob.perform_later
-          success("woke landing queue for WorkIntent ##{intent.id} (#{intent.kind})")
+          success("woke landing queue for #{work_intent_label(intent)} (#{intent.kind})")
         end
       end
 
@@ -935,18 +971,18 @@ module WorkEngine
 
           unit_id = plan.preconditions["work_unit_id"]
           unit = WorkUnit.find_by(id: unit_id)
-          return skipped("WorkUnit ##{unit_id} no longer exists") unless unit
-          return skipped("WorkUnit ##{unit.id} belongs to WorkIntent ##{unit.work_intent_id}, not ##{intent.id}") unless unit.work_intent_id == intent.id
-          return skipped("WorkUnit ##{unit.id} is #{unit.state}, not succeeded") unless unit.succeeded?
+          return skipped("#{work_unit_id_label(unit_id)} no longer exists") unless unit
+          return skipped("#{work_unit_label(unit)} belongs to #{work_intent_id_label(unit.work_intent_id)}, not #{work_intent_label(intent)}") unless unit.work_intent_id == intent.id
+          return skipped("#{work_unit_label(unit)} is #{unit.state}, not succeeded") unless unit.succeeded?
 
           active_sibling_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .where.not(id: unit.id)
             .pluck(:id)
-          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_sibling_ids.inspect}") if active_sibling_ids.any?
+          return skipped("#{work_intent_label(intent)} still has active WorkUnits: #{work_unit_id_list_label(active_sibling_ids)}") if active_sibling_ids.any?
 
           intent.satisfy!
-          success("satisfied WorkIntent ##{intent.id} from succeeded WorkUnit ##{unit.id}")
+          success("satisfied #{work_intent_label(intent)} from succeeded #{work_unit_label(unit)}")
         end
       end
 
@@ -958,23 +994,23 @@ module WorkEngine
 
           unit_id = plan.preconditions["work_unit_id"]
           unit = WorkUnit.find_by(id: unit_id)
-          return skipped("WorkUnit ##{unit_id} no longer exists") unless unit
-          return skipped("WorkUnit ##{unit.id} belongs to WorkIntent ##{unit.work_intent_id}, not ##{intent.id}") unless unit.work_intent_id == intent.id
-          return skipped("WorkUnit ##{unit.id} is #{unit.state}, not cancelled") unless unit.cancelled?
+          return skipped("#{work_unit_id_label(unit_id)} no longer exists") unless unit
+          return skipped("#{work_unit_label(unit)} belongs to #{work_intent_id_label(unit.work_intent_id)}, not #{work_intent_label(intent)}") unless unit.work_intent_id == intent.id
+          return skipped("#{work_unit_label(unit)} is #{unit.state}, not cancelled") unless unit.cancelled?
 
           expected_reason = plan.preconditions["preemption_reason"].to_s
           allowed_reasons = WorkIntents::TerminalUnitSync::SUPERSEDING_CANCEL_REASONS
-          return skipped("WorkUnit ##{unit.id} preemption reason #{unit.preemption_reason.inspect} is not superseding") unless allowed_reasons.include?(unit.preemption_reason.to_s)
-          return skipped("WorkUnit ##{unit.id} preemption reason changed from #{expected_reason.inspect} to #{unit.preemption_reason.inspect}") if expected_reason.present? && unit.preemption_reason.to_s != expected_reason
+          return skipped("#{work_unit_label(unit)} preemption reason #{unit.preemption_reason.inspect} is not superseding") unless allowed_reasons.include?(unit.preemption_reason.to_s)
+          return skipped("#{work_unit_label(unit)} preemption reason changed from #{expected_reason.inspect} to #{unit.preemption_reason.inspect}") if expected_reason.present? && unit.preemption_reason.to_s != expected_reason
 
           active_sibling_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .where.not(id: unit.id)
             .pluck(:id)
-          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_sibling_ids.inspect}") if active_sibling_ids.any?
+          return skipped("#{work_intent_label(intent)} still has active WorkUnits: #{work_unit_id_list_label(active_sibling_ids)}") if active_sibling_ids.any?
 
           intent.cancel!
-          success("cancelled WorkIntent ##{intent.id} from superseded WorkUnit ##{unit.id}")
+          success("cancelled #{work_intent_label(intent)} from superseded #{work_unit_label(unit)}")
         end
       end
 
@@ -986,18 +1022,18 @@ module WorkEngine
 
           unit_id = plan.preconditions["work_unit_id"]
           unit = WorkUnit.find_by(id: unit_id)
-          return skipped("WorkUnit ##{unit_id} no longer exists") unless unit
-          return skipped("WorkUnit ##{unit.id} belongs to WorkIntent ##{unit.work_intent_id}, not ##{intent.id}") unless unit.work_intent_id == intent.id
-          return skipped("WorkUnit ##{unit.id} is #{unit.state}, not failed") unless unit.failed?
+          return skipped("#{work_unit_id_label(unit_id)} no longer exists") unless unit
+          return skipped("#{work_unit_label(unit)} belongs to #{work_intent_id_label(unit.work_intent_id)}, not #{work_intent_label(intent)}") unless unit.work_intent_id == intent.id
+          return skipped("#{work_unit_label(unit)} is #{unit.state}, not failed") unless unit.failed?
 
           active_sibling_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .where.not(id: unit.id)
             .pluck(:id)
-          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_sibling_ids.inspect}") if active_sibling_ids.any?
+          return skipped("#{work_intent_label(intent)} still has active WorkUnits: #{work_unit_id_list_label(active_sibling_ids)}") if active_sibling_ids.any?
 
           intent.fail!
-          success("failed WorkIntent ##{intent.id} from failed WorkUnit ##{unit.id}")
+          success("failed #{work_intent_label(intent)} from failed #{work_unit_label(unit)}")
         end
       end
 
@@ -1010,9 +1046,9 @@ module WorkEngine
 
           keeper_id = plan.preconditions["keeper_workflow_id"]
           keeper = Workflow.find_by(id: keeper_id)
-          return skipped("Keeper Workflow ##{keeper_id} is no longer active") unless keeper&.queued? || keeper&.running?
-          return skipped("Keeper Workflow ##{keeper.id} belongs to a different Job") unless keeper.job_id == workflow.job_id
-          return skipped("Workflow ##{workflow.id} is not older than keeper Workflow ##{keeper.id}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
+          return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper&.queued? || keeper&.running?
+          return skipped("Keeper #{workflow_label(keeper)} belongs to a different Job") unless keeper.job_id == workflow.job_id
+          return skipped("#{workflow_label(workflow)} is not older than keeper #{workflow_label(keeper)}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
 
           with_transition_reason do
             workflow.artifacts = (workflow.artifacts || {}).merge(
@@ -1032,7 +1068,7 @@ module WorkEngine
             )
           end
 
-          success("cancelled superseded Workflow ##{workflow.id} because newer Workflow ##{keeper.id} is active")
+          success("cancelled superseded #{workflow_label(workflow)} because newer #{workflow_label(keeper)} is active")
         end
       end
 
@@ -1045,7 +1081,7 @@ module WorkEngine
 
           keeper_id = plan.preconditions["keeper_workflow_id"]
           keeper = Workflow.find_by(id: keeper_id)
-          return skipped("Keeper Workflow ##{keeper_id} is no longer active") unless keeper&.queued? || keeper&.running?
+          return skipped("Keeper #{workflow_id_label(keeper_id)} is no longer active") unless keeper&.queued? || keeper&.running?
 
           with_transition_reason do
             workflow.artifacts = (workflow.artifacts || {}).merge(
@@ -1065,7 +1101,7 @@ module WorkEngine
             )
           end
 
-          success("cancelled Workflow ##{workflow.id} because Epic-wide Workflow ##{keeper.id} is active")
+          success("cancelled #{workflow_label(workflow)} because Epic-wide #{workflow_label(keeper)} is active")
         end
       end
 
@@ -1157,7 +1193,7 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
 
           result = BranchDivergenceRecovery.discard_superseded!(workflow: workflow)
-          result.success? ? success("discarded superseded branch output for Workflow ##{workflow.id}") : skipped(result.error)
+          result.success? ? success("discarded superseded branch output for #{workflow_label(workflow)}") : skipped(result.error)
         end
       end
 
@@ -1190,7 +1226,7 @@ module WorkEngine
           return skipped("Workflow no longer exists") unless workflow
 
           result = RetryFailedStepEnqueuer.call(workflow: workflow)
-          result.success? ? success("started merge-train rebuild with Run ##{result.run.id}") : skipped(result.error)
+          result.success? ? success("started merge-train rebuild with #{run_label(result.run)}") : skipped(result.error)
         end
       end
 
@@ -1201,27 +1237,27 @@ module WorkEngine
           return skipped("WorkIntent is #{intent.state}, not requested/waiting") unless intent.requested? || intent.waiting?
 
           job = closed_job_for_intent(intent)
-          return skipped("Closed Job for WorkIntent ##{intent.id} no longer exists") unless job
+          return skipped("Closed Job for #{work_intent_label(intent)} no longer exists") unless job
           return skipped("#{job_label(job)} is #{job.state}, not closed") unless job.closed?
 
           active_unit_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
             .pluck(:id)
-          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_unit_ids.inspect}") if active_unit_ids.any?
+          return skipped("#{work_intent_label(intent)} still has active WorkUnits: #{work_unit_id_list_label(active_unit_ids)}") if active_unit_ids.any?
 
           member_ids = member_job_ids_for_intent(intent)
           if intent.scope_type != "job"
-            return skipped("WorkIntent ##{intent.id} is not attached to #{job_label(job)}") unless member_ids.include?(job.id)
+            return skipped("#{work_intent_label(intent)} is not attached to #{job_label(job)}") unless member_ids.include?(job.id)
 
             open_member_ids = Job.where(id: member_ids).where.not(state: "closed").pluck(:id)
-            return skipped("WorkIntent ##{intent.id} still has open member Jobs: #{open_member_ids.inspect}") if open_member_ids.any?
+            return skipped("#{work_intent_label(intent)} still has open member Jobs: #{open_member_ids.inspect}") if open_member_ids.any?
           end
 
           intent.cancel!
           if intent.scope_type == "job"
-            success("cancelled WorkIntent ##{intent.id} because #{job_label(job)} is closed")
+            success("cancelled #{work_intent_label(intent)} because #{job_label(job)} is closed")
           else
-            success("cancelled WorkIntent ##{intent.id} because member Jobs #{member_ids.inspect} are closed")
+            success("cancelled #{work_intent_label(intent)} because member Jobs #{member_ids.inspect} are closed")
           end
         end
 
@@ -1315,7 +1351,7 @@ module WorkEngine
           result = retry_cancelled_workflow(job, latest, retry_reason: "epic_workflow_conflict_recovered")
           return skipped(result.error) unless result.success?
 
-          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for #{job_label(job)} after Epic-wide workflow conflict cleared")
+          success("started #{result.workflow.trigger_kind} #{workflow_label(result.workflow)} for #{job_label(job)} after Epic-wide workflow conflict cleared")
         end
 
         private
@@ -1348,7 +1384,7 @@ module WorkEngine
           result = retry_cancelled_workflow(job, latest, retry_reason: "cancelled_workflow_recovered")
           return skipped(result.error) unless result.success?
 
-          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for #{job_label(job)} after cancelled Workflow ##{latest.id}")
+          success("started #{result.workflow.trigger_kind} #{workflow_label(result.workflow)} for #{job_label(job)} after cancelled #{workflow_label(latest)}")
         end
 
         private

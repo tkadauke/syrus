@@ -36,7 +36,7 @@ RSpec.describe WorkEngine::ReconcilerActivity do
           target_type: "Run",
           target_id: run.id,
           status: execution_status,
-          message: execution_status == "skipped" ? "retry already pending" : "re-enqueued Run ##{run.id}"
+          message: execution_status == "skipped" ? "retry already pending" : "re-enqueued #{run.slug}"
         )
       ]
     )
