@@ -36,6 +36,8 @@ class AutoRetryJob < ApplicationJob
       WorkUnits::AutoRetryBackoff.clear!(attempt)
       log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
     end
+  rescue WorkUnits::Launcher::LockConflict => e
+    reschedule_for_active_work_unit(attempt, e)
   end
 
   RETRY_DISPATCH = {
@@ -43,6 +45,7 @@ class AutoRetryJob < ApplicationJob
     "resume_failed_step" => :resume_failed_step,
     "retry_workflow"     => :retry_workflow
   }.freeze
+  ACTIVE_WORK_UNIT_RETRY_DELAY = 5.minutes
 
   private
 
@@ -93,6 +96,18 @@ class AutoRetryJob < ApplicationJob
     WorkUnits::AutoRetryBackoff.record!(attempt)
     AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
     log(attempt, "auto-retry delayed until #{retry_after.iso8601}: #{circuit.reason}")
+  end
+
+  def reschedule_for_active_work_unit(attempt, conflict)
+    retry_after = Time.current + ACTIVE_WORK_UNIT_RETRY_DELAY
+
+    attempt.update!(scheduled_at: retry_after)
+    AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
+    log(
+      attempt,
+      "auto-retry delayed until #{retry_after.iso8601}: " \
+        "active WorkUnit ##{conflict.work_unit.id} owns #{conflict.lock_key}"
+    )
   end
 
   def perform_retry(attempt)
