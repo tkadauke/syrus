@@ -250,6 +250,19 @@ grade:
     # parallelism, since fewer processes cost more total CPU (see above).
     timeout_minutes: 60
 
+  - name: rspec-focused
+    description: |
+      Runs only the RSpec files covering the diff so far (changed spec
+      files plus the conventional spec for each changed app/lib source
+      file) on every review-phase grade iteration. Fast feedback loop —
+      the full suite still runs at landing via the `rspec` grader.
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rspec-focused
+    phases: [review]
+    when_files_changed: ["app/**/*.rb", "lib/**/*.rb", "spec/**/*.rb", "plugins/**/*.rb"]
+    junit_output: .syrus/grade-output/rspec-focused-junit.xml
+    failures: allow_inherited
+    timeout_minutes: 10
+
   - name: rspec-ci
     description: |
       Full GitHub Actions-equivalent RSpec suite, including specs tagged
@@ -275,6 +288,19 @@ grade:
     junit_output: .syrus/grade-output/react-tests-junit.xml
     failures: allow_inherited
     timeout_minutes: 20
+
+  - name: react-tests-focused
+    description: |
+      Runs only the Vitest tests related (via Vitest's native module-graph
+      `related` resolution) to the diff so far, on every review-phase
+      grade iteration. Fast feedback loop — the full suite + typecheck
+      still run at landing/ci via the `react-tests` grader.
+    run: bin/test-react-focused
+    phases: [review]
+    when_files_changed: ["app/frontend/**/*.ts", "app/frontend/**/*.tsx", "plugins/**/app/frontend/**/*.ts", "plugins/**/app/frontend/**/*.tsx", "desktop/src/**/*.ts", "desktop/src/**/*.tsx"]
+    junit_output: .syrus/grade-output/react-tests-focused-junit.xml
+    failures: allow_inherited
+    timeout_minutes: 10
 
   - name: website-build
     description: |
