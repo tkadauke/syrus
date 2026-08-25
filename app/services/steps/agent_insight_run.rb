@@ -11,7 +11,7 @@ module Steps
     KNOWN_RESOLVED_INSIGHT_LIMIT = 25
     RECENT_JOB_LIMIT = 50
     FALLBACK_ANALYSIS_WINDOW = 14.days
-    EXCLUDED_RECENT_JOB_KINDS = %w[ agent_insight main_grader ].freeze
+    EXCLUDED_RECENT_JOB_KINDS = %w[ agent_insight main_grader deploy ].freeze
 
     def call
       workspace.setup

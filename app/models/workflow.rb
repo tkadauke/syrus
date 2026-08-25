@@ -159,6 +159,7 @@ class Workflow < ApplicationRecord
 
   def job_must_be_open_on_create
     return unless job&.closed?
+    return if trigger_kind == "deploy" && job.landed_sha.present?
 
     errors.add(:job, "is closed")
   end

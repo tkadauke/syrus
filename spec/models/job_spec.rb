@@ -99,6 +99,26 @@ RSpec.describe Job do
     end
   end
 
+  describe "#deployable?" do
+    it "allows implemented, approved, and landing jobs" do
+      expect(Factories.job_record(state: "implemented")).to be_deployable
+      expect(Factories.job_record(state: "approved")).to be_deployable
+      expect(Factories.job_record(state: "landing")).to be_deployable
+    end
+
+    it "rejects jobs before implementation" do
+      expect(Factories.job_record(state: "running")).not_to be_deployable
+    end
+
+    it "allows a closed job that has landed with a merged commit sha (redeploy)" do
+      expect(Factories.job_record(state: "closed", landed_sha: "abc123")).to be_deployable
+    end
+
+    it "rejects a closed job with no merged commit sha" do
+      expect(Factories.job_record(state: "closed", landed_sha: nil)).not_to be_deployable
+    end
+  end
+
   describe "#visual_review_runnable?" do
     it "allows implemented and approved jobs with no active run" do
       expect(Factories.job_record(state: "implemented")).to be_visual_review_runnable
@@ -1650,6 +1670,37 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       si = job.synthetic_issue
       expect(si.body).to eq("Skill: investigate\n\nWhat changed?")
+    end
+  end
+
+  describe "deploy job kind" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    def build_deploy_job(**attrs)
+      Job.new({
+        user: user,
+        repository: repository,
+        kind: "deploy",
+        issue_title: "deploy:abc123",
+        issue_number: nil
+      }.merge(attrs))
+    end
+
+    it "#deploy_job? is true only for kind=deploy" do
+      expect(build_deploy_job).to be_deploy_job
+      expect(Factories.job_record(repository: repository, kind: "issue")).not_to be_deploy_job
+    end
+
+    it "rejects an issue_number on a deploy Job" do
+      job = build_deploy_job(issue_number: 42)
+
+      expect(job).not_to be_valid
+      expect(job.errors[:issue_number]).to include("must be blank for deploy Jobs")
+    end
+
+    it "is a valid Job kind" do
+      expect(build_deploy_job).to be_valid
     end
   end
 

@@ -680,6 +680,7 @@ export type JobActions = {
   can_manage_tags: boolean
   can_open_in_coding_mode: boolean
   can_start_preview: boolean
+  can_deploy: boolean
   can_run_visual_review: boolean
   can_request_changes: boolean
   feedback_agent_options: string[]
@@ -779,6 +780,7 @@ export type JobPaths = {
   app_provider_setting_path?: string
   app_preview_path: string
   app_preview_logs_path: string
+  app_deploy_path: string
   app_visual_review_path: string
   app_request_changes_path: string
   admin_resource_admission_path: string
@@ -813,6 +815,25 @@ export type PreviewActionPayload = {
   message: string
 }
 
+export type DeployWorkflowRecord = {
+  id: number
+  state: "queued" | "running" | "succeeded" | "failed" | "cancelled"
+  failure_reason: string | null
+  created_at: string | null
+  started_at: string | null
+  finished_at: string | null
+  path: string
+}
+
+export type DeployStatusPayload = {
+  deploy: DeployWorkflowRecord | null
+}
+
+export type DeployActionPayload = {
+  deploy: DeployWorkflowRecord
+  message: string
+}
+
 export type JobDetailPayload = {
   message?: string | null
   job: JobRecord
@@ -839,6 +860,7 @@ export type JobDetailPayload = {
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
+  deploy: DeployWorkflowRecord | null
   current_intent?: JobWorkIntent | null
   active_work?: JobWorkUnit | null
   work_units?: JobWorkUnit[]
@@ -1124,4 +1146,12 @@ export function startPreview(path: string) {
 
 export function stopPreview(path: string) {
   return deleteJson<PreviewActionPayload>(path)
+}
+
+export function fetchDeploy(path: string) {
+  return getJson<DeployStatusPayload>(path)
+}
+
+export function startDeploy(path: string) {
+  return postJson<DeployActionPayload>(path)
 }

@@ -156,6 +156,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_attachments_controller.rb
   - app/controllers/api/v1/app/job_claims_controller.rb
   - app/controllers/api/v1/app/job_coding_mode_controller.rb
+  - app/controllers/api/v1/app/job_deploy_controller.rb
   - app/controllers/api/v1/app/job_lifecycle_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb

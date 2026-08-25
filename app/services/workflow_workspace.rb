@@ -239,6 +239,8 @@ class WorkflowWorkspace
       "syrus/direct-#{@job.id}"
     elsif @job.main_grader?
       @repository.default_branch
+    elsif @job.deploy_job?
+      @repository.default_branch
     elsif @job.external_pr?
       "external-pr-#{@job.external_pr_number}-#{@job.id}"
     else
@@ -282,8 +284,18 @@ class WorkflowWorkspace
 
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: path.to_s)
 
+    if commit_sha_revision?
+      checkout_commit_sha!
+      return
+    end
+
     if @job.main_grader?
       checkout_main_sha!
+      return
+    end
+
+    if @job.deploy_job?
+      checkout_deploy_sha!
       return
     end
 
@@ -423,6 +435,19 @@ class WorkflowWorkspace
     @git.run("checkout", sha, chdir: path.to_s)
   end
 
+  # For continuous-deploy anchor Jobs (MaybeDeployJob): detach HEAD at the
+  # exact default-branch SHA that was resolved when the deploy was
+  # triggered, so the deploy command runs against that commit even if the
+  # default branch advances again before this workspace clones.
+  def checkout_deploy_sha!
+    return unless @job.deploy_job?
+
+    sha = @workflow.artifact("deploy_sha")
+    return if sha.blank?
+
+    @git.run("checkout", sha, chdir: path.to_s)
+  end
+
   # For external_pr jobs: fetch the exact PR commit via GitHub's
   # refs/pull/<number>/head ref. Works for both same-repo PRs and fork PRs
   # without needing to know the fork's remote URL.
@@ -461,9 +486,24 @@ class WorkflowWorkspace
   # the fork's own default here (guaranteed to exist even when it differs from
   # the upstream's default branch name).
   def clone_checkout_branch
-    return @repository.default_branch if base_on_upstream_default?
+    return @repository.default_branch if commit_sha_revision? || base_on_upstream_default?
 
     base_branch
+  end
+
+  # A closed, landed Job's PR branch is typically deleted right after
+  # merge (same problem PreviewWorkspace's `:commit_sha` revision mode
+  # already solves — see `checkout_commit_sha!` there). Scoped narrowly to
+  # `deploy` Workflows: every other trigger_kind targets an open/approved
+  # Job with a live branch today, so their setup must not change.
+  def commit_sha_revision?
+    @workflow.trigger_kind == "deploy" && @job.closed? && @job.landed_sha.present?
+  end
+
+  # The default-branch clone above is non-shallow, so a merge commit that
+  # already landed on that branch is present locally without an extra fetch.
+  def checkout_commit_sha!
+    @git.run("checkout", @job.landed_sha, chdir: path.to_s)
   end
 
   # Fetch the in-instance upstream's default branch into a remote-tracking ref

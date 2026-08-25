@@ -555,29 +555,32 @@ RSpec.describe "Filters::Chips" do
       }.update!(enabled: true)
     end
 
-    it "is:user returns only user-facing jobs (issue, direct) and excludes agent_insight" do
+    it "is:user returns only user-facing jobs (issue, direct) and excludes agent_insight and deploy" do
       issue_job   = Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
       direct_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "direct")
       Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
       Factories.job_record(repository: repo, issue_number: nil, kind: "agent_insight")
+      Factories.job_record(repository: repo, issue_number: nil, kind: "deploy")
 
       expect(run(field: "job_type", op: "is", value: "user")).to contain_exactly(issue_job, direct_job)
     end
 
-    it "is:system returns main_grader and agent_insight jobs" do
+    it "is:system returns main_grader, agent_insight, and deploy jobs" do
       Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
       grader_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
       insight_job = Factories.job_record(repository: repo, issue_number: nil, kind: "agent_insight")
+      deploy_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "deploy")
 
-      expect(run(field: "job_type", op: "is", value: "system")).to contain_exactly(grader_job, insight_job)
+      expect(run(field: "job_type", op: "is", value: "system")).to contain_exactly(grader_job, insight_job, deploy_job)
     end
 
-    it "is_not:user returns system jobs including agent_insight" do
+    it "is_not:user returns system jobs including agent_insight and deploy" do
       Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
       grader_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
       insight_job = Factories.job_record(repository: repo, issue_number: nil, kind: "agent_insight")
+      deploy_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "deploy")
 
-      expect(run(field: "job_type", op: "is_not", value: "user")).to contain_exactly(grader_job, insight_job)
+      expect(run(field: "job_type", op: "is_not", value: "user")).to contain_exactly(grader_job, insight_job, deploy_job)
     end
   end
 end

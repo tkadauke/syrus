@@ -22,7 +22,7 @@ class StepDispatcher
     return unless first
     return if first.runs.any?
 
-    if workflow.job.closed?
+    if workflow.job.closed? && !redeploy_on_closed_job?(workflow)
       cancel_unstartable_closed_job_workflow!(workflow)
       return
     end
@@ -306,6 +306,15 @@ class StepDispatcher
       artifacts[RebaseTarget::BASE_SHA_ARTIFACT] = prepared["head_sha"] if prepared["head_sha"].present?
     end
     workflow.update!(artifacts: artifacts)
+  end
+
+  # Mirrors WorkflowWorkspace#commit_sha_revision? — a deploy Workflow on an
+  # already-landed, closed Job is a legitimate redeploy (checks out
+  # landed_sha instead of the deleted PR branch), not a stray workflow left
+  # over on a Job that's done. Every other trigger_kind still can't start
+  # once its Job is closed.
+  def self.redeploy_on_closed_job?(workflow)
+    workflow.trigger_kind == "deploy" && workflow.job.landed_sha.present?
   end
 
   def self.cancel_unstartable_closed_job_workflow!(workflow)

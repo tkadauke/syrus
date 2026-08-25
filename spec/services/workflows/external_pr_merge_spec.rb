@@ -179,6 +179,17 @@ RSpec.describe Workflows::ExternalPrMerge do
       workflow.update!(state: "succeeded")
 
       expect(LandingQueueProcessor).to receive(:try_land!).with(no_args)
+      allow(DeployContinuousTrigger).to receive(:after_landing!)
+
+      described_class.after_success(workflow)
+    end
+
+    it "checks for a continuous-deploy trigger on the Job's repository" do
+      workflow = described_class.instantiate(job: job)
+      workflow.update!(state: "succeeded")
+
+      allow(LandingQueueProcessor).to receive(:try_land!)
+      expect(DeployContinuousTrigger).to receive(:after_landing!).with(repository)
 
       described_class.after_success(workflow)
     end

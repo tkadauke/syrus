@@ -203,6 +203,38 @@ If nothing about the change stands out, no comment is posted at all.
 Review plan is best-effort: it never blocks or fails a Job. If the agent
 doesn't produce anything usable, the run simply moves on without a comment.
 
+## Deploy
+
+Repositories can configure a shell command Syrus runs to actually deploy the
+application — not a preview, a real deployment:
+
+```yaml
+deploy:
+  mode: manual               # or continuous — default manual
+  run: "bin/deploy"          # required
+  allow_unapproved: false    # default false
+  min_interval_minutes: 15   # optional, continuous-only
+```
+
+Once configured, a Job's detail page shows a **Deploy** button next to
+**Preview**, available whenever the Job has a resolvable revision
+(implemented, approved, landing, or already landed). Clicking it runs the
+configured command against that Job's code and shows the deploy's status —
+queued, running, succeeded, or failed — right there, with a link to the full
+run.
+
+Deploying an unapproved Job is forbidden by default; a repository can opt out
+of that guard with `deploy.allow_unapproved: true` in `.syrus.yml`. Only one
+deploy can be in flight per Job at a time.
+
+With `deploy.mode: continuous`, Syrus automatically deploys the repository's
+default branch every time a Job lands — no manual click needed. Deploys are
+limited to one in flight per repository at a time; if a merge lands while a
+deploy is already running, it doesn't pile up. `min_interval_minutes`
+optionally throttles how often auto-triggered deploys can happen — a burst of
+several merges inside the throttle window still results in exactly one
+deploy of the latest code once the window opens, never a dropped deploy.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a

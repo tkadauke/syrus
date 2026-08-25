@@ -452,4 +452,15 @@ module WorkDefinitions
     self.runtime_role = "first_class"
     self.scope = "job"
   end
+
+  class Deploy < Base
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+    include RecoverableCancelledWorkflow
+
+    self.kind = "deploy"
+    self.workflow_trigger_kind = "deploy"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
 end

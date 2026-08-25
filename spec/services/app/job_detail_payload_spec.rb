@@ -2556,4 +2556,76 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:actions, :can_request_changes)).to be(false)
     end
   end
+
+  describe "#actions_json can_deploy and #deploy" do
+    around do |example|
+      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+      previous_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+      example.run
+      ENV["SYRUS_DATA_ROOT"] = previous_root
+      FileUtils.rm_rf(@data_root)
+    end
+
+    def write_bare_clone(repository, syrus_yml: nil)
+      work_dir = Dir.mktmpdir("syrus-work")
+      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+      File.write(File.join(work_dir, "README.md"), "hi") unless syrus_yml
+      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml) if syrus_yml
+      system("git", "-C", work_dir, "add", ".", exception: true)
+      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+      clone_path = @data_root.join("clones", "#{repository.id}.git")
+      FileUtils.mkdir_p(clone_path.dirname)
+      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    ensure
+      FileUtils.rm_rf(work_dir) if work_dir
+    end
+
+    it "is true for an implemented job when .syrus.yml configures deploy" do
+      write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_deploy)).to be(true)
+    end
+
+    it "is false when .syrus.yml has no deploy block" do
+      write_bare_clone(repo)
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_deploy)).to be(false)
+    end
+
+    it "is false for a job that has not been implemented yet, even when configured" do
+      write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_deploy)).to be(false)
+    end
+
+    it "is true for a closed job that landed, when configured" do
+      write_bare_clone(repo, syrus_yml: "deploy:\n  run: bin/deploy\n")
+      job = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
+
+      expect(payload_for(job).dig(:actions, :can_deploy)).to be(true)
+    end
+
+    it "includes the latest deploy workflow's status" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      Workflow.create!(job: job, trigger_kind: "deploy", state: "succeeded", finished_at: 1.hour.ago)
+      latest = Workflow.create!(job: job, trigger_kind: "deploy", state: "running", started_at: Time.current)
+
+      deploy = payload_for(job).fetch(:deploy)
+
+      expect(deploy).to include(id: latest.id, state: "running")
+    end
+
+    it "is nil when no deploy workflow exists" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).fetch(:deploy)).to be_nil
+    end
+  end
 end

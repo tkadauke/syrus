@@ -29,4 +29,15 @@ RSpec.describe Workflows::AutoMerge do
       )
     end
   end
+
+  describe ".after_success" do
+    it "tries to land the queue and checks for a continuous-deploy trigger" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(LandingQueueProcessor).to receive(:try_land!)
+      expect(DeployContinuousTrigger).to receive(:after_landing!).with(repository)
+
+      described_class.after_success(workflow)
+    end
+  end
 end
