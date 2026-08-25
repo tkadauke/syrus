@@ -50,3 +50,50 @@ export function fetchMysqlTableContent(
   const path = `/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables/${encodeURIComponent(table)}/content`
   return getJson<MysqlContentResult>(query ? `${path}?${query}` : path)
 }
+
+// Query builder spec - mirrors MysqlDbBrowser::QueryBuilderCompiler's spec
+// shape server-side. Every column reference (columns, aggregations[].column,
+// group_by, join.from_column/to_column, sort.column) is a "table.column"
+// qualified string, resolved and validated against the real schema on the
+// server - the frontend never needs its own copy of that validation.
+export type MysqlBuilderAggregation = {
+  function: "count" | "sum" | "avg" | "min" | "max"
+  column: string
+  alias?: string
+}
+
+export type MysqlBuilderJoin = {
+  table: string
+  type: "inner" | "left"
+  from_column: string
+  to_column: string
+}
+
+export type MysqlBuilderSort = {
+  column: string
+  direction: "asc" | "desc"
+}
+
+export type MysqlQueryBuilderSpec = {
+  table: string
+  columns?: string[]
+  aggregations?: MysqlBuilderAggregation[]
+  group_by?: string[]
+  join?: MysqlBuilderJoin
+  sort?: MysqlBuilderSort
+  limit?: number
+}
+
+export function fetchMysqlQueryBuilderResult(
+  connectionId: number,
+  database: string,
+  spec: MysqlQueryBuilderSpec,
+  params: { q?: string } = {}
+) {
+  const search = new URLSearchParams()
+  search.set("spec", JSON.stringify(spec))
+  if (params.q) search.set("q", params.q)
+
+  const path = `/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/query_builder`
+  return getJson<MysqlContentResult>(`${path}?${search.toString()}`)
+}

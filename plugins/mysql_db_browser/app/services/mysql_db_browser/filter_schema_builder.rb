@@ -5,6 +5,11 @@ module MysqlDbBrowser
   # column payloads). This is the "column -> field, MySQL type -> bucket,
   # bucket -> operators" glue the issue calls for - no new filter-chip UI,
   # just data FilterBar already knows how to render.
+  #
+  # table_prefix qualifies the field name as "table.column" (and the label
+  # as "Table: Column") - used by the query builder's filter step, where a
+  # join can put two tables' columns in the same filterSchema and an
+  # unqualified field name would be ambiguous.
   class FilterSchemaBuilder
     STRING_OPERATORS = %w[contains does_not_contain starts_with does_not_start_with ends_with does_not_end_with equals not_equals is_set is_unset].freeze
     NUMBER_OPERATORS = %w[equals not_equals greater_than less_than between is_set is_unset].freeze
@@ -12,15 +17,16 @@ module MysqlDbBrowser
     DATE_OPERATORS = %w[before after between within_last more_than_ago is_set is_unset].freeze
     ENUM_OPERATORS = %w[is is_not is_one_of is_none_of].freeze
 
-    def self.build(columns)
-      columns.map { |column| field_for(column) }
+    def self.build(columns, table_prefix: nil)
+      columns.map { |column| field_for(column, table_prefix) }
     end
 
-    def self.field_for(column)
+    def self.field_for(column, table_prefix = nil)
       bucket = bucket_for(column)
+      name = column[:name].to_s
       field = {
-        field: column[:name],
-        label: column[:name].to_s.humanize,
+        field: table_prefix ? "#{table_prefix}.#{name}" : name,
+        label: table_prefix ? "#{table_prefix.to_s.humanize}: #{name.humanize}" : name.humanize,
         bucket: bucket,
         operators: operators_for(bucket)
       }

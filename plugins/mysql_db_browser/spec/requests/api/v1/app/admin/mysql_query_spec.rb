@@ -129,7 +129,8 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
           { "COLUMN_NAME" => "id", "COLUMN_TYPE" => "bigint", "DATA_TYPE" => "bigint", "IS_NULLABLE" => "NO", "COLUMN_KEY" => "PRI", "COLUMN_DEFAULT" => nil, "EXTRA" => "auto_increment", "CHARACTER_MAXIMUM_LENGTH" => nil, "NUMERIC_PRECISION" => 20, "NUMERIC_SCALE" => 0, "COLUMN_COMMENT" => "" },
           { "COLUMN_NAME" => "email", "COLUMN_TYPE" => "varchar(255)", "DATA_TYPE" => "varchar", "IS_NULLABLE" => "YES", "COLUMN_KEY" => "", "COLUMN_DEFAULT" => nil, "EXTRA" => "", "CHARACTER_MAXIMUM_LENGTH" => 255, "NUMERIC_PRECISION" => nil, "NUMERIC_SCALE" => nil, "COLUMN_COMMENT" => "" }
         ],
-        /information_schema\.STATISTICS/ => []
+        /information_schema\.STATISTICS/ => [],
+        /information_schema\.KEY_COLUMN_USAGE/ => []
       }
     end
 
@@ -160,6 +161,87 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections/:id/query and .../conte
 
       expect(response).to have_http_status(:ok)
       expect(client).to have_received(:query).with(a_string_including("WHERE (`email` = 'a@example.com')"), any_args)
+    end
+  end
+
+  describe "GET .../schema/:database/query_builder" do
+    before do
+      enable_plugin!
+      sign_in_as(admin)
+    end
+
+    def orders_introspection_rows
+      {
+        /information_schema\.TABLES/ => [ { "TABLE_TYPE" => "BASE TABLE", "ENGINE" => "InnoDB", "TABLE_ROWS" => 2, "DATA_LENGTH" => 1, "INDEX_LENGTH" => 1, "AUTO_INCREMENT" => nil, "CREATE_TIME" => nil, "UPDATE_TIME" => nil, "TABLE_COLLATION" => "utf8mb4_0900_ai_ci", "TABLE_COMMENT" => "" } ],
+        /information_schema\.COLUMNS/ => [
+          { "COLUMN_NAME" => "id", "COLUMN_TYPE" => "bigint", "DATA_TYPE" => "bigint", "IS_NULLABLE" => "NO", "COLUMN_KEY" => "PRI", "COLUMN_DEFAULT" => nil, "EXTRA" => "auto_increment", "CHARACTER_MAXIMUM_LENGTH" => nil, "NUMERIC_PRECISION" => 20, "NUMERIC_SCALE" => 0, "COLUMN_COMMENT" => "" },
+          { "COLUMN_NAME" => "status", "COLUMN_TYPE" => "varchar(20)", "DATA_TYPE" => "varchar", "IS_NULLABLE" => "YES", "COLUMN_KEY" => "", "COLUMN_DEFAULT" => nil, "EXTRA" => "", "CHARACTER_MAXIMUM_LENGTH" => 20, "NUMERIC_PRECISION" => nil, "NUMERIC_SCALE" => nil, "COLUMN_COMMENT" => "" }
+        ],
+        /information_schema\.STATISTICS/ => [],
+        /information_schema\.KEY_COLUMN_USAGE/ => []
+      }
+    end
+
+    it "compiles a plain column spec and runs it" do
+      stub_clients(fake_client(introspection_rows: orders_introspection_rows, content_rows: [ { "id" => 1, "status" => "pending" } ]))
+      spec = { table: "orders", columns: [ "orders.id", "orders.status" ] }.to_json
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["rows"]).to eq([ { "id" => 1, "status" => "pending" } ])
+      expect(parse_body["filter_schema"].map { |f| f["field"] }).to contain_exactly("orders.id", "orders.status")
+    end
+
+    it "compiles a summarize (aggregate/group-by) spec" do
+      client = fake_client(introspection_rows: orders_introspection_rows, content_rows: [ { "status" => "pending", "row_count" => 3 } ])
+      stub_clients(client)
+      spec = { table: "orders", aggregations: [ { function: "count", column: "*" } ], group_by: [ "orders.status" ] }.to_json
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
+
+      expect(response).to have_http_status(:ok)
+      expect(client).to have_received(:query).with(a_string_including("GROUP BY `orders`.`status`"), any_args)
+    end
+
+    it "applies an encoded filter tree to the generated WHERE clause" do
+      client = fake_client(introspection_rows: orders_introspection_rows, content_rows: [])
+      stub_clients(client)
+      spec = { table: "orders" }.to_json
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "orders.status", "op" => "equals", "value" => "pending" } ] })
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec, q: q }
+
+      expect(response).to have_http_status(:ok)
+      expect(client).to have_received(:query).with(a_string_including("WHERE (`orders`.`status` = 'pending')"), any_args)
+    end
+
+    it "returns invalid_spec for malformed JSON" do
+      stub_clients(fake_client(introspection_rows: orders_introspection_rows))
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: "not json" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_spec")
+    end
+
+    it "returns invalid_spec when the spec references an unknown column" do
+      stub_clients(fake_client(introspection_rows: orders_introspection_rows))
+      spec = { table: "orders", columns: [ "orders.nope" ] }.to_json
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_spec")
+    end
+
+    it "404s when the base table does not exist" do
+      stub_clients(fake_client(introspection_rows: { /information_schema\.TABLES/ => [] }))
+      spec = { table: "missing" }.to_json
+
+      get "/api/v1/app/admin/mysql_connections/#{connection.id}/schema/app_prod/query_builder", params: { spec: spec }
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 end

@@ -55,4 +55,11 @@ RSpec.describe MysqlDbBrowser::FilterSchemaBuilder do
 
     expect(fields.first[:label]).to eq("Default database")
   end
+
+  it "qualifies the field and label with a table_prefix, for join-aware filter schemas" do
+    fields = described_class.build([ column(name: "email", data_type: "varchar", column_type: "varchar(255)") ], table_prefix: "customers")
+
+    expect(fields.first[:field]).to eq("customers.email")
+    expect(fields.first[:label]).to eq("Customers: Email")
+  end
 end

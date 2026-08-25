@@ -113,7 +113,8 @@ RSpec.describe MysqlDbBrowser::SchemaInspector do
       /information_schema\.STATISTICS/ => [
         { "INDEX_NAME" => "PRIMARY", "NON_UNIQUE" => 0, "SEQ_IN_INDEX" => 1, "COLUMN_NAME" => "id", "INDEX_TYPE" => "BTREE" },
         { "INDEX_NAME" => "index_users_on_email", "NON_UNIQUE" => 0, "SEQ_IN_INDEX" => 1, "COLUMN_NAME" => "email", "INDEX_TYPE" => "BTREE" }
-      ]
+      ],
+      /information_schema\.KEY_COLUMN_USAGE/ => []
     })
     original = stub_client_factory(client)
 
@@ -127,6 +128,32 @@ RSpec.describe MysqlDbBrowser::SchemaInspector do
     expect(payload[:indexes][:rows]).to contain_exactly(
       include(name: "PRIMARY", unique: true, columns: [ "id" ]),
       include(name: "index_users_on_email", unique: true, columns: [ "email" ])
+    )
+    expect(payload[:foreign_keys]).to eq(available: true, truncated: false, rows: [])
+  ensure
+    described_class.client_factory = original
+  end
+
+  it "returns outgoing and incoming foreign keys, symmetric from_table/from_column -> to_table/to_column" do
+    client = fake_client(rows_by_sql: {
+      /information_schema\.TABLES/ => [ { "TABLE_TYPE" => "BASE TABLE", "ENGINE" => "InnoDB", "TABLE_ROWS" => 1, "DATA_LENGTH" => 1, "INDEX_LENGTH" => 1, "AUTO_INCREMENT" => nil, "CREATE_TIME" => nil, "UPDATE_TIME" => nil, "TABLE_COLLATION" => "utf8mb4_0900_ai_ci", "TABLE_COMMENT" => "" } ],
+      /information_schema\.COLUMNS/ => [],
+      /information_schema\.STATISTICS/ => [],
+      /REFERENCED_TABLE_SCHEMA = 'app_prod' AND REFERENCED_TABLE_NAME = 'orders'/ => [
+        { "CONSTRAINT_NAME" => "fk_payments_order", "TABLE_NAME" => "payments", "COLUMN_NAME" => "order_id", "REFERENCED_COLUMN_NAME" => "id" }
+      ],
+      /TABLE_SCHEMA = 'app_prod' AND TABLE_NAME = 'orders'/ => [
+        { "CONSTRAINT_NAME" => "fk_orders_customer", "COLUMN_NAME" => "customer_id", "REFERENCED_TABLE_NAME" => "customers", "REFERENCED_COLUMN_NAME" => "id" }
+      ]
+    })
+    original = stub_client_factory(client)
+
+    payload = described_class.new(connection).table("app_prod", "orders")
+
+    expect(payload[:foreign_keys][:available]).to be(true)
+    expect(payload[:foreign_keys][:rows]).to contain_exactly(
+      include(direction: "outgoing", from_table: "orders", from_column: "customer_id", to_table: "customers", to_column: "id"),
+      include(direction: "incoming", from_table: "payments", from_column: "order_id", to_table: "orders", to_column: "id")
     )
   ensure
     described_class.client_factory = original
