@@ -369,7 +369,7 @@ Configured stages are shown on Job detail pages and as per-stage columns in the 
 
 ## deploy
 
-Configures a shell command Syrus can run to actually deploy this repository — a manual action on a Job, or (once enabled) an automatic trigger after a landing Workflow succeeds. See [`deploy.md`](deploy.md) for the full feature: the `deploy` trigger_kind, the `prepare → deploy` Workflow chain, and the `Steps::Deploy` handler.
+Configures a shell command Syrus can run to actually deploy this repository — a manual action on a Job, or (with `mode: continuous`) an automatic trigger after a landing Workflow succeeds. See [`deploy.md`](deploy.md) for the full feature: the `deploy` trigger_kind, the `prepare → deploy` Workflow chain, the `Steps::Deploy` handler, and `MaybeDeployJob`'s continuous-deploy debounce/throttle.
 
 ```yaml
 deploy:

@@ -47,7 +47,7 @@ module ChatAttachmentSearch
     Current.user.repositories.active.order(:owner, :name, :id)
   end
 
-  INFRA_JOB_KINDS = %w[main_grader agent_insight].freeze
+  INFRA_JOB_KINDS = %w[main_grader agent_insight deploy].freeze
 
   def job_attachment_search_scope
     Current.user.jobs

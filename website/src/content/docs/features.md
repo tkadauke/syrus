@@ -210,8 +210,10 @@ application — not a preview, a real deployment:
 
 ```yaml
 deploy:
-  run: "bin/deploy"         # required
-  allow_unapproved: false   # default false
+  mode: manual               # or continuous — default manual
+  run: "bin/deploy"          # required
+  allow_unapproved: false    # default false
+  min_interval_minutes: 15   # optional, continuous-only
 ```
 
 Once configured, a Job's detail page shows a **Deploy** button next to
@@ -225,9 +227,13 @@ Deploying an unapproved Job is forbidden by default; a repository can opt out
 of that guard with `deploy.allow_unapproved: true` in `.syrus.yml`. Only one
 deploy can be in flight per Job at a time.
 
-Continuous deploy (an automatic deploy after every merge, throttled to avoid
-piling up) is planned but not available yet — today, every deploy is
-manually triggered from the Job page.
+With `deploy.mode: continuous`, Syrus automatically deploys the repository's
+default branch every time a Job lands — no manual click needed. Deploys are
+limited to one in flight per repository at a time; if a merge lands while a
+deploy is already running, it doesn't pile up. `min_interval_minutes`
+optionally throttles how often auto-triggered deploys can happen — a burst of
+several merges inside the throttle window still results in exactly one
+deploy of the latest code once the window opens, never a dropped deploy.
 
 ## Epics
 

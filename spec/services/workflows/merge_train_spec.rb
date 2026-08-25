@@ -70,4 +70,15 @@ RSpec.describe Workflows::MergeTrain do
     kinds = branch.map { |n| n["type"] == "step" ? n["kind"] : n["type"] }
     expect(kinds).to eq(%w[ merge_train_rebase retry_until merge_train_land_after_rebase ])
   end
+
+  describe ".after_success" do
+    it "checks for a continuous-deploy trigger on the train's repository" do
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      workflow = described_class.instantiate(job: tip, artifacts: { "merge_train_id" => train.id })
+
+      expect(DeployContinuousTrigger).to receive(:after_landing!).with(repository)
+
+      described_class.after_success(workflow)
+    end
+  end
 end
