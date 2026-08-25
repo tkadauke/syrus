@@ -177,6 +177,22 @@ RSpec.describe AutoRetryJob do
     expect(workflow.reload).to be_failed
   end
 
+  it "reschedules failed-step attempts before reopening when another active WorkUnit owns the job lock" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    workflow.work_unit.mark_terminal!("failed")
+    owner_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to have_enqueued_job(described_class).with(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to be_nil
+    expect(attempt.performed_at).to be_nil
+    expect(attempt.scheduled_at).to be > Time.current
+    expect(workflow.reload).to be_failed
+    expect(owner_workflow.work_unit.reload).to be_queued
+  end
+
   it "skips stale attempts after a newer workflow has already succeeded" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     Workflow.create!(

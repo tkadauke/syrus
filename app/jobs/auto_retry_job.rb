@@ -22,6 +22,7 @@ class AutoRetryJob < ApplicationJob
 
     return if skip_if_provider_delay_no_longer_matches(attempt)
     return if reschedule_if_provider_blocked(attempt)
+    return if reschedule_if_active_work_owns_failed_step_retry(attempt)
 
     result = perform_retry(attempt)
 
@@ -110,6 +111,25 @@ class AutoRetryJob < ApplicationJob
       "auto-retry delayed until #{retry_after.iso8601}: " \
         "active WorkUnit ##{conflict.work_unit.id} owns #{conflict.lock_key}"
     )
+  end
+
+  def reschedule_if_active_work_owns_failed_step_retry(attempt)
+    return false unless attempt.retry_kind.in?(%w[failed_step resume_failed_step])
+    return false unless attempt.job
+
+    owner = WorkUnits::Ownership.active_unit_for_lock_key("job:#{attempt.job_id}")
+    return false unless owner
+    return false if owner.workflow_id.present? && owner.workflow_id == attempt.workflow_id
+
+    retry_after = Time.current + ACTIVE_WORK_UNIT_RETRY_DELAY
+    attempt.update!(scheduled_at: retry_after)
+    AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
+    log(
+      attempt,
+      "auto-retry delayed until #{retry_after.iso8601}: " \
+        "active WorkUnit ##{owner.id} owns job:#{attempt.job_id}"
+    )
+    true
   end
 
   def perform_retry(attempt)
