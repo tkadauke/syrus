@@ -1244,4 +1244,8 @@ Bundled plugins:
   provider. `MysqlConnections.tsx` consumes the admin CRUD + test-connection
   API under `/api/v1/app/admin/mysql_connections` to list, add, edit, delete,
   and test connections; edit forms never receive a stored password back from
-  the server.
+  the server. A "Browse Schema" button per connection switches the same page
+  into a two-pane schema explorer (`SchemaBrowser`/`DatabaseNode`/`TableDetail`
+  in the same file) backed by `MysqlDbBrowser::SchemaInspector` and the
+  `GET /api/v1/app/admin/mysql_connections/:id/schema[/…]` routes — see the
+  `mysql_db_browser` feature flag doc for the introspection design.
