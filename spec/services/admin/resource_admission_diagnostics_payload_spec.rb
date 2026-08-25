@@ -119,52 +119,6 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
     expect(payload.dig(:recent_top_consumers, 0, :run_id)).to eq(run.id)
   end
 
-  it "surfaces delayed admission decisions and resume timing for replay artifact state" do
-    job = Factories.job_record(user: user, repository: repository, state: "queued", issue_title: "Delayed job")
-    workflow = Workflow.create!(job: job, user: user, trigger_kind: "replay", agent_provider: "codex", state: "queued")
-    workflow.update!(artifacts: {
-      "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
-      "start_blocked_at" => (now - 3.minutes).iso8601,
-      "start_blocked_next_check_at" => (now + 7.minutes).iso8601,
-      "start_blocked_details" => {
-        "action" => "delay_until",
-        "reason" => "worker_host_pressure_high",
-        "delay_until" => (now + 7.minutes).iso8601,
-        "pressure" => {
-          "candidate" => {
-            "predicted_command_cost" => {
-              "duration_seconds" => 900,
-              "cpu_pressure" => 80.0
-            }
-          },
-          "host" => { "max_cpu_pressure" => 90.0 }
-        },
-        "details" => {
-          "decision_basis" => "ambient_pressure",
-          "fallback_reasons" => [ "insufficient_command_and_host_profile_samples" ]
-        }
-      }
-    })
-
-    delayed = described_class.new(now: now).as_json.fetch(:delayed_work).first
-
-    expect(delayed).to include(
-      workflow_id: workflow.id,
-      job_id: job.id,
-      reason: "worker_host_pressure_high",
-      action: "delay_until",
-      next_check_at: (now + 7.minutes).iso8601
-    )
-    expect(delayed.fetch(:estimated_remaining_cost)).to include("duration_seconds" => 900, "cpu_pressure" => 80.0)
-    expect(delayed.fetch(:details)).to include("decision_basis" => "ambient_pressure")
-    expect(delayed.fetch(:breakdown)).to include(
-      "category" => "soft_host_pressure",
-      "dimensions" => include(
-        a_hash_including("metric" => "cpu_pressure", "current" => 90.0, "threshold" => WorkflowAdmissionBudget::SOFT_HOST_PRESSURE, "over_threshold" => true)
-      )
-    )
-  end
-
   it "ignores migrated artifact-only delayed admission decisions without WorkUnit block state" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", issue_title: "Migrated artifact job")
     workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "codex", state: "queued")
