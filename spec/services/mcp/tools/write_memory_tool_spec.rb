@@ -18,6 +18,12 @@ RSpec.describe Mcp::Tools::WriteMemoryTool do
       expect(schema.dig(:properties, :scope)).to be_present
       expect(schema.dig(:properties, :scope_id)).to be_present
     end
+
+    it "advertises the maximum content length to tool callers" do
+      schema = described_class.input_schema_value.to_h
+
+      expect(schema.dig(:properties, :content, :maxLength)).to eq(ChatMemory::CONTENT_MAX_LENGTH)
+    end
   end
 
   describe ".call from a workflow run context" do
@@ -56,6 +62,18 @@ RSpec.describe Mcp::Tools::WriteMemoryTool do
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("content is required")
+    end
+
+    it "rejects oversized content before model validation" do
+      response = described_class.call(
+        content: "x" * (ChatMemory::CONTENT_MAX_LENGTH + 1),
+        kind: "feedback",
+        server_context: run_context
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("write_memory content must be #{ChatMemory::CONTENT_MAX_LENGTH} characters or fewer")
+      expect(response.content.first[:text]).to include("split independent facts into separate memories")
     end
 
     it "returns an error for an invalid kind" do

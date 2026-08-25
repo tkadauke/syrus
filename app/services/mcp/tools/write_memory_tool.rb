@@ -15,7 +15,7 @@ module Mcp
 
       input_schema(
         properties: {
-          content:  { type: "string", description: "Memory content (max #{ChatMemory::CONTENT_MAX_LENGTH} characters)." },
+          content:  { type: "string", maxLength: ChatMemory::CONTENT_MAX_LENGTH, description: "Memory content (max #{ChatMemory::CONTENT_MAX_LENGTH} characters)." },
           kind:     { type: "string", enum: ChatMemory::KIND, description: "Memory kind." },
           scope:    { type: "string", enum: ChatMemory::TOOL_SCOPES, description: "Memory scope: global or repository. Omit to default to repository in workflow runs." },
           scope_id: { type: "integer", description: "Repository id when scope is 'repository'. Required in chat sessions; inferred from run context in workflow runs." }
@@ -30,6 +30,13 @@ module Mcp
           kind    = kind.to_s
 
           return invalid_response("content is required") if content.empty?
+          if content.length > ChatMemory::CONTENT_MAX_LENGTH
+            return invalid_response(
+              "content is #{content.length} characters; write_memory content must be " \
+              "#{ChatMemory::CONTENT_MAX_LENGTH} characters or fewer. Store one concise " \
+              "durable fact per memory, or split independent facts into separate memories."
+            )
+          end
           return invalid_response("kind must be one of #{ChatMemory::KIND.join(', ')}") unless ChatMemory::KIND.include?(kind)
 
           effective_scope = resolve_scope(context, scope)
