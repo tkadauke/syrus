@@ -27,7 +27,7 @@ class PollRepositoryJob < ApplicationJob
         stats[ingest(issue, repository, client: client)] += 1
       end
       closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
-      repository.jobs.open_threads.find_each(&:start_pending_workflows_if_dependencies_satisfied!)
+      InputSources::PendingWorkWakeup.call(repository)
       update_untagged_open_issue_count!(repository, client)
 
       log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)

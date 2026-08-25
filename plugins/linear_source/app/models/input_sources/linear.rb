@@ -28,7 +28,7 @@ module InputSources
         end
 
         issues.each { |issue| ingest(issue) }
-        repository.jobs.open_threads.find_each(&:start_pending_workflows_if_dependencies_satisfied!)
+        InputSources::PendingWorkWakeup.call(repository)
 
         repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
       rescue => e
