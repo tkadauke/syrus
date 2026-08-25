@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import type { EpicDetailJob } from "../api/epics"
 import { fetchEpicDetail } from "../api/epics"
 import { useT } from "../hooks/useT"
+import { Card, Skeleton } from "./Card"
 import { CopyableSlug } from "./CopyableSlug"
 import { EpicDeploymentStagePipeline } from "./DeploymentStagePipeline"
 import { StatusPill } from "./StatusPill"
@@ -55,7 +56,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
   const previewJobs = sortedJobs.slice(0, 5)
 
   return (
-    <div className={compact ? "w-40 min-h-14 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" : "w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"}>
+    <Card compact={compact} variant="preview">
       <div className="mb-2 flex items-center gap-2">
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.state} />
@@ -106,7 +107,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
           {t("preview_see_more")}
         </Link>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -157,20 +158,20 @@ EpicCompactCard.displayName = "EpicCompactCard"
 
 export function EpicPreviewSkeleton() {
   return (
-    <div className="w-80 animate-pulse rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+    <Card variant="preview">
       <div className="mb-2 flex items-center gap-2">
-        <div className="h-3 w-16 rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-4 w-20 rounded-full bg-gray-200 dark:bg-gray-700" />
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-4 w-20 rounded-full" />
       </div>
       <div className="mb-2">
-        <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700" />
+        <Skeleton className="h-4 w-3/4" />
       </div>
-      <div className="mb-3 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700" />
+      <Skeleton className="mb-3 h-1.5 w-full rounded-full" />
       <div className="mb-3 space-y-1">
-        <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-700" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-2/3" />
       </div>
-    </div>
+    </Card>
   )
 }

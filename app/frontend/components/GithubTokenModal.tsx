@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "./CloseIcon"
 import { GithubAppPanel } from "./GithubAppPanel"
 import { GithubTokenStep } from "./credentials/GithubTokenStep"
+import { Modal } from "./Modal"
 import { Stepper } from "./Stepper"
 import { useT } from "../hooks/useT"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
@@ -31,70 +32,59 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
   // install, owned by GithubAppPanel).
   const phase: "pat" | "app" = patDone ? "app" : "pat"
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <section
-        aria-labelledby="github-title"
-        aria-modal="true"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
-        role="dialog"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="space-y-5 p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">{t('github_token.title')}</h2>
-              {phase === "pat" ? (
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  {t('github_token.description')}
-                </p>
-              ) : null}
-            </div>
-            <button
-              aria-label={t('github_token.close')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onClick={onClose}
-              type="button"
-            >
-              <CloseIcon className="h-7 w-7" />
-            </button>
+    <Modal
+      className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
+      labelledBy="github-title"
+      onClose={onClose}
+      open
+    >
+      <div className="space-y-5 p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">{t('github_token.title')}</h2>
+            {phase === "pat" ? (
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {t('github_token.description')}
+              </p>
+            ) : null}
           </div>
-
-          {backendOutage ? (
-            <Box tone="muted">{t('backend_updating')}</Box>
-          ) : (
-            <>
-              <Stepper
-                active={phase}
-                steps={[
-                  { key: "pat", label: t('github_token.step_pat_label'), done: patDone },
-                  { key: "app", label: t('github_token.step_app_label'), done: appDone }
-                ]}
-              />
-
-              {phase === "pat" ? (
-                <GithubTokenStep onSaved={() => setPatSaved(true)} />
-              ) : isAdmin ? (
-                // Create → install the GitHub App, owned by the panel.
-                <GithubAppPanel onClose={onClose} onSaved={onSaved} />
-              ) : (
-                <Box tone="muted">
-                  {t('github_token.admin_required')}
-                </Box>
-              )}
-            </>
-          )}
+          <button
+            aria-label={t('github_token.close')}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-7 w-7" />
+          </button>
         </div>
-      </section>
-    </div>
+
+        {backendOutage ? (
+          <Box tone="muted">{t('backend_updating')}</Box>
+        ) : (
+          <>
+            <Stepper
+              active={phase}
+              steps={[
+                { key: "pat", label: t('github_token.step_pat_label'), done: patDone },
+                { key: "app", label: t('github_token.step_app_label'), done: appDone }
+              ]}
+            />
+
+            {phase === "pat" ? (
+              <GithubTokenStep onSaved={() => setPatSaved(true)} />
+            ) : isAdmin ? (
+              // Create → install the GitHub App, owned by the panel.
+              <GithubAppPanel onClose={onClose} onSaved={onSaved} />
+            ) : (
+              <Box tone="muted">
+                {t('github_token.admin_required')}
+              </Box>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
   )
 }
 

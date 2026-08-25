@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
+import { ConfirmDialog } from "./ConfirmDialog"
 
 // --- Shape model ---
 
@@ -826,36 +827,15 @@ export function ImageAnnotationModal({
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-gray-950/80 p-3 text-gray-900 dark:text-gray-100" role="presentation">
-      {showDiscardConfirm && (
-        <div
-          aria-labelledby="discard-confirm-label"
-          aria-modal="true"
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/40"
-          role="dialog"
-        >
-          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-            <p className="mb-5 text-sm font-medium text-gray-800 dark:text-gray-100" id="discard-confirm-label">
-              {t("image_annotation.discard_confirm")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className={secondaryButton()}
-                onClick={() => setShowDiscardConfirm(false)}
-                type="button"
-              >
-                {t("image_annotation.keep_editing")}
-              </button>
-              <button
-                className="rounded bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
-                onClick={() => { setShowDiscardConfirm(false); onClose() }}
-                type="button"
-              >
-                {t("image_annotation.discard")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        cancelLabel={t("image_annotation.keep_editing")}
+        confirmLabel={t("image_annotation.discard")}
+        destructive
+        message={t("image_annotation.discard_confirm")}
+        onCancel={() => setShowDiscardConfirm(false)}
+        onConfirm={() => { setShowDiscardConfirm(false); onClose() }}
+        open={showDiscardConfirm}
+      />
       <section aria-label={t("image_annotation.annotate", { name })} aria-modal="true" className="flex min-h-0 flex-1 flex-col gap-3" role="dialog">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
           <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
