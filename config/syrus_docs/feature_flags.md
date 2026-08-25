@@ -172,17 +172,21 @@ Implementation workflow agents working on `tkadauke/syrus` or a registered fork 
 
 Gates the `mysql_db_browser` plugin (`plugins/mysql_db_browser/`), which lets
 admins register connections to external MySQL databases (host, port,
-username, password, default database) for later browsing/querying. This first
-increment ships the plugin scaffold, the `MysqlConnection` model, and a
-session-authed admin CRUD + test-connection API; there is no frontend UI or
-agentic query access yet.
+username, password, default database) for later browsing/querying. It ships
+the plugin scaffold, the `MysqlConnection` model, a session-authed admin CRUD
++ test-connection API, and a "DB Browser" primary-sidebar page
+(`plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx`) that
+lists, adds, edits, deletes, and tests connections; there is no schema
+browsing/query grid or agentic query access yet.
 
 Credentials are stored in `mysql_connections.credentials`, a
 non-deterministic encrypted JSON column (`encrypts :credentials`), the same
 class of secret as `User#github_token` and `InputSource#credentials`.
 Plaintext credentials are never included in API responses; `MysqlConnection#password`
 decrypts server-side only, and list/show payloads expose a `has_password`
-boolean instead. `POST .../mysql_connections/test` and `POST
+boolean instead. The edit form never receives a stored password back from the
+server either — it re-prompts, leaving the field blank means "keep the
+current password." `POST .../mysql_connections/test` and `POST
 .../mysql_connections/:id/test` run a lightweight `Mysql2::Client` connect
 (`MysqlDbBrowser::ConnectionTester`) and report success/failure without
 persisting a `MysqlConnection` row either way.
@@ -192,9 +196,14 @@ authenticated admin session (`Api::V1::App::Admin::BaseController#require_admin`
 and this feature flag enabled — the controller 404s with `plugin_disabled`
 otherwise. The `mysql_db_browser` plugin's own `PluginRecord.enabled` toggle
 (default off, disableable) is a second, independent gate: both must be on for
-`MysqlDbBrowser.enabled?` to be true. The `agentic_access_enabled` column on
-`MysqlConnection` (default `false`) is present but unused until a later job
-wires up opt-in workflow/chat agent query access.
+`MysqlDbBrowser.enabled?` to be true. `MysqlDbBrowser::SidebarPages`
+(registered as a `sidebar_page` provider — see `sidebar_page` in
+`config/syrus_docs/plugins.md`) mirrors both gates and additionally hides the
+"DB Browser" sidebar entry from non-admins, so a signed-in non-admin never
+sees it appear even if a caller enables the plugin record directly. The
+`agentic_access_enabled` column on `MysqlConnection` (default `false`) is
+exposed as a toggle in the connection form but is otherwise unused until a
+later job wires up opt-in workflow/chat agent query access.
 
 Off by default, since a misconfigured connection reaches arbitrary
 staging/prod databases with real credentials.

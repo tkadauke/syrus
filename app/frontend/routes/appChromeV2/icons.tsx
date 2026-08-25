@@ -41,6 +41,14 @@ export function SpendingIcon() {
   )
 }
 
+export function DatabaseIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M12 7.25c3.73 0 6.75-1.01 6.75-2.25S15.73 2.75 12 2.75 5.25 3.76 5.25 5s3.02 2.25 6.75 2.25Zm6.75-2.25V19c0 1.24-3.02 2.25-6.75 2.25S5.25 20.24 5.25 19V5m13.5 4.67c0 1.24-3.02 2.25-6.75 2.25S5.25 10.91 5.25 9.67m13.5 4.66c0 1.24-3.02 2.25-6.75 2.25s-6.75-1.01-6.75-2.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function RepositoryIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">

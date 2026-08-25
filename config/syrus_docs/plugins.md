@@ -1230,3 +1230,18 @@ Bundled plugins:
   Disabling the plugin removes the nav entry and makes `PluginSidebarPageRoute`
   render its "page unavailable" fallback for `/insights/spending`, but does
   not affect the JSON API endpoint itself.
+- `mysql_db_browser` — disabled by default (see the `mysql_db_browser`
+  feature flag in `config/syrus_docs/feature_flags.md`); the second
+  `sidebar_page` plugin. `MysqlDbBrowser::SidebarPages` provides
+  `mysql_db_browser.connections`: label "DB Browser", `path`/`paths`
+  `/db_browser`, `component: "mysql_db_browser/MysqlConnections"`,
+  `icon: "database"` (maps to `DatabaseIcon` via `sidebarNav.tsx`'s
+  `PLUGIN_ICONS`), `order: 70`. Unlike `spending_insights`, its
+  `sidebar_pages` method self-gates on both `MysqlDbBrowser.enabled?` (the
+  Feature flag and `PluginRecord.enabled`) and `Current.user&.admin?` and
+  returns `[]` otherwise — the extension point itself has no per-page
+  visibility concept, so admin-only sidebar pages must gate inside their own
+  provider. `MysqlConnections.tsx` consumes the admin CRUD + test-connection
+  API under `/api/v1/app/admin/mysql_connections` to list, add, edit, delete,
+  and test connections; edit forms never receive a stored password back from
+  the server.
