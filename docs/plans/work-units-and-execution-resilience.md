@@ -1650,13 +1650,13 @@ Completed slices:
 
 - `Job.without_active_runtime_work` now uses `WorkUnits::Ownership` instead of only
   `Workflow.active_job_ids`, so dashboard and smart-folder scopes exclude Jobs
-  owned by active WorkUnits, including cross-job WorkUnit membership, while
-  retaining legacy Workflow fallback during migration.
+  owned by active WorkUnits, including cross-job WorkUnit membership, without
+  treating legacy active Workflow rows as runtime ownership.
 - Dashboard and Job detail paused-state reads now consult blocked WorkUnits,
   while deliberately excluding landing WorkUnits so admission-blocked landing
   work remains visible in the landing queue instead of moving to the Paused
-  folder. The legacy Workflow artifact fallback remains until workflow
-  pause/block state is fully migrated.
+  folder. The remaining Workflow artifact projection is retained for
+  audit/display compatibility, not for scheduler ownership.
 - `Job#active_workflow_trigger_kind` now delegates to
   `WorkUnits::Ownership.active_trigger_kinds_by_job_id`, so single-Job callers
   see cross-job WorkUnit ownership instead of only workflows directly attached
@@ -1781,6 +1781,10 @@ Completed slices:
   `work_units_scheduler` is enabled, and landing-owned Workflow rows do the
   same behind `work_units_landing`, while still preserving fallbacks for paths
   whose gates remain disabled.
+- Epic-wide conflict detection and landing-queue merge-train status now resolve
+  active work through WorkUnit membership as well as direct Epic scope. This
+  keeps bundle/member-shaped WorkUnits authoritative even when their owning
+  Workflow is attached to a different Job or the Unit itself is job-scoped.
 - The reconciler can now target a specific WorkIntent and repair the invariant
   "requested Intent with passing gates has an active Unit" by instantiating and
   starting a fresh Unit/Workflow for persisted job-scoped desired work. This is
