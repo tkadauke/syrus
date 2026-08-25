@@ -21,6 +21,16 @@ RSpec.describe MysqlDbBrowser::Engine do
     expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(MysqlDbBrowser::SidebarPages)
   end
 
+  it "registers the agentic-access workflow and chat MCP tool set providers once the plugin is enabled" do
+    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).not_to include(MysqlDbBrowser::WorkflowToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).not_to include(MysqlDbBrowser::ChatToolSet)
+
+    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+
+    expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(MysqlDbBrowser::WorkflowToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(MysqlDbBrowser::ChatToolSet)
+  end
+
   describe ".enabled?" do
     it "is false when neither the Feature flag nor the plugin record are enabled" do
       expect(MysqlDbBrowser.enabled?).to be(false)

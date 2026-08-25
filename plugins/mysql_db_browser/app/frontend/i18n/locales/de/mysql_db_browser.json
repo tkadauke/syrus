@@ -17,7 +17,7 @@
   "field_default_database": "Standarddatenbank",
   "field_default_database_optional": "(optional)",
   "field_agentic_access": "Agentenzugriff für Abfragen erlauben",
-  "field_agentic_access_hint": "Erlaubt Workflow- und Chat-Agenten, diese Verbindung abzufragen, sobald der agentische Zugriff eingerichtet ist.",
+  "field_agentic_access_hint": "Erlaubt Workflow- und Chat-Agenten, das Schema dieser Verbindung zu durchsuchen und Abfragen auszuführen (schreibgeschützt, sofern Schreibzugriff nicht ebenfalls erlaubt ist).",
   "field_allow_writes": "Schreibende Abfragen erlauben",
   "field_allow_writes_hint": "Standardmäßig ist diese Verbindung schreibgeschützt und lehnt alle Anweisungen außer SELECT ab. Aktivieren, um INSERT/UPDATE/DELETE und andere Schreibvorgänge im Query-Tab zuzulassen.",
   "create_button": "Verbindung hinzufügen",
