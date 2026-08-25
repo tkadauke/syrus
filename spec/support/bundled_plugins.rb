@@ -271,7 +271,7 @@ RSpec.configure do |config|
         author:          "Thomas Kadauke",
         default_enabled: true,
         disableable:     true,
-        category:        "workspace_tab",
+        category:        "mcp_tool_set",
         frontend: {
           workspace_tabs: {
             "whiteboard_tools/WhiteboardTab" => "app/frontend/workspaceTabs/WhiteboardTab.tsx"
