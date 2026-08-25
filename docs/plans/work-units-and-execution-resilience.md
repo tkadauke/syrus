@@ -928,8 +928,9 @@ The tab should have:
    WorkUnit attempt.
 
 During migration, the tab should also show legacy Workflows attached directly to
-the Job that do not yet have a WorkUnit. Once every Workflow has a WorkUnit, the
-legacy fallback can disappear.
+the Job that do not yet have a WorkUnit. The one-time active-Workflow migration
+should make this uncommon after deploy; once production has soaked with no
+legacy fallback hits, the fallback can disappear.
 
 Actions should attach to the correct layer:
 
@@ -1559,21 +1560,22 @@ Completed slices:
 Keep the guard spec in place so new direct `Workflows::* .instantiate` and
 `StepDispatcher.start_workflow` call sites cannot appear outside the launcher.
 
-Before shadow tables are trusted, every production workflow creation path must
-either go through the launcher or be explicitly marked legacy in diagnostics.
-Behavioral ownership should then graduate in the rollout-gate order:
-continuations first, initial/single-Job scheduling next, landing/merge trains
-after that.
+The launcher funnel is now the guarded production entry point for workflow
+creation and starts. Keep the architecture spec in place so ownership stays
+centralized while the remaining cleanup removes workflow-first reads.
+Behavioral ownership graduated in the rollout-gate order: continuations first,
+initial/single-Job scheduling next, landing/merge trains after that.
 
 ### Phase 3: Shadow Intent And Unit Tables
 
 Add `work_intents`, `work_units`, and `work_unit_members`.
 
 Populate them from the launcher, not from scattered call sites. During rollout,
-active workflows are backfilled into WorkIntent/WorkUnit rows by a one-time
-migration so installations that upgrade with queued/running workflows converge
-without requiring a recurring bridge. Keep existing Job/Workflow behavior as the
-source of truth during this phase.
+active workflows are backfilled into WorkIntent/WorkUnit rows by the one-time
+`BackfillActiveWorkUnits` migration so installations that upgrade with
+queued/running workflows converge without requiring a recurring bridge. Existing
+Job/Workflow behavior was the source of truth during this phase; new runtime
+ownership should now be represented by WorkIntent/WorkUnit rows.
 
 For every requested piece of work, write:
 
@@ -1599,10 +1601,10 @@ one Workflow attached to one Job but semantically owning multiple Jobs.
 
 Completed slices:
 
-- Active legacy Workflows without WorkUnit ownership are backfilled by
-  `BackfillActiveWorkUnits`, so a deploy can converge existing queued/running
-  Workflows into the intent/unit model before runtime ownership relies on
-  `WorkUnits::Launcher`.
+- Active legacy Workflows without WorkUnit ownership are backfilled by the
+  `BackfillActiveWorkUnits` migration, so a deploy can converge existing
+  queued/running Workflows into the intent/unit model without adding a recurring
+  runtime backfill job.
 - `WorkDefinitions::Base#ref_metadata_for` now centralizes the selected
   delivery-track and source/target repository/ref snapshot. `WorkUnits::Launcher`
   and the active-workflow migration persist that metadata onto `WorkIntent` and
@@ -1640,6 +1642,9 @@ once in job detail:
 - cross-job WorkUnit membership can show a Workflow attached to another Job;
 - raw `job.workflows` remains available for debugging but not for active-state
   derivation.
+
+After the active-Workflow migration has been stable in production, the "Legacy
+workflows" branch should be removed as part of the technical-debt cleanup.
 
 Completed slices:
 

@@ -27,9 +27,10 @@ states are listed only as `from:` and have no event that enters them.
 ### Coding Mode lock (`linked_chat_id`)
 
 When a Job is in `:coding` state, `linked_chat_id` is set to the owning
-`ChatSession`. `StepDispatcher.start_workflow` skips dispatch while the Job is
-in `:coding` state (and the `coding_mode` feature flag is on), leaving any
-newly-created workflows queued.
+`ChatSession`. Workflow starts enter through `WorkUnits::Launcher`, whose first
+runtime gate delegates to `StepDispatcher`; that dispatcher skips dispatch while
+the Job is in `:coding` state (and the `coding_mode` feature flag is on),
+leaving newly-created workflows queued.
 
 Three exit paths from `:coding`:
 
