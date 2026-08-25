@@ -97,6 +97,7 @@
   "section_workflows_load_error": "Arbeitsabläufe konnten nicht geladen werden.",
   "section_no_workflows": "Noch keine Arbeitsabläufe.",
   "workflow_steps_truncated": "Zeige die neuesten {{displayed}} von {{total}} Schritten.",
+  "step_runs_truncated": "Zeige die neuesten {{displayed}} von {{total}} Läufen für diesen Schritt.",
   "section_no_attachments": "Keine Anhänge.",
   "section_no_artifacts": "Keine Artefakte.",
   "section_no_runs": "Keine Läufe für diesen Schritt.",

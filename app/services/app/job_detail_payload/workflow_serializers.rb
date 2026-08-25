@@ -12,6 +12,8 @@ module App
 
       AgentSessionSummary = Data.define(:session_id, :provider, :transcript_pruned, :transcript_bytes, :transcript_lines)
       MAX_STEPS_PER_WORKFLOW = Integer(ENV["SYRUS_JOB_DETAIL_MAX_STEPS_PER_WORKFLOW"], exception: false) || 250
+      MAX_RUNS_PER_STEP = [ Integer(ENV["SYRUS_JOB_DETAIL_MAX_RUNS_PER_STEP"], exception: false) || 20, 1 ].max
+      ACTIVE_RUN_STATES = %w[queued running].freeze
 
       def workflows_json
         PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
@@ -436,6 +438,9 @@ module App
             details: step.details.presence,
             warnings: warnings_for(step).map { |warning| workflow_warning_json(warning) },
             latest: step == latest_step,
+            runs_total: run_counts_by_step_id.fetch(step.id, runs.size),
+            runs_displayed: runs.size,
+            runs_truncated: run_counts_by_step_id.fetch(step.id, runs.size) > runs.size,
             runs: PerformanceLogging.phase("job_detail.step.runs", job_id: @job.id, workflow_id: workflow.id, step_id: step.id, run_count: runs.size) do
               runs.map { |run| run_json(run, workflow: workflow, step: step) }
             end
@@ -635,9 +640,11 @@ module App
         @runs_by_step_id ||= PerformanceLogging.phase("job_detail.workflow.runs.query", job_id: @job.id, step_count: visible_step_ids.size) do
           ids = visible_step_ids
           next {} if ids.empty?
+          run_ids = visible_run_ids_by_step_id.values.flatten
+          next {} if run_ids.empty?
 
           Run
-            .where(step_id: ids)
+            .where(id: run_ids)
             .select(
               :id,
               :job_id,
@@ -671,6 +678,42 @@ module App
             .includes(:run_diagnostic, :run_failure_classification)
             .order(:step_id, :created_at, :id)
             .group_by(&:step_id)
+        end
+      end
+
+      def run_counts_by_step_id
+        @run_counts_by_step_id ||= begin
+          ids = visible_step_ids
+          ids.empty? ? {} : Run.where(step_id: ids).group(:step_id).count
+        end
+      end
+
+      def visible_run_ids_by_step_id
+        @visible_run_ids_by_step_id ||= PerformanceLogging.phase("job_detail.workflow.run_ids.query", job_id: @job.id, step_count: visible_step_ids.size, run_limit: MAX_RUNS_PER_STEP) do
+          ids = visible_step_ids.map { |id| Integer(id) }
+          next {} if ids.empty?
+
+          rows = ApplicationRecord.connection.select_all(<<~SQL.squish)
+            SELECT id, step_id
+            FROM (
+              SELECT
+                runs.id,
+                runs.step_id,
+                runs.state,
+                ROW_NUMBER() OVER (
+                  PARTITION BY runs.step_id
+                  ORDER BY runs.created_at DESC, runs.id DESC
+                ) AS syrus_run_rank
+              FROM runs
+              WHERE runs.step_id IN (#{ids.join(",")})
+            ) ranked_runs
+            WHERE ranked_runs.syrus_run_rank <= #{MAX_RUNS_PER_STEP}
+               OR ranked_runs.state IN (#{ACTIVE_RUN_STATES.map { |state| ApplicationRecord.connection.quote(state) }.join(",")})
+          SQL
+
+          rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, grouped|
+            grouped[row.fetch("step_id").to_i] << row.fetch("id").to_i
+          end
         end
       end
 

@@ -566,6 +566,9 @@ export type JobStep = {
   details: unknown
   warnings: WorkflowWarning[]
   latest: boolean
+  runs_total?: number
+  runs_displayed?: number
+  runs_truncated?: boolean
   runs: JobRun[]
 }
 

@@ -1264,6 +1264,36 @@ RSpec.describe App::JobDetailPayload do
       expect(workflow_payload.dig(:failure_classification, :classification)).to eq("grader_failure")
     end
 
+    it "bounds serialized run history per step while preserving active runs" do
+      stub_const("App::JobDetailPayload::WorkflowSerializers::MAX_RUNS_PER_STEP", 2)
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "running")
+
+      active_run = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "running",
+        created_at: 10.minutes.ago,
+        started_at: 10.minutes.ago
+      )
+      Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed", created_at: 8.minutes.ago, finished_at: 8.minutes.ago)
+      Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed", created_at: 6.minutes.ago, finished_at: 6.minutes.ago)
+      recent_succeeded = Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "succeeded", created_at: 2.minutes.ago, finished_at: 2.minutes.ago)
+      recent_failed = Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed", created_at: 1.minute.ago, finished_at: 1.minute.ago)
+
+      step_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0)
+
+      expect(step_payload).to include(
+        runs_total: 5,
+        runs_displayed: 3,
+        runs_truncated: true
+      )
+      expect(step_payload.fetch(:runs).map { |run| run[:id] }).to eq([ active_run.id, recent_succeeded.id, recent_failed.id ])
+    end
+
     it "does not query command spans or spawned processes once per run" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

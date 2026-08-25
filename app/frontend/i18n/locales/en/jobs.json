@@ -97,6 +97,7 @@
   "section_workflows_load_error": "Unable to load workflows.",
   "section_no_workflows": "No workflows yet.",
   "workflow_steps_truncated": "Showing latest {{displayed}} of {{total}} steps.",
+  "step_runs_truncated": "Showing latest {{displayed}} of {{total}} runs for this step.",
   "section_no_attachments": "No attachments.",
   "section_no_artifacts": "No artifacts.",
   "section_no_runs": "No runs for this step.",

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload } from "../../api/jobs"
@@ -382,5 +382,66 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("This stack item is waiting for its parent branch to be ready.")).toBeInTheDocument()
     expect(screen.getByText("selected stack parent is missing an open PR branch or captured head SHA.")).toBeInTheDocument()
     expect(screen.getByText("JOB-3592 is running.")).toBeInTheDocument()
+  })
+
+  it("shows when older step runs are omitted from the workflow payload", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            workflows: [{
+              id: 10,
+              slug: "WF-10",
+              path: "/jobs/1?tab=workflows#workflow-10",
+              trigger_kind: "initial",
+              agent_provider: "claude",
+              state: "succeeded",
+              failure_count: 0,
+              artifacts: null,
+              cleaned_up_at: null,
+              retry_available: false,
+              started_at: null,
+              finished_at: null,
+              created_at: "2026-08-25T12:00:00Z",
+              updated_at: "2026-08-25T12:00:00Z",
+              app_retry_step_path: "/retry",
+              app_push_commits_path: "/push",
+              app_force_push_branch_path: "/force",
+              app_discard_branch_output_path: "/discard",
+              steps_total: 1,
+              steps_displayed: 1,
+              steps_truncated: false,
+              steps: [{
+                id: 20,
+                kind: "prepare",
+                display_name: "Prepare workspace",
+                display_status: "succeeded",
+                position: 1,
+                iteration: null,
+                loop_id: null,
+                state: "succeeded",
+                started_at: null,
+                finished_at: null,
+                created_at: "2026-08-25T12:00:00Z",
+                updated_at: "2026-08-25T12:00:00Z",
+                details: null,
+                warnings: [],
+                latest: true,
+                runs_total: 5,
+                runs_displayed: 0,
+                runs_truncated: true,
+                runs: []
+              }]
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Prepare workspace/ }))
+
+    expect(screen.getByText("Showing latest 0 of 5 runs for this step.")).toBeInTheDocument()
   })
 })

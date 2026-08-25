@@ -672,6 +672,11 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
               ? <GraderDetails details={objectDetails(step.details)} />
               : <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">{stringify(step.details)}</pre>
           ) : null}
+          {step.runs_truncated ? (
+            <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+              {t("step_runs_truncated", { displayed: step.runs_displayed || runs.length, total: step.runs_total || runs.length })}
+            </p>
+          ) : null}
           {runs.length > 0 ? (
             <div className="mt-3 space-y-2">
               {runs.map((run, idx) => (
