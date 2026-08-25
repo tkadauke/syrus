@@ -7,6 +7,18 @@ RSpec.describe MysqlDbBrowser::Engine do
     expect(manifest).to be_present
     expect(manifest.default_enabled?).to be(false)
     expect(manifest.enabled?).to be(false)
+    expect(manifest.metadata[:frontend]).to eq(
+      routes: { "mysql_db_browser/MysqlConnections" => "app/frontend/routes/MysqlConnections.tsx" },
+      i18n: [ "app/frontend/i18n/locales/*/mysql_db_browser.json" ]
+    )
+  end
+
+  it "registers the DB Browser sidebar page provider even before the plugin is enabled" do
+    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).not_to include(MysqlDbBrowser::SidebarPages)
+
+    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
+
+    expect(Syrus::PluginRegistry.providers_for(:sidebar_page)).to include(MysqlDbBrowser::SidebarPages)
   end
 
   describe ".enabled?" do
