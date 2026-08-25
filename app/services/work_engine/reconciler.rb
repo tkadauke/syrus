@@ -890,9 +890,7 @@ module WorkEngine
         next unless relaunchability.relaunchable?
         next unless intent_gates_pass?(intent)
 
-        active_unit_ids = intent.work_units
-          .select { |unit| unit.state.in?(WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES) }
-          .map(&:id)
+        active_unit_ids = active_work_unit_ids_for_intent(intent)
         next if active_unit_ids.any?
 
         issue(
@@ -910,7 +908,7 @@ module WorkEngine
             representative_job_id: relaunchability.representative_job_id,
             member_job_ids: relaunchability.member_job_ids,
             active_work_unit_ids: active_unit_ids,
-            terminal_work_unit_ids: intent.work_units.select(&:terminal?).map(&:id)
+            terminal_work_unit_ids: terminal_work_unit_ids_for_intent(intent)
           },
           explanation: "WorkIntent ##{intent.id} is requested and ready, but has no active WorkUnit."
         )
@@ -927,9 +925,7 @@ module WorkEngine
         next unless relaunchability.relaunchable?
         next unless intent_gates_pass?(intent)
 
-        active_unit_ids = intent.work_units
-          .select { |unit| unit.state.in?(WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES) }
-          .map(&:id)
+        active_unit_ids = active_work_unit_ids_for_intent(intent)
         next if active_unit_ids.any?
 
         issue(
@@ -948,7 +944,7 @@ module WorkEngine
             representative_job_id: relaunchability.representative_job_id,
             member_job_ids: relaunchability.member_job_ids,
             active_work_unit_ids: active_unit_ids,
-            terminal_work_unit_ids: intent.work_units.select(&:terminal?).map(&:id)
+            terminal_work_unit_ids: terminal_work_unit_ids_for_intent(intent)
           },
           explanation: "WorkIntent ##{intent.id} is requested and ready, but its #{intent.kind} definition must be relaunched by its domain dispatcher."
         )
@@ -964,7 +960,7 @@ module WorkEngine
         return WorkIntentRelaunchability.new(representative_job_id: intent.scope_id, member_job_ids: [ intent.scope_id ])
       end
 
-      latest_unit = intent.work_units.max_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id || 0 ] }
+      latest_unit = work_units_for_intent(intent).max_by { |unit| [ unit.created_at || Time.zone.at(0), unit.id || 0 ] }
       workflow = latest_unit&.workflow
       members = latest_unit&.work_unit_members&.sort_by(&:id)&.map(&:job_id)&.compact || []
       representative_job_id = workflow&.job_id || members.last
@@ -1090,9 +1086,20 @@ module WorkEngine
     end
 
     def active_work_unit_ids_for_intent(intent, excluding: nil)
-      scope = intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
-      scope = scope.where.not(id: excluding.id) if excluding
-      scope.pluck(:id)
+      active_states = WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES
+      work_units_for_intent(intent)
+        .select { |unit| unit.state.in?(active_states) }
+        .reject { |unit| excluding && unit.id == excluding.id }
+        .map(&:id)
+    end
+
+    def terminal_work_unit_ids_for_intent(intent)
+      work_units_for_intent(intent).select(&:terminal?).map(&:id)
+    end
+
+    def work_units_for_intent(intent)
+      @work_units_by_intent_id ||= work_units.group_by(&:work_intent_id)
+      @work_units_by_intent_id[intent.id] || []
     end
 
     def superseded_work_unit_cancel_reasons
