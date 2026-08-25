@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_004353) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_175226) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -323,6 +323,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_004353) do
     t.integer "chat_session_id", null: false
     t.json "content", null: false
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
+    t.integer "deleted_by_user_id"
     t.string "parent_tool_use_id"
     t.bigint "pending_action_id"
     t.integer "proposal_id"
@@ -341,6 +343,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_004353) do
     t.index ["chat_session_id", "role"], name: "idx_chat_messages_session_role"
     t.index ["chat_session_id", "tool_use_id"], name: "index_chat_messages_on_chat_session_id_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
+    t.index ["deleted_at"], name: "index_chat_messages_on_deleted_at"
+    t.index ["deleted_by_user_id"], name: "index_chat_messages_on_deleted_by_user_id"
     t.index ["pending_action_id"], name: "index_chat_messages_on_pending_action_id"
     t.index ["proposal_id", "id"], name: "idx_chat_messages_proposal_id_id"
     t.index ["proposal_id"], name: "index_chat_messages_on_proposal_id"
@@ -2542,4 +2546,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_004353) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "chat_messages", "users", column: "deleted_by_user_id"
 end
