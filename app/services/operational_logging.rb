@@ -4,6 +4,8 @@ module OperationalLogging
   MAX_CONTEXT_BYTES = 8_000
   PRUNE_INTERVAL = 10.minutes
   MAX_BACKTRACE_FRAMES = 15
+  INSTANCE_CONFIGURATION_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
+  INSTANCE_CONFIGURATION_CACHE_MUTEX = Mutex.new
   SECRET_FILTERS = [
     /(authorization:\s*bearer\s+)[^\s,;]+/i,
     /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
@@ -23,6 +25,13 @@ module OperationalLogging
 
   def configured_for_instance?
     feature_enabled? && syrus_repository_registered?
+  end
+
+  def reset_instance_configuration_cache!
+    INSTANCE_CONFIGURATION_CACHE_MUTEX.synchronize do
+      @syrus_repository_registered = nil
+      @syrus_repository_registered_expires_at = nil
+    end
   end
 
   def ingest(level:, source:, message:, occurred_at: Time.current, context: {}, role: nil, hostname: nil, pid: Process.pid)
@@ -123,13 +132,36 @@ module OperationalLogging
   end
 
   def syrus_repository_registered?
-    suppress do
-      Repository.active.any? do |repository|
-        McpToolPolicy.syrus_repository?(repository)
+    cached_syrus_repository_registered do
+      suppress do
+        Repository.active.any? do |repository|
+          McpToolPolicy.syrus_repository?(repository)
+        end
       end
     end
   rescue StandardError
     false
+  end
+
+  def cached_syrus_repository_registered
+    now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    INSTANCE_CONFIGURATION_CACHE_MUTEX.synchronize do
+      if defined?(@syrus_repository_registered) &&
+          @syrus_repository_registered_expires_at.to_f > now
+        return @syrus_repository_registered
+      end
+    end
+
+    value = yield == true
+
+    suppress do
+      INSTANCE_CONFIGURATION_CACHE_MUTEX.synchronize do
+        @syrus_repository_registered = value
+        @syrus_repository_registered_expires_at = now + INSTANCE_CONFIGURATION_CACHE_TTL.to_f
+      end
+    end
+
+    value
   end
 
   def process_role

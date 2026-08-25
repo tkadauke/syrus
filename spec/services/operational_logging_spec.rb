@@ -10,6 +10,7 @@ RSpec.describe OperationalLogging do
     Feature.where(slug: "operational_log_indexing").delete_all
     Feature.create!(slug: "operational_log_indexing", category: "Operations", name: "Operational log indexing", enabled: true)
     Feature.clear_enabled_cache!("operational_log_indexing")
+    described_class.reset_instance_configuration_cache!
     Current.reset
     clear_enqueued_jobs
     Observability::EventSink.clear!(kind: :operational)
@@ -19,6 +20,7 @@ RSpec.describe OperationalLogging do
 
   after do
     Observability::EventSink.clear!(kind: :operational)
+    described_class.reset_instance_configuration_cache!
     Current.reset
     clear_enqueued_jobs
   end
@@ -43,11 +45,27 @@ RSpec.describe OperationalLogging do
 
   it "does not ingest when no Syrus repository or registered fork is active" do
     repository.update!(archived_at: Time.current)
+    described_class.reset_instance_configuration_cache!
     Current.reset
 
     expect {
       described_class.ingest(level: "info", source: "spec", message: "hello")
     }.not_to change(OperationalLogEvent, :count)
+  end
+
+  it "caches the instance repository registration check briefly" do
+    stub_const("OperationalLogging::INSTANCE_CONFIGURATION_CACHE_TTL", 1.minute)
+    described_class.reset_instance_configuration_cache!
+    repository_sql = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      repository_sql << payload[:sql] if payload[:sql].to_s.include?("FROM \"repositories\"")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      2.times { expect(described_class.configured_for_instance?).to be(true) }
+    end
+
+    expect(repository_sql.size).to eq(1)
   end
 
   it "redacts secrets, truncates large payloads, and buffers for staged persistence" do
