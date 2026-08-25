@@ -97,6 +97,7 @@ module WorkDefinitions
     def intent_gates = [ WorkIntents::Gates::Dependency ]
     def unit_gates
       [
+        WorkUnits::Gates::ActiveWorkLock,
         WorkUnits::Gates::MainBranchHealth,
         WorkUnits::Gates::ProviderAvailability,
         WorkUnits::Gates::ManualPause,

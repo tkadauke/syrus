@@ -13,6 +13,7 @@ class WorkUnit < ApplicationRecord
     epic_wide_workflow_active
     resource_safety
     ci_repair_safety
+    active_work_lock
     auto_retry_backoff
     preempted
   ].freeze

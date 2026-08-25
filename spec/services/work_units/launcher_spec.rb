@@ -70,14 +70,20 @@ RSpec.describe WorkUnits::Launcher do
     expect(second.work_unit.work_unit_locks.active).to be_empty
   end
 
-  it "prevents repeated non-idempotent launches when the scheduler gate owns job work" do
+  it "blocks repeated non-idempotent launches when the scheduler gate owns job work" do
     set_scheduler_gate(true)
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
 
-    expect {
-      described_class.instantiate(kind: "manual_visual_review", job: job)
-    }.to raise_error(WorkUnits::Launcher::LockConflict, /#{Regexp.escape("job:#{job.id}")}/)
-    expect(WorkUnit.where(kind: "manual_visual_review", scope_type: "job", scope_id: job.id).count).to eq(1)
+    second = described_class.instantiate(kind: "manual_visual_review", job: job)
+    result = described_class.start!(second)
+
+    expect(result).to be_blocked
+    expect(result.reason).to eq("active_work_lock")
+    expect(result.work_unit.blocked_details).to include(
+      "lock_key" => "job:#{job.id}",
+      "work_unit_id" => first.work_unit.id
+    )
+    expect(WorkUnit.where(kind: "manual_visual_review", scope_type: "job", scope_id: job.id).count).to eq(2)
     expect(first.work_unit).to be_active
   end
 
