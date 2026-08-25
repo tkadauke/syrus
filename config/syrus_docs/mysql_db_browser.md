@@ -18,9 +18,8 @@ an optional `default_database`, and encrypted `credentials`
 the plaintext password lives only inside that encrypted JSON blob, never in
 a plain column. Two independent boolean opt-ins, both default `false`:
 
-- `agentic_access_enabled` - reserved for a future job that wires this
-  connection into `mcp_tool_set`/`chat_mcp_tool_set` so workflow/chat agents
-  can query it directly. Not yet consumed by anything.
+- `agentic_access_enabled` - opts this specific connection into agentic
+  access; see Agentic access below.
 - `allow_writes` - see Read-only guardrails below.
 
 Managed from **Admin → DB Browser** (`/db_browser`, admin-only sidebar page,
@@ -143,6 +142,44 @@ the FK) or "incoming" (another table's FK points back at this one). The
 Structure tab renders this alongside Columns/Indexes; the query builder's
 join step filters it to rows touching the currently selected table and
 derives the join spec from whichever side isn't that table.
+
+## Agentic access
+
+Each `MysqlConnection` carries its own `agentic_access_enabled` opt-in
+(surfaced as a checkbox on the connection create/edit form, default `false`),
+independent of the instance-wide `mysql_db_browser` `Feature` flag. When set,
+that specific connection becomes queryable by workflow and chat agents
+through four MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
+(`MysqlDbBrowser::WorkflowToolSet` / `MysqlDbBrowser::ChatToolSet`,
+`plugins/mysql_db_browser/app/services/mysql_db_browser/{workflow,chat}_tool_set.rb`):
+
+- `mysql_db_browser_list_databases` / `mysql_db_browser_list_tables` /
+  `mysql_db_browser_describe_table` - thin MCP wrappers around
+  `SchemaInspector#databases`/`#tables`/`#table`, the same schema-browse path
+  the UI uses.
+- `mysql_db_browser_execute_query` - runs a statement through
+  `QueryExecutor#execute`, the same guardrailed path as the Query/Content
+  tabs (see Read-only guardrails and audit log below) - read-only unless the
+  connection also has `allow_writes`, and every attempt is recorded to
+  `MysqlQueryAudit` with the acting agent's user.
+
+**Gating is per-connection, not per-repository or admin-only** - a deliberate
+departure from `AdminMysql::WorkflowToolSet`/`ChatToolSet` (which gate on
+`McpToolPolicy.syrus_repository?`/`chat_session.user.admin?`, since those
+tools only ever touch Syrus's own database). There is no framework hook to
+resolve an individual tool call's params from `available_for?`/
+`available_for_context?` - those are only checked once, at MCP manifest-build
+time, before any call happens (see `Mcp::Sidecar.plugin_tools_for` /
+`.plugin_workflow_tools_for`). So `available_for?`/`available_for_context?`
+only decide whether the tool set appears in the manifest at all (plugin
+enabled, `WORKFLOW_IMPLEMENT` role for workflow runs, and at least one
+`MysqlConnection` with `agentic_access_enabled: true` so an agent isn't
+handed useless tools); the actual per-connection authorization happens inside
+each tool's own `#call`, via `MysqlDbBrowser::AgenticAccess.connection!(id)` -
+it resolves the `mysql_connection_id` named in that call's params and raises
+unless that specific row has `agentic_access_enabled: true`, mirroring
+`Mcp::Tools::AuthorizationSupport`'s `find_job!`/`find_run!` pattern for
+first-party tools.
 
 ## Read-only guardrails and audit log
 

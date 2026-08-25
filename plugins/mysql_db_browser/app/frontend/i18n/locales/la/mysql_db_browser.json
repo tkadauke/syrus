@@ -17,7 +17,7 @@
   "field_default_database": "Database praedefinita",
   "field_default_database_optional": "(optionale)",
   "field_agentic_access": "Accessum agenticum permitte",
-  "field_agentic_access_hint": "Agentes fluxus operis et colloquii hunc nexum quaerere sinit, ubi accessus agenticus paratus erit.",
+  "field_agentic_access_hint": "Agentes fluxus operis et colloquii sinit formam huius nexus perscrutari et quaestiones agere (tantum ad legendum, nisi accessus scribendi etiam permissus est).",
   "field_allow_writes": "Quaestiones scribentes permitte",
   "field_allow_writes_hint": "Hic nexus natura tantum ad legendum est et omnem sententiam praeter SELECT reicit. Activa ut INSERT/UPDATE/DELETE aliaeque scriptiones ex tabula Quaestionis permittantur.",
   "create_button": "Nexum adde",

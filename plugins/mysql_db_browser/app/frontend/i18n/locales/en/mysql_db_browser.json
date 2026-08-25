@@ -17,7 +17,7 @@
   "field_default_database": "Default database",
   "field_default_database_optional": "(optional)",
   "field_agentic_access": "Allow agentic query access",
-  "field_agentic_access_hint": "Lets workflow and chat agents query this connection once agentic access is wired up.",
+  "field_agentic_access_hint": "Lets workflow and chat agents browse this connection's schema and run queries against it (read-only unless write access is also allowed).",
   "field_allow_writes": "Allow write queries",
   "field_allow_writes_hint": "By default this connection is read-only and rejects any non-SELECT statement. Enable to allow INSERT/UPDATE/DELETE and other writes from the Query tab.",
   "create_button": "Add connection",

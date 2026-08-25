@@ -3,6 +3,8 @@ require "mysql_db_browser/engine"
 
 module MysqlDbBrowser
   def self.register!
+    MysqlDbBrowser::ChatToolSet.include(Syrus::Plugin::ChatMcpToolSet) unless MysqlDbBrowser::ChatToolSet < Syrus::Plugin::ChatMcpToolSet
+
     Syrus::PluginRegistry.register(
       name:            "mysql_db_browser",
       display_name:    "MySQL DB Browser",
@@ -82,7 +84,9 @@ module MysqlDbBrowser
         }
       ],
       provides: {
-        sidebar_page: MysqlDbBrowser::SidebarPages
+        sidebar_page:      MysqlDbBrowser::SidebarPages,
+        mcp_tool_set:      MysqlDbBrowser::WorkflowToolSet,
+        chat_mcp_tool_set: MysqlDbBrowser::ChatToolSet
       }
     )
   end
@@ -90,5 +94,17 @@ module MysqlDbBrowser
   def self.enabled?
     Feature.enabled?(:mysql_db_browser) &&
       Syrus::PluginRegistry.all_plugins.any? { |manifest| manifest.name == "mysql_db_browser" && manifest.enabled? }
+  end
+
+  # The acting user to attribute an agent-issued query/tool call to, for
+  # MysqlQueryAudit and any future audit surface. server_context's shape
+  # differs by MCP surface: chat carries the ChatSession directly; workflow
+  # carries a run_id (or run) resolved through Mcp::Tools.run_from_context.
+  def self.user_from_server_context(server_context)
+    if server_context[:chat_session]
+      server_context[:chat_session].user
+    else
+      Mcp::Tools.run_from_context(server_context).job.user
+    end
   end
 end
