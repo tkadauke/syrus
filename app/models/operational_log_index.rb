@@ -21,7 +21,7 @@ class OperationalLogIndex < SearchRecord
 
       connection.transaction do
         delete_many(missing_ids)
-        events.each { |event| insert(event) }
+        insert_many(events)
       end
     end
 
@@ -186,6 +186,39 @@ class OperationalLogIndex < SearchRecord
 
     private
 
+    def insert_many(events)
+      events.each_slice(50) do |batch|
+        next if batch.empty?
+
+        placeholders = batch.map { "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" }.join(", ")
+        connection.exec_insert(
+          <<~SQL.squish,
+            INSERT OR REPLACE INTO operational_log_fts (
+              rowid,
+              message,
+              context_text,
+              context_json,
+              operational_log_event_id,
+              occurred_at,
+              level,
+              role,
+              hostname,
+              app_revision,
+              pid,
+              source,
+              job_id,
+              workflow_id,
+              run_id,
+              request_id
+            )
+            VALUES #{placeholders}
+          SQL
+          "OperationalLogIndex Upsert Many",
+          batch.flat_map { |event| insert_binds(event) }
+        )
+      end
+    end
+
     def insert(event)
       connection.exec_insert(
         <<~SQL.squish,
@@ -210,25 +243,29 @@ class OperationalLogIndex < SearchRecord
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         SQL
         "OperationalLogIndex Upsert",
-        [
-          bind(event.id),
-          bind(event.message),
-          bind(context_text(event.context)),
-          bind(event.context.to_json),
-          bind(event.id),
-          bind(event.occurred_at&.iso8601(6)),
-          bind(event.level),
-          bind(event.role),
-          bind(event.hostname),
-          bind(event.app_revision),
-          bind(event.pid),
-          bind(event.source),
-          bind(event.job_id),
-          bind(event.workflow_id),
-          bind(event.run_id),
-          bind(event.request_id)
-        ]
+        insert_binds(event)
       )
+    end
+
+    def insert_binds(event)
+      [
+        bind(event.id),
+        bind(event.message),
+        bind(context_text(event.context)),
+        bind(event.context.to_json),
+        bind(event.id),
+        bind(event.occurred_at&.iso8601(6)),
+        bind(event.level),
+        bind(event.role),
+        bind(event.hostname),
+        bind(event.app_revision),
+        bind(event.pid),
+        bind(event.source),
+        bind(event.job_id),
+        bind(event.workflow_id),
+        bind(event.run_id),
+        bind(event.request_id)
+      ]
     end
 
     def fallback_search(query:, since:, until_time:, level:, role:, hostname:, app_revision:, limit:, offset:)

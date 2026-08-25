@@ -37,6 +37,41 @@ RSpec.describe IndexOperationalLogEventsJob do
     expect(delete_sql).to be_empty
   end
 
+  it "indexes multiple existing events with one batched insert" do
+    prepare_search_tables
+    event_one = OperationalLogEvent.create!(
+      occurred_at: Time.current,
+      level: "info",
+      role: "web",
+      hostname: "host-a",
+      source: "spec",
+      message: "first batched event",
+      context: {}
+    )
+    event_two = OperationalLogEvent.create!(
+      occurred_at: Time.current,
+      level: "info",
+      role: "web",
+      hostname: "host-a",
+      source: "spec",
+      message: "second batched event",
+      context: {}
+    )
+
+    insert_sql = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      insert_sql << payload[:sql] if payload[:name] == "OperationalLogIndex Upsert Many"
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.perform_now([ event_one.id, event_two.id ])
+    end
+
+    expect(insert_sql.size).to eq(1)
+    expect(insert_sql.first).to match(/VALUES \(.+\), \(/)
+    expect(OperationalLogIndex.search(query: "batched", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to contain_exactly(event_one.id, event_two.id)
+  end
+
   it "deletes stale index rows for missing events" do
     prepare_search_tables
     event = OperationalLogEvent.create!(
@@ -56,7 +91,7 @@ RSpec.describe IndexOperationalLogEventsJob do
     expect(OperationalLogIndex.search(query: "stale", since: 1.hour.ago)).to be_empty
   end
 
-  it "indexes the whole batch inside a single outer transaction, rolling back all events if one fails" do
+  it "indexes the whole batch inside a single outer transaction, rolling back all events if insertion fails" do
     prepare_search_tables
     event_one = OperationalLogEvent.create!(
       occurred_at: Time.current,
@@ -77,10 +112,8 @@ RSpec.describe IndexOperationalLogEventsJob do
       context: {}
     )
 
-    insert_count = 0
     allow(OperationalLogIndex.connection).to receive(:exec_insert).and_wrap_original do |original, *args|
-      insert_count += 1
-      raise ActiveRecord::StatementInvalid, "boom" if insert_count == 2
+      raise ActiveRecord::StatementInvalid, "boom" if args.second == "OperationalLogIndex Upsert Many"
 
       original.call(*args)
     end
