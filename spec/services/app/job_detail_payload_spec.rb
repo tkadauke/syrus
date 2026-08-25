@@ -908,8 +908,6 @@ RSpec.describe App::JobDetailPayload do
       first = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 101)
       second = Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 102)
       workflow = Workflow.create!(job: first, trigger_kind: "merge_train", state: "running")
-      step = Step.create!(workflow: workflow, kind: "merge_train_build", position: 1, state: "running")
-      run = Run.create!(job: first, step: step, trigger_kind: "merge_train", state: "running")
       unit = attach_work_unit(workflow, member_jobs: [ first, second ], kind: "merge_train")
 
       payload = workflows_payload_for(second)
@@ -928,22 +926,7 @@ RSpec.describe App::JobDetailPayload do
           member_role: "member",
           scope_type: "epic",
           scope_id: epic.id,
-          workflow: include(
-            id: workflow.id,
-            trigger_kind: "merge_train",
-            app_retry_step_path: "/api/v1/app/jobs/#{first.id}/workflows/#{workflow.id}/retry_step",
-            steps: include(
-              include(
-                kind: "merge_train_build",
-                runs: include(
-                  include(
-                    id: run.id,
-                    app_stop_path: "/api/v1/app/jobs/#{first.id}/runs/#{run.id}/stop"
-                  )
-                )
-              )
-            )
-          )
+          workflow: nil
         )
       )
     end
@@ -956,7 +939,7 @@ RSpec.describe App::JobDetailPayload do
       Step.create!(workflow: workflow, kind: "merge_train_land_after_rebase", position: 2)
       attach_work_unit(workflow, member_jobs: [ first, second ], kind: "job_bundle")
 
-      workflow_payload = workflows_payload_for(second).fetch(:work_units).first.fetch(:workflow)
+      workflow_payload = workflows_payload_for(first).fetch(:workflows).first
       names_by_kind = workflow_payload.fetch(:steps).to_h { |step| [ step.fetch(:kind), step.fetch(:display_name) ] }
 
       expect(names_by_kind).to include(
@@ -972,7 +955,7 @@ RSpec.describe App::JobDetailPayload do
       Step.create!(workflow: workflow, kind: "merge_train_land", position: 1)
       attach_work_unit(workflow, member_jobs: [ job ], kind: "merge_train")
 
-      workflow_payload = workflows_payload_for(job).fetch(:work_units).first.fetch(:workflow)
+      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
       expect(workflow_payload.fetch(:steps).first.fetch(:display_name)).to eq("Land Epic")
     end
 
@@ -1004,7 +987,7 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
-    it "renders WorkUnit-owned direct workflows only under their WorkUnit" do
+    it "renders WorkUnit-owned direct workflows in the regular workflow list without nesting them under WorkUnits" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
       step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
@@ -1037,19 +1020,19 @@ RSpec.describe App::JobDetailPayload do
       attach_work_unit(workflow, member_jobs: [ job ], kind: "initial")
 
       payload = workflows_payload_for(job)
-      nested_workflow = payload.dig(:work_units, 0, :workflow)
-      nested_step = nested_workflow.fetch(:steps).first
+      workflow_payload = payload.fetch(:workflows).first
+      nested_step = workflow_payload.fetch(:steps).first
       nested_run = nested_step.fetch(:runs).first
 
-      expect(payload.fetch(:workflows)).to be_empty
-      expect(payload.fetch(:work_units).map { |unit| unit.dig(:workflow, :id) }).to eq([ workflow.id ])
+      expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
+      expect(payload.fetch(:work_units).map { |unit| unit[:workflow] }).to eq([ nil ])
       expect(payload.fetch(:workflows_pagination)).to include(
-        total_workflows: 0,
+        total_workflows: 1,
         total_pages: 1,
-        first_item: 0,
-        last_item: 0
+        first_item: 1,
+        last_item: 1
       )
-      expect(nested_workflow.fetch(:steps).map { |entry| entry[:kind] }).to include("implement")
+      expect(workflow_payload.fetch(:steps).map { |entry| entry[:kind] }).to include("implement")
       expect(nested_step.fetch(:warnings)).to include(include(kind: "grader_side_effect", title: "needs attention"))
       expect(nested_run).to include(id: run.id, state: "running", can_stop: true)
       expect(nested_run.fetch(:active_process)).to include(
@@ -1068,7 +1051,7 @@ RSpec.describe App::JobDetailPayload do
 
       payload = workflows_payload_for(job)
 
-      expect(payload.fetch(:workflows)).to be_empty
+      expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
       expect(payload.fetch(:work_units)).to contain_exactly(
         include(
           id: unit.id,
@@ -1080,7 +1063,7 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
-    it "reuses serialized WorkUnit workflow payloads within one job detail response" do
+    it "keeps WorkUnit workflow graphs out of the default job detail response" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
       Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
@@ -1088,10 +1071,11 @@ RSpec.describe App::JobDetailPayload do
 
       payload = payload_for(job)
 
-      expect(payload.dig(:active_work, :workflow)).to equal(payload.dig(:work_units, 0, :workflow))
+      expect(payload.dig(:active_work, :workflow)).to be_nil
+      expect(payload.dig(:work_units, 0, :workflow)).to be_nil
     end
 
-    it "computes same-job workflow paths without per-workflow navigation count queries" do
+    it "does not call the legacy workflow navigation helper while building the job detail shell" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
       Step.create!(workflow: workflow, kind: "implement", position: 1, state: "running")
@@ -1101,35 +1085,7 @@ RSpec.describe App::JobDetailPayload do
 
       payload = payload_for(job)
 
-      expect(payload.dig(:active_work, :workflow, :path)).to eq("/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}")
-    end
-
-    it "computes external WorkUnit workflow paths without per-workflow navigation count queries" do
-      member_job = Factories.job_record(user: user, repository: repo, issue_number: 101)
-      attached_job = Factories.job_record(user: user, repository: repo, issue_number: 102)
-      workflow = Workflow.create!(
-        job: attached_job,
-        trigger_kind: "merge_train",
-        state: "running",
-        created_at: 20.minutes.ago
-      )
-      11.times do |index|
-        Workflow.create!(
-          job: attached_job,
-          trigger_kind: "retry",
-          state: "failed",
-          created_at: (index + 1).minutes.ago
-        )
-      end
-      attach_work_unit(workflow, member_jobs: [ member_job ], kind: "job_bundle")
-
-      expect(App::WorkflowNavigation).not_to receive(:path)
-
-      payload = workflows_payload_for(member_job)
-
-      expect(payload.dig(:work_units, 0, :workflow, :path)).to eq(
-        "/jobs/#{attached_job.id}?tab=workflows&workflows_page=2#workflow-#{workflow.id}"
-      )
+      expect(payload.dig(:workflows_pagination, :total_workflows)).to eq(1)
     end
 
     it "renders step state from the latest run projection while preserving drift diagnostics" do
@@ -1168,7 +1124,7 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.fetch(:workflows).map { |entry| entry[:id] }).to eq([ workflow.id ])
     end
 
-    it "does not leak older WorkUnit-owned workflows into the legacy workflow list" do
+    it "keeps WorkUnit-owned workflows in the regular paginated workflow list" do
       job = Factories.job_record(user: user, repository: repo)
       51.times do |index|
         workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", created_at: index.minutes.ago)
@@ -1179,8 +1135,8 @@ RSpec.describe App::JobDetailPayload do
       payload = workflows_payload_for(job)
 
       expect(payload.fetch(:work_units).size).to eq(50)
-      expect(payload.fetch(:workflows)).to be_empty
-      expect(payload.fetch(:workflows_pagination)).to include(total_workflows: 0)
+      expect(payload.fetch(:workflows).size).to eq(App::WorkflowNavigation::PER_PAGE)
+      expect(payload.fetch(:workflows_pagination)).to include(total_workflows: 51)
     end
 
     it "includes generic WorkflowWarning rows on the owning step, redacted" do

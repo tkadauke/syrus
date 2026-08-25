@@ -61,7 +61,6 @@ module App
 
       def work_unit_json(unit, member)
         workflow = unit.workflow
-        embedded_workflow = workflow if embed_workflow_for_work_unit?(unit, member)
         {
           id: unit.id,
           kind: unit.kind,
@@ -87,7 +86,7 @@ module App
           preempted_by_work_unit_id: unit.preempted_by_work_unit_id,
           preempted_by_work_unit_kind: unit.preempted_by_work_unit&.kind,
           preempted_by_work_unit_label: unit.preempted_by_work_unit ? work_unit_label(unit.preempted_by_work_unit) : nil,
-          workflow: embedded_workflow ? workflow_json(embedded_workflow) : nil,
+          workflow: nil,
           created_at: iso8601(unit.created_at),
           started_at: iso8601(unit.started_at),
           finished_at: iso8601(unit.finished_at)
@@ -264,9 +263,7 @@ module App
       end
 
       def workflows_scope
-        scope = @job.workflows
-        scope = scope.where.not(id: all_work_unit_workflow_ids_for_job) if work_unit_debug_enabled?
-        scope.reorder(created_at: :desc, id: :desc)
+        @job.workflows.reorder(created_at: :desc, id: :desc)
       end
 
       def total_workflows
@@ -360,37 +357,7 @@ module App
       end
 
       def serialized_workflows
-        @serialized_workflows ||= (paginated_workflows + work_unit_workflows_for_job).uniq(&:id)
-      end
-
-      def work_unit_workflows_for_job
-        return [] unless work_unit_debug_enabled?
-
-        @work_unit_workflows_for_job ||= work_unit_members_for_job.filter_map do |member|
-          unit = member.work_unit
-          unit.workflow if embed_workflow_for_work_unit?(unit, member)
-        end
-      end
-
-      def work_unit_workflow_ids_for_job
-        @work_unit_workflow_ids_for_job ||= work_unit_workflows_for_job.map(&:id)
-      end
-
-      def all_work_unit_workflow_ids_for_job
-        return [] unless work_unit_debug_enabled?
-
-        @all_work_unit_workflow_ids_for_job ||= PerformanceLogging.phase("job_detail.work_units.workflow_ids", job_id: @job.id) do
-          WorkUnitMember
-            .joins(:work_unit)
-            .where(job_id: @job.id)
-            .where.not(work_units: { workflow_id: nil })
-            .distinct
-            .pluck("work_units.workflow_id")
-        end
-      end
-
-      def embed_workflow_for_work_unit?(unit, member)
-        unit.active? || member == active_work_unit_member_for_job
+        @serialized_workflows ||= paginated_workflows
       end
 
       def ordered_runs_for(step)
