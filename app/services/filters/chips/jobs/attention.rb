@@ -260,14 +260,11 @@ module Filters
         end
 
         def unpaused_running_workflow_job_ids
-          active_ids = active_workflow_job_ids do |relation|
-            relation.where("artifacts IS NULL OR NOT (artifacts LIKE ? OR artifacts LIKE ?)", '%"pause_reason"%', '%"start_blocked_reason"%')
-          end
-          (active_ids | running_work_unit_job_ids) - blocked_work_unit_job_ids
+          running_work_unit_job_ids - blocked_work_unit_job_ids
         end
 
         def paused_job_ids
-          (paused_workflow_job_ids | blocked_work_unit_job_ids) - actively_executing_job_ids
+          blocked_work_unit_job_ids - actively_executing_job_ids
         end
 
         def active_repair_work_job_ids
@@ -275,32 +272,15 @@ module Filters
         end
 
         def running_repair_work_job_ids
-          @running_repair_work_job_ids ||= running_work_unit_job_ids(kinds: WorkDefinitions.active_repair_work_kinds) |
-            active_workflow_job_ids(trigger_kind: WorkDefinitions.workflow_trigger_kinds_for(WorkDefinitions.active_repair_work_kinds))
-        end
-
-        def paused_workflow_job_ids
-          active_workflow_job_ids(excluding_trigger_kind: WorkDefinitions.landing_workflow_kinds) do |relation|
-            relation.where("artifacts LIKE ? OR artifacts LIKE ?", '%"pause_reason"%', '%"start_blocked_reason"%')
-          end
+          @running_repair_work_job_ids ||= running_work_unit_job_ids(kinds: WorkDefinitions.active_repair_work_kinds)
         end
 
         def blocked_work_unit_job_ids
           @blocked_work_unit_job_ids ||= WorkUnits::Ownership.all_blocked_job_ids.to_a
         end
 
-        def active_workflow_job_ids(trigger_kind: nil, excluding_trigger_kind: nil)
-          relation = Workflow.where(state: "running")
-          relation = relation.where.not(trigger_kind: excluding_trigger_kind) if excluding_trigger_kind
-          relation = yield(relation) if block_given?
-          relation = WorkUnits::Ownership.legacy_replay_workflows_scope(nil, kinds: trigger_kind, base_scope: relation)
-
-          relation.distinct.pluck(:job_id)
-        end
-
         def runtime_running_job_ids(trigger_kind: nil, excluding_trigger_kind: nil)
-          active_workflow_job_ids(trigger_kind: trigger_kind, excluding_trigger_kind: excluding_trigger_kind) |
-            running_work_unit_job_ids(kinds: trigger_kind, excluding_kinds: excluding_trigger_kind)
+          running_work_unit_job_ids(kinds: trigger_kind, excluding_kinds: excluding_trigger_kind)
         end
 
         def running_work_unit_job_ids(kinds: nil, excluding_kinds: nil)

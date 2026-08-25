@@ -8,7 +8,7 @@ module Filters
         operators :is_true, :is_false
 
         def apply
-          blocked = workflow_blocked_job_ids | WorkUnits::Ownership.all_blocked_job_ids.to_a
+          blocked = WorkUnits::Ownership.all_blocked_job_ids.to_a
 
           case op
           when :is_true  then scope.where(id: blocked)
@@ -17,14 +17,6 @@ module Filters
           end
         end
 
-        private
-
-        def workflow_blocked_job_ids
-          WorkUnits::Ownership
-            .legacy_replay_start_blocked_workflows_scope
-            .distinct
-            .pluck(:job_id)
-        end
       end
     end
   end

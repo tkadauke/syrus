@@ -1,11 +1,5 @@
 class WorkflowAdmissionCapacityWakeup
   DEFAULT_LIMIT = 8
-  ARTIFACT_PATTERNS = [
-    "%#{StepDispatcher::ADMISSION_BLOCK_REASON}%",
-    "%workflow admission budget%",
-    "%#{StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY}%"
-  ].freeze
-
   Result = Data.define(:workflow_ids) do
     def workflow_count = workflow_ids.size
   end
@@ -13,7 +7,7 @@ class WorkflowAdmissionCapacityWakeup
   def self.call(...) = new(...).call
 
   def self.deferred_sleepers_exist?
-    work_unit_sleeper_scope.exists? || legacy_sleeper_scope.exists?
+    work_unit_sleeper_scope.exists?
   end
 
   def self.admission_or_resource_paused?(workflow)
@@ -30,13 +24,7 @@ class WorkflowAdmissionCapacityWakeup
   end
 
   def self.sleeper_workflows
-    work_unit_workflows = work_unit_sleeper_scope.includes(:workflow).order(:id).map(&:workflow)
-    legacy_workflows = legacy_sleeper_scope.to_a.select { |workflow| admission_or_resource_paused?(workflow) }
-    (work_unit_workflows + legacy_workflows).uniq(&:id)
-  end
-
-  def self.legacy_sleeper_scope
-    WorkUnits::Ownership.legacy_replay_start_blocked_workflows_scope(nil, patterns: ARTIFACT_PATTERNS)
+    work_unit_sleeper_scope.includes(:workflow).order(:id).map(&:workflow).uniq(&:id)
   end
 
   def self.work_unit_sleeper_scope

@@ -626,7 +626,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(kind(result, :closed_job_active_workflow)).to be_nil
   end
 
-  it "cancels legacy replay active workflows on closed jobs" do
+  it "ignores replay workflows without WorkUnits on closed jobs" do
     closed = Factories.job_record(
       user: job.user,
       repository: job.repository,
@@ -636,7 +636,7 @@ RSpec.describe WorkEngine::Reconciler do
     replay = Workflow.create!(
       job: closed,
       user: closed.user,
-      trigger_kind: WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND,
+      trigger_kind: "replay",
       agent_provider: closed.agent_provider,
       state: "running",
       started_at: 15.minutes.ago
@@ -647,13 +647,11 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile_and_execute(job_id: closed.id)
 
-    expect(kind(result, :closed_job_active_workflow)).to have_attributes(
-      recommended_repair_action: "cancel_workflow_for_closed_job"
-    )
-    expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{replay.id} because Job ##{closed.id} is closed")
-    expect(replay.reload).to be_cancelled
-    expect(replay_step.reload).to be_cancelled
-    expect(replay_run.reload).to be_cancelled
+    expect(kind(result, :closed_job_active_workflow)).to be_nil
+    expect(result.repair_executions).to be_empty
+    expect(replay.reload).to be_running
+    expect(replay_step.reload).to be_running
+    expect(replay_run.reload).to be_running
   end
 
   it "cancels requested WorkIntents left behind by closed jobs" do

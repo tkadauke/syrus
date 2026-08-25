@@ -377,30 +377,12 @@ module App
       def start_blocked_data_by_job_id
         @start_blocked_data_by_job_id ||= begin
           job_ids = Array(@current_jobs).map(&:id)
-          active_scope = if job_ids.any?
-            Job.where(id: job_ids, state: %w[queued running landing]).select(:id)
+          scoped_job_ids = if job_ids.any?
+            job_ids
           else
-            jobs_base_scope.where(state: %w[queued running landing]).select(:id)
+            jobs_base_scope.where(state: %w[queued running landing]).pluck(:id)
           end
-          runnable_work_unit_job_ids = WorkUnits::Ownership.runnable_unit_job_ids(job_ids).to_set
-
-          legacy = WorkUnits::Ownership
-                  .legacy_replay_start_blocked_workflows_scope(
-                    job_ids.presence,
-                    base_scope: Workflow.where(job_id: active_scope, state: %w[queued running])
-                  )
-                  .includes(:work_unit)
-                  .reorder(id: :desc)
-                  .select(:id, :job_id, :trigger_kind, :artifacts)
-                  .each_with_object({}) do |wf, map|
-            next if map.key?(wf.job_id)
-            next if runnable_work_unit_job_ids.include?(wf.job_id)
-
-            data = WorkUnits::StartBlock.for(wf).data
-            map[wf.job_id] = data if data[:reason].present?
-          end
-          scoped_job_ids = job_ids.presence || legacy.keys
-          legacy.merge(WorkUnits::Ownership.blocked_data_by_job_id(scoped_job_ids))
+          WorkUnits::Ownership.blocked_data_by_job_id(scoped_job_ids)
         end
       end
 

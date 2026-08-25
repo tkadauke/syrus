@@ -847,28 +847,22 @@ module App
     end
 
     def workflow_for_start_blocked
-      @workflow_for_start_blocked ||= begin
-        WorkUnits::Ownership
-          .legacy_replay_start_blocked_workflows_scope(
-            [ @job.id ],
-            base_scope: @job.workflows.where(state: %w[queued running])
-          )
-          .includes(:work_unit)
-          .reorder(created_at: :desc, id: :desc)
-          .detect { |wf| WorkUnits::StartBlock.for(wf).reason.present? }
-      end
+      @workflow_for_start_blocked ||= WorkUnitMember
+        .joins(:work_unit)
+        .where(job_id: @job.id, work_units: { state: "blocked" })
+        .includes(work_unit: :workflow)
+        .reorder("work_units.updated_at DESC", "work_units.id DESC")
+        .map { |member| member.work_unit.workflow }
+        .compact
+        .first
     end
 
     def job_start_blocked_data
       @job_start_blocked_data ||= begin
         work_unit_data = WorkUnits::Ownership.blocked_data_by_job_id([ @job.id ]).fetch(@job.id, {})
-        if work_unit_data[:reason].present?
-          work_unit_data
-        elsif (workflow = workflow_for_start_blocked)
-          WorkUnits::StartBlock.for(workflow).data
-        else
-          {}
-        end
+        return work_unit_data if work_unit_data[:reason].present?
+
+        workflow_for_start_blocked ? WorkUnits::StartBlock.for(workflow_for_start_blocked).data : {}
       end
     end
 

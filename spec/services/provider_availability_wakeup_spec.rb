@@ -23,7 +23,7 @@ RSpec.describe ProviderAvailabilityWakeup do
     }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
   end
 
-  it "still wakes replay workflows recorded only in legacy artifacts" do
+  it "ignores replay workflows recorded only in legacy artifacts" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", agent_provider: "codex")
     workflow = Workflow.create!(
       job: job,
@@ -42,7 +42,7 @@ RSpec.describe ProviderAvailabilityWakeup do
 
     expect {
       described_class.call(provider: "codex", user: user)
-    }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
+    }.not_to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
   end
 
   it "ignores migrated artifact-only workflows that do not have a WorkUnit block" do

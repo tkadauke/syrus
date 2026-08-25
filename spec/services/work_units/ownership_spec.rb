@@ -35,66 +35,13 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq({})
   end
 
-  it "preserves the replay legacy fallback while replay migrates separately" do
+  it "ignores replay workflows without WorkUnits" do
     job = Factories.job_record
     Workflow.create!(job: job, trigger_kind: "replay", state: "running")
 
-    expect(described_class.active_job_ids([ job.id ])).to include(job.id)
-    expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq(job.id => "replay")
-    expect(described_class.active_trigger_kind_lists_by_job_id([ job.id ])).to eq(job.id => [ "replay" ])
-  end
-
-  it "centralizes replay-only start-block artifact fallback" do
-    replay = Factories.job_record(issue_number: 31)
-    migrated = Factories.job_record(repository: replay.repository, issue_number: 32)
-    matching = Workflow.create!(
-      job: replay,
-      trigger_kind: "replay",
-      state: "queued",
-      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
-    )
-    Workflow.create!(
-      job: replay,
-      trigger_kind: "replay",
-      state: "queued",
-      artifacts: { "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON }
-    )
-    Workflow.create!(
-      job: migrated,
-      trigger_kind: "initial",
-      state: "queued",
-      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
-    )
-
-    result = described_class.legacy_replay_start_blocked_workflows_scope(
-      [ replay.id, migrated.id ],
-      reasons: StepDispatcher::ADMISSION_BLOCK_REASON
-    )
-
-    expect(result).to contain_exactly(matching)
-  end
-
-  it "can search replay start-block artifacts by migration-era patterns" do
-    admission = Factories.job_record(issue_number: 33)
-    resource = Factories.job_record(repository: admission.repository, issue_number: 34)
-    Workflow.create!(
-      job: admission,
-      trigger_kind: "replay",
-      state: "queued",
-      artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON }
-    )
-    resource_workflow = Workflow.create!(
-      job: resource,
-      trigger_kind: "replay",
-      state: "queued",
-      artifacts: { "start_blocked_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY }
-    )
-
-    result = described_class.legacy_replay_start_blocked_workflows_scope(
-      patterns: [ "%#{StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY}%" ]
-    )
-
-    expect(result).to contain_exactly(resource_workflow)
+    expect(described_class.active_job_ids([ job.id ])).not_to include(job.id)
+    expect(described_class.active_trigger_kinds_by_job_id([ job.id ])).to eq({})
+    expect(described_class.active_trigger_kind_lists_by_job_id([ job.id ])).to eq({})
   end
 
   it "ignores landing legacy workflow fallbacks after landing moves to work units" do
@@ -133,7 +80,7 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.active_trigger_kinds_by_job_id([ second.id ])).to eq(second.id => "merge_train")
   end
 
-  it "reports every active trigger kind from WorkUnit membership and replay legacy workflows" do
+  it "reports every active trigger kind from WorkUnit membership" do
     job = Factories.job_record(issue_number: 151)
     workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
     attach_work_unit(workflow, member_jobs: [ job ], kind: "pr_comment")
@@ -143,10 +90,10 @@ RSpec.describe WorkUnits::Ownership do
     result = described_class.active_trigger_kind_lists_by_job_id([ job.id ])
 
     expect(result.keys).to eq([ job.id ])
-    expect(result[job.id]).to contain_exactly("pr_comment", "ci_failure", "replay")
+    expect(result[job.id]).to contain_exactly("pr_comment", "ci_failure")
   end
 
-  it "reports all active job ids from work unit membership and replay legacy workflows" do
+  it "reports all active job ids from work unit membership" do
     work_unit_job = Factories.job_record(issue_number: 201)
     legacy_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 202)
     idle_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 203)
@@ -154,11 +101,11 @@ RSpec.describe WorkUnits::Ownership do
     attach_work_unit(workflow, member_jobs: [ work_unit_job ], kind: "manual", state: "blocked")
     Workflow.create!(job: legacy_job, trigger_kind: "replay", state: "queued")
 
-    expect(described_class.all_active_job_ids).to include(work_unit_job.id, legacy_job.id)
-    expect(described_class.all_active_job_ids).not_to include(idle_job.id)
+    expect(described_class.all_active_job_ids).to include(work_unit_job.id)
+    expect(described_class.all_active_job_ids).not_to include(legacy_job.id, idle_job.id)
   end
 
-  it "reports active workflow ids from work units and replay legacy workflows" do
+  it "reports active workflow ids from work units" do
     work_unit_job = Factories.job_record(issue_number: 211)
     legacy_job = Factories.job_record(repository: work_unit_job.repository, issue_number: 212)
     terminal_workflow = Workflow.create!(
@@ -181,9 +128,10 @@ RSpec.describe WorkUnits::Ownership do
     )
     attach_work_unit(terminal_workflow, member_jobs: [ work_unit_job ], kind: "manual", state: "running")
 
-    expect(described_class.active_workflow_ids(agent_provider: "codex")).to contain_exactly(terminal_workflow.id, legacy_workflow.id)
+    expect(described_class.active_workflow_ids(agent_provider: "codex")).to contain_exactly(terminal_workflow.id)
     expect(described_class.active_workflow_ids([ work_unit_job.id ], kinds: "manual")).to contain_exactly(terminal_workflow.id)
     expect(described_class.active_workflow_ids(agent_provider: "codex")).not_to include(ignored_workflow.id)
+    expect(described_class.active_workflow_ids(agent_provider: "codex")).not_to include(legacy_workflow.id)
   end
 
   it "reports the active workflow for each member job" do

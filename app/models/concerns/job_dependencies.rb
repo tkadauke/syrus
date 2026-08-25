@@ -66,16 +66,11 @@ module JobDependencies
   end
 
   def dependency_blocked_workflows
-    unit_workflows = WorkUnits::Ownership
+    WorkUnits::Ownership
       .active_units_for_job(self)
       .filter_map(&:workflow)
       .select(&:queued?)
-
-    legacy_replay_workflows = WorkUnits::Ownership
-      .legacy_replay_workflows_scope([ id ], base_scope: workflows.where(state: "queued"))
-      .to_a
-
-    (unit_workflows + legacy_replay_workflows).uniq(&:id)
+      .uniq(&:id)
   end
 
   def dependency_terminal_unsuccessful?(dependency)

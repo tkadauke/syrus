@@ -4,7 +4,6 @@ module WorkUnits
   class Ownership
     ACTIVE_STATES = %w[queued blocked running].freeze
     RUNNABLE_STATES = %w[queued running].freeze
-    LEGACY_REPLAY_TRIGGER_KIND = "replay".freeze
     ACTIVE_PRIORITY_ORDER_SQL = "CASE work_units.state WHEN 'running' THEN 0 WHEN 'queued' THEN 1 ELSE 2 END, work_units.created_at DESC, work_units.id DESC".freeze
     BLOCKED_PRIORITY_ORDER_SQL = "work_units.updated_at DESC, work_units.id DESC".freeze
     ActiveWork = Data.define(:kind, :workflow, :work_unit)
@@ -42,17 +41,6 @@ module WorkUnits
       result = active_units_by_job_id(ids, kinds: repair_kinds).transform_values do |unit|
         ActiveWork.new(kind: unit.kind, workflow: unit.workflow, work_unit: unit)
       end
-
-      remaining_ids = ids - result.keys
-      return result if remaining_ids.empty?
-
-      legacy_replay_workflows_scope(remaining_ids, kinds: repair_kinds)
-        .order(:job_id, created_at: :desc, id: :desc)
-        .each do |workflow|
-          result[workflow.job_id] ||= ActiveWork.new(kind: workflow.trigger_kind, workflow: workflow, work_unit: nil)
-        end
-
-      result
     end
 
     def self.active_repair_work_for_job(job)
@@ -77,31 +65,26 @@ module WorkUnits
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?
 
-      active_units_by_job_id(ids, kinds: kinds).keys.to_set |
-        legacy_replay_workflow_job_ids(ids, kinds: kinds).to_set
+      active_units_by_job_id(ids, kinds: kinds).keys.to_set
     end
 
     def self.all_active_job_ids(kinds: nil)
-      all_active_unit_job_ids(kinds: kinds).to_set |
-        legacy_replay_workflow_job_ids(nil, kinds: kinds).to_set
+      all_active_unit_job_ids(kinds: kinds).to_set
     end
 
     def self.runnable_job_ids(job_ids, kinds: nil)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?
 
-      runnable_unit_job_ids(ids, kinds: kinds).to_set |
-        legacy_replay_workflow_job_ids(ids, kinds: kinds).to_set
+      runnable_unit_job_ids(ids, kinds: kinds).to_set
     end
 
     def self.all_runnable_job_ids(kinds: nil)
-      runnable_unit_job_ids(nil, kinds: kinds).to_set |
-        legacy_replay_workflow_job_ids(nil, kinds: kinds).to_set
+      runnable_unit_job_ids(nil, kinds: kinds).to_set
     end
 
     def self.active_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
-      unit_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).to_set |
-        legacy_replay_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).to_set
+      unit_workflow_ids(job_ids, kinds: kinds, agent_provider: agent_provider, states: states).to_set
     end
 
     def self.active_workflow_count(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
@@ -126,16 +109,6 @@ module WorkUnits
           result[member.job_id] ||= workflow
         end
 
-      remaining_ids = ids - result.keys
-      return result if remaining_ids.empty?
-
-      legacy_replay_workflows_scope(remaining_ids, kinds: kinds, base_scope: Workflow.where(state: workflow_states(states)))
-        .then { |scope| agent_provider.present? ? scope.where(agent_provider: agent_provider.to_s) : scope }
-        .order(:job_id, created_at: :desc, id: :desc)
-        .each do |workflow|
-          result[workflow.job_id] ||= workflow
-        end
-
       result
     end
 
@@ -144,9 +117,7 @@ module WorkUnits
       return {} if ids.empty?
 
       units = active_units_by_job_id(ids)
-      result = units.transform_values { |unit| unit.workflow&.trigger_kind || unit.kind }
-      remaining_ids = ids - result.keys
-      result.merge(legacy_replay_workflow_trigger_kinds_by_job_id(remaining_ids))
+      units.transform_values { |unit| unit.workflow&.trigger_kind || unit.kind }
     end
 
     def self.active_trigger_kind_lists_by_job_id(job_ids)
@@ -161,12 +132,6 @@ module WorkUnits
         .pluck("work_unit_members.job_id", "work_units.kind", "workflows.trigger_kind")
         .each do |job_id, unit_kind, workflow_trigger_kind|
           result[job_id] << (workflow_trigger_kind.presence || unit_kind)
-        end
-
-      legacy_replay_workflows_scope(ids)
-        .pluck(:job_id, :trigger_kind)
-        .each do |job_id, trigger_kind|
-          result[job_id] << trigger_kind
         end
 
       result.transform_values { |trigger_kinds| trigger_kinds.compact.map(&:to_s).uniq }
@@ -279,11 +244,6 @@ module WorkUnits
       scope.order(:created_at, :id).to_a
     end
 
-    def self.legacy_replay_workflow_job_ids(job_ids, kinds: nil)
-      ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      legacy_replay_workflows_scope(ids, kinds: kinds).distinct.pluck(:job_id)
-    end
-
     def self.all_active_unit_job_ids(kinds: nil)
       scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: ACTIVE_STATES })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
@@ -315,63 +275,8 @@ module WorkUnits
       scope.distinct.pluck(:workflow_id)
     end
 
-    def self.legacy_replay_workflow_ids(job_ids = nil, kinds: nil, agent_provider: nil, states: ACTIVE_STATES)
-      ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      workflow_states = workflow_states(states)
-      return [] if workflow_states.empty?
-
-      scope = legacy_replay_workflows_scope(ids, kinds: kinds, base_scope: Workflow.where(state: workflow_states))
-      scope = scope.where(agent_provider: agent_provider.to_s) if agent_provider.present?
-      scope.distinct.pluck(:id)
-    end
-
-    def self.legacy_replay_workflow_trigger_kinds_by_job_id(job_ids)
-      ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      return {} if ids.empty?
-
-      legacy_replay_workflows_scope(ids)
-        .select(:job_id, :trigger_kind, :created_at, :id)
-        .order(:job_id, created_at: :desc, id: :desc)
-        .each_with_object({}) do |workflow, result|
-          result[workflow.job_id] ||= workflow.trigger_kind
-      end
-    end
-
-    # Legacy runtime fallback exists only for historical replay workflows.
-    # Every first-class runtime path must be represented by WorkIntent/WorkUnit.
-    def self.legacy_replay_workflows_scope(job_ids = nil, kinds: nil, base_scope: Workflow.active)
-      ids = Array(job_ids).map(&:to_i).select(&:positive?)
-      requested_kinds = Array(kinds).map(&:to_s).presence
-      return Workflow.none if requested_kinds.present? && !requested_kinds.include?(LEGACY_REPLAY_TRIGGER_KIND)
-
-      scope = base_scope
-      scope = scope.where(job_id: ids) if ids.any?
-      scope.where(trigger_kind: LEGACY_REPLAY_TRIGGER_KIND)
-    end
-
-    def self.legacy_replay_start_blocked_workflows_scope(job_ids = nil, reasons: nil, patterns: nil, states: ACTIVE_STATES, base_scope: nil)
-      base_scope ||= Workflow.where(state: workflow_states(states))
-      reason_patterns = legacy_start_block_patterns(reasons: reasons, patterns: patterns)
-      blocked_scope = reason_patterns.reduce(nil) do |scope, pattern|
-        pattern_scope = base_scope.where("artifacts LIKE ?", pattern)
-        scope ? scope.or(pattern_scope) : pattern_scope
-      end
-
-      legacy_replay_workflows_scope(job_ids, base_scope: blocked_scope)
-    end
-
     def self.workflow_states(states)
       Array(states).map(&:to_s) & %w[queued running]
-    end
-
-    def self.legacy_start_block_patterns(reasons: nil, patterns: nil)
-      explicit_patterns = Array(patterns).compact
-      return explicit_patterns if explicit_patterns.any?
-
-      explicit_reasons = Array(reasons).compact
-      return [ '%"start_blocked_reason"%' ] if explicit_reasons.empty?
-
-      explicit_reasons.map { |reason| "%#{reason}%" }
     end
   end
 end

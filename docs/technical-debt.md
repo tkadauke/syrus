@@ -28,20 +28,19 @@ tell when the debt is still necessary and when it can be removed.
 
 - **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
 - **Owner area:** WorkIntent / WorkUnit migration
-- **Code:** legacy `Workflow` artifact reads, direct active-Workflow scans,
-  fallback ownership inference in reconciler/repair/wakeup paths, and
+- **Code:** remaining direct active-Workflow scans, launch paths that bypass
+  `WorkUnits::Launcher`, workflow-first UI/controller assumptions, and
   migration adapters that preserve pre-WorkUnit scheduler behavior.
 - **Why it exists:** WorkUnits are replacing brittle runtime inference
-  incrementally. During rollout, production may still contain active legacy
-  Workflows or rollback paths that rely on the old state/artifact shape, so
-  migrated services temporarily keep old reads as a safety fallback.
+  incrementally. The first cleanup pass removed replay/start-block artifact
+  ownership fallbacks from scheduling, wakeups, filters, and reconciler active
+  runtime checks; remaining debt is in launch funnels and workflow-first
+  presentation/diagnostics that still need to become WorkIntent/WorkUnit native.
 - **Removal condition:** WorkUnit-backed scheduling, wakeups, repair execution,
-  and UI projections have been tested in production and have stayed stable for
-  a full operational window, with no active production path requiring direct
-  legacy Workflow ownership or start-block artifact inference.
+  and UI projections have been tested in production and have stayed stable for a
+  full operational window, with no active production path requiring direct
+  Workflow ownership inference.
 - **Removal work:** Delete the old brittle fallback implementation path by path:
-  remove legacy active-Workflow scans from ownership/admission/reconciler code,
-  remove direct `start_blocked_*` artifact inference once WorkUnit block state
-  is authoritative, delete migration-only compatibility specs, and keep only
-  tests that prove all runtime work enters through WorkIntent/WorkUnit
-  ownership.
+  remove remaining launch bypasses and workflow-first runtime checks, delete
+  migration-only compatibility specs, and keep only tests that prove all runtime
+  work enters through WorkIntent/WorkUnit ownership.

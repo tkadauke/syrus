@@ -61,22 +61,8 @@ module App
                                      .where(state: "queued")
                                      .select(:id)
           queued_job_ids = queued_scope.pluck(:id)
-          legacy_blocked_job_ids = legacy_queued_blocked_job_ids(queued_job_ids)
-          work_unit_blocked_job_ids = WorkUnits::Ownership.blocked_job_ids(queued_job_ids).to_a
-          (legacy_blocked_job_ids | work_unit_blocked_job_ids).size
+          WorkUnits::Ownership.blocked_job_ids(queued_job_ids).size
         end
-      end
-
-      def legacy_queued_blocked_job_ids(queued_job_ids)
-        ids = Array(queued_job_ids).map(&:to_i).select(&:positive?)
-        return [] if ids.empty?
-
-        WorkUnits::Ownership
-          .legacy_replay_start_blocked_workflows_scope(ids, base_scope: Workflow.where(job_id: ids, state: "queued"))
-          .includes(:work_unit)
-          .select { |workflow| WorkUnits::StartBlock.for(workflow).reason.present? }
-          .map(&:job_id)
-          .uniq
       end
 
       def smart_folder_counts(folders)

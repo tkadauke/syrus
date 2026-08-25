@@ -17,7 +17,7 @@ class UrgentJobClosedJob < ApplicationJob
   private
 
   def workflows_to_resume(repository)
-    (work_unit_blocked_workflows(repository) + legacy_blocked_workflows(repository)).uniq(&:id)
+    work_unit_blocked_workflows(repository)
   end
 
   def work_unit_blocked_workflows(repository)
@@ -32,19 +32,4 @@ class UrgentJobClosedJob < ApplicationJob
       .map(&:workflow)
   end
 
-  def legacy_blocked_workflows(repository)
-    base_scope = Workflow
-      .joins(:job)
-      .where(jobs: { repository_id: repository.id })
-      .where(state: "queued")
-      .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
-
-    WorkUnits::Ownership
-      .legacy_replay_start_blocked_workflows_scope(
-        nil,
-        reasons: StepDispatcher::URGENT_BLOCK_REASON,
-        base_scope: base_scope
-      )
-      .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::URGENT_BLOCK_REASON) }
-  end
 end

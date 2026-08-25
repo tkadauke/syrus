@@ -647,18 +647,12 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def active_ci_failure_workflows_for_repository
-    unit_workflow_ids = WorkUnit
+    workflow_ids = WorkUnit
       .where(repository: @job.repository, kind: "ci_failure", state: WorkUnits::Ownership::ACTIVE_STATES)
       .where.not(workflow_id: nil)
       .pluck(:workflow_id)
 
-    legacy_ids = Workflow
-      .joins(:job)
-      .where(jobs: { repository_id: @job.repository_id })
-      .where(trigger_kind: "ci_failure", state: %w[queued running])
-      .pluck(:id)
-
-    Workflow.where(id: (unit_workflow_ids + legacy_ids).uniq).includes(:job, work_unit: :work_intent)
+    Workflow.where(id: workflow_ids.uniq).includes(:job, work_unit: :work_intent)
   end
 
   def ci_failure_base_sha_for(workflow)

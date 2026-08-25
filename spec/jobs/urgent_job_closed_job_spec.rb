@@ -86,17 +86,16 @@ RSpec.describe UrgentJobClosedJob do
     }.not_to change { other_step.runs.count }
   end
 
-  it "still starts replay workflows recorded only in legacy artifacts" do
+  it "ignores replay workflows recorded only in legacy artifacts" do
     create_urgent_job!(state: "closed")
     job = Factories.job_record(user: user, repository: repository, priority: "medium", state: "queued")
     workflow = Workflow.create!(job: job, trigger_kind: "replay", state: "queued")
     step = Step.create!(workflow: workflow, kind: "implement", position: 0)
     workflow.update!(artifacts: { "start_blocked_reason" => StepDispatcher::URGENT_BLOCK_REASON })
 
-    expect(WorkUnits::Launcher).to receive(:start!).with(workflow).once.and_call_original
     expect {
       described_class.new.perform(repository.id)
-    }.to change { step.runs.count }.by(1)
+    }.not_to change { step.runs.count }
   end
 
   it "ignores migrated artifact-only workflows without WorkUnit block state" do

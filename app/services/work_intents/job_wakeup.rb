@@ -94,17 +94,12 @@ module WorkIntents
 
     def queued_workflows
       @queued_workflows ||= begin
-        work_unit_workflows = WorkUnitMember
+        WorkUnitMember
           .joins(work_unit: :workflow)
           .where(job_id: job.id, work_units: { state: %w[queued blocked] }, workflows: { state: "queued" })
           .includes(work_unit: :workflow)
           .map { |member| member.work_unit.workflow }
-        legacy_replay_workflows = WorkUnits::Ownership
-          .legacy_replay_workflows_scope([ job.id ], base_scope: job.workflows.where(state: "queued"))
-          .includes(:work_unit)
-          .to_a
-
-        (work_unit_workflows + legacy_replay_workflows).uniq(&:id)
+          .uniq(&:id)
       end
     end
 

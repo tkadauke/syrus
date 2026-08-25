@@ -1277,13 +1277,8 @@ module WorkEngine
       @active_runtime_workflows_for_job ||= {}
       @active_runtime_workflows_for_job[job.id] ||= begin
         WorkUnits::TerminalWorkflowSync.for_job(job)
-        unit_workflows = active_work_units_for_job(job).filter_map(&:workflow)
-        legacy_workflows = workflows.select do |workflow|
-          workflow.job_id == job.id &&
-            %w[queued running].include?(workflow.state) &&
-            workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
-        end
-        (unit_workflows + legacy_workflows)
+        active_work_units_for_job(job)
+          .filter_map(&:workflow)
           .uniq(&:id)
           .sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id || 0 ] }
       end

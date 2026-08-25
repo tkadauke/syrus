@@ -67,16 +67,10 @@ module JobLifecycle
   end
 
   def workflows_to_cancel_for_epic_restore
-    unit_workflows = WorkUnits::Ownership.active_units_for_job(self)
+    WorkUnits::Ownership.active_units_for_job(self)
       .filter_map(&:workflow)
       .select { |workflow| workflow.queued? || workflow.running? }
-
-    legacy_replay_workflows = WorkUnits::Ownership.legacy_replay_workflows_scope(
-      [ id ],
-      base_scope: workflows.where(state: %w[queued running])
-    ).to_a
-
-    (unit_workflows + legacy_replay_workflows).uniq(&:id)
+      .uniq(&:id)
   end
 
   def pending_auto_merge?

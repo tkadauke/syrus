@@ -57,7 +57,7 @@ class ProviderAdmissionWakeup
   end
 
   def workflows
-    (work_unit_workflows + legacy_workflows).uniq(&:id)
+    work_unit_workflows.uniq(&:id)
   end
 
   def work_unit_workflows
@@ -70,19 +70,6 @@ class ProviderAdmissionWakeup
       .order(:id)
     scope = scope.joins(:work_intent).where(work_intents: { actor_id: user.id }) if user
     scope.map(&:workflow)
-  end
-
-  def legacy_workflows
-    base_scope = Workflow
-      .where(agent_provider: provider, state: "queued")
-      .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
-
-    scope = WorkUnits::Ownership.legacy_replay_workflows_scope(
-      nil,
-      base_scope: base_scope
-    ).order(:created_at, :id)
-    scope = scope.where(user_id: user.id) if user
-    scope.to_a
   end
 
   def wake_auto_retries

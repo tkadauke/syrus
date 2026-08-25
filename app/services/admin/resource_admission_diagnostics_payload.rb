@@ -60,24 +60,11 @@ module Admin
         .limit(DELAYED_LIMIT)
         .map(&:workflow)
 
-      legacy_workflows = WorkUnits::Ownership
-        .legacy_replay_start_blocked_workflows_scope(
-          nil,
-          reasons: StepDispatcher::ADMISSION_BLOCK_REASON,
-          base_scope: Workflow.where(state: "queued")
-        )
-        .includes(:work_unit)
-        .includes(:job)
-        .where("updated_at >= ?", now - DELAYED_WINDOW)
-        .order(updated_at: :desc)
-        .limit(DELAYED_LIMIT)
-
-      (work_unit_workflows + legacy_workflows.to_a)
+      work_unit_workflows
         .uniq(&:id)
         .sort_by { |workflow| workflow.updated_at || Time.zone.at(0) }
         .reverse
         .first(DELAYED_LIMIT)
-        .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON) }
         .map { |workflow| serialize_delayed_workflow(workflow) }
     end
 
