@@ -169,6 +169,7 @@ type BootstrapPayload = {
       desktop_job_implemented?: boolean
       desktop_job_failed?: boolean
     }
+    theme?: "light" | "dark" | "system"
   } | null
   unread_notifications_count?: number
 }

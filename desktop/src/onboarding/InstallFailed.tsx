@@ -23,10 +23,10 @@ export function InstallFailed({ code, step, message, logTail, onRetry, onBack }:
 
   return (
     <OnboardingScreen title="Install didn't finish" titleTone="danger">
-      <p className="mt-3 text-sm leading-relaxed text-slate-700">{friendly ?? message}</p>
-      {friendly ? <p className="mt-2 text-xs text-slate-500">{message}</p> : null}
+      <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300">{friendly ?? message}</p>
+      {friendly ? <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{message}</p> : null}
       {step ? (
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
           Failed during: {step} (exit {code})
         </p>
       ) : null}

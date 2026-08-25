@@ -116,6 +116,7 @@ type SyrusBootstrapPayload = {
   current_user: {
     admin: boolean
     notification_preferences?: SyrusNotificationPreferences
+    theme?: "light" | "dark" | "system"
   } | null
   unread_notifications_count?: number
 }

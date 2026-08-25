@@ -18,7 +18,7 @@ export function PortConflict({ port, onContinue, onBack }: PortConflictProps) {
       subtitle={`Something else on this machine is already using port ${port} (often a development server). Pick another port for Syrus.`}
     >
       <div className="mt-6 flex items-center justify-center gap-2">
-        <label className="text-sm font-normal text-slate-700" htmlFor="syrus-port">
+        <label className="text-sm font-normal text-slate-700 dark:text-slate-300" htmlFor="syrus-port">
           Serve Syrus on port
         </label>
         <input

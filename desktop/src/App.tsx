@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { RepoPicker } from "./RepoPicker"
 import syrusIconUrl from "../assets/syrusIcon.png"
 import { groupJobsByEpic, epicFullyImplemented } from "./inboxUtils"
+import { applyTheme, writeCachedTheme } from "./theme"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
@@ -144,10 +145,12 @@ function BlockMarkdown({ text }: { text: string }) {
 }
 
 const notificationKindIconClass = (kind: string) => {
-  if (kind.includes("failed")) return "bg-red-50 text-red-600"
-  if (kind.includes("merged") || kind.includes("completed")) return "bg-emerald-50 text-emerald-600"
-  if (kind.includes("implemented") || kind.includes("addressed")) return "bg-blue-50 text-blue-600"
-  return "bg-slate-100 text-slate-500"
+  if (kind.includes("failed")) return "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300"
+  if (kind.includes("merged") || kind.includes("completed"))
+    return "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300"
+  if (kind.includes("implemented") || kind.includes("addressed"))
+    return "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"
+  return "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
 }
 
 const groupJobsByRepository = (jobs: SyrusJobItem[]) => {
@@ -458,8 +461,8 @@ function HeaderBrand({ title, instanceUrl }: { title: string; instanceUrl: strin
     >
       <img alt="" className="header-brand__logo" src={syrusIconUrl} />
       <span className="min-w-0">
-        <span className="block truncate text-sm font-bold leading-5 text-slate-950">{title}</span>
-        <span className="block truncate text-xs text-slate-500">{normalizedUrl}</span>
+        <span className="block truncate text-sm font-bold leading-5 text-slate-950 dark:text-slate-100">{title}</span>
+        <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{normalizedUrl}</span>
       </span>
     </button>
   )
@@ -471,15 +474,15 @@ const statusTone = (state: string) => {
     case "closed":
     case "implemented":
     case "succeeded":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200"
+      return "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-800"
     case "failed":
-      return "bg-red-50 text-red-700 ring-red-200"
+      return "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-800"
     case "landing":
     case "queued":
     case "running":
-      return "bg-blue-50 text-blue-700 ring-blue-200"
+      return "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-800"
     default:
-      return "bg-slate-100 text-slate-700 ring-slate-200"
+      return "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700"
   }
 }
 
@@ -694,6 +697,29 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
     inboxQuery.isSuccess,
     jobs
   ])
+
+  // Mirrors the web app's persisted theme preference — no independent
+  // desktop picker. Applies + caches it once bootstrap resolves, and while
+  // the effective preference is "system" (explicit or unset), keeps it in
+  // sync with a live OS theme change without waiting for the next poll.
+  const userTheme = bootstrapQuery.data?.current_user?.theme
+  useEffect(() => {
+    if (!bootstrapQuery.isSuccess) {
+      return
+    }
+
+    applyTheme(userTheme)
+    writeCachedTheme(userTheme ?? "system")
+
+    if (userTheme === "light" || userTheme === "dark" || typeof window.matchMedia !== "function") {
+      return
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    const handleChange = () => applyTheme(userTheme)
+    media.addEventListener("change", handleChange)
+    return () => media.removeEventListener("change", handleChange)
+  }, [bootstrapQuery.isSuccess, userTheme])
 
   useEffect(() => {
     if (jobs.length === 0) {
@@ -1068,16 +1094,16 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
   )
 
   return (
-    <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
+    <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       {isCheckingOut && (
         <div
           role="status"
           aria-label="Checking out branch…"
-          className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/80"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80"
         >
           <svg
             aria-hidden="true"
-            className="h-8 w-8 animate-spin text-slate-400"
+            className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500"
             viewBox="0 0 24 24"
             fill="none"
           >
@@ -1090,7 +1116,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           </svg>
         </div>
       )}
-      <header className={navigation.view === "feedback" ? "relative flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3" : "flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3"}>
+      <header className={navigation.view === "feedback" ? "relative flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900" : "flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"}>
         {navigation.view === "feedback" ? (
           <>
             <button
@@ -1102,7 +1128,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
             >
               <BackIcon />
             </button>
-            <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900">Feedback</div>
+            <div className="absolute left-1/2 -translate-x-1/2 text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">Feedback</div>
             <button
               type="button"
               className="feedback-submit-button"
@@ -1126,7 +1152,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                 <BackIcon />
               </button>
             </div>
-            <div className="min-w-0 flex-1 truncate text-center text-sm font-semibold leading-5 text-slate-950">Notifications</div>
+            <div className="min-w-0 flex-1 truncate text-center text-sm font-semibold leading-5 text-slate-950 dark:text-slate-100">Notifications</div>
             <div className="flex min-w-24 justify-end">
               <button
                 type="button"
@@ -1202,7 +1228,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
       </header>
 
       {cliMissing ? (
-        <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 text-amber-900" data-testid="cli-missing-banner">
+        <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200" data-testid="cli-missing-banner">
           {cliBundleMissing ? (
             <span>
               This app build is missing its bundled Syrus CLI — reinstall the app from the latest release, or
@@ -1213,7 +1239,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
               <span>Install the Syrus CLI to enable local branch checkout.</span>
               <button
                 type="button"
-                className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200 dark:hover:bg-amber-950"
                 disabled={installingCliFromBanner}
                 onClick={() => void installCliFromBanner()}
               >
@@ -1229,8 +1255,8 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
           className={[
             "pointer-events-none absolute left-3 right-3 top-[76px] z-30 rounded-md border px-3 py-2 text-sm leading-5 shadow-lg",
             toast.kind === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-red-200 bg-red-50 text-red-800"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+              : "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
           ].join(" ")}
           role="status"
         >
@@ -1387,12 +1413,12 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                                   type="button"
                                   onClick={() => toggleEpic(entry.epicId)}
                                   aria-expanded={!epicCollapsed}
-                                  className="flex min-w-0 flex-1 items-center gap-1 px-3 py-1 text-gray-500 hover:bg-gray-50"
+                                  className="flex min-w-0 flex-1 items-center gap-1 px-3 py-1 text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-slate-800"
                                 >
                                   <DisclosureIcon collapsed={epicCollapsed} />
                                   <span className="min-w-0 flex-1">
                                     <span className="block truncate text-left text-xs font-semibold">EPIC-{entry.epicId}</span>
-                                    <span className="block truncate text-left text-[11px] text-gray-400">{entry.epicTitle}</span>
+                                    <span className="block truncate text-left text-[11px] text-gray-400 dark:text-gray-500">{entry.epicTitle}</span>
                                   </span>
                                   <span className="job-group__count">{entry.jobs.length}</span>
                                 </button>
@@ -1402,7 +1428,7 @@ export function InboxView({ instanceUrl }: { instanceUrl: string }) {
                                     onClick={() => void checkoutEpicComplete(entry.epicId, group.repositorySlug)}
                                     title={`Checkout EPIC-${entry.epicId}`}
                                     aria-label={`Checkout EPIC-${entry.epicId} – fully implemented`}
-                                    className="mr-2 grid h-5 w-5 shrink-0 place-items-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-terracotta-600"
+                                    className="mr-2 grid h-5 w-5 shrink-0 place-items-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-terracotta-600 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:text-terracotta-400"
                                   >
                                     <CheckoutIcon />
                                   </button>
@@ -1561,10 +1587,10 @@ export function CliInstallSection() {
 // popover too: open the app window, Preferences, Quit.
 export function TrayActionsBar() {
   return (
-    <footer className="border-t border-slate-200 bg-white/95 px-3 py-1.5" data-testid="tray-actions">
-      <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
+    <footer className="border-t border-slate-200 bg-white/95 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900/95" data-testid="tray-actions">
+      <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <button
-          className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800"
+          className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100"
           onClick={() => void window.syrusDesktop.openSyrusWindow()}
           type="button"
         >
@@ -1572,14 +1598,14 @@ export function TrayActionsBar() {
         </button>
         <div className="flex items-center gap-1">
           <button
-            className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800"
+            className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             onClick={() => void window.syrusDesktop.showPreferences()}
             type="button"
           >
             Preferences
           </button>
           <button
-            className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800"
+            className="rounded px-1.5 py-1 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             onClick={() => void window.syrusDesktop.quitApp()}
             type="button"
           >
@@ -2042,9 +2068,9 @@ function AdminControlsFooter({
   }
 
   return (
-    <footer className="border-t border-slate-200 bg-white/95 px-4 py-2">
+    <footer className="border-t border-slate-200 bg-white/95 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/95">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase leading-4 text-slate-400">Admin</p>
+        <p className="text-[11px] font-semibold uppercase leading-4 text-slate-400 dark:text-slate-500">Admin</p>
         <div className="flex min-w-0 items-center gap-2">
           <AdminControlToggle
             disabled={disabled || pendingControl !== null}
@@ -2119,15 +2145,15 @@ function StatusPanel({
   return (
     <div className="grid min-h-[360px] place-items-center px-6 text-center">
       <div className="max-w-64">
-        <p className="text-sm font-semibold text-slate-800">{title}</p>
-        {detail ? <p className="mt-2 text-sm leading-5 text-slate-500">{detail}</p> : null}
+        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</p>
+        {detail ? <p className="mt-2 text-sm leading-5 text-slate-500 dark:text-slate-400">{detail}</p> : null}
         {actionLabel && onAction ? (
           <div className="mt-4 flex items-center justify-center gap-2">
-            <button type="button" className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-white" onClick={onAction}>
+            <button type="button" className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-white dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800" onClick={onAction}>
               {actionLabel}
             </button>
             {secondaryActionLabel && onSecondaryAction ? (
-              <button type="button" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700" onClick={onSecondaryAction}>
+              <button type="button" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" onClick={onSecondaryAction}>
                 {secondaryActionLabel}
               </button>
             ) : null}
@@ -2527,13 +2553,13 @@ function ComposeView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   return (
-    <main className="flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
-      <header className="border-b border-slate-200 bg-white px-4 py-3">
+    <main className="flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+      <header className="border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
         <HeaderBrand title="New job" instanceUrl={instanceUrl} />
       </header>
 
       {toast ? (
-        <div className="mx-3 mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm leading-5 text-emerald-800" role="status">
+        <div className="mx-3 mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm leading-5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" role="status">
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0 overflow-wrap-anywhere">{toast.message}</span>
             {toast.actionLabel && toast.actionUrl ? (
@@ -2850,7 +2876,7 @@ export function App() {
                   />
                   <button
                     type="button"
-                    className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600"
+                    className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                     aria-label={tokenVisible ? "Hide API token" : "Show API token"}
                     aria-pressed={tokenVisible}
                     onClick={() => setTokenVisible((visible) => !visible)}
@@ -3010,7 +3036,7 @@ export function App() {
         </section>
 
         {appVersion ? (
-          <p className="pb-4 text-center text-xs text-slate-400">Syrus v{appVersion}</p>
+          <p className="pb-4 text-center text-xs text-slate-400 dark:text-slate-500">Syrus v{appVersion}</p>
         ) : null}
       </main>
     )

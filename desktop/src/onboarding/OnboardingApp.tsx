@@ -70,7 +70,7 @@ export function OnboardingApp() {
   const back = () => void window.syrusDesktop.onboardingBack()
 
   let content = (
-    <p className="text-sm text-slate-500" role="status">
+    <p className="text-sm text-slate-500 dark:text-slate-400" role="status">
       Loading…
     </p>
   )
@@ -95,7 +95,7 @@ export function OnboardingApp() {
         break
       case "local.precheck":
         content = (
-          <p className="text-sm text-slate-500" role="status">
+          <p className="text-sm text-slate-500 dark:text-slate-400" role="status">
             {window.syrusDesktop?.platform === "win32" ? "Checking this PC…" : "Checking this Mac…"}
           </p>
         )
@@ -103,7 +103,7 @@ export function OnboardingApp() {
       case "local.adoptRunning":
         content = (
           <OnboardingScreen title="Syrus is already running here" subtitle={`Something is already serving Syrus at ${state.url}.`}>
-            <p className="mt-4 text-sm leading-relaxed text-slate-600">
+            <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               This app didn&apos;t install it, so it can&apos;t manage starting or stopping it — but you can
               still connect to it and use everything else.
             </p>
@@ -207,15 +207,15 @@ export function OnboardingApp() {
       case "done":
         content = (
           <section className="w-full max-w-md text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-              <span aria-hidden className="text-2xl text-emerald-600">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950">
+              <span aria-hidden className="text-2xl text-emerald-600 dark:text-emerald-400">
                 ✓
               </span>
             </div>
             <h1 className="mt-4 text-xl font-semibold">
               {state.mode === "local" ? "Syrus is installed and running" : "Connected to Syrus"}
             </h1>
-            <p className="mt-2 text-sm text-slate-600">{state.url}</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{state.url}</p>
             <button
               type="button"
               className="primary-button mt-6"
@@ -230,7 +230,7 @@ export function OnboardingApp() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 antialiased">
+    <div className="flex h-screen flex-col bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
       <header className="flex h-12 shrink-0 items-center justify-center" style={dragRegion}>
         <img src={syrusIconUrl} alt="" className="h-5 w-5 opacity-60" />
       </header>
