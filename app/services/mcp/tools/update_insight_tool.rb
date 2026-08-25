@@ -52,8 +52,8 @@ module Mcp::Tools
           items: {
             type: "object",
             properties: {
-              job_id: { type: "integer" },
-              run_id: { type: "integer" },
+              job_id: { oneOf: [ { type: "integer" }, { type: "string" } ] },
+              run_id: { oneOf: [ { type: "integer" }, { type: "string" } ] },
               kind:   { type: "string" }
             }
           }
@@ -202,10 +202,7 @@ module Mcp::Tools
         end
 
         if provided?(values[:evidence])
-          normalized_evidence = normalize_evidence(values[:evidence])
-          return Mcp::Tools.invalid("evidence must include at least one non-empty item or be omitted") if normalized_evidence.empty?
-          scope_error = validate_evidence_scope(normalized_evidence, run)
-          return Mcp::Tools.invalid(scope_error) if scope_error
+          normalized_evidence = normalize_evidence(values[:evidence], run: run)
           attrs["evidence"] = normalized_evidence
         end
 
@@ -252,20 +249,29 @@ module Mcp::Tools
         Mcp::Tools.utf8(value).strip.presence
       end
 
-      def normalize_evidence(evidence)
+      def normalize_evidence(evidence, run:)
         return [] unless evidence.is_a?(Array)
 
-        evidence.filter_map do |entry|
+        normalized = evidence.filter_map do |entry|
           next unless entry.is_a?(Hash)
 
+          raw_job_id = entry["job_id"] || entry[:job_id]
+          raw_run_id = entry["run_id"] || entry[:run_id]
+          job_id = integer_value(entry, "job_id")
+          run_id = integer_value(entry, "run_id")
+          next if raw_job_id.present? && job_id.nil?
+          next if raw_run_id.present? && run_id.nil?
+
           normalized = {
-            "job_id" => integer_value(entry, "job_id"),
-            "run_id" => integer_value(entry, "run_id"),
+            "job_id" => job_id,
+            "run_id" => run_id,
             "kind"   => string_value(entry, "kind").presence
           }.compact
 
           normalized.presence
         end
+
+        filter_accessible_evidence(normalized, run)
       end
 
       def integer_value(hash, key)
@@ -296,38 +302,32 @@ module Mcp::Tools
         )
       end
 
-      def validate_evidence_scope(evidence, run)
+      def filter_accessible_evidence(evidence, run)
         job_ids = evidence.filter_map { |e| e["job_id"] }.uniq
         run_ids = evidence.filter_map { |e| e["run_id"] }.uniq
-        return nil if job_ids.empty? && run_ids.empty?
+        return evidence if job_ids.empty? && run_ids.empty?
 
         repository_id = run.job.repository_id
         jobs_by_id = Job.where(id: job_ids, repository_id: repository_id).index_by(&:id)
-        inaccessible_job_ids = job_ids - jobs_by_id.keys
-        if inaccessible_job_ids.any?
-          return "evidence references jobs outside the current repository scope: #{inaccessible_job_ids.join(', ')}"
-        end
 
         runs_by_id = Run
           .includes(:job)
           .where(id: run_ids, jobs: { repository_id: repository_id })
           .references(:job)
           .index_by(&:id)
-        inaccessible_run_ids = run_ids - runs_by_id.keys
-        if inaccessible_run_ids.any?
-          return "evidence references runs outside the current repository scope: #{inaccessible_run_ids.join(', ')}"
+
+        evidence.select do |entry|
+          job_id = entry["job_id"]
+          run_id = entry["run_id"]
+
+          next false if job_id && !jobs_by_id.key?(job_id)
+          next false if run_id && !runs_by_id.key?(run_id)
+
+          evidence_run = runs_by_id[run_id]
+          next false if job_id && run_id && evidence_run&.job_id != job_id
+
+          true
         end
-
-        evidence.each do |entry|
-          next unless entry["job_id"] && entry["run_id"]
-
-          evidence_run = runs_by_id[entry["run_id"]]
-          next if evidence_run&.job_id == entry["job_id"]
-
-          return "evidence run_id #{entry['run_id']} does not belong to job_id #{entry['job_id']}"
-        end
-
-        nil
       end
 
       def append_workflow_artifact(run, insight)

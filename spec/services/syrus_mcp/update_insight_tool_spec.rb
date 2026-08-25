@@ -108,6 +108,57 @@ RSpec.describe Mcp::Tools::UpdateInsightTool do
     expect(event.new_values).to include("title" => "Audited update", "severity" => "high")
   end
 
+  it "coerces string evidence ids before storing them" do
+    target = insight
+
+    response = call(
+      target_insight_id: target.id,
+      title: "Updated with string ids",
+      evidence: [ { "job_id" => run.job_id.to_s, "run_id" => run.id.to_s, "kind" => "agent_insight" } ]
+    )
+
+    expect(response).not_to be_error
+    expect(target.reload.evidence).to eq([
+      { "job_id" => run.job_id, "run_id" => run.id, "kind" => "agent_insight" }
+    ])
+  end
+
+  it "drops evidence rows whose run_id does not belong to the supplied job_id" do
+    target = insight(evidence: [ { "job_id" => run.job_id, "run_id" => run.id, "kind" => "old" } ])
+    other_job = Factories.job(user: user, repository: repository)
+
+    response = call(
+      target_insight_id: target.id,
+      title: "Updated despite bad evidence",
+      evidence: [
+        { "job_id" => run.job_id, "run_id" => run.id, "kind" => "kept" },
+        { "job_id" => other_job.id, "run_id" => run.id, "kind" => "dropped" }
+      ]
+    )
+
+    expect(response).not_to be_error
+    expect(target.reload.evidence).to eq([
+      { "job_id" => run.job_id, "run_id" => run.id, "kind" => "kept" }
+    ])
+  end
+
+  it "clears stale evidence when every replacement row is malformed or inaccessible" do
+    target = insight(evidence: [ { "job_id" => run.job_id, "run_id" => run.id, "kind" => "old" } ])
+    foreign_run = Factories.job(user: Factories.user, repository: Factories.repository).initial_run
+
+    response = call(
+      target_insight_id: target.id,
+      title: "Updated without evidence",
+      evidence: [
+        { "job_id" => "not-a-number", "run_id" => foreign_run.id, "kind" => "foreign" },
+        { "run_id" => "also-not-a-number", "kind" => "malformed" }
+      ]
+    )
+
+    expect(response).not_to be_error
+    expect(target.reload.evidence).to eq([])
+  end
+
   it "rejects inaccessible target insights from another repository" do
     other_repo = Factories.repository(user: user)
     other_job = Job.create!(user: user, repository: other_repo, kind: "agent_insight", priority: "low")
