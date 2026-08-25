@@ -42,7 +42,7 @@ RSpec.describe WorkEngine::Reconciler do
       blocked_reason: nil,
       blocked_details: { "source" => "spec" }
     )
-    lock_key = unit.work_unit_locks.active.first&.lock_key
+    workflow.association(:work_unit).reset
 
     result = reconcile(workflow_id: workflow.id)
     issue = kind(result, :cleanup_blocked_by_active_descendants)
@@ -53,9 +53,9 @@ RSpec.describe WorkEngine::Reconciler do
       "work_intent_state" => "requested",
       "work_unit_id" => unit.id,
       "work_unit_kind" => "initial",
-      "work_unit_state" => "running",
+      "work_unit_state" => "failed",
       "work_unit_member_job_ids" => [ job.id ],
-      "work_unit_active_lock_keys" => [ lock_key ]
+      "work_unit_active_lock_keys" => []
     )
   end
 
@@ -582,6 +582,166 @@ RSpec.describe WorkEngine::Reconciler do
     expect(workflow.reload).to be_cancelled
     expect(step.reload).to be_cancelled
     expect(run.reload).to be_cancelled
+  end
+
+  it "ignores ordinary legacy active workflows on closed jobs" do
+    closed = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 197,
+      state: "running"
+    )
+    legacy = Workflow.create!(
+      job: closed,
+      user: closed.user,
+      trigger_kind: "ci_failure",
+      agent_provider: closed.agent_provider,
+      state: "running",
+      started_at: 15.minutes.ago
+    )
+    Step.create!(workflow: legacy, kind: "grader_collect", position: 0, state: "running")
+    closed.update_columns(state: "closed", finished_at: 20.minutes.ago, closure_reason: "pr_merged")
+
+    result = reconcile(job_id: closed.id)
+
+    expect(kind(result, :closed_job_active_workflow)).to be_nil
+  end
+
+  it "cancels legacy replay active workflows on closed jobs" do
+    closed = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 198,
+      state: "running"
+    )
+    replay = Workflow.create!(
+      job: closed,
+      user: closed.user,
+      trigger_kind: WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND,
+      agent_provider: closed.agent_provider,
+      state: "running",
+      started_at: 15.minutes.ago
+    )
+    replay_step = Step.create!(workflow: replay, kind: "grader_collect", position: 0, state: "running")
+    replay_run = Run.create!(job: closed, step: replay_step, trigger_kind: replay.trigger_kind, agent_provider: "claude", state: "running")
+    closed.update_columns(state: "closed", finished_at: 20.minutes.ago, closure_reason: "pr_merged")
+
+    result = reconcile_and_execute(job_id: closed.id)
+
+    expect(kind(result, :closed_job_active_workflow)).to have_attributes(
+      recommended_repair_action: "cancel_workflow_for_closed_job"
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{replay.id} because Job ##{closed.id} is closed")
+    expect(replay.reload).to be_cancelled
+    expect(replay_step.reload).to be_cancelled
+    expect(replay_run.reload).to be_cancelled
+  end
+
+  it "cancels requested WorkIntents left behind by closed jobs" do
+    closed = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 199,
+      state: "closed",
+      finished_at: 10.minutes.ago,
+      closure_reason: "pr_merged"
+    )
+    intent = WorkIntent.create!(
+      kind: "ci_failure",
+      state: "requested",
+      repository: closed.repository,
+      scope_type: "job",
+      scope_id: closed.id,
+      actor: closed.user,
+      source_type: "spec"
+    )
+    terminal_unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "ci_failure",
+      state: "failed",
+      repository: closed.repository,
+      scope_type: "job",
+      scope_id: closed.id,
+      finished_at: 5.minutes.ago
+    )
+    terminal_unit.work_unit_members.create!(job: closed, role: "primary")
+
+    result = reconcile_and_execute(job_id: closed.id)
+
+    expect(kind(result, :closed_job_requested_work_intent)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_work_intent_for_closed_job"
+    )
+    expect(kind(result, :succeeded_work_unit_unsatisfied_intent)).to be_nil
+    expect(plan(result, :cancel_work_intent_for_closed_job)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkIntent",
+      target_id: intent.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} because Job ##{closed.id} is closed")
+    expect(intent.reload).to be_cancelled
+  end
+
+  it "does not cancel requested WorkIntents for closed jobs while a WorkUnit is still active" do
+    closed = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 200,
+      state: "running"
+    )
+    intent = WorkIntent.create!(
+      kind: "ci_failure",
+      state: "requested",
+      repository: closed.repository,
+      scope_type: "job",
+      scope_id: closed.id,
+      actor: closed.user,
+      source_type: "spec"
+    )
+    workflow = Workflow.create!(job: closed, user: closed.user, trigger_kind: "ci_failure", agent_provider: "claude", state: "running")
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "ci_failure",
+      state: "running",
+      repository: closed.repository,
+      scope_type: "job",
+      scope_id: closed.id,
+      workflow: workflow
+    )
+    unit.work_unit_members.create!(job: closed, role: "primary")
+    closed.update_columns(state: "closed", finished_at: 10.minutes.ago, closure_reason: "pr_merged")
+
+    result = reconcile(job_id: closed.id)
+
+    expect(kind(result, :closed_job_requested_work_intent)).to be_nil
+    expect(plan(result, :cancel_work_intent_for_closed_job)).to be_nil
+    expect(intent.reload).to be_requested
+  end
+
+  it "classifies running jobs without WorkUnit-owned runtime even when a legacy Workflow row is active" do
+    running = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 205,
+      state: "running",
+      updated_at: 20.minutes.ago
+    )
+    legacy = Workflow.create!(
+      job: running,
+      user: running.user,
+      trigger_kind: "ci_failure",
+      agent_provider: running.agent_provider,
+      state: "running",
+      started_at: 15.minutes.ago
+    )
+    Step.create!(workflow: legacy, kind: "grader_collect", position: 0, state: "running")
+
+    result = reconcile(job_id: running.id)
+
+    expect(kind(result, :job_without_active_workflow)).to have_attributes(
+      recommended_repair_action: "operator_review_state_transition"
+    )
   end
 
   it "cancels older active workflows when a newer workflow is already active for the same job" do
@@ -1356,6 +1516,8 @@ RSpec.describe WorkEngine::Reconciler do
     second_step.update_columns(state: "running", started_at: 1.minute.ago)
     first_run.update_columns(state: "running", started_at: 2.minutes.ago, last_heartbeat_at: Time.current)
     second_run.update_columns(state: "running", started_at: 1.minute.ago, last_heartbeat_at: Time.current)
+    attach_work_unit(first, kind: "stack_rebase", state: "running")
+    attach_work_unit(second, kind: "merge_train", state: "running")
 
     result = reconcile_and_execute
 

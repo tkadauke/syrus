@@ -1167,6 +1167,27 @@ module WorkEngine
         end
       end
 
+      class CancelWorkIntentForClosedJob < Base
+        def perform
+          intent = target_work_intent
+          return skipped("WorkIntent no longer exists") unless intent
+          return skipped("WorkIntent is #{intent.state}, not requested/waiting") unless intent.requested? || intent.waiting?
+          return skipped("WorkIntent is not job-scoped") unless intent.scope_type == "job"
+
+          job = Job.find_by(id: intent.scope_id)
+          return skipped("Job ##{intent.scope_id} no longer exists") unless job
+          return skipped("Job ##{job.id} is #{job.state}, not closed") unless job.closed?
+
+          active_unit_ids = intent.work_units
+            .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
+            .pluck(:id)
+          return skipped("WorkIntent ##{intent.id} still has active WorkUnits: #{active_unit_ids.inspect}") if active_unit_ids.any?
+
+          intent.cancel!
+          success("cancelled WorkIntent ##{intent.id} because Job ##{job.id} is closed")
+        end
+      end
+
       class ReconcileJobState < Base
         def perform
           job = target_job

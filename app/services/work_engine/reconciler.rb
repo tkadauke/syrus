@@ -169,6 +169,7 @@ module WorkEngine
       issues.concat(classify_epic_workflow_conflicts)
       issues.concat(classify_closed_jobs_with_active_workflows)
       issues.concat(classify_closed_jobs_with_active_work_units)
+      issues.concat(classify_closed_jobs_with_requested_work_intents)
       issues.concat(classify_superseded_active_workflows)
       issues.concat(classify_terminal_workflows_with_active_descendants)
       issues.concat(classify_active_runs_on_terminal_steps)
@@ -512,7 +513,7 @@ module WorkEngine
     end
 
     def classify_epic_workflow_conflicts
-      EpicWorkflowLock.conflicting_active_workflows(workflows).map do |conflict|
+      EpicWorkflowLock.conflicting_active_workflows(active_runtime_workflows).map do |conflict|
         workflow = conflict.fetch(:workflow)
         keeper = conflict.fetch(:keeper)
         issue(
@@ -1006,6 +1007,7 @@ module WorkEngine
       work_units.select(&:succeeded?).filter_map do |unit|
         intent = unit.work_intent
         next unless intent&.requested? || intent&.waiting?
+        next if closed_job_scoped_intent?(intent)
 
         active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
         next if active_sibling_ids.any?
@@ -1037,6 +1039,7 @@ module WorkEngine
         .filter_map do |unit|
           intent = unit.work_intent
           next unless intent&.requested? || intent&.waiting?
+          next if closed_job_scoped_intent?(intent)
 
           active_sibling_ids = active_work_unit_ids_for_intent(intent, excluding: unit)
           next if active_sibling_ids.any?
@@ -1231,6 +1234,12 @@ module WorkEngine
       end
     end
 
+    def active_runtime_workflows
+      @active_runtime_workflows ||= jobs
+        .flat_map { |job| active_runtime_workflows_for_job(job) }
+        .uniq(&:id)
+    end
+
     def active_work_units_for_job(job)
       @active_work_units_for_job ||= {}
       @active_work_units_for_job[job.id] ||= work_units.select do |unit|
@@ -1286,8 +1295,7 @@ module WorkEngine
 
     def classify_closed_jobs_with_active_workflows
       jobs.select(&:closed?).flat_map do |job|
-        workflows
-          .select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
+        active_runtime_workflows_for_job(job)
           .map do |workflow|
             issue(
               kind: :closed_job_active_workflow,
@@ -1338,11 +1346,38 @@ module WorkEngine
       end
     end
 
+    def classify_closed_jobs_with_requested_work_intents
+      jobs.select(&:closed?).flat_map do |job|
+        work_intents.select do |intent|
+          intent.scope_type == "job" &&
+            intent.scope_id.to_i == job.id &&
+            (intent.requested? || intent.waiting?) &&
+            active_work_unit_ids_for_intent(intent).empty?
+        end.map do |intent|
+          issue(
+            kind: :closed_job_requested_work_intent,
+            severity: :warning,
+            affected_ids: ids_for(intent).merge(job_ids: [ job.id ]),
+            safe_to_auto_repair: intent.requested? || intent.waiting?,
+            recommended_repair_action: "cancel_work_intent_for_closed_job",
+            evidence: {
+              job_id: job.id,
+              job_finished_at: job.finished_at&.iso8601,
+              job_closure_reason: job.closure_reason,
+              work_intent_id: intent.id,
+              work_intent_kind: intent.kind,
+              work_intent_state: intent.state,
+              terminal_work_unit_ids: terminal_work_unit_ids_for_intent(intent)
+            },
+            explanation: "Closed Job ##{job.id} still has requested WorkIntent ##{intent.id}; that desired work is obsolete."
+          )
+        end
+      end
+    end
+
     def classify_superseded_active_workflows
       jobs.reject(&:closed?).flat_map do |job|
-        active = workflows
-          .select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
-          .sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id || 0 ] }
+        active = active_runtime_workflows_for_job(job)
         next [] if active.size < 2
 
         keeper = active.last
@@ -1376,6 +1411,12 @@ module WorkEngine
       return false unless unit.scope_type == "job"
 
       jobs.any? { |job| job.id == unit.scope_id.to_i && job.closed? }
+    end
+
+    def closed_job_scoped_intent?(intent)
+      return false unless intent.scope_type == "job"
+
+      jobs.any? { |job| job.id == intent.scope_id.to_i && job.closed? }
     end
 
     def newer_successful_workflow?(job, source)
@@ -1418,11 +1459,11 @@ module WorkEngine
     def classify_jobs_without_active_workflows
       jobs.filter_map do |job|
         next unless job.state.in?(%w[running landing])
-        active_workflows = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
+        active_workflows = active_runtime_workflows_for_job(job)
         next if active_workflows.any?
-        next if active_runtime_work_for_job?(job)
         next if job.landing? && active_landing_work_for_job?(job)
         latest = latest_workflow_for_job(job)
+        next if job.landing? && active_landing_workflow?(latest)
 
         if job.landing?
           next unless landing_slot_orphaned?(job)
@@ -1618,6 +1659,10 @@ module WorkEngine
 
     def landing_slot_orphaned?(job)
       !active_landing_work_for_job?(job)
+    end
+
+    def active_landing_workflow?(workflow)
+      workflow&.landing_workflow? && (workflow.queued? || workflow.running?)
     end
 
     def landing_start_blocked_workflow?(workflow)

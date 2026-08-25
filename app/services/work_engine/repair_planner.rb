@@ -549,6 +549,23 @@ module WorkEngine
         end
       end
 
+      class ClosedJobRequestedWorkIntent < Base
+        def plan
+          automatic_plan(
+            "cancel_work_intent_for_closed_job",
+            primary_work_intent,
+            "The parent Job is closed and no active WorkUnit remains, so this requested desired work is obsolete.",
+            execution_steps: [ "WorkIntent#cancel!" ],
+            preconditions: {
+              job_state: "closed",
+              job_closure_reason: issue.evidence["job_closure_reason"],
+              work_intent_state: %w[requested waiting],
+              terminal_work_unit_ids: issue.evidence["terminal_work_unit_ids"]
+            }
+          )
+        end
+      end
+
       class SupersededActiveWorkflow < Base
         def plan
           automatic_plan(
