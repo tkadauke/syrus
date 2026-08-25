@@ -91,6 +91,10 @@ class Step < ApplicationRecord
     AGENTIC_KINDS.include?(kind)
   end
 
+  def slug
+    "STEP-#{id || 'new'}"
+  end
+
   def terminal?
     TERMINAL_STATES.include?(state)
   end

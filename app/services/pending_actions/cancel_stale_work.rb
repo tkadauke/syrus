@@ -95,7 +95,7 @@ module PendingActions
 
       records = scope.where(id: ids).to_a
       missing = ids - records.map(&:id)
-      raise ArgumentError, "Run ids are not active work for #{job.slug}: #{missing.join(", ")}" if missing.any?
+      raise ArgumentError, "Run ids are not active work for #{job.slug}: #{missing.map { |id| "RUN-#{id}" }.join(", ")}" if missing.any?
 
       records
     end

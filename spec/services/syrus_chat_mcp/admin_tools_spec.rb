@@ -261,6 +261,12 @@ RSpec.describe "Mcp::Tools admin tools" do
         "start_blocked_details" => { "provider" => "codex", "classification_id" => classification.id }
       }
     )
+    attach_work_unit(
+      queued_workflow,
+      state: "blocked",
+      blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON,
+      blocked_details: { "provider" => "codex", "classification_id" => classification.id }
+    )
 
     expect(ProviderCircuitBreaker.call("codex")).to be_usage_limit
 

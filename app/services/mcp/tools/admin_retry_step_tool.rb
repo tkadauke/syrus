@@ -32,7 +32,7 @@ module Mcp::Tools
         workflow = Workflow.find_by(id: workflow_id)
         return Mcp::Tools.invalid("workflow not found: #{workflow_id}") unless workflow
         unless workflow.steps.exists?(kind: step_slug)
-          return Mcp::Tools.invalid("step '#{step_slug}' not found on workflow ##{workflow.id}")
+          return Mcp::Tools.invalid("step '#{step_slug}' not found on #{workflow.slug}")
         end
 
         create_pending_admin_action(
@@ -41,7 +41,7 @@ module Mcp::Tools
           action: "admin_retry_step",
           payload: { "workflow_id" => workflow.id, "step_slug" => step_slug },
           reason: reason,
-          message: "Retry step '#{step_slug}' on workflow ##{workflow.id}?"
+          message: "Retry step '#{step_slug}' on #{workflow.slug}?"
         )
       end
     end

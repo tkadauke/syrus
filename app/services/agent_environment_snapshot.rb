@@ -61,8 +61,8 @@ class AgentEnvironmentSnapshot
     lines = [
       "- Repository: #{repository.slug} (default branch: #{repository.default_branch}, credential mode: #{job.credential_mode})",
       "- Job: #{job.slug} kind=#{job.kind} state=#{job.state} priority=#{job.priority}#{job_target_suffix(job)}",
-      "- Workflow: ##{workflow&.id || 'unknown'} trigger=#{workflow&.trigger_kind || run.trigger_kind} state=#{workflow&.state || 'unknown'}",
-      "- Step/Run: #{step&.kind || 'unknown'} step ##{step&.id || 'unknown'}, run ##{run.id}, iteration #{run.iteration}",
+      "- Workflow: #{workflow&.slug || 'unknown'} trigger=#{workflow&.trigger_kind || run.trigger_kind} state=#{workflow&.state || 'unknown'}",
+      "- Step/Run: #{step&.kind || 'unknown'} #{step&.slug || 'unknown'}, #{run.slug}, iteration #{run.iteration}",
       "- Agent provider: #{run.agent_provider.presence || workflow&.agent_provider || job.agent_provider}",
       "- Workspace: #{workspace_path || '(not available)'}",
       "- Branch/base: #{branch_summary(job)}",
@@ -497,7 +497,7 @@ class AgentEnvironmentSnapshot
       next unless artifact.present? && !artifact["coverage_unavailable"]
 
       age = coverage_age_label(w.created_at)
-      return [ artifact, "workflow ##{w.id}, #{age}" ]
+      return [ artifact, "#{w.slug}, #{age}" ]
     end
 
     snapshot = CoverageSnapshot

@@ -642,6 +642,7 @@ RSpec.describe ChatPendingAction do
     job = Factories.job_record(user: admin, repository: repository, state: "queued")
     workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider)
     workflow.steps.create!(kind: "implement", position: 0, iteration: 1)
+    attach_work_unit(workflow, state: "queued")
     allow(WorkUnits::Launcher).to receive(:start!).and_call_original
 
     reenqueue_action = admin_session.pending_actions.create!(

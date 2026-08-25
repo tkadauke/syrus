@@ -61,6 +61,10 @@ class WorkIntent < ApplicationRecord
     WorkDefinitions.for(kind)
   end
 
+  def slug
+    "WI-#{id || 'new'}"
+  end
+
   def payload_artifact(key)
     (payload_artifacts || {})[key.to_s]
   end

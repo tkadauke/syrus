@@ -32,8 +32,8 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("Repository: rome/aqueduct")
       expect(snapshot).to include("Job: #{job.slug} kind=#{job.kind}")
       expect(snapshot).not_to include("Job: ##{job.id} kind=")
-      expect(snapshot).to include("Workflow: ##{workflow.id} trigger=initial")
-      expect(snapshot).to include("Step/Run: implement step ##{step.id}, run ##{run.id}, iteration 2")
+      expect(snapshot).to include("Workflow: #{workflow.slug} trigger=initial")
+      expect(snapshot).to include("Step/Run: implement #{step.slug}, #{run.slug}, iteration 2")
       expect(snapshot).to include("Agent provider: codex")
       expect(snapshot).to include("MCP/tools: run sidecar `syrus-mcp-sidecar` is configured; this step has no required MCP submission tool.")
       expect(snapshot).to include("Prepare plan: .syrus.yml: bundle install")
@@ -98,7 +98,7 @@ RSpec.describe AgentEnvironmentSnapshot do
 
         expect(snapshot).to include("## Test coverage")
         expect(snapshot).to include("Configured: lines ≥80%, PR delta ≥90% (on_miss: warn)")
-        expect(snapshot).to match(/Last run: lines 74\.2%, branches 68\.1% \(workflow ##{workflow.id},/)
+        expect(snapshot).to match(/Last run: lines 74\.2%, branches 68\.1% \(#{workflow.slug},/)
       end
     end
 

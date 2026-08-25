@@ -25,7 +25,7 @@ module Steps
       return transition unless transition.synchronized?
 
       step.save!
-      result(true, "reconciled Step ##{step.id} to #{step.state} from Run ##{run.id}", run: run, state: step.state)
+      result(true, "reconciled #{step.slug} to #{step.state} from #{run.slug}", run: run, state: step.state)
     end
 
     private

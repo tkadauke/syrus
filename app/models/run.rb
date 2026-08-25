@@ -39,6 +39,10 @@ class Run < ApplicationRecord
     step&.workflow_id
   end
 
+  def slug
+    "RUN-#{id || 'new'}"
+  end
+
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validate :user_matches_execution_graph

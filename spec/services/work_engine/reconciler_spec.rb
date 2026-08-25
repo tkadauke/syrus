@@ -2771,7 +2771,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(step.reload).to be_failed
     expect(next_step.reload).to be_queued
     expect(next_step.runs.last).to have_attributes(state: "queued", job_id: job.id)
-    expect(result.repair_executions.map(&:message)).to include("reconciled Step ##{step.id} to failed from Run ##{run.id}")
+    expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
   end
 
   it "reconciles a queued Step whose Run failed before the Step could start" do
@@ -2810,7 +2810,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(step.reload).to be_failed
     expect(workflow.reload).to be_failed
     expect(job.reload).to be_failed
-    expect(result.repair_executions.map(&:message)).to include("reconciled Step ##{step.id} to failed from Run ##{run.id}")
+    expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to failed from #{run.slug}")
   end
 
   it "fails a running workflow that already has a failed step and a queued tail" do
@@ -2874,7 +2874,7 @@ RSpec.describe WorkEngine::Reconciler do
     )
     expect(step.reload).to be_succeeded
     expect(next_step.reload.runs.last).to have_attributes(state: "queued", job_id: job.id)
-    expect(result.repair_executions.map(&:message)).to include("reconciled Step ##{step.id} to succeeded from Run ##{run.id}")
+    expect(result.repair_executions.map(&:message)).to include("reconciled #{step.slug} to succeeded from #{run.slug}")
   end
 
   it "resumes a running workflow whose succeeded step did not create a run for the queued successor" do

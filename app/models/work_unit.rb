@@ -54,6 +54,10 @@ class WorkUnit < ApplicationRecord
     WorkDefinitions.for(kind)
   end
 
+  def slug
+    "WU-#{id || 'new'}"
+  end
+
   def block!(reason:, blocked_until: nil, details: {}, user: nil)
     update!(
       state: "blocked",

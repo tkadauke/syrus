@@ -57,10 +57,10 @@ module PendingActions
 
     def reenqueue_run!(run)
       raise ArgumentError, "Run not found." unless run
-      raise ArgumentError, "Run ##{run.id} is #{run.state}, not queued." unless run.queued?
-      raise ArgumentError, "Workflow is not active for Run ##{run.id}." unless run.workflow&.queued? || run.workflow&.running?
+      raise ArgumentError, "#{run.slug} is #{run.state}, not queued." unless run.queued?
+      raise ArgumentError, "Workflow is not active for #{run.slug}." unless run.workflow&.queued? || run.workflow&.running?
 
-      progress!("Re-enqueueing Run ##{run.id}...")
+      progress!("Re-enqueueing #{run.slug}...")
       run.reenqueue!
       run
     end
@@ -90,9 +90,15 @@ module PendingActions
 
       JobLog.append!(
         run: run,
-        chunk: "[operator repair] re-enqueued work via #{record.class.name}##{record.id}; reason=#{reason}",
+        chunk: "[operator repair] re-enqueued work via #{record_label(record)}; reason=#{reason}",
         kind: "system"
       )
+    end
+
+    def record_label(record)
+      return record.slug if record.respond_to?(:slug)
+
+      "#{record.class.name}##{record.id}"
     end
   end
 end
