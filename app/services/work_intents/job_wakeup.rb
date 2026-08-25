@@ -100,7 +100,7 @@ module WorkIntents
           .includes(work_unit: :workflow)
           .map { |member| member.work_unit.workflow }
         legacy_workflows = WorkUnits::Ownership
-          .legacy_replay_workflows_scope([ job.id ], base_scope: job.workflows.where(state: "queued"))
+          .unowned_workflows_scope([ job.id ], base_scope: job.workflows.where(state: "queued"))
           .includes(:work_unit)
           .to_a
 

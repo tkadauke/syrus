@@ -36,7 +36,10 @@ module WorkUnits
 
     def blocked_for?(start_blocked_reason)
       if workflow.work_unit
-        workflow.work_unit.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason)
+        unit = workflow.work_unit
+        unit.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason) ||
+          unit.blocked_reason == start_blocked_reason.to_s ||
+          unit.blocked_details.to_h["start_blocked_reason"] == start_blocked_reason.to_s
       else
         legacy_artifact_fallback? && artifact_reason == start_blocked_reason
       end
@@ -55,7 +58,7 @@ module WorkUnits
     end
 
     def legacy_artifact_fallback?
-      workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
+      workflow.work_unit.blank? || workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
     end
 
     def artifact_data

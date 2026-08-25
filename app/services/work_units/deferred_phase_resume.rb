@@ -20,8 +20,7 @@ module WorkUnits
 
     def call
       return result("terminal") unless workflow.queued? || workflow.running?
-      return legacy_resume if legacy_replay_workflow?
-      return result("missing_work_unit") unless work_unit&.active?
+      return legacy_resume unless work_unit&.active?
 
       step = target_step
       return result("no_step") unless step&.queued?
@@ -61,10 +60,6 @@ module WorkUnits
     def legacy_resume
       run = StepDispatcher.resume_deferred_phase(workflow.id, step_id)
       Result.new(workflow: workflow, run: run, work_unit: work_unit, status: "legacy", reason: nil)
-    end
-
-    def legacy_replay_workflow?
-      !work_unit&.active? && workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
     end
 
     def target_step

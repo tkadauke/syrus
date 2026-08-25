@@ -168,10 +168,8 @@ module App
           epic_ids = landing_queue_epic_ids
           if epic_ids.empty?
             {}
-          elsif WorkUnits::PathOwnership.work_unit_owned?("merge_train")
-            merge_train_work_unit_data_by_epic_id(epic_ids)
           else
-            legacy_merge_train_workflow_data_by_epic_id(epic_ids)
+            merge_train_work_unit_data_by_epic_id(epic_ids)
           end
         end
       end
@@ -187,24 +185,6 @@ module App
             data[:start_blocked_reason] ||= unit.blocked_reason if unit.blocked?
             data[:start_blocked_reason] ||= WorkUnits::StartBlock.for(unit.workflow).reason if unit.workflow&.queued?
           end
-      end
-
-      def legacy_merge_train_workflow_data_by_epic_id(epic_ids)
-        workflows = Workflow
-          .where(trigger_kind: WorkDefinitions.for("merge_train").workflow_trigger_kind, state: %w[ queued running ], job_id: Job.where(epic_id: epic_ids).select(:id))
-          .includes(:work_unit)
-          .select(:job_id, :state, :artifacts, :created_at, :id)
-          .order(created_at: :desc, id: :desc)
-        epic_id_by_job_id = Job.where(epic_id: epic_ids).pluck(:id, :epic_id).to_h
-
-        workflows.each_with_object({}) do |workflow, map|
-          epic_id = epic_id_by_job_id[workflow.job_id]
-          next unless epic_id
-
-          data = (map[epic_id] ||= {})
-          data[:active] = true
-          data[:start_blocked_reason] ||= WorkUnits::StartBlock.for(workflow).reason if workflow.queued?
-        end
       end
 
       def active_merge_train_ids_by_epic_id

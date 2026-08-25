@@ -2683,5 +2683,22 @@ RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason" do
 
       expect(workflow.reload.artifact("start_blocked_count")).to be_nil
     end
+
+    it "clears stale start-block artifacts even after a WorkUnit was unblocked" do
+      WorkUnits::Backfill.workflow!(workflow)
+      workflow.reload.update!(
+        artifacts: workflow.artifacts.to_h.merge(
+          "start_blocked_reason" => "manual_pause",
+          "pause_reason" => "manual_pause",
+          "start_blocked_count" => 2
+        )
+      )
+
+      described_class.clear_start_blocked!(workflow, "manual_pause")
+
+      expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+      expect(workflow.artifact("pause_reason")).to be_nil
+      expect(workflow.artifact("start_blocked_count")).to be_nil
+    end
   end
 end

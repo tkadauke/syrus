@@ -213,7 +213,7 @@ class StepDispatcher
   START_BLOCKED_BACKOFF = 5.minutes
 
   def self.manually_paused?(workflow)
-    if WorkUnits::PathOwnership.work_unit_owned?("manual_pause") && workflow.work_unit
+    if workflow.work_unit
       return workflow.work_unit.pause_requested? || workflow.job.manual_paused?
     end
 
@@ -330,7 +330,7 @@ class StepDispatcher
   end
 
   def self.clear_start_blocked!(workflow, reason)
-    return unless WorkUnits::StartBlock.for(workflow).blocked_for?(reason)
+    return unless WorkUnits::StartBlock.for(workflow).blocked_for?(reason) || start_block_artifact_for?(workflow, reason)
 
     cleared = (workflow.artifacts || {}).except(
       "start_blocked_reason",
@@ -348,6 +348,11 @@ class StepDispatcher
     )
     workflow.update!(artifacts: cleared)
     clear_work_unit_blocked!(workflow, reason)
+  end
+
+  def self.start_block_artifact_for?(workflow, reason)
+    workflow.artifact("start_blocked_reason") == reason ||
+      workflow.artifact("pause_reason") == reason
   end
 
   def self.record_work_unit_blocked!(workflow, reason, blocked_until:, details: nil)

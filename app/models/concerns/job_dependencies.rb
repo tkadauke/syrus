@@ -72,7 +72,7 @@ module JobDependencies
       .select(&:queued?)
 
     legacy_replay_workflows = WorkUnits::Ownership
-      .legacy_replay_workflows_scope([ id ], base_scope: workflows.where(state: "queued"))
+      .unowned_workflows_scope([ id ], base_scope: workflows.where(state: "queued"))
       .to_a
 
     (unit_workflows + legacy_replay_workflows).uniq(&:id)

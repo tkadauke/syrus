@@ -44,10 +44,6 @@ module WorkUnits
       new(path).result
     end
 
-    def self.work_unit_owned?(path)
-      self.for(path).work_unit?
-    end
-
     def initialize(path)
       @path = path.to_s
     end

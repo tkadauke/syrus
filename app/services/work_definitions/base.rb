@@ -121,7 +121,7 @@ module WorkDefinitions
     def requires_epic_readiness? = false
     def generic_intent_start_allowed? = !landing_lock?
     def lock_conflicts_enforced?
-      return WorkUnits::PathOwnership.work_unit_owned?(kind) if WorkUnits::PathOwnership::PATH_GROUPS.key?(kind)
+      return true if WorkUnits::PathOwnership::PATH_GROUPS.key?(kind)
       return true if first_class? && scope == "job"
 
       false

@@ -43,7 +43,9 @@ module WorkUnits
 
     def clear!(start_blocked_reason:)
       return unless unit&.blocked?
-      return unless unit.blocked_details.to_h["start_blocked_reason"] == start_blocked_reason
+      return unless unit.blocked_details.to_h["start_blocked_reason"] == start_blocked_reason ||
+        unit.blocked_reason == start_blocked_reason.to_s ||
+        unit.blocked_reason == blocked_reason_for(start_blocked_reason)
 
       unit.unblock!
     end
