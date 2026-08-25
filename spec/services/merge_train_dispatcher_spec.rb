@@ -151,7 +151,7 @@ RSpec.describe MergeTrainDispatcher do
 
   it "does not dispatch a second train when the Epic already has an active merge-train workflow" do
     child = approved_child(1)
-    WorkUnits::Backfill.workflow!(Workflow.create!(job: child, trigger_kind: "merge_train", state: "running"))
+    attach_work_unit(Workflow.create!(job: child, trigger_kind: "merge_train", state: "running"))
 
     expect(described_class.try_dispatch!(epic)).to be_nil
     expect(MergeTrain.count).to eq(0)
@@ -199,7 +199,7 @@ RSpec.describe MergeTrainDispatcher do
 
   it "does not dispatch the real train while speculative train validation is active" do
     child = approved_child(1)
-    WorkUnits::Backfill.workflow!(Workflow.create!(job: child, trigger_kind: "merge_train_validation", state: "running"))
+    attach_work_unit(Workflow.create!(job: child, trigger_kind: "merge_train_validation", state: "running"))
 
     expect(described_class.try_dispatch!(epic)).to be_nil
     expect(MergeTrain.count).to eq(0)
@@ -210,7 +210,7 @@ RSpec.describe MergeTrainDispatcher do
     child = approved_child(1)
     workflow = Workflow.create!(job: child, trigger_kind: "stack_rebase", state: "running")
     Step.create!(workflow: workflow, kind: "stack_agent_rebase", position: 0)
-    WorkUnits::Backfill.workflow!(workflow)
+    attach_work_unit(workflow)
 
     expect(described_class.blocker_reason(epic)).to eq("active rebase workflow #{workflow.slug} must finish before the merge train starts")
     expect(described_class.try_dispatch!(epic)).to be_nil

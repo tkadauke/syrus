@@ -8,7 +8,7 @@ RSpec.describe WorkflowAdmissionBudget do
     job = Factories.job_record(user: user, repository: repository, priority: priority, state: "queued")
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
     workflow.update!(state: state, trigger_kind: trigger_kind)
-    WorkUnits::Backfill.workflow!(workflow) if work_unit
+    attach_work_unit(workflow) if work_unit
     workflow
   end
 

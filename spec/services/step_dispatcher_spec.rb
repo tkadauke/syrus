@@ -14,7 +14,7 @@ RSpec.describe StepDispatcher do
     s2.update!(next_step_id: s3.id)
   end
 
-  def attach_work_unit(workflow, state: "queued")
+  def attach_work_unit(workflow, state: "queued", **options)
     WorkUnit
       .joins(:work_unit_members)
       .where(work_unit_members: { job_id: workflow.job_id }, state: WorkUnits::Ownership::ACTIVE_STATES)
@@ -24,38 +24,7 @@ RSpec.describe StepDispatcher do
         other_unit.update_columns(state: "cancelled", finished_at: Time.current)
       end
 
-    if (unit = WorkUnit.find_by(workflow: workflow))
-      unit.update!(
-        state: state,
-        blocked_reason: nil,
-        blocked_until: nil,
-        blocked_details: {},
-        pause_requested: false
-      )
-      unit.work_unit_members.find_or_create_by!(job: workflow.job) { |member| member.role = "primary" }
-      return unit
-    end
-
-    intent = WorkIntent.create!(
-      kind: workflow.trigger_kind,
-      state: "requested",
-      repository: workflow.job.repository,
-      scope_type: "job",
-      scope_id: workflow.job_id,
-      actor: workflow.job.user,
-      source_type: "spec"
-    )
-    unit = WorkUnit.create!(
-      work_intent: intent,
-      kind: workflow.trigger_kind,
-      state: state,
-      repository: workflow.job.repository,
-      scope_type: "job",
-      scope_id: workflow.job_id,
-      workflow: workflow
-    )
-    unit.work_unit_members.create!(job: workflow.job, role: "primary")
-    unit
+    WorkUnitsSpecHelpers.instance_method(:attach_work_unit).bind_call(self, workflow, state: state, **options)
   end
 
   describe ".start_workflow" do
@@ -110,7 +79,7 @@ RSpec.describe StepDispatcher do
       job.update!(epic: epic)
       keeper = Workflow.create!(job: keeper_job, trigger_kind: "stack_rebase")
       keeper.update_columns(state: "running", started_at: 1.minute.ago)
-      WorkUnits::Backfill.workflow!(keeper)
+      attach_work_unit(keeper, member_jobs: [ keeper_job, job ])
 
       expect {
         described_class.start_workflow(workflow)
@@ -130,7 +99,7 @@ RSpec.describe StepDispatcher do
       job.update!(epic: epic)
       keeper = Workflow.create!(job: keeper_job, trigger_kind: "stack_rebase")
       keeper.update_columns(state: "running", started_at: 1.minute.ago)
-      WorkUnits::Backfill.workflow!(keeper)
+      attach_work_unit(keeper, member_jobs: [ keeper_job, job ])
       workflow.update!(trigger_kind: "merge_train", artifacts: { "merge_train_id" => 123 })
 
       expect {
@@ -345,6 +314,7 @@ RSpec.describe StepDispatcher do
     it "starts once dependencies are satisfied" do
       prerequisite = Factories.job(repository: job.repository, issue_number: 99)
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+      attach_work_unit(workflow)
 
       # Closing the prerequisite successfully now starts dependents eagerly
       # (Job#start_dependent_jobs_after_successful_close), rather than
@@ -402,6 +372,7 @@ RSpec.describe StepDispatcher do
         enable_coding_mode!
         chat = ChatSession.create!(user: job.user)
         job.update!(state: "coding", linked_chat_id: chat.id)
+        attach_work_unit(workflow)
         described_class.start_workflow(workflow)
         expect(s1.runs.reload.count).to eq(0)
 
@@ -646,6 +617,7 @@ RSpec.describe StepDispatcher do
     end
 
     it "schedules exactly one recheck when a blocked non-landing workflow's start is retried before backoff expires" do
+      clear_enqueued_jobs
       delay_until = 10.minutes.from_now
       decision = WorkflowAdmissionBudget::Decision.new(
         action: "delay_until",
@@ -656,6 +628,7 @@ RSpec.describe StepDispatcher do
         details: nil
       )
       allow(WorkflowAdmissionBudget).to receive(:call).and_return(decision)
+      attach_work_unit(workflow)
 
       described_class.start_workflow(workflow)
 
@@ -2225,6 +2198,7 @@ RSpec.describe StepDispatcher, "urgent_blocking gate" do
 
   it "backs off repeated urgent-blocked starts" do
     create_urgent_job!
+    attach_work_unit(workflow)
     travel_to(Time.zone.parse("2026-07-15 12:00:00 UTC")) do
       expect(Rails.logger).to receive(:warn).once.with(include("urgent_job_active"))
 
@@ -2334,6 +2308,7 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
 
   it "backs off repeated main-health blocked starts" do
     break_main!
+    attach_work_unit(workflow)
     travel_to(Time.zone.parse("2026-07-15 12:00:00 UTC")) do
       expect(Rails.logger).to receive(:warn).once.with(include("main_branch_broken"))
 
@@ -2496,6 +2471,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
   it "clears stack_dependencies_not_ready when the dependency becomes satisfied" do
     prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
     JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+    attach_work_unit(workflow)
     workflow.update!(artifacts: { "start_blocked_reason" => "stack_dependencies_not_ready" })
 
     prerequisite.close_with_reason!("pr_merged")
@@ -2507,6 +2483,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
   it "clears stack_dependencies_not_ready and starts when the only blocking dependency is removed" do
     prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
     dependency = JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+    attach_work_unit(workflow)
 
     described_class.start_workflow(workflow)
     expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
@@ -2693,7 +2670,7 @@ RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason" do
     end
 
     it "clears stale start-block artifacts even after a WorkUnit was unblocked" do
-      WorkUnits::Backfill.workflow!(workflow)
+      attach_work_unit(workflow)
       workflow.reload.update!(
         artifacts: workflow.artifacts.to_h.merge(
           "start_blocked_reason" => "manual_pause",

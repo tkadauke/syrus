@@ -1569,9 +1569,11 @@ after that.
 
 Add `work_intents`, `work_units`, and `work_unit_members`.
 
-Populate them from the launcher, not from scattered call sites. Backfill active
-workflows. Keep existing Job/Workflow behavior as the source of truth during this
-phase.
+Populate them from the launcher, not from scattered call sites. During rollout,
+active workflows are backfilled into WorkIntent/WorkUnit rows by a one-time
+migration so installations that upgrade with queued/running workflows converge
+without requiring a recurring bridge. Keep existing Job/Workflow behavior as the
+source of truth during this phase.
 
 For every requested piece of work, write:
 
@@ -1597,14 +1599,14 @@ one Workflow attached to one Job but semantically owning multiple Jobs.
 
 Completed slices:
 
-- Active legacy Workflows without WorkUnit ownership are now backfilled
-  continuously by `WorkUnitsBackfillActiveWorkflowsJob` in bounded
-  low-priority batches, so a deploy can converge existing queued/running
-  Workflows into the shadow intent/unit model without relying on new launches.
+- Active legacy Workflows without WorkUnit ownership are backfilled by
+  `BackfillActiveWorkUnits`, so a deploy can converge existing queued/running
+  Workflows into the intent/unit model before runtime ownership relies on
+  `WorkUnits::Launcher`.
 - `WorkDefinitions::Base#ref_metadata_for` now centralizes the selected
   delivery-track and source/target repository/ref snapshot. `WorkUnits::Launcher`
-  and the legacy active-workflow backfill both persist that metadata onto
-  `WorkIntent` and `WorkUnit` rows.
+  and the active-workflow migration persist that metadata onto `WorkIntent` and
+  `WorkUnit` rows.
 
 ### Phase 4: Scheduler Reads Intents And Units
 

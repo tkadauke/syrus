@@ -8,20 +8,21 @@ tell when the debt is still necessary and when it can be removed.
 
 - **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
 - **Owner area:** WorkIntent / WorkUnit migration
-- **Code:** `WorkUnitsBackfillActiveWorkflowsJob`, `WorkUnits::Backfill`,
-  `config/recurring.yml`
+- **Code:** `BackfillActiveWorkUnits`, `WorkUnits::Backfill`
 - **Why it exists:** Existing queued/running `Workflow` rows may not have
-  shadow `WorkIntent` / `WorkUnit` rows when the work-unit migration deploys.
-  Running this as a bounded recurring job lets production converge without
-  making deploy-time migrations scan or lock live workflow tables.
-- **Removal condition:** All production workflow creation paths have gone
-  through `WorkUnits::Launcher` for longer than the maximum expected active
-  workflow lifetime, and `Workflow.left_outer_joins(:work_unit)
-  .where(state: %w[queued running], work_units: { id: nil })` has stayed empty
-  for a full operational window.
-- **Removal work:** Delete the recurring entry, `WorkUnitsBackfillActiveWorkflowsJob`,
-  `WorkUnits::Backfill`, and their specs. Keep the launch-funnel architecture
-  spec so the invariant remains enforced.
+  `WorkIntent` / `WorkUnit` rows when an installation upgrades into the
+  work-unit architecture. The one-time migration keeps small and medium
+  installations from needing a recurring bridge to converge.
+- **Removal condition:** The migration has been present in released Syrus for
+  one to two months, known installations have deployed it, and
+  `Workflow.left_outer_joins(:work_unit).where(state: %w[queued running],
+  work_units: { id: nil })` is only relevant for newly introduced launch-path
+  regressions.
+- **Removal work:** Delete `WorkUnits::Backfill`, its specs, and this debt
+  entry only after the migration no longer depends on application code (for
+  example, by squashing migrations or replacing the migration body with a
+  self-contained migration-local copy). Keep launch-funnel architecture specs
+  so active workflows cannot be created without WorkUnits.
 
 ## Work Units Legacy Scheduler And Reconciler Fallbacks
 

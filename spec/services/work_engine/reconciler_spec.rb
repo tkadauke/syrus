@@ -50,7 +50,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.evidence).to include(
       "work_intent_id" => unit.work_intent_id,
       "work_intent_kind" => "initial",
-      "work_intent_state" => "requested",
+      "work_intent_state" => "failed",
       "work_unit_id" => unit.id,
       "work_unit_kind" => "initial",
       "work_unit_state" => "failed",
@@ -59,39 +59,17 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
-  def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "blocked", blocked_reason: nil, blocked_until: nil, blocked_details: {})
-    unit = workflow.work_unit
-    intent = unit&.work_intent || WorkIntent.create!(
-      kind: kind,
-      state: "requested",
-      repository: workflow.job.repository,
-      scope_type: "job",
-      scope_id: workflow.job_id,
-      actor: workflow.job.user,
-      source_type: "spec"
-    )
-    unit ||= WorkUnit.create!(
-      work_intent: intent,
-      kind: kind,
-      state: state,
-      repository: workflow.job.repository,
-      scope_type: "job",
-      scope_id: workflow.job_id,
-      workflow: workflow,
-      blocked_reason: blocked_reason,
-      blocked_until: blocked_until,
-      blocked_details: blocked_details
-    )
-    unit.update!(
-      work_intent: intent,
+  def attach_work_unit(workflow, kind: workflow.trigger_kind, state: "blocked", blocked_reason: nil, blocked_until: nil, blocked_details: {}, **options)
+    WorkUnitsSpecHelpers.instance_method(:attach_work_unit).bind_call(
+      self,
+      workflow,
       kind: kind,
       state: state,
       blocked_reason: blocked_reason,
       blocked_until: blocked_until,
-      blocked_details: blocked_details
+      blocked_details: blocked_details,
+      **options
     )
-    unit.work_unit_members.find_or_create_by!(job: workflow.job) { |member| member.role = "primary" }
-    unit
   end
 
   def solid_queue_run_job(run, claimed: false, failed: false, ready: false, run_at: nil, queue_name: "runs", error: "worker process failed", process_id: nil, created_at: 10.minutes.ago)
@@ -3038,7 +3016,7 @@ RSpec.describe WorkEngine::Reconciler do
 
   it "classifies explicit dependency or stack start blocks as wait-only" do
     run.destroy!
-    prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+    prerequisite = Factories.job_record(user: job.user, repository: job.repository, issue_number: 99, state: "queued")
     JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
     workflow.update_columns(
       state: "queued",
@@ -3046,6 +3024,12 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
+    )
+    attach_work_unit(
+      workflow,
+      blocked_reason: "stack_dependencies_not_ready",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON }
     )
 
     result = reconcile(workflow_id: workflow.id)
@@ -3103,27 +3087,33 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
   end
 
-  it "rechecks expired dependency or stack start blocks by starting the workflow again" do
+  it "rechecks stale dependency or stack start blocks once dependencies are ready" do
     run.destroy!
     workflow.update_columns(
       state: "queued",
-      created_at: 5.minutes.ago,
-      updated_at: 5.minutes.ago,
+      created_at: 6.minutes.ago,
+      updated_at: 6.minutes.ago,
       artifacts: {
         "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
         "start_blocked_next_check_at" => 1.minute.ago.iso8601
       }
     )
     step.update_columns(state: "queued")
+    attach_work_unit(
+      workflow,
+      blocked_reason: "stack_dependencies_not_ready",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON }
+    )
 
     result = reconcile(workflow_id: workflow.id)
 
     expect(kind(result, :dependency_stack_start_block)).to be_nil
-    expect(kind(result, :queued_workflow_without_first_run)).to have_attributes(
+    expect(kind(result, :stale_dependency_start_block)).to have_attributes(
       safe_to_auto_repair: true,
-      recommended_repair_action: "start_workflow"
+      recommended_repair_action: "clear_stale_start_block_and_start_workflow"
     )
-    expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+    expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
   end
 
   it "classifies a stale dependency start block as repairable when dependencies are satisfied" do
@@ -3138,6 +3128,12 @@ RSpec.describe WorkEngine::Reconciler do
       }
     )
     step.update_columns(state: "queued")
+    attach_work_unit(
+      workflow,
+      blocked_reason: StepDispatcher::STACK_BLOCK_REASON,
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON }
+    )
 
     result = reconcile(workflow_id: workflow.id)
     issue = kind(result, :stale_dependency_start_block)
@@ -3183,6 +3179,12 @@ RSpec.describe WorkEngine::Reconciler do
       }
     )
     step.update_columns(state: "queued")
+    attach_work_unit(
+      workflow,
+      blocked_reason: StepDispatcher::STACK_BLOCK_REASON,
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON }
+    )
     allow(WorkUnits::Launcher).to receive(:start!).and_call_original
 
     result = reconcile_and_execute(workflow_id: workflow.id)
@@ -3203,6 +3205,12 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
     )
+    attach_work_unit(
+      workflow,
+      blocked_reason: "main_branch_health",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON }
+    )
 
     result = reconcile(workflow_id: workflow.id)
     issue = kind(result, :main_health_start_block)
@@ -3221,6 +3229,15 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601,
         "start_blocked_details" => { "reason" => "predicted_budget_pressure_high" }
+      }
+    )
+    attach_work_unit(
+      workflow,
+      blocked_reason: "admission_control",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "reason" => "predicted_budget_pressure_high"
       }
     )
 
@@ -3257,6 +3274,18 @@ RSpec.describe WorkEngine::Reconciler do
           "phase_step_kind" => next_step.kind,
           "phase_step_position" => next_step.position
         }
+      }
+    )
+    attach_work_unit(
+      workflow,
+      state: "blocked",
+      blocked_reason: StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
+      blocked_until: 1.minute.ago,
+      blocked_details: {
+        "start_blocked_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
+        "phase_step_id" => next_step.id,
+        "phase_step_kind" => next_step.kind,
+        "phase_step_position" => next_step.position
       }
     )
 
@@ -3416,6 +3445,13 @@ RSpec.describe WorkEngine::Reconciler do
       }
     )
     Step.create!(workflow: follow_up, kind: "prepare", position: 0, state: "queued")
+    attach_work_unit(
+      follow_up,
+      kind: "ci_failure",
+      blocked_reason: "main_branch_health",
+      blocked_until: 5.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON }
+    )
 
     result = reconcile(job_id: job.id)
 
@@ -3470,7 +3506,7 @@ RSpec.describe WorkEngine::Reconciler do
     MergeTrainMember.create!(merge_train: train, job: second, position: 1)
     train_workflow = Workflows::MergeTrain.instantiate(job: second, artifacts: { "merge_train_id" => train.id })
     train_workflow.update!(state: "queued")
-    WorkUnits::Backfill.workflow!(train_workflow)
+    attach_work_unit(train_workflow, member_jobs: [ first, second ])
 
     result = reconcile(job_id: first.id)
 
@@ -3551,6 +3587,16 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
     )
+    attach_work_unit(
+      auto_merge,
+      kind: "auto_merge",
+      blocked_reason: "admission_control",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "reason" => "predicted_budget_pressure_high"
+      }
+    )
 
     result = reconcile(workflow_id: auto_merge.id)
     issue = kind(result, :landing_start_blocked)
@@ -3561,7 +3607,9 @@ RSpec.describe WorkEngine::Reconciler do
       recommended_repair_action: "wait_for_landing_start_block_to_clear"
     )
     expect(issue.evidence).to include(
-      "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+      "start_blocked_reason" => "admission_control",
+      "work_unit_blocked_reason" => "admission_control",
+      "start_blocked_details" => include("start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON),
       "landing_queue_entry" => include("position" => 1, "blocked_reason" => nil)
     )
     expect(kind(result, :main_health_start_block)).to be_nil
@@ -3607,6 +3655,13 @@ RSpec.describe WorkEngine::Reconciler do
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
     )
+    attach_work_unit(
+      auto_merge,
+      kind: "auto_merge",
+      blocked_reason: "main_branch_health",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON }
+    )
     repair_job = ready_main_repair_job!(repository)
 
     result = reconcile_and_execute(workflow_id: auto_merge.id)
@@ -3618,7 +3673,8 @@ RSpec.describe WorkEngine::Reconciler do
       recommended_repair_action: "release_landing_slot_for_main_repair"
     )
     expect(issue.evidence).to include(
-      "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+      "start_blocked_reason" => "main_branch_health",
+      "start_blocked_details" => { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON },
       "main_repair_job_id" => repair_job.id,
       "main_repair_job_slug" => repair_job.slug
     )
@@ -4411,10 +4467,17 @@ RSpec.describe WorkEngine::Reconciler do
   end
 
   it "uses WorkDefinition retry policy to rebuild nonretryable WorkUnit attempts" do
-    workflow.update_columns(trigger_kind: "merge_train", state: "failed", finished_at: Time.current)
+    train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
+    MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+    workflow.update_columns(
+      trigger_kind: "merge_train",
+      state: "failed",
+      finished_at: Time.current,
+      artifacts: { "merge_train_id" => train.id }
+    )
     step.update_columns(kind: "merge_train_build", state: "failed", finished_at: Time.current)
     run.update_columns(state: "failed", finished_at: Time.current)
-    attach_work_unit(workflow, kind: "job_bundle", state: "failed")
+    attach_work_unit(workflow, kind: "job_bundle", state: "failed", member_jobs: [ job ])
     RunFailureClassification.create!(
       run: run,
       classification: "git_conflict",

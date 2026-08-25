@@ -9,16 +9,13 @@ RSpec.describe App::DashboardPayload do
   end
 
   def backfill_work_unit(workflow, state: workflow.state, blocked_reason: nil, blocked_details: nil, blocked_until: nil)
-    result = WorkUnits::Backfill.workflow!(workflow)
-    unit = result.work_unit || workflow.reload.work_unit
-    return unit unless unit
-
-    attrs = { state: state }
-    attrs[:blocked_reason] = blocked_reason if blocked_reason
-    attrs[:blocked_details] = blocked_details if blocked_details
-    attrs[:blocked_until] = blocked_until if blocked_until
-    unit.update!(attrs)
-    unit
+    attach_work_unit(
+      workflow,
+      state: state,
+      blocked_reason: blocked_reason,
+      blocked_details: blocked_details,
+      blocked_until: blocked_until
+    )
   end
 
   describe "provider availability" do

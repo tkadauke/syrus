@@ -477,8 +477,8 @@ RSpec.describe Job do
       running = Factories.job_record(repository: idle.repository, issue_number: 3, issue_title: "Running workflow")
       terminal = Factories.job_record(repository: idle.repository, issue_number: 4, issue_title: "Done workflow")
 
-      WorkUnits::Backfill.workflow!(Workflow.create!(job: queued, trigger_kind: "manual", state: "queued"))
-      WorkUnits::Backfill.workflow!(Workflow.create!(job: running, trigger_kind: "manual", state: "running"))
+      attach_work_unit(Workflow.create!(job: queued, trigger_kind: "manual", state: "queued"))
+      attach_work_unit(Workflow.create!(job: running, trigger_kind: "manual", state: "running"))
       Workflow.create!(job: terminal, trigger_kind: "manual", state: "succeeded")
 
       expect(described_class.where(id: [ idle.id, queued.id, running.id, terminal.id ]).without_active_workflows).to contain_exactly(
@@ -1137,7 +1137,7 @@ RSpec.describe Job do
 
       it "does not re-approve while a chat_feedback workflow is queued or running" do
         job = Factories.job_record(state: "implemented")
-        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running"))
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running"))
 
         result = job.record_github_review_approval!(
           review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
@@ -1151,7 +1151,7 @@ RSpec.describe Job do
 
       it "does not re-approve while a pr_comment workflow is queued" do
         job = Factories.job_record(state: "implemented")
-        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued"))
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued"))
 
         result = job.record_github_review_approval!(
           review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
@@ -1182,14 +1182,14 @@ RSpec.describe Job do
     describe "#active_feedback_workflow?" do
       it "is true when a chat_feedback workflow is queued or running" do
         job = Factories.job_record
-        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued"))
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued"))
 
         expect(job.active_feedback_workflow?).to be true
       end
 
       it "is true when a pr_comment workflow is running" do
         job = Factories.job_record
-        WorkUnits::Backfill.workflow!(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running"))
+        attach_work_unit(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running"))
 
         expect(job.active_feedback_workflow?).to be true
       end
