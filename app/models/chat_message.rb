@@ -10,10 +10,14 @@ class ChatMessage < ApplicationRecord
   belongs_to :proposal, class_name: "ChatProposal", optional: true
   belongs_to :pending_action, class_name: "ChatPendingAction", optional: true
   belongs_to :sender_user, class_name: "User", optional: true
+  belongs_to :deleted_by_user, class_name: "User", optional: true
 
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
   has_many :pins, class_name: "ChatMessagePin", dependent: :destroy, inverse_of: :chat_message
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :nullify
+
+  scope :active, -> { where(deleted_at: nil) }
+  scope :deleted, -> { where.not(deleted_at: nil) }
 
   # Set by callers that already know this user message will not trigger a
   # ChatTurnJob (e.g. an unmentioned message in a group chat), so the
@@ -40,6 +44,14 @@ class ChatMessage < ApplicationRecord
 
   def sender
     role == "user" ? sender_user : nil
+  end
+
+  def soft_delete_by!(actor)
+    update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+  end
+
+  def deleted?
+    deleted_at.present?
   end
 
   # Returns true when the content column uses the Anthropic messages API

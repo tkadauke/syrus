@@ -287,6 +287,60 @@ RSpec.describe ChatMessage do
     expect(AppEvents).to have_received(:broadcast).with(hash_including(user: other_user))
   end
 
+  describe "soft deletion" do
+    let(:actor) { Factories.user }
+
+    describe ".active and .deleted scopes" do
+      it "returns only non-deleted messages from .active and only deleted messages from .deleted" do
+        active_message = described_class.create!(chat_session: session, role: "user", content: { "text" => "Kept" })
+        deleted_message = described_class.create!(chat_session: session, role: "user", content: { "text" => "Gone" })
+        deleted_message.soft_delete_by!(actor)
+
+        expect(described_class.active).to include(active_message)
+        expect(described_class.active).not_to include(deleted_message)
+        expect(described_class.deleted).to include(deleted_message)
+        expect(described_class.deleted).not_to include(active_message)
+      end
+    end
+
+    describe "#soft_delete_by!" do
+      it "sets deleted_at and deleted_by_user for a User actor" do
+        message = described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
+
+        message.soft_delete_by!(actor)
+
+        expect(message).to be_deleted
+        expect(message.deleted_at).to be_present
+        expect(message.deleted_by_user).to eq(actor)
+      end
+
+      it "sets deleted_at without deleted_by_user for a non-User actor" do
+        message = described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
+        run = Factories.job.initial_run
+
+        message.soft_delete_by!(run)
+
+        expect(message).to be_deleted
+        expect(message.deleted_by_user).to be_nil
+      end
+    end
+
+    describe "#deleted?" do
+      it "is false for a message with no deleted_at" do
+        message = described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
+
+        expect(message.deleted?).to be false
+      end
+
+      it "is true once soft-deleted" do
+        message = described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
+        message.soft_delete_by!(actor)
+
+        expect(message.deleted?).to be true
+      end
+    end
+  end
+
   describe "after_create_commit :deliver_to_platform" do
     let(:platform_session) do
       ChatSession.create!(user: repo.user, origin_platform: "telegram", trigger_policy: "speak_when_spoken_to")
