@@ -10,21 +10,24 @@ class OperationalLogIndex < SearchRecord
   class << self
     def upsert(event)
       connection.transaction do
-        delete(event.id)
         insert(event)
       end
     end
 
     def upsert_many(events, delete_ids:)
+      events = events.to_a
+      indexed_ids = events.map(&:id)
+      missing_ids = Array(delete_ids) - indexed_ids
+
       connection.transaction do
-        delete_many(delete_ids)
+        delete_many(missing_ids)
         events.each { |event| insert(event) }
       end
     end
 
     def delete(event_id)
       connection.exec_delete(
-        "DELETE FROM operational_log_fts WHERE operational_log_event_id = ?",
+        "DELETE FROM operational_log_fts WHERE rowid = ?",
         "OperationalLogIndex Delete",
         [ bind(event_id) ]
       )
@@ -36,7 +39,7 @@ class OperationalLogIndex < SearchRecord
 
         placeholders = ([ "?" ] * ids.size).join(", ")
         connection.exec_delete(
-          "DELETE FROM operational_log_fts WHERE operational_log_event_id IN (#{placeholders})",
+          "DELETE FROM operational_log_fts WHERE rowid IN (#{placeholders})",
           "OperationalLogIndex Delete Many",
           ids.map { |id| bind(id) }
         )
@@ -186,7 +189,8 @@ class OperationalLogIndex < SearchRecord
     def insert(event)
       connection.exec_insert(
         <<~SQL.squish,
-          INSERT INTO operational_log_fts (
+          INSERT OR REPLACE INTO operational_log_fts (
+            rowid,
             message,
             context_text,
             context_json,
@@ -203,10 +207,11 @@ class OperationalLogIndex < SearchRecord
             run_id,
             request_id
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         SQL
         "OperationalLogIndex Upsert",
         [
+          bind(event.id),
           bind(event.message),
           bind(context_text(event.context)),
           bind(event.context.to_json),

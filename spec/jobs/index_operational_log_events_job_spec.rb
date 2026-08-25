@@ -11,7 +11,7 @@ RSpec.describe IndexOperationalLogEventsJob do
 
   after { Current.reset }
 
-  it "indexes existing events and deletes missing events in one job" do
+  it "indexes existing events without deleting rows that are present in the batch" do
     prepare_search_tables
     event = OperationalLogEvent.create!(
       occurred_at: Time.current,
@@ -23,9 +23,37 @@ RSpec.describe IndexOperationalLogEventsJob do
       context: {}
     )
 
-    described_class.perform_now([ event.id, 999_999 ])
+    delete_sql = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      delete_sql << payload[:sql] if payload[:name] == "OperationalLogIndex Delete Many"
+    end
 
-    expect(OperationalLogIndex.search(query: "batched", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to include(event.id)
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.perform_now([ event.id ])
+      described_class.perform_now([ event.id ])
+    end
+
+    expect(OperationalLogIndex.search(query: "batched", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to eq([ event.id ])
+    expect(delete_sql).to be_empty
+  end
+
+  it "deletes stale index rows for missing events" do
+    prepare_search_tables
+    event = OperationalLogEvent.create!(
+      occurred_at: Time.current,
+      level: "info",
+      role: "web",
+      hostname: "host-a",
+      source: "spec",
+      message: "stale event in batch",
+      context: {}
+    )
+    OperationalLogIndex.upsert(event)
+    event.destroy!
+
+    described_class.perform_now([ event.id ])
+
+    expect(OperationalLogIndex.search(query: "stale", since: 1.hour.ago)).to be_empty
   end
 
   it "indexes the whole batch inside a single outer transaction, rolling back all events if one fails" do
