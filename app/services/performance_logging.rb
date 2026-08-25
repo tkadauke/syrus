@@ -352,7 +352,7 @@ module PerformanceLogging
     ])
 
     path = payload[:path].to_s
-    path.start_with?("/api/v1/admin/performance", "/api/v1/app/admin/performance", "/api/v1/app/performance_events")
+    path.start_with?("/admin/performance", "/api/v1/admin/performance", "/api/v1/app/admin/performance", "/api/v1/app/performance_events")
   end
 
   def emit(event, flush: true)

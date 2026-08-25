@@ -241,6 +241,26 @@ RSpec.describe PerformanceLogging do
     expect(described_class::Store.recent).to be_empty
   end
 
+  it "does not record the performance diagnostics SPA page as a slow request" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_request_threshold_ms).and_return(1.0)
+
+    described_class.record_request(
+      {
+        method: "GET",
+        path: "/admin/performance",
+        controller: "SpaController",
+        action: "show",
+        format: "html",
+        status: 200
+      },
+      1_500.0
+    )
+
+    expect(described_class::Store.recent).to be_empty
+  end
+
   it "records slow phase events with safe metadata" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
