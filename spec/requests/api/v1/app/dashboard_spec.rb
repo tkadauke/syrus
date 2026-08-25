@@ -542,7 +542,17 @@ RSpec.describe "App API dashboard commands", type: :request do
           "failed_jobs" => []
         )
       )
-      expect(entries.find { |r| r["id"] == other.id }).to include("landing_paused" => false)
+      expect(entries.find { |r| r["id"] == other.id }).to be_nil
+    end
+
+    it "omits broken main branch health when it is not configured to block work" do
+      repo.update!(grader_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false)
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      entry = parse_body.fetch("health_blocked_repositories").find { |repository| repository.fetch("id") == repo.id }
+      expect(entry).to be_nil
     end
 
     it "includes an untagged_issues summary with a per-repository breakdown" do

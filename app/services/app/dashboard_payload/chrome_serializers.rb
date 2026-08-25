@@ -263,7 +263,7 @@ module App
 
       def health_blocked_repositories_json
         @health_blocked_repositories_json ||= PerformanceLogging.phase("dashboard_health_blocked_repositories", subject: subject) do
-          user.repositories.active.select { |repo| repo.main_health_broken? || repo.main_health_inconclusive? }.map do |repo|
+          user.repositories.active.select { |repo| repository_health_blocks_work?(repo) }.map do |repo|
             repair_status = PerformanceLogging.phase("dashboard_health_blocked_repositories.repair_status", repository_id: repo.id) do
               MainHealthChangedService.new(repo).repair_status
             end
@@ -273,14 +273,21 @@ module App
               main_health: repo.main_health,
               ci_health: repo.ci_health,
               grader_health: repo.grader_health,
-              landing_paused: repo.landing_paused,
-              main_branch_repair_blocks_work: repo.main_branch_repair_blocks_work?,
+              landing_paused: true,
+              main_branch_repair_blocks_work: true,
               repository_path: repository_path(repo),
               repair_path: "/api/v1/app/repositories/#{repo.id}/repair_main_branch",
               main_branch_repair: main_branch_repair_json(repair_status)
             }
           end
         end
+      end
+
+      def repository_health_blocks_work?(repository)
+        repository.main_branch_health_enabled? &&
+          repository.main_branch_repair_blocks_work? &&
+          repository.landing_paused? &&
+          (repository.main_health_broken? || repository.main_health_inconclusive?)
       end
 
       def untagged_issues_json
