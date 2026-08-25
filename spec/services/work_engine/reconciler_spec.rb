@@ -4259,6 +4259,27 @@ RSpec.describe WorkEngine::Reconciler do
       end
     end
 
+    it "bounds the unfinished RunJob load to jobs created after the scoped Runs" do
+      run.update!(created_at: 10.minutes.ago)
+      solid_queue_run_job(run, ready: true, created_at: 9.minutes.ago)
+
+      other_job = Factories.job(agent_provider: "claude")
+      other_run = other_job.latest_workflow.first_step.runs.first
+      solid_queue_run_job(other_run, failed: true, created_at: 30.days.ago)
+
+      sql = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA" || payload[:cached]
+        next unless payload[:name] == "SolidQueue::Job Load"
+
+        sql << payload[:sql].to_s
+      end
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { reconcile(run_id: run.id) }
+
+      run_job_load = sql.find { |statement| statement.include?("class_name") && statement.include?("RunJob") } || sql.find { |statement| statement.include?("solid_queue_jobs") }
+      expect(run_job_load).to include("created_at")
+    end
+
     it "still reports queue state for the Run under reconciliation" do
       queue_job = solid_queue_run_job(run, ready: true)
 

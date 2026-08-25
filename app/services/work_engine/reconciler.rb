@@ -2052,11 +2052,14 @@ module WorkEngine
         return empty_solid_queue_snapshot if root_ids.empty?
 
         jobs = PerformanceLogging.phase("work_engine.reconciler.solid_queue_run_jobs") do
-          SolidQueue::Job
+          scope = SolidQueue::Job
             .where(class_name: "RunJob")
             .where(finished_at: nil)
             .select(:id, :arguments, :queue_name, :priority, :finished_at)
-            .to_a
+          if (root_run_created_at_floor = oldest_root_run_created_at(root_ids)&.advance(hours: -1))
+            scope = scope.where(created_at: root_run_created_at_floor..)
+          end
+          scope.to_a
         end
         # Resolve each queue job's root Run and drop the irrelevant ones before
         # fanning out. The parse below already discards everything outside
@@ -2183,6 +2186,13 @@ module WorkEngine
 
       step_ids = Step.where(workflow_id: workflow_ids).select(:id)
       Run.where(step_id: step_ids).pluck(:id).to_set
+    end
+
+    def oldest_root_run_created_at(root_ids)
+      ids = Array(root_ids).compact
+      return nil if ids.empty?
+
+      Run.where(id: ids).minimum(:created_at)
     end
 
     def queue_job_can_progress?(sq)
