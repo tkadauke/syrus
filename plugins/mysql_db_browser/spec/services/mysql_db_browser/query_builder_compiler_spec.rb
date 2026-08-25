@@ -199,6 +199,32 @@ RSpec.describe MysqlDbBrowser::QueryBuilderCompiler do
     end
   end
 
+  describe "malformed spec shapes (defense in depth beyond controller-level guards)" do
+    it "rejects a join that is not an object instead of raising a TypeError" do
+      expect {
+        compiler({ table: "orders", join: "customers" }, join_table: "customers", join_columns: customers_columns)
+      }.to raise_error(described_class::InvalidSpec, /join must be an object/)
+    end
+
+    it "rejects an aggregation entry that is not an object instead of raising a TypeError" do
+      expect {
+        compiler({ table: "orders", aggregations: [ "count(*)" ] })
+      }.to raise_error(described_class::InvalidSpec, /each aggregation must be an object/)
+    end
+
+    it "rejects a sort that is not an object instead of raising a TypeError" do
+      expect {
+        compiler({ table: "orders", sort: "status desc" })
+      }.to raise_error(described_class::InvalidSpec, /sort must be an object/)
+    end
+
+    it "degrades a non-Hash spec to an empty spec rather than raising a NoMethodError" do
+      sql = described_class.new(spec: "garbage", base_table: "orders", base_columns: orders_columns).sql
+
+      expect(sql).to eq("SELECT `orders`.* FROM `orders` LIMIT 100")
+    end
+  end
+
   describe "limit" do
     it "defaults to 100" do
       expect(compiler({ table: "orders" }).limit).to eq(100)

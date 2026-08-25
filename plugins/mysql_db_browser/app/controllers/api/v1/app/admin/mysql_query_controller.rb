@@ -61,14 +61,14 @@ module Api
           def query_builder
             spec = parse_spec(params[:spec])
             base_columns = table_columns(params[:database], spec[:table])
-            join = spec[:join]
-            join_columns = join.present? ? table_columns(params[:database], join[:table]) : []
+            join = validated_join(spec[:join])
+            join_columns = join ? table_columns(params[:database], join[:table]) : []
 
             compiler = ::MysqlDbBrowser::QueryBuilderCompiler.new(
               spec: spec,
               base_table: spec[:table],
               base_columns: base_columns,
-              join_table: join&.dig(:table),
+              join_table: join && join[:table],
               join_columns: join_columns
             )
             filter_tree = ::Filters::QueryParam.decode(params[:q])
@@ -93,15 +93,37 @@ module Api
 
           private
 
+          # Parses the query builder's JSON spec param. A syntactically valid
+          # but structurally wrong body (e.g. a top-level JSON array, which
+          # has no #deep_symbolize_keys) is just as untrusted as malformed
+          # JSON - both degrade to InvalidSpec here rather than an unhandled
+          # NoMethodError once the value flows into table_columns/
+          # validated_join below.
           def parse_spec(raw)
-            JSON.parse(raw.presence || "{}").deep_symbolize_keys
+            parsed = JSON.parse(raw.presence || "{}")
+            raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "spec must be a JSON object" unless parsed.is_a?(Hash)
+
+            parsed.deep_symbolize_keys
           end
 
           def table_columns(database, table_name)
             raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "table is required" if table_name.blank?
+            raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "table must be a string" unless table_name.is_a?(String)
 
             payload = schema_inspector.table(database, table_name)
             payload.dig(:columns, :available) ? payload[:columns][:rows] : []
+          end
+
+          # spec[:join], like spec[:table], is caller-supplied JSON and gets
+          # indexed with a Symbol (join[:table]) before it ever reaches
+          # QueryBuilderCompiler - so it needs the same is_a?(Hash) guard
+          # table_columns applies to spec[:table], or a join: "oops" spec
+          # crashes with TypeError instead of a clean 422.
+          def validated_join(join)
+            return nil if join.blank?
+            raise ::MysqlDbBrowser::QueryBuilderCompiler::InvalidSpec, "join must be a JSON object" unless join.is_a?(Hash)
+
+            join
           end
 
           def executor
