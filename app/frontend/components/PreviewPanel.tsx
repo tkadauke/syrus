@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
-import { fetchPreview, fetchPreviewLogs, startPreview, stopPreview, type PreviewEnvironmentRecord } from "../api/jobs"
+import { fetchDeploy, fetchPreview, fetchPreviewLogs, startDeploy, startPreview, stopPreview, type DeployWorkflowRecord, type PreviewEnvironmentRecord } from "../api/jobs"
 import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { CloseIcon } from "./CloseIcon"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 const ACTIVE_STATES = ["starting", "seeding", "running", "stopping"] as const
+const ACTIVE_DEPLOY_STATES = ["queued", "running"] as const
 const POLL_INTERVAL_MS = 3000
 
 function isActive(state: PreviewEnvironmentRecord["state"]) {
   return (ACTIVE_STATES as readonly string[]).includes(state)
+}
+
+function isDeployActive(state: DeployWorkflowRecord["state"]) {
+  return (ACTIVE_DEPLOY_STATES as readonly string[]).includes(state)
 }
 
 // Task language for the coding agent, not UI copy — always English regardless
@@ -65,6 +70,9 @@ export function PreviewPanel({
   previewLogsPath,
   canStart,
   initialPreview,
+  deployPath,
+  canDeploy,
+  initialDeploy,
   queryKey
 }: {
   queryKeyPrefix: string
@@ -74,6 +82,9 @@ export function PreviewPanel({
   previewLogsPath: string
   canStart: boolean
   initialPreview: PreviewEnvironmentRecord | null
+  deployPath?: string
+  canDeploy?: boolean
+  initialDeploy?: DeployWorkflowRecord | null
   queryKey: readonly unknown[]
 }) {
   const { t } = useT("jobs")
@@ -81,7 +92,9 @@ export function PreviewPanel({
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
+  const [deployError, setDeployError] = useState<string | null>(null)
   const previewQueryKey = [`${queryKeyPrefix}-preview`, entityId] as const
+  const deployQueryKey = [`${queryKeyPrefix}-deploy`, entityId] as const
 
   const preview = useQuery({
     queryKey: previewQueryKey,
@@ -95,6 +108,25 @@ export function PreviewPanel({
   })
 
   const env = preview.data
+
+  // Workflow/Run/Step state changes only broadcast a granular AppEvent that
+  // invalidates the workflows-tab query (see appEvents.ts's
+  // workflowOnlyJobEvent routing), not this page's detail query — so, like
+  // the preview poll above, this polls itself while a deploy is in flight
+  // instead of relying on the live-update channel.
+  const deploy = useQuery({
+    queryKey: deployQueryKey,
+    queryFn: () => fetchDeploy(deployPath as string),
+    select: (data) => data.deploy,
+    initialData: { deploy: initialDeploy ?? null },
+    enabled: Boolean(deployPath),
+    refetchInterval: (query) => {
+      const workflow = query.state.data?.deploy
+      return workflow && isDeployActive(workflow.state) ? POLL_INTERVAL_MS : false
+    }
+  })
+
+  const deployRecord = deploy.data
 
   const start = useMutation({
     mutationFn: () => startPreview(previewPath),
@@ -116,6 +148,16 @@ export function PreviewPanel({
     onError: (err) => setError(errorMessage(err, t("preview_failed")))
   })
 
+  const deployMutation = useMutation({
+    mutationFn: () => startDeploy(deployPath as string),
+    onSuccess: (data) => {
+      queryClient.setQueryData(deployQueryKey, { deploy: data.deploy })
+      void queryClient.invalidateQueries({ queryKey })
+      setDeployError(null)
+    },
+    onError: (err) => setDeployError(errorMessage(err, t("deploy_failed")))
+  })
+
   const fixPreview = useMutation({
     mutationFn: () => createDirectJob({
       repositoryId: String(repositoryId),
@@ -134,7 +176,9 @@ export function PreviewPanel({
   const countdown = useCountdown(env?.state === "running" ? env.expires_at : null)
   const expired = env?.state === "running" && env.expires_at != null && new Date(env.expires_at) <= new Date()
 
-  if (!canStart && !env) return null
+  const showDeploy = Boolean(deployPath) && (canDeploy || Boolean(deployRecord))
+
+  if (!canStart && !env && !showDeploy) return null
 
   const isPending = start.isPending || stop.isPending
 
@@ -142,35 +186,52 @@ export function PreviewPanel({
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t("preview_section")}>
       <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("preview_section")}</h2>
       <div className="mt-3 space-y-2">
-        {error ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</p> : null}
-        <PreviewControls
-          env={env ?? null}
-          canStart={canStart}
-          expired={expired}
-          isPending={isPending}
-          onStart={() => start.mutate()}
-          onStop={() => stop.mutate()}
-          t={t}
-        />
-        {env ? <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} /> : null}
-        {env?.state === "running" && !expired && countdown ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_expires_in", { time: countdown })}</p>
+        {(canStart || env) ? (
+          <>
+            {error ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</p> : null}
+            <PreviewControls
+              env={env ?? null}
+              canStart={canStart}
+              expired={expired}
+              isPending={isPending}
+              onStart={() => start.mutate()}
+              onStop={() => stop.mutate()}
+              t={t}
+            />
+            {env ? <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} /> : null}
+            {env?.state === "running" && !expired && countdown ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_expires_in", { time: countdown })}</p>
+            ) : null}
+            {expired ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{t("preview_expired")}</p>
+            ) : null}
+            {env?.state === "failed" && env.error_message ? (
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
+            ) : null}
+            {env?.state === "failed" && env.error_reason === "not_reachable" ? (
+              <button
+                className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={fixPreview.isPending}
+                onClick={() => fixPreview.mutate()}
+                type="button"
+              >
+                {t("preview_fix_button")}
+              </button>
+            ) : null}
+          </>
         ) : null}
-        {expired ? (
-          <p className="text-xs text-amber-600 dark:text-amber-400">{t("preview_expired")}</p>
-        ) : null}
-        {env?.state === "failed" && env.error_message ? (
-          <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
-        ) : null}
-        {env?.state === "failed" && env.error_reason === "not_reachable" ? (
-          <button
-            className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={fixPreview.isPending}
-            onClick={() => fixPreview.mutate()}
-            type="button"
-          >
-            {t("preview_fix_button")}
-          </button>
+        {showDeploy ? (
+          <div className={(canStart || env) ? "mt-2 border-t border-gray-100 pt-2 dark:border-gray-800" : ""}>
+            {deployError ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{deployError}</p> : null}
+            <DeployControls
+              deploy={deployRecord ?? null}
+              canDeploy={Boolean(canDeploy)}
+              isPending={deployMutation.isPending}
+              onDeploy={() => deployMutation.mutate()}
+              prefix={routePrefix(location.pathname)}
+              t={t}
+            />
+          </div>
         ) : null}
       </div>
     </section>
@@ -376,6 +437,66 @@ function PreviewControls({
   }
 
   return null
+}
+
+function DeployControls({
+  deploy,
+  canDeploy,
+  isPending,
+  onDeploy,
+  prefix,
+  t
+}: {
+  deploy: DeployWorkflowRecord | null
+  canDeploy: boolean
+  isPending: boolean
+  onDeploy: () => void
+  prefix: string
+  t: ReturnType<typeof useT>["t"]
+}) {
+  const state = deploy?.state
+  const deployButton = canDeploy ? (
+    <button
+      className="rounded border border-terracotta-600 px-3 py-1.5 text-xs font-medium text-terracotta-700 hover:bg-terracotta-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-terracotta-500 dark:text-terracotta-400 dark:hover:bg-gray-800"
+      disabled={isPending}
+      onClick={onDeploy}
+      type="button"
+    >
+      {state ? t("deploy_again_button") : t("deploy_button")}
+    </button>
+  ) : null
+
+  if (!state) return deployButton
+
+  const viewLink = (
+    <Link className="text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" to={withRoutePrefix(deploy!.path, prefix)}>
+      {t("deploy_view")}
+    </Link>
+  )
+
+  if (state === "queued" || state === "running") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+          <Spinner />
+          {state === "queued" ? t("deploy_queued") : t("deploy_running")}
+        </span>
+        {viewLink}
+      </div>
+    )
+  }
+
+  const statusLabel = state === "succeeded"
+    ? <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("deploy_succeeded")}</span>
+    : <span className="text-xs font-medium text-red-600 dark:text-red-400">{state === "cancelled" ? t("deploy_cancelled") : t("deploy_failed_status")}</span>
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {statusLabel}
+      {viewLink}
+      {deployButton}
+    </div>
+  )
 }
 
 function Spinner() {

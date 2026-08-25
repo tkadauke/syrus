@@ -418,6 +418,9 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
             previewPath={payload.paths.app_preview_path}
             queryKey={queryKey}
             repositoryId={payload.repository.id}
+            canDeploy={payload.actions.can_deploy}
+            initialDeploy={payload.deploy}
+            deployPath={payload.paths.app_deploy_path}
           />
 
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">

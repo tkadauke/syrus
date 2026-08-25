@@ -99,6 +99,26 @@ RSpec.describe Job do
     end
   end
 
+  describe "#deployable?" do
+    it "allows implemented, approved, and landing jobs" do
+      expect(Factories.job_record(state: "implemented")).to be_deployable
+      expect(Factories.job_record(state: "approved")).to be_deployable
+      expect(Factories.job_record(state: "landing")).to be_deployable
+    end
+
+    it "rejects jobs before implementation" do
+      expect(Factories.job_record(state: "running")).not_to be_deployable
+    end
+
+    it "allows a closed job that has landed with a merged commit sha (redeploy)" do
+      expect(Factories.job_record(state: "closed", landed_sha: "abc123")).to be_deployable
+    end
+
+    it "rejects a closed job with no merged commit sha" do
+      expect(Factories.job_record(state: "closed", landed_sha: nil)).not_to be_deployable
+    end
+  end
+
   describe "#visual_review_runnable?" do
     it "allows implemented and approved jobs with no active run" do
       expect(Factories.job_record(state: "implemented")).to be_visual_review_runnable

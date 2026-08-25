@@ -590,5 +590,14 @@
   "preview_logs_close": "Close",
   "preview_fix_button": "Fix preview",
   "preview_fix_job_title": "Fix preview: not reachable from the preview proxy",
-  "preview_fix_error": "Could not create a job to fix the preview."
+  "preview_fix_error": "Could not create a job to fix the preview.",
+  "deploy_button": "Deploy",
+  "deploy_again_button": "Deploy again",
+  "deploy_queued": "Deploy queued…",
+  "deploy_running": "Deploying…",
+  "deploy_succeeded": "Deployed",
+  "deploy_failed_status": "Deploy failed",
+  "deploy_cancelled": "Deploy cancelled",
+  "deploy_view": "View deploy",
+  "deploy_failed": "Deploy could not be started"
 }

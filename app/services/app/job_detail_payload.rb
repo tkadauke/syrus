@@ -58,6 +58,7 @@ module App
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
+          deploy: PerformanceLogging.phase("job_detail.deploy", job_id: @job.id) { deploy_workflow_json },
           current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.current_intent", job_id: @job.id) { current_intent_json } : nil,
           active_work: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.active_work", job_id: @job.id) { active_work_json } : nil,
           work_units: work_unit_debug_enabled? ? PerformanceLogging.phase("job_detail.work_units", job_id: @job.id) { work_units_json } : [],
@@ -695,6 +696,7 @@ module App
           (@job.implemented? || @job.approved?) &&
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,
+        can_deploy: deploy_configured? && @job.deployable?,
         can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
         can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
@@ -754,6 +756,7 @@ module App
         app_provider_setting_path: "/api/v1/app/jobs/#{@job.id}/provider_setting",
         app_preview_path: "/api/v1/app/jobs/#{@job.id}/preview",
         app_preview_logs_path: "/api/v1/app/jobs/#{@job.id}/preview/logs",
+        app_deploy_path: "/api/v1/app/jobs/#{@job.id}/deploy",
         app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
         app_request_changes_path: "/api/v1/app/jobs/#{@job.id}/request_changes",
         admin_resource_admission_path: admin_resource_admission_path
@@ -909,6 +912,27 @@ module App
         expires_at: env.expires_at&.iso8601,
         error_message: env.error_message
       }
+    end
+
+    def deploy_workflow_json
+      workflow = @job.workflows.where(trigger_kind: "deploy").reorder(created_at: :desc, id: :desc).first
+      return nil unless workflow
+
+      {
+        id: workflow.id,
+        state: workflow.state,
+        failure_reason: workflow.failure_reason,
+        created_at: iso8601(workflow.created_at),
+        started_at: iso8601(workflow.started_at),
+        finished_at: iso8601(workflow.finished_at),
+        path: "#{job_path(@job)}?tab=workflows#workflow-#{workflow.id}"
+      }
+    end
+
+    def deploy_configured?
+      return @deploy_configured unless @deploy_configured.nil?
+
+      @deploy_configured = App::DeployAvailability.configured?(@job.repository)
     end
 
     def preview_provider_configured?

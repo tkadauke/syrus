@@ -270,6 +270,29 @@ RSpec.describe StepDispatcher do
       expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
     end
 
+    it "starts a deploy workflow on a closed job that landed (redeploy)" do
+      job.update_columns(state: "closed", finished_at: Time.current, closure_reason: "pr_merged", landed_sha: "abc123")
+      workflow.update_columns(trigger_kind: "deploy")
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+
+      expect(workflow.reload).not_to be_cancelled
+    end
+
+    it "still cancels a deploy workflow on a closed job with no landed_sha" do
+      job.update_columns(state: "closed", finished_at: Time.current, closure_reason: "operator_cancelled", landed_sha: nil)
+      workflow.update_columns(trigger_kind: "deploy")
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+
+      expect(workflow.reload).to be_cancelled
+      expect(workflow.artifact("start_cancelled_reason")).to eq("job_closed")
+    end
+
     it "does not create a Run while dependencies are unsatisfied" do
       prerequisite = Factories.job(repository: job.repository, issue_number: 99)
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
