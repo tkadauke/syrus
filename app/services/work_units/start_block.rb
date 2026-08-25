@@ -10,27 +10,30 @@ module WorkUnits
     end
 
     def reason
-      workflow.artifact("start_blocked_reason").presence || workflow.work_unit&.blocked_reason
+      workflow.work_unit&.blocked_reason.presence || workflow.artifact("start_blocked_reason")
     end
 
     def details
-      workflow.artifact("start_blocked_details").presence || workflow.work_unit&.blocked_details || {}
+      workflow.work_unit&.blocked_details.presence || workflow.artifact("start_blocked_details").presence || {}
     end
 
     def data
-      return artifact_data if artifact_reason.present?
       return work_unit_data if workflow.work_unit&.blocked_reason.present?
+      return artifact_data if artifact_reason.present?
 
       {}
     end
 
     def next_check_at
-      parse_time(workflow.artifact("start_blocked_next_check_at")) || workflow.work_unit&.blocked_until
+      workflow.work_unit&.blocked_until || parse_time(workflow.artifact("start_blocked_next_check_at"))
     end
 
     def blocked_for?(start_blocked_reason)
-      artifact_reason == start_blocked_reason ||
-        workflow.work_unit&.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason)
+      if workflow.work_unit&.blocked_reason.present?
+        workflow.work_unit.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason)
+      else
+        artifact_reason == start_blocked_reason
+      end
     end
 
     def landing_start_blocker?
@@ -57,12 +60,13 @@ module WorkUnits
 
     def work_unit_data
       unit = workflow.work_unit
+      details = unit.blocked_details.presence
       {
-        reason: unit.blocked_reason,
+        reason: details.to_h["start_blocked_reason"].presence || unit.blocked_reason,
         at: unit.updated_at&.iso8601,
         next_check_at: unit.blocked_until&.iso8601,
         count: nil,
-        details: unit.blocked_details.presence
+        details: details
       }
     end
 

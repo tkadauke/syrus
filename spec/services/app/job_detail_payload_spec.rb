@@ -1799,7 +1799,10 @@ RSpec.describe App::JobDetailPayload do
     it "is false while a workflow is already active for the Job" do
       job = external_pr_job(state: "failed")
       Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed")
-      Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+      WorkUnits::Launcher.instantiate(kind: "rebase", job: job).tap do |workflow|
+        workflow.update!(state: "running")
+        workflow.work_unit.update!(state: "running")
+      end
 
       expect(payload_for(job).dig(:actions, :can_retry_pr_ingestion)).to be(false)
     end
@@ -2191,26 +2194,33 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :start_blocked_details)).to be_nil
     end
 
-    it "returns the block reason from the queued workflow's artifacts" do
+    def blocked_workflow_for(job:, reason:, details:, state: "queued", blocked_until: nil)
+      workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+      workflow.update!(state: state)
+      workflow.work_unit.block!(
+        reason: reason,
+        blocked_until: blocked_until,
+        details: details
+      )
+      workflow
+    end
+
+    it "returns the block reason from the queued workflow's WorkUnit state" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      blocked_workflow_for(
         job: job,
-        trigger_kind: "initial",
         state: "queued",
-        artifacts: {
-          "start_blocked_reason" => "stack_fan_in_base_unavailable",
-          "start_blocked_at" => "2026-07-01T12:00:00Z",
-          "start_blocked_details" => {
-            "kind" => "fan_in_base_unavailable",
-            "message" => "multiple dependency branches are ready",
-            "dependencies" => [ { "slug" => "JOB-1574" } ]
-          }
+        reason: "stack_fan_in_base_unavailable",
+        details: {
+          "kind" => "fan_in_base_unavailable",
+          "message" => "multiple dependency branches are ready",
+          "dependencies" => [ { "slug" => "JOB-1574" } ]
         }
       )
 
       result = payload_for(job)
       expect(result.dig(:job, :start_blocked_reason)).to eq("stack_fan_in_base_unavailable")
-      expect(result.dig(:job, :start_blocked_at)).to eq("2026-07-01T12:00:00Z")
+      expect(result.dig(:job, :start_blocked_at)).to be_present
       expect(result.dig(:job, :start_blocked_details)).to include(
         "kind" => "fan_in_base_unavailable",
         "message" => "multiple dependency branches are ready",
@@ -2220,24 +2230,21 @@ RSpec.describe App::JobDetailPayload do
 
     it "returns the block reason from a running workflow deferred at a phase boundary" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
-      Workflow.create!(
+      blocked_workflow_for(
         job: job,
-        trigger_kind: "initial",
         state: "running",
-        artifacts: {
+        reason: "admission_control",
+        details: {
           "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
-          "start_blocked_at" => "2026-08-04T12:00:00Z",
-          "start_blocked_details" => {
-            "action" => "delay_until",
-            "reason" => "worker_host_pressure_high",
-            "phase_step_kind" => "grader_fanout"
-          }
+          "action" => "delay_until",
+          "reason" => "worker_host_pressure_high",
+          "phase_step_kind" => "grader_fanout"
         }
       )
 
       result = payload_for(job)
       expect(result.dig(:job, :start_blocked_reason)).to eq("workflow_admission_budget")
-      expect(result.dig(:job, :start_blocked_at)).to eq("2026-08-04T12:00:00Z")
+      expect(result.dig(:job, :start_blocked_at)).to be_present
       expect(result.dig(:job, :start_blocked_details)).to include(
         "reason" => "worker_host_pressure_high",
         "phase_step_kind" => "grader_fanout"
@@ -2246,14 +2253,11 @@ RSpec.describe App::JobDetailPayload do
 
     it "does not compute a breakdown for non-admission block reasons" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      blocked_workflow_for(
         job: job,
-        trigger_kind: "initial",
         state: "queued",
-        artifacts: {
-          "start_blocked_reason" => "stack_dependencies_not_ready",
-          "start_blocked_at" => "2026-08-04T12:00:00Z"
-        }
+        reason: "stack_dependencies_not_ready",
+        details: { "start_blocked_reason" => "stack_dependencies_not_ready" }
       )
 
       expect(payload_for(job).dig(:job, :start_blocked_breakdown)).to be_nil
@@ -2261,20 +2265,17 @@ RSpec.describe App::JobDetailPayload do
 
     it "surfaces a step-profile pressure breakdown with current values vs the recorded thresholds" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      blocked_workflow_for(
         job: job,
-        trigger_kind: "initial",
         state: "queued",
-        artifacts: {
+        reason: "admission_control",
+        details: {
           "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
-          "start_blocked_at" => "2026-08-04T12:00:00Z",
-          "start_blocked_details" => {
-            "action" => "delay_until",
-            "reason" => "predicted_budget_pressure_high",
-            "pressure" => {
-              "projected" => { "cpu_pressure" => 132.4, "io_pressure" => 20.0, "memory_used_percent" => 40.0 },
-              "host" => { "telemetry_state" => "present" }
-            }
+          "action" => "delay_until",
+          "reason" => "predicted_budget_pressure_high",
+          "pressure" => {
+            "projected" => { "cpu_pressure" => 132.4, "io_pressure" => 20.0, "memory_used_percent" => 40.0 },
+            "host" => { "telemetry_state" => "present" }
           }
         }
       )
@@ -2293,18 +2294,15 @@ RSpec.describe App::JobDetailPayload do
 
     it "surfaces a hard host pressure breakdown for the exact metric that tripped" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      blocked_workflow_for(
         job: job,
-        trigger_kind: "initial",
         state: "queued",
-        artifacts: {
+        reason: "admission_control",
+        details: {
           "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
-          "start_blocked_at" => "2026-08-04T12:00:00Z",
-          "start_blocked_details" => {
-            "action" => "requires_override",
-            "reason" => "worker_memory_exhausted",
-            "pressure" => { "host" => { "max_memory_used_percent" => 97.2, "telemetry_state" => "present" } }
-          }
+          "action" => "requires_override",
+          "reason" => "worker_memory_exhausted",
+          "pressure" => { "host" => { "max_memory_used_percent" => 97.2, "telemetry_state" => "present" } }
         }
       )
 
@@ -2317,18 +2315,15 @@ RSpec.describe App::JobDetailPayload do
 
     it "distinguishes the telemetry-absent case in the breakdown" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
-      Workflow.create!(
+      blocked_workflow_for(
         job: job,
-        trigger_kind: "initial",
         state: "queued",
-        artifacts: {
+        reason: "admission_control",
+        details: {
           "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
-          "start_blocked_at" => "2026-08-04T12:00:00Z",
-          "start_blocked_details" => {
-            "action" => "delay_until",
-            "reason" => "worker_host_pressure_high",
-            "pressure" => { "host" => { "telemetry_state" => "absent" } }
-          }
+          "action" => "delay_until",
+          "reason" => "worker_host_pressure_high",
+          "pressure" => { "host" => { "telemetry_state" => "absent" } }
         }
       )
 

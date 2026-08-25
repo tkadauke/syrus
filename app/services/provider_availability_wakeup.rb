@@ -37,9 +37,11 @@ class ProviderAvailabilityWakeup
   end
 
   def workflows
-    Workflow
+    base_scope = Workflow
       .where(user_id: user.id, agent_provider: provider, state: %w[queued running])
       .where("artifacts LIKE ?", "%#{StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON}%")
+
+    WorkUnits::Ownership.legacy_replay_workflows_scope(nil, base_scope: base_scope)
   end
 
   def provider_paused_workflows

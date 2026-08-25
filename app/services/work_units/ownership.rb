@@ -226,7 +226,8 @@ module WorkUnits
           next if result.key?(member.job_id)
 
           unit = member.work_unit
-          reason = unit.blocked_reason.presence
+          details = unit.blocked_details.presence
+          reason = details.to_h["start_blocked_reason"].presence || unit.blocked_reason.presence
           next unless reason
 
           result[member.job_id] = {
@@ -234,7 +235,7 @@ module WorkUnits
             at: unit.updated_at&.iso8601,
             next_check_at: unit.blocked_until&.iso8601,
             count: nil,
-            details: unit.blocked_details.presence
+            details: details
           }
         end
     end

@@ -6,7 +6,7 @@ RSpec.describe WorkUnits::StartBlock do
   let(:job) { Factories.job_record(user: user, repository: repository) }
   let(:workflow) { WorkUnits::Launcher.instantiate(kind: "initial", job: job) }
 
-  it "reads legacy workflow start-block artifacts first" do
+  it "prefers WorkUnit blocked state over legacy workflow start-block artifacts" do
     artifact_next_check_at = 5.minutes.from_now
     work_unit_blocked_until = 20.minutes.from_now
     workflow.update!(
@@ -24,14 +24,32 @@ RSpec.describe WorkUnits::StartBlock do
 
     block = described_class.for(workflow)
 
+    expect(block.reason).to eq("provider_availability")
+    expect(block.details).to eq("provider" => "codex")
+    expect(block.next_check_at).to be_within(2.seconds).of(work_unit_blocked_until)
+    expect(block.data).to include(
+      reason: "provider_availability",
+      next_check_at: work_unit_blocked_until.iso8601,
+      details: { "provider" => "codex" }
+    )
+  end
+
+  it "reads legacy workflow start-block artifacts when no WorkUnit block exists" do
+    next_check_at = 5.minutes.from_now
+    workflow.update!(
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "start_blocked_details" => { "reason" => "budget" },
+        "start_blocked_next_check_at" => next_check_at.iso8601
+      }
+    )
+
+    block = described_class.for(workflow)
+
     expect(block.reason).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
     expect(block.details).to eq("reason" => "budget")
-    expect(block.next_check_at).to be_within(2.seconds).of(artifact_next_check_at)
-    expect(block.data).to include(
-      reason: StepDispatcher::ADMISSION_BLOCK_REASON,
-      next_check_at: artifact_next_check_at.iso8601,
-      details: { "reason" => "budget" }
-    )
+    expect(block.next_check_at).to be_within(2.seconds).of(next_check_at)
+    expect(block.blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON)).to be(true)
   end
 
   it "falls back to WorkUnit blocked state when workflow artifacts are absent" do

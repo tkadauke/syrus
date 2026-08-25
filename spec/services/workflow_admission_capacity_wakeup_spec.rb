@@ -8,9 +8,25 @@ RSpec.describe WorkflowAdmissionCapacityWakeup do
 
   def sleeper(reason:, state: "queued")
     job = Factories.job_record(user: user, repository: repository, state: state == "running" ? "running" : "queued")
-    workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
-    workflow.update!(state: state, artifacts: { "start_blocked_reason" => reason })
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "codex")
+    workflow.update!(state: state)
+    workflow.work_unit.block!(
+      reason: WorkUnits::StartBlock.work_unit_reason_for(reason),
+      details: { "start_blocked_reason" => reason }
+    )
     workflow
+  end
+
+  def replay_sleeper(reason:, state: "queued")
+    job = Factories.job_record(user: user, repository: repository, state: state == "running" ? "running" : "queued")
+    Workflow.create!(
+      job: job,
+      user: user,
+      trigger_kind: "replay",
+      agent_provider: "codex",
+      state: state,
+      artifacts: { "start_blocked_reason" => reason }
+    )
   end
 
   it "recognizes normal admission sleepers, landing admission sleepers, and resource safety sleepers" do
@@ -36,6 +52,26 @@ RSpec.describe WorkflowAdmissionCapacityWakeup do
     }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(first.id)
       .and have_enqueued_job(WorkflowPhaseAdmissionJob).with(second.id)
       .and have_enqueued_job(LandingQueueProcessorJob)
+  end
+
+  it "still wakes replay workflows recorded only in legacy admission artifacts" do
+    workflow = replay_sleeper(reason: StepDispatcher::ADMISSION_BLOCK_REASON)
+
+    expect {
+      result = described_class.call
+      expect(result.workflow_ids).to eq([ workflow.id ])
+    }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
+  end
+
+  it "ignores migrated artifact-only admission sleepers without WorkUnit block state" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued")
+    workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
+    workflow.update!(artifacts: { "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON })
+
+    expect {
+      result = described_class.call
+      expect(result.workflow_ids).to eq([])
+    }.not_to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
   end
 
   it "wakes WorkUnit-blocked admission workflows without workflow artifacts" do

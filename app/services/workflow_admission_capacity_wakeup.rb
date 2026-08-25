@@ -13,7 +13,7 @@ class WorkflowAdmissionCapacityWakeup
   def self.call(...) = new(...).call
 
   def self.deferred_sleepers_exist?
-    work_unit_sleeper_scope.exists? || sleeper_scope.exists?
+    work_unit_sleeper_scope.exists? || legacy_sleeper_scope.exists?
   end
 
   def self.admission_or_resource_paused?(workflow)
@@ -37,8 +37,12 @@ class WorkflowAdmissionCapacityWakeup
 
   def self.sleeper_workflows
     work_unit_workflows = work_unit_sleeper_scope.includes(:workflow).order(:id).map(&:workflow)
-    legacy_workflows = sleeper_scope.to_a.select { |workflow| admission_or_resource_paused?(workflow) }
+    legacy_workflows = legacy_sleeper_scope.to_a.select { |workflow| admission_or_resource_paused?(workflow) }
     (work_unit_workflows + legacy_workflows).uniq(&:id)
+  end
+
+  def self.legacy_sleeper_scope
+    WorkUnits::Ownership.legacy_replay_workflows_scope(nil, base_scope: sleeper_scope)
   end
 
   def self.work_unit_sleeper_scope

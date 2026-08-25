@@ -820,7 +820,7 @@ RSpec.describe App::DashboardPayload do
       rows = call(subject: "job", section: "rows")
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
-      expect(item[:start_blocked_reason]).to eq("admission_control")
+      expect(item[:start_blocked_reason]).to eq("workflow_admission_budget")
 
       paused_folder = SmartFolder.find_builtin_by_attention("paused")
       in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")

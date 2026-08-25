@@ -119,9 +119,9 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
     expect(payload.dig(:recent_top_consumers, 0, :run_id)).to eq(run.id)
   end
 
-  it "surfaces delayed admission decisions and resume timing" do
+  it "surfaces delayed admission decisions and resume timing for replay artifact state" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", issue_title: "Delayed job")
-    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "codex", state: "queued")
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "replay", agent_provider: "codex", state: "queued")
     workflow.update!(artifacts: {
       "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
       "start_blocked_at" => (now - 3.minutes).iso8601,
@@ -163,6 +163,23 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
         a_hash_including("metric" => "cpu_pressure", "current" => 90.0, "threshold" => WorkflowAdmissionBudget::SOFT_HOST_PRESSURE, "over_threshold" => true)
       )
     )
+  end
+
+  it "ignores migrated artifact-only delayed admission decisions without WorkUnit block state" do
+    job = Factories.job_record(user: user, repository: repository, state: "queued", issue_title: "Migrated artifact job")
+    workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "codex", state: "queued")
+    workflow.update!(
+      updated_at: now - 3.minutes,
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "start_blocked_next_check_at" => (now + 7.minutes).iso8601,
+        "start_blocked_details" => { "reason" => "worker_host_pressure_high" }
+      }
+    )
+
+    delayed = described_class.new(now: now).as_json.fetch(:delayed_work)
+
+    expect(delayed).to be_empty
   end
 
   it "surfaces delayed admission decisions stored only on WorkUnits" do
