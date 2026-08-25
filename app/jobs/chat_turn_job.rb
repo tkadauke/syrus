@@ -348,6 +348,7 @@ class ChatTurnJob < ApplicationJob
 
   def chat_history_fallback
     messages = @chat.messages
+                    .active
                     .includes(:proposal, :pending_action, :sender_user)
                     .where.not(id: @user_message.id)
                     .order(created_at: :desc, id: :desc)

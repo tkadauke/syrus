@@ -16,7 +16,7 @@ module Api
               id: chat_session.id,
               title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
             },
-            messages: chat_session.messages.order(:created_at, :id).map { |message| shared_message_json(message) }
+            messages: chat_session.messages.active.order(:created_at, :id).map { |message| shared_message_json(message) }
           }
         end
 

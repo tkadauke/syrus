@@ -53,7 +53,7 @@ module Mcp::Tools
       end
 
       def message_id_scope(chat_session)
-        scope = ChatMessage.where(chat_session_id: chat_session.id)
+        scope = ChatMessage.active.where(chat_session_id: chat_session.id)
         return scope unless mysql_adapter?
 
         scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_session_created_id)"))

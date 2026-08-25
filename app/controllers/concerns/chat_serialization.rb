@@ -205,6 +205,7 @@ module ChatSerialization
 
   def bookmark_message_rows(chat_session_id)
     ChatMessage
+      .active
       .where(chat_session_id: chat_session_id)
       .order(:created_at, :id)
       .pluck(:id, :role)
@@ -223,7 +224,7 @@ module ChatSerialization
   def pins_json(chat_session)
     ChatMessagePin
       .joins(:chat_message)
-      .where(chat_messages: { chat_session_id: chat_session.id })
+      .where(chat_messages: { chat_session_id: chat_session.id, deleted_at: nil })
       .order("chat_message_pins.created_at", "chat_message_pins.id")
       .includes(:chat_message)
       .map { |pin| pin_json(pin) }
@@ -271,7 +272,7 @@ module ChatSerialization
   end
 
   def bookmark_anchor_message_scope(chat_session_id)
-    scope = ChatMessage.where(chat_session_id: chat_session_id)
+    scope = ChatMessage.active.where(chat_session_id: chat_session_id)
     return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
 
     scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (index_chat_messages_on_session_id_and_id)"))

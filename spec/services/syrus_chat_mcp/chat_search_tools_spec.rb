@@ -88,6 +88,19 @@ RSpec.describe "Mcp::Tools chat search tools" do
 
       expect(response_payload(response).fetch(:results).size).to eq(50)
     end
+
+    it "excludes soft-deleted messages from search results" do
+      kept = message(chat_session, text: "needle kept")
+      cleared = message(chat_session, text: "needle cleared")
+      [ kept, cleared ].each { |chat_message| ChatMessageSearchIndex.insert(chat_message) }
+      cleared.soft_delete_by!(user)
+
+      response = call_tool("search_chats", query: "needle")
+      results = response_payload(response).fetch(:results)
+
+      expect(results.size).to eq(1)
+      expect(results.first[:created_at]).to eq(kept.created_at.iso8601)
+    end
   end
 
   describe "read_chat_messages" do
@@ -137,6 +150,17 @@ RSpec.describe "Mcp::Tools chat search tools" do
 
       expect(response[:result][:isError]).to be(true)
       expect(response[:result][:content].first[:text]).to include("not_authorized")
+    end
+
+    it "excludes soft-deleted messages" do
+      kept = message(chat_session, text: "kept")
+      cleared = message(chat_session, text: "cleared")
+      cleared.soft_delete_by!(user)
+
+      response = call_tool("read_chat_messages", chat_session_id: chat_session.id)
+      payload = response_payload(response)
+
+      expect(payload[:messages].map { |m| m[:id] }).to eq([ kept.id ])
     end
   end
 

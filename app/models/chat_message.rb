@@ -95,6 +95,7 @@ class ChatMessage < ApplicationRecord
   def broadcast_app_event
     chat = chat_session
     tail = chat.messages
+               .active
                .includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
                .order(id: :desc)
                .limit(SPA_EVENT_TAIL_SIZE)

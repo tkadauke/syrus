@@ -2915,6 +2915,19 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["bookmarks"]).to contain_exactly(include("label" => "Aqueducts", "chat_message_id" => message.id, "anchor_message_id" => message.id))
   end
 
+  it "excludes bookmarks on soft-deleted messages from the bookmarks endpoint" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss **aqueducts**." })
+    message.bookmarks.create!(label: "Aqueducts", kind: "topic")
+    message.soft_delete_by!(user)
+
+    get "/api/v1/app/chats/#{chat.id}/bookmarks"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["bookmarks"]).to eq([])
+  end
+
   it "loads pins on demand through the pins endpoint" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -2925,6 +2938,19 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["pins"]).to contain_exactly(include("chat_message_id" => message.id))
+  end
+
+  it "excludes pins on soft-deleted messages from the pins endpoint" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss **aqueducts**." })
+    message.pins.create!
+    message.soft_delete_by!(user)
+
+    get "/api/v1/app/chats/#{chat.id}/pins"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["pins"]).to eq([])
   end
 
   it "does not embed chat navigation in the chat detail payload" do
@@ -3779,15 +3805,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "turn_in_flight")).to eq(false)
   end
 
-  it "clears chat messages and queued messages through the app API" do
+  it "soft-deletes chat messages and hard-deletes queued messages through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Keep title", last_message_at: Time.current, stop_requested_at: Time.current)
-    chat.messages.create!(role: "user", content: { "text" => "Start" })
+    message = chat.messages.create!(role: "user", content: { "text" => "Start" })
     chat.chat_queued_messages.create!(content: { "text" => "Next" })
 
     expect {
       delete "/api/v1/app/chats/#{chat.id}/messages"
-    }.to change(ChatMessage, :count).by(-1)
+    }.to change { ChatMessage.active.count }.by(-1)
       .and change(ChatQueuedMessage, :count).by(-1)
 
     expect(response).to have_http_status(:ok)
@@ -3797,6 +3823,28 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to eq("Chat history cleared.")
     expect(parse_body["messages"]).to eq([])
     expect(parse_body["queued_messages"]).to eq([])
+
+    # The message row survives soft-deletion instead of being destroyed.
+    expect(ChatMessage.count).to eq(1)
+    expect(message.reload.deleted_at).to be_present
+    expect(message.deleted_by_user).to eq(user)
+  end
+
+  it "excludes soft-deleted messages from the chat UI payload after clearing" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Keep title", last_message_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Start" })
+
+    delete "/api/v1/app/chats/#{chat.id}/messages"
+    expect(response).to have_http_status(:ok)
+
+    chat.messages.create!(role: "user", content: { "text" => "After clearing" })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    messages = parse_body["messages"]
+    expect(messages.map { |m| m.dig("content", "text") }).to eq([ "After clearing" ])
   end
 
   it "does not attach another user's repository through the app API" do
