@@ -31,6 +31,8 @@ class AutoRetryJob < ApplicationJob
       log(attempt, "auto-retry started via #{attempt.retry_kind}")
     elsif retry_result_circuit(result)&.open?
       reschedule_for_circuit(attempt, retry_result_circuit(result))
+    elsif retry_result_active_work_lock?(result)
+      reschedule_for_active_work_lock_result(attempt, result)
     else
       attempt.update!(skipped_reason: result.error.presence || "retry could not be started")
       WorkUnits::AutoRetryBackoff.clear!(attempt)
@@ -116,6 +118,18 @@ class AutoRetryJob < ApplicationJob
 
   def retry_result_circuit(result)
     result.circuit if result.respond_to?(:circuit)
+  end
+
+  def retry_result_active_work_lock?(result)
+    result.respond_to?(:active_work_lock?) && result.active_work_lock?
+  end
+
+  def reschedule_for_active_work_lock_result(attempt, result)
+    retry_after = Time.current + ACTIVE_WORK_UNIT_RETRY_DELAY
+
+    attempt.update!(scheduled_at: retry_after)
+    AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
+    log(attempt, "auto-retry delayed until #{retry_after.iso8601}: #{result.error}")
   end
 
   def stale_attempt?(attempt)

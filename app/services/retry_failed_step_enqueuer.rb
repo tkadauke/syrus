@@ -2,9 +2,11 @@ class RetryFailedStepEnqueuer
   # Genuine last-resort case: the workflow workspace is gone, so there is no
   # in-place recovery left and Start Over really is the only path forward.
   WORKSPACE_CLEANED_UP_MESSAGE = "Workspace already cleaned up - use Start over.".freeze
+  ACTIVE_WORK_LOCK_ERROR = "active_work_lock".freeze
 
   Result = Data.define(:run, :workflow, :step, :error) do
     def success? = run.present?
+    def active_work_lock? = error.to_s.start_with?("#{ACTIVE_WORK_LOCK_ERROR}:")
   end
 
   def self.call(...) = new(...).call
@@ -49,6 +51,8 @@ class RetryFailedStepEnqueuer
     )
 
     Result.new(run: run, workflow: workflow, step: failed_step, error: nil)
+  rescue WorkUnits::Launcher::LockConflict => e
+    failure("#{ACTIVE_WORK_LOCK_ERROR}: active WorkUnit ##{e.work_unit.id} already owns #{e.lock_key}")
   end
 
   private

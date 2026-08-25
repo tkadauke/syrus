@@ -158,28 +158,13 @@ RSpec.describe AutoRetryJob do
 
   it "reschedules failed-step attempts when another active WorkUnit owns the lock" do
     attempt = failed_attempt!(retry_kind: "failed_step")
-    bundle_owner = Factories.job(repository: job.repository, agent_provider: "claude")
-    active_workflow = Workflow.create!(job: bundle_owner, trigger_kind: "merge_train", state: "running")
-    intent = WorkIntent.create!(
-      kind: "merge_train",
-      state: "requested",
-      repository: job.repository,
-      scope_type: "repository",
-      scope_id: job.repository_id,
-      actor: job.user,
-      source_type: "spec"
-    )
-    active_unit = WorkUnit.create!(
-      work_intent: intent,
-      kind: "job_bundle",
-      state: "running",
-      repository: job.repository,
-      scope_type: "repository",
-      scope_id: job.repository_id,
-      workflow: active_workflow
-    )
-    allow(RetryFailedStepEnqueuer).to receive(:call).and_raise(
-      WorkUnits::Launcher::LockConflict.new(lock_key: "job:#{job.id}", work_unit: active_unit)
+    allow(RetryFailedStepEnqueuer).to receive(:call).and_return(
+      RetryFailedStepEnqueuer::Result.new(
+        run: nil,
+        workflow: workflow,
+        step: step,
+        error: "#{RetryFailedStepEnqueuer::ACTIVE_WORK_LOCK_ERROR}: active WorkUnit #123 already owns job:#{job.id}"
+      )
     )
 
     expect {

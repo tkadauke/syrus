@@ -36,6 +36,37 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.run.parent_session_id).to eq(Steps::Base::DISABLE_AGENT_RESUME)
   end
 
+  it "returns an active-work-lock result when retrying would contend with another WorkUnit" do
+    Feature.find_or_create_by!(slug: "work_units_scheduler") do |feature|
+      feature.category = "Operations"
+      feature.name = "Work units scheduler"
+    end.update!(enabled: true)
+    job = Factories.job_record(state: "failed")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+    unit = workflow.work_unit
+    failed_step = workflow.steps.first
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    unit.work_unit_locks.active.find_each(&:release!)
+    failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    other_job = Factories.job_record(user: job.user, repository: job.repository, issue_number: 998)
+    other_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: other_job)
+    other_unit = other_workflow.work_unit
+    other_unit.update!(state: "running", started_at: Time.current)
+    other_unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_success
+    expect(result).to be_active_work_lock
+    expect(result.error).to include("active WorkUnit ##{other_unit.id} already owns job:#{job.id}")
+    expect(workflow.reload).to be_failed
+    expect(unit.reload).to be_failed
+    expect(failed_step.reload).to be_failed
+    expect(failed_step.runs).to be_empty
+  end
+
   it "revives cancelled downstream steps when retrying a failed step in place" do
     job = Factories.job_record(state: "failed", pr_number: 807, branch_name: "syrus/direct-3372")
     workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback")
