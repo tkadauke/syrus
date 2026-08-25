@@ -163,6 +163,7 @@ module App
 
       {
         id: @job.id,
+        slug: @job.slug,
         kind: @job.kind,
         state: @job.state,
         summary_state: summary_state(@job),

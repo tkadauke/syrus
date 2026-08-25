@@ -30,6 +30,7 @@ module App
         payload = {
           type: "job",
           id: job.id,
+          slug: job.slug,
           kind: job.kind,
           title: job.issue_title.presence || job.kind.humanize,
           title_pending: job.title_pending?,

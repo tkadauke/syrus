@@ -320,6 +320,7 @@ RSpec.describe "App API job detail", type: :request do
     expect(sql).not_to include(match(/transcript_jsonl/i))
     body = parse_body
     expect(body.dig("job", "id")).to eq(job.id)
+    expect(body.dig("job", "slug")).to eq(job.slug)
     expect(body.dig("job", "issue_title")).to eq("Repair aqueduct")
     expect(body.dig("job", "total_cost_usd")).to be_nil
     expect(body["job"]).to include(

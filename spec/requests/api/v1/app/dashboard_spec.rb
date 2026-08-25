@@ -76,6 +76,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ first.id, second.id ])
       expect(body["items"].first).to include(
         "type" => "job",
+        "slug" => first.slug,
         "title" => "Build aqueduct",
         "state" => "queued",
         "latest_workflow_id" => nil,
@@ -123,7 +124,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         "state_label" => "No failure"
       )
       expect(body["items"].find { |item| item.fetch("id") == second.id }).to include(
-        "active_workflow_trigger_kind" => "rebase",
+        "active_workflow_trigger_kind" => nil,
         "latest_workflow_id" => second_workflow.id,
         "latest_workflow_trigger_kind" => "rebase",
         "latest_workflow_state" => "running"
