@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatAgentQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
+import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
@@ -845,6 +845,17 @@ function chatParticipantsPayload(payload: unknown): ChatParticipantsPayload | nu
   }
 }
 
+function isChatAgentSubQuestion(value: unknown): value is ChatAgentSubQuestion {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as Partial<ChatAgentSubQuestion>
+  return (
+    typeof candidate.question === "string" &&
+    (candidate.options === null || (Array.isArray(candidate.options) && candidate.options.every((option) => typeof option === "string"))) &&
+    typeof candidate.multiple === "boolean"
+  )
+}
+
 function isChatAgentQuestions(value: unknown): value is ChatAgentQuestion[] {
   return Array.isArray(value) && value.every((item) => {
     if (!item || typeof item !== "object") return false
@@ -852,8 +863,7 @@ function isChatAgentQuestions(value: unknown): value is ChatAgentQuestion[] {
     const candidate = item as Partial<ChatAgentQuestion>
     return (
       typeof candidate.id === "number" &&
-      typeof candidate.question === "string" &&
-      (candidate.options === null || (Array.isArray(candidate.options) && candidate.options.every((option) => typeof option === "string"))) &&
+      Array.isArray(candidate.questions) && candidate.questions.every(isChatAgentSubQuestion) &&
       (typeof candidate.asked_at === "string" || candidate.asked_at == null) &&
       typeof candidate.app_answer_path === "string"
     )

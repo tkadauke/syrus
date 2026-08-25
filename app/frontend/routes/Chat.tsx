@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Markdown } from "../lib/Markdown"
 import type { Step } from "react-joyride"
-import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
+import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -22,7 +21,6 @@ import { refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   addChatAttachment,
-  answerAgentQuestion,
   attachChatRepository,
   branchChat,
   clearChatHistory,
@@ -60,7 +58,6 @@ import {
   type ChatAttachmentResult,
   type ChatMode,
   type ChatAttachmentRow,
-  type ChatAgentQuestion,
   type ChatBranchPayload,
   type ChatBookmark,
   type ChatMessageAttachmentInput,
@@ -100,8 +97,9 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
-import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, isSupervisorChat, primaryButton, secondaryButton, withRoutePrefix } from "./chat/utils"
+import { appendSearch, visualViewportHeight, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, isSupervisorChat, withRoutePrefix } from "./chat/utils"
 import { PendingActionCard } from "./chat/ProposalCards"
+import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle } from "./chat/streamChrome"
@@ -1188,71 +1186,3 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   )
 }
 
-function AgentQuestions({ questions, queryKey, onNotice }: { questions: ChatAgentQuestion[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const { t } = useT("chat")
-  return (
-    <section aria-label={t("aria_agent_questions")} className="w-full max-w-3xl space-y-3 rounded border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/60">
-      {questions.map((question) => <AgentQuestionPrompt key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />)}
-    </section>
-  )
-}
-
-function AgentQuestionPrompt({ question, queryKey, onNotice }: { question: ChatAgentQuestion; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const { t } = useT("chat")
-  const queryClient = useQueryClient()
-  const search = queryKey[2]
-  const [answer, setAnswer] = useState("")
-  const submit = useMutation({
-    mutationFn: (value: string) => answerAgentQuestion(appendSearch(question.app_answer_path, search), value),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      setAnswer("")
-      onNotice(updated.message || null)
-    }
-  })
-  const options = question.options?.filter((option) => option.trim().length > 0) || []
-
-  function submitText(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const value = answer.trim()
-    if (value.length === 0 || submit.isPending) return
-
-    submit.mutate(value)
-  }
-
-  function declineAnswer() {
-    if (submit.isPending) return
-
-    submit.mutate("I decline to answer.")
-  }
-
-  return (
-    <div className="space-y-3 rounded border border-blue-200 bg-white p-3 text-sm dark:border-blue-800 dark:bg-gray-950">
-      <Markdown className="font-medium text-gray-900 dark:text-gray-100" text={question.question} />
-      {submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div> : null}
-      {options.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {options.map((option) => (
-            <button className={`${secondaryButton()} flex w-full justify-start text-left`} disabled={submit.isPending} key={option} onClick={() => submit.mutate(option)} type="button">
-              {option}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitText}>
-        <input
-          aria-label={t("aria_custom_answer")}
-          className="min-h-9 flex-1 rounded border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
-          disabled={submit.isPending}
-          onChange={(event) => setAnswer(event.target.value)}
-          placeholder={t("ph_custom_response")}
-          value={answer}
-        />
-        <button className={primaryButton()} disabled={submit.isPending || answer.trim().length === 0} type="submit">{t("submit")}</button>
-      </form>
-      <button className={`${secondaryButton()} flex w-full justify-start text-left`} disabled={submit.isPending} onClick={declineAnswer} type="button">
-        {t("decline_to_answer")}
-      </button>
-    </div>
-  )
-}
