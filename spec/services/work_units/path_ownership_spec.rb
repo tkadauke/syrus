@@ -6,7 +6,6 @@ RSpec.describe WorkUnits::PathOwnership do
       result = described_class.for(path)
 
       expect(result).to be_work_unit
-      expect(result).not_to be_legacy
       expect(result.group).to eq(group)
     end
   end

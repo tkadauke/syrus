@@ -1,7 +1,6 @@
 module WorkUnits
   class PathOwnership
     Result = Data.define(:path, :owner, :group) do
-      def legacy? = owner == :legacy
       def work_unit? = owner == :work_unit
     end
 
