@@ -892,6 +892,39 @@ RSpec.describe App::DashboardPayload do
       expect(in_progress[:items].map { |row| row[:id] }).to include(job.id)
     end
 
+    it "does not treat queued Runs as active dashboard work" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed", failure_count: 1)
+      queued_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued", created_at: 3.minutes.ago)
+      queued_step = queued_workflow.steps.create!(kind: "prepare", position: 1, state: "queued")
+      queued_step.runs.create!(job: job, user: user, trigger_kind: "retry", state: "queued", created_at: 3.minutes.ago)
+      failed_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "failed",
+        failure_count: 1,
+        failure_reason: "transient failure",
+        created_at: 2.minutes.ago,
+        finished_at: 2.minutes.ago
+      )
+      failed_step = failed_workflow.steps.create!(kind: "implement", position: 1, state: "failed")
+      failed_step.runs.create!(
+        job: job,
+        user: user,
+        trigger_kind: "initial",
+        state: "failed",
+        finished_at: 2.minutes.ago
+      )
+
+      rows = call(subject: "job", section: "rows")
+      item = rows[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:summary_state]).to eq("failed")
+      expect(item[:retry_state]).to include(
+        retryable: true,
+        state_label: "Retryable failure"
+      )
+    end
+
     it "does not show stale pause artifacts as paused while WorkUnit-owned work is active" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       owner = Factories.job_record(user: user, repository: repo, state: "running")

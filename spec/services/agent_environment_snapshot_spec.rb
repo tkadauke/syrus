@@ -30,6 +30,8 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       expect(snapshot).to include("Agent environment snapshot:")
       expect(snapshot).to include("Repository: rome/aqueduct")
+      expect(snapshot).to include("Job: #{job.slug} kind=#{job.kind}")
+      expect(snapshot).not_to include("Job: ##{job.id} kind=")
       expect(snapshot).to include("Workflow: ##{workflow.id} trigger=initial")
       expect(snapshot).to include("Step/Run: implement step ##{step.id}, run ##{run.id}, iteration 2")
       expect(snapshot).to include("Agent provider: codex")

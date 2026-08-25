@@ -60,7 +60,7 @@ class AgentEnvironmentSnapshot
     step = run.step
     lines = [
       "- Repository: #{repository.slug} (default branch: #{repository.default_branch}, credential mode: #{job.credential_mode})",
-      "- Job: ##{job.id} kind=#{job.kind} state=#{job.state} priority=#{job.priority}#{job_target_suffix(job)}",
+      "- Job: #{job.slug} kind=#{job.kind} state=#{job.state} priority=#{job.priority}#{job_target_suffix(job)}",
       "- Workflow: ##{workflow&.id || 'unknown'} trigger=#{workflow&.trigger_kind || run.trigger_kind} state=#{workflow&.state || 'unknown'}",
       "- Step/Run: #{step&.kind || 'unknown'} step ##{step&.id || 'unknown'}, run ##{run.id}, iteration #{run.iteration}",
       "- Agent provider: #{run.agent_provider.presence || workflow&.agent_provider || job.agent_provider}",
