@@ -43,13 +43,7 @@ module JobLifecycle
   def recheck_queued_workflow_start_blocks!
     return false unless queued? || running? || implemented?
 
-    rechecked = false
-    workflows.where(state: "queued").find_each do |workflow|
-      workflow.association(:job).target = self
-      WorkUnits::Launcher.start!(workflow)
-      rechecked = true
-    end
-    rechecked
+    WorkIntents::JobWakeup.call(self)
   end
 
   def restore_epic_block_if_not_started!

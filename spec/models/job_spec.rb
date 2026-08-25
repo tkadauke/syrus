@@ -2416,7 +2416,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
       dependent = Job.create!(user: user, repository: repository, issue_number: 43, issue_body: "Depends-on: #42")
       dependent.update!(state: "queued")
-      workflow = Workflow.create!(job: dependent, trigger_kind: "initial", agent_provider: dependent.agent_provider, state: "queued")
+      workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: dependent)
 
       expect(StepDispatcher).to receive(:start_workflow).with(workflow)
 
@@ -2700,7 +2700,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         state: "implemented", branch_name: "syrus/issue-42", pr_number: 7
       )
       job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "blocked_by_epic")
-      workflow = Workflows::Initial.instantiate(job: job)
+      workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
       epic.update_columns(state: "in_progress")
 
@@ -2712,6 +2712,24 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         prerequisite.save!
       }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
         .and change { workflow.first_step.runs.reload.count }.by(1)
+    end
+
+    it "does not start legacy queued workflows while rechecking dependencies" do
+      prerequisite = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 42,
+        state: "implemented",
+        branch_name: "syrus/issue-42",
+        pr_number: 7
+      )
+      job = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued")
+      workflow = Workflows::Initial.instantiate(job: job)
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      expect {
+        job.recheck_queued_workflow_start_blocks!
+      }.not_to change { workflow.first_step.runs.reload.count }
     end
 
     it "does not release blocked_by_epic when epic is in_progress but job-level dep is still unsatisfied" do
@@ -3194,8 +3212,8 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         enable_coding_mode!
         job = Factories.job_record(user: user, repository: repository, state: "coding",
                                    linked_chat_id: chat_session.id)
-        workflow = Workflow.create!(job: job, trigger_kind: "pr_comment")
-        step = Step.create!(workflow: workflow, kind: "respond", position: 0)
+        workflow = WorkUnits::Launcher.instantiate(kind: "pr_comment", job: job)
+        step = workflow.first_step
 
         job.release_coding_mode_takeover!
 
