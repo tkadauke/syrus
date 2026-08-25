@@ -1731,11 +1731,11 @@ Concrete Phase 5 graduation targets:
 Completed slices:
 
 - `landing_job_without_active_workflow` now goes through
-  `WorkEngine::RuntimeOwnership.active_landing_work_for_job?`. With
-  `work_units_landing` enabled, active landing WorkUnits are authoritative, so
-  a landing Job is not auto-deferred merely because the old direct Workflow row
-  is terminal or absent. With the gate disabled, the adapter preserves the
-  legacy active-Workflow / Epic-wide Workflow fallback.
+  `WorkEngine::RuntimeOwnership.active_landing_work_for_job?`. Active landing
+  WorkUnits are authoritative: a landing Job with only an old queued/running
+  landing Workflow row and no active landing WorkUnit is treated as orphaned and
+  returned to the queue. The legacy active-Workflow landing fallback has been
+  removed from the reconciler.
 - Start-block reconciliation now reads linked WorkUnit blocked state when
   legacy Workflow start-block artifacts are absent. Admission/resource,
   dependency/stack, main-health, and landing start-block classifiers carry the
@@ -1929,10 +1929,8 @@ Completed slices:
   re-evaluates current WorkIntent gates, records unresolved dependencies as a
   typed `waiting/dependency` Intent instead of leaving only Job-level implicit
   state, clears managed dependency waits when the gate passes, and then starts
-  queued Workflows through the WorkUnit launcher. Normal legacy queued
-  Workflows without WorkUnit ownership no longer start through this wakeup;
-  the only legacy fallback preserved here is for historical `replay`
-  workflows.
+  queued WorkUnit-owned Workflows through the WorkUnit launcher. Legacy queued
+  Workflows without WorkUnit ownership no longer start through this wakeup.
 - Dependency wakeups also launch persisted job-scoped WorkIntents that do not
   have an active WorkUnit yet. When dependencies clear, `WorkIntents::JobWakeup`
   calls `WorkIntents::Scheduler.start_ready!`, so missed workflow creation is

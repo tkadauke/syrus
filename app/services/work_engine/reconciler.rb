@@ -1552,7 +1552,6 @@ module WorkEngine
         next if active_runtime_workflows.any?
         next if job.landing? && active_landing_work_for_job?(job)
         latest = latest_workflow_for_job(job)
-        next if job.landing? && active_landing_workflow?(latest)
 
         if job.landing?
           next unless landing_slot_orphaned?(job)
@@ -1748,10 +1747,6 @@ module WorkEngine
 
     def landing_slot_orphaned?(job)
       !active_landing_work_for_job?(job)
-    end
-
-    def active_landing_workflow?(workflow)
-      workflow&.landing_workflow? && (workflow.queued? || workflow.running?)
     end
 
     def landing_start_blocked_workflow?(workflow)

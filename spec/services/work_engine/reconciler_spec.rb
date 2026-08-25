@@ -3479,6 +3479,29 @@ RSpec.describe WorkEngine::Reconciler do
     expect(job.reload).to be_approved
   end
 
+  it "auto-defers a landing Job whose active landing Workflow is not WorkUnit-owned" do
+    workflow.update_columns(state: "queued", finished_at: nil)
+    step.update_columns(state: "queued", started_at: nil, finished_at: nil)
+    run.destroy!
+    workflow.work_unit&.update!(state: "succeeded", finished_at: 1.minute.ago)
+    landing_workflow = Workflows::AutoMerge.instantiate(job: job)
+    landing_workflow.update_columns(state: "queued", finished_at: nil)
+    job.update!(state: "landing", approved_at: 2.minutes.ago, approved_via: "operator")
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :landing_job_without_active_runtime_work)
+
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "defer_orphaned_landing_job"
+    )
+    expect(issue.evidence).to include(
+      "latest_workflow_id" => landing_workflow.id,
+      "latest_workflow_state" => "queued",
+      "latest_workflow_trigger_kind" => "auto_merge"
+    )
+  end
+
   it "does not auto-defer a landing merge-train member owned by a sibling workflow" do
     AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
@@ -3762,6 +3785,16 @@ RSpec.describe WorkEngine::Reconciler do
           "reason" => "predicted_budget_pressure_high"
         },
         "start_blocked_next_check_at" => 1.minute.ago.iso8601
+      }
+    )
+    attach_work_unit(
+      auto_merge,
+      kind: "auto_merge",
+      blocked_reason: "admission_control",
+      blocked_until: 1.minute.ago,
+      blocked_details: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "reason" => "predicted_budget_pressure_high"
       }
     )
     allow(WorkUnits::Launcher).to receive(:start!).and_call_original
