@@ -51,6 +51,19 @@ RSpec.describe ChatMessageSearchIndex do
     expect(described_class.search("deleted", user_id: user.id)).to be_empty
   end
 
+  it "skips inserting when the message's chat session is soft-deleted" do
+    message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "Indexed after the chat was soft-deleted." }
+    )
+    session.soft_delete_by!(user)
+
+    expect { described_class.insert(message) }.not_to raise_error
+
+    expect(described_class.search("deleted", user_id: user.id)).to be_empty
+  end
+
   it "scopes results to the requested user" do
     own_message = ChatMessage.create!(
       chat_session: session,

@@ -28,7 +28,7 @@ module ChatMessagePagination
   end
 
   def message_scope(chat_session)
-    scope = ChatMessage.where(chat_session_id: chat_session.id)
+    scope = ChatMessage.active.where(chat_session_id: chat_session.id)
     scope = force_chat_message_cursor_index(scope) if mysql_adapter?
 
     scope.includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, :job, dependencies: [] ] ])

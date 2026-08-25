@@ -21,6 +21,7 @@ module Mcp::Tools
         scope = ChatSession
           .where(user: chat_session.user)
           .visible
+          .active
           .order(updated_at: :desc)
         total_count = scope.count
         sessions = scope

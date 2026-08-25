@@ -66,6 +66,21 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
 
       expect(with_context { tool.authorize_resource!(other_job) }).to eq(other_job)
     end
+
+    it "find_chat_session! can still access the caller's own soft-deleted chat session" do
+      deleted_chat = ChatSession.create!(user: user, repository: repository)
+      deleted_chat.soft_delete_by!(user)
+
+      expect(with_context { tool.find_chat_session!(deleted_chat.id) }).to eq(deleted_chat)
+    end
+
+    it "find_chat_session! still cannot access another user's chat session" do
+      other_user = Factories.user
+      other_chat = ChatSession.create!(user: other_user, repository: Factories.repository(user: other_user))
+
+      expect { with_context { tool.find_chat_session!(other_chat.id) } }
+        .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
+    end
   end
 
   it "restricts find_job! to allowed_job_ids when the context limits scope" do
@@ -128,6 +143,14 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
 
   it "raises AuthorizationError when find_chat_session! is given a non-existent id" do
     expect { with_context { tool.find_chat_session!(ChatSession.maximum(:id).to_i + 999) } }
+      .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
+  end
+
+  it "raises AuthorizationError when find_chat_session! sees a soft-deleted chat session, even the current one's own" do
+    deleted_chat = ChatSession.create!(user: user, repository: repository)
+    deleted_chat.soft_delete_by!(user)
+
+    expect { with_context { tool.find_chat_session!(deleted_chat.id) } }
       .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
   end
 

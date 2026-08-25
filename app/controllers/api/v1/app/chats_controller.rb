@@ -176,7 +176,7 @@ module Api
             return
           end
 
-          chat_session = Current.user.accessible_chat_sessions.visible.find(params[:chat_session_id])
+          chat_session = Current.user.accessible_chat_sessions.visible.active.find(params[:chat_session_id])
           render json: {
             matches: chat_search_rows(query, chat_session_id: chat_session.id).map { |row| chat_search_match_json(row) }
           }
@@ -184,7 +184,7 @@ module Api
 
         def hidden
           page = [ Integer(params[:page], exception: false).to_i, 1 ].max
-          scope = Current.user.accessible_chat_sessions.hidden
+          scope = Current.user.accessible_chat_sessions.hidden.active
           total = scope.count
           chats = scope
             .preload(repository_attachments: :attachable)
@@ -430,15 +430,17 @@ module Api
           render json: { id: branched_chat.id, app_path: chat_path(branched_chat) }, status: :created
         end
 
-        # Hard-deletes a chat: the ChatSession row and every dependent
-        # row (messages, bookmarks, queued messages, attachments,
+        # Soft-deletes a chat: the ChatSession row gets deleted_at/
+        # deleted_by_user_id set instead of being destroyed. Dependent
+        # rows (messages, bookmarks, queued messages, attachments,
         # proposals, pending actions, agent questions, wakeups,
-        # whiteboard + snapshots, captured agent session) go in the
-        # request transaction; the search-index rows, workspace
-        # directory, and per-chat agent homes are cleaned up post-commit
-        # by ChatSessionCleanupJob on the worker (the web pod doesn't
-        # mount the workspace PVC). Refused while a turn is actively
-        # running.
+        # whiteboard + snapshots, captured agent session) are left
+        # untouched in the DB so they remain available for audit; the
+        # search-index rows, workspace directory, and per-chat agent
+        # homes (local checkout state, not audit history) are still
+        # cleaned up post-commit by ChatSessionCleanupJob on the worker
+        # (the web pod doesn't mount the workspace PVC). Refused while a
+        # turn is actively running.
         def destroy
           chat_session = find_chat_session
           if chat_session.enabled_supervisor_chat?
@@ -454,7 +456,7 @@ module Api
             return
           end
 
-          chat_session.destroy!
+          chat_session.soft_delete_by!(Current.user)
 
           render json: { message: "Chat deleted." }
         end
@@ -462,7 +464,7 @@ module Api
         def clear_messages
           chat_session = find_chat_session
           ApplicationRecord.transaction do
-            chat_session.messages.destroy_all
+            chat_session.messages.active.update_all(deleted_at: Time.current, deleted_by_user_id: Current.user.id)
             chat_session.chat_queued_messages.destroy_all
             chat_session.update!(last_message_at: nil, stop_requested_at: nil)
           end

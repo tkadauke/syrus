@@ -306,6 +306,18 @@ RSpec.describe ChatSession do
     expect(session.bookmarks).to eq([ earlier_bookmark, middle_bookmark, later_bookmark ])
   end
 
+  it "excludes bookmarks on soft-deleted messages" do
+    session = described_class.create!(repository: repo, user: repo.user)
+    kept = session.messages.create!(role: "assistant", content: { "text" => "Kept" })
+    cleared = session.messages.create!(role: "assistant", content: { "text" => "Cleared" })
+
+    kept_bookmark = kept.bookmarks.create!(label: "Kept topic", kind: "topic")
+    cleared.bookmarks.create!(label: "Cleared topic", kind: "topic")
+    cleared.soft_delete_by!(repo.user)
+
+    expect(session.bookmarks).to eq([ kept_bookmark ])
+  end
+
   it "reports a turn in flight until a non-user response follows the latest user message" do
     session = described_class.create!(repository: repo, user: repo.user)
 
@@ -640,6 +652,96 @@ RSpec.describe ChatSession do
       expect(JobDependency.exists?(dependency.id)).to be(false)
       expect(ChatProposal.exists?(proposal.id)).to be(false)
       expect(Job.exists?(dependent_job.id)).to be(true)
+    end
+  end
+
+  describe "soft deletion" do
+    let(:actor) { Factories.user }
+
+    around do |example|
+      original = ENV["SYRUS_DATA_ROOT"]
+      Dir.mktmpdir("syrus-chat-session-soft-delete") do |dir|
+        ENV["SYRUS_DATA_ROOT"] = dir
+        example.run
+      ensure
+        ENV["SYRUS_DATA_ROOT"] = original
+      end
+    end
+
+    describe ".active and .deleted scopes" do
+      it "returns only non-deleted sessions from .active and only deleted sessions from .deleted" do
+        active_session = described_class.create!(repository: repo, user: repo.user)
+        deleted_session = described_class.create!(repository: repo, user: repo.user)
+        deleted_session.soft_delete_by!(actor)
+
+        expect(described_class.active).to include(active_session)
+        expect(described_class.active).not_to include(deleted_session)
+        expect(described_class.deleted).to include(deleted_session)
+        expect(described_class.deleted).not_to include(active_session)
+      end
+    end
+
+    describe "#soft_delete_by!" do
+      it "sets deleted_at and deleted_by_user for a User actor" do
+        session = described_class.create!(repository: repo, user: repo.user)
+
+        session.soft_delete_by!(actor)
+
+        expect(session).to be_deleted
+        expect(session.deleted_at).to be_present
+        expect(session.deleted_by_user).to eq(actor)
+      end
+
+      it "sets deleted_at without deleted_by_user for a non-User actor" do
+        session = described_class.create!(repository: repo, user: repo.user)
+
+        session.soft_delete_by!(session)
+
+        expect(session).to be_deleted
+        expect(session.deleted_by_user).to be_nil
+      end
+
+      it "does not destroy the row or its dependent records" do
+        session = described_class.create!(repository: repo, user: repo.user)
+        proposal = session.proposals.create!(slug: "upstream-work", title: "Upstream work", body: "First.")
+
+        session.soft_delete_by!(actor)
+
+        expect(described_class.exists?(session.id)).to be(true)
+        expect(ChatProposal.exists?(proposal.id)).to be(true)
+      end
+
+      it "enqueues the workspace/search cleanup job post-commit, same as a hard destroy" do
+        session = described_class.create!(repository: repo, user: repo.user)
+        session.update_columns(workspace_path: "/tmp/syrus-data/chat-workspaces/#{session.id}")
+
+        expect { session.soft_delete_by!(actor) }
+          .to have_enqueued_job(ChatSessionCleanupJob)
+          .with(session.id, "/tmp/syrus-data/chat-workspaces/#{session.id}")
+          .on_queue("chat")
+      end
+
+      it "does not re-enqueue the cleanup job on further unrelated updates" do
+        session = described_class.create!(repository: repo, user: repo.user)
+        session.soft_delete_by!(actor)
+
+        expect { session.update!(pinned: true) }.not_to have_enqueued_job(ChatSessionCleanupJob)
+      end
+    end
+
+    describe "#deleted?" do
+      it "is false for a session with no deleted_at" do
+        session = described_class.create!(repository: repo, user: repo.user)
+
+        expect(session.deleted?).to be false
+      end
+
+      it "is true once soft-deleted" do
+        session = described_class.create!(repository: repo, user: repo.user)
+        session.soft_delete_by!(actor)
+
+        expect(session.deleted?).to be true
+      end
     end
   end
 

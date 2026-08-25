@@ -284,7 +284,7 @@ module Mcp::Tools
     end
 
     def recent_messages_payload(chat)
-      chat.messages.order(created_at: :desc, id: :desc).limit(RECENT_MESSAGE_LIMIT).map do |message|
+      chat.messages.active.order(created_at: :desc, id: :desc).limit(RECENT_MESSAGE_LIMIT).map do |message|
         {
           id: message.id,
           role: message.role,
