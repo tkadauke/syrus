@@ -185,6 +185,7 @@ module ChatIndexPayload
   def chat_index_group_scope(repository_id)
     scope = Current.user.accessible_chat_sessions
       .visible
+      .active
       .ordinary_chats
       .left_outer_joins(:repository_attachments)
       .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC, chat_sessions.id DESC"))
@@ -199,6 +200,7 @@ module ChatIndexPayload
   def chat_index_repositories
     repository_ids = Current.user.accessible_chat_sessions
       .visible
+      .active
       .ordinary_chats
       .joins(:repository_attachments)
       .where(chat_attachments: { attachable_type: "Repository" })

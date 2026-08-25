@@ -61,7 +61,7 @@ module ChatSearch
   end
 
   def filtered_chat_search_scope
-    scope = Current.user.accessible_chat_sessions.visible
+    scope = Current.user.accessible_chat_sessions.visible.active
     scope = apply_chat_attachment_filter(scope, "Repository", :repository_id)
     return scope if performed?
 

@@ -29,6 +29,7 @@ module Mcp::Tools
           snippet_tokens: 50
         )
         results = reject_deleted_messages(results)
+        results = reject_messages_in_deleted_chats(results)
 
         payload = { results: results.map { |row| result_payload(row) } }
         payload[:message] = "No matching messages found." if payload[:results].empty?
@@ -46,6 +47,17 @@ module Mcp::Tools
 
         active_ids = ChatMessage.active.where(id: results.map { |row| row.fetch(:chat_message_id) }).ids.to_set
         results.select { |row| active_ids.include?(row.fetch(:chat_message_id)) }
+      end
+
+      # A soft-deleted ChatSession leaves its messages untouched for audit
+      # (see ChatSession#soft_delete_by!), so they would otherwise still
+      # surface here. The chat itself must be invisible to the agent, so
+      # reject matches whose chat session is gone or soft-deleted.
+      def reject_messages_in_deleted_chats(results)
+        return results if results.empty?
+
+        active_session_ids = ChatSession.active.where(id: results.map { |row| row.fetch(:chat_session_id) }).ids.to_set
+        results.select { |row| active_session_ids.include?(row.fetch(:chat_session_id)) }
       end
 
       def normalize_limit(value)

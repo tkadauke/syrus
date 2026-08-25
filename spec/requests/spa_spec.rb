@@ -230,6 +230,18 @@ RSpec.describe "SPA shell", type: :request do
     expect(flash[:alert]).to match(/no longer available/i)
   end
 
+  it "redirects to root instead of a bare 404 for a soft-deleted chat" do
+    user = Factories.user
+    chat = ChatSession.create!(user: user)
+    chat.soft_delete_by!(user)
+    sign_in_as(user)
+
+    get chat_path(chat)
+
+    expect(response).to redirect_to(root_path)
+    expect(flash[:alert]).to match(/no longer available/i)
+  end
+
   it "redirects to root instead of a bare 404 for a nonexistent chat" do
     user = Factories.user
     sign_in_as(user)

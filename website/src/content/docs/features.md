@@ -498,10 +498,12 @@ wants to fold that section away. Individual chats can be pinned or unpinned
 from the sidebar actions menu, renamed through the same menu (or the
 `/rename` slash command), hidden from the sidebar and chat search, then
 restored from the Hidden chats section in user settings. The sidebar actions
-menu can also permanently delete a chat after a confirmation dialog: deletion
-removes the conversation, its messages, attachments, proposals, whiteboard,
-search-index entries, and the chat workspace on disk, and is refused while a
-turn is still running. When the `admin_supervisor_chat` operations flag is
+menu can also delete a chat after a confirmation dialog: deletion marks the
+conversation as deleted (recording who deleted it and when) and removes it
+from the sidebar, chat search, and the chat agent's own tools, while leaving
+the underlying conversation, messages, attachments, proposals, and whiteboard
+in place for audit. The chat's search-index entries and its workspace on disk
+are still cleaned up, and deletion is refused while a turn is still running. When the `admin_supervisor_chat` operations flag is
 enabled, admins also get one durable **Supervisor** chat. Syrus provisions it on
 demand, exposes it on the chat index payload, renders it as a distinct admin row
 above normal chat groups, keeps it pinned and visible, and blocks ordinary rename,

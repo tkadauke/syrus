@@ -99,7 +99,7 @@ module ChatSessionLifecycle
   end
 
   def find_chat_session
-    Current.user.accessible_chat_sessions.find(params[:id])
+    Current.user.accessible_chat_sessions.active.find(params[:id])
   end
 
   # Rename enforces ChatSession::TITLE_MAX_LENGTH (in characters,
@@ -116,7 +116,7 @@ module ChatSessionLifecycle
   end
 
   def find_branch_source_chat_session
-    chat_session = Current.user.accessible_chat_sessions.find_by(id: params[:id])
+    chat_session = Current.user.accessible_chat_sessions.active.find_by(id: params[:id])
     return chat_session if chat_session
 
     render_error("forbidden", "You cannot branch this chat.", status: :forbidden)

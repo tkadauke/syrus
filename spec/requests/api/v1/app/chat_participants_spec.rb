@@ -63,6 +63,16 @@ RSpec.describe "App API chat participants", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it "404s for a soft-deleted chat" do
+      sign_in_as(user)
+      chat = group_chat(owner: user, members: [ other_user ])
+      chat.soft_delete_by!(user)
+
+      post participants_path(chat), params: { user_id: third_user.id }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "422s for an unknown user id" do
       sign_in_as(user)
       chat = group_chat(owner: user, members: [ other_user ])

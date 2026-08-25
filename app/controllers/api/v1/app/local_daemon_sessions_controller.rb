@@ -44,7 +44,7 @@ module Api
         private
 
         def find_chat_session
-          @chat_session = Current.user.accessible_chat_sessions.find(params[:chat_id])
+          @chat_session = Current.user.accessible_chat_sessions.active.find(params[:chat_id])
         end
 
         def require_local_mode_feature
