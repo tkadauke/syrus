@@ -33,6 +33,7 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
       body = parse_body
 
       expect(body["run_id"]).to eq(run.id)
+      expect(body["job_slug"]).to eq(job.slug)
       expect(body["session_id"]).to eq("abc-123")
 
       summary = body["summary"]

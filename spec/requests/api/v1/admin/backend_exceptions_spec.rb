@@ -13,13 +13,15 @@ RSpec.describe "API: /api/v1/admin/backend_exceptions", type: :request do
   end
 
   it "returns backend exceptions to admin API clients" do
+    job = Factories.job(user: admin)
     BackendExceptionEvent.create!(
       occurred_at: Time.current,
       source: "action_controller",
       exception_class: "NoMethodError",
       message: "undefined method map for nil",
       path: "/jobs/3188",
-      request_id: "req-123"
+      request_id: "req-123",
+      job: job
     )
 
     get "/api/v1/admin/backend_exceptions", headers: auth
@@ -29,7 +31,8 @@ RSpec.describe "API: /api/v1/admin/backend_exceptions", type: :request do
       "exception_class" => "NoMethodError",
       "message" => "undefined method map for nil",
       "path" => "/jobs/3188",
-      "request_id" => "req-123"
+      "request_id" => "req-123",
+      "job_slug" => job.slug
     )
     expect(response.parsed_body.dig("events", 0, "actions")).to include(
       include("id" => "file_job", "label" => "File Job", "event_type" => "backend_exception")

@@ -55,6 +55,7 @@ module Observability
         queue_name: event.queue_name,
         executions: event.executions,
         job_id: event.job_id,
+        job_slug: event.job&.slug,
         workflow_id: event.workflow_id,
         run_id: event.run_id,
         metadata: event.metadata || {}

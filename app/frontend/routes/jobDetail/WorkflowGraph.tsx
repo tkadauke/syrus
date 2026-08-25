@@ -74,7 +74,7 @@ function DesiredWorkPanel({ intent }: { intent: JobWorkIntent | null }) {
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <span>WI-{intent.id}</span>
-              <span>{intent.scope_type}{intent.scope_id ? ` ${intent.scope_id}` : ""}</span>
+              {scopeLabel(intent.scope_type, intent.scope_id) ? <span>{scopeLabel(intent.scope_type, intent.scope_id)}</span> : null}
               {intent.wait_until ? <span>next check <RelativeTimestamp value={intent.wait_until} /></span> : null}
             </div>
             <WorkDiagnosticDetails details={intent.wait_details} />
@@ -96,6 +96,14 @@ function intentExecutionTone(status: string): "red" | "green" | "blue" | "gray" 
   if (normalized.includes("active") || normalized.includes("running") || normalized.includes("queued")) return "blue"
   if (normalized.includes("block") || normalized.includes("wait")) return "amber"
   return "gray"
+}
+
+function scopeLabel(scopeType: string | null | undefined, scopeId: number | null | undefined) {
+  if (!scopeType && !scopeId) return null
+  if (!scopeId) return scopeType ? humanize(scopeType) : null
+  if (scopeType === "job") return `JOB-${scopeId}`
+  if (scopeType === "epic") return `EPIC-${scopeId}`
+  return `${scopeType ? humanize(scopeType) : "Scope"} ${scopeId}`
 }
 
 function WorkUnitsPanel({ units, payload, command, prefix }: { units: JobWorkUnit[]; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
@@ -137,7 +145,7 @@ function WorkUnitRow({ unit, payload, command, prefix }: { unit: JobWorkUnit; pa
             ) : (
               <span>No workflow attached</span>
             )}
-            {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to JOB-{unit.workflow_attached_job_id}</span> : null}
+            {unit.workflow_attached_job_id && unit.workflow_attached_job_id !== unit.scope_id ? <span>attached to {unit.workflow_attached_job_slug || `JOB-${unit.workflow_attached_job_id}`}</span> : null}
             {unit.preemption_reason ? <span>preempted: {humanize(unit.preemption_reason)}</span> : null}
             {unit.preempted_by_work_unit_id ? <span>by WU-{unit.preempted_by_work_unit_id}</span> : null}
             {unit.blocked_until ? <span>next check <RelativeTimestamp value={unit.blocked_until} /></span> : null}

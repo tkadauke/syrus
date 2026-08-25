@@ -27,6 +27,7 @@ export type BackendExceptionEventRow = {
   queue_name: string | null
   executions: number | null
   job_id: number | null
+  job_slug?: string | null
   workflow_id: number | null
   run_id: number | null
   metadata: Record<string, unknown>

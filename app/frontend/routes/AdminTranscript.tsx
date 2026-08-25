@@ -48,7 +48,7 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
       <header className="shrink-0 flex flex-col gap-3 border-b border-gray-200 dark:border-gray-700 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-xs uppercase text-gray-500 dark:text-gray-400">
-            <Link className="underline hover:no-underline" to={withRoutePrefix(`/jobs/${payload.job_id}`, prefix)}>back to JOB-{payload.job_id}</Link>
+            <Link className="underline hover:no-underline" to={withRoutePrefix(`/jobs/${payload.job_id}`, prefix)}>back to {payload.job_slug || `JOB-${payload.job_id}`}</Link>
           </div>
           <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
             Run #{payload.run_id} · transcript

@@ -22,6 +22,7 @@ module Admin
         {
           run_id: run.id,
           job_id: run.job_id,
+          job_slug: run.job&.slug,
           step_kind: run.step&.kind,
           workflow_trigger_kind: run.step&.workflow&.trigger_kind,
           session_id: session&.session_id,

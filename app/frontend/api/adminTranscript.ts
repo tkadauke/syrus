@@ -22,6 +22,7 @@ export type TranscriptEvent = {
 export type TranscriptPayload = {
   run_id: number
   job_id: number
+  job_slug?: string | null
   step_kind: string | null
   workflow_trigger_kind: string | null
   session_id: string | null

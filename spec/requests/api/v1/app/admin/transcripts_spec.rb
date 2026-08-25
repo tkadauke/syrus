@@ -61,6 +61,7 @@ RSpec.describe "API: /api/v1/app/admin/runs/:run_id/transcript", type: :request 
     expect(body).to include(
       "run_id" => run.id,
       "job_id" => job.id,
+      "job_slug" => job.slug,
       "session_id" => "abc-123"
     )
     expect(body["summary"]).to include(

@@ -184,6 +184,70 @@ describe("WorkflowsTab", () => {
     expect(screen.getByText("Diagnostic details")).toBeInTheDocument()
   })
 
+  it("uses readable labels for WorkIntent scopes and attached workflow jobs", () => {
+    render(
+      <MemoryRouter>
+        <WorkflowsTab
+          command={command()}
+          payload={payload({
+            current_intent: {
+              id: 91,
+              kind: "merge_train",
+              label: "Merge train",
+              state: "requested",
+              scope_type: "epic",
+              scope_id: 260,
+              wait_reason: null,
+              wait_label: null,
+              wait_until: null,
+              wait_details: null,
+              execution_status: "running",
+              requested_at: null,
+              satisfied_at: null,
+              cancelled_at: null
+            },
+            work_units: [{
+              id: 92,
+              kind: "merge_train",
+              label: "Merge train",
+              state: "running",
+              work_intent_id: 91,
+              workflow_id: 20071,
+              workflow_slug: "WF-20071",
+              workflow_trigger_kind: "merge_train",
+              workflow_state: "running",
+              workflow_attached_job_id: 3564,
+              workflow_attached_job_slug: "JOB-3564",
+              member_role: "member",
+              scope_type: "epic",
+              scope_id: 260,
+              blocked_reason: null,
+              blocked_label: null,
+              blocked_until: null,
+              blocked_details: null,
+              parent_work_unit_id: null,
+              parent_work_unit_kind: null,
+              parent_work_unit_label: null,
+              preemption_reason: null,
+              preempted_by_work_unit_id: null,
+              preempted_by_work_unit_kind: null,
+              preempted_by_work_unit_label: null,
+              workflow: null,
+              current_step: null,
+              created_at: null,
+              started_at: null,
+              finished_at: null
+            }]
+          })}
+          prefix=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("EPIC-260")).toBeInTheDocument()
+    expect(screen.getByText("attached to JOB-3564")).toBeInTheDocument()
+  })
+
   it("summarizes admission-control diagnostics instead of dumping telemetry JSON", () => {
     render(
       <MemoryRouter>

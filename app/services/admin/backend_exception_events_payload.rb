@@ -13,6 +13,10 @@ module Admin
       BackendExceptionEvent
     end
 
+    def relation
+      super.includes(:job)
+    end
+
     def filter_definition
       Admin::EventLogFilterDefinitions.backend_exceptions
     end

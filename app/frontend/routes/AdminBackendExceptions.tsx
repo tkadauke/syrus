@@ -119,7 +119,7 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
           <>
             <div className="font-mono">{row.source}</div>
             <div className="mt-1 break-words">{context || "-"}</div>
-            {row.job_id ? <Link className="mt-1 inline-block underline" to={`/jobs/${row.job_id}`}>JOB-{row.job_id}</Link> : null}
+            {row.job_id ? <Link className="mt-1 inline-block underline" to={`/jobs/${row.job_id}`}>{row.job_slug || `JOB-${row.job_id}`}</Link> : null}
           </>
         )
       }
@@ -173,7 +173,7 @@ function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { o
         <div className="grid gap-4 lg:grid-cols-2">
           <DetailBlock title={t("backend_exceptions.backtrace")} value={row.backtrace} />
           <JsonBlock title={t("backend_exceptions.request_context")} value={{ controller: row.controller, action: row.action, method: row.method, path: row.path, status: row.status, request_id: row.request_id }} />
-          <JsonBlock title={t("backend_exceptions.job_context")} value={{ job_class: row.job_class, active_job_id: row.active_job_id, queue_name: row.queue_name, executions: row.executions, job_id: row.job_id, workflow_id: row.workflow_id, run_id: row.run_id }} />
+          <JsonBlock title={t("backend_exceptions.job_context")} value={{ job_class: row.job_class, active_job_id: row.active_job_id, queue_name: row.queue_name, executions: row.executions, job_id: row.job_id, job_slug: row.job_slug, workflow_id: row.workflow_id, run_id: row.run_id }} />
           <JsonBlock title={t("backend_exceptions.environment")} value={{ role: row.role, hostname: row.hostname, pid: row.pid, metadata: row.metadata || {} }} />
         </div>
       )}

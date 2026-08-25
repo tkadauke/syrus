@@ -504,6 +504,7 @@ export type JobWorkUnit = {
   workflow_trigger_kind: string | null
   workflow_state: string | null
   workflow_attached_job_id: number | null
+  workflow_attached_job_slug?: string | null
   member_role: string
   scope_type: string
   scope_id: number | null

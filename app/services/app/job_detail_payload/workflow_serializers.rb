@@ -76,6 +76,7 @@ module App
           workflow_trigger_kind: workflow&.trigger_kind,
           workflow_state: workflow&.state,
           workflow_attached_job_id: workflow&.job_id,
+          workflow_attached_job_slug: workflow_attached_job_slug(workflow),
           member_role: member.role,
           scope_type: unit.scope_type,
           scope_id: unit.scope_id,
@@ -103,7 +104,7 @@ module App
         @active_work_unit_member_for_job ||= PerformanceLogging.phase("job_detail.active_work.query", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)
-            .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
+            .includes(work_unit: [ { workflow: :job }, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
             .where(job_id: @job.id, work_units: { state: %w[queued blocked running] })
             .order(WorkUnits::Ownership.active_priority_order)
             .first
@@ -164,6 +165,13 @@ module App
         work_definition_label(unit.kind)
       end
 
+      def workflow_attached_job_slug(workflow)
+        return nil unless workflow&.job_id
+        return @job.slug if workflow.job_id == @job.id
+
+        workflow.job&.slug
+      end
+
       def work_definition_label(kind)
         definition = WorkDefinitions.for(kind)
         definition.label
@@ -181,7 +189,7 @@ module App
         @work_unit_members_for_job ||= PerformanceLogging.phase("job_detail.work_units.query", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)
-            .includes(work_unit: [ :workflow, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
+            .includes(work_unit: [ { workflow: :job }, :work_intent, :parent_work_unit, :preempted_by_work_unit ])
             .where(job_id: @job.id, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })
             .order(WorkUnits::Ownership.active_priority_order)
             .limit(50)
