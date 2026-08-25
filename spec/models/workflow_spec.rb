@@ -11,7 +11,7 @@ RSpec.describe Workflow do
 
   # Materialized on purpose: fed into NOT IN against `jobs`, where the
   # subquery form makes MySQL scan all of `workflows`. See
-  # Workflow.active_job_ids and Job.without_active_workflows.
+  # Workflow.active_job_ids and Job.without_active_runtime_work.
   describe ".active_job_ids" do
     it "returns job ids with a queued or running Workflow" do
       described_class.create!(job: job, trigger_kind: "manual", state: "running")

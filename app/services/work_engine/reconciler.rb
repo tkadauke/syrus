@@ -192,7 +192,7 @@ module WorkEngine
       issues.concat(classify_stale_auto_retry_workflows)
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
-      issues.concat(classify_jobs_without_active_workflows)
+      issues.concat(classify_jobs_without_active_runtime_work)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
       issues.concat(classify_queued_jobs_cancelled_without_active_workflow)
       issues.concat(classify_approved_jobs_with_landing_start_blockers)
@@ -326,21 +326,34 @@ module WorkEngine
       elsif run_id.present?
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       elsif job_id.present?
-        active_workflows = Workflow.where(job_id: job_id, state: %w[ queued running failed ])
+        active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids([ job_id ]).to_a)
+        latest_failed_workflows = latest_failed_workflows_for_jobs([ job_id ])
+        stale_auto_retry_workflows = queued_retry_workflows_for_jobs([ job_id ])
         terminal_descendant_workflows = terminal_workflows_with_active_descendants(job_ids: [ job_id ])
 
         Workflow.where(id: active_workflows.select(:id))
+          .or(Workflow.where(id: latest_failed_workflows.select(:id)))
+          .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       else
         job_ids = jobs.map(&:id)
-        active_workflows = Workflow.where(job_id: job_ids, state: %w[ queued running ])
+        active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids(job_ids).to_a)
         latest_failed_workflows = latest_failed_workflows_for_jobs(job_ids)
+        stale_auto_retry_workflows = queued_retry_workflows_for_jobs(job_ids)
         terminal_descendant_workflows = terminal_workflows_with_active_descendants
 
         Workflow.where(id: active_workflows.select(:id))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
+          .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       end
+    end
+
+    def queued_retry_workflows_for_jobs(job_ids)
+      ids = Array(job_ids).map(&:to_i).select(&:positive?)
+      return Workflow.none if ids.empty?
+
+      Workflow.where(job_id: ids, trigger_kind: "retry", state: "queued")
     end
 
     def scoped_runs
@@ -1521,7 +1534,7 @@ module WorkEngine
       end
     end
 
-    def classify_jobs_without_active_workflows
+    def classify_jobs_without_active_runtime_work
       jobs.filter_map do |job|
         next unless job.state.in?(%w[running landing])
         active_workflows = active_runtime_workflows_for_job(job)

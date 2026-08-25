@@ -1643,7 +1643,7 @@ once in job detail:
 
 Completed slices:
 
-- `Job.without_active_workflows` now uses `WorkUnits::Ownership` instead of only
+- `Job.without_active_runtime_work` now uses `WorkUnits::Ownership` instead of only
   `Workflow.active_job_ids`, so dashboard and smart-folder scopes exclude Jobs
   owned by active WorkUnits, including cross-job WorkUnit membership, while
   retaining legacy Workflow fallback during migration.

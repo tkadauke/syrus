@@ -155,7 +155,7 @@ RSpec.describe "App API job detail", type: :request do
     active = Factories.job_record(repository: repo, issue_number: 102, issue_title: "Still running", state: "implemented")
     finished = Factories.job_record(repository: repo, issue_number: 103, issue_title: "Finished", state: "implemented")
 
-    Workflow.create!(job: active, trigger_kind: "manual", state: "running")
+    attach_work_unit(Workflow.create!(job: active, trigger_kind: "manual", state: "running"))
     Workflow.create!(job: finished, trigger_kind: "manual", state: "succeeded")
 
     get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "implemented", limit: 10 },

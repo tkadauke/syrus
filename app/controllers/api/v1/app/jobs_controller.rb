@@ -6,7 +6,7 @@ module Api
       class JobsController < BaseController
         def index
           jobs = policy_scope(Job)
-                   .without_active_workflows
+                   .without_active_runtime_work
                    .includes(:epic, :repository, :deployment_stage_statuses)
                    .order(updated_at: :desc, id: :desc)
           jobs = filter_jobs(jobs)

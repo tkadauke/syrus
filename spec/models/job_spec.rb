@@ -470,7 +470,7 @@ RSpec.describe Job do
     end
   end
 
-  describe ".without_active_workflows" do
+  describe ".without_active_runtime_work" do
     it "excludes jobs with queued or running workflows" do
       idle = Factories.job_record(issue_number: 1, issue_title: "Ready")
       queued = Factories.job_record(repository: idle.repository, issue_number: 2, issue_title: "Queued workflow")
@@ -481,7 +481,7 @@ RSpec.describe Job do
       attach_work_unit(Workflow.create!(job: running, trigger_kind: "manual", state: "running"))
       Workflow.create!(job: terminal, trigger_kind: "manual", state: "succeeded")
 
-      expect(described_class.where(id: [ idle.id, queued.id, running.id, terminal.id ]).without_active_workflows).to contain_exactly(
+      expect(described_class.where(id: [ idle.id, queued.id, running.id, terminal.id ]).without_active_runtime_work).to contain_exactly(
         idle,
         terminal
       )
@@ -511,7 +511,7 @@ RSpec.describe Job do
       unit.work_unit_members.create!(job: primary, role: "primary")
       unit.work_unit_members.create!(job: member, role: "member")
 
-      expect(described_class.where(id: [ primary.id, member.id, idle.id ]).without_active_workflows).to contain_exactly(idle)
+      expect(described_class.where(id: [ primary.id, member.id, idle.id ]).without_active_runtime_work).to contain_exactly(idle)
     end
 
     it "includes every job when nothing is active" do
@@ -519,7 +519,7 @@ RSpec.describe Job do
       terminal = Factories.job_record(repository: idle.repository, issue_number: 12, issue_title: "Done")
       Workflow.create!(job: terminal, trigger_kind: "manual", state: "succeeded")
 
-      expect(described_class.where(id: [ idle.id, terminal.id ]).without_active_workflows).to contain_exactly(idle, terminal)
+      expect(described_class.where(id: [ idle.id, terminal.id ]).without_active_runtime_work).to contain_exactly(idle, terminal)
     end
 
     # The correlated NOT EXISTS survived on its own, but the Inbox preset ORs it
@@ -527,7 +527,7 @@ RSpec.describe Job do
     # anti-join, lost the correlation, and materialized it with a full scan of
     # `workflows` (19,415 rows, 329MB) -- 10.2s cold to count 4 rows.
     it "does not reference workflows as a subquery" do
-      sql = described_class.all.without_active_workflows.to_sql
+      sql = described_class.all.without_active_runtime_work.to_sql
 
       expect(sql).not_to match(/workflows/i)
       expect(sql).not_to match(/NOT EXISTS/i)

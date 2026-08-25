@@ -149,7 +149,7 @@ module App
       end
 
       def fast_inbox_job_count
-        scope = fast_job_builtin_scope.open_threads.without_active_workflows
+        scope = fast_job_builtin_scope.open_threads.without_active_runtime_work
         scope.where(
           <<~SQL.squish,
             (

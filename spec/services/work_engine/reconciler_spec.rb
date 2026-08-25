@@ -219,6 +219,7 @@ RSpec.describe WorkEngine::Reconciler do
       state: "queued",
       chain_template: []
     )
+    attach_work_unit(fresh_workflow, kind: "retry")
     fresh_step = fresh_workflow.steps.create!(kind: "prepare", position: 1, state: "queued")
     fresh_step.runs.create!(
       job: job,

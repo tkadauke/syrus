@@ -172,7 +172,7 @@ module Filters
           # unowned jobs out of the inbox. effectively_owned_by falls
           # back to the creator, matching the rest of the codebase.
           owner_jobs = Job.effectively_owned_by(user)
-          open = scope.effectively_owned_by(user).open_threads.without_active_workflows
+          open = scope.effectively_owned_by(user).open_threads.without_active_runtime_work
           open.where(id: actionable_unread_feedback_ids(owner_jobs))
               .or(open.where(state: "failed").where.not(id: active_repair_work_job_ids))
               .or(open.where(id: landing_failure_ids(owner_jobs)))
@@ -197,7 +197,7 @@ module Filters
         end
 
         def apply_blocked
-          open = scope.open_threads.without_active_workflows
+          open = scope.open_threads.without_active_runtime_work
           open.where(id: blocked_dependency_ids).or(open.where(pr_mergeable: false))
         end
 
@@ -315,7 +315,7 @@ module Filters
         end
 
         def awaiting_approval_scope(base)
-          base.where(state: "implemented").without_active_workflows
+          base.where(state: "implemented").without_active_runtime_work
         end
 
         def unread_feedback_ids(base = Job.all)

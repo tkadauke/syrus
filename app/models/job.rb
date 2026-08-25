@@ -216,16 +216,11 @@ class Job < ApplicationRecord
     any_active_run? || WorkUnits::Ownership.active_for_job?(self)
   end
   # Materialized rather than a correlated NOT EXISTS — see
-  # WorkUnits::Ownership.all_active_job_ids. The subquery form survives on its own, but the
-  # Inbox smart folder ORs it together with four more subqueries over `jobs`,
-  # and there MySQL rewrites it into an anti-join, loses the correlation, and
-  # materializes it with a full scan of `workflows`:
-  #
-  #   select_type: MATERIALIZED  table: workflows  type: ALL  key: NULL  rows: 19415
-  #
-  # That scan is what made the Inbox count 10.2s cold on production, averaging
-  # 20,729ms across the dashboard's smart-folder counts.
-  scope :without_active_workflows, -> { where.not(id: WorkUnits::Ownership.all_active_job_ids) }
+  # WorkUnits::Ownership.all_active_job_ids. The subquery form survives on its
+  # own, but the Inbox smart folder ORs it together with four more subqueries
+  # over `jobs`, and there MySQL rewrites it into an anti-join, loses the
+  # correlation, and materializes it with a full scan.
+  scope :without_active_runtime_work, -> { where.not(id: WorkUnits::Ownership.all_active_job_ids) }
 
   def issue?
     kind == "issue"
