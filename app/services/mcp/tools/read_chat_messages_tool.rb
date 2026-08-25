@@ -24,13 +24,16 @@ module Mcp::Tools
         page = normalize_page(page)
         messages, has_more = page_messages(chat_session, page)
 
-        Mcp::Tools.success(
+        payload = {
           messages: messages.map { |message| message_payload(message) },
           page: page,
           has_more: has_more,
           next_page: (page + 1 if has_more),
           chat_title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
-        )
+        }
+        payload.merge!(chat_session_deletion_payload(chat_session)) if admin?
+
+        Mcp::Tools.success(payload)
       end
 
       private
@@ -53,7 +56,8 @@ module Mcp::Tools
       end
 
       def message_id_scope(chat_session)
-        scope = ChatMessage.active.where(chat_session_id: chat_session.id)
+        base = ChatMessage.where(chat_session_id: chat_session.id)
+        scope = admin? ? base : base.active
         return scope unless mysql_adapter?
 
         scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_session_created_id)"))
@@ -64,12 +68,36 @@ module Mcp::Tools
       end
 
       def message_payload(message)
-        {
+        payload = {
           id: message.id,
           role: message.role,
           content: message.content,
           created_at: message.created_at&.iso8601
         }
+        payload.merge!(deletion_payload(message.deleted_at, message.deleted_by_user)) if admin? && message.deleted?
+        payload
+      end
+
+      def chat_session_deletion_payload(chat_session)
+        return {} unless chat_session.deleted?
+
+        {
+          chat_session_deleted_at: chat_session.deleted_at&.iso8601,
+          chat_session_deleted_by: user_summary(chat_session.deleted_by_user)
+        }
+      end
+
+      def deletion_payload(deleted_at, deleted_by_user)
+        {
+          deleted_at: deleted_at&.iso8601,
+          deleted_by: user_summary(deleted_by_user)
+        }
+      end
+
+      def user_summary(user)
+        return nil unless user
+
+        { id: user.id, name: user.display_name, email: user.email_address }
       end
     end
   end
