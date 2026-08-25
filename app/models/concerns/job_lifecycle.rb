@@ -51,7 +51,7 @@ module JobLifecycle
     return false if runs.where(state: %w[running succeeded failed]).exists?
 
     transaction do
-      workflows.where(state: %w[queued running]).find_each do |workflow|
+      workflows_to_cancel_for_epic_restore.each do |workflow|
         WorkUnits::WorkflowCancellation.cancel!(
           workflow,
           reason: EpicWorkflowLock::BLOCK_REASON,
@@ -64,6 +64,19 @@ module JobLifecycle
 
       block_by_epic! if may_block_by_epic?
     end
+  end
+
+  def workflows_to_cancel_for_epic_restore
+    unit_workflows = WorkUnits::Ownership.active_units_for_job(self)
+      .filter_map(&:workflow)
+      .select { |workflow| workflow.queued? || workflow.running? }
+
+    legacy_replay_workflows = WorkUnits::Ownership.legacy_replay_workflows_scope(
+      [ id ],
+      base_scope: workflows.where(state: %w[queued running])
+    ).to_a
+
+    (unit_workflows + legacy_replay_workflows).uniq(&:id)
   end
 
   def pending_auto_merge?

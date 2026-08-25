@@ -708,7 +708,7 @@ RSpec.describe Epic do
   it "keeps ready to in_progress manual and unblocks queued child workflows when started" do
     epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
     job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
-    workflow = Workflows::Initial.instantiate(job: job)
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
 
     expect(job).not_to be_dependencies_satisfied
     expect(workflow.first_step.runs).to be_empty
@@ -990,6 +990,30 @@ RSpec.describe Epic do
 
     expect(run.reload).to be_cancelled
     expect(job.workflows.first).to be_cancelled
+  end
+
+  it "does not cancel normal legacy child workflows when restoring Epic blocks" do
+    epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "queued")
+    legacy_workflow = Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", priority: "medium")
+
+    expect {
+      job.restore_epic_block_if_not_started!
+    }.to change { job.reload.state }.from("queued").to("blocked_by_epic")
+
+    expect(legacy_workflow.reload).to be_queued
+  end
+
+  it "still cancels historical replay workflows when restoring Epic blocks" do
+    epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+    job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "queued")
+    replay_workflow = Workflow.create!(job: job, trigger_kind: "replay", agent_provider: "claude", priority: "medium")
+
+    expect {
+      job.restore_epic_block_if_not_started!
+    }.to change { job.reload.state }.from("queued").to("blocked_by_epic")
+
+    expect(replay_workflow.reload).to be_cancelled
   end
 
   it "archives Epics, stamps archived_at, and closes child Jobs with epic_archived reason" do
