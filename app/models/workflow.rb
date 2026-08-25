@@ -53,14 +53,11 @@ class Workflow < ApplicationRecord
   scope :active, -> { where(state: %w[ queued running ]) }
   scope :epic_wide, -> { where(trigger_kind: EPIC_WIDE_TRIGGER_KINDS) }
 
-  # Job ids with a queued/running Workflow, materialized on purpose — the same
-  # trap as Run.active_job_ids. `workflows.state` has five values and InnoDB
-  # keeps no histogram, so MySQL assumes an even spread and costs a subquery
-  # over it as though it matched thousands of rows. Production has 23 active
-  # workflows out of 19,126, and on that misestimate the planner materializes
-  # the subquery with a full scan of a 329MB table.
+  # Runtime ownership now lives on WorkUnit rows. Keep this legacy API as a
+  # materialized id list for callers that still ask Workflow, but do not treat
+  # unowned queued/running Workflow rows as active work.
   def self.active_job_ids
-    active.distinct.pluck(:job_id)
+    WorkUnits::Ownership.all_active_job_ids.to_a
   end
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
   scope :ordered, -> { order(:created_at) }

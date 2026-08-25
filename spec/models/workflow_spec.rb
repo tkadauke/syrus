@@ -9,32 +9,66 @@ RSpec.describe Workflow do
     described_class.new({ job: job, trigger_kind: "initial" }.merge(overrides))
   end
 
-  # Materialized on purpose: fed into NOT IN against `jobs`, where the
-  # subquery form makes MySQL scan all of `workflows`. See
-  # Workflow.active_job_ids and Job.without_active_runtime_work.
+  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running")
+    primary = member_jobs.first
+    intent = WorkIntent.create!(
+      kind: kind,
+      state: "requested",
+      repository: primary.repository,
+      scope_type: primary.epic_id.present? ? "epic" : "job",
+      scope_id: primary.epic_id.presence || primary.id,
+      actor: primary.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: kind,
+      state: state,
+      repository: primary.repository,
+      scope_type: intent.scope_type,
+      scope_id: intent.scope_id,
+      workflow: workflow
+    )
+    member_jobs.each_with_index do |member_job, index|
+      unit.work_unit_members.create!(job: member_job, role: index.zero? ? "primary" : "member")
+    end
+    unit
+  end
+
+  # Materialized on purpose for compatibility with callers that used to ask
+  # Workflow for active runtime jobs. Runtime ownership now comes from
+  # WorkUnits, not from unowned queued/running Workflow rows.
   describe ".active_job_ids" do
-    it "returns job ids with a queued or running Workflow" do
-      described_class.create!(job: job, trigger_kind: "manual", state: "running")
+    it "returns job ids with active WorkUnit-owned workflows" do
+      workflow = described_class.create!(job: job, trigger_kind: "manual", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual")
 
       expect(described_class.active_job_ids).to include(job.id)
     end
 
-    it "excludes jobs whose Workflows are all terminal" do
+    it "excludes jobs whose Workflows are unowned or terminal" do
+      job = Factories.job_record(issue_number: 90, issue_title: "Unowned")
       other = Factories.job_record(issue_number: 91, issue_title: "Done")
+      described_class.create!(job: job, trigger_kind: "manual", state: "running")
       described_class.create!(job: other, trigger_kind: "manual", state: "succeeded")
 
+      expect(described_class.active_job_ids).not_to include(job.id)
       expect(described_class.active_job_ids).not_to include(other.id)
     end
 
-    it "reports a job once even with several active Workflows" do
-      described_class.create!(job: job, trigger_kind: "manual", state: "running")
-      described_class.create!(job: job, trigger_kind: "manual", state: "queued")
+    it "reports a job once even with several active WorkUnits" do
+      job = Factories.job_record(issue_number: 92, issue_title: "Owned")
+      first = described_class.create!(job: job, trigger_kind: "manual", state: "running")
+      second = described_class.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(first, member_jobs: [ job ], kind: "manual")
+      attach_work_unit(second, member_jobs: [ job ], kind: "retry")
 
       expect(described_class.active_job_ids.count(job.id)).to eq(1)
     end
 
     it "returns plain ids so callers cannot re-embed it as a subquery" do
-      described_class.create!(job: job, trigger_kind: "manual", state: "running")
+      workflow = described_class.create!(job: job, trigger_kind: "manual", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual")
 
       expect(described_class.active_job_ids).to all(be_an(Integer))
     end
