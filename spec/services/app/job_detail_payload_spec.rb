@@ -1086,6 +1086,34 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.dig(:active_work, :workflow, :path)).to eq("/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}")
     end
 
+    it "computes external WorkUnit workflow paths without per-workflow navigation count queries" do
+      member_job = Factories.job_record(user: user, repository: repo, issue_number: 101)
+      attached_job = Factories.job_record(user: user, repository: repo, issue_number: 102)
+      workflow = Workflow.create!(
+        job: attached_job,
+        trigger_kind: "merge_train",
+        state: "running",
+        created_at: 20.minutes.ago
+      )
+      11.times do |index|
+        Workflow.create!(
+          job: attached_job,
+          trigger_kind: "retry",
+          state: "failed",
+          created_at: (index + 1).minutes.ago
+        )
+      end
+      attach_work_unit(workflow, member_jobs: [ member_job ], kind: "job_bundle")
+
+      expect(App::WorkflowNavigation).not_to receive(:path)
+
+      payload = workflows_payload_for(member_job)
+
+      expect(payload.dig(:work_units, 0, :workflow, :path)).to eq(
+        "/jobs/#{attached_job.id}?tab=workflows&workflows_page=2#workflow-#{workflow.id}"
+      )
+    end
+
     it "renders step state from the latest run projection while preserving drift diagnostics" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

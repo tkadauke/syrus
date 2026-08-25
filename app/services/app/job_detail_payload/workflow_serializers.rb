@@ -291,7 +291,13 @@ module App
       end
 
       def workflow_navigation_path(workflow)
-        return App::WorkflowNavigation.path(workflow) unless workflow.job_id == @job.id
+        unless workflow.job_id == @job.id
+          query = { tab: "workflows" }
+          page = external_workflow_navigation_page_by_workflow_id[workflow.id]
+          query[:workflows_page] = page if page.to_i > 1
+
+          return "#{job_path(workflow.job_id)}?#{query.to_query}#workflow-#{workflow.id}"
+        end
 
         query = { tab: "workflows" }
         page = workflow_navigation_page_by_workflow_id[workflow.id]
@@ -306,6 +312,22 @@ module App
           ids.each_with_index.to_h do |workflow_id, index|
             [ workflow_id, (index / App::WorkflowNavigation::PER_PAGE) + 1 ]
           end
+        end
+      end
+
+      def external_workflow_navigation_page_by_workflow_id
+        @external_workflow_navigation_page_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.external_navigation_pages", job_id: @job.id) do
+          workflows = serialized_workflows.reject { |workflow| workflow.job_id == @job.id }
+          next {} if workflows.empty?
+
+          workflow_ids_by_job_id = workflows.group_by(&:job_id).transform_values { |group| group.map(&:id) }
+          workflow_ids_by_job_id.flat_map do |job_id, workflow_ids|
+            ordered_ids = Workflow.where(job_id: job_id).reorder(created_at: :desc, id: :desc).pluck(:id)
+            workflow_ids.map do |workflow_id|
+              index = ordered_ids.index(workflow_id)
+              [ workflow_id, index ? (index / App::WorkflowNavigation::PER_PAGE) + 1 : 1 ]
+            end
+          end.to_h
         end
       end
 
