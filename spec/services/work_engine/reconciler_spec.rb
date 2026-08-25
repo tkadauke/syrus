@@ -801,6 +801,74 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to be_requested
   end
 
+  it "finishes stale job-scoped WorkUnits for closed jobs" do
+    closed_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 452,
+      state: "closed",
+      closure_reason: "pr_merged",
+      finished_at: 5.minutes.ago
+    )
+    intent = WorkIntent.create!(
+      kind: "initial",
+      state: "requested",
+      repository: closed_job.repository,
+      scope_type: "job",
+      scope_id: closed_job.id,
+      actor: closed_job.user,
+      source_type: "spec"
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: "initial",
+      state: "blocked",
+      repository: closed_job.repository,
+      scope_type: "job",
+      scope_id: closed_job.id,
+      blocked_reason: "admission_control"
+    )
+    unit.work_unit_members.create!(job: closed_job, role: "primary")
+    lock = unit.work_unit_locks.create!(lock_key: "spec:closed-job-unit:#{unit.id}")
+
+    result = reconcile_and_execute(job_id: closed_job.id)
+
+    expect(kind(result, :closed_job_active_work_unit)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "finish_work_unit_for_closed_job"
+    )
+    expect(kind(result, :active_work_unit_without_workflow)).to be_nil
+    expect(plan(result, :finish_work_unit_for_closed_job)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkUnit",
+      target_id: unit.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled WorkUnit ##{unit.id} because Job ##{closed_job.id} is closed and no Workflow is attached")
+    expect(unit.reload).to be_cancelled
+    expect(unit.preemption_reason).to eq("job_closed")
+    expect(lock.reload).not_to be_active
+  end
+
+  it "lets terminal-workflow cleanup own stale WorkUnits with terminal Workflows" do
+    closed_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      issue_number: 453,
+      state: "landing"
+    )
+    terminal_workflow = Workflow.create!(job: closed_job, trigger_kind: "auto_merge", state: "succeeded", finished_at: 5.minutes.ago)
+    unit = attach_work_unit(terminal_workflow, kind: "auto_merge", state: "running")
+    lock = unit.work_unit_locks.create!(lock_key: "spec:closed-job-terminal-unit:#{unit.id}")
+    closed_job.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: 5.minutes.ago)
+
+    result = reconcile_and_execute(job_id: closed_job.id)
+
+    expect(kind(result, :closed_job_active_work_unit)).to be_nil
+    expect(unit.reload).to be_succeeded
+    expect(lock.reload).not_to be_active
+  end
+
   it "rechecks waiting WorkIntents whose gates now pass" do
     intent = WorkIntent.create!(
       kind: "initial",

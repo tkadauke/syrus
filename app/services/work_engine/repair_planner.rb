@@ -528,6 +528,27 @@ module WorkEngine
         end
       end
 
+      class ClosedJobActiveWorkUnit < Base
+        def plan
+          automatic_plan(
+            "finish_work_unit_for_closed_job",
+            primary_work_unit,
+            "The parent Job is closed and this job-scoped WorkUnit has no Workflow attached, so cancel the stale runtime ownership and release its locks.",
+            execution_steps: [ "WorkUnit#preempt!(job_closed)" ],
+            preconditions: {
+              job_state: "closed",
+              job_closure_reason: issue.evidence["job_closure_reason"],
+              work_unit_state: %w[queued blocked running],
+              work_unit_scope_type: "job",
+              work_unit_scope_id: issue.evidence["job_id"],
+              workflow_id: nil,
+              active_lock_ids: issue.evidence["active_lock_ids"],
+              active_lock_keys: issue.evidence["active_lock_keys"]
+            }
+          )
+        end
+      end
+
       class SupersededActiveWorkflow < Base
         def plan
           automatic_plan(

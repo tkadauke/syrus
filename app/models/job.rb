@@ -631,6 +631,7 @@ class Job < ApplicationRecord
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
+  after_update_commit :finish_stale_job_scoped_work_units_after_close, if: :saved_change_to_closed?
   after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
   after_update_commit :enqueue_close_external_pr, if: :saved_change_to_closed_external_pr_to_close?
   after_update_commit :trigger_insight_if_max_threshold_reached, if: :saved_change_to_closed_coding_job?
@@ -1030,6 +1031,20 @@ class Job < ApplicationRecord
   end
 
   private
+
+  def finish_stale_job_scoped_work_units_after_close
+    WorkUnits::Ownership.active_units_for_job(self).each do |unit|
+      next unless unit.active?
+      next unless unit.scope_type == "job" && unit.scope_id.to_i == id
+
+      workflow = unit.workflow
+      if workflow&.terminal?
+        unit.mark_terminal!(workflow.state)
+      elsif workflow.blank?
+        unit.preempt!(reason: "job_closed")
+      end
+    end
+  end
 
   def generate_slug
     base = issue_title.to_s.parameterize.presence

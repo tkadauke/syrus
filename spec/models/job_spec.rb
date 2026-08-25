@@ -705,6 +705,94 @@ RSpec.describe Job do
       expect(job).not_to be_active_runtime_work
     end
 
+    it "finishes stale job-scoped WorkUnits when the job closes normally" do
+      job = Factories.job_record(state: "landing")
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "succeeded", finished_at: 1.minute.ago)
+      intent = WorkIntent.create!(
+        kind: "auto_merge",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "auto_merge",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+      lock = unit.work_unit_locks.create!(lock_key: "spec:job-close:#{job.id}")
+
+      job.close_with_reason!("pr_merged")
+
+      expect(unit.reload).to be_succeeded
+      expect(lock.reload).not_to be_active
+    end
+
+    it "preempts stale job-scoped WorkUnits with no Workflow when the job closes normally" do
+      job = Factories.job_record(state: "failed")
+      intent = WorkIntent.create!(
+        kind: "retry",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "retry",
+        state: "blocked",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        blocked_reason: "admission_control"
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+      lock = unit.work_unit_locks.create!(lock_key: "spec:job-close-orphan:#{job.id}")
+
+      job.close_with_reason!("cancelled")
+
+      expect(unit.reload).to be_cancelled
+      expect(unit.preemption_reason).to eq("job_closed")
+      expect(lock.reload).not_to be_active
+    end
+
+    it "does not preempt job-scoped WorkUnits whose Workflow is still active while the job is closing" do
+      job = Factories.job_record(state: "landing")
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running", started_at: 1.minute.ago)
+      intent = WorkIntent.create!(
+        kind: "auto_merge",
+        state: "requested",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        actor: job.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "auto_merge",
+        state: "running",
+        repository: job.repository,
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      job.close_with_reason!("pr_merged")
+
+      expect(unit.reload).to be_running
+    end
+
     it "cancels WorkUnit-owned active workflows when closing the job" do
       owner = Factories.job_record(state: "running")
       member = Factories.job_record(user: owner.user, repository: owner.repository, state: "running")

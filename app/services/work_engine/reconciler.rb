@@ -168,6 +168,7 @@ module WorkEngine
       issues = []
       issues.concat(classify_epic_workflow_conflicts)
       issues.concat(classify_closed_jobs_with_active_workflows)
+      issues.concat(classify_closed_jobs_with_active_work_units)
       issues.concat(classify_superseded_active_workflows)
       issues.concat(classify_terminal_workflows_with_active_descendants)
       issues.concat(classify_active_runs_on_terminal_steps)
@@ -985,6 +986,7 @@ module WorkEngine
     def classify_active_work_units_without_workflows
       work_units.select(&:active?).filter_map do |unit|
         next if unit.workflow_id.present?
+        next if closed_job_scoped_unit?(unit)
 
         issue(
           kind: :active_work_unit_without_workflow,
@@ -1296,6 +1298,38 @@ module WorkEngine
       end
     end
 
+    def classify_closed_jobs_with_active_work_units
+      jobs.select(&:closed?).flat_map do |job|
+        work_units
+          .select { |unit| closed_job_stale_work_unit?(job, unit) }
+          .map do |unit|
+            active_locks = unit.work_unit_locks.select(&:active?)
+            issue(
+              kind: :closed_job_active_work_unit,
+              severity: :critical,
+              affected_ids: ids_for(unit).merge(job_ids: (ids_for(unit)[:job_ids] | [ job.id ])),
+              safe_to_auto_repair: true,
+              recommended_repair_action: "finish_work_unit_for_closed_job",
+              evidence: {
+                job_id: job.id,
+                job_finished_at: job.finished_at&.iso8601,
+                job_closure_reason: job.closure_reason,
+                work_unit_id: unit.id,
+                work_unit_kind: unit.kind,
+                work_unit_state: unit.state,
+                work_unit_scope_type: unit.scope_type,
+                work_unit_scope_id: unit.scope_id,
+                workflow_id: unit.workflow_id,
+                workflow_state: unit.workflow&.state,
+                active_lock_ids: active_locks.map(&:id),
+                active_lock_keys: active_locks.map(&:lock_key)
+              },
+              explanation: "Closed Job ##{job.id} still has active job-scoped WorkUnit ##{unit.id}; that stale runtime ownership should be finished."
+            )
+          end
+      end
+    end
+
     def classify_superseded_active_workflows
       jobs.reject(&:closed?).flat_map do |job|
         active = workflows
@@ -1321,6 +1355,19 @@ module WorkEngine
           )
         end
       end
+    end
+
+    def closed_job_stale_work_unit?(job, unit)
+      return false unless unit.active?
+      return false unless unit.scope_type == "job" && unit.scope_id.to_i == job.id
+
+      unit.workflow.nil?
+    end
+
+    def closed_job_scoped_unit?(unit)
+      return false unless unit.scope_type == "job"
+
+      jobs.any? { |job| job.id == unit.scope_id.to_i && job.closed? }
     end
 
     def newer_successful_workflow?(job, source)

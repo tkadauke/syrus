@@ -694,6 +694,36 @@ module WorkEngine
         end
       end
 
+      class FinishWorkUnitForClosedJob < Base
+        def perform
+          unit = target_work_unit
+          return skipped("WorkUnit no longer exists") unless unit
+          return skipped("WorkUnit is #{unit.state}, not active") unless unit.active?
+          return skipped("WorkUnit is not job-scoped") unless unit.scope_type == "job"
+
+          job = Job.find_by(id: unit.scope_id)
+          return skipped("Job ##{unit.scope_id} no longer exists") unless job
+          return skipped("Job ##{job.id} is #{job.state}, not closed") unless job.closed?
+
+          workflow = unit.workflow
+          if workflow&.active?
+            return skipped("Workflow ##{workflow.id} is still active; closed-job workflow repair owns that cleanup")
+          end
+
+          with_transition_reason do
+            if workflow&.terminal?
+              unit.mark_terminal!(workflow.state)
+              @message = "marked WorkUnit ##{unit.id} #{workflow.state} because closed Job ##{job.id}'s Workflow is #{workflow.state}"
+            else
+              unit.preempt!(reason: "job_closed")
+              @message = "cancelled WorkUnit ##{unit.id} because Job ##{job.id} is closed and no Workflow is attached"
+            end
+          end
+
+          success(@message)
+        end
+      end
+
       class CancelTerminalWorkflowActiveDescendants < Base
         def perform
           workflow = target_workflow
