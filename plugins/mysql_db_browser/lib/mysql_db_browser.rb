@@ -13,6 +13,12 @@ module MysqlDbBrowser
       description:     "Register and manage connections to external MySQL databases with encrypted credential storage.",
       homepage:        "https://github.com/tkadauke/syrus",
       author:          "Thomas Kadauke",
+      frontend: {
+        routes: {
+          "mysql_db_browser/MysqlConnections" => "app/frontend/routes/MysqlConnections.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/mysql_db_browser.json" ]
+      },
       routes: [
         {
           verb: "GET",
@@ -44,7 +50,10 @@ module MysqlDbBrowser
           path: "/api/v1/app/admin/mysql_connections/:id/test",
           controller: "api/v1/app/admin/mysql_connections#test_connection"
         }
-      ]
+      ],
+      provides: {
+        sidebar_page: MysqlDbBrowser::SidebarPages
+      }
     )
   end
 

@@ -561,6 +561,7 @@ Rails.application.routes.draw do
   get "dashboard/jobs", to: "spa#show", as: :dashboard_jobs
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
   get "insights/spending", to: "spa#show", as: :insights_spending
+  get "db_browser", to: "spa#show", as: :db_browser
   get "terminal", to: "spa#show", as: :terminal
   get "jobs", to: "spa#show"
   get "workflows", to: redirect(status: 302) { |_params, request|
