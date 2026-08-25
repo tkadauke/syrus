@@ -133,6 +133,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
         "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
       }
     )
+    attach_work_unit(workflow, state: "blocked", blocked_reason: "provider_availability")
     Step.create!(workflow: workflow, kind: "implement", position: 0)
     result = CodexUsageProbe::Result.new(status: "ok", snapshot: { "remaining_percent" => 50.0 }, message: "Codex usage has 50% remaining.")
     allow(CodexUsageProbe).to receive(:refresh_for).and_return(result)
@@ -157,6 +158,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
         "start_blocked_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
       }
     )
+    attach_work_unit(workflow, state: "blocked", blocked_reason: "provider_availability")
     Step.create!(workflow: workflow, kind: "implement", position: 0)
 
     expect {

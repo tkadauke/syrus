@@ -26,7 +26,7 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq(
       "options" => [
-        { "value" => own.id, "label" => "#42 Find me" }
+        { "value" => own.id, "label" => "#{own.slug} - Find me" }
       ]
     )
   end
@@ -42,8 +42,8 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["options"]).to contain_exactly(
-      { "value" => old.id, "label" => "#7 Ancient task" },
-      { "value" => recent.id, "label" => "#8 Recent task" }
+      { "value" => old.id, "label" => "#{old.slug} - Ancient task" },
+      { "value" => recent.id, "label" => "#{recent.slug} - Recent task" }
     )
   end
 

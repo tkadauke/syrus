@@ -15,7 +15,7 @@ RSpec.describe JobStateRepair do
   end
 
   def active_workflow_for(job)
-    Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude")
+    attach_work_unit(Workflow.create!(job: job, trigger_kind: "initial", agent_provider: "claude", state: "running"))
   end
 
   def active_work_unit_for(job, kind: "initial")

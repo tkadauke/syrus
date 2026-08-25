@@ -1,8 +1,8 @@
 class CreateTeamRepositories < ActiveRecord::Migration[8.1]
   def change
     create_table :team_repositories, if_not_exists: true do |t|
-      t.references :team, null: false
-      t.references :repository, null: false
+      t.references :team, null: false, foreign_key: false
+      t.references :repository, null: false, foreign_key: false
       t.string :role, null: false
 
       t.timestamps

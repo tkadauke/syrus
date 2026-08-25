@@ -105,7 +105,7 @@ RSpec.describe Mcp::Tools::ReadEpicTool do
 
     expect(payload[:epic]).to include(
       max_commits_behind_base: 15,
-      furthest_behind_job: { id: furthest.id, slug: "JOB-#{furthest.id}" }
+      furthest_behind_job: { id: furthest.id, slug: furthest.slug }
     )
     expect(payload[:child_jobs]).to include(
       include(id: closer.id, commits_behind_base: 3),

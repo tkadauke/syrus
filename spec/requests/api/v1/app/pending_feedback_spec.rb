@@ -272,12 +272,12 @@ RSpec.describe "App API pending feedback", type: :request do
         handling_failed_at: Time.current,
         handling_failure_reason: "rate_limit"
       )
-      Workflow.create!(
+      attach_work_unit(Workflow.create!(
         job: job,
         trigger_kind: "chat_feedback",
         state: "running",
         artifacts: { "feedback_source" => { "pr_review_comment_id" => comment.id } }
-      )
+      ))
 
       post "/api/v1/app/jobs/#{job.id}/pending_feedback/#{comment.id}/retry"
 

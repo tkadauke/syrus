@@ -127,7 +127,7 @@ RSpec.describe RetryWorkflowEligibility do
     it "is ineligible when another retry workflow is already active" do
       job = make_job
       make_started_workflow(job)
-      Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+      attach_work_unit(Workflow.create!(job: job, trigger_kind: "retry", state: "queued"))
 
       result = described_class.call(job: job)
 

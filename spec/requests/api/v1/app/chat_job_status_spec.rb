@@ -100,6 +100,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
           user: user, repository: repository, state: "running", issue_title: "Impl"
         )
         workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+        attach_work_unit(workflow)
         Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
 
         ChatProposal.create!(
@@ -124,7 +125,8 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         job = Factories.job_record(
           user: user, repository: repository, state: "running", issue_title: "Summarize"
         )
-        Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+        workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "running")
+        attach_work_unit(workflow)
 
         ChatProposal.create!(
           chat_session: chat_session, slug: "retry-job", kind: "job",
@@ -148,6 +150,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
           pr_number: 42
         )
         workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+        attach_work_unit(workflow, state: "queued")
 
         ChatProposal.create!(
           chat_session: chat_session, slug: "needs-changes", kind: "job",
@@ -191,7 +194,8 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         job = Factories.job_record(
           user: user, repository: repository, state: "implemented", issue_title: "Feedback running"
         )
-        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+        workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+        attach_work_unit(workflow, state: "queued")
         ChatProposal.create!(
           chat_session: chat_session, slug: "feedback-running", kind: "job",
           title: "Feedback running", body: "Review me.", state: "confirmed",

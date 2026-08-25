@@ -15,6 +15,7 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
     )
   end
   let(:sha) { "2265abcdef000000000000000000000000000000" }
+  let(:base_sha) { "base#{sha[4..]}" }
   let(:client) { instance_double(GithubClient) }
 
   def server
@@ -44,7 +45,14 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
   end
 
   before do
-    pr = double("PullRequest", head: double("Head", sha: sha))
+    pr = double("PullRequest", head: double("Head", sha: sha), base: double("Base", sha: base_sha))
+    repository.update!(
+      last_health_checked_sha: base_sha,
+      last_ci_evaluated_sha: base_sha,
+      last_graded_sha: base_sha,
+      ci_health: "healthy",
+      grader_health: "healthy"
+    )
     allow(GithubClient).to receive(:for).with(repository: repository, user: admin).and_return(client)
     allow(client).to receive(:pull_request).with("acme/widgets", 2265, bypass_cache: true).and_return(pr)
     allow(client).to receive(:check_runs_detail_for).with("acme/widgets", sha).and_return(

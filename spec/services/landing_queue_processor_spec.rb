@@ -157,7 +157,7 @@ RSpec.describe LandingQueueProcessor do
     retry_at = 10.minutes.from_now
     blocked.start_landing!
     blocked.save!
-    Workflow.create!(
+    workflow = Workflow.create!(
       job: blocked,
       trigger_kind: "auto_merge",
       state: "queued",
@@ -165,6 +165,13 @@ RSpec.describe LandingQueueProcessor do
         "start_blocked_reason" => "landing start blocked: workflow admission budget",
         "start_blocked_next_check_at" => retry_at.iso8601
       }
+    )
+    attach_work_unit(
+      workflow,
+      state: "blocked",
+      blocked_reason: "admission_control",
+      blocked_details: { "start_blocked_reason" => "landing start blocked: workflow admission budget" },
+      blocked_until: retry_at
     )
 
     workflow = described_class.call
@@ -649,6 +656,7 @@ RSpec.describe LandingQueueProcessor do
       state: "queued"
     )
     workflow = Workflows::Initial.instantiate(job: queued)
+    attach_work_unit(workflow, state: "queued")
     first_step = workflow.first_step
     Factories.legacy_job_dependency(job: queued, depends_on_job: first)
     Factories.legacy_job_dependency(job: queued, depends_on_job: second)
@@ -750,7 +758,7 @@ RSpec.describe LandingQueueProcessor do
     retry_at = 5.minutes.from_now
     landing.start_landing!
     landing.save!
-    Workflow.create!(
+    workflow = Workflow.create!(
       job: landing,
       trigger_kind: "auto_merge",
       state: "running",
@@ -758,6 +766,13 @@ RSpec.describe LandingQueueProcessor do
         "start_blocked_reason" => "landing start blocked: workflow admission budget",
         "start_blocked_next_check_at" => retry_at.iso8601
       }
+    )
+    attach_work_unit(
+      workflow,
+      state: "blocked",
+      blocked_reason: "admission_control",
+      blocked_details: { "start_blocked_reason" => "landing start blocked: workflow admission budget" },
+      blocked_until: retry_at
     )
 
     described_class.refresh_snapshot!(Job.where(id: [ landing.id, ready.id ]))

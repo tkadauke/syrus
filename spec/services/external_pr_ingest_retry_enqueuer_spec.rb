@@ -24,7 +24,7 @@ RSpec.describe ExternalPrIngestRetryEnqueuer do
 
   it "rejects when a workflow is already active for the Job" do
     job = same_repo_job
-    Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "queued")
+    attach_work_unit(Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "queued"))
 
     result = described_class.call(job: job)
 

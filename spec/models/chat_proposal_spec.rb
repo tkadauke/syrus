@@ -239,6 +239,7 @@ RSpec.describe ChatProposal do
 
   def queued_workflow_for(job)
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+    attach_work_unit(workflow, state: "queued")
     first_step = Step.create!(workflow: workflow, kind: "implement", position: 0)
     [ workflow, first_step ]
   end

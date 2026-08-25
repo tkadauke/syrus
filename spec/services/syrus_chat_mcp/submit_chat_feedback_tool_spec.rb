@@ -152,7 +152,7 @@ RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
 
   it "rejects duplicate active chat_feedback workflows" do
     job = Factories.job_record(repository: repository, state: "implemented")
-    Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+    attach_work_unit(Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running"))
 
     response = call_tool(job_id: job.id, feedback: "Adjust this.")
 

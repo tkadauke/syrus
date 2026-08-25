@@ -95,21 +95,25 @@ module WorkUnits
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return {} if ids.empty?
 
-      result = {}
-      unit_scope = active_unit_members_for_job_ids(ids, kinds: kinds, states: states)
+      unit_scope = WorkUnitMember
         .joins(work_unit: :workflow)
+        .where(job_id: ids, work_units: { state: Array(states).map(&:to_s) })
+      unit_scope = unit_scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       unit_scope = unit_scope.where(workflows: { agent_provider: agent_provider.to_s }) if agent_provider.present?
 
-      unit_scope
+      rows = unit_scope
         .order(active_priority_order)
-        .each do |member|
-          workflow = member.work_unit.workflow
-          next unless workflow
+        .pluck("work_unit_members.job_id", "work_units.workflow_id")
 
-          result[member.job_id] ||= workflow
-        end
+      workflow_ids = rows.map(&:second).compact.uniq
+      workflows_by_id = Workflow.where(id: workflow_ids).index_by(&:id)
 
-      result
+      rows.each_with_object({}) do |(job_id, workflow_id), result|
+        workflow = workflows_by_id[workflow_id]
+        next unless workflow
+
+        result[job_id] ||= workflow
+      end
     end
 
     def self.active_trigger_kinds_by_job_id(job_ids)

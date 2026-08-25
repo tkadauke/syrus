@@ -17,16 +17,46 @@ module App
     end
 
     def job_slug(job_or_id)
-      persisted_slug = job_or_id[:slug] if job_or_id.respond_to?(:has_attribute?) && job_or_id.has_attribute?(:slug)
-      return persisted_slug if persisted_slug.present?
+      if job_or_id.respond_to?(:has_attribute?) && job_or_id.has_attribute?(:slug)
+        persisted_slug = job_or_id[:slug]
+        return persisted_slug if persisted_slug.present?
+        return "JOB-#{job_or_id.id}" if job_or_id.respond_to?(:id)
+      end
 
       id = job_or_id.respond_to?(:id) ? job_or_id.id : job_or_id
+      cached_slug = job_slug_cache[id.to_i]
+      return cached_slug if cached_slug.present?
+
+      persisted_slug = Job.where(id: id).pick(:slug) if id.to_i.positive?
+      return persisted_slug if persisted_slug.present?
+
       "JOB-#{id}"
+    end
+
+    def with_job_slug_cache(jobs)
+      previous_cache = Thread.current[:app_presentation_job_slug_cache]
+      merged_cache = previous_cache.to_h.merge(
+        Array(jobs).compact.each_with_object({}) do |job, cache|
+          next unless job.respond_to?(:id)
+          next unless job.respond_to?(:has_attribute?) && job.has_attribute?(:slug)
+
+          cache[job.id.to_i] = job[:slug] if job[:slug].present?
+        end
+      )
+
+      Thread.current[:app_presentation_job_slug_cache] = merged_cache
+      yield
+    ensure
+      Thread.current[:app_presentation_job_slug_cache] = previous_cache
     end
 
     def epic_slug(epic_or_number)
       number = epic_or_number.respond_to?(:number) ? epic_or_number.number : epic_or_number
       "EPIC-#{number}"
+    end
+
+    def job_slug_cache
+      Thread.current[:app_presentation_job_slug_cache].to_h
     end
 
     # Generic install URL (operator picks repos in GitHub's UI). Used by

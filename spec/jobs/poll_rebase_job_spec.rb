@@ -211,6 +211,7 @@ RSpec.describe PollRebaseJob do
     it "skips when a rebase Workflow is already active on this Job" do
       stub_pr(pr_resource(mergeable: false))
       workflow = Workflows::Rebase.instantiate(job: job)
+      attach_work_unit(workflow, state: "queued")
       workflow.first_step.runs.create!(job: job, trigger_kind: "rebase", agent_provider: job.agent_provider)
       expect {
         described_class.perform_now(job.id)
@@ -361,6 +362,7 @@ RSpec.describe PollRebaseJob do
       PollRebaseJob::CONCURRENT_REBASES_PER_REPO.times do |i|
         sibling = Factories.job(user: user, repository: repository, issue_number: 100 + i, pr_number: 200 + i)
         workflow = Workflows::Rebase.instantiate(job: sibling)
+        attach_work_unit(workflow, state: "queued")
         workflow.first_step.runs.create!(job: sibling, trigger_kind: "rebase", agent_provider: sibling.agent_provider)
       end
 

@@ -187,7 +187,7 @@ module Admin
         trigger_kind: workflow.trigger_kind,
         state: workflow.state,
         failure_reason: workflow.failure_reason.presence || workflow.artifact("failure_reason").presence,
-        start_blocked_reason: start_block.reason,
+        start_blocked_reason: start_block.data[:reason] || start_block.reason,
         start_blocked_details: start_block.details,
         start_blocked_next_check_at: start_block.next_check_at&.iso8601,
         run_count: runs.size,
@@ -496,25 +496,7 @@ module Admin
     end
 
     def recommended_action(payload)
-      if (blocked_unit = blocked_work_unit(payload))
-        return action(
-          "wait",
-          "WorkUnit ##{blocked_unit[:id]} is blocked by #{blocked_unit[:blocked_reason]}.",
-          work_unit_id: blocked_unit[:id],
-          blocked_reason: blocked_unit[:blocked_reason],
-          next_check_at: blocked_unit[:blocked_until]
-        )
-      end
-      if (state_plan = ReconcileJobStatesJob::Plan.for(job))
-        return action(
-          "reconcile_job_state",
-          state_plan.reason,
-          target_state: state_plan.target_state,
-          workflow_id: job.latest_workflow&.id
-        )
-      end
       return action("inspect_logs", "A running Run has a stale heartbeat.", run_id: stale_heartbeat_run_id(payload)) if stale_heartbeat_run_id(payload)
-      return action("inspect_logs", "Latest failure evidence points at grader logs.", run_id: grader_failure_run_id(payload)) if grader_failure_run_id(payload)
       if no_effective_ci_repair?
         if rebase_recommended?(payload)
           return action(
@@ -537,6 +519,24 @@ module Admin
           next_check_at: blocked_landing[:start_blocked_next_check_at]
         )
       end
+      if (blocked_unit = blocked_work_unit(payload))
+        return action(
+          "wait",
+          "WorkUnit #{blocked_unit[:id]} is blocked by #{blocked_unit[:blocked_reason]}.",
+          work_unit_id: blocked_unit[:id],
+          blocked_reason: blocked_unit[:blocked_reason],
+          next_check_at: blocked_unit[:blocked_until]
+        )
+      end
+      if (state_plan = ReconcileJobStatesJob::Plan.for(job))
+        return action(
+          "reconcile_job_state",
+          state_plan.reason,
+          target_state: state_plan.target_state,
+          workflow_id: job.latest_workflow&.id
+        )
+      end
+      return action("inspect_logs", "Latest failure evidence points at grader logs.", run_id: grader_failure_run_id(payload)) if grader_failure_run_id(payload)
       return action("manual_intervention", "Dependency graph has unresolved, redundant, or multiple leaf blockers.") if dependency_intervention_needed?(payload)
       return action("retry_job", "The latest workflow failed and no narrower repair action was detected.", workflow_id: job.latest_workflow&.id) if job.latest_workflow&.failed? || job.failed?
       return action("wait", "The Job has active queued or running workflow work.") if payload.dig(:workflows, :active).present?

@@ -11,7 +11,7 @@ RSpec.describe Maintenance::ReleaseStuckEpicBlockedJobs do
       state: "implemented", branch_name: "syrus/issue-42", pr_number: 7
     )
     job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "blocked_by_epic")
-    Workflows::Initial.instantiate(job: job)
+    attach_work_unit(Workflows::Initial.instantiate(job: job), state: "queued")
     JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
     prerequisite.update_columns(state: "approved")
 
@@ -49,7 +49,7 @@ RSpec.describe Maintenance::ReleaseStuckEpicBlockedJobs do
   it "is idempotent: re-running after all jobs are released returns zero released" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "blocked_by_epic")
-    Workflows::Initial.instantiate(job: job)
+    attach_work_unit(Workflows::Initial.instantiate(job: job), state: "queued")
 
     first = described_class.call
     second = described_class.call

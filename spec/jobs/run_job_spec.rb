@@ -142,10 +142,6 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.steps.pluck(:kind, :state)).to eq([
         [ "prepare",          "succeeded" ],
         [ "implement",        "succeeded" ],
-        [ "format",           "succeeded" ],
-        [ "generate",         "succeeded" ],
-        [ "grader_fanout",    "succeeded" ],
-        [ "grader_collect",   "succeeded" ],
         [ "coverage_analyze", "succeeded" ],
         [ "dependency_audit", "succeeded" ],
         [ "summarize",        "succeeded" ],
@@ -267,10 +263,6 @@ RSpec.describe RunJob, :ci_only do
       expect(kinds_and_states).to eq([
         [ "prepare",              "succeeded" ],
         [ "respond",              "succeeded" ],
-        [ "format",               "succeeded" ],
-        [ "generate",             "succeeded" ],
-        [ "grader_fanout",        "succeeded" ],
-        [ "grader_collect",       "succeeded" ],
         [ "coverage_analyze",     "succeeded" ],
         [ "coverage_pr_comment",  "succeeded" ],
         [ "dependency_audit",           "succeeded" ],

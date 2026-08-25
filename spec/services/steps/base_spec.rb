@@ -207,7 +207,7 @@ RSpec.describe Steps::Base do
 
       expect(received_prompt).to start_with("Agent environment snapshot:")
       expect(received_prompt).to include("Repository: #{job.repository.slug}")
-      expect(received_prompt).to include("Workflow: ##{workflow.id} trigger=initial")
+      expect(received_prompt).to include("Workflow: #{workflow.slug} trigger=initial")
       expect(received_prompt).to include("MCP/tools: run sidecar `syrus-mcp-sidecar`")
       expect(received_prompt).to include("repair the aqueduct")
     end

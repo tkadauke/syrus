@@ -216,7 +216,7 @@ RSpec.describe PollForkReviewPrJob do
     end
 
     it "skips comment polling when an active pr_comment workflow is already pending" do
-      Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued")
+      attach_work_unit(Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued"))
       stub_issue_comments([
         { id: 1, body: "More feedback", user: { login: "reviewer" }, created_at: t1.iso8601 }
       ])

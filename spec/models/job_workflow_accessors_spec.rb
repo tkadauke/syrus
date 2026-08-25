@@ -191,13 +191,15 @@ RSpec.describe JobWorkflowAccessors do
 
     it "returns the trigger_kind of the active workflow" do
       create_workflow(state: "succeeded", finished_at: 1.hour.ago)
-      create_workflow(state: "running", trigger_kind: "auto_merge", finished_at: nil)
+      attach_work_unit(create_workflow(state: "running", trigger_kind: "auto_merge", finished_at: nil))
       expect(job.reload.active_workflow_trigger_kind).to eq("auto_merge")
     end
 
     it "returns the latest active workflow's trigger_kind when multiple are active" do
       earlier = create_workflow(state: "queued",   trigger_kind: "initial",    finished_at: nil)
       later   = create_workflow(state: "running",  trigger_kind: "pr_comment", finished_at: nil)
+      attach_work_unit(earlier)
+      attach_work_unit(later)
       expect(later.id).to be > earlier.id
 
       result = job.reload.active_workflow_trigger_kind
@@ -233,6 +235,7 @@ RSpec.describe JobWorkflowAccessors do
       it "returns the same result as the SQL path" do
         create_workflow(state: "succeeded", finished_at: 1.hour.ago)
         active = create_workflow(state: "running", trigger_kind: "retry", finished_at: nil)
+        attach_work_unit(active)
 
         job.workflows.load
         expect(job.active_workflow_trigger_kind).to eq("retry")

@@ -61,6 +61,15 @@ RSpec.describe Admin::StuckJobExplainer do
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
     )
+    attach_work_unit(
+      workflow,
+      state: "blocked",
+      blocked_reason: "admission_control",
+      blocked_details: workflow.artifacts.fetch("start_blocked_details").merge(
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON
+      ),
+      blocked_until: Time.iso8601(workflow.artifacts.fetch("start_blocked_next_check_at"))
+    )
 
     payload = described_class.call(job.reload, github_client: no_github_client)
 

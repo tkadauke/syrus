@@ -15,6 +15,7 @@ RSpec.describe WorkflowAdmissionControlWakeup do
         "start_blocked_details" => { "action" => "delay_until" }
       }
     )
+    attach_work_unit(workflow, state: "blocked", blocked_reason: "admission_control", blocked_details: { "action" => "delay_until" })
 
     expect {
       result = described_class.call
@@ -34,6 +35,7 @@ RSpec.describe WorkflowAdmissionControlWakeup do
         "start_blocked_details" => { "action" => "delay_until" }
       }
     )
+    attach_work_unit(workflow, state: "blocked", blocked_reason: "admission_control", blocked_details: { "action" => "delay_until" })
 
     expect {
       result = described_class.call
@@ -51,6 +53,7 @@ RSpec.describe WorkflowAdmissionControlWakeup do
         "pause_reason" => StepDispatcher::MANUAL_PAUSE_REASON
       }
     )
+    attach_work_unit(manual_workflow, state: "blocked", blocked_reason: WorkUnits::Gates::ManualPause::REASON)
     provider_job = Factories.job_record(user: user, repository: repository, state: "queued")
     provider_workflow = Workflows::Initial.instantiate(job: provider_job, agent_provider: "codex")
     provider_workflow.update!(
@@ -59,6 +62,7 @@ RSpec.describe WorkflowAdmissionControlWakeup do
         "pause_reason" => StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON
       }
     )
+    attach_work_unit(provider_workflow, state: "blocked", blocked_reason: "provider_availability")
 
     expect {
       result = described_class.call

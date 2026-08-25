@@ -510,7 +510,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "skips when an active pr_comment Workflow is already pending" do
-      Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued")
+      workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued")
+      attach_work_unit(workflow, state: "queued")
       stub_issue_comments([
         { id: 1, body: "more feedback", user: { login: "reviewer" }, created_at: t1.iso8601 }
       ])
@@ -979,7 +980,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "skips when an active ci_failure Workflow is already pending" do
-      Workflow.create!(job: job, trigger_kind: "ci_failure", state: "queued")
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "queued")
+      attach_work_unit(workflow, state: "queued")
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
           html_url: "u", output: { summary: "fail" } }
@@ -1601,7 +1603,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
         reviewer_user  # trigger creation
         fork_job.mark_implemented! if fork_job.may_mark_implemented?
         fork_job.update!(state: "implemented")
-        Workflow.create!(job: fork_job, trigger_kind: "chat_feedback", state: "running")
+        workflow = Workflow.create!(job: fork_job, trigger_kind: "chat_feedback", state: "running")
+        attach_work_unit(workflow, state: "running")
 
         stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
           status: 200, headers: { "Content-Type" => "application/json" },
@@ -1747,7 +1750,8 @@ RSpec.describe PollPullRequestJob, :ci_only do
     it "does not re-approve a Job whose chat_feedback workflow is still queued or running" do
       user.update!(github_handle: "reviewer")
       job.update!(state: "implemented")
-      Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+      workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+      attach_work_unit(workflow, state: "running")
       stub_reviews([
         { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
           html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",

@@ -3959,7 +3959,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["message"]).to match(/\AProposal confirmed and filed as JOB-\d+\.\z/)
+    expect(parse_body["message"]).to eq("Proposal confirmed and filed as #{confirmed.reload.job.slug}.")
     expect(parse_body).to include("proposal", "messages")
     expect(parse_body).not_to include("chat", "recent_chats", "attachment_groups")
     expect(parse_body["pending_proposal_count"]).to eq(1)

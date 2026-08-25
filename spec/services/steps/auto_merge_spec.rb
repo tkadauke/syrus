@@ -143,6 +143,7 @@ RSpec.describe Steps::AutoMerge do
     job.save!
     existing = Workflows::Rebase.instantiate(job: job)
     existing.update!(state: "running")
+    attach_work_unit(existing)
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "behind"))
     allow(WorkUnits::Launcher).to receive(:start!)
 

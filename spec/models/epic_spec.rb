@@ -1008,6 +1008,7 @@ RSpec.describe Epic do
     epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
     job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "queued")
     replay_workflow = Workflow.create!(job: job, trigger_kind: "replay", agent_provider: "claude", priority: "medium")
+    attach_work_unit(replay_workflow)
 
     expect {
       job.restore_epic_block_if_not_started!

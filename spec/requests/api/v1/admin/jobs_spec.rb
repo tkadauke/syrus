@@ -571,7 +571,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
         finish_work_units_for(job_124)
         finish_work_units_for(job_125)
 
-        Workflow.create!(job: job_125, trigger_kind: "rebase", state: "running")
+        attach_work_unit(Workflow.create!(job: job_125, trigger_kind: "rebase", state: "running"))
 
         get "/api/v1/admin/jobs", params: { has_active_workflow: "true" }, headers: auth(admin_token)
         ids = parse_body["jobs"].map { |j| j["id"] }

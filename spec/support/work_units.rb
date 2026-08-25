@@ -1,6 +1,6 @@
 module WorkUnitsSpecHelpers
-  def attach_work_unit(workflow, state: workflow.state, blocked_reason: nil, blocked_details: nil, blocked_until: nil, member_jobs: nil, kind: nil)
-    job = workflow.job
+  def attach_work_unit(workflow, state: workflow.state, blocked_reason: nil, blocked_details: nil, blocked_until: nil, member_jobs: nil, kind: nil, job: nil)
+    job ||= workflow.job
     raise ArgumentError, "workflow must have a job" unless job
 
     definition = WorkDefinitions.for(kind || work_unit_definition_kind_for(workflow))

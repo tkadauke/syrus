@@ -164,6 +164,7 @@ RSpec.describe "App API job run commands", type: :request do
   it "does not stack rebase workflows" do
     job.update!(pr_number: 7)
     workflow = Workflows::Rebase.instantiate(job: job)
+    attach_work_unit(workflow, job: job, kind: "rebase", state: "queued")
     workflow.first_step.runs.create!(job: job, trigger_kind: "rebase", agent_provider: job.agent_provider)
 
     expect {
@@ -210,7 +211,12 @@ RSpec.describe "App API job run commands", type: :request do
     end
 
     it "rejects when a workflow is already active for the Job" do
-      Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "queued")
+      attach_work_unit(
+        Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "queued"),
+        job: external_job,
+        kind: "external_pr_ingest",
+        state: "queued"
+      )
 
       expect {
         post app_external_job_path("/retry_pr_ingestion"), as: :json

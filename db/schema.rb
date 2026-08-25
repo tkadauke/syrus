@@ -2556,6 +2556,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_182817) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "chat_messages", "users", column: "deleted_by_user_id"
-  add_foreign_key "chat_sessions", "users", column: "deleted_by_user_id"
 end

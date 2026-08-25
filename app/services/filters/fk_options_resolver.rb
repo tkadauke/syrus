@@ -67,9 +67,9 @@ module Filters
       when "parent_job_id", "job_id"
         job_id = slug_number(query, "JOB")
         if job_id
-          scope.where("jobs.issue_title LIKE ? OR jobs.id = ?", pattern, job_id)
+          scope.where("jobs.issue_title LIKE ? OR jobs.id = ? OR jobs.slug LIKE ?", pattern, job_id, pattern)
         else
-          scope.where("jobs.issue_title LIKE ?", pattern)
+          scope.where("jobs.issue_title LIKE ? OR jobs.slug LIKE ?", pattern, pattern)
         end
       when "tags"
         scope.where("tags.name LIKE ?", pattern)
@@ -119,7 +119,7 @@ module Filters
       when "epic_id"
         Filters::Schema.epic_label(record)
       when "parent_job_id", "job_id"
-        "##{record.issue_number || record.id} #{record.issue_title}".strip
+        [ record.slug, record.issue_title ].compact_blank.join(" - ")
       when "tags"
         record.name
       when "hostname"

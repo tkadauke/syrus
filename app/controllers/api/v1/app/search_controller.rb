@@ -227,9 +227,13 @@ module Api
 
         def job_slug_rows(query)
           job_ids = query.scan(/\bJOB-(\d+)\b/i).flatten.map(&:to_i).uniq
-          return [] if job_ids.empty?
+          exact_slug = query.to_s.strip
+          return [] if job_ids.empty? && exact_slug.blank?
 
-          Current.user.jobs.where(id: job_ids).map do |job|
+          Current.user.jobs.where(id: job_ids)
+            .or(Current.user.jobs.where(slug: job_ids.map { |id| "JOB-#{id}" }))
+            .or(Current.user.jobs.where(slug: exact_slug))
+            .map do |job|
             {
               job_id: job.id,
               rank: -1.0,

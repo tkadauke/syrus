@@ -1252,8 +1252,8 @@ RSpec.describe "App API job detail", type: :request do
         "id" => "job_#{job_a.id}",
         "kind" => "job",
         "state" => "open",
-        "label" => "JOB-#{job_a.id} Alpha",
-        "url" => "/jobs/JOB-#{job_a.id}",
+        "label" => "#{job_a.slug} Alpha",
+        "url" => "/jobs/#{job_a.slug}",
         "epic_id" => nil,
         "is_focal" => false
       )

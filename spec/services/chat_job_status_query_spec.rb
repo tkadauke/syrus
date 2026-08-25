@@ -166,6 +166,7 @@ RSpec.describe ChatJobStatusQuery do
         agent_provider: "claude",
         state: "running"
       )
+      attach_work_unit(workflow, member_jobs: [ job ])
       Step.create!(
         workflow: workflow,
         kind: "implement",
@@ -194,6 +195,7 @@ RSpec.describe ChatJobStatusQuery do
         agent_provider: "claude",
         state: "queued"
       )
+      attach_work_unit(workflow, member_jobs: [ job ], state: "queued")
 
       result = described_class.call(session)
 
@@ -254,6 +256,7 @@ RSpec.describe ChatJobStatusQuery do
           state: "running",
           position: 1
         )
+        attach_work_unit(workflow, member_jobs: [ job ])
       end
 
       sql_count = count_sql { described_class.call(session) }

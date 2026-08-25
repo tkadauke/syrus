@@ -89,6 +89,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
         created_at: (ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD + 1.minute).ago,
         updated_at: (ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD + 1.minute).ago
       )
+      attach_work_unit(workflow, state: "queued")
       Step.create!(workflow: workflow, kind: "mergeability_preflight", position: 0)
 
       get "/api/v1/admin/stuck", headers: auth
@@ -216,6 +217,13 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
           }
         }
       })
+      attach_work_unit(
+        workflow,
+        state: "blocked",
+        blocked_reason: "admission_control",
+        blocked_details: workflow.artifacts.fetch("start_blocked_details"),
+        blocked_until: Time.iso8601(workflow.artifacts.fetch("start_blocked_next_check_at"))
+      )
 
       get "/api/v1/admin/overview", params: { page: "resource_admission" }, headers: auth
 
