@@ -735,6 +735,43 @@ RSpec.describe Job do
       expect(lock.reload).not_to be_active
     end
 
+    it "finishes stale member WorkUnits when a member job closes normally" do
+      owner = Factories.job_record(state: "landing")
+      member = Factories.job_record(user: owner.user, repository: owner.repository, state: "landing")
+      workflow = Workflow.create!(
+        job: owner,
+        trigger_kind: "merge_train",
+        state: "succeeded",
+        finished_at: 1.minute.ago
+      )
+      intent = WorkIntent.create!(
+        kind: "merge_train",
+        state: "requested",
+        repository: owner.repository,
+        scope_type: "repository",
+        scope_id: owner.repository_id,
+        actor: owner.user,
+        source_type: "spec"
+      )
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "job_bundle",
+        state: "running",
+        repository: owner.repository,
+        scope_type: "repository",
+        scope_id: owner.repository_id,
+        workflow: workflow
+      )
+      unit.work_unit_members.create!(job: owner, role: "primary")
+      unit.work_unit_members.create!(job: member, role: "member")
+      lock = unit.work_unit_locks.create!(lock_key: "job:#{member.id}")
+
+      member.close_with_reason!("pr_merged")
+
+      expect(unit.reload).to be_succeeded
+      expect(lock.reload).not_to be_active
+    end
+
     it "preempts stale job-scoped WorkUnits with no Workflow when the job closes normally" do
       job = Factories.job_record(state: "failed")
       intent = WorkIntent.create!(
