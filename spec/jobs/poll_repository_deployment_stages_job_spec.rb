@@ -11,7 +11,9 @@ RSpec.describe PollRepositoryDeploymentStagesJob do
     missing_one = Factories.job_record(repository: repository, landed_sha: "sha2", state: "closed", issue_number: 101)
     obsolete_only = Factories.job_record(repository: repository, landed_sha: "sha4", state: "closed", issue_number: 104)
     complete = Factories.job_record(repository: repository, landed_sha: "sha3", state: "closed", issue_number: 102)
+    stale = Factories.job_record(repository: repository, landed_sha: "sha5", state: "closed", issue_number: 105)
     Factories.job_record(repository: repository, landed_sha: nil, state: "closed", issue_number: 103)
+    stale.update_column(:finished_at, 30.days.ago)
 
     JobDeploymentStageStatus.create!(job: missing_one, stage_name: "staging", reached_at: Time.current)
     JobDeploymentStageStatus.create!(job: obsolete_only, stage_name: "old_stage", reached_at: Time.current)
@@ -24,6 +26,7 @@ RSpec.describe PollRepositoryDeploymentStagesJob do
       expect(args[:repository]).to eq(repository)
       expect(args[:deployment_stages]).to eq([ staging, production ])
       expect(args[:jobs]).to contain_exactly(missing_all, missing_one, obsolete_only)
+      expect(args[:jobs]).not_to include(stale)
       detector
     end
 

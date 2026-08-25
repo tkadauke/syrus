@@ -1,6 +1,8 @@
 class PollRepositoryDeploymentStagesJob < ApplicationJob
   queue_as :polling
 
+  LOOKBACK = (Integer(ENV["SYRUS_DEPLOYMENT_STAGE_POLL_LOOKBACK_DAYS"], exception: false) || 14).days
+
   limits_concurrency to: 1, key: ->(repo_id) { "deployment_stage_poll:#{repo_id}" }
 
   def perform(repository_id)
@@ -31,6 +33,7 @@ class PollRepositoryDeploymentStagesJob < ApplicationJob
 
     repository.jobs
       .where.not(landed_sha: [ nil, "" ])
+      .where("jobs.finished_at IS NULL OR jobs.finished_at >= ?", LOOKBACK.ago)
       .left_joins(:deployment_stage_statuses)
       .group("jobs.id")
       .having(
