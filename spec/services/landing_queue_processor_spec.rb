@@ -467,6 +467,16 @@ RSpec.describe LandingQueueProcessor do
     expect(job.reload).to be_landing
   end
 
+  it "does not block approved Jobs for broken main when the repository pause policy is disabled" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    repository.update!(ci_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false)
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(job)
+    expect(job.reload).to be_landing
+  end
+
   it "does not block approved Jobs solely because main health is inconclusive" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     repository.update!(ci_health: "not_configured", grader_health: "inconclusive", landing_paused: true)

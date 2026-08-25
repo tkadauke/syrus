@@ -2388,6 +2388,14 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
     }.to change { s1.runs.count }.by(1)
   end
 
+  it "starts the workflow when broken-main work pausing is disabled" do
+    job_model.repository.update!(ci_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false)
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
   it "starts the workflow normally when main_health is healthy" do
     job_model.repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: true)
     expect {
