@@ -34,14 +34,26 @@ class OperationalLogIndex < SearchRecord
     end
 
     def delete_many(event_ids)
-      Array(event_ids).filter_map { |id| Integer(id, exception: false) }.uniq.each_slice(500) do |ids|
-        next if ids.empty?
+      compact_id_ranges(event_ids).each_slice(250) do |ranges|
+        next if ranges.empty?
 
-        placeholders = ([ "?" ] * ids.size).join(", ")
+        clauses = []
+        binds = []
+        ranges.each do |first_id, last_id|
+          if first_id == last_id
+            clauses << "rowid = ?"
+            binds << bind(first_id)
+          else
+            clauses << "rowid BETWEEN ? AND ?"
+            binds << bind(first_id)
+            binds << bind(last_id)
+          end
+        end
+
         connection.exec_delete(
-          "DELETE FROM operational_log_fts WHERE rowid IN (#{placeholders})",
+          "DELETE FROM operational_log_fts WHERE #{clauses.join(" OR ")}",
           "OperationalLogIndex Delete Many",
-          ids.map { |id| bind(id) }
+          binds
         )
       end
     end
@@ -185,6 +197,26 @@ class OperationalLogIndex < SearchRecord
     end
 
     private
+
+    def compact_id_ranges(event_ids)
+      ids = Array(event_ids).filter_map { |id| Integer(id, exception: false) }.uniq.sort
+      return [] if ids.empty?
+
+      ranges = []
+      range_start = ids.first
+      previous = ids.first
+
+      ids.drop(1).each do |id|
+        if id == previous + 1
+          previous = id
+        else
+          ranges << [ range_start, previous ]
+          range_start = previous = id
+        end
+      end
+
+      ranges << [ range_start, previous ]
+    end
 
     def insert_many(events)
       events.each_slice(50) do |batch|

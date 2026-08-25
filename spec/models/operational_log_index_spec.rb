@@ -140,6 +140,43 @@ RSpec.describe OperationalLogIndex do
     expect(results.map { |row| row[:operational_log_event_id] }).to eq([ older.id ])
   end
 
+  it "compresses contiguous delete batches into rowid ranges" do
+    events = 3.times.map { |index| event(message: "contiguous #{index}") }
+    events.each { |record| described_class.upsert(record) }
+
+    delete_sql = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      delete_sql << payload[:sql] if payload[:name] == "OperationalLogIndex Delete Many"
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.delete_many(events.map(&:id))
+    end
+
+    expect(delete_sql).to eq([ "DELETE FROM operational_log_fts WHERE rowid BETWEEN ? AND ?" ])
+    expect(described_class.search(query: "contiguous", since: 1.hour.ago)).to be_empty
+  end
+
+  it "keeps sparse delete batches precise while still using compact ranges" do
+    first = event(message: "sparse first")
+    second = event(message: "sparse second")
+    third = event(message: "sparse third")
+    fourth = event(message: "sparse fourth")
+    [ first, second, third, fourth ].each { |record| described_class.upsert(record) }
+
+    delete_sql = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      delete_sql << payload[:sql] if payload[:name] == "OperationalLogIndex Delete Many"
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.delete_many([ first.id, second.id, fourth.id ])
+    end
+
+    expect(delete_sql).to eq([ "DELETE FROM operational_log_fts WHERE rowid BETWEEN ? AND ? OR rowid = ?" ])
+    expect(described_class.search(query: "sparse", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to eq([ third.id ])
+  end
+
   def upsert_query_count
     count = 0
     callback = lambda do |_name, _started, _finished, _id, payload|
