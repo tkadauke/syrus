@@ -825,10 +825,11 @@ class LandingQueueProcessor
   end
 
   def active_landing_start_blocker_retry_after(job)
-    workflow = job.workflows
-      .active
+    workflow_ids = WorkUnits::Ownership.active_workflow_ids([ job.id ], kinds: WorkDefinitions.landing_work_unit_kinds).to_a
+    workflow = Workflow
+      .where(id: workflow_ids)
       .where(trigger_kind: WorkDefinitions.landing_workflow_kinds)
-      .reorder(id: :desc)
+      .order(id: :desc)
       .detect { |wf| WorkUnits::StartBlock.for(wf).landing_start_blocker? }
     retry_after = workflow ? WorkUnits::StartBlock.for(workflow).next_check_at : nil
     retry_after if retry_after&.future?
@@ -886,12 +887,11 @@ class LandingQueueProcessor
   end
 
   def ci_failure_workflow_epic_sibling(job)
-    job.epic.work_jobs
-       .where.not(id: job.id)
-       .joins(:workflows)
-       .where(workflows: { state: %w[running queued], trigger_kind: "ci_failure" })
-       .order(:id)
-       .first
+    siblings = job.epic.work_jobs.where.not(id: job.id).order(:id).to_a
+    return nil if siblings.empty?
+
+    active_trigger_kinds_by_job_id = WorkUnits::Ownership.active_trigger_kind_lists_by_job_id(siblings.map(&:id))
+    siblings.find { |sibling| active_trigger_kinds_by_job_id[sibling.id].to_a.include?("ci_failure") }
   end
 
   def pr_checks_unclean_epic_sibling(job)

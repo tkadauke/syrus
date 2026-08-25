@@ -1034,6 +1034,18 @@ RSpec.describe LandingQueueProcessor do
       expect(entry.waiting_for_jobs.map(&:id)).to eq([sibling.id])
     end
 
+    it "ignores an unowned queued ci_failure workflow on an Epic sibling" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      ready = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+      sibling = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+      Workflow.create!(job: sibling, trigger_kind: "ci_failure", state: "queued", agent_provider: sibling.agent_provider)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(ready)
+      expect(ready.reload).to be_landing
+    end
+
     it "blocks an Epic member when a sibling's PR checks are failing" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       ready = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
