@@ -7,6 +7,7 @@ export interface ModalProps {
   onClose: () => void
   children: ReactNode
   className?: string
+  backdropClassName?: string
   label?: string
   labelledBy?: string
   closeOnBackdropClick?: boolean
@@ -16,6 +17,9 @@ export interface ModalProps {
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+const DEFAULT_BACKDROP_CLASSES = "fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+const DEFAULT_PANEL_CLASSES = "w-full max-w-sm rounded-lg bg-surface p-5 shadow-xl"
 
 // Shared modal/dialog primitive: portal, backdrop, escape-key close,
 // backdrop-click close, and a basic focus trap in one place instead of
@@ -27,7 +31,8 @@ export function Modal({
   open,
   onClose,
   children,
-  className = "",
+  className,
+  backdropClassName,
   label,
   labelledBy,
   closeOnBackdropClick = true,
@@ -89,12 +94,12 @@ export function Modal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onBackdropClick} role="presentation">
+    <div className={backdropClassName || DEFAULT_BACKDROP_CLASSES} onClick={onBackdropClick} role="presentation">
       <div
         aria-label={labelledBy ? undefined : label}
         aria-labelledby={labelledBy}
         aria-modal="true"
-        className={`w-full max-w-sm rounded-lg bg-surface p-5 shadow-xl ${className}`.trim()}
+        className={className || DEFAULT_PANEL_CLASSES}
         ref={panelRef}
         role="dialog"
         tabIndex={-1}

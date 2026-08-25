@@ -15,6 +15,7 @@ import { syncAdminGithubAppInstallations } from "../api/adminGithubApp"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { CloseIcon } from "./CloseIcon"
+import { Modal } from "./Modal"
 import { useT } from "../hooks/useT"
 
 type OwnerOption = { login: string; type: "user" | "org" }
@@ -34,14 +35,6 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
   const [ownersNotice, setOwnersNotice] = useState<string | null>(null)
   const [reposNotice, setReposNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
 
   // Seed defaults from the standard new-repository form, then apply the
   // onboarding overrides: auto-merge on, inherit the user's default agent,
@@ -224,88 +217,86 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
   const ownersLoading = !owners.isSuccess && !ownersNotice
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <section
-        aria-labelledby="add-repository-title"
-        aria-modal="true"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
-        role="dialog"
-        onClick={(event) => event.stopPropagation()}
-      >
-        {saved ? (
-          <div className="space-y-5 p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="add-repository-title">
-                {t('add_repository.title_added')}
-              </h2>
-              <button
-                aria-label={t('add_repository.close')}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onClick={() => { onSaved?.(); onClose() }}
-                type="button"
-              >
-                <CloseIcon className="h-7 w-7" />
-              </button>
-            </div>
-
-            <Box tone="ok">{t('add_repository.repository_ready', { slug: saved.repository.slug })}</Box>
-
-            {installedNow ? (
-              <Box tone="ok">
-                {t('add_repository.app_connected', { owner: saved.repository.owner })}
-              </Box>
-            ) : (
-              <>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {t('add_repository.install_optional', { owner: saved.repository.owner })}
-                </p>
-                {awaitingInstall ? (
-                  <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-                    <Spinner /> {t('add_repository.waiting_for_install')}
-                  </p>
-                ) : null}
-                {!awaitingInstall && saved.credential_status.generic_install_url ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {t('add_repository.install_all_prefix')}{" "}
-                    <button
-                      className="font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline"
-                      type="button"
-                      onClick={() => {
-                        openInNewTab(saved.credential_status.generic_install_url as string)
-                        setAwaitingInstall(true)
-                      }}
-                    >
-                      {t('add_repository.install_all_button')}
-                    </button>{" "}
-                    {t('add_repository.install_all_suffix')}
-                  </p>
-                ) : null}
-              </>
-            )}
-
-            <div className="flex items-center justify-end gap-3">
-              {!installedNow && saved.credential_status.install_url ? (
-                <button
-                  className="inline-flex items-center gap-1 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-                  type="button"
-                  onClick={() => {
-                    openInNewTab(saved.credential_status.install_url as string)
-                    setAwaitingInstall(true)
-                  }}
-                >
-                  {t('add_repository.install_on_github')} <span aria-hidden="true">↗</span>
-                </button>
-              ) : null}
-              <button
-                className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                onClick={() => { onSaved?.(); onClose() }}
-                type="button"
-              >
-                {t('add_repository.done')}
-              </button>
-            </div>
+    <Modal
+      className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl"
+      labelledBy="add-repository-title"
+      onClose={onClose}
+      open
+    >
+      {saved ? (
+        <div className="space-y-5 p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="add-repository-title">
+              {t('add_repository.title_added')}
+            </h2>
+            <button
+              aria-label={t('add_repository.close')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onClick={() => { onSaved?.(); onClose() }}
+              type="button"
+            >
+              <CloseIcon className="h-7 w-7" />
+            </button>
           </div>
-        ) : (
+
+          <Box tone="ok">{t('add_repository.repository_ready', { slug: saved.repository.slug })}</Box>
+
+          {installedNow ? (
+            <Box tone="ok">
+              {t('add_repository.app_connected', { owner: saved.repository.owner })}
+            </Box>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t('add_repository.install_optional', { owner: saved.repository.owner })}
+              </p>
+              {awaitingInstall ? (
+                <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
+                  <Spinner /> {t('add_repository.waiting_for_install')}
+                </p>
+              ) : null}
+              {!awaitingInstall && saved.credential_status.generic_install_url ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t('add_repository.install_all_prefix')}{" "}
+                  <button
+                    className="font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline"
+                    type="button"
+                    onClick={() => {
+                      openInNewTab(saved.credential_status.generic_install_url as string)
+                      setAwaitingInstall(true)
+                    }}
+                  >
+                    {t('add_repository.install_all_button')}
+                  </button>{" "}
+                  {t('add_repository.install_all_suffix')}
+                </p>
+              ) : null}
+            </>
+          )}
+
+          <div className="flex items-center justify-end gap-3">
+            {!installedNow && saved.credential_status.install_url ? (
+              <button
+                className="inline-flex items-center gap-1 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                type="button"
+                onClick={() => {
+                  openInNewTab(saved.credential_status.install_url as string)
+                  setAwaitingInstall(true)
+                }}
+              >
+                {t('add_repository.install_on_github')} <span aria-hidden="true">↗</span>
+              </button>
+            ) : null}
+            <button
+              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={() => { onSaved?.(); onClose() }}
+              type="button"
+            >
+              {t('add_repository.done')}
+            </button>
+          </div>
+        </div>
+      ) : (
         <form className="space-y-5 p-5 sm:p-6" onSubmit={submit}>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -391,9 +382,8 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
             </>
           )}
         </form>
-        )}
-      </section>
-    </div>
+      )}
+    </Modal>
   )
 }
 

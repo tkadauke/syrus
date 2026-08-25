@@ -14,7 +14,7 @@ import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
-import { StatusPill, TonePill } from "../../components/StatusPill"
+import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
 import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
 import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
@@ -876,9 +876,7 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
     return (
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800">
-            {translateBlockedReason(job.landing_queue_blocked_reason, t)}
-          </span>
+          <TonePill tone="red">{translateBlockedReason(job.landing_queue_blocked_reason, t)}</TonePill>
           <LandingBlockerOverrideBadge job={job} />
         </div>
       </td>
@@ -889,9 +887,7 @@ function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
     return (
       <td className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">
-            {translateBlockedReason(job.landing_queue_wait_reason, t)}
-          </span>
+          <TonePill tone="gray">{translateBlockedReason(job.landing_queue_wait_reason, t)}</TonePill>
           <LandingBlockerOverrideBadge job={job} />
         </div>
       </td>
@@ -919,12 +915,9 @@ function LandingBlockerOverrideBadge({ job }: { job: DashboardJobItem }) {
     : undefined
 
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${used ? "bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700" : "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800"}`}
-      title={title}
-    >
+    <TonePill title={title} tone={used ? "gray" : "amber"}>
       {used ? t("landing_blocker_override_used") : t("landing_blocker_override_pending")}
-    </span>
+    </TonePill>
   )
 }
 
@@ -953,7 +946,7 @@ function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: s
 
   return (
     <td className="px-4 py-3">
-      <Link className="inline-flex items-center whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800 dark:hover:bg-emerald-900/70" title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
+      <Link className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-emerald-900/70 ${PILL_TONE_CLASSES.green}`} title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
         {stage.label || stage.name}
       </Link>
     </td>
@@ -1037,7 +1030,7 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
   const canUnpause = Boolean(job.paths.app_unpause_path)
 
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800" title={title}>
+    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ring-1 ${PILL_TONE_CLASSES.amber}`} title={title}>
       <span>{t("manual_paused")}</span>
       <span aria-hidden="true" className="select-none">·</span>
       <button
