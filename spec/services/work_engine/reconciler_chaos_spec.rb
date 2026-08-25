@@ -441,11 +441,12 @@ RSpec.describe "Work engine reconciler chaos simulation" do
 
     def topology_closed_job_with_active_workflow(workflow, step)
       running_run_on_step!(workflow, step, heartbeat_age: stale_heartbeat_age)
+      spec_context.attach_work_unit(workflow, state: "running")
       workflow.job.update_columns(state: "closed", finished_at: 10.minutes.ago, closure_reason: "operator_cancelled")
       expectation(
         "topology closed job with active workflow",
         target: { workflow_id: workflow.id },
-        expected_issue: :closed_job_active_workflow,
+        expected_issue: :closed_job_active_runtime_work,
         expected_action: :cancel_workflow_for_closed_job,
         required_plans: [ [ :cancel_workflow_for_closed_job, workflow ] ],
         forbidden_issues: %i[running_run_without_live_worker_evidence queued_run_without_queue_claim retryable_run_failure],
@@ -1112,7 +1113,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       expectation(
         "closed job with active workflow",
         target: { workflow_id: workflow.id },
-        expected_issue: :closed_job_active_workflow,
+        expected_issue: :closed_job_active_runtime_work,
         expected_action: :cancel_workflow_for_closed_job,
         required_plans: [ [ :cancel_workflow_for_closed_job, workflow ] ],
         forbidden_issues: %i[running_run_without_live_worker_evidence queued_run_without_queue_claim retryable_run_failure],
@@ -1262,7 +1263,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       expectation(
         "orphaned landing job",
         target: { job_id: job.id },
-        expected_issue: :landing_job_without_active_workflow,
+        expected_issue: :landing_job_without_active_runtime_work,
         expected_action: :defer_orphaned_landing_job
       )
     end

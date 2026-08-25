@@ -138,6 +138,10 @@ module WorkEngine
           end
         end
 
+        def job_label(job)
+          job.slug
+        end
+
         def target_work_unit
           @target_work_unit ||= if plan.target_type == "WorkUnit"
             WorkUnit.includes(:work_unit_locks, :workflow, :work_unit_members).find_by(id: plan.target_id)
@@ -540,7 +544,7 @@ module WorkEngine
             StepDispatcher.fail_unstartable_landing_workflow!(workflow, reason)
           end
 
-          success("failed blocked landing Workflow ##{workflow.id} and deferred Job ##{workflow.job_id} back to approved")
+          success("failed blocked landing Workflow ##{workflow.id} and deferred #{job_label(workflow.job)} back to approved")
         end
       end
 
@@ -698,7 +702,7 @@ module WorkEngine
             )
           end
 
-          success("cancelled Workflow ##{workflow.id} because Job ##{workflow.job_id} is closed")
+          success("cancelled Workflow ##{workflow.id} because #{job_label(workflow.job)} is closed")
         end
       end
 
@@ -710,8 +714,8 @@ module WorkEngine
           return skipped("WorkUnit is not job-scoped") unless unit.scope_type == "job"
 
           job = Job.find_by(id: unit.scope_id)
-          return skipped("Job ##{unit.scope_id} no longer exists") unless job
-          return skipped("Job ##{job.id} is #{job.state}, not closed") unless job.closed?
+          return skipped("job id #{unit.scope_id} no longer exists") unless job
+          return skipped("#{job_label(job)} is #{job.state}, not closed") unless job.closed?
 
           workflow = unit.workflow
           if workflow&.active?
@@ -721,10 +725,10 @@ module WorkEngine
           with_transition_reason do
             if workflow&.terminal?
               unit.mark_terminal!(workflow.state)
-              @message = "marked WorkUnit ##{unit.id} #{workflow.state} because closed Job ##{job.id}'s Workflow is #{workflow.state}"
+              @message = "marked WorkUnit ##{unit.id} #{workflow.state} because closed #{job_label(job)}'s Workflow is #{workflow.state}"
             else
               unit.preempt!(reason: "job_closed")
-              @message = "cancelled WorkUnit ##{unit.id} because Job ##{job.id} is closed and no Workflow is attached"
+              @message = "cancelled WorkUnit ##{unit.id} because #{job_label(job)} is closed and no Workflow is attached"
             end
           end
 
@@ -1078,7 +1082,7 @@ module WorkEngine
             job.save!
           end
 
-          success("deferred orphaned landing Job ##{job.id} back to approved")
+          success("deferred orphaned landing #{job_label(job)} back to approved")
         end
       end
 
@@ -1198,7 +1202,7 @@ module WorkEngine
 
           job = closed_job_for_intent(intent)
           return skipped("Closed Job for WorkIntent ##{intent.id} no longer exists") unless job
-          return skipped("Job ##{job.id} is #{job.state}, not closed") unless job.closed?
+          return skipped("#{job_label(job)} is #{job.state}, not closed") unless job.closed?
 
           active_unit_ids = intent.work_units
             .where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES)
@@ -1207,7 +1211,7 @@ module WorkEngine
 
           member_ids = member_job_ids_for_intent(intent)
           if intent.scope_type != "job"
-            return skipped("WorkIntent ##{intent.id} is not attached to Job ##{job.id}") unless member_ids.include?(job.id)
+            return skipped("WorkIntent ##{intent.id} is not attached to #{job_label(job)}") unless member_ids.include?(job.id)
 
             open_member_ids = Job.where(id: member_ids).where.not(state: "closed").pluck(:id)
             return skipped("WorkIntent ##{intent.id} still has open member Jobs: #{open_member_ids.inspect}") if open_member_ids.any?
@@ -1215,7 +1219,7 @@ module WorkEngine
 
           intent.cancel!
           if intent.scope_type == "job"
-            success("cancelled WorkIntent ##{intent.id} because Job ##{job.id} is closed")
+            success("cancelled WorkIntent ##{intent.id} because #{job_label(job)} is closed")
           else
             success("cancelled WorkIntent ##{intent.id} because member Jobs #{member_ids.inspect} are closed")
           end
@@ -1249,7 +1253,7 @@ module WorkEngine
           return skipped("Job state drift is no longer present") unless state_plan
 
           state_plan.apply!
-          success("reconciled Job ##{job.id} from #{state_plan.from_state} to #{state_plan.target_state}")
+          success("reconciled #{job_label(job)} from #{state_plan.from_state} to #{state_plan.target_state}")
         end
       end
 
@@ -1273,7 +1277,7 @@ module WorkEngine
             job.force_fail!
             job.save!
           end
-          success("marked Job ##{job.id} failed because it was implemented without a tracked PR")
+          success("marked #{job_label(job)} failed because it was implemented without a tracked PR")
         end
       end
 
@@ -1291,7 +1295,7 @@ module WorkEngine
             job.force_fail!
             job.save!
           end
-          success("marked Job ##{job.id} failed because it was approved without a tracked PR")
+          success("marked #{job_label(job)} failed because it was approved without a tracked PR")
         end
       end
 
@@ -1311,7 +1315,7 @@ module WorkEngine
           result = retry_cancelled_workflow(job, latest, retry_reason: "epic_workflow_conflict_recovered")
           return skipped(result.error) unless result.success?
 
-          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for Job ##{job.id} after Epic-wide workflow conflict cleared")
+          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for #{job_label(job)} after Epic-wide workflow conflict cleared")
         end
 
         private
@@ -1344,7 +1348,7 @@ module WorkEngine
           result = retry_cancelled_workflow(job, latest, retry_reason: "cancelled_workflow_recovered")
           return skipped(result.error) unless result.success?
 
-          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for Job ##{job.id} after cancelled Workflow ##{latest.id}")
+          success("started #{result.workflow.trigger_kind} Workflow ##{result.workflow.id} for #{job_label(job)} after cancelled Workflow ##{latest.id}")
         end
 
         private
@@ -1381,7 +1385,7 @@ module WorkEngine
           with_transition_reason do
             job.close_with_reason!(closure_reason)
           end
-          success("closed completed #{job.kind} Job ##{job.id}")
+          success("closed completed #{job.kind} #{job_label(job)}")
         end
 
         private

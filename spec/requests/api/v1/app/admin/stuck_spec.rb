@@ -147,7 +147,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
 
-  it "surfaces running jobs without an active workflow" do
+  it "surfaces running jobs without active runtime work" do
     sign_in_as(admin)
     job = Factories.job_record(user: admin, state: "running", updated_at: 10.minutes.ago)
 
@@ -155,7 +155,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["items"]).to include(include(
-      "kind" => "job_without_active_workflow",
+      "kind" => "job_without_active_runtime_work",
       "severity" => "alarm",
       "attention_state" => "operator_action_required",
       "job_id" => job.id,
@@ -183,6 +183,13 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
         "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
       }
+    )
+    attach_work_unit(
+      workflow,
+      state: "blocked",
+      blocked_reason: "main_branch_health",
+      blocked_until: 3.minutes.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON }
     )
     workflow.first_step.update_columns(state: "queued")
 

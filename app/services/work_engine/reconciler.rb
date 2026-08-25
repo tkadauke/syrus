@@ -167,10 +167,10 @@ module WorkEngine
 
       issues = []
       issues.concat(classify_epic_workflow_conflicts)
-      issues.concat(classify_closed_jobs_with_active_workflows)
+      issues.concat(classify_closed_jobs_with_active_runtime_work)
       issues.concat(classify_closed_jobs_with_active_work_units)
       issues.concat(classify_closed_jobs_with_requested_work_intents)
-      issues.concat(classify_superseded_active_workflows)
+      issues.concat(classify_superseded_active_runtime_work)
       issues.concat(classify_terminal_workflows_with_active_descendants)
       issues.concat(classify_active_runs_on_terminal_steps)
       issues.concat(classify_queued_runs)
@@ -1252,8 +1252,8 @@ module WorkEngine
           affected_ids: { job_ids: [ job.id ], workflow_ids: active.map(&:id) },
           safe_to_auto_repair: false,
           recommended_repair_action: "operator_review_state_transition",
-          evidence: { job_state: job.state, active_workflow_states: active.map { |workflow| [ workflow.id, workflow.state ] } },
-          explanation: "Job ##{job.id} is #{job.state} while it still has active Workflows."
+          evidence: { job_state: job.state, active_runtime_workflows: active.map { |workflow| [ workflow.id, workflow.state ] } },
+          explanation: "#{job_label(job)} is #{job.state} while it still has active WorkUnit-owned runtime work."
         )
       end
     end
@@ -1281,7 +1281,7 @@ module WorkEngine
             active_repair_workflows: repair_workflows.map { |workflow| [ workflow.id, workflow.trigger_kind, workflow.state ] },
             active_work_units: units.map { |unit| [ unit.id, unit.kind, unit.state, unit.workflow_id ] }
           },
-          explanation: "Job ##{job.id} is failed, but active repair work is already running or queued."
+          explanation: "#{job_label(job)} is failed, but active repair work is already running or queued."
         )
       end
     end
@@ -1356,12 +1356,12 @@ module WorkEngine
       false
     end
 
-    def classify_closed_jobs_with_active_workflows
+    def classify_closed_jobs_with_active_runtime_work
       jobs.select(&:closed?).flat_map do |job|
         active_runtime_workflows_for_job(job)
           .map do |workflow|
             issue(
-              kind: :closed_job_active_workflow,
+              kind: :closed_job_active_runtime_work,
               severity: :critical,
               affected_ids: ids_for(workflow).merge(job_ids: [ job.id ]),
               safe_to_auto_repair: workflow.may_cancel?,
@@ -1371,7 +1371,7 @@ module WorkEngine
                 job_closure_reason: job.closure_reason,
                 active_step_states: workflow.steps.where(state: %w[queued running]).pluck(:id, :kind, :state)
               ),
-              explanation: "Closed Job ##{job.id} still has active Workflow ##{workflow.id}; that work should be cancelled."
+              explanation: "Closed #{job_label(job)} still has active WorkUnit-owned Workflow ##{workflow.id}; that work should be cancelled."
             )
           end
       end
@@ -1403,7 +1403,7 @@ module WorkEngine
                 active_lock_ids: active_locks.map(&:id),
                 active_lock_keys: active_locks.map(&:lock_key)
               },
-              explanation: "Closed Job ##{job.id} still has active job-scoped WorkUnit ##{unit.id}; that stale runtime ownership should be finished."
+              explanation: "Closed #{job_label(job)} still has active job-scoped WorkUnit ##{unit.id}; that stale runtime ownership should be finished."
             )
           end
       end
@@ -1432,7 +1432,7 @@ module WorkEngine
               member_job_ids: member_job_ids_for_intent(intent),
               terminal_work_unit_ids: terminal_work_unit_ids_for_intent(intent)
             },
-            explanation: "Closed Job ##{job.id} still has requested WorkIntent ##{intent.id}; that desired work is obsolete."
+            explanation: "Closed #{job_label(job)} still has requested WorkIntent ##{intent.id}; that desired work is obsolete."
           )
         end
       end
@@ -1453,7 +1453,7 @@ module WorkEngine
       Job.where(id: member_ids).where.not(state: "closed").none?
     end
 
-    def classify_superseded_active_workflows
+    def classify_superseded_active_runtime_work
       jobs.reject(&:closed?).flat_map do |job|
         active = active_runtime_workflows_for_job(job)
         next [] if active.size < 2
@@ -1461,7 +1461,7 @@ module WorkEngine
         keeper = active.last
         active[0...-1].map do |workflow|
           issue(
-            kind: :superseded_active_workflow,
+            kind: :superseded_active_runtime_work,
             severity: :error,
             affected_ids: ids_for(workflow).merge(job_ids: [ job.id ], workflow_ids: [ workflow.id, keeper.id ]),
             safe_to_auto_repair: workflow.may_cancel?,
@@ -1470,9 +1470,9 @@ module WorkEngine
               keeper_workflow_id: keeper.id,
               keeper_trigger_kind: keeper.trigger_kind,
               keeper_workflow_state: keeper.state,
-              active_workflow_states: active.map { |candidate| [ candidate.id, candidate.trigger_kind, candidate.state ] }
+              active_runtime_workflows: active.map { |candidate| [ candidate.id, candidate.trigger_kind, candidate.state ] }
             ),
-            explanation: "Job ##{job.id} has multiple active Workflows; older Workflow ##{workflow.id} is superseded by newer active Workflow ##{keeper.id}."
+            explanation: "#{job_label(job)} has multiple active WorkUnit-owned Workflows; older Workflow ##{workflow.id} is superseded by newer active Workflow ##{keeper.id}."
           )
         end
       end
@@ -1529,7 +1529,7 @@ module WorkEngine
             latest_workflow_state: latest&.state,
             reason: plan.reason
           },
-          explanation: "Job ##{job.id} has unambiguous Workflow-derived state drift."
+          explanation: "#{job_label(job)} has unambiguous Workflow-derived state drift."
         )
       end
     end
@@ -1537,8 +1537,8 @@ module WorkEngine
     def classify_jobs_without_active_runtime_work
       jobs.filter_map do |job|
         next unless job.state.in?(%w[running landing])
-        active_workflows = active_runtime_workflows_for_job(job)
-        next if active_workflows.any?
+        active_runtime_workflows = active_runtime_workflows_for_job(job)
+        next if active_runtime_workflows.any?
         next if job.landing? && active_landing_work_for_job?(job)
         latest = latest_workflow_for_job(job)
         next if job.landing? && active_landing_workflow?(latest)
@@ -1547,7 +1547,7 @@ module WorkEngine
           next unless landing_slot_orphaned?(job)
 
           next issue(
-            kind: :landing_job_without_active_workflow,
+            kind: :landing_job_without_active_runtime_work,
             severity: :critical,
             affected_ids: ids_for(job).merge(workflow_ids: [ latest&.id ]),
             safe_to_auto_repair: job.may_defer_landing?,
@@ -1559,14 +1559,14 @@ module WorkEngine
               latest_workflow_trigger_kind: latest&.trigger_kind,
               updated_at: job.updated_at&.iso8601
             },
-            explanation: "Job ##{job.id} is occupying the landing slot, but no active Workflow owns landing work for it."
+            explanation: "#{job_label(job)} is occupying the landing slot, but no active WorkUnit owns landing work for it."
           )
         end
 
         next unless older_than?(job.updated_at, RESOURCE_CONGESTION_CHECK_AFTER)
 
         issue(
-          kind: :job_without_active_workflow,
+          kind: :job_without_active_runtime_work,
           severity: :critical,
           affected_ids: ids_for(job).merge(workflow_ids: [ latest&.id ]),
           safe_to_auto_repair: false,
@@ -1577,7 +1577,7 @@ module WorkEngine
             latest_workflow_state: latest&.state,
             updated_at: job.updated_at&.iso8601
           },
-          explanation: "Job ##{job.id} is #{job.state}, but has no active Workflow."
+          explanation: "#{job_label(job)} is #{job.state}, but has no active WorkUnit-owned runtime work."
         )
       end
     end
@@ -1607,7 +1607,7 @@ module WorkEngine
             cancelled_reason: cancelled_workflow_reason(latest),
             cancelled_details: cancelled_workflow_details(latest)
           },
-          explanation: "Job ##{job.id} is queued with no active Workflow after its latest Workflow was cancelled for an Epic-wide workflow lock."
+          explanation: "#{job_label(job)} is queued with no active Workflow after its latest Workflow was cancelled for an Epic-wide workflow lock."
         )
       end
     end
@@ -1637,7 +1637,7 @@ module WorkEngine
             start_cancelled_reason: latest.artifact("start_cancelled_reason"),
             main_broken: latest.artifact("main_broken")
           },
-          explanation: "Job ##{job.id} is queued with no active Workflow after its latest Workflow was cancelled without a terminal or deliberate cancellation marker."
+          explanation: "#{job_label(job)} is queued with no active Workflow after its latest Workflow was cancelled without a terminal or deliberate cancellation marker."
         )
       end
     end
@@ -1663,7 +1663,7 @@ module WorkEngine
             latest_workflow_state: latest_workflow_for_job(job)&.state,
             active_repository_landing_job_id: Job.landing.where(repository_id: job.repository_id).where.not(id: job.id).order(:id).pick(:id)
           },
-          explanation: "Approved Job ##{job.id} has a transient landing-start blocker; it should re-enter the landing queue instead of requiring an immediate manual dispatch."
+          explanation: "Approved #{job_label(job)} has a transient landing-start blocker; it should re-enter the landing queue instead of requiring an immediate manual dispatch."
         )
       end
     end
@@ -1692,7 +1692,7 @@ module WorkEngine
             fork_review_pr_number: job.fork_review_pr_number,
             landing_queue: landing_queue_evidence(job)
           },
-          explanation: "Approved Job ##{job.id} has no tracked PR, so it cannot land and can block the landing queue."
+          explanation: "Approved #{job_label(job)} has no tracked PR, so it cannot land and can block the landing queue."
         )
       end
     end
@@ -1730,7 +1730,7 @@ module WorkEngine
             external_pr_number: job.external_pr_number,
             fork_review_pr_number: job.fork_review_pr_number
           },
-          explanation: "Job ##{job.id} is implemented, but its PR-producing Workflow did not publish a tracked PR."
+          explanation: "#{job_label(job)} is implemented, but its PR-producing Workflow did not publish a tracked PR."
         )
       end
     end
@@ -1787,7 +1787,7 @@ module WorkEngine
             latest_workflow_state: latest_workflow&.state,
             closure_reason: closure_reason
           },
-          explanation: "#{job.kind.humanize} Job ##{job.id} is complete and can be closed."
+          explanation: "#{job.kind.humanize} #{job_label(job)} is complete and can be closed."
         )
       end
     end
@@ -2193,7 +2193,7 @@ module WorkEngine
             latest_workflow_id: latest_workflow_for_job(job)&.id,
             latest_workflow_state: latest_workflow_for_job(job)&.state
           },
-          explanation: "Job ##{job.id} has runaway protection active (#{job.runaway_protection}); automatic retries are blocked until the operator manually retries."
+          explanation: "#{job_label(job)} has runaway protection active (#{job.runaway_protection}); automatic retries are blocked until the operator manually retries."
         )
       end
     end
@@ -2831,6 +2831,10 @@ module WorkEngine
       return job[:head_sha].presence if job.has_attribute?(:head_sha)
 
       job.mergeability_head_sha.presence || job.pr_checks_sha.presence
+    end
+
+    def job_label(job)
+      job.slug
     end
 
     def context_description

@@ -512,7 +512,7 @@ module WorkEngine
         end
       end
 
-      class ClosedJobActiveWorkflow < Base
+      class ClosedJobActiveRuntimeWork < Base
         def plan
           automatic_plan(
             "cancel_workflow_for_closed_job",
@@ -566,12 +566,12 @@ module WorkEngine
         end
       end
 
-      class SupersededActiveWorkflow < Base
+      class SupersededActiveRuntimeWork < Base
         def plan
           automatic_plan(
             "cancel_superseded_active_workflow",
             primary_workflow,
-            "A newer active Workflow exists for the same Job, so cancel the older active Workflow and its active descendants without changing the Job state.",
+            "A newer active WorkUnit-owned Workflow exists for the same Job, so cancel the older active Workflow and its active descendants without changing the Job state.",
             execution_steps: [ "Workflow#cancel!" ],
             preconditions: {
               workflow_state: %w[queued running],
@@ -896,23 +896,23 @@ module WorkEngine
         end
       end
 
-      class JobWithoutActiveWorkflow < Base
+      class JobWithoutActiveRuntimeWork < Base
         def plan
           operator_plan(
             "operator_review_state_transition",
-            "The Job is still marked active, but no queued or running Workflow owns work for it."
+            "The Job is still marked active, but no queued or running WorkUnit owns work for it."
           )
         end
       end
 
-      class LandingJobWithoutActiveWorkflow < Base
+      class LandingJobWithoutActiveRuntimeWork < Base
         def plan
           automatic_plan(
             "defer_orphaned_landing_job",
             primary_job,
             "The Job is occupying the repository landing slot without active landing work; deferring it releases the slot and lets the landing queue retry normally.",
             execution_steps: [ "Job#defer_landing!" ],
-            preconditions: { job_state: "landing", active_workflows: false }
+            preconditions: { job_state: "landing", active_runtime_work: false }
           )
         end
       end
@@ -958,7 +958,7 @@ module WorkEngine
             execution_steps: [ "RetryWorkflowEnqueuer.call" ],
             preconditions: {
               job_state: "queued",
-              active_workflows: false,
+              active_runtime_work: false,
               latest_workflow_state: "cancelled",
               deliberate_cancellation: false
             }

@@ -532,7 +532,7 @@ RSpec.describe WorkEngine::Reconciler do
     )
     unit.work_unit_members.create!(job: job, role: "primary")
     stale_plan = WorkEngine::RepairPlanner::Plan.new(
-      issue_kind: "landing_job_without_active_workflow",
+      issue_kind: "landing_job_without_active_runtime_work",
       action: "defer_orphaned_landing_job",
       auto_executable: true,
       target_type: "Job",
@@ -587,7 +587,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile_and_execute
 
-    expect(kind(result, :closed_job_active_workflow)).to have_attributes(
+    expect(kind(result, :closed_job_active_runtime_work)).to have_attributes(
       severity: "critical",
       safe_to_auto_repair: true,
       recommended_repair_action: "cancel_workflow_for_closed_job"
@@ -598,7 +598,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Workflow",
       target_id: workflow.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{workflow.id} because Job ##{job.id} is closed")
+    expect(result.repair_executions.map(&:message)).to include("cancelled Workflow ##{workflow.id} because #{job.slug} is closed")
     expect(workflow.reload).to be_cancelled
     expect(step.reload).to be_cancelled
     expect(run.reload).to be_cancelled
@@ -624,7 +624,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile(job_id: closed.id)
 
-    expect(kind(result, :closed_job_active_workflow)).to be_nil
+    expect(kind(result, :closed_job_active_runtime_work)).to be_nil
   end
 
   it "ignores replay workflows without WorkUnits on closed jobs" do
@@ -648,7 +648,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile_and_execute(job_id: closed.id)
 
-    expect(kind(result, :closed_job_active_workflow)).to be_nil
+    expect(kind(result, :closed_job_active_runtime_work)).to be_nil
     expect(result.repair_executions).to be_empty
     expect(replay.reload).to be_running
     expect(replay_step.reload).to be_running
@@ -697,7 +697,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkIntent",
       target_id: intent.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} because Job ##{closed.id} is closed")
+    expect(result.repair_executions.map(&:message)).to include("cancelled WorkIntent ##{intent.id} because #{closed.slug} is closed")
     expect(intent.reload).to be_cancelled
   end
 
@@ -854,7 +854,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile(job_id: running.id)
 
-    expect(kind(result, :job_without_active_workflow)).to have_attributes(
+    expect(kind(result, :job_without_active_runtime_work)).to have_attributes(
       recommended_repair_action: "operator_review_state_transition"
     )
   end
@@ -881,7 +881,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile_and_execute(job_id: job.id)
 
-    expect(kind(result, :superseded_active_workflow)).to have_attributes(
+    expect(kind(result, :superseded_active_runtime_work)).to have_attributes(
       severity: "error",
       safe_to_auto_repair: true,
       recommended_repair_action: "cancel_superseded_active_workflow"
@@ -1115,7 +1115,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "WorkUnit",
       target_id: unit.id
     )
-    expect(result.repair_executions.map(&:message)).to include("cancelled WorkUnit ##{unit.id} because Job ##{closed_job.id} is closed and no Workflow is attached")
+    expect(result.repair_executions.map(&:message)).to include("cancelled WorkUnit ##{unit.id} because #{closed_job.slug} is closed and no Workflow is attached")
     expect(unit.reload).to be_cancelled
     expect(unit.preemption_reason).to eq("job_closed")
     expect(lock.reload).not_to be_active
@@ -1490,7 +1490,7 @@ RSpec.describe WorkEngine::Reconciler do
         target_id: child.id,
         auto_executable: true
       )
-      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry Workflow #\d+ for Job ##{child.id}/))
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry Workflow #\d+ for #{child.slug}/))
     }.to change { child.workflows.where(trigger_kind: "retry").count }.by(1)
 
     retry_workflow = child.reload.latest_workflow
@@ -1568,7 +1568,7 @@ RSpec.describe WorkEngine::Reconciler do
         recommended_repair_action: "retry_job_after_epic_workflow_conflict",
         safe_to_auto_repair: true
       )
-      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started chat_feedback Workflow #\d+ for Job ##{child.id}/))
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started chat_feedback Workflow #\d+ for #{child.slug}/))
     }.to change { child.workflows.where(trigger_kind: "chat_feedback").count }.by(1)
 
     expect(child.workflows.where(trigger_kind: "retry").count).to eq(retry_count)
@@ -1611,7 +1611,7 @@ RSpec.describe WorkEngine::Reconciler do
         target_id: child.id,
         auto_executable: true
       )
-      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry Workflow #\d+ for Job ##{child.id}/))
+      expect(result.repair_executions.map(&:message)).to include(a_string_matching(/started retry Workflow #\d+ for #{child.slug}/))
     }.to change { child.workflows.where(trigger_kind: "retry").count }.by(1)
 
     retry_workflow = child.reload.latest_workflow
@@ -1944,7 +1944,7 @@ RSpec.describe WorkEngine::Reconciler do
       recommended_repair_action: "fail_implemented_job_missing_pr"
     )
     expect(plan(result, :fail_implemented_job_missing_pr)).to have_attributes(target_id: orphaned.id)
-    expect(result.repair_executions.map(&:message)).to include("marked Job ##{orphaned.id} failed because it was implemented without a tracked PR")
+    expect(result.repair_executions.map(&:message)).to include("marked #{orphaned.slug} failed because it was implemented without a tracked PR")
     expect(orphaned.reload).to be_failed
   end
 
@@ -2043,7 +2043,7 @@ RSpec.describe WorkEngine::Reconciler do
       recommended_repair_action: "fail_approved_job_missing_pr"
     )
     expect(plan(result, :fail_approved_job_missing_pr)).to have_attributes(target_id: orphaned.id)
-    expect(result.repair_executions.map(&:message)).to include("marked Job ##{orphaned.id} failed because it was approved without a tracked PR")
+    expect(result.repair_executions.map(&:message)).to include("marked #{orphaned.slug} failed because it was approved without a tracked PR")
     expect(orphaned.reload).to be_failed
   end
 
@@ -3465,7 +3465,7 @@ RSpec.describe WorkEngine::Reconciler do
     job.update!(state: "landing", approved_at: 2.minutes.ago, approved_via: "operator")
 
     result = reconcile(job_id: job.id)
-    issue = kind(result, :landing_job_without_active_workflow)
+    issue = kind(result, :landing_job_without_active_runtime_work)
 
     expect(issue).to have_attributes(
       safe_to_auto_repair: true,
@@ -3509,7 +3509,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile(job_id: first.id)
 
-    expect(kind(result, :landing_job_without_active_workflow)).to be_nil
+    expect(kind(result, :landing_job_without_active_runtime_work)).to be_nil
 
     executed = reconcile_and_execute(job_id: first.id)
 
@@ -3547,7 +3547,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     result = reconcile(job_id: job.id)
 
-    expect(kind(result, :landing_job_without_active_workflow)).to be_nil
+    expect(kind(result, :landing_job_without_active_runtime_work)).to be_nil
 
     executed = reconcile_and_execute(job_id: job.id)
 
@@ -4650,7 +4650,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Job",
       target_id: insight_job.id
     )
-    expect(result.repair_executions.map(&:message)).to include("closed completed agent_insight Job ##{insight_job.id}")
+    expect(result.repair_executions.map(&:message)).to include("closed completed agent_insight #{insight_job.slug}")
     expect(insight_job.reload).to be_closed
     expect(insight_job.closure_reason).to eq("agent_insight")
   end
@@ -4687,7 +4687,7 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Job",
       target_id: repair_job.id
     )
-    expect(result.repair_executions.map(&:message)).to include("closed completed direct Job ##{repair_job.id}")
+    expect(result.repair_executions.map(&:message)).to include("closed completed direct #{repair_job.slug}")
     expect(repair_job.reload).to be_closed
     expect(repair_job.closure_reason).to eq("preflight_passed")
   end

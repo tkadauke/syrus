@@ -166,7 +166,7 @@ module Admin
         "Failed step retryable: #{issue.explanation} #{repair_plan&.reason}"
       when "nonretryable_semantic_git_failure"
         "Operator action required: #{issue.explanation} #{repair_plan&.reason}"
-      when "job_without_active_workflow"
+      when "job_without_active_runtime_work"
         "Operator action required: #{issue.explanation}"
       when "runaway_protection_active"
         "Runaway protection: #{issue.explanation} Click Retry on the Job to clear the protection and resume."

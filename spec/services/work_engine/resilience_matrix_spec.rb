@@ -408,6 +408,13 @@ RSpec.describe "Work engine resilience regression matrix" do
             "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
           }
         )
+        attach_work_unit(
+          workflow,
+          state: "blocked",
+          blocked_reason: "stack_dependencies_not_ready",
+          blocked_until: 5.minutes.from_now,
+          blocked_details: { "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON }
+        )
         { workflow_id: workflow.id }
       }
     },
@@ -466,7 +473,7 @@ RSpec.describe "Work engine resilience regression matrix" do
       }
     },
     "closed Job with active workflow/run" => {
-      issue_kind: :closed_job_active_workflow,
+      issue_kind: :closed_job_active_runtime_work,
       action: :cancel_workflow_for_closed_job,
       auto_executable: true,
       setup: lambda {
