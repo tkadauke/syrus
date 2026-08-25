@@ -88,4 +88,19 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
       "duplicate_job_id" => other.id
     )
   end
+
+  it "ignores unowned queued CI repair workflows when checking for duplicates" do
+    other = Factories.job_record(user: user, repository: repository, issue_number: 44, state: "approved", commits_behind_base: 0)
+    Workflow.create!(
+      job: other,
+      trigger_kind: "ci_failure",
+      state: "queued",
+      artifacts: { "head_sha" => "other-head", "base_sha" => base_sha }
+    )
+    unit = ci_unit_for(job)
+
+    result = described_class.call(unit)
+
+    expect(result).to be_pass
+  end
 end

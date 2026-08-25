@@ -1715,6 +1715,7 @@ RSpec.describe WorkEngine::Reconciler do
       artifacts: { "auto_retry_attempt_id" => attempt.id },
       agent_provider: "claude"
     )
+    attach_work_unit(stale, state: "queued", kind: "retry")
     stale.update_columns(created_at: 9.minutes.ago)
     StepDispatcher.start_workflow(stale)
     stale.reload
@@ -1768,6 +1769,7 @@ RSpec.describe WorkEngine::Reconciler do
       artifacts: { "auto_retry_attempt_id" => attempt.id },
       agent_provider: "claude"
     )
+    attach_work_unit(stale, state: "queued", kind: "retry")
     stale.update_columns(created_at: 8.minutes.ago)
     StepDispatcher.start_workflow(stale)
     stale.reload
@@ -1828,6 +1830,7 @@ RSpec.describe WorkEngine::Reconciler do
       artifacts: { "auto_retry_attempt_id" => attempt.id },
       agent_provider: "claude"
     )
+    attach_work_unit(stale, state: "queued", kind: "retry")
     stale.update_columns(created_at: 7.minutes.ago)
     StepDispatcher.start_workflow(stale)
     stale.reload
@@ -3950,6 +3953,7 @@ RSpec.describe WorkEngine::Reconciler do
       state: "queued",
       created_at: 1.minute.ago
     )
+    attach_work_unit(retry_workflow, state: "queued", kind: "retry")
     job.update_columns(state: "failed")
 
     result = reconcile(job_id: job.id)

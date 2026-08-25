@@ -83,7 +83,8 @@ module JobCodingMode
   def complete_coding_handoff!
     return false unless coding?
 
-    workflows.where(trigger_kind: "initial", state: "queued").find_each do |wf|
+    initial_workflow_ids = WorkUnits::Ownership.active_workflow_ids([ id ], kinds: "initial", states: [ "queued" ]).to_a
+    workflows.where(id: initial_workflow_ids).find_each do |wf|
       WorkUnits::WorkflowCancellation.cancel!(
         wf,
         reason: "coding_handoff_takeover",

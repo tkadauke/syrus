@@ -1129,7 +1129,10 @@ class Job < ApplicationRecord
   end
 
   def cancel_queued_retry_workflows_after_approval
-    workflows.where(trigger_kind: "retry", state: "queued").find_each do |workflow|
+    retry_workflow_ids = WorkUnits::Ownership.active_workflow_ids([ id ], kinds: "retry", states: [ "queued" ]).to_a
+    return if retry_workflow_ids.empty?
+
+    workflows.where(id: retry_workflow_ids).find_each do |workflow|
       workflow.artifacts = (workflow.artifacts || {}).merge(
         "retry_cancelled_reason" => "job_approved",
         "retry_cancelled_at" => Time.current.iso8601

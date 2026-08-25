@@ -1971,9 +1971,15 @@ Completed slices:
   `preemption_reason`.
 - Job-level active-work cancellation helpers now use the same typed Workflow
   cancellation facade for close/restart, manual rebase supersession, and
-  approval-driven retry cancellation. This removes another set of paths where a
-  Workflow could be intentionally superseded while its WorkUnit only said
-  generic `cancelled`.
+  approval-driven retry cancellation. Approval and coding-handoff takeover
+  cancellation now only act on queued WorkUnit-owned Workflows, so stray
+  unowned retry/initial Workflow rows no longer have lifecycle effects. This
+  removes another set of paths where a Workflow could be intentionally
+  superseded while its WorkUnit only said generic `cancelled`.
+- CI-repair duplicate suppression and stale auto-retry reconciliation now scope
+  duplicate/repair candidates through active WorkUnits instead of raw
+  queued/running Workflow rows. Unowned legacy Workflow rows remain visible in
+  history but no longer block or drive runtime scheduling.
 - Reconciler cleanup, landing defer, external-PR close, coding handoff takeover,
   operator stale-work repair, and runaway-protection cancellations also use
   typed WorkUnit cancellation. The remaining plain Workflow cancellation calls

@@ -67,19 +67,28 @@ module WorkUnits
       end
 
       def active_duplicate_for_base
-        workflow_ids = active_ci_repair_workflows_scope.where.not(id: workflow.id).pluck(:id)
-        return nil if workflow_ids.empty?
+        active_ci_repair_workflows.find do |candidate|
+          next false if candidate.id == workflow.id
 
-        Workflow.where(id: workflow_ids).includes(:job, work_unit: :work_intent).find do |candidate|
           candidate_base_sha(candidate) == base_sha
         end
       end
 
-      def active_ci_repair_workflows_scope
-        Workflow
-          .joins(:job)
-          .where(jobs: { repository_id: job.repository_id })
-          .where(trigger_kind: "ci_failure", state: %w[queued running])
+      def active_ci_repair_workflows
+        workflow_ids = WorkUnit
+          .where(
+            repository_id: job.repository_id,
+            kind: "ci_failure",
+            state: WorkUnits::Ownership::ACTIVE_STATES
+          )
+          .where.not(id: work_unit.id)
+          .where.not(workflow_id: nil)
+          .distinct
+          .pluck(:workflow_id)
+
+        return [] if workflow_ids.empty?
+
+        Workflow.where(id: workflow_ids).includes(:job, work_unit: :work_intent).to_a
       end
 
       def candidate_base_sha(candidate)

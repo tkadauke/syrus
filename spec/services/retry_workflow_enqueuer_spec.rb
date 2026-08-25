@@ -153,7 +153,7 @@ RSpec.describe RetryWorkflowEnqueuer do
 
   it "rejects jobs with an active retry workflow that has not started a run yet" do
     finish_current_run!
-    Workflows::Retry.instantiate(job: job, agent_provider: job.agent_provider)
+    WorkUnits::Launcher.instantiate(kind: "retry", job: job, idempotency_key: "active-retry")
 
     expect {
       result = described_class.call(job: job)
@@ -217,7 +217,7 @@ RSpec.describe RetryWorkflowEnqueuer do
 
   it "cancels queued retry workflows when the job is approved" do
     finish_current_run!
-    retry_workflow = Workflows::Retry.instantiate(job: job, agent_provider: job.agent_provider)
+    retry_workflow = WorkUnits::Launcher.instantiate(kind: "retry", job: job, idempotency_key: "approval-cancel-retry")
     job.update!(state: "implemented")
 
     expect {
@@ -226,6 +226,17 @@ RSpec.describe RetryWorkflowEnqueuer do
     }.to change { retry_workflow.reload.state }.from("queued").to("cancelled")
 
     expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("job_approved")
+  end
+
+  it "ignores unowned queued retry workflow rows when the job is approved" do
+    finish_current_run!
+    retry_workflow = Workflows::Retry.instantiate(job: job, agent_provider: job.agent_provider)
+    job.update!(state: "implemented")
+
+    expect {
+      job.approve!(via: "operator", by_user: user)
+      job.save!
+    }.not_to change { retry_workflow.reload.state }
   end
 
   it "marks the queued retry WorkUnit as preempted when approval cancels it" do

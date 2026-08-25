@@ -353,7 +353,10 @@ module WorkEngine
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Workflow.none if ids.empty?
 
-      Workflow.where(job_id: ids, trigger_kind: "retry", state: "queued")
+      workflow_ids = WorkUnits::Ownership.active_workflow_ids(ids, kinds: "retry", states: [ "queued" ]).to_a
+      return Workflow.none if workflow_ids.empty?
+
+      Workflow.where(id: workflow_ids)
     end
 
     def scoped_runs

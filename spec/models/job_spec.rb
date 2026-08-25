@@ -3244,11 +3244,23 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         job = Factories.job_record(user: user, repository: repository, state: "coding",
                                    linked_chat_id: chat_session.id)
         initial_workflow = Workflow.create!(job: job, trigger_kind: "initial")
+        attach_work_unit(initial_workflow, kind: "initial", state: "queued")
         Step.create!(workflow: initial_workflow, kind: "implement", position: 0)
 
         job.complete_coding_handoff!
 
         expect(initial_workflow.reload).to be_cancelled
+      end
+
+      it "ignores unowned held initial workflow rows" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+        initial_workflow = Workflow.create!(job: job, trigger_kind: "initial")
+        Step.create!(workflow: initial_workflow, kind: "implement", position: 0)
+
+        job.complete_coding_handoff!
+
+        expect(initial_workflow.reload).to be_queued
       end
 
       it "does not cancel non-initial workflows" do
