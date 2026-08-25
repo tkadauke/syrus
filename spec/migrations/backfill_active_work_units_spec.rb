@@ -1,18 +1,19 @@
 require "rails_helper"
+require Rails.root.join("db/migrate/20260825123000_backfill_active_work_units")
 
-RSpec.describe WorkUnits::Backfill do
+RSpec.describe BackfillActiveWorkUnits do
+  let(:migration) { described_class.new }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }
 
-  it "creates intent, unit, member, and lock rows for an active legacy workflow" do
+  it "creates intent, unit, member, and lock rows for an active workflow" do
     job.update!(branch_name: "syrus/job-#{job.id}")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago)
 
-    result = described_class.workflow!(workflow)
+    migration.up
 
-    expect(result).to be_created
-    unit = result.work_unit
+    unit = workflow.reload.work_unit
     expect(unit).to have_attributes(
       kind: "initial",
       state: "running",
@@ -44,20 +45,7 @@ RSpec.describe WorkUnits::Backfill do
     expect(unit.work_unit_locks.pluck(:lock_key)).to eq([ "job:#{job.id}" ])
   end
 
-  it "is idempotent for already backfilled workflows" do
-    workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
-
-    first = described_class.workflow!(workflow)
-
-    expect {
-      second = described_class.workflow!(workflow.reload)
-      expect(second).to be_skipped
-      expect(second.skipped_reason).to eq("already_backfilled")
-    }.not_to change { WorkUnit.count }
-    expect(first.work_unit).to eq(workflow.reload.work_unit)
-  end
-
-  it "projects legacy start-block artifacts onto the backfilled WorkUnit" do
+  it "projects start-block artifacts onto the backfilled WorkUnit" do
     next_check_at = 10.minutes.from_now
     workflow = Workflow.create!(
       job: job,
@@ -70,8 +58,9 @@ RSpec.describe WorkUnits::Backfill do
       }
     )
 
-    unit = described_class.workflow!(workflow).work_unit
+    migration.up
 
+    unit = workflow.reload.work_unit
     expect(unit).to have_attributes(
       state: "blocked",
       blocked_reason: "admission_control",
@@ -82,28 +71,6 @@ RSpec.describe WorkUnits::Backfill do
     )
     expect(unit.blocked_until).to be_within(2.seconds).of(next_check_at)
     expect(WorkUnits::StartBlock.for(workflow.reload).reason).to eq("admission_control")
-  end
-
-  it "skips active workflows whose locks are already owned by another WorkUnit" do
-    owner_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
-    legacy_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
-
-    result = described_class.workflow!(legacy_workflow)
-
-    expect(result).to be_skipped
-    expect(result.skipped_reason).to eq("active_lock_conflict")
-    expect(legacy_workflow.reload.work_unit).to be_nil
-    expect(owner_workflow.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("job:#{job.id}")
-  end
-
-  it "backfills active workflows and ignores terminal workflows by default" do
-    active = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
-    terminal = Workflow.create!(job: job, trigger_kind: "retry", state: "failed")
-
-    results = described_class.active!
-
-    expect(results.map(&:workflow)).to include(active)
-    expect(terminal.reload.work_unit).to be_nil
   end
 
   it "snapshots merge train members from merge train artifacts" do
@@ -120,8 +87,9 @@ RSpec.describe WorkUnits::Backfill do
       artifacts: { "merge_train_id" => train.id }
     )
 
-    unit = described_class.workflow!(workflow).work_unit
+    migration.up
 
+    unit = workflow.reload.work_unit
     expect(unit).to have_attributes(kind: "merge_train", scope_type: "epic", scope_id: epic.id)
     expect(unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
       [[ first.id, "primary" ], [ second.id, "member" ]]
@@ -147,8 +115,9 @@ RSpec.describe WorkUnits::Backfill do
       artifacts: { "merge_train_id" => train.id }
     )
 
-    unit = described_class.workflow!(workflow).work_unit
+    migration.up
 
+    unit = workflow.reload.work_unit
     expect(unit).to have_attributes(kind: "job_bundle", scope_type: "repository", scope_id: repository.id)
     expect(unit.work_intent).to have_attributes(kind: "job_bundle", scope_type: "repository", scope_id: repository.id)
     expect(unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
@@ -159,35 +128,6 @@ RSpec.describe WorkUnits::Backfill do
       "job:#{second.id}",
       "repository:#{repository.id}",
       "landing:repository:#{repository.id}"
-    )
-  end
-
-  it "parents backfilled bundle validation units to the source landing unit" do
-    source_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
-    parent = described_class.workflow!(source_workflow).work_unit
-    first = Factories.job_record(user: user, repository: repository, issue_number: 101)
-    second = Factories.job_record(user: user, repository: repository, issue_number: 102)
-    validation = Workflow.create!(
-      job: second,
-      trigger_kind: "merge_train_validation",
-      state: "running",
-      artifacts: {
-        "prefetch_landing_unit_kind" => "job_bundle",
-        "prefetch_source_workflow_id" => source_workflow.id,
-        "prefetch_merge_train_member_job_ids" => [ first.id, second.id ]
-      }
-    )
-
-    unit = described_class.workflow!(validation).work_unit
-
-    expect(unit).to have_attributes(
-      kind: "job_bundle_validation",
-      scope_type: "repository",
-      scope_id: repository.id,
-      parent_work_unit: parent
-    )
-    expect(unit.work_unit_members.order(:id).map { |member| [ member.job_id, member.role ] }).to eq(
-      [[ first.id, "primary" ], [ second.id, "member" ]]
     )
   end
 end

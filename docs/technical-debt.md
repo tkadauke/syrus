@@ -4,26 +4,6 @@ This file tracks intentional, known debt that should not silently become
 permanent architecture. Entries should be concrete enough that a future agent can
 tell when the debt is still necessary and when it can be removed.
 
-## Work Units Active Workflow Backfill
-
-- **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
-- **Owner area:** WorkIntent / WorkUnit migration
-- **Code:** `BackfillActiveWorkUnits`, `WorkUnits::Backfill`
-- **Why it exists:** Existing queued/running `Workflow` rows may not have
-  `WorkIntent` / `WorkUnit` rows when an installation upgrades into the
-  work-unit architecture. The one-time migration keeps small and medium
-  installations from needing a recurring bridge to converge.
-- **Removal condition:** The migration has been present in released Syrus for
-  one to two months, known installations have deployed it, and
-  `Workflow.left_outer_joins(:work_unit).where(state: %w[queued running],
-  work_units: { id: nil })` is only relevant for newly introduced launch-path
-  regressions.
-- **Removal work:** Delete `WorkUnits::Backfill`, its specs, and this debt
-  entry only after the migration no longer depends on application code (for
-  example, by squashing migrations or replacing the migration body with a
-  self-contained migration-local copy). Keep launch-funnel architecture specs
-  so active workflows cannot be created without WorkUnits.
-
 ## Work Units Legacy Scheduler And Reconciler Fallbacks
 
 - **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
