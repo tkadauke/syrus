@@ -1271,8 +1271,8 @@ module Api
         def latest_workflows_by_job_id(job_ids)
           return {} if job_ids.empty?
 
-          latest_active_ids = Workflow.where(job_id: job_ids, state: %w[ queued running ]).group(:job_id).maximum(:id)
           latest_ids = Workflow.where(job_id: job_ids).group(:job_id).maximum(:id)
+          latest_active_ids = WorkUnits::Ownership.active_workflows_by_job_id(job_ids).transform_values(&:id)
           selected_ids = latest_ids.merge(latest_active_ids).values
           selected_ids.empty? ? {} : Workflow.where(id: selected_ids).index_by(&:job_id)
         end
@@ -1280,8 +1280,7 @@ module Api
         def current_running_workflows_by_job_id(job_ids)
           return {} if job_ids.empty?
 
-          latest_ids = Workflow.where(job_id: job_ids, state: "running").group(:job_id).maximum(:id).values
-          latest_ids.empty? ? {} : Workflow.where(id: latest_ids).index_by(&:job_id)
+          WorkUnits::Ownership.active_workflows_by_job_id(job_ids, states: [ "running" ])
         end
 
         def current_steps_by_workflow_id(workflow_ids)

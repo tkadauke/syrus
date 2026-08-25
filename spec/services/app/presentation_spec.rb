@@ -88,6 +88,7 @@ RSpec.describe App::Presentation do
       job = Factories.job_record
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
       Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+      attach_active_work_unit!(job, workflow)
 
       expect(described_class.current_step_caption(job)).to eq("currently: Implement (workflow: initial)")
     end
@@ -98,8 +99,17 @@ RSpec.describe App::Presentation do
       step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "succeeded")
       Step.create!(workflow: workflow, kind: "summarize", position: 1, state: "queued")
       Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+      attach_active_work_unit!(job, workflow)
 
       expect(described_class.current_step_caption(job)).to eq("currently: Implement (workflow: initial)")
+    end
+
+    it "ignores unowned running workflow rows" do
+      job = Factories.job_record
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
+
+      expect(described_class.current_step_caption(job)).to be_nil
     end
   end
 
@@ -144,5 +154,26 @@ RSpec.describe App::Presentation do
         [ "Archive", "archived" ]
       )
     end
+  end
+
+  def attach_active_work_unit!(job, workflow)
+    intent = WorkIntent.create!(
+      kind: workflow.trigger_kind,
+      state: "requested",
+      scope_type: "job",
+      scope_id: job.id,
+      repository: job.repository,
+      requested_at: Time.current
+    )
+    unit = WorkUnit.create!(
+      work_intent: intent,
+      kind: workflow.trigger_kind,
+      state: "running",
+      scope_type: "job",
+      scope_id: job.id,
+      repository: job.repository,
+      workflow: workflow
+    )
+    WorkUnitMember.create!(work_unit: unit, job: job, role: "primary")
   end
 end

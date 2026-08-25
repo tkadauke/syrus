@@ -69,7 +69,9 @@ module App
     end
 
     def current_step_caption(job)
-      workflow = job.workflows.where(state: "running").order(:created_at).last
+      workflow = WorkUnits::Ownership
+        .active_workflows_by_job_id([ job.id ], states: [ "running" ])
+        .fetch(job.id, nil)
       return nil unless workflow
 
       step = workflow.current_step
