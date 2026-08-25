@@ -24,7 +24,7 @@ class ProcessRunner
   TERM_GRACE_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
   KILL_POLL_INTERVAL_SECONDS = 1
-  HEARTBEAT_INTERVAL_SECONDS = 15
+  SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 30
   # Live process resource samples are useful for the admin UI, but the JSON
   # update is a hot write on long-running agent/grader processes. Persist
   # sparingly while running; finalization always writes the final attribution.
@@ -267,11 +267,12 @@ class ProcessRunner
   end
 
   def heartbeat!
+    heartbeat_run!(Time.current)
     return unless @spawned_process
 
     now = Time.current
     last = @spawned_process.last_chunk_at
-    return if last && (now - last) < HEARTBEAT_INTERVAL_SECONDS
+    return if last && (now - last) < SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS
 
     if persist_resource_attribution?(now)
       sample_resource_attribution!
@@ -283,7 +284,6 @@ class ProcessRunner
     else
       @spawned_process.update_columns(last_chunk_at: now)
     end
-    heartbeat_run!(now)
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] heartbeat failed: #{e.class}: #{e.message}")
   end

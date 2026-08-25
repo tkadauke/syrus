@@ -215,6 +215,36 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:00Z"))
   end
 
+  it "updates run heartbeats even when spawned process heartbeats are throttled" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    step = Step.create!(workflow: workflow, kind: "prepare", position: 0, state: "running")
+    run = Run.create!(
+      job: job,
+      step: step,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "running",
+      started_at: Time.zone.parse("2026-08-20T11:59:00Z"),
+      last_heartbeat_at: Time.zone.parse("2026-08-20T11:59:00Z")
+    )
+    process_last_chunk_at = 5.seconds.ago
+    process = SpawnedProcess.create!(
+      kind: "agent",
+      command: "agent",
+      hostname: "worker-a",
+      started_at: 2.minutes.ago,
+      last_chunk_at: process_last_chunk_at
+    )
+    runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5, run: run)
+    runner.instance_variable_set(:@spawned_process, process)
+
+    runner.send(:heartbeat!)
+
+    expect(run.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)
+    expect(process.reload.last_chunk_at.to_f).to eq(process_last_chunk_at.to_f)
+  end
+
   it "throttles spawned process resource attribution writes between liveness heartbeats" do
     process = SpawnedProcess.create!(
       kind: "agent",
