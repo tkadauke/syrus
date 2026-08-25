@@ -122,6 +122,43 @@ RSpec.describe Observability::EventSink do
     expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventsJob)
   end
 
+  it "does not duplicate durable events when two flushers race between memory and spool drains" do
+    event = {
+      "occurred_at" => Time.current.iso8601(6),
+      "level" => "warn",
+      "role" => "worker",
+      "hostname" => "host-a",
+      "source" => "spec",
+      "message" => "racy durable event",
+      "context" => {}
+    }
+    described_class.append(kind: :operational, event: event, durable: true)
+
+    first_drain_started = Queue.new
+    release_first_flush = Queue.new
+    original_drain_memory = described_class.method(:drain_memory)
+    calls = 0
+    allow(described_class).to receive(:drain_memory) do |kind|
+      result = original_drain_memory.call(kind)
+      calls += 1
+      if calls == 1
+        first_drain_started << true
+        release_first_flush.pop
+      end
+      result
+    end
+
+    first = Thread.new { described_class.flush!(kinds: [ :operational ]) }
+    first_drain_started.pop
+    second = Thread.new { described_class.flush!(kinds: [ :operational ]) }
+    sleep 0.05
+    release_first_flush << true
+
+    [ first, second ].each(&:join)
+
+    expect(OperationalLogEvent.where(message: "racy durable event").count).to eq(1)
+  end
+
   it "logs instead of silently dropping an event when append fails" do
     allow(described_class).to receive(:append_memory).and_raise(RuntimeError, "buffer mutex poisoned")
     allow(Rails.logger).to receive(:error)

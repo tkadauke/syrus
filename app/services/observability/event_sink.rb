@@ -9,6 +9,7 @@ module Observability
     FLUSH_INTERVAL = (Integer(ENV["SYRUS_OBSERVABILITY_FLUSH_INTERVAL_SECONDS"], exception: false) || 15).seconds
 
     @mutex = Mutex.new
+    @flush_mutex = Mutex.new
     @buffers = Hash.new { |hash, key| hash[key] = [] }
     @dropped = Hash.new(0)
     @flusher_thread = nil
@@ -74,12 +75,15 @@ module Observability
     end
 
     def flush_kind!(kind)
-      events = drain_memory(kind)
-      events.concat(drain_spool(kind))
-      events = events.uniq { |event| event_identity(event) }
-      return if events.empty?
+      events = []
+      @flush_mutex.synchronize do
+        events = drain_memory(kind)
+        events.concat(drain_spool(kind))
+        events = events.uniq { |event| event_identity(event) }
+        return if events.empty?
 
-      Observability::EventStream.fetch(kind).persist!(events, batch_size: FLUSH_BATCH_SIZE)
+        Observability::EventStream.fetch(kind).persist!(events, batch_size: FLUSH_BATCH_SIZE)
+      end
     rescue StandardError => e
       Rails.logger.error("[Observability::EventSink] flush failed for #{kind}, #{events.size} event(s) restored to buffer: #{e.class}: #{e.message}")
       restore_memory(kind, events)
