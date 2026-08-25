@@ -1918,9 +1918,10 @@ Completed slices:
   re-evaluates current WorkIntent gates, records unresolved dependencies as a
   typed `waiting/dependency` Intent instead of leaving only Job-level implicit
   state, clears managed dependency waits when the gate passes, and then starts
-  queued Workflows through the WorkUnit launcher. Legacy queued Workflows
-  without WorkUnit ownership still start through the same service during the
-  migration window.
+  queued Workflows through the WorkUnit launcher. Normal legacy queued
+  Workflows without WorkUnit ownership no longer start through this wakeup;
+  the only legacy fallback preserved here is for historical `replay`
+  workflows.
 - Dependency wakeups also launch persisted job-scoped WorkIntents that do not
   have an active WorkUnit yet. When dependencies clear, `WorkIntents::JobWakeup`
   calls `WorkIntents::Scheduler.start_ready!`, so missed workflow creation is

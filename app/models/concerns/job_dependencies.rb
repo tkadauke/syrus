@@ -59,10 +59,23 @@ module JobDependencies
   private
 
   def clear_dependency_start_blocks!
-    workflows.where(state: "queued").includes(:work_unit).find_each do |workflow|
+    dependency_blocked_workflows.each do |workflow|
       StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
       StepDispatcher.clear_start_blocked!(workflow, "dependency_failed")
     end
+  end
+
+  def dependency_blocked_workflows
+    unit_workflows = WorkUnits::Ownership
+      .active_units_for_job(self)
+      .filter_map(&:workflow)
+      .select(&:queued?)
+
+    legacy_replay_workflows = WorkUnits::Ownership
+      .legacy_replay_workflows_scope([ id ], base_scope: workflows.where(state: "queued"))
+      .to_a
+
+    (unit_workflows + legacy_replay_workflows).uniq(&:id)
   end
 
   def dependency_terminal_unsuccessful?(dependency)
