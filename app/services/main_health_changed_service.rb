@@ -189,13 +189,16 @@ class MainHealthChangedService
   end
 
   def stamp_active_workflows!
-    Workflow.joins(:job)
-            .where(jobs: { repository_id: @repository.id })
-            .where(state: %w[queued running])
-            .find_each do |workflow|
-      workflow.set_artifact!("main_broken", true)
-      record_queued_work_unit_main_health_block!(workflow)
-    end
+    WorkUnit
+      .includes(:workflow)
+      .where(repository_id: @repository.id, state: WorkUnits::Ownership::ACTIVE_STATES)
+      .find_each do |unit|
+        workflow = unit.workflow
+        next unless workflow&.state.in?(%w[queued running])
+
+        workflow.set_artifact!("main_broken", true)
+        record_queued_work_unit_main_health_block!(workflow)
+      end
   end
 
   def record_queued_work_unit_main_health_block!(workflow)
@@ -217,12 +220,14 @@ class MainHealthChangedService
   def start_blocked_queued_workflows!
     # Queued workflows with no runs were blocked at the StepDispatcher gate
     # when main was broken. Call start_workflow again now that main is healthy.
-    Workflow
-      .joins(:job)
-      .where(jobs: { repository_id: @repository.id })
-      .where(state: "queued")
-      .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
-      .find_each do |workflow|
+    WorkUnit
+      .includes(:workflow)
+      .where(repository_id: @repository.id, state: "blocked", blocked_reason: "main_branch_health")
+      .find_each do |unit|
+        workflow = unit.workflow
+        next unless workflow&.queued?
+        next if workflow.steps.joins(:runs).exists?
+
         WorkUnits::Launcher.start!(workflow)
       end
   end

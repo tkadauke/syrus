@@ -25,18 +25,9 @@ module InputSources
 
     def pending_job_ids
       (
-        queued_workflow_job_ids +
         requested_intent_job_ids +
         active_work_unit_job_ids
       ).compact.uniq
-    end
-
-    def queued_workflow_job_ids
-      Workflow
-        .joins(:job)
-        .where(state: "queued", jobs: { repository_id: repository.id })
-        .distinct
-        .pluck(:job_id)
     end
 
     def requested_intent_job_ids

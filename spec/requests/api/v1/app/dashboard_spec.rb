@@ -2110,8 +2110,9 @@ RSpec.describe "App API dashboard commands", type: :request do
 
     it "manually unpauses selected jobs and wakes queued workflow phases" do
       job = Factories.job_record(repository: repo, issue_number: 54, state: "queued", manual_paused: true, manual_paused_at: Time.current, manual_paused_by_user: user)
-      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued", artifacts: { "pause_reason" => StepDispatcher::MANUAL_PAUSE_REASON, "start_blocked_reason" => StepDispatcher::MANUAL_PAUSE_REASON })
-      step = Step.create!(workflow: workflow, kind: "implement", position: 0)
+      workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+      step = workflow.first_step
+      WorkUnits::Launcher.start!(workflow)
       allow(AppEvents).to receive(:broadcast)
 
       expect {

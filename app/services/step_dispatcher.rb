@@ -331,7 +331,7 @@ class StepDispatcher
   end
 
   def self.clear_start_blocked!(workflow, reason)
-    return unless WorkUnits::StartBlock.for(workflow).blocked_for?(reason) || start_block_artifact_for?(workflow, reason)
+    return unless WorkUnits::StartBlock.for(workflow).blocked_for?(reason) || start_block_artifacts_match?(workflow, reason)
 
     cleared = (workflow.artifacts || {}).except(
       "start_blocked_reason",
@@ -351,7 +351,7 @@ class StepDispatcher
     clear_work_unit_blocked!(workflow, reason)
   end
 
-  def self.start_block_artifact_for?(workflow, reason)
+  def self.start_block_artifacts_match?(workflow, reason)
     workflow.artifact("start_blocked_reason") == reason ||
       workflow.artifact("pause_reason") == reason
   end

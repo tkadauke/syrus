@@ -6,21 +6,22 @@ class JobManualPause
 
   def self.unpause!(job)
     job.unpause_manually!
-    resume_active_work_units(job)
-    resume_active_workflows(job)
+    units = active_work_units(job).to_a
+    resume_active_work_units(units)
+    resume_active_work_unit_workflows(units)
     LandingQueueProcessorJob.perform_later if job.approved? || job.landing?
   end
 
-  def self.resume_active_work_units(job)
-    active_work_units(job).each do |unit|
+  def self.resume_active_work_units(units)
+    units.each do |unit|
       was_manual_pause_blocked = unit.blocked? && unit.blocked_reason == WorkUnits::Gates::ManualPause::REASON
       unit.clear_pause!
       unit.unblock! if was_manual_pause_blocked
     end
   end
 
-  def self.resume_active_workflows(job)
-    job.workflows.where(state: %w[ queued running ]).find_each do |workflow|
+  def self.resume_active_work_unit_workflows(units)
+    units.filter_map(&:workflow).uniq(&:id).each do |workflow|
       StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::MANUAL_PAUSE_REASON)
       WorkUnits::DeferredPhaseResume.call(workflow.id)
     end

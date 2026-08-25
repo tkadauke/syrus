@@ -822,7 +822,7 @@ module App
     end
 
     def workflow_pause_artifact?(workflow)
-      workflow.artifact("pause_reason").present? || WorkUnits::StartBlock.for(workflow).reason.present?
+      WorkUnits::StartBlock.for(workflow).reason.present?
     end
 
     def ownership_param_present?

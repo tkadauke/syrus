@@ -745,15 +745,10 @@ RSpec.describe MainHealthChangedService do
         }.to change { repository.reload.landing_paused }.from(true).to(false)
       end
 
-      it "restarts queued workflows left held by previous inconclusive behavior" do
+      it "restarts WorkUnit-blocked queued workflows left held by previous inconclusive behavior" do
         job = Factories.job_record(repository: repository, state: "queued")
-        blocked_workflow = Workflow.create!(
-          job: job,
-          user: user,
-          trigger_kind: "initial",
-          agent_provider: "claude"
-        )
-        blocked_workflow.steps.create!(kind: "prepare", position: 0, iteration: 1)
+        blocked_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+        blocked_workflow.work_unit.block!(reason: "main_branch_health", details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON })
         repository.update!(landing_paused: true)
 
         allow(WorkUnits::Launcher).to receive(:start!)
@@ -802,15 +797,10 @@ RSpec.describe MainHealthChangedService do
     end
 
     context "unblocking queued workflows" do
-      it "calls start_workflow for queued workflows with no runs" do
+      it "calls start_workflow for WorkUnit-blocked queued workflows with no runs" do
         job = Factories.job_record(repository: repository, state: "queued")
-        blocked_workflow = Workflow.create!(
-          job: job,
-          user: user,
-          trigger_kind: "initial",
-          agent_provider: "claude"
-        )
-        blocked_workflow.steps.create!(kind: "prepare", position: 0, iteration: 1)
+        blocked_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job)
+        blocked_workflow.work_unit.block!(reason: "main_branch_health", details: { "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON })
 
         allow(WorkUnits::Launcher).to receive(:start!)
         described_class.recovered!(repository)

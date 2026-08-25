@@ -11,8 +11,7 @@ class WorkflowAdmissionCapacityWakeup
   end
 
   def self.admission_or_resource_paused?(workflow)
-    admission_or_resource_reason?(WorkUnits::StartBlock.for(workflow).reason) ||
-      admission_or_resource_reason?(workflow.artifact("pause_reason"))
+    admission_or_resource_reason?(WorkUnits::StartBlock.for(workflow).reason)
   end
 
   def self.admission_or_resource_reason?(reason)

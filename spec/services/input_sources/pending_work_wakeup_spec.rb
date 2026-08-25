@@ -12,9 +12,8 @@ RSpec.describe InputSources::PendingWorkWakeup do
     allow(WorkIntents::JobWakeup).to receive(:call).and_return(false)
   end
 
-  it "wakes only open jobs with queued workflows" do
+  it "does not wake bare queued workflows without WorkUnit ownership" do
     target = open_job
-    unrelated = open_job
     Workflow.create!(
       job: target,
       user: user,
@@ -25,8 +24,7 @@ RSpec.describe InputSources::PendingWorkWakeup do
 
     described_class.call(repository)
 
-    expect(WorkIntents::JobWakeup).to have_received(:call).with(have_attributes(id: target.id)).once
-    expect(WorkIntents::JobWakeup).not_to have_received(:call).with(have_attributes(id: unrelated.id))
+    expect(WorkIntents::JobWakeup).not_to have_received(:call)
   end
 
   it "wakes jobs with requested job-scoped intents" do

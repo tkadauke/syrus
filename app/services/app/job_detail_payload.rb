@@ -884,10 +884,7 @@ module App
       return false if job_has_active_runtime_work?
 
       workflow = job.latest_workflow
-      workflow&.running? && !workflow.landing_workflow? && (
-        workflow.artifact("pause_reason").present? ||
-          WorkUnits::StartBlock.for(workflow).reason.present?
-      )
+      workflow&.running? && !workflow.landing_workflow? && WorkUnits::StartBlock.for(workflow).reason.present?
     end
 
     def job_running_runtime_work?
