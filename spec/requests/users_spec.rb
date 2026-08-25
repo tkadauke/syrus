@@ -61,26 +61,54 @@ RSpec.describe "User signup", type: :request do
   end
 
   describe "SPA layout theme class" do
-    it "renders the dark class before JavaScript for dark-theme users" do
+    it "renders the dark class and data-theme before JavaScript for dark-theme users" do
       user = Factories.user(theme: "dark")
       sign_in_as(user)
 
       get dashboard_path
 
       expect(response).to be_successful
-      expect(response.body).to include('<html class="dark">')
+      expect(response.body).to include('<html class="dark" data-theme="dark">')
       expect(response.body).to include('<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">')
     end
 
-    it "renders an empty html class for light-theme users" do
+    it "renders an empty html class and light data-theme for light-theme users" do
       user = Factories.user(theme: "light")
       sign_in_as(user)
 
       get dashboard_path
 
       expect(response).to be_successful
-      expect(response.body).to include('<html class="">')
+      expect(response.body).to include('<html class="" data-theme="light">')
       expect(response.body).to include('<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">')
+    end
+
+    it "renders a system data-theme with no server-side dark class for system-theme users" do
+      user = Factories.user(theme: "system")
+      sign_in_as(user)
+
+      get dashboard_path
+
+      expect(response).to be_successful
+      expect(response.body).to include('<html class="" data-theme="system">')
+    end
+
+    it "defaults signed-out visitors to system so the inline script resolves prefers-color-scheme" do
+      get new_session_path
+
+      expect(response).to be_successful
+      expect(response.body).to include('<html class="" data-theme="system">')
+    end
+
+    it "includes the early inline theme-resolution script before hydration" do
+      user = Factories.user(theme: "dark")
+      sign_in_as(user)
+
+      get dashboard_path
+
+      expect(response).to be_successful
+      expect(response.body).to include("prefers-color-scheme: dark")
+      expect(response.body.index("dataset.theme")).to be < response.body.index('id="syrus-spa-root"')
     end
   end
 

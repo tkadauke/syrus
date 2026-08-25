@@ -91,6 +91,67 @@ describe("AppChromeV2", () => {
     unmount()
   })
 
+  it("highlights the persisted theme in the settings popup picker", () => {
+    renderAppChrome(undefined, { bootstrap: bootstrapPayload({ current_user: { ...bootstrapPayload().current_user!, theme: "dark" } }) })
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+
+    expect(screen.getByRole("button", { name: "Dark" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Light" })).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("button", { name: "System" })).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("switches theme from the settings popup picker and applies the dark class", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/theme") return Promise.resolve(jsonResponse({ theme: "dark" }))
+      if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse({ chats: [] }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome()
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(screen.getByRole("button", { name: "Dark" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ theme: "dark" })
+      }))
+    })
+    expect(document.documentElement.classList.contains("dark")).toBe(true)
+  })
+
+  it("resolves the system theme option against the OS color-scheme preference", async () => {
+    const restoreMatchMedia = mockColorSchemeMatchMedia(true)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/theme") return Promise.resolve(jsonResponse({ theme: "system" }))
+      if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse({ chats: [] }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    try {
+      renderAppChrome()
+
+      fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+      fireEvent.click(screen.getByRole("button", { name: "System" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ theme: "system" })
+        }))
+      })
+      expect(document.documentElement.classList.contains("dark")).toBe(true)
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("hides scheduled tasks and dashboard subject links in simple mode", () => {
     renderAppChrome(<div>Dashboard</div>, {
       initialEntries: ["/dashboard"],
@@ -1560,6 +1621,31 @@ function mockMatchMedia(coarsePointer: boolean) {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
       matches: coarsePointer ? query === "(pointer: coarse)" : query !== "(pointer: coarse)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) {
+      Object.defineProperty(window, "matchMedia", original)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
+}
+
+function mockColorSchemeMatchMedia(prefersDark: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    // Keeps the desktop sidebar layout (matches: true for the "(min-width:
+    // 1024px)" query the sidebar's own useMediaQuery hook checks) so this
+    // only exercises prefers-color-scheme, not viewport-driven layout.
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(prefers-color-scheme: dark)" ? prefersDark : true,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }))

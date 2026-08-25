@@ -34,7 +34,7 @@ class User < ApplicationRecord
 
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
-  THEMES = %w[ light dark ].freeze
+  THEMES = %w[ light dark system ].freeze
   ROLES = %w[ developer product_owner ].freeze
   LOCALES = %w[ en de la ].freeze
   EMAIL_LOCAL_PART_SEPARATORS = /[._+-]+/

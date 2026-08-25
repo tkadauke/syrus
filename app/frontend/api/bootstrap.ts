@@ -18,7 +18,7 @@ export type BootstrapPayload = {
     chat_provider: "claude" | "codex" | null
     agent_max_turns: number
     gemini_configured: boolean
-    theme: "light" | "dark"
+    theme: "light" | "dark" | "system"
     locale: "en" | "de" | "la"
     notification_unread_count?: number
     seen_tours?: string[]

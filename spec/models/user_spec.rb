@@ -265,8 +265,13 @@ RSpec.describe User do
       expect(user.theme).to eq("dark")
     end
 
+    it "accepts system" do
+      user = User.create!(attrs.merge(theme: "system"))
+      expect(user.theme).to eq("system")
+    end
+
     it "rejects unknown themes" do
-      user = User.new(attrs.merge(theme: "system"))
+      user = User.new(attrs.merge(theme: "solarized"))
       expect(user).not_to be_valid
       expect(user.errors[:theme]).to be_present
     end

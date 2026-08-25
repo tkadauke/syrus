@@ -16,11 +16,22 @@ RSpec.describe "API: /api/v1/app/theme", type: :request do
     expect(user.reload.theme).to eq("dark")
   end
 
-  it "rejects unknown themes" do
+  it "accepts system" do
     user = Factories.user(theme: "light")
     sign_in_as(user)
 
     patch "/api/v1/app/theme", params: { theme: "system" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq("theme" => "system")
+    expect(user.reload.theme).to eq("system")
+  end
+
+  it "rejects unknown themes" do
+    user = Factories.user(theme: "light")
+    sign_in_as(user)
+
+    patch "/api/v1/app/theme", params: { theme: "solarized" }
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
