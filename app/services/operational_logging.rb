@@ -2,6 +2,8 @@ module OperationalLogging
   FEATURE_SLUG = :operational_log_indexing
   MAX_MESSAGE_BYTES = 4_000
   MAX_CONTEXT_BYTES = 8_000
+  ACTIVE_JOB_SUCCESS_MIN_DURATION_MS =
+    Integer(ENV["SYRUS_OPERATIONAL_LOG_ACTIVE_JOB_SUCCESS_MIN_DURATION_MS"], exception: false) || 1_000
   PRUNE_INTERVAL = 10.minutes
   MAX_BACKTRACE_FRAMES = 15
   INSTANCE_CONFIGURATION_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
@@ -91,6 +93,7 @@ module OperationalLogging
   def ingest_job(payload, duration_ms, level: "info")
     job = payload[:job]
     return if ignored_job?(job, payload)
+    return if ignored_successful_fast_job?(payload, duration_ms, level)
 
     current_run = Thread.current[:syrus_current_run]
     ingest(
@@ -182,6 +185,13 @@ module OperationalLogging
   def ignored_job?(job, payload)
     job_class = job&.class&.name || payload[:job_class].to_s
     job_class.in?([ "IndexOperationalLogEventJob", "IndexOperationalLogEventsJob", "PruneOperationalLogsJob" ])
+  end
+
+  def ignored_successful_fast_job?(payload, duration_ms, level)
+    return false if payload[:exception].present?
+    return false unless normalize_level(level) == "info"
+
+    duration_ms.to_f < ACTIVE_JOB_SUCCESS_MIN_DURATION_MS
   end
 
   def formatted_backtrace(exception_object)

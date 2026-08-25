@@ -113,7 +113,7 @@ RSpec.describe OperationalLogging do
       },
       12.34
     )
-    described_class.ingest_job({ job: RunJob.new }, 45.67)
+    described_class.ingest_job({ job: RunJob.new }, 1_234.56)
     Observability::EventSink.flush!(kinds: [ :operational ])
 
     expect(OperationalLogEvent.pluck(:source)).to contain_exactly("action_controller", "active_job")
@@ -182,11 +182,23 @@ RSpec.describe OperationalLogging do
     expect(request_event["context"]).not_to have_key("exception_message")
     expect(request_event["context"]).not_to have_key("backtrace")
 
-    job_event = described_class.ingest_job({ job: RunJob.new }, 45.67)
+    job_event = described_class.ingest_job({ job: RunJob.new }, 1_234.56)
 
     expect(job_event["context"]).not_to have_key("exception")
     expect(job_event["context"]).not_to have_key("exception_message")
     expect(job_event["context"]).not_to have_key("backtrace")
+  end
+
+  it "skips fast successful active job events while keeping slow successes and failures" do
+    expect(described_class.ingest_job({ job: RunJob.new }, 45.67)).to be_nil
+
+    slow_event = described_class.ingest_job({ job: RunJob.new }, described_class::ACTIVE_JOB_SUCCESS_MIN_DURATION_MS + 1)
+    failure_event = described_class.ingest_job({ job: RunJob.new, exception: [ "RuntimeError", "boom" ] }, 12.34)
+
+    expect(slow_event).to be_present
+    expect(slow_event["source"]).to eq("active_job")
+    expect(failure_event).to be_present
+    expect(failure_event["context"]["exception"]).to eq("RuntimeError")
   end
 
   it "does not touch the primary or search database during primary ingest" do
