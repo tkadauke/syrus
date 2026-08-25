@@ -25,6 +25,25 @@ membership to find the durable conversation for a user's external account.
 and sets `trigger_policy` to `speak_when_spoken_to`; that is the only trigger
 policy value today, but the string enum leaves room for future policies.
 
+## Deleting a chat
+
+`DELETE /api/v1/app/chats/:id` soft-deletes the `ChatSession` row instead of
+destroying it: `deleted_at`/`deleted_by_user_id` are set (mirroring the
+`ChatMemory`/`ChatMessage` soft-delete pattern), and dependent rows —
+messages, bookmarks, queued messages, attachments, proposals, pending
+actions, the whiteboard, and any captured agent session — are left
+untouched in the DB for audit. The chat workspace directory, per-chat agent
+homes, and FTS search-index rows are still purged post-commit by
+`ChatSessionCleanupJob`, since those are local checkout state rather than
+audit history. `ChatSession.active`/`.deleted` scopes mirror `ChatMessage`'s.
+Every operator-facing lookup (chat index, show, search, participants, local
+daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
+(`list_chats`, `search_chats`, `read_chat_messages`) scope through
+`ChatSession.active`, so a deleted chat is invisible to both the operator
+and the agent — the same invisibility `ChatMessage.active` already gives
+soft-deleted messages after `/clear`. Deletion is still refused while a
+turn is in flight or for the enabled Supervisor chat.
+
 ## Group chats
 
 `chat_sessions.conversation_kind` is `direct` (default) or `group`, and is

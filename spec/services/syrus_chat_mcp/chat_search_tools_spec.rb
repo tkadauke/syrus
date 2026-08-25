@@ -101,6 +101,21 @@ RSpec.describe "Mcp::Tools chat search tools" do
       expect(results.size).to eq(1)
       expect(results.first[:created_at]).to eq(kept.created_at.iso8601)
     end
+
+    it "excludes messages from a soft-deleted chat session, even though the messages themselves are untouched" do
+      kept = message(chat_session, text: "needle kept")
+      other_chat = ChatSession.create!(user: user, repository: repository, title: "Deleted chat")
+      orphaned = message(other_chat, text: "needle orphaned")
+      [ kept, orphaned ].each { |chat_message| ChatMessageSearchIndex.insert(chat_message) }
+      other_chat.soft_delete_by!(user)
+
+      response = call_tool("search_chats", query: "needle")
+      results = response_payload(response).fetch(:results)
+
+      expect(results.size).to eq(1)
+      expect(results.first[:created_at]).to eq(kept.created_at.iso8601)
+      expect(ChatMessage.active.exists?(orphaned.id)).to be(true)
+    end
   end
 
   describe "read_chat_messages" do
@@ -161,6 +176,16 @@ RSpec.describe "Mcp::Tools chat search tools" do
       payload = response_payload(response)
 
       expect(payload[:messages].map { |m| m[:id] }).to eq([ kept.id ])
+    end
+
+    it "treats a soft-deleted chat as inaccessible, even though its messages are untouched" do
+      message(chat_session, text: "still here")
+      chat_session.soft_delete_by!(user)
+
+      response = call_tool("read_chat_messages", chat_session_id: chat_session.id)
+
+      expect(response[:result][:isError]).to be(true)
+      expect(response[:result][:content].first[:text]).to include("not_authorized")
     end
   end
 

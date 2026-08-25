@@ -88,7 +88,7 @@ module Mcp::Tools
     end
 
     def find_chat_session!(id)
-      scope = current_user.accessible_chat_sessions
+      scope = current_user.accessible_chat_sessions.active
       scope = scope.where(id: mcp_context.allowed_chat_session_ids) if mcp_context&.allowed_chat_session_ids
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound

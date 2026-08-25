@@ -816,7 +816,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   end
 
   describe "DELETE /api/v1/app/chats/:id" do
-    it "hard-deletes the chat and its dependent rows, then cleans search index, workspace, and agent homes via the worker job" do
+    it "soft-deletes the chat, keeps dependent rows for audit, cleans search index/workspace/agent homes via the worker job, and hides it from listing/show" do
       prepare_search_tables
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, title: "Doomed", last_message_at: Time.current)
@@ -846,8 +846,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
         expect(response).to have_http_status(:ok)
         expect(parse_body["message"]).to eq("Chat deleted.")
 
-        # The request itself only deletes rows; the filesystem + FTS
-        # cleanup runs post-commit on the worker (the web pod doesn't
+        # The request itself only marks the row deleted; the filesystem +
+        # FTS cleanup runs post-commit on the worker (the web pod doesn't
         # mount the workspace PVC).
         expect(File.directory?(workspace)).to be(true)
 
@@ -859,17 +859,28 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
         ENV["SYRUS_DATA_ROOT"] = original_data_root
       end
 
-      expect(ChatSession.exists?(chat.id)).to be(false)
-      expect(ChatMessage.where(chat_session_id: chat.id)).to be_empty
-      expect(ChatBookmark.exists?(bookmark.id)).to be(false)
-      expect(ChatQueuedMessage.exists?(queued.id)).to be(false)
-      expect(ChatProposal.exists?(proposal.id)).to be(false)
-      expect(Whiteboard.exists?(whiteboard.id)).to be(false)
-      expect(ChatAttachment.where(chat_session_id: chat.id)).to be_empty
+      chat.reload
+      expect(chat.deleted_at).to be_present
+      expect(chat.deleted_by_user).to eq(user)
+      # Associated records are left untouched in the DB for audit.
+      expect(ChatMessage.where(chat_session_id: chat.id).count).to eq(2)
+      expect(ChatBookmark.exists?(bookmark.id)).to be(true)
+      expect(ChatQueuedMessage.exists?(queued.id)).to be(true)
+      expect(ChatProposal.exists?(proposal.id)).to be(true)
+      expect(Whiteboard.exists?(whiteboard.id)).to be(true)
+      expect(ChatAttachment.where(chat_session_id: chat.id)).not_to be_empty
       expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).to be_empty
+
+      # A soft-deleted chat is invisible to both the operator and the agent.
+      get "/api/v1/app/chats/#{chat.id}"
+      expect(response).to have_http_status(:not_found)
+
+      get "/api/v1/app/chats"
+      all_chat_ids = parse_body["groups"].flat_map { |group| group["chats"] }.map { |c| c["id"] }
+      expect(all_chat_ids).not_to include(chat.id)
     end
 
-    it "deletes a chat whose proposals are referenced by pending JobDependency placeholders" do
+    it "does not release JobDependency placeholders when the chat has unmaterialized proposals, since nothing is destroyed" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, title: "Has placeholders")
       proposal = chat.proposals.create!(slug: "upstream-work", title: "Upstream work", body: "First.")
@@ -880,11 +891,9 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["message"]).to eq("Chat deleted.")
-      expect(ChatSession.exists?(chat.id)).to be(false)
-      expect(ChatProposal.exists?(proposal.id)).to be(false)
-      # The placeholder can never resolve once its proposal is gone —
-      # it is removed so it cannot wedge the dependent Job forever.
-      expect(JobDependency.exists?(dependency.id)).to be(false)
+      expect(chat.reload.deleted_at).to be_present
+      expect(ChatProposal.exists?(proposal.id)).to be(true)
+      expect(JobDependency.exists?(dependency.id)).to be(true)
       expect(Job.exists?(dependent_job.id)).to be(true)
     end
 
@@ -898,7 +907,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:conflict)
       expect(parse_body.dig("error", "code")).to eq("turn_in_flight")
       expect(parse_body.dig("error", "message")).to include("while a turn is in progress")
-      expect(ChatSession.exists?(chat.id)).to be(true)
+      expect(chat.reload.deleted_at).to be_nil
     end
 
     it "does not delete an enabled supervisor chat" do
@@ -910,7 +919,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(response).to have_http_status(:forbidden)
       expect(parse_body.dig("error", "code")).to eq("forbidden")
-      expect(ChatSession.exists?(chat.id)).to be(true)
+      expect(chat.reload.deleted_at).to be_nil
     end
 
     it "404s for another user's chat" do
@@ -921,7 +930,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       delete "/api/v1/app/chats/#{other_chat.id}"
 
       expect(response).to have_http_status(:not_found)
-      expect(ChatSession.exists?(other_chat.id)).to be(true)
+      expect(other_chat.reload.deleted_at).to be_nil
+    end
+
+    it "404s when the chat is already soft-deleted" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      chat.soft_delete_by!(user)
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 

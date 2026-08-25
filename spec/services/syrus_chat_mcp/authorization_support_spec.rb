@@ -131,6 +131,14 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
   end
 
+  it "raises AuthorizationError when find_chat_session! sees a soft-deleted chat session, even the current one's own" do
+    deleted_chat = ChatSession.create!(user: user, repository: repository)
+    deleted_chat.soft_delete_by!(user)
+
+    expect { with_context { tool.find_chat_session!(deleted_chat.id) } }
+      .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
+  end
+
 
   it "returns a not_authorized tool error when registered tools raise AuthorizationError" do
     raising_tool = Class.new(MCP::Tool) do

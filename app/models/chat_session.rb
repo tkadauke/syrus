@@ -11,6 +11,7 @@ class ChatSession < ApplicationRecord
   TRIGGER_POLICIES = %w[speak_when_spoken_to].freeze
 
   belongs_to :user
+  belongs_to :deleted_by_user, class_name: "User", optional: true
 
   has_many :chat_participants, dependent: :destroy
   has_many :participants, through: :chat_participants, source: :user
@@ -93,8 +94,18 @@ class ChatSession < ApplicationRecord
   # Filesystem + FTS cleanup is deliberately NOT done here: it runs
   # post-commit on the worker via ChatSessionCleanupJob, so a rollback
   # can't leave irreversible side effects behind and the rm_rf happens
-  # on the pod that actually mounts the workspace PVC.
+  # on the pod that actually mounts the workspace PVC. Chat deletion is
+  # a soft-delete (see #soft_delete_by!) so this fires on the deleted_at
+  # transition instead of an actual row destroy; a real #destroy! (e.g.
+  # from the console) still triggers the same cleanup.
   after_destroy_commit :enqueue_cleanup_job
+  # A distinct method (rather than reusing :enqueue_cleanup_job) is
+  # deliberate: ActiveSupport::Callbacks identifies a callback by its
+  # filter symbol, so registering the same symbol via both
+  # after_destroy_commit and after_update_commit merges them into ONE
+  # callback whose :if guards are ANDed together — silently breaking the
+  # destroy-triggered cleanup once an update-only guard was added.
+  after_update_commit :enqueue_cleanup_job_on_soft_delete, if: -> { saved_change_to_deleted_at? && deleted_at.present? }
 
   validates :title, length: { maximum: TITLE_MAX_LENGTH }, allow_nil: true
   validates :cumulative_input_tokens,
@@ -132,6 +143,8 @@ class ChatSession < ApplicationRecord
   }
   scope :visible, -> { where(hidden_at: nil) }
   scope :hidden, -> { where.not(hidden_at: nil) }
+  scope :active, -> { where(deleted_at: nil) }
+  scope :deleted, -> { where.not(deleted_at: nil) }
   scope :ordinary_chats, -> { where(system_kind: nil) }
 
   def self.fallback_title_for(repository)
@@ -173,6 +186,14 @@ class ChatSession < ApplicationRecord
 
   def supervisor_chat?
     system_kind == "supervisor"
+  end
+
+  def soft_delete_by!(actor)
+    update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+  end
+
+  def deleted?
+    deleted_at.present?
   end
 
   def repository=(repository)
@@ -562,6 +583,7 @@ class ChatSession < ApplicationRecord
   def enqueue_cleanup_job
     ChatSessionCleanupJob.perform_later(id, workspace_path)
   end
+  alias_method :enqueue_cleanup_job_on_soft_delete, :enqueue_cleanup_job
 
   def enabled_supervisor_affordance_is_preserved
     errors.add(:title, "cannot be changed for the supervisor chat") if title_changed? && persisted?
