@@ -116,6 +116,17 @@ RSpec.describe App::DashboardPayload do
 
       expect(item[:active_workflow_trigger_kind]).to eq("chat_feedback")
     end
+
+    it "keeps closed jobs closed even when diagnostic WorkUnits look blocked" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running", started_at: Time.current)
+      backfill_work_unit(workflow, state: "blocked", blocked_reason: "admission_control")
+      job.update!(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+
+      payload = described_class.new(user: user, params: ActionController::Parameters.new(subject: "job", section: "rows"))
+
+      expect(payload.send(:summary_state, job)).to eq("closed")
+    end
   end
 
   describe "start-blocked row data" do

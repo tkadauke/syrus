@@ -915,6 +915,19 @@ RSpec.describe App::JobDetailPayload do
       expect(workflows_payload.fetch(:work_units)).to be_empty
     end
 
+    it "does not present active-looking WorkUnit state as current work after a job closes" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "ci_failure", state: "running")
+      attach_work_unit(workflow, member_jobs: [ job ], kind: "ci_failure", state: "blocked", blocked_reason: "admission_control")
+      job.update!(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:job, :summary_state)).to eq("closed")
+      expect(payload.fetch(:active_work)).to be_nil
+      expect(payload.fetch(:work_units)).to be_empty
+    end
+
     it "includes a waiting epic-scoped intent for member jobs before a work unit exists" do
       epic = Factories.epic(user: user, repository: repo)
       job = Factories.job_record(user: user, repository: repo, epic: epic)

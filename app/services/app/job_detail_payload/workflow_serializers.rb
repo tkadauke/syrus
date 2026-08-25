@@ -30,6 +30,8 @@ module App
       end
 
       def active_work_json
+        return nil if @job.closed?
+
         member = active_work_unit_member_for_job
         return nil unless member
 
@@ -96,6 +98,8 @@ module App
       end
 
       def active_work_unit_member_for_job
+        return nil if @job.closed?
+
         @active_work_unit_member_for_job ||= PerformanceLogging.phase("job_detail.active_work.query", job_id: @job.id) do
           WorkUnitMember
             .joins(:work_unit)

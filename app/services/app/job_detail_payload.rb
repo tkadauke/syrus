@@ -874,6 +874,7 @@ module App
     def summary_state(job)
       return "preempted" if job.closure_reason == "preempted"
       return "preempted" if job.closure_reason&.start_with?("external_pr_")
+      return job.state if job.closed?
       return "repairing" if job.failed? && active_repair_work_for_job
       return job.state if job.landing?
       return "running" if job_running_runtime_work?
