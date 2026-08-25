@@ -975,7 +975,7 @@ Each user owns their own profile, credentials, defaults, and preferences:
 - **Agent Settings** stores the default agent provider, max-turn setting, and auto-approval fallback.
 - **Preferences** stores account-level toggles such as scheduling pause.
 - **Connected Platforms** links the Syrus account to external messaging platforms (see below).
-- Light or dark app theme is toggled from the account area.
+- **Theme** — light, dark, or system (matches the OS color-scheme preference and updates live if it changes) is picked from the account area. The choice applies before the page finishes loading, so there's no flash of the wrong theme, and it's respected by the desktop tray app too.
 - **Language** — operators can select their preferred display language from the profile settings page. Supported locales are English (`en`), German (`de`), and Latin (`la`). The preference is stored per-user and applied to all app chrome and shared UI text.
 
 ## Connected Platforms

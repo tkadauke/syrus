@@ -1,18 +1,18 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
-import { ChevronDownIcon, EpicIcon, GripIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
+import { ChevronDownIcon, EpicIcon, GripIcon, MoonIcon, PlusIcon, SearchIcon, SetupIcon, SunIcon, SystemThemeIcon, TeamIcon, UserIcon } from "./appChromeV2/icons"
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
-import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
-import { patchJson, postJson } from "../api/client"
+import { postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
@@ -29,6 +29,7 @@ import { NotificationsBell } from "../components/Notifications"
 import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { TestChannelBadge, TestChannelDot } from "../components/TestChannelBadge"
+import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
 import { ParticipantPickerModal } from "./chat/ParticipantPicker"
@@ -248,6 +249,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   return (
+    <ThemeProvider theme={user?.theme ?? "system"}>
     <BugReportContext.Provider value={bugReportContextValue}>
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
@@ -367,6 +369,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       ) : null}
     </div>
     </BugReportContext.Provider>
+    </ThemeProvider>
   )
 }
 
@@ -1061,30 +1064,9 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
   showTeamProfile: boolean
   user: NonNullable<BootstrapPayload["current_user"]>
 }) {
-  const queryClient = useQueryClient()
   const { t } = useTranslation("nav")
   const [open, setOpen] = useState(false)
-  const [theme, setTheme] = useState(user.theme)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
-
-  useEffect(() => {
-    setTheme(user.theme)
-    document.documentElement.classList.toggle("dark", user.theme === "dark")
-  }, [user.theme])
-
-  function toggleTheme() {
-    const nextTheme = theme === "dark" ? "light" : "dark"
-    document.documentElement.classList.toggle("dark", nextTheme === "dark")
-    setTheme(nextTheme)
-    void patchJson<{ theme: "light" | "dark" }>("/api/v1/app/theme", { theme: nextTheme }).then((payload) => {
-      document.documentElement.classList.toggle("dark", payload.theme === "dark")
-      setTheme(payload.theme)
-      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapTheme(current, payload.theme))
-    }).catch(() => {
-      document.documentElement.classList.toggle("dark", theme === "dark")
-      setTheme(theme)
-    })
-  }
 
   return (
     <div className="relative" ref={menuRef}>
@@ -1101,15 +1083,8 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
       </button>
       {open ? (
         <div className="absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950">
-          <button
-            aria-label={theme === "dark" ? t("nav:switch_to_light_mode") : t("nav:switch_to_dark_mode")}
-            className="flex w-full items-center gap-2 px-4 py-2 text-left text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
-            onClick={toggleTheme}
-            type="button"
-          >
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-            <span>{theme === "dark" ? t("nav:light_mode") : t("nav:dark_mode")}</span>
-          </button>
+          <ThemePicker />
+          <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
           {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
@@ -1121,6 +1096,41 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           </form>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+const THEME_OPTIONS: Array<{ value: Theme; icon: () => ReactElement; labelKey: string }> = [
+  { value: "light", icon: SunIcon, labelKey: "nav:light_mode" },
+  { value: "dark", icon: MoonIcon, labelKey: "nav:dark_mode" },
+  { value: "system", icon: SystemThemeIcon, labelKey: "nav:system_mode" }
+]
+
+function ThemePicker() {
+  const { t } = useTranslation("nav")
+  const { theme, setTheme } = useTheme()
+
+  return (
+    <div className="px-4 py-2" role="group" aria-label={t("nav:theme")}>
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t("nav:theme")}</p>
+      <div className="grid grid-cols-3 gap-1 rounded border border-gray-200 p-1 dark:border-gray-700">
+        {THEME_OPTIONS.map((option) => {
+          const Icon = option.icon
+          const active = theme === option.value
+          return (
+            <button
+              aria-pressed={active}
+              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-[11px] font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              key={option.value}
+              onClick={() => setTheme(option.value)}
+              type="button"
+            >
+              <Icon />
+              {t(option.labelKey)}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
