@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Syrus Desktop</title>
+    <script>
+      // Render-blocking, runs before any React module — avoids a flash of
+      // the wrong theme. Reads the same "syrus.desktop.theme" cache
+      // src/theme.ts writes once the real bootstrap payload resolves, and
+      // otherwise falls back to the OS preference (covers onboarding, which
+      // has no persisted user yet). Deliberately vanilla JS with no
+      // dependency on src/theme.ts — this must execute synchronously
+      // before the module graph loads.
+      (function () {
+        try {
+          var cached = localStorage.getItem("syrus.desktop.theme");
+          var prefersDark =
+            window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var dark = cached === "dark" || (cached !== "light" && prefersDark);
+          if (dark) {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {
+          // Ignore unavailable storage/matchMedia — falls back to light.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

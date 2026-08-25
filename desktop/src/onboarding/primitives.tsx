@@ -24,8 +24,8 @@ export function OnboardingScreen({
 }) {
   return (
     <section className={width === "xl" ? "w-full max-w-xl" : "w-full max-w-md"}>
-      <h1 className={`text-center text-xl font-semibold ${titleTone === "danger" ? "text-red-700" : ""}`}>{title}</h1>
-      {subtitle ? <p className="mt-2 text-center text-sm text-slate-600">{subtitle}</p> : null}
+      <h1 className={`text-center text-xl font-semibold ${titleTone === "danger" ? "text-red-700 dark:text-red-400" : ""}`}>{title}</h1>
+      {subtitle ? <p className="mt-2 text-center text-sm text-slate-600 dark:text-slate-400">{subtitle}</p> : null}
       {children}
     </section>
   )
@@ -43,7 +43,7 @@ export function FormError({ children }: { children: ReactNode }) {
   }
 
   return (
-    <p role="alert" className="border-l-[3px] border-red-600 pl-2.5 text-sm leading-5 text-red-800">
+    <p role="alert" className="border-l-[3px] border-red-600 pl-2.5 text-sm leading-5 text-red-800 dark:border-red-500 dark:text-red-300">
       {children}
     </p>
   )
@@ -56,11 +56,11 @@ export type HintState = "empty" | "valid" | "invalid" | "note"
 export function ValidationHint({ state, children }: { state: HintState; children?: ReactNode }) {
   const tone =
     state === "valid"
-      ? "text-emerald-600 opacity-100"
+      ? "text-emerald-600 opacity-100 dark:text-emerald-400"
       : state === "invalid"
-        ? "text-amber-600 opacity-100"
+        ? "text-amber-600 opacity-100 dark:text-amber-400"
         : state === "note"
-          ? "text-slate-500 opacity-100"
+          ? "text-slate-500 opacity-100 dark:text-slate-400"
           : "opacity-0"
 
   return (
@@ -95,7 +95,7 @@ export function ProgressBar({ percent }: { percent: number }) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={bounded}
-      className="h-2 w-full overflow-hidden rounded-full bg-slate-200"
+      className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
     >
       <div className="h-full rounded-full bg-terracotta-600 transition-all" style={{ width: `${bounded}%` }} />
     </div>
@@ -109,8 +109,8 @@ export function LogTail({ lines, label = "Show details" }: { lines: string[]; la
 
   return (
     <details className="mt-4">
-      <summary className="cursor-pointer text-xs text-slate-500">{label}</summary>
-      <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-200">
+      <summary className="cursor-pointer text-xs text-slate-500 dark:text-slate-400">{label}</summary>
+      <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-200 dark:bg-slate-950 dark:text-slate-300">
         {lines.join("\n")}
       </pre>
     </details>

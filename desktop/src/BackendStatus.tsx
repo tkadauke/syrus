@@ -38,18 +38,18 @@ export function BackendStatus() {
   const message = (detail && DETAIL_MESSAGES[detail]) || DEFAULT_MESSAGE
 
   return (
-    <div className="flex h-screen flex-col items-center justify-center bg-slate-50 px-10 text-center text-slate-900 antialiased">
+    <div className="flex h-screen flex-col items-center justify-center bg-slate-50 px-10 text-center text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
       <img src={syrusIconUrl} alt="" className="h-12 w-12 opacity-70" />
       <h1 className="mt-5 text-xl font-semibold">{message.title}</h1>
-      <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-600">{message.body}</p>
-      <p className="mt-3 max-w-sm text-xs leading-relaxed text-slate-400">
+      <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-600 dark:text-slate-400">{message.body}</p>
+      <p className="mt-3 max-w-sm text-xs leading-relaxed text-slate-400 dark:text-slate-500">
         Removed or moved your Syrus? Choose <span className="font-medium">Syrus → Run Setup Again…</span>{" "}
         from the menu to start over.
       </p>
-      <p className="mt-6 text-sm text-slate-400" role="status">
+      <p className="mt-6 text-sm text-slate-400 dark:text-slate-500" role="status">
         <span
           aria-hidden
-          className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent align-middle"
+          className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent align-middle dark:border-slate-600"
         />
         Checking again…
       </p>
