@@ -117,6 +117,40 @@ RSpec.describe "API: /api/v1/admin/mcp_tool_usage", type: :request do
     expect(body["recent_calls"].map { |call| call["tool_name"] }).to eq([ "read_live_state" ])
   end
 
+  it "accepts hour-based relative windows from API clients" do
+    repository = Factories.repository(user: admin)
+    run = Factories.job(user: admin, repository: repository).initial_run
+    now = Time.zone.parse("2026-08-24 12:00:00")
+
+    travel_to(now - 90.minutes) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_summary",
+        tool_use_id: "recent_hour_window",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now - 3.hours) do
+      McpToolUsageRecorder.record_workflow_tool_call(
+        run: run,
+        tool_name: "syrus-mcp-sidecar.submit_test_plan",
+        tool_use_id: "old_hour_window",
+        tool_input: {}
+      )
+    end
+
+    travel_to(now) do
+      get "/api/v1/admin/mcp_tool_usage", headers: auth, params: { window: "2h" }
+    end
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(Time.zone.parse(body.dig("window", "start"))).to eq(now - 2.hours)
+    expect(body["totals"]).to include("calls" => 1)
+    expect(body["recent_calls"].map { |call| call["tool_name"] }).to eq([ "submit_summary" ])
+  end
+
   it "filters recent calls and aggregates by tool and server" do
     repository = Factories.repository(user: admin)
     run = Factories.job(user: admin, repository: repository).initial_run
