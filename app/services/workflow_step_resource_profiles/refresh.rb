@@ -18,9 +18,7 @@ module WorkflowStepResourceProfiles
     def refresh_for_summaries!(summaries)
       summaries = summaries.to_a
       with_span_samples(summaries) do
-        grouped_inputs(summaries).each_value do |inputs|
-          refresh_profile!(inputs)
-        end
+        refresh_profiles!(grouped_inputs(summaries).values)
       end
     end
 
@@ -71,19 +69,33 @@ module WorkflowStepResourceProfiles
       ]
     end
 
-    def refresh_profile!(inputs)
+    def refresh_profiles!(input_groups)
+      rows = input_groups.filter_map { |inputs| profile_row(inputs) }
+      return if rows.empty?
+
+      WorkflowStepResourceProfile.upsert_all(rows, **profile_upsert_options)
+    end
+
+    def profile_upsert_options
+      options = { record_timestamps: true }
+      if WorkflowStepResourceProfile.connection.supports_insert_conflict_target?
+        options[:unique_by] = :idx_workflow_step_resource_profiles_key
+      end
+      options
+    end
+
+    def profile_row(inputs)
       first = inputs.first
-      profile = WorkflowStepResourceProfile.find_or_initialize_by(
+      return unless first
+
+      {
         repository_id: first.repository_id,
         agent_provider: first.agent_provider,
         trigger_kind: first.trigger_kind,
         step_kind: first.step_kind,
         grader_name: normalized_grader_name(first),
         job_kind: first.job&.kind.to_s
-      )
-
-      profile.assign_attributes(profile_attributes(inputs))
-      profile.save!
+      }.merge(profile_attributes(inputs))
     end
 
     def profile_attributes(inputs)

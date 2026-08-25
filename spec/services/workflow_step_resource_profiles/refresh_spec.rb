@@ -226,6 +226,38 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     )
   end
 
+  it "bulk upserts profile rows instead of saving each profile separately" do
+    resource_summary(repository: repository, duration: 120, step_kind: "grader", grader_name: "rspec")
+    resource_summary(repository: repository, duration: 45, step_kind: "grader", grader_name: "typecheck")
+    resource_summary(repository: other_repository, duration: 90, step_kind: "implement")
+
+    profile_writes = []
+    callback = lambda do |_name, _started, _finished, _unique_id, payload|
+      sql = payload[:sql].to_s
+      profile_writes << sql if sql.match?(/\b(?:INSERT|UPDATE|UPSERT)\b/i) && sql.include?("workflow_step_resource_profiles")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new(now: now).refresh_all!
+    end
+
+    expect(WorkflowStepResourceProfile.count).to eq(3)
+    expect(profile_writes.size).to eq(1)
+  end
+
+  it "does not pass unique_by to adapters without conflict-target support" do
+    resource_summary(repository: repository, duration: 120, step_kind: "grader", grader_name: "rspec")
+    allow(WorkflowStepResourceProfile.connection).to receive(:supports_insert_conflict_target?).and_return(false)
+    allow(WorkflowStepResourceProfile).to receive(:upsert_all).and_call_original
+
+    described_class.new(now: now).refresh_all!
+
+    expect(WorkflowStepResourceProfile).to have_received(:upsert_all).with(
+      kind_of(Array),
+      record_timestamps: true
+    )
+  end
+
   it "stores attributed command metrics separately from host-correlated fallback metrics" do
     10.times do |index|
       resource_summary(
