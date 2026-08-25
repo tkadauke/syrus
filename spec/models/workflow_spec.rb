@@ -35,45 +35,6 @@ RSpec.describe Workflow do
     unit
   end
 
-  # Materialized on purpose for compatibility with callers that used to ask
-  # Workflow for active runtime jobs. Runtime ownership now comes from
-  # WorkUnits, not from unowned queued/running Workflow rows.
-  describe ".active_job_ids" do
-    it "returns job ids with active WorkUnit-owned workflows" do
-      workflow = described_class.create!(job: job, trigger_kind: "manual", state: "running")
-      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual")
-
-      expect(described_class.active_job_ids).to include(job.id)
-    end
-
-    it "excludes jobs whose Workflows are unowned or terminal" do
-      job = Factories.job_record(issue_number: 90, issue_title: "Unowned")
-      other = Factories.job_record(issue_number: 91, issue_title: "Done")
-      described_class.create!(job: job, trigger_kind: "manual", state: "running")
-      described_class.create!(job: other, trigger_kind: "manual", state: "succeeded")
-
-      expect(described_class.active_job_ids).not_to include(job.id)
-      expect(described_class.active_job_ids).not_to include(other.id)
-    end
-
-    it "reports a job once even with several active WorkUnits" do
-      job = Factories.job_record(issue_number: 92, issue_title: "Owned")
-      first = described_class.create!(job: job, trigger_kind: "manual", state: "running")
-      second = described_class.create!(job: job, trigger_kind: "retry", state: "queued")
-      attach_work_unit(first, member_jobs: [ job ], kind: "manual")
-      attach_work_unit(second, member_jobs: [ job ], kind: "retry")
-
-      expect(described_class.active_job_ids.count(job.id)).to eq(1)
-    end
-
-    it "returns plain ids so callers cannot re-embed it as a subquery" do
-      workflow = described_class.create!(job: job, trigger_kind: "manual", state: "running")
-      attach_work_unit(workflow, member_jobs: [ job ], kind: "manual")
-
-      expect(described_class.active_job_ids).to all(be_an(Integer))
-    end
-  end
-
   describe "validations" do
     it "is valid with a known trigger_kind" do
       expect(build_wf(trigger_kind: "initial")).to be_valid
@@ -192,6 +153,29 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "Job lifecycle propagation" do
+    it "ignores newer unowned Workflow rows when deciding whether a failure is superseded" do
+      target = Factories.job_record(issue_number: 93, issue_title: "Unowned retry", state: "running")
+      workflow = described_class.create!(job: target, trigger_kind: "initial", state: "running", created_at: 2.minutes.ago)
+      described_class.create!(job: target, trigger_kind: "retry", state: "queued", created_at: 1.minute.ago)
+
+      workflow.fail!
+
+      expect(target.reload).to be_failed
+    end
+
+    it "treats newer WorkUnit-owned Workflow rows as active superseding work" do
+      target = Factories.job_record(issue_number: 94, issue_title: "Owned retry", state: "running")
+      workflow = described_class.create!(job: target, trigger_kind: "initial", state: "running", created_at: 2.minutes.ago)
+      newer = described_class.create!(job: target, trigger_kind: "retry", state: "queued", created_at: 1.minute.ago)
+      attach_work_unit(newer, member_jobs: [ target ], kind: "retry", state: "queued")
+
+      workflow.fail!
+
+      expect(target.reload).to be_running
+    end
+  end
+
   describe "#current_step" do
     it "uses an active Run to find the current Step when persisted Step state drifted terminal" do
       workflow = described_class.create!(job: job, trigger_kind: "initial", state: "running")
@@ -294,6 +278,7 @@ RSpec.describe Workflow do
         artifacts: { "publication_branch" => job.branch_name }
       )
       Step.create!(workflow: older, kind: "implement", position: 0)
+      attach_work_unit(older, member_jobs: [ job ], kind: "retry", state: "queued")
       newer = described_class.create!(
         job: job,
         trigger_kind: "retry",
@@ -520,6 +505,7 @@ RSpec.describe Workflow do
         state: "queued",
         created_at: 1.minute.ago
       )
+      attach_work_unit(retry_workflow, member_jobs: [ job ], kind: "retry", state: "queued")
 
       expect { old_rebase.fail!; old_rebase.save! }
         .not_to change { job.reload.state }
@@ -544,6 +530,7 @@ RSpec.describe Workflow do
         started_at: 1.minute.ago,
         created_at: 1.minute.ago
       )
+      attach_work_unit(retry_workflow, member_jobs: [ job ], kind: "retry", state: "running")
 
       expect { old_rebase.fail!; old_rebase.save! }
         .not_to change { job.reload.state }

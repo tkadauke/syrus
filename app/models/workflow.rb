@@ -50,15 +50,7 @@ class Workflow < ApplicationRecord
   #    { "type" => "loop", "max_iterations" => 5, "steps" => ["implement", "grade"] }]
   serialize :chain_template, coder: JSON
 
-  scope :active, -> { where(state: %w[ queued running ]) }
   scope :epic_wide, -> { where(trigger_kind: EPIC_WIDE_TRIGGER_KINDS) }
-
-  # Runtime ownership now lives on WorkUnit rows. Keep this legacy API as a
-  # materialized id list for callers that still ask Workflow, but do not treat
-  # unowned queued/running Workflow rows as active work.
-  def self.active_job_ids
-    WorkUnits::Ownership.all_active_job_ids.to_a
-  end
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
   scope :ordered, -> { order(:created_at) }
 
@@ -392,9 +384,11 @@ class Workflow < ApplicationRecord
     return false unless job.pr_number.present? || job.fork_review_pr_number.present?
     return false unless publication_branch_name.present?
 
+    retry_workflow_ids = WorkUnits::Ownership.active_workflow_ids([ job.id ], kinds: "retry").to_a
+    return false if retry_workflow_ids.empty?
+
     job.workflows
-       .active
-       .where(trigger_kind: "retry")
+       .where(id: retry_workflow_ids)
        .where("id < ?", id)
        .find_each do |candidate|
          next unless publication_branch_name_for(candidate) == publication_branch_name

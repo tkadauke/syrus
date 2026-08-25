@@ -1648,10 +1648,11 @@ workflows" branch should be removed as part of the technical-debt cleanup.
 
 Completed slices:
 
-- `Job.without_active_runtime_work` now uses `WorkUnits::Ownership` instead of only
-  `Workflow.active_job_ids`, so dashboard and smart-folder scopes exclude Jobs
-  owned by active WorkUnits, including cross-job WorkUnit membership, without
-  treating legacy active Workflow rows as runtime ownership.
+- `Job.without_active_runtime_work` now uses `WorkUnits::Ownership`, so
+  dashboard and smart-folder scopes exclude Jobs owned by active WorkUnits,
+  including cross-job WorkUnit membership, without treating legacy active
+  Workflow rows as runtime ownership. The old `Workflow.active_job_ids`
+  compatibility API has been removed.
 - Dashboard and Job detail paused-state reads now consult blocked WorkUnits,
   while deliberately excluding landing WorkUnits so admission-blocked landing
   work remains visible in the landing queue instead of moving to the Paused
@@ -1775,12 +1776,11 @@ Completed slices:
   for managed waiting Intents whose current gates pass. This gives dependency
   waits a durable recovery path when the domain event that should have woken the
   Intent was missed, without repeatedly logging Intents whose gates still block.
-- Active-work ownership helpers now hide legacy active Workflow fallbacks for
-  trigger kinds whose path has moved to WorkUnits. Scheduler-owned Workflow
-  rows stop contributing to active/runnable/current-trigger answers when
-  `work_units_scheduler` is enabled, and landing-owned Workflow rows do the
-  same behind `work_units_landing`, while still preserving fallbacks for paths
-  whose gates remain disabled.
+- Active-work ownership helpers now ignore unowned active Workflow rows.
+  Scheduler-owned and landing-owned Workflow rows contribute to
+  active/runnable/current-trigger answers only through WorkUnit ownership.
+  `Workflow.active` has been removed so new runtime decisions cannot drift back
+  to queued/running Workflow state as a proxy for ownership.
 - Epic-wide conflict detection and landing-queue merge-train status now resolve
   active work through WorkUnit membership as well as direct Epic scope. This
   keeps bundle/member-shaped WorkUnits authoritative even when their owning

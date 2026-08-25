@@ -148,8 +148,11 @@ module Workflows
       return false unless workflow.persisted?
 
       cutoff = workflow.created_at || Time.zone.at(0)
+      active_workflow_ids = WorkUnits::Ownership.active_workflow_ids([ job.id ]).to_a - [ workflow.id ]
+      return false if active_workflow_ids.empty?
+
       job.workflows
-        .active
+        .where(id: active_workflow_ids)
         .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, workflow.id)
         .exists?
     end
