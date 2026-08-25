@@ -62,7 +62,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
       onNotice(updated.message || null)
     }
   })
-  const canResume = repository.main_branch_health_enabled && repository.main_branch_repair_blocks_work && repository.landing_paused && repository.main_health === "broken"
+  const canResume = history.main_branch_health_enabled && history.main_branch_repair_blocks_work && history.landing_paused && history.main_health === "broken"
 
   async function confirmResume() {
     if (!await confirm({ message: t("repository.resume_landing_confirm") })) return
@@ -117,9 +117,13 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-          {repository.main_branch_health_enabled ? null : <span>{t("repository.health_enforcement_disabled")}</span>}
-          <span>{repository.main_branch_repair_enabled ? t("repository.health_auto_repair_enabled") : t("repository.health_auto_repair_disabled")}</span>
-          {repository.main_branch_repair_auto_approve ? <span>{t("repository.health_auto_repair_approval_enabled")}</span> : null}
+          {history.main_branch_health_enabled ? null : <span>{t("repository.health_monitoring_disabled")}</span>}
+          {history.main_branch_health_enabled ? (
+            <>
+              <span>{history.main_branch_repair_enabled ? t("repository.health_auto_repair_enabled") : t("repository.health_auto_repair_disabled")}</span>
+              {history.main_branch_repair_auto_approve ? <span>{t("repository.health_auto_repair_approval_enabled")}</span> : null}
+            </>
+          ) : null}
         </div>
         {history.main_branch_repair.blocked_reason === "failed_open_cap" ? (
           <div className="space-y-2 rounded border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm text-amber-900 dark:text-amber-100">

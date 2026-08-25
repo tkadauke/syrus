@@ -227,6 +227,29 @@ describe("MainBranchHealthSection resume landing", () => {
     expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
     expect(screen.queryByText("Work is paused because main branch health is not green.")).not.toBeInTheDocument()
   })
+
+  it("uses normalized health history flags when monitoring is disabled", () => {
+    const history = buildHistory()
+    history.main_branch_health_enabled = false
+    history.main_branch_repair_enabled = false
+    history.main_branch_repair_blocks_work = false
+    history.landing_paused = false
+    history.main_health = "unknown"
+    const payload = buildPayload()
+    payload.repository.main_branch_health_enabled = false
+    payload.repository.main_branch_repair_enabled = true
+    payload.repository.main_branch_repair_blocks_work = true
+    payload.repository.main_branch_repair_auto_approve = true
+    payload.repository.landing_paused = true
+    payload.repository.main_health = "broken"
+
+    renderSection(history, payload)
+
+    expect(screen.getByText("Main branch health monitoring is disabled.")).toBeInTheDocument()
+    expect(screen.queryByText("Auto-fix jobs enabled")).not.toBeInTheDocument()
+    expect(screen.queryByText("Auto-fix jobs auto-approved")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
+  })
 })
 
 describe("MainBranchHealthSection blocking repair job", () => {

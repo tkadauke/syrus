@@ -332,6 +332,7 @@
     "health_col_graders": "Graders",
     "health_col_failures": "Failures",
     "health_enforcement_disabled": "Main branch health enforcement is disabled.",
+    "health_monitoring_disabled": "Main branch health monitoring is disabled.",
     "health_auto_repair_enabled": "Auto-fix jobs enabled",
     "health_auto_repair_disabled": "Auto-fix jobs disabled",
     "health_auto_repair_approval_enabled": "Auto-fix jobs auto-approved",
