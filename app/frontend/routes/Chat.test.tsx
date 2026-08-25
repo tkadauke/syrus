@@ -3842,7 +3842,7 @@ describe("scratchpad panel via + menu", () => {
   })
 })
 
-describe("AgentQuestionPrompt markdown rendering", () => {
+describe("AgentQuestions markdown rendering", () => {
   beforeEach(() => {
     window.localStorage.clear()
     mockDesktopViewport()
@@ -3852,8 +3852,7 @@ describe("AgentQuestionPrompt markdown rendering", () => {
     mockChatRouteFetch(chatPayload({
       agent_questions: [{
         id: 1,
-        question: "Should we use **fiber** or threads?",
-        options: null,
+        questions: [{ question: "Should we use **fiber** or threads?", options: null, multiple: false }],
         asked_at: "2026-07-18T12:00:00Z",
         app_answer_path: "/api/v1/app/chats/8/agent_questions/1/answer"
       }]
@@ -3866,6 +3865,169 @@ describe("AgentQuestionPrompt markdown rendering", () => {
     expect(strong).not.toBeNull()
     expect(strong).toHaveTextContent("fiber")
     expect(screen.queryByText(/\*\*fiber\*\*/)).not.toBeInTheDocument()
+  })
+})
+
+describe("AgentQuestions wizard", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  const ANSWER_PATH = "/api/v1/app/chats/8/agent_questions/1/answer"
+
+  function mockAgentQuestionsRouteFetch(agentQuestions: Array<Record<string, unknown>>) {
+    const answerCalls: Array<{ path: string; body: { answers?: unknown[] } }> = []
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === ANSWER_PATH && init?.method === "POST") {
+        answerCalls.push({ path, body: JSON.parse(String(init.body || "{}")) })
+        return Promise.resolve(jsonResponse(chatPayload({ agent_questions: [] }, { message: "Answer submitted." })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ agent_questions: agentQuestions })))
+    })
+    return { fetchMock, answerCalls }
+  }
+
+  it("advances a single-select step immediately, lets Back change it, and submits the summary atomically", async () => {
+    const { answerCalls } = mockAgentQuestionsRouteFetch([{
+      id: 1,
+      questions: [
+        { question: "Which path?", options: ["Fast", "Careful"], multiple: false },
+        { question: "Any notes?", options: null, multiple: false }
+      ],
+      asked_at: "2026-07-18T12:00:00Z",
+      app_answer_path: ANSWER_PATH
+    }])
+
+    renderRoute()
+
+    await screen.findByText("Which path?")
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument()
+    // The generalized Stepper renders a "Question X of N" progress indicator up front.
+    expect(screen.getByText("Question 1")).toBeInTheDocument()
+    expect(screen.getByText("Question 2")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Fast" }))
+
+    // Single-select commits and advances without a separate POST.
+    await screen.findByText("Any notes?")
+    expect(screen.queryByText("Which path?")).not.toBeInTheDocument()
+    expect(answerCalls).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }))
+    await screen.findByText("Which path?")
+
+    // Re-answering the first step overwrites the earlier draft.
+    fireEvent.click(screen.getByRole("button", { name: "Careful" }))
+    await screen.findByText("Any notes?")
+
+    fireEvent.change(screen.getByLabelText("Custom answer"), { target: { value: "None." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+
+    await screen.findByText("Review your answers")
+    expect(screen.getByText("Careful")).toBeInTheDocument()
+    expect(screen.getByText("None.")).toBeInTheDocument()
+    expect(answerCalls).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit all answers" }))
+
+    await waitFor(() => expect(answerCalls).toHaveLength(1))
+    expect(answerCalls[0].body.answers).toEqual(["Careful", "None."])
+    await screen.findByText("Answer submitted.")
+    expect(screen.queryByRole("region", { name: "Agent questions" })).not.toBeInTheDocument()
+  })
+
+  it("requires an explicit Submit for multi-select and preserves the checked state across Back", async () => {
+    mockAgentQuestionsRouteFetch([{
+      id: 1,
+      questions: [
+        { question: "Which tools?", options: ["Fiber", "Threads", "Locks"], multiple: true },
+        { question: "Any notes?", options: null, multiple: false }
+      ],
+      asked_at: "2026-07-18T12:00:00Z",
+      app_answer_path: ANSWER_PATH
+    }])
+
+    renderRoute()
+
+    await screen.findByText("Which tools?")
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Toggle Fiber" }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Toggle Threads" }))
+    expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled()
+
+    // Checking boxes alone must not advance the wizard.
+    expect(screen.getByText("Which tools?")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }))
+    await screen.findByText("Any notes?")
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }))
+    await screen.findByText("Which tools?")
+
+    expect(screen.getByRole("checkbox", { name: "Toggle Fiber" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "Toggle Threads" })).toBeChecked()
+    expect(screen.getByRole("checkbox", { name: "Toggle Locks" })).not.toBeChecked()
+  })
+
+  it("renders no wizard chrome for a single question and posts immediately", async () => {
+    const { answerCalls } = mockAgentQuestionsRouteFetch([{
+      id: 1,
+      questions: [{ question: "Which path?", options: ["Fast", "Careful"], multiple: false }],
+      asked_at: "2026-07-18T12:00:00Z",
+      app_answer_path: ANSWER_PATH
+    }])
+
+    renderRoute()
+
+    await screen.findByText("Which path?")
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Review your answers")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Fast" }))
+
+    await waitFor(() => expect(answerCalls).toHaveLength(1))
+    expect(answerCalls[0].body.answers).toEqual(["Fast"])
+  })
+
+  it("records the decline literal for a free-text step", async () => {
+    const { answerCalls } = mockAgentQuestionsRouteFetch([{
+      id: 1,
+      questions: [{ question: "Anything else?", options: null, multiple: false }],
+      asked_at: "2026-07-18T12:00:00Z",
+      app_answer_path: ANSWER_PATH
+    }])
+
+    renderRoute()
+
+    await screen.findByText("Anything else?")
+    fireEvent.click(screen.getByRole("button", { name: "Decline to answer" }))
+
+    await waitFor(() => expect(answerCalls).toHaveLength(1))
+    expect(answerCalls[0].body.answers).toEqual(["I decline to answer."])
+  })
+
+  it("records the decline literal as an array for a multi-select step", async () => {
+    const { answerCalls } = mockAgentQuestionsRouteFetch([{
+      id: 1,
+      questions: [{ question: "Which tools?", options: ["Fiber", "Threads"], multiple: true }],
+      asked_at: "2026-07-18T12:00:00Z",
+      app_answer_path: ANSWER_PATH
+    }])
+
+    renderRoute()
+
+    await screen.findByText("Which tools?")
+    fireEvent.click(screen.getByRole("button", { name: "Decline to answer" }))
+
+    await waitFor(() => expect(answerCalls).toHaveLength(1))
+    expect(answerCalls[0].body.answers).toEqual([["I decline to answer."]])
   })
 })
 

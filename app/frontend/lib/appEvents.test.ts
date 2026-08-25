@@ -633,8 +633,7 @@ describe("applyAppEvent", () => {
         agent_questions: [
           {
             id: 7,
-            question: "Which path?",
-            options: ["Fast", "Careful"],
+            questions: [{ question: "Which path?", options: ["Fast", "Careful"], multiple: false }],
             asked_at: "2026-05-30T12:00:00Z",
             app_answer_path: "/api/v1/app/chats/9/agent_questions/7/answer"
           }
@@ -647,8 +646,7 @@ describe("applyAppEvent", () => {
     expect(updated?.agent_questions).toEqual([
       {
         id: 7,
-        question: "Which path?",
-        options: ["Fast", "Careful"],
+        questions: [{ question: "Which path?", options: ["Fast", "Careful"], multiple: false }],
         asked_at: "2026-05-30T12:00:00Z",
         app_answer_path: "/api/v1/app/chats/9/agent_questions/7/answer"
       }

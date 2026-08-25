@@ -12179,8 +12179,7 @@ describe("App", () => {
       agentQuestions: [
         {
           id: 7,
-          question: "Which route should I take?",
-          options: ["Fast path", "Careful path"],
+          questions: [{ question: "Which route should I take?", options: ["Fast path", "Careful path"], multiple: false }],
           asked_at: "2026-06-23T10:00:00Z",
           app_answer_path: "/api/v1/app/chats/8/agent_questions/7/answer"
         }
