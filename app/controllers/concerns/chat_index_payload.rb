@@ -14,31 +14,7 @@ module ChatIndexPayload
 
   def recent_chats_index_json
     PerformanceLogging.phase("chat_index.groups") do
-      group_specs = []
-      general_chats, general_has_more = PerformanceLogging.phase("chat_index.general_group") { paginated_chat_index_group(chat_index_group_scope(nil)) }
-      if general_chats.any?
-        group_specs << {
-          key: "general",
-          label: "General",
-          repository_id: nil,
-          chats: general_chats,
-          has_more: general_has_more
-        }
-      end
-
-      repositories = PerformanceLogging.phase("chat_index.repositories") { chat_index_repositories.to_a }
-      repositories.each do |repository|
-        chats, has_more = PerformanceLogging.phase("chat_index.repository_group", repository_id: repository.id) { paginated_chat_index_group(chat_index_group_scope(repository.id)) }
-        next if chats.blank?
-
-        group_specs << {
-          key: "repository-#{repository.id}",
-          label: repository.slug,
-          repository_id: repository.id,
-          chats: chats,
-          has_more: has_more
-        }
-      end
+      group_specs = PerformanceLogging.phase("chat_index.initial_groups") { initial_chat_index_group_specs }
 
       context = PerformanceLogging.phase("chat_index.context", count: group_specs.sum { |group| group.fetch(:chats).size }) do
         chat_index_context_for(group_specs.flat_map { |group| group.fetch(:chats) })
@@ -168,6 +144,67 @@ module ChatIndexPayload
       fetched = scope.preload(:chat_participants, repository_attachments: :attachable).limit(CHAT_INDEX_GROUP_SIZE + 1).to_a
       [ fetched.first(CHAT_INDEX_GROUP_SIZE), fetched.size > CHAT_INDEX_GROUP_SIZE ]
     end
+  end
+
+  def initial_chat_index_group_specs
+    rows = chat_index_initial_group_rows
+    return [] if rows.empty?
+
+    chat_ids = rows.map { |row| row.fetch("chat_session_id").to_i }.uniq
+    repository_ids = rows.filter_map { |row| row.fetch("repository_id")&.to_i }.uniq
+    chats_by_id = ChatSession.where(id: chat_ids)
+      .preload(:chat_participants, repository_attachments: :attachable)
+      .index_by(&:id)
+    repositories_by_id = Current.user.repositories.where(id: repository_ids).index_by(&:id)
+
+    rows.group_by { |row| row.fetch("repository_id")&.to_i }.filter_map do |repository_id, group_rows|
+      ordered_rows = group_rows.sort_by { |row| row.fetch("group_position").to_i }
+      chats = ordered_rows.first(CHAT_INDEX_GROUP_SIZE).filter_map { |row| chats_by_id[row.fetch("chat_session_id").to_i] }
+      next if chats.empty?
+
+      if repository_id
+        repository = repositories_by_id[repository_id]
+        next unless repository
+
+        {
+          key: "repository-#{repository.id}",
+          label: repository.slug,
+          repository_id: repository.id,
+          chats: chats,
+          has_more: ordered_rows.size > CHAT_INDEX_GROUP_SIZE
+        }
+      else
+        {
+          key: "general",
+          label: "General",
+          repository_id: nil,
+          chats: chats,
+          has_more: ordered_rows.size > CHAT_INDEX_GROUP_SIZE
+        }
+      end
+    end
+  end
+
+  def chat_index_initial_group_rows
+    ranked_scope = Current.user.accessible_chat_sessions
+      .visible
+      .ordinary_chats
+      .left_outer_joins(:repository_attachments)
+      .reselect(Arel.sql(<<~SQL.squish))
+        chat_sessions.id AS chat_session_id,
+        chat_attachments.attachable_id AS repository_id,
+        ROW_NUMBER() OVER (
+          PARTITION BY chat_attachments.attachable_id
+          ORDER BY chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC, chat_sessions.id DESC
+        ) AS group_position
+      SQL
+
+    quoted_limit = ActiveRecord::Base.connection.quote(CHAT_INDEX_GROUP_SIZE + 1)
+    ActiveRecord::Base.connection.select_all(<<~SQL.squish).to_a
+      SELECT chat_session_id, repository_id, group_position
+      FROM (#{ranked_scope.to_sql}) chat_index_ranked
+      WHERE group_position <= #{quoted_limit}
+    SQL
   end
 
   def chat_index_before(scope, before_chat)

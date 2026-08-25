@@ -424,6 +424,22 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(old_group["chats"].map { |chat| chat["id"] }).to eq([ old_chat.id ])
   end
 
+  it "loads initial sidebar chat groups without one chat query per repository" do
+    sign_in_as(user)
+    8.times do |index|
+      repo = Factories.repository(user: user, owner: "acme", name: "repo-#{index}")
+      ChatSession.create!(user: user, repository: repo, title: "Repo chat #{index}", last_message_at: (index + 1).minutes.ago)
+    end
+    ChatSession.create!(user: user, title: "General chat", last_message_at: Time.current)
+
+    queries = capture_sql { get "/api/v1/app/chats" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["groups"].size).to eq(9)
+    chat_group_selects = queries.grep(/FROM ["`]?chat_sessions["`]?.*chat_attachments/im)
+    expect(chat_group_selects.size).to be <= 2
+  end
+
   it "loads more chats for one sidebar group with a cursor" do
     sign_in_as(user)
     chats = 7.times.map do |index|
