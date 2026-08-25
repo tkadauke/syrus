@@ -17,7 +17,7 @@ module WorkflowStepResourceProfiles
 
     def refresh_for_summaries!(summaries)
       summaries = summaries.to_a
-      with_span_samples(summaries) do
+      with_summary_metadata(summaries) do
         refresh_profiles!(grouped_inputs(summaries).values)
       end
     end
@@ -28,7 +28,6 @@ module WorkflowStepResourceProfiles
 
     def input_summaries
       base = RunResourceSummary
-        .preload(:job, :step, run: :command_spans)
         .where.not(repository_id: nil)
         .where.not(step_kind: nil)
         .where(retention_limited: false)
@@ -71,7 +70,7 @@ module WorkflowStepResourceProfiles
         summary.trigger_kind.present? &&
         summary.step_kind.present? &&
         summary.duration_seconds.present? &&
-        summary.run&.state.in?(Run::TERMINAL_STATES)
+        run_state(summary).in?(Run::TERMINAL_STATES)
     end
 
     def profile_key(summary)
@@ -81,7 +80,7 @@ module WorkflowStepResourceProfiles
         summary.trigger_kind,
         summary.step_kind,
         normalized_grader_name(summary),
-        summary.job&.kind.to_s
+        job_kind(summary)
       ]
     end
 
@@ -110,7 +109,7 @@ module WorkflowStepResourceProfiles
         trigger_kind: first.trigger_kind,
         step_kind: first.step_kind,
         grader_name: normalized_grader_name(first),
-        job_kind: first.job&.kind.to_s
+        job_kind: job_kind(first)
       }.merge(profile_attributes(inputs))
     end
 
@@ -172,7 +171,7 @@ module WorkflowStepResourceProfiles
         p90_host_pressure_memory_used_percent: percentile(host_values(inputs, :host_usage_max_memory_used_percent), 90),
         p99_host_pressure_memory_used_percent: percentile(host_values(inputs, :host_usage_max_memory_used_percent), 99),
         timeout_rate: rate(inputs) { |summary| timeout?(summary) },
-        failure_rate: rate(inputs) { |summary| summary.run&.failed? },
+        failure_rate: rate(inputs) { |summary| run_state(summary) == "failed" },
         last_observed_at: inputs.filter_map { |summary| summary.finished_at || summary.created_at }.max,
         profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
       }
@@ -254,7 +253,7 @@ module WorkflowStepResourceProfiles
     end
 
     def attributed_metrics_for(summary)
-      spans = summary.run&.command_spans&.to_a || []
+      spans = command_spans_for(summary)
       span_metrics = spans.filter_map { |span| attributed_span_metrics(span) }
       return if span_metrics.empty?
 
@@ -278,12 +277,37 @@ module WorkflowStepResourceProfiles
       }
     end
 
-    def with_span_samples(summaries)
-      previous = @span_samples_by_hostname
+    def with_summary_metadata(summaries)
+      previous_summaries = @summaries_for_metadata
+      previous_job_kinds = @job_kinds_by_id
+      previous_run_metadata = @run_metadata_by_id
+      previous_step_details = @step_details_by_id
+      previous_command_spans = @command_spans_by_run_id
+      previous_summary_job_ids = @summary_job_ids
+      previous_summary_run_ids = @summary_run_ids
+      previous_summary_step_ids = @summary_step_ids
+      previous_span_samples = @span_samples_by_hostname
+
+      @summaries_for_metadata = summaries
+      @job_kinds_by_id = nil
+      @run_metadata_by_id = nil
+      @step_details_by_id = nil
+      @command_spans_by_run_id = nil
+      @summary_job_ids = nil
+      @summary_run_ids = nil
+      @summary_step_ids = nil
       @span_samples_by_hostname = preload_span_samples_by_hostname(summaries)
       yield
     ensure
-      @span_samples_by_hostname = previous
+      @summaries_for_metadata = previous_summaries
+      @job_kinds_by_id = previous_job_kinds
+      @run_metadata_by_id = previous_run_metadata
+      @step_details_by_id = previous_step_details
+      @command_spans_by_run_id = previous_command_spans
+      @summary_job_ids = previous_summary_job_ids
+      @summary_run_ids = previous_summary_run_ids
+      @summary_step_ids = previous_summary_step_ids
+      @span_samples_by_hostname = previous_span_samples
     end
 
     def span_samples_by_hostname
@@ -304,7 +328,7 @@ module WorkflowStepResourceProfiles
       intervals_by_hostname = Hash.new { |hash, hostname| hash[hostname] = [] }
 
       summaries.each do |summary|
-        Array(summary.run&.command_spans).each do |span|
+        command_spans_for(summary).each do |span|
           next if span.hostname.blank? || span.started_at.blank?
 
           started_at = [ span.started_at, retained_since ].max
@@ -357,10 +381,86 @@ module WorkflowStepResourceProfiles
     end
 
     def timeout?(summary)
-      return true if summary.run&.agent_outcome.to_s.match?(/timeout/)
-      return true if summary.step&.details.is_a?(Hash) && summary.step.details["timed_out"]
+      return true if run_agent_outcome(summary).to_s.match?(/timeout/)
+      return true if step_details(summary).is_a?(Hash) && step_details(summary)["timed_out"]
 
-      summary.run&.command_spans&.any? { |span| span.outcome == "timed_out" } || false
+      command_spans_for(summary).any? { |span| span.outcome == "timed_out" }
+    end
+
+    def job_kind(summary)
+      job_kinds_by_id[summary.job_id].to_s
+    end
+
+    def run_state(summary)
+      run_metadata_by_id.dig(summary.run_id, :state).to_s
+    end
+
+    def run_agent_outcome(summary)
+      run_metadata_by_id.dig(summary.run_id, :agent_outcome)
+    end
+
+    def step_details(summary)
+      step_details_by_id[summary.step_id]
+    end
+
+    def command_spans_for(summary)
+      command_spans_by_run_id.fetch(summary.run_id, [])
+    end
+
+    def job_kinds_by_id
+      @job_kinds_by_id ||= begin
+        ids = summary_job_ids
+        ids.empty? ? {} : Job.where(id: ids).pluck(:id, :kind).to_h
+      end
+    end
+
+    def run_metadata_by_id
+      @run_metadata_by_id ||= begin
+        ids = summary_run_ids
+        if ids.empty?
+          {}
+        else
+          Run.where(id: ids).pluck(:id, :state, :agent_outcome).to_h do |id, state, agent_outcome|
+            [ id, { state: state, agent_outcome: agent_outcome } ]
+          end
+        end
+      end
+    end
+
+    def step_details_by_id
+      @step_details_by_id ||= begin
+        ids = summary_step_ids
+        ids.empty? ? {} : Step.where(id: ids).pluck(:id, :details).to_h
+      end
+    end
+
+    def command_spans_by_run_id
+      @command_spans_by_run_id ||= begin
+        ids = summary_run_ids
+        if ids.empty?
+          {}
+        else
+          CommandSpan.where(run_id: ids)
+            .order(:run_id, :sequence, :id)
+            .group_by(&:run_id)
+        end
+      end
+    end
+
+    def summary_job_ids
+      @summary_job_ids ||= summaries_for_metadata.map(&:job_id).compact.uniq
+    end
+
+    def summary_run_ids
+      @summary_run_ids ||= summaries_for_metadata.map(&:run_id).compact.uniq
+    end
+
+    def summary_step_ids
+      @summary_step_ids ||= summaries_for_metadata.map(&:step_id).compact.uniq
+    end
+
+    def summaries_for_metadata
+      @summaries_for_metadata || []
     end
 
     def rate(inputs)

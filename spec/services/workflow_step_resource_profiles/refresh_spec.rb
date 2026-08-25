@@ -396,6 +396,30 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(summary_queries.join("\n")).to include("finished_at")
   end
 
+  it "loads scalar run and step metadata instead of preloading full rows" do
+    resource_summary(
+      repository: repository,
+      duration: 100,
+      cpu: 10.0,
+      finished_at: now - 1.minute,
+      command_span: true
+    )
+
+    sql = []
+    callback = lambda do |_name, _started, _finished, _unique_id, payload|
+      sql << payload[:sql].to_s if payload[:sql].to_s.start_with?("SELECT")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new(now: now).refresh_all!
+    end
+
+    expect(sql.join("\n")).not_to include("SELECT \"runs\".*")
+    expect(sql.join("\n")).not_to include("SELECT \"steps\".*")
+    expect(sql.join("\n")).to include("\"runs\".\"state\"")
+    expect(sql.join("\n")).to include("\"steps\".\"details\"")
+  end
+
   it "only loads unfinished summaries when recent finished samples do not fill the cap" do
     stub_const("#{described_class}::MAX_INPUT_SUMMARIES", 2)
 
