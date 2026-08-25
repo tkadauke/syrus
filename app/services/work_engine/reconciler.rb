@@ -158,7 +158,7 @@ module WorkEngine
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
       @workflows = scoped_workflows.includes(:job, :steps).to_a
       @work_intents = scoped_work_intents.includes(:work_units).to_a
-      @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, :work_unit_members, :workflow, :parent_work_unit).to_a
+      @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, { work_unit_members: :job }, { workflow: :job }, :parent_work_unit).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
       workflow_steps = @workflows.flat_map(&:steps)
       missing_run_step_ids = @runs.filter_map(&:step_id) - workflow_steps.map(&:id)
@@ -545,28 +545,33 @@ module WorkEngine
     end
 
     def classify_epic_workflow_conflicts
-      EpicWorkflowLock.conflicting_active_workflows(active_runtime_workflows).map do |conflict|
+      EpicWorkflowLock.conflicting_active_units(active_runtime_work_units).map do |conflict|
         workflow = conflict.fetch(:workflow)
         keeper = conflict.fetch(:keeper)
+        unit = conflict.fetch(:work_unit)
+        keeper_unit = conflict.fetch(:keeper_work_unit)
         issue(
           kind: :epic_workflow_conflict,
           severity: workflow.epic_wide? ? :critical : :error,
           affected_ids: ids_for(workflow).merge(
             job_ids: [ workflow.job_id ],
             workflow_ids: [ workflow.id, keeper.id ].uniq,
-            epic_ids: [ workflow.job&.epic_id ].compact
+            epic_ids: [ workflow.job&.epic_id ].compact,
+            work_unit_ids: [ unit.id, keeper_unit.id ].compact.uniq
           ),
           safe_to_auto_repair: workflow.may_cancel?,
           recommended_repair_action: "cancel_epic_workflow_conflict",
           evidence: workflow_evidence(workflow).merge(
             epic_id: workflow.job&.epic_id,
+            conflicting_work_unit_id: unit.id,
             conflicting_workflow_id: workflow.id,
             conflicting_trigger_kind: workflow.trigger_kind,
+            keeper_work_unit_id: keeper_unit.id,
             keeper_workflow_id: keeper.id,
             keeper_trigger_kind: keeper.trigger_kind,
             reason: conflict.fetch(:reason)
           ),
-          explanation: "Workflow ##{workflow.id} conflicts with active Epic-wide Workflow ##{keeper.id}; only one workflow may mutate or run jobs for the Epic at a time."
+          explanation: "#{workflow.slug} conflicts with active Epic-wide #{keeper.slug}; only one WorkUnit-owned workflow may mutate or run jobs for the Epic at a time."
         )
       end
     end
@@ -1300,6 +1305,12 @@ module WorkEngine
     def active_runtime_workflows
       @active_runtime_workflows ||= jobs
         .flat_map { |job| active_runtime_workflows_for_job(job) }
+        .uniq(&:id)
+    end
+
+    def active_runtime_work_units
+      @active_runtime_work_units ||= work_units
+        .select { |unit| unit.active? && unit.workflow && !unit.workflow.terminal? }
         .uniq(&:id)
     end
 
