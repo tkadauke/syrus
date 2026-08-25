@@ -95,11 +95,11 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}) {
   })
 }
 
-function renderRoute() {
+function renderRoute(initialEntry = "/repositories/1/edit") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/repositories/1/edit"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<RepositoryFormRoute mode="edit" />} path="/repositories/:id/edit" />
         </Routes>
@@ -150,5 +150,17 @@ describe("RepositoryForm plugin input-source decoupling", () => {
       "/api/v1/app/repositories/1",
       expect.objectContaining({ method: "PATCH" })
     )
+  })
+
+  it("scrolls the auto-merge setting into view when linked to via the #auto-merge hash", async () => {
+    mockFetch()
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
+
+    renderRoute("/repositories/1/edit#auto-merge")
+
+    await screen.findByRole("heading", { name: "Linear" })
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" }))
   })
 })

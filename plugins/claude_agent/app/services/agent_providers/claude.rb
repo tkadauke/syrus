@@ -12,6 +12,13 @@ module AgentProviders
 
     def self.provider = "claude"
 
+    def self.refresh_stale_usage!(user:, now: Time.current)
+      return unless user.claude_oauth_token.present?
+      return unless ClaudeUsageProbe.stale?(user, now: now)
+
+      ClaudeUsageProbe.refresh_for(user: user)
+    end
+
     def session_capture(result)
       capture = super
       return nil unless capture

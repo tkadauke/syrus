@@ -114,6 +114,12 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :approval_evidence)).to be_nil
     end
 
+    it "includes a link to the repository's edit settings page" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(payload_for(job).dig(:repository, :edit_repository_path)).to eq("/repositories/#{repo.id}/edit")
+    end
+
     it "includes the landing blocker override grant when present" do
       admin = Factories.user
       requested_at = Time.zone.parse("2026-08-10T09:00:00Z")

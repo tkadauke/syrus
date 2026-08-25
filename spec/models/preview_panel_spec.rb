@@ -58,9 +58,14 @@ RSpec.describe PreviewPanel, type: :model do
   end
 
   describe "#preview_url" do
-    it "derives a preview-panel- prefixed subdomain URL" do
+    it "derives a preview-panel- prefixed subdomain URL, defaulting to http" do
       panel = create_panel
       expect(panel.preview_url("syrus.example.com")).to eq("http://preview-panel-#{panel.id}.syrus.example.com")
+    end
+
+    it "uses the given scheme" do
+      panel = create_panel
+      expect(panel.preview_url("syrus.example.com", scheme: "https")).to eq("https://preview-panel-#{panel.id}.syrus.example.com")
     end
   end
 

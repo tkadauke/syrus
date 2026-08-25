@@ -69,7 +69,7 @@ export function RepositoryDetailRoute() {
             </PanelMessage>
           ) : null}
           {issues.isError ? <PanelMessage tone="error">{errorMessage(issues.error, "Unable to load GitHub issues.")}</PanelMessage> : null}
-          {issues.isSuccess ? <RepositoryIssues payload={issues.data} prefix={prefix} /> : null}
+          {issues.isSuccess ? <RepositoryIssues isRefreshing={issues.isFetching} onRefresh={() => { void issues.refetch() }} payload={issues.data} prefix={prefix} /> : null}
         </>
       )}
     </main>
@@ -101,7 +101,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
-          <RepositoryThroughputPanel repositoryId={payload.repository.id} />
+          {payload.simple_mode ? null : <RepositoryThroughputPanel repositoryId={payload.repository.id} />}
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </div>
         <div className="space-y-6">

@@ -304,44 +304,10 @@ export function durationLabel(value: number | null) {
   return `${Math.round(value)}ms`
 }
 
-export function AdminEventTextFilter({ defaultValue, inputMode, label, name }: { defaultValue: string; inputMode?: "numeric"; label: string; name: string }) {
-  return (
-    <label className="space-y-1">
-      <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</span>
-      <input className={compactInputClass()} defaultValue={defaultValue} inputMode={inputMode} name={name} />
-    </label>
-  )
-}
-
 export type AdminEventTimelineBucket = {
   start_at: string
   end_at: string
   count: number
-}
-
-export function AdminEventTimeline({ buckets, emptyLabel, title }: { buckets: AdminEventTimelineBucket[]; emptyLabel: string; title: string }) {
-  const max = Math.max(0, ...buckets.map((bucket) => bucket.count))
-  if (buckets.length === 0 || max === 0) {
-    return <AdminEventPanelMessage>{emptyLabel}</AdminEventPanelMessage>
-  }
-
-  return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
-      <div className="mt-4 flex h-28 items-end gap-1">
-        {buckets.map((bucket) => (
-          <div className="group relative flex min-w-1 flex-1 items-end" key={bucket.start_at}>
-            <div
-              aria-label={`${bucket.count} events from ${formatEventDate(bucket.start_at)} to ${formatEventDate(bucket.end_at)}`}
-              className="w-full rounded-t bg-terracotta-500/70 transition-colors group-hover:bg-terracotta-600"
-              style={{ height: `${Math.max(4, (bucket.count / max) * 100)}%` }}
-              title={`${bucket.count} · ${formatEventDate(bucket.start_at)}`}
-            />
-          </div>
-        ))}
-      </div>
-    </section>
-  )
 }
 
 export function formatEventDate(value: string | null | undefined) {

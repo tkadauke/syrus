@@ -565,6 +565,20 @@ describe("ChatWorkspacePanel preview panels", () => {
     expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts")
   })
 
+  it("renders an https panel URL verbatim in the iframe src", () => {
+    const payload: ChatPayload = {
+      ...makePayload(),
+      preview_panels: [
+        { id: 7, title: "Layout mockup", file_count: 2, url: "https://preview-panel-7.lvh.me/", app_close_path: "/api/v1/app/chats/1/preview_panels/7" }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    const iframe = document.querySelector("iframe")
+    expect(iframe?.getAttribute("src")).toBe("https://preview-panel-7.lvh.me/")
+  })
+
   it("does not render a preview tab or iframe once the panel list is empty", () => {
     renderWorkspacePanel(makePayload(), { activeTab: "files" })
 

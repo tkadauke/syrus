@@ -156,13 +156,7 @@ class ProviderCircuitInspector
   end
 
   def usage_limit_run?(run, text)
-    return false if run.run_failure_classification&.repaired_for_circuit?
-    return false if ProviderUsageLimit.inconclusive?(text)
-    return true if run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
-    return false unless ProviderUsageLimit.run_can_exhaust_provider?(run)
-
-    run.run_failure_classification&.classification == ProviderUsageLimit::CLASSIFICATION ||
-      ProviderUsageLimit.detect?(text)
+    ProviderUsageLimit.for_run?(run, text)
   end
 
   def retryable_run?(run)

@@ -438,7 +438,7 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: false },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
@@ -452,7 +452,7 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: true },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
@@ -466,7 +466,7 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: false },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "inconclusive", landing_paused: true, main_branch_repair_blocks_work: true
       }
     }))
@@ -480,13 +480,27 @@ describe("JobDetailView", () => {
       job: { ...baseJob(), state: "queued", main_branch_repair: false },
       repository: {
         id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
-        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2", edit_repository_path: "/repositories/2/edit",
         main_health: "broken", landing_paused: true, main_branch_repair_blocks_work: false
       }
     }))
 
     expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
+  })
+
+  it("shows a clickable link to repository settings when the landing queue is blocked by disabled auto-merge", () => {
+    renderJobDetail(jobPayload({
+      landing_queue_entry: {
+        position: 3,
+        blocked_reason: { key: "auto_merge_not_enabled" },
+        waiting_for_jobs: []
+      }
+    }))
+
+    expect(screen.getByText(/Auto-merge not enabled for repository/)).toBeInTheDocument()
+    const link = screen.getByRole("link", { name: "Enable auto-merge in repository settings" })
+    expect(link).toHaveAttribute("href", "/app-shell/repositories/2/edit#auto-merge")
   })
 
   it("opens the overflow menu aligned to the right-0 edge when the menu fits within the scroll container", () => {
@@ -690,6 +704,58 @@ describe("JobDetailView", () => {
       expect(screen.queryByPlaceholderText("What should be changed?")).not.toBeInTheDocument()
     })
     expect(screen.getByText("Feedback submitted — a new workflow will start shortly.")).toBeInTheDocument()
+  })
+
+  it("submits feedback on Cmd-Enter", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    const textarea = screen.getByPlaceholderText("What should be changed?")
+    fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
+    fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Tighten the copy." })
+      }))
+    })
+  })
+
+  it("submits feedback on Ctrl-Enter", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    const textarea = screen.getByPlaceholderText("What should be changed?")
+    fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
+    fireEvent.keyDown(textarea, { key: "Enter", ctrlKey: true })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/chat_feedback", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ body: "Tighten the copy." })
+      }))
+    })
+  })
+
+  it("does not submit feedback on plain Enter", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ workflow: { id: 2, trigger_kind: "chat_feedback" } }, 201))
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "implemented", summary_state: "implemented" }
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Give feedback" }))
+    const textarea = screen.getByPlaceholderText("What should be changed?")
+    fireEvent.change(textarea, { target: { value: "Tighten the copy." } })
+    fireEvent.keyDown(textarea, { key: "Enter" })
+
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it("shows an inline error when feedback submission fails", async () => {
@@ -963,6 +1029,51 @@ describe("JobDetailView", () => {
     expect(await screen.findByText("passed")).toHaveClass("text-emerald-700")
     expect(screen.getByText("warned")).toHaveClass("text-amber-700")
     expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveTextContent("\u001b[32m")
+  })
+
+  it("shows start/finish timestamps and duration in the run row", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 6,
+          steps: [
+            step({
+              id: 20,
+              runs: [ run({
+                id: 40,
+                started_at: "2026-07-01T10:00:00Z",
+                finished_at: "2026-07-01T10:05:30Z"
+              }) ]
+            })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByText("Started")).toBeInTheDocument()
+    expect(screen.getByText("finished")).toBeInTheDocument()
+    expect(screen.getByText("(5m 30s)")).toBeInTheDocument()
+  })
+
+  it("shows a not-started placeholder when a run has no started_at", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 7,
+          steps: [
+            step({ id: 21, runs: [ run({ id: 41, started_at: null, finished_at: null }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByText("Not started yet")).toBeInTheDocument()
   })
 
   it("shows a Summary button in the run row for summarize steps and renders summary as markdown", async () => {
@@ -2019,6 +2130,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       review_policy: "self",
       feedback_policy: "confirm",
       repository_path: "/repositories/2",
+      edit_repository_path: "/repositories/2/edit",
       main_health: "unknown",
       landing_paused: false,
       main_branch_repair_blocks_work: true

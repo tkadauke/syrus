@@ -534,10 +534,6 @@ export function fetchEpicsGraph(search = "", options: { signal?: AbortSignal } =
   return getJson<DashboardGraphPayload>(`/api/v1/app/epics/graph${search}`, options)
 }
 
-export function fetchDashboard(search = "", options: { signal?: AbortSignal } = {}) {
-  return getJson<DashboardPayload>(`/api/v1/app/dashboard${search}`, options)
-}
-
 export function fetchDashboardChrome(search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<DashboardChromePayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "chrome")}`, options)
 }
@@ -631,10 +627,6 @@ export function updateDashboardPreferences(input: DashboardPreferencesInput) {
 
 export function bulkDashboardJobs(input: DashboardBulkJobsInput) {
   return postJson<DashboardBulkJobsPayload>("/api/v1/app/dashboard/jobs/bulk", input)
-}
-
-export function pauseDashboardJob(path: string) {
-  return postJson<{ message?: string }>(path, {})
 }
 
 export function unpauseDashboardJob(path: string) {

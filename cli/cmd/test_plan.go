@@ -11,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tkadauke/syrus/cli/internal/api"
-	"github.com/tkadauke/syrus/cli/internal/config"
 )
 
 var jobSlugPattern = regexp.MustCompile(`(?i)^JOB-(\d+)$`)
@@ -112,15 +111,7 @@ func runTestPlan(ctx context.Context, slug string, stdout io.Writer) error {
 		return err
 	}
 
-	creds, err := config.LoadDefaultCredentials()
-	if err != nil {
-		if errors.Is(err, config.ErrMissingCredentials) || errors.Is(err, config.ErrIncompleteCredentials) {
-			return errors.New(loginMessage)
-		}
-		return err
-	}
-
-	client, err := api.NewClient(creds.URL, creds.Token)
+	client, _, err := apiClient()
 	if err != nil {
 		return err
 	}

@@ -369,6 +369,51 @@ describe("AppChromeV2", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
   })
 
+  it("disables New Chat while a creation request is in flight and ignores a rapid second click", async () => {
+    let resolveFetchNewChat: (value: { default_repository_id: number }) => void = () => {}
+    vi.spyOn(chatsApi, "fetchNewChat").mockReturnValue(
+      new Promise((resolve) => { resolveFetchNewChat = resolve })
+    )
+    vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/14",
+      chat: chatNav({
+        id: 14,
+        title: null,
+        title_pending: false,
+        chat_path: "/chats/14",
+        last_message_at: null
+      }) as chatsApi.ChatRecord
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload())
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient,
+      routeWrapper: true
+    })
+
+    const newChatButton = screen.getByRole("button", { name: "New Chat" })
+    fireEvent.click(newChatButton)
+
+    await waitFor(() => {
+      expect(newChatButton).toBeDisabled()
+    })
+    fireEvent.click(newChatButton)
+
+    await act(async () => {
+      resolveFetchNewChat({ default_repository_id: 7 })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
+    })
+    expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
+    expect(newChatButton).not.toBeDisabled()
+  })
+
   it("opens the participant picker for New group chat and creates a group chat with the selected users", async () => {
     vi.spyOn(chatsApi, "fetchInvitableUsers").mockResolvedValue([
       { id: 5, name: "Cicero", avatar_url: null },

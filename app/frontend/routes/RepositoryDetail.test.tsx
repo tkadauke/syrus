@@ -204,13 +204,13 @@ function throughputPayload() {
   }
 }
 
-function renderRoute() {
+function renderRoute(payloadOverrides = {}) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = String(input)
     if (url === THROUGHPUT_PATH) {
       return Promise.resolve(jsonResponse(throughputPayload()))
     }
-    return Promise.resolve(jsonResponse(repositoryDetailPayload()))
+    return Promise.resolve(jsonResponse({ ...repositoryDetailPayload(), ...payloadOverrides }))
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -228,6 +228,84 @@ async function openMoreMenu() {
   const moreButton = await screen.findByRole("button", { name: "More" })
   fireEvent.click(moreButton)
 }
+
+const ISSUES_PATH = "/api/v1/app/repositories/1/issues?state=open"
+
+function repositoryIssuesPayload(overrides = {}) {
+  return {
+    message: null,
+    error_message: null,
+    repository: repositoryDetailPayload().repository,
+    tabs: [],
+    state: "open",
+    issue_count: 1,
+    issues: [
+      {
+        number: 42,
+        title: "Something broke",
+        state: "open",
+        html_url: "https://github.com/acme/widgets/issues/42",
+        body_excerpt: "It broke.",
+        user_login: "ada",
+        created_at: "2026-01-01T00:00:00Z",
+        labels: [],
+        delegated: false
+      }
+    ],
+    state_paths: {
+      open: "/app-shell/repositories/1?tab=github_issues&state=open",
+      closed: "/app-shell/repositories/1?tab=github_issues&state=closed"
+    },
+    paths: {
+      github_issues_path: "https://github.com/acme/widgets/issues",
+      app_comment_issue_path: "/api/v1/app/repositories/1/issues/comment",
+      app_close_issue_path: "/api/v1/app/repositories/1/issues/close",
+      app_delegate_issue_path: "/api/v1/app/repositories/1/issues/delegate",
+      app_bulk_issues_path: "/api/v1/app/repositories/1/issues/bulk"
+    },
+    ...overrides
+  }
+}
+
+function renderIssuesRoute() {
+  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = String(input)
+    if (url === ISSUES_PATH) {
+      return Promise.resolve(jsonResponse(repositoryIssuesPayload()))
+    }
+    return Promise.resolve(jsonResponse(repositoryDetailPayload()))
+  })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/repositories/1?tab=github_issues"]}>
+        <Routes>
+          <Route element={<RepositoryDetailRoute />} path="/app-shell/repositories/:id" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+  return fetchSpy
+}
+
+describe("RepositoryDetailRoute github issues refresh", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("refetches the issues list when Refresh is clicked", async () => {
+    const fetchSpy = renderIssuesRoute()
+
+    expect(await screen.findByText("Something broke")).toBeInTheDocument()
+    const callsBeforeRefresh = fetchSpy.mock.calls.filter(([input]) => String(input) === ISSUES_PATH).length
+
+    const refreshButton = screen.getByRole("button", { name: "Refresh" })
+    fireEvent.click(refreshButton)
+
+    await waitFor(() => {
+      const callsAfterRefresh = fetchSpy.mock.calls.filter(([input]) => String(input) === ISSUES_PATH).length
+      expect(callsAfterRefresh).toBe(callsBeforeRefresh + 1)
+    })
+  })
+})
 
 describe("RepositoryDetailRoute archive", () => {
   let mockConfirm: ReturnType<typeof vi.fn>
@@ -263,6 +341,13 @@ describe("RepositoryDetailRoute archive", () => {
 
     expect(await screen.findByText("0 Syrus-authored, 0 observed")).toBeInTheDocument()
     expect(screen.getAllByText("none").length).toBeGreaterThan(0)
+  })
+
+  it("hides the throughput section in simple mode", async () => {
+    renderRoute({ simple_mode: true })
+
+    await screen.findByRole("heading", { name: "acme/widgets" })
+    expect(screen.queryByText("Throughput")).not.toBeInTheDocument()
   })
 
   it("opens confirm dialog instead of window.confirm when archiving a repository", async () => {

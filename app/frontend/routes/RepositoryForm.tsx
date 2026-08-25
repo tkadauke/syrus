@@ -60,6 +60,7 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
 function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: RepositoryFormPayload; prefix: string }) {
   const { t } = useT("settings")
   const navigate = useNavigate()
+  const location = useLocation()
   const [values, setValues] = useState<RepositoryInput>(() => inputFromPayload(payload))
   const [repairTouched, setRepairTouched] = useState(mode === "edit")
   const [ownerMode, setOwnerMode] = useState<"select" | "manual">("manual")
@@ -99,6 +100,11 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
     setBranchOptions([])
     setRepoNotice(null)
   }, [mode, payload])
+
+  useEffect(() => {
+    if (!location.hash) return
+    document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "center" })
+  }, [location.hash])
 
   useEffect(() => {
     if (!owners.isSuccess) return
@@ -432,7 +438,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           <Checkbox label={t('repository_form.check_polling')} onChange={(checked) => setValues({ ...values, polling_enabled: checked })} value={values.polling_enabled} />
           <Checkbox label={t('repository_form.check_prepare')} onChange={(checked) => setValues({ ...values, prepare_enabled: checked })} value={values.prepare_enabled} />
           <Checkbox label={t('repository_form.check_cost_footer')} onChange={(checked) => setValues({ ...values, pr_cost_footer_enabled: checked })} value={values.pr_cost_footer_enabled} />
-          <Checkbox label={t('repository_form.check_auto_merge')} onChange={(checked) => setValues({ ...values, auto_merge_enabled: checked })} value={values.auto_merge_enabled} />
+          <Checkbox id="auto-merge" label={t('repository_form.check_auto_merge')} onChange={(checked) => setValues({ ...values, auto_merge_enabled: checked })} value={values.auto_merge_enabled} />
           <Checkbox label={t('repository_form.check_trust_rebase')} onChange={(checked) => setValues({ ...values, trust_clean_rebase_grade: checked })} value={values.trust_clean_rebase_grade} />
           <Checkbox label={t('repository_form.check_main_health')} onChange={(checked) => setValues({ ...values, main_branch_health_enabled: checked })} value={values.main_branch_health_enabled} />
           <Checkbox label={t('repository_form.check_main_repair')} onChange={(checked) => {
@@ -697,10 +703,10 @@ function SelectWithManual({
   )
 }
 
-function Checkbox({ label, onChange, value }: { label: string; onChange: (checked: boolean) => void; value: boolean }) {
+function Checkbox({ id, label, onChange, value }: { id?: string; label: string; onChange: (checked: boolean) => void; value: boolean }) {
   const { t } = useT("settings")
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300" id={id}>
       <input className="rounded border-gray-400" checked={value} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
       {label}
     </label>

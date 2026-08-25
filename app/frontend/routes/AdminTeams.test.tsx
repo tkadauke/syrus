@@ -166,6 +166,19 @@ describe("AdminTeamDetailRoute", () => {
     expect(await screen.findByText("New Person")).toBeInTheDocument()
   })
 
+  it("renders the member role select as a compact, non-full-width control", async () => {
+    renderDetail()
+
+    await screen.findByText("Ada Lovelace")
+    const selects = screen.getAllByDisplayValue("Owner")
+    // Regression guard: appending "w-auto" after inputClass()'s "w-full" lost
+    // the CSS specificity tie (Tailwind emits w-full after w-auto), so the
+    // select silently stayed full width and squeezed the member row's name/
+    // email column down to one character per line.
+    expect(selects[0].className).toMatch(/\bw-auto\b/)
+    expect(selects[0].className).not.toMatch(/\bw-full\b/)
+  })
+
   it("hides management controls when the current user cannot manage the team", async () => {
     renderDetail(teamDetailPayload({ can_manage: false }))
 

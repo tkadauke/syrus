@@ -319,7 +319,7 @@ function RoleSelect({ value, onChange, disabled }: { value: RepositoryMembership
   const { t } = useT("settings")
   return (
     <select
-      className={`${inputClass()} w-auto`}
+      className={inputClass({ fullWidth: false })}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value as RepositoryMembershipRole)}
       value={value}

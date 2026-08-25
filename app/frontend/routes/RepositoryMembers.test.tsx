@@ -109,6 +109,19 @@ describe("RepositoryMembersRoute", () => {
     expect(await screen.findByText("Writer Person")).toBeInTheDocument()
   })
 
+  it("renders the role select as a compact, non-full-width control", async () => {
+    renderRoute()
+
+    await screen.findByText("Ada Lovelace")
+    const selects = screen.getAllByDisplayValue("Admin")
+    // Regression guard: appending "w-auto" after inputClass()'s "w-full" lost
+    // the CSS specificity tie (Tailwind emits w-full after w-auto), so the
+    // select silently stayed full width and squeezed the member row's name/
+    // email column down to one character per line.
+    expect(selects[0].className).toMatch(/\bw-auto\b/)
+    expect(selects[0].className).not.toMatch(/\bw-full\b/)
+  })
+
   it("changes an existing member's role", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)

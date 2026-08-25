@@ -170,16 +170,7 @@ module Steps
             "(lines: #{details['lines_pct']}%, threshold: #{details['threshold_lines']}%). " \
             "Add tests and retry this Job."
 
-      case plan.on_miss
-      when "block"
-        log("[coverage_analyze] threshold miss — failing step")
-        raise StepFailed, msg
-      when "schedule"
-        CoverageScheduleTriggerJob.perform_later(workflow.id)
-        log("[coverage_analyze] threshold miss — scheduled coverage fix job")
-      else
-        log("[coverage_analyze] threshold miss — warning only (on_miss: #{plan.on_miss})")
-      end
+      CoverageOnMiss.for(plan.on_miss).call(workflow: workflow, on_miss: plan.on_miss, message: msg, log: method(:log))
     end
 
     # Branch coverage never hard-fails via `on_miss` — unlike lines/pr_lines,
