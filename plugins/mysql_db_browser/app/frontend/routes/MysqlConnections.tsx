@@ -24,6 +24,9 @@ import {
   type MysqlSection,
   type MysqlTableDetailResponse
 } from "../api/mysqlSchema"
+import { MysqlContentTab } from "../components/MysqlContentTab"
+import { MysqlQueryTab } from "../components/MysqlQueryTab"
+import { MysqlLiveTab } from "../components/MysqlLiveTab"
 
 const queryKey = ["mysql_db_browser", "connections"] as const
 
@@ -34,6 +37,7 @@ const EMPTY_FORM: MysqlConnectionInput = {
   username: "",
   default_database: "",
   agentic_access_enabled: false,
+  allow_writes: false,
   password: ""
 }
 
@@ -148,12 +152,13 @@ function ConnectionsTable({
               <th className="px-4 py-2">{t("col_default_database")}</th>
               <th className="px-4 py-2">{t("col_password")}</th>
               <th className="px-4 py-2">{t("col_agentic_access")}</th>
+              <th className="px-4 py-2">{t("col_allow_writes")}</th>
               <th className="px-4 py-2"><span className="sr-only">{t("col_actions")}</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
             {connections.length === 0 ? (
-              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={7}>{t("empty")}</td></tr>
+              <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={8}>{t("empty")}</td></tr>
             ) : connections.map((connection) => (
               editingId === connection.id ? (
                 <ConnectionEditRow
@@ -218,6 +223,11 @@ function ConnectionRow({
         </StatusBadge>
       </td>
       <td className="px-4 py-3">
+        <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>
+          {connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
+        </StatusBadge>
+      </td>
+      <td className="px-4 py-3">
         <div className="flex flex-wrap items-start justify-end gap-2">
           <button
             className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500"
@@ -274,6 +284,7 @@ function ConnectionEditRow({
     username: connection.username,
     default_database: connection.default_database || "",
     agentic_access_enabled: connection.agentic_access_enabled,
+    allow_writes: connection.allow_writes,
     password: ""
   })
   const update = useMutation({
@@ -429,6 +440,19 @@ function ConnectionFieldsGrid({
           <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_agentic_access_hint")}</span>
         </span>
       </label>
+      <label className="flex items-start gap-2 text-sm normal-case text-gray-700 dark:text-gray-300 sm:col-span-2 lg:col-span-3" htmlFor={`${idPrefix}-allow-writes`}>
+        <input
+          checked={values.allow_writes}
+          className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+          id={`${idPrefix}-allow-writes`}
+          onChange={(event) => set("allow_writes", event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          {t("field_allow_writes")}
+          <span className="block text-xs text-gray-500 dark:text-gray-400">{t("field_allow_writes_hint")}</span>
+        </span>
+      </label>
     </div>
   )
 }
@@ -461,8 +485,10 @@ function TestButton({ onTest }: { onTest: () => Promise<MysqlConnectionTestResul
 
 function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; label: string; onBack: () => void }) {
   const { t } = useT("mysql_db_browser")
+  const [browserTab, setBrowserTab] = useState<"browse" | "query" | "live">("browse")
   const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<{ database: string; table: string } | null>(null)
+  const [tableTab, setTableTab] = useState<"content" | "structure">("content")
   const databases = useQuery({
     queryKey: ["mysql_db_browser", "schema", connectionId, "databases"],
     queryFn: () => fetchMysqlDatabases(connectionId)
@@ -478,6 +504,11 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
       }
       return next
     })
+  }
+
+  function selectTable(database: string, table: string) {
+    setSelected({ database, table })
+    setTableTab("content")
   }
 
   return (
@@ -496,40 +527,90 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
         </button>
       </div>
 
-      {databases.isPending ? <Panel>{t("loading_databases")}</Panel> : null}
-      {databases.isError ? <Panel tone="error">{errorMessage(databases.error, t("error_loading_databases"))}</Panel> : null}
+      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
+        <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>{t("tab_browse")}</TabButton>
+        <TabButton active={browserTab === "query"} onClick={() => setBrowserTab("query")}>{t("tab_query")}</TabButton>
+        <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>{t("tab_live")}</TabButton>
+      </div>
 
-      {databases.isSuccess ? (
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-          <nav
-            aria-label={t("aria_schema_tree")}
-            className="max-h-[70vh] overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950"
-          >
-            <ul className="divide-y divide-gray-100 dark:divide-gray-900 text-sm">
-              {databases.data.databases.map((database) => (
-                <DatabaseNode
-                  connectionId={connectionId}
-                  database={database}
-                  expanded={expandedDatabases.has(database.name)}
-                  key={database.name}
-                  onSelectTable={(table) => setSelected({ database: database.name, table })}
-                  onToggle={() => toggleDatabase(database.name)}
-                  selectedTable={selected?.database === database.name ? selected.table : null}
-                />
-              ))}
-            </ul>
-          </nav>
+      {browserTab === "browse" ? (
+        <>
+          {databases.isPending ? <Panel>{t("loading_databases")}</Panel> : null}
+          {databases.isError ? <Panel tone="error">{errorMessage(databases.error, t("error_loading_databases"))}</Panel> : null}
 
-          <div className="min-h-[200px] rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-            {selected ? (
-              <TableDetail connectionId={connectionId} database={selected.database} table={selected.table} />
-            ) : (
-              <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t("select_table_hint")}</p>
-            )}
-          </div>
+          {databases.isSuccess ? (
+            <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+              <nav
+                aria-label={t("aria_schema_tree")}
+                className="max-h-[70vh] overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950"
+              >
+                <ul className="divide-y divide-gray-100 dark:divide-gray-900 text-sm">
+                  {databases.data.databases.map((database) => (
+                    <DatabaseNode
+                      connectionId={connectionId}
+                      database={database}
+                      expanded={expandedDatabases.has(database.name)}
+                      key={database.name}
+                      onSelectTable={(table) => selectTable(database.name, table)}
+                      onToggle={() => toggleDatabase(database.name)}
+                      selectedTable={selected?.database === database.name ? selected.table : null}
+                    />
+                  ))}
+                </ul>
+              </nav>
+
+              <div className="min-h-[200px] rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+                {selected ? (
+                  <div>
+                    <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
+                      <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>{t("tab_content")}</TabButton>
+                      <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>{t("tab_structure")}</TabButton>
+                    </div>
+                    {tableTab === "content" ? (
+                      <MysqlContentTab connectionId={connectionId} database={selected.database} table={selected.table} />
+                    ) : (
+                      <TableDetail connectionId={connectionId} database={selected.database} table={selected.table} />
+                    )}
+                  </div>
+                ) : (
+                  <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t("select_table_hint")}</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+
+      {browserTab === "query" ? (
+        <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
+          <MysqlQueryTab connectionId={connectionId} />
+        </div>
+      ) : null}
+
+      {browserTab === "live" ? (
+        <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
+          <MysqlLiveTab connectionId={connectionId} />
         </div>
       ) : null}
     </section>
+  )
+}
+
+function TabButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      aria-selected={active}
+      className={`border-b-2 px-3 py-2 text-sm font-medium ${
+        active
+          ? "border-terracotta-600 text-terracotta-700 dark:text-terracotta-300"
+          : "border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+      }`}
+      onClick={onClick}
+      role="tab"
+      type="button"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -746,10 +827,12 @@ function formatBytes(bytes: number) {
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
 
-function StatusBadge({ children, tone }: { children: ReactNode; tone: "success" | "neutral" }) {
+function StatusBadge({ children, tone }: { children: ReactNode; tone: "success" | "neutral" | "warning" }) {
   const classes = tone === "success"
     ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+    : tone === "warning"
+      ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+      : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${classes}`}>{children}</span>
 }
 

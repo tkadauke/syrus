@@ -8,6 +8,7 @@ export type MysqlConnectionRow = {
   username: string
   default_database: string | null
   agentic_access_enabled: boolean
+  allow_writes: boolean
   has_password: boolean
   created_at: string
   updated_at: string
@@ -20,6 +21,7 @@ export type MysqlConnectionInput = {
   username: string
   default_database: string
   agentic_access_enabled: boolean
+  allow_writes: boolean
   password?: string
 }
 

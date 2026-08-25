@@ -29,6 +29,11 @@ RSpec.describe MysqlConnection do
     expect(connection.agentic_access_enabled).to be false
   end
 
+  it "defaults allow_writes to false so query execution is read-only unless explicitly opted in" do
+    connection = Factories.mysql_connection
+    expect(connection.allow_writes).to be false
+  end
+
   describe "credential encryption" do
     it "round-trips the password through the encrypted credentials column" do
       connection = Factories.mysql_connection

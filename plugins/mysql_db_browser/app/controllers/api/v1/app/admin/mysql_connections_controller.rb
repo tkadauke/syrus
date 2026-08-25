@@ -78,7 +78,7 @@ module Api
           end
 
           def connection_params
-            params.require(:mysql_connection).permit(:label, :host, :port, :username, :default_database, :agentic_access_enabled)
+            params.require(:mysql_connection).permit(:label, :host, :port, :username, :default_database, :agentic_access_enabled, :allow_writes)
           end
 
           def connection_json(connection)
@@ -90,6 +90,7 @@ module Api
               username: connection.username,
               default_database: connection.default_database,
               agentic_access_enabled: connection.agentic_access_enabled,
+              allow_writes: connection.allow_writes,
               has_password: connection.password.present?,
               created_at: connection.created_at.iso8601,
               updated_at: connection.updated_at.iso8601
