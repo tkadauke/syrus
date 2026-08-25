@@ -16,6 +16,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end.update!(enabled: enabled)
   end
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:cached] || payload[:name] == "SCHEMA"
+
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/chats"
 
@@ -329,6 +341,31 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       "supervisor_unread_count" => 2,
       "supervisor_unread_severity" => "critical"
     )
+  end
+
+  it "loads only scoped event payloads when computing supervisor unread severity" do
+    set_supervisor_feature(true)
+    admin = Factories.user(admin: true)
+    chat = SupervisorChat.ensure_for!(admin)
+    chat.update!(last_read_at: 10.minutes.ago)
+    chat.scoped_events.create!(
+      source_kind: "job_failed",
+      payload: { "severity" => "critical", "summary" => "boom" },
+      created_at: 1.minute.ago
+    )
+    sign_in_as(admin)
+
+    queries = capture_sql { get "/api/v1/app/chats" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["supervisor_chat"]).to include(
+      "unread" => true,
+      "supervisor_unread_count" => 1,
+      "supervisor_unread_severity" => "critical"
+    )
+
+    scoped_event_selects = queries.grep(/FROM ["`]?chat_scoped_events["`]?/i)
+    expect(scoped_event_selects.grep(/SELECT\s+["`]?chat_scoped_events["`]?\.\*/i)).to be_empty
   end
 
   it "hides supervisor payloads when the feature is off or the user is not an admin" do

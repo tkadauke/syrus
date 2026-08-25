@@ -243,8 +243,10 @@ module ChatIndexPayload
     legacy_unread_messages = legacy_unread_messages.where("created_at > ?", last_read_at) if last_read_at.present?
 
     severity_rank = { "info" => 0, "warning" => 1, "critical" => 2 }
-    event_severities = unread_events.order(created_at: :desc, id: :desc).limit(200).filter_map do |event|
-      severity = event.payload["severity"].to_s
+    event_severities = unread_events.order(created_at: :desc, id: :desc).limit(200).pluck(:payload).filter_map do |payload|
+      next unless payload.is_a?(Hash)
+
+      severity = payload["severity"].to_s
       severity if severity_rank.key?(severity)
     end
     legacy_severities = legacy_unread_messages.order(created_at: :desc, id: :desc).limit(200).pluck(:content).filter_map do |content|
