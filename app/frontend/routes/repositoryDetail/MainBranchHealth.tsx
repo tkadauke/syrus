@@ -120,6 +120,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           {history.main_branch_health_enabled ? null : <span>{t("repository.health_monitoring_disabled")}</span>}
           {history.main_branch_health_enabled ? (
             <>
+              <span>{history.main_branch_repair_blocks_work ? t("repository.health_work_pause_enabled") : t("repository.health_work_pause_disabled")}</span>
               <span>{history.main_branch_repair_enabled ? t("repository.health_auto_repair_enabled") : t("repository.health_auto_repair_disabled")}</span>
               {history.main_branch_repair_auto_approve ? <span>{t("repository.health_auto_repair_approval_enabled")}</span> : null}
             </>

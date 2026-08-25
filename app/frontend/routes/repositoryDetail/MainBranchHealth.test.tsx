@@ -219,13 +219,26 @@ describe("MainBranchHealthSection resume landing", () => {
   it("does not offer resume when main branch repair is configured not to block work", () => {
     const history = buildHistory()
     history.main_branch_repair_blocks_work = false
+    history.main_branch_repair_enabled = true
+    history.main_branch_repair_auto_approve = true
     const payload = buildPayload()
     payload.repository.main_branch_repair_blocks_work = false
+    payload.repository.main_branch_repair_enabled = true
+    payload.repository.main_branch_repair_auto_approve = true
 
     renderSection(history, payload)
 
+    expect(screen.getByText("Broken-main work pause disabled")).toBeInTheDocument()
+    expect(screen.getByText("Auto-fix jobs enabled")).toBeInTheDocument()
+    expect(screen.getByText("Auto-fix jobs auto-approved")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
     expect(screen.queryByText("Work is paused because main branch health is not green.")).not.toBeInTheDocument()
+  })
+
+  it("labels broken-main work pausing when that policy is enabled", () => {
+    renderSection()
+
+    expect(screen.getByText("Broken-main work pause enabled")).toBeInTheDocument()
   })
 
   it("uses normalized health history flags when monitoring is disabled", () => {
