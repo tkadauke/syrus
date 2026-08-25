@@ -848,7 +848,7 @@ module App
     def workflow_for_start_blocked
       @workflow_for_start_blocked ||= begin
         WorkUnits::Ownership
-          .unowned_start_blocked_workflows_scope(
+          .legacy_replay_start_blocked_workflows_scope(
             [ @job.id ],
             base_scope: @job.workflows.where(state: %w[queued running])
           )

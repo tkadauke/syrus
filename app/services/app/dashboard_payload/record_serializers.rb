@@ -384,7 +384,7 @@ module App
           runnable_work_unit_job_ids = WorkUnits::Ownership.runnable_unit_job_ids(job_ids).to_set
 
           legacy = WorkUnits::Ownership
-                  .unowned_start_blocked_workflows_scope(
+                  .legacy_replay_start_blocked_workflows_scope(
                     job_ids.presence,
                     base_scope: Workflow.where(job_id: active_scope, state: %w[queued running])
                   )

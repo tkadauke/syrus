@@ -71,12 +71,12 @@ module JobLifecycle
       .filter_map(&:workflow)
       .select { |workflow| workflow.queued? || workflow.running? }
 
-    legacy_workflows = WorkUnits::Ownership.unowned_workflows_scope(
+    legacy_replay_workflows = WorkUnits::Ownership.legacy_replay_workflows_scope(
       [ id ],
       base_scope: workflows.where(state: %w[queued running])
     ).to_a
 
-    (unit_workflows + legacy_workflows).uniq(&:id)
+    (unit_workflows + legacy_replay_workflows).uniq(&:id)
   end
 
   def pending_auto_merge?
