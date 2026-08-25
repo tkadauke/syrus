@@ -25,10 +25,18 @@ module Mcp::Tools
     input_schema(
       properties: {
         steps: {
-          type: "array",
-          items: { type: "string" },
-          maxItems: MAX_STEPS,
-          description: "Concise, actionable test steps: user flows, URLs, commands, and known edge cases. Pass a JSON array of at most #{MAX_STEPS} short strings, never placeholder syntax."
+          oneOf: [
+            {
+              type: "array",
+              items: { type: "string" },
+              maxItems: MAX_STEPS
+            },
+            {
+              type: "string",
+              maxLength: MAX_STEPS * MAX_STEP_LENGTH
+            }
+          ],
+          description: "Concise, actionable test steps: user flows, URLs, commands, and known edge cases. Prefer a JSON array of at most #{MAX_STEPS} short strings. A newline-separated string is also accepted. Never use placeholder syntax."
         },
         notes: {
           type: "string",
@@ -62,7 +70,7 @@ module Mcp::Tools
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_test_plan)
 
-        normalized_steps = Array(steps).map { |step| truncate_step(Mcp::Tools.utf8(step).strip) }.reject(&:empty?).first(MAX_STEPS)
+        normalized_steps = normalize_steps(steps)
         normalized_notes = truncate_notes(Mcp::Tools.utf8(notes).strip).presence
         normalized_visual_review_reason = Mcp::Tools.utf8(visual_review_reason).strip.presence
 
@@ -83,6 +91,17 @@ module Mcp::Tools
       end
 
       private
+
+      def normalize_steps(steps)
+        raw_steps =
+          if steps.is_a?(String)
+            steps.lines
+          else
+            Array(steps)
+          end
+
+        raw_steps.map { |step| truncate_step(Mcp::Tools.utf8(step).strip) }.reject(&:empty?).first(MAX_STEPS)
+      end
 
       def truncate_step(step)
         step.truncate(MAX_STEP_LENGTH)

@@ -46,6 +46,19 @@ RSpec.describe Mcp::Tools::SubmitTestPlanTool do
     expect(artifact["steps"].first.encoding).to eq(Encoding::UTF_8)
   end
 
+  it "accepts newline-separated steps as a simpler valid MCP argument shape" do
+    call(
+      steps: "Run bin/rspec spec/services/syrus_mcp/submit_test_plan_tool_spec.rb\nOpen /jobs/1 and inspect the Test Plan section.\n\n"
+    )
+
+    expect(run.workflow.reload.artifact("test_plan")).to include(
+      "steps" => [
+        "Run bin/rspec spec/services/syrus_mcp/submit_test_plan_tool_spec.rb",
+        "Open /jobs/1 and inspect the Test Plan section."
+      ]
+    )
+  end
+
   it "keeps generated test plans compact" do
     long_step = "Open /jobs/1 and " + ("verify the changed dashboard filter behavior " * 20)
     response = call(
@@ -114,7 +127,8 @@ RSpec.describe Mcp::Tools::SubmitTestPlanTool do
     expect(described_class.tool_name).to eq("submit_test_plan")
     schema = described_class.input_schema_value.to_h
     expect(schema[:required]).to eq(%w[steps])
-    expect(schema.dig(:properties, :steps, :maxItems)).to eq(described_class::MAX_STEPS)
+    expect(schema.dig(:properties, :steps, :oneOf).map { |candidate| candidate[:type] }).to eq(%w[array string])
+    expect(schema.dig(:properties, :steps, :oneOf, 0, :maxItems)).to eq(described_class::MAX_STEPS)
     expect(schema.dig(:properties, :notes, :maxLength)).to eq(described_class::MAX_NOTES_LENGTH)
   end
 end
