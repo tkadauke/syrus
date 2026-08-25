@@ -52,8 +52,8 @@ module Admin
 
     def window_start
       @window_start ||= begin
-        parsed = parse_time(params[:start] || params[:since])
-        start_time = parsed || (window_end - DEFAULT_WINDOW)
+        explicit_start = parse_window_start(params[:start] || params[:since])
+        start_time = explicit_start || (window_end - requested_window)
         [ start_time, window_end - MAX_WINDOW ].max
       end
     end
@@ -68,6 +68,36 @@ module Admin
       Time.zone.parse(value.to_s)
     rescue ArgumentError
       nil
+    end
+
+    def parse_window_start(value)
+      return if value.blank?
+
+      duration = parse_duration(value)
+      return window_end - duration if duration
+
+      parse_time(value)
+    end
+
+    def requested_window
+      parse_duration(params[:window]) || parse_duration(params[:window_preset]) || DEFAULT_WINDOW
+    end
+
+    def parse_duration(value)
+      return if value.blank?
+
+      match = value.to_s.strip.downcase.match(/\A(\d+)\s*([hdw])\z/)
+      return unless match
+
+      amount = match[1].to_i
+      return if amount <= 0
+
+      duration = case match[2]
+      when "h" then amount.hours
+      when "d" then amount.days
+      when "w" then amount.weeks
+      end
+      [ duration, MAX_WINDOW ].min
     end
 
     def tool_rows(usages, order_by:)
