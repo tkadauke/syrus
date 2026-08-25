@@ -17,8 +17,7 @@ module WorkEngine
 
       WorkUnits::Ownership.active_for_epic?(
         job.epic,
-        kinds: WorkDefinitions.epic_wide_kinds,
-        include_legacy: false
+        kinds: WorkDefinitions.epic_wide_kinds
       )
     end
 

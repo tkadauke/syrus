@@ -644,11 +644,6 @@ class LandingQueueProcessor
   end
 
   def active_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
-    (work_unit_blocked_landing_workflows(repository_id, except_job_id: except_job_id, start_blocked_reason: start_blocked_reason) +
-      legacy_blocked_landing_workflows(repository_id, except_job_id: except_job_id, start_blocked_reason: start_blocked_reason)).uniq(&:id)
-  end
-
-  def work_unit_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
     WorkUnit
       .joins(workflow: :job)
       .where(state: "blocked", blocked_reason: work_unit_blocked_reason_for(start_blocked_reason))
@@ -658,19 +653,6 @@ class LandingQueueProcessor
       .includes(:workflow)
       .order(:id)
       .map(&:workflow)
-  end
-
-  def legacy_blocked_landing_workflows(repository_id, except_job_id:, start_blocked_reason:)
-    WorkUnits::Ownership.legacy_replay_workflows_scope(
-      nil,
-      kinds: WorkDefinitions.landing_workflow_kinds,
-      base_scope: Workflow.active
-    )
-      .joins(:job)
-      .where(jobs: { repository_id: repository_id, state: "landing" })
-      .where.not(jobs: { id: except_job_id })
-      .reorder(:id)
-      .select { |workflow| WorkUnits::StartBlock.for(workflow).blocked_for?(start_blocked_reason) }
   end
 
   def workflow_blocked_for_start_reason?(workflow, start_blocked_reason)

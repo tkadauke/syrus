@@ -96,8 +96,7 @@ class MergeTrainDispatcher
     MergeTrain.active.where(epic_id: @epic.id).exists? ||
       WorkUnits::Ownership.active_for_epic?(
         @epic,
-        kinds: WorkDefinitions.family_kinds_for("merge_train"),
-        include_legacy: !WorkUnits::PathOwnership.work_unit_owned?("merge_train")
+        kinds: WorkDefinitions.family_kinds_for("merge_train")
       )
   end
 

@@ -40,8 +40,7 @@ class RebaseWorkflowSelector
     job_ids = related_job_ids_for(jobs)
     return false if job_ids.empty?
 
-    WorkUnits::Ownership.active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS).exists? ||
-      active_legacy_workflows_for_job_ids(job_ids).exists?
+    WorkUnits::Ownership.active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS).exists?
   end
 
   def self.active_for_jobs(jobs)
@@ -70,23 +69,15 @@ class RebaseWorkflowSelector
   end
 
   def self.active_in_repository(repository)
-    legacy_ids = runnable_active_scope(
-      WorkUnits::Ownership.legacy_replay_workflows_scope(
-        nil,
-        kinds: TRIGGER_KINDS,
-        base_scope: Workflow.active.where(trigger_kind: TRIGGER_KINDS).joins(:job).where(jobs: { repository_id: repository.id })
-      )
-    ).pluck(:id)
     unit_ids = WorkUnit
       .where(state: WorkUnits::Ownership::ACTIVE_STATES, kind: TRIGGER_KINDS, repository_id: repository.id)
       .where.not(workflow_id: nil)
       .pluck(:workflow_id)
 
-    Workflow.where(id: (legacy_ids + unit_ids).uniq)
+    Workflow.where(id: unit_ids.uniq)
   end
 
   def self.active_workflows_for_job_ids(job_ids)
-    legacy_ids = active_legacy_workflows_for_job_ids(job_ids).pluck(:id)
     unit_ids = WorkUnits::Ownership
       .active_unit_members_for_job_ids(job_ids, kinds: TRIGGER_KINDS)
       .joins(:work_unit)
@@ -94,33 +85,9 @@ class RebaseWorkflowSelector
       .distinct
       .pluck("work_units.workflow_id")
 
-    Workflow.where(id: (legacy_ids + unit_ids).uniq)
+    Workflow.where(id: unit_ids.uniq)
   end
   private_class_method :active_workflows_for_job_ids
-
-  def self.active_legacy_workflows_for_job_ids(job_ids)
-    runnable_active_scope(
-      WorkUnits::Ownership.legacy_replay_workflows_scope(
-        job_ids,
-        kinds: TRIGGER_KINDS,
-        base_scope: Workflow.active.where(trigger_kind: TRIGGER_KINDS, job_id: job_ids)
-      )
-    )
-  end
-  private_class_method :active_legacy_workflows_for_job_ids
-
-  def self.runnable_active_scope(scope)
-    scope.where(<<~SQL.squish, "running")
-      workflows.state = ?
-      OR EXISTS (
-        SELECT 1
-        FROM steps
-        INNER JOIN runs ON runs.step_id = steps.id
-        WHERE steps.workflow_id = workflows.id
-      )
-    SQL
-  end
-  private_class_method :runnable_active_scope
 
   def self.related_job_ids_for(jobs)
     Array(jobs).compact.flat_map { |job| StackRebasePlan.related_job_ids_for(job) }.uniq

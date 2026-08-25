@@ -14,13 +14,10 @@ module WorkUnits
       active_job_ids([ job.id ], kinds: kinds).include?(job.id)
     end
 
-    def self.active_for_epic?(epic, kinds: nil, include_legacy: false)
+    def self.active_for_epic?(epic, kinds: nil)
       return false unless epic
 
-      return true if active_units_for_epic(epic, kinds: kinds).any?
-      return false unless include_legacy
-
-      legacy_active_epic_workflows(epic, kinds: kinds).exists?
+      active_units_for_epic(epic, kinds: kinds).any?
     end
 
     def self.active_for_lock_key?(lock_key, kinds: nil)
@@ -269,13 +266,6 @@ module WorkUnits
         .includes(:workflow)
       scope = scope.where(kind: Array(kinds).map(&:to_s)) if kinds.present?
       scope.order(:created_at, :id).to_a
-    end
-
-    def self.legacy_active_epic_workflows(epic, kinds: nil)
-      return Workflow.none unless epic
-
-      scope = Workflow.active.where(job_id: epic.jobs.select(:id))
-      legacy_replay_workflows_scope(nil, kinds: kinds, base_scope: scope)
     end
 
     def self.legacy_replay_workflow_job_ids(job_ids, kinds: nil)

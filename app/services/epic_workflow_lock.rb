@@ -20,14 +20,7 @@ class EpicWorkflowLock
     unit_workflows = WorkUnits::Ownership
       .active_units_for_epic(epic, kinds: WorkDefinitions.epic_wide_kinds)
       .filter_map(&:workflow)
-    return sorted_candidates(unit_workflows) if WorkUnits::PathOwnership.work_unit_owned?("epic_wide_workflow")
-
-    legacy_workflows = WorkUnits::Ownership
-      .legacy_active_epic_workflows(epic, kinds: WorkDefinitions.epic_wide_kinds)
-      .order(:created_at, :id)
-      .to_a
-
-    sorted_candidates(unit_workflows + legacy_workflows)
+    sorted_candidates(unit_workflows)
   end
 
   def blocking_workflow
