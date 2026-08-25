@@ -3002,6 +3002,18 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
+  it "ignores legacy active repair workflows without WorkUnit ownership" do
+    workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    workflow.work_unit&.mark_terminal!("failed")
+    Workflows::CiFailure.instantiate(job: job)
+    job.update_columns(state: "failed")
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :failed_job_active_repair_work)).to be_nil
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+  end
+
   it "uses WorkDefinition repair policy when classifying active repair workflows" do
     workflow.update_columns(state: "failed", finished_at: 10.minutes.ago)
     workflow.work_unit&.mark_terminal!("failed")

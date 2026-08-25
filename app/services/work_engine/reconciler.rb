@@ -1222,7 +1222,8 @@ module WorkEngine
         unit_workflows = active_work_units_for_job(job).filter_map(&:workflow)
         legacy_workflows = workflows.select do |workflow|
           workflow.job_id == job.id &&
-            %w[queued running].include?(workflow.state)
+            %w[queued running].include?(workflow.state) &&
+            workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
         end
         (unit_workflows + legacy_workflows)
           .uniq(&:id)
