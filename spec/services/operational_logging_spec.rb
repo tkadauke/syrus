@@ -228,6 +228,33 @@ RSpec.describe OperationalLogging do
     expect(Rails.logger).not_to have_received(:warn)
   end
 
+  it "prunes search rows by expired primary ids instead of scanning FTS timestamps" do
+    old_event = OperationalLogEvent.create!(
+      occurred_at: 7.hours.ago,
+      level: "info",
+      role: "worker",
+      hostname: "host-a",
+      source: "spec",
+      message: "expired event",
+      context: {}
+    )
+    prepare_search_tables
+    OperationalLogIndex.upsert(old_event)
+
+    sql_names = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      sql_names << payload[:name]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      PruneOperationalLogsJob.perform_now(6.hours.ago)
+    end
+
+    expect(sql_names).to include("OperationalLogIndex Delete Many")
+    expect(sql_names).not_to include("OperationalLogIndex Prune")
+    expect(OperationalLogIndex.search(query: "expired", since: 12.hours.ago)).to be_empty
+  end
+
   def prepare_search_tables
     SearchRecord.connection.execute("DROP TABLE IF EXISTS operational_log_fts")
     SearchRecord.connection.execute(<<~SQL)
