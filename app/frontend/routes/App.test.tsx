@@ -886,10 +886,9 @@ describe("App", () => {
       expect(document.documentElement).toHaveClass("dark")
 
       fireEvent.click(within(accountNav).getByRole("button", { name: "operator@example.com" }))
-      fireEvent.click(within(accountNav).getByRole("button", { name: "Switch to light mode" }))
+      fireEvent.click(within(accountNav).getByRole("button", { name: "Light" }))
 
       expect(document.documentElement).not.toHaveClass("dark")
-      expect(within(accountNav).getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
           "/api/v1/app/theme",
@@ -904,6 +903,7 @@ describe("App", () => {
           })
         )
       })
+      expect(within(accountNav).getByRole("button", { name: "Light" })).toHaveAttribute("aria-pressed", "true")
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -1041,14 +1041,14 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "Report a bug" })).toHaveClass("fixed")
 
       fireEvent.click(screen.getByRole("button", { name: "operator@example.com" }))
-      expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Dark" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
       expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
       expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
       expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole("button", { name: "Switch to dark mode" }))
+      fireEvent.click(screen.getByRole("button", { name: "Dark" }))
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
           "/api/v1/app/theme",

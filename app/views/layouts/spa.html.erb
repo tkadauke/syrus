@@ -1,11 +1,29 @@
 <!DOCTYPE html>
-<html class="<%= current_user&.theme == 'dark' ? 'dark' : '' %>">
+<%# data-theme carries the persisted preference (light/dark/system, defaulting to
+    system for signed-out visitors) to the inline script below, which resolves
+    "system" against prefers-color-scheme and sets the `dark` class before the
+    stylesheet paints anything — the class= fallback covers no-JS environments for
+    the two explicit themes (system can't be resolved server-side: the server has
+    no reliable signal for the client's OS color-scheme preference). %>
+<html class="<%= current_user&.theme == 'dark' ? 'dark' : '' %>" data-theme="<%= current_user&.theme || 'system' %>">
   <head>
     <title>Syrus</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Syrus">
     <meta name="mobile-web-app-capable" content="yes">
+    <script>
+      (function () {
+        try {
+          var theme = document.documentElement.dataset.theme;
+          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var dark = theme === "dark" || (theme !== "light" && prefersDark);
+          document.documentElement.classList.toggle("dark", dark);
+        } catch {
+          // matchMedia unavailable or blocked — leave the server-rendered class alone.
+        }
+      })();
+    </script>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
