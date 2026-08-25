@@ -27,8 +27,13 @@ module Prompts
           commands where relevant, and edge cases suggested by the diff.
         - `notes`: optional short context for reviewers.
 
+        Use normal JSON arguments only. For example:
+        `{ "steps": ["Run bin/rspec spec/services/example_spec.rb", "Open /jobs/123 and verify the changed UI."], "notes": "Focus on the changed behavior." }`
+        Never use placeholder syntax such as `<parameter name="item">`.
+
         Do not edit files, run commands, or make commits. Just call the
-        available `submit_test_plan` tool name and exit.
+        available `submit_test_plan` tool name with valid JSON arguments
+        and exit.
 
         # Original job
         Title: #{@issue.title}

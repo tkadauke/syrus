@@ -23,7 +23,7 @@ module Mcp::Tools
         steps: {
           type: "array",
           items: { type: "string" },
-          description: "Concise, actionable test steps: user flows, URLs, commands, and known edge cases."
+          description: "Concise, actionable test steps: user flows, URLs, commands, and known edge cases. Pass a JSON array of strings, never placeholder syntax."
         },
         notes: {
           type: "string",
@@ -38,7 +38,16 @@ module Mcp::Tools
           description: "Optional short reason supporting visual_review_recommended, e.g. which screens or flows changed."
         }
       },
-      required: %w[steps]
+      required: %w[steps],
+      examples: [
+        {
+          steps: [
+            "Run bin/rspec spec/services/example_spec.rb",
+            "Open /jobs/123 and verify the Test Plan section renders."
+          ],
+          notes: "Focus on the changed workflow UI."
+        }
+      ]
     )
 
     class << self

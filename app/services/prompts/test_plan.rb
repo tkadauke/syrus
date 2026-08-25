@@ -23,9 +23,13 @@ module Prompts
           writing the code.
         - `notes`: optional short context for reviewers.
 
+        Use normal JSON arguments only. For example:
+        `{ "steps": ["Run bin/rspec spec/services/example_spec.rb", "Open /jobs/123 and verify the changed UI."], "notes": "Focus on the new workflow state." }`
+        Never use placeholder syntax such as `<parameter name="item">`.
+
         Don't recap the whole conversation in your reply. Don't make
         additional commits. Just call the available `submit_test_plan` tool
-        name and exit.
+        name with valid JSON arguments and exit.
       PROMPT
     end
   end
