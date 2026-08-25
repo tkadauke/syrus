@@ -1214,4 +1214,84 @@ RSpec.describe SyrusYml do
       expect(config.visual_review.seed_notes).to be_nil
     end
   end
+
+  describe "deploy: key" do
+    it "returns nil when deploy key is absent" do
+      expect(parse("grade: []").deploy).to be_nil
+    end
+
+    it "parses a full deploy block" do
+      config = parse(<<~YAML)
+        deploy:
+          mode: continuous
+          run: bin/deploy
+          allow_unapproved: true
+          min_interval_minutes: 15
+      YAML
+
+      expect(config.deploy.mode).to eq("continuous")
+      expect(config.deploy.run).to eq("bin/deploy")
+      expect(config.deploy.allow_unapproved).to eq(true)
+      expect(config.deploy.min_interval_minutes).to eq(15)
+    end
+
+    it "defaults mode to manual, allow_unapproved to false, and min_interval_minutes to nil" do
+      config = parse(<<~YAML)
+        deploy:
+          run: bin/deploy
+      YAML
+
+      expect(config.deploy.mode).to eq("manual")
+      expect(config.deploy.allow_unapproved).to eq(false)
+      expect(config.deploy.min_interval_minutes).to be_nil
+    end
+
+    it "rejects a non-mapping deploy value" do
+      expect {
+        parse("deploy: true\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy.*mapping/)
+    end
+
+    it "rejects a deploy block with no run command" do
+      expect {
+        parse("deploy:\n  mode: manual\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy\.run: is required/)
+    end
+
+    it "rejects a blank run command" do
+      expect {
+        parse("deploy:\n  run: \"   \"\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy\.run: is required/)
+    end
+
+    it "rejects an invalid mode" do
+      expect {
+        parse("deploy:\n  run: bin/deploy\n  mode: eventually\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy\.mode: must be one of manual, continuous/)
+    end
+
+    it "accepts mode: manual explicitly" do
+      config = parse("deploy:\n  run: bin/deploy\n  mode: manual\n")
+
+      expect(config.deploy.mode).to eq("manual")
+    end
+
+    it "rejects a non-positive min_interval_minutes" do
+      expect {
+        parse("deploy:\n  run: bin/deploy\n  min_interval_minutes: 0\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy\.min_interval_minutes: must be a positive integer/)
+    end
+
+    it "rejects a negative min_interval_minutes" do
+      expect {
+        parse("deploy:\n  run: bin/deploy\n  min_interval_minutes: -5\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy\.min_interval_minutes: must be a positive integer/)
+    end
+
+    it "rejects a non-integer min_interval_minutes" do
+      expect {
+        parse("deploy:\n  run: bin/deploy\n  min_interval_minutes: soon\n")
+      }.to raise_error(SyrusYml::ParseError, /deploy\.min_interval_minutes: must be a positive integer/)
+    end
+  end
 end

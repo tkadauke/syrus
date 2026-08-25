@@ -28,14 +28,27 @@ class SyrusYml
   COVERAGE_DEFAULT_ON_MISS = "warn".freeze
   COVERAGE_DEFAULT_HITMAP_TTL_DAYS = 7
 
+  DEPLOY_MODES = %w[manual continuous].freeze
+  DEFAULT_DEPLOY_MODE = "manual".freeze
+
 
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
+  # `run` is a required shell command — a `deploy:` block with no `run` is a
+  # parse error, not a silent no-op, since (unlike `prepare`) there is no
+  # auto-detected fallback for a deploy command. `mode` is `"manual"`
+  # (default, launched on demand via the Job's Deploy action) or
+  # `"continuous"` (auto-triggered after a landing Workflow succeeds).
+  # `min_interval_minutes` only matters in continuous mode (throttles
+  # auto-triggered deploys); parsed here as a plain positive integer, not a
+  # duration string, matching `timeout_minutes`/`hitmap_ttl_days` elsewhere
+  # in this file.
+  DeployConfig = Data.define(:mode, :run, :allow_unapproved, :min_interval_minutes)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
@@ -108,7 +121,8 @@ class SyrusYml
       deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
       preview: parse_preview(raw["preview"]),
       visual_review: parse_visual_review(raw["visual_review"]),
-      review_plan: ActiveModel::Type::Boolean.new.cast(raw["review_plan"]) || false
+      review_plan: ActiveModel::Type::Boolean.new.cast(raw["review_plan"]) || false,
+      deploy: parse_deploy(raw["deploy"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -523,6 +537,40 @@ class SyrusYml
     display_label = raw["label"].to_s.strip.presence || name.tr("_", " ").split.map(&:capitalize).join(" ")
 
     DeploymentStage.new(name: name, label: display_label, tag: tag, tag_pattern: tag_pattern)
+  end
+
+  # Independent trigger mechanism from `deployment_stages` above: this
+  # configures Syrus to actually *run* a deploy command (manual button or
+  # continuous auto-trigger), not to track a read-only tag against an
+  # external pipeline. Omitting `deploy:` disables the feature for the
+  # repository — same safe-default posture as `formatters:`/`generated:`.
+  def parse_deploy(raw)
+    return nil if raw.nil?
+    raise ParseError, "deploy: must be a mapping" unless raw.is_a?(Hash)
+
+    run = raw["run"].to_s.strip
+    raise ParseError, "deploy.run: is required" if run.empty?
+
+    mode = raw.key?("mode") ? raw["mode"].to_s.strip : DEFAULT_DEPLOY_MODE
+    raise ParseError, "deploy.mode: must be one of #{DEPLOY_MODES.join(', ')}" unless DEPLOY_MODES.include?(mode)
+
+    DeployConfig.new(
+      mode: mode,
+      run: run,
+      allow_unapproved: ActiveModel::Type::Boolean.new.cast(raw["allow_unapproved"]) || false,
+      min_interval_minutes: parse_deploy_min_interval_minutes(raw["min_interval_minutes"])
+    )
+  end
+
+  def parse_deploy_min_interval_minutes(raw)
+    return nil if raw.nil?
+
+    minutes = Integer(raw)
+    raise ParseError, "deploy.min_interval_minutes: must be a positive integer" unless minutes.positive?
+
+    minutes
+  rescue ArgumentError, TypeError
+    raise ParseError, "deploy.min_interval_minutes: must be a positive integer"
   end
 
   def remember_unique_name!(seen, name, label)
