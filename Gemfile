@@ -100,6 +100,7 @@ gem "preview_tools", path: "plugins/preview_tools"
 gem "git_history",   path: "plugins/git_history"
 gem "spending_insights", path: "plugins/spending_insights"
 gem "whiteboard_tools", path: "plugins/whiteboard_tools"
+gem "mysql_db_browser", path: "plugins/mysql_db_browser"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

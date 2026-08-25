@@ -165,3 +165,77 @@ The admin performance endpoint returns the raw recent events plus grouped summar
 When the `syrus_dev` plugin is enabled, Admin → Performance and the admin performance API expose the same diagnostics payload. The slow-request table can drill into retained request events and show matching slow phases plus the bounded top SQL fingerprints captured for both the request and each phase; these samples are capped and are diagnostic context, not an exhaustive query log. The SQL tab includes an Explain action for captured SQL samples. It opens a modal with a visual query-plan view, raw EXPLAIN rows, raw JSON, and normalized SQL. The backend endpoint is `POST /api/v1/app/admin/performance/explain` or `POST /api/v1/admin/performance/explain`; it accepts a single read-only SELECT/CTE statement, substitutes `?` bind placeholders with `NULL`, rejects comments/multiple statements/write statements, and returns whether `EXPLAIN ANALYZE` is safe. Analyze is intentionally conservative: it is MySQL-only, must be read-only, rejects user variables, and runs with a short statement timeout because it executes the query.
 
 Implementation workflow agents working on `tkadauke/syrus` or a registered fork whose upstream is `tkadauke/syrus` receive the read-only `read_performance_diagnostics` MCP tool through that plugin. Scheduled prompts that ask agents to improve Syrus performance can tell the agent to call this tool before changing code. It returns the same current-revision/all-revisions filtering semantics as the admin performance payload, plus bounded grouped slow-request, slow-phase, browser-trace, and SQL fingerprint summaries. The payload also includes a current-deploy versus previous-retained-deploy baseline comparison so agents can focus on regressions instead of stale slow paths. Raw recent events are omitted unless `include_events` is true, still capped by `limit`, and sanitized to omit SQL samples, query strings, and obvious secret-bearing metadata.
+
+## mysql_db_browser
+
+**Category:** Labs
+
+Gates the `mysql_db_browser` plugin (`plugins/mysql_db_browser/`), which lets
+admins register connections to external MySQL databases (host, port,
+username, password, default database) for later browsing/querying. It ships
+the plugin scaffold, the `MysqlConnection` model, a session-authed admin CRUD
++ test-connection API, and a "DB Browser" primary-sidebar page
+(`plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx`) that
+lists, adds, edits, deletes, and tests connections. There is no data grid or
+agentic query access yet, but schema browsing is in: a "Browse Schema" button
+per connection switches the page into a two-pane explorer — a left-hand
+database/table tree (Sequel Pro/TablePlus convention) and a right-hand detail
+panel showing a selected table's columns, indexes, engine, approximate row
+count, and size.
+
+Schema introspection is `MysqlDbBrowser::SchemaInspector`
+(`plugins/mysql_db_browser/app/services/mysql_db_browser/schema_inspector.rb`),
+built around a standalone `Mysql2::Client` constructed from a
+`MysqlConnection`'s decrypted credentials — never `ActiveRecord::Base.connection`,
+since the whole point is reaching an *external* database. It queries
+`information_schema.SCHEMATA`/`TABLES`/`COLUMNS`/`STATISTICS` rather than
+running `SHOW` commands against a `USE`d database, so it can list an arbitrary
+schema without switching connection context. `information_schema`,
+`performance_schema`, `mysql`, and `sys` are always listed alongside user
+databases (flagged `system_schema: true`) since they are ordinary rows in
+`SCHEMATA` — no special-casing needed beyond the flag. Row counts
+(`TABLE_ROWS`) are approximate, as MySQL itself documents for InnoDB. Mirrors
+`AdminMysql::Inspector`'s design: every `SELECT` gets a
+`MAX_EXECUTION_TIME(3000)` optimizer hint so a slow/unreachable external host
+can't hang a request; per-table sections (`tables`, `columns`, `indexes`) are
+wrapped in a `safe_section` that degrades a `Mysql2::Error` (e.g. a denied
+grant) into an `available: false` section with an actionable hint instead of
+raising; table/column/index lists are capped (500 tables, 1,000 columns, 500
+indexes) with a `truncated` flag rather than silently dropping rows with no
+signal. A connection-level failure (bad host/credentials) raises
+`SchemaInspector::Unavailable`, rendered as `502 connection_unavailable`; a
+table that doesn't exist in the given database raises
+`SchemaInspector::NotFound`, rendered as `404 not_found`. The three endpoints
+— `GET .../mysql_connections/:id/schema`, `GET .../schema/:database/tables`,
+and `GET .../schema/:database/tables/:table` — sit under the same
+`Api::V1::App::Admin::BaseController` (admin session required) and the same
+`MysqlDbBrowser.enabled?` gate as the connections CRUD API.
+
+Credentials are stored in `mysql_connections.credentials`, a
+non-deterministic encrypted JSON column (`encrypts :credentials`), the same
+class of secret as `User#github_token` and `InputSource#credentials`.
+Plaintext credentials are never included in API responses; `MysqlConnection#password`
+decrypts server-side only, and list/show payloads expose a `has_password`
+boolean instead. The edit form never receives a stored password back from the
+server either — it re-prompts, leaving the field blank means "keep the
+current password." `POST .../mysql_connections/test` and `POST
+.../mysql_connections/:id/test` run a lightweight `Mysql2::Client` connect
+(`MysqlDbBrowser::ConnectionTester`) and report success/failure without
+persisting a `MysqlConnection` row either way.
+
+Every action under `/api/v1/app/admin/mysql_connections` requires both an
+authenticated admin session (`Api::V1::App::Admin::BaseController#require_admin`)
+and this feature flag enabled — the controller 404s with `plugin_disabled`
+otherwise. The `mysql_db_browser` plugin's own `PluginRecord.enabled` toggle
+(default off, disableable) is a second, independent gate: both must be on for
+`MysqlDbBrowser.enabled?` to be true. `MysqlDbBrowser::SidebarPages`
+(registered as a `sidebar_page` provider — see `sidebar_page` in
+`config/syrus_docs/plugins.md`) mirrors both gates and additionally hides the
+"DB Browser" sidebar entry from non-admins, so a signed-in non-admin never
+sees it appear even if a caller enables the plugin record directly. The
+`agentic_access_enabled` column on `MysqlConnection` (default `false`) is
+exposed as a toggle in the connection form but is otherwise unused until a
+later job wires up opt-in workflow/chat agent query access.
+
+Off by default, since a misconfigured connection reaches arbitrary
+staging/prod databases with real credentials.

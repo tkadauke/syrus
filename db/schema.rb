@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_24_231619) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_004353) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1332,6 +1332,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_24_231619) do
     t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
+  end
+
+  create_table "mysql_connections", force: :cascade do |t|
+    t.boolean "agentic_access_enabled", default: false, null: false
+    t.boolean "allow_writes", default: false, null: false
+    t.datetime "created_at", null: false
+    t.text "credentials"
+    t.string "default_database"
+    t.string "host", null: false
+    t.string "label", null: false
+    t.integer "port", default: 3306, null: false
+    t.datetime "updated_at", null: false
+    t.string "username", null: false
+  end
+
+  create_table "mysql_query_audits", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.text "error_message"
+    t.integer "mysql_connection_id", null: false
+    t.boolean "read_only", default: true, null: false
+    t.integer "row_count"
+    t.text "statement", null: false
+    t.boolean "success", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["mysql_connection_id", "created_at"], name: "index_mysql_query_audits_on_mysql_connection_id_and_created_at"
+    t.index ["mysql_connection_id"], name: "index_mysql_query_audits_on_mysql_connection_id"
+    t.index ["user_id"], name: "index_mysql_query_audits_on_user_id"
   end
 
   create_table "notifications", force: :cascade do |t|

@@ -123,6 +123,15 @@ module Factories
     dependency
   end
 
+  def mysql_connection(**attrs)
+    MysqlConnection.create!({
+      label: "Connection #{SecureRandom.hex(2)}",
+      host: "127.0.0.1",
+      port: 3306,
+      username: "root"
+    }.merge(attrs))
+  end
+
   def tag(**attrs)
     Tag.create!({
       user: attrs[:user] || user,
