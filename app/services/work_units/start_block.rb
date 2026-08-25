@@ -10,29 +10,35 @@ module WorkUnits
     end
 
     def reason
-      workflow.work_unit&.blocked_reason.presence || workflow.artifact("start_blocked_reason")
+      return workflow.work_unit.blocked_reason.presence if workflow.work_unit
+
+      artifact_reason if legacy_artifact_fallback?
     end
 
     def details
-      workflow.work_unit&.blocked_details.presence || workflow.artifact("start_blocked_details").presence || {}
+      return workflow.work_unit.blocked_details.presence || {} if workflow.work_unit
+
+      legacy_artifact_fallback? ? workflow.artifact("start_blocked_details").presence || {} : {}
     end
 
     def data
       return work_unit_data if workflow.work_unit&.blocked_reason.present?
-      return artifact_data if artifact_reason.present?
+      return artifact_data if legacy_artifact_fallback? && artifact_reason.present?
 
       {}
     end
 
     def next_check_at
-      workflow.work_unit&.blocked_until || parse_time(workflow.artifact("start_blocked_next_check_at"))
+      return workflow.work_unit.blocked_until if workflow.work_unit
+
+      parse_time(workflow.artifact("start_blocked_next_check_at")) if legacy_artifact_fallback?
     end
 
     def blocked_for?(start_blocked_reason)
-      if workflow.work_unit&.blocked_reason.present?
+      if workflow.work_unit
         workflow.work_unit.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason)
       else
-        artifact_reason == start_blocked_reason
+        legacy_artifact_fallback? && artifact_reason == start_blocked_reason
       end
     end
 
@@ -46,6 +52,10 @@ module WorkUnits
 
     def artifact_reason
       workflow.artifact("start_blocked_reason")
+    end
+
+    def legacy_artifact_fallback?
+      workflow.trigger_kind == WorkUnits::Ownership::LEGACY_REPLAY_TRIGGER_KIND
     end
 
     def artifact_data

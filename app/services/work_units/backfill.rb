@@ -34,6 +34,7 @@ module WorkUnits
         unit = create_unit!(intent)
         create_members!(unit)
         create_locks!(unit)
+        project_start_block!(unit)
         Result.new(workflow: workflow, work_unit: unit, created: true, skipped_reason: nil)
       end
     end
@@ -115,6 +116,17 @@ module WorkUnits
       end
     end
 
+    def project_start_block!(unit)
+      reason = workflow.artifact("start_blocked_reason").presence
+      return if reason.blank?
+
+      unit.block!(
+        reason: WorkUnits::StartBlock.work_unit_reason_for(reason),
+        blocked_until: parse_time(workflow.artifact("start_blocked_next_check_at")),
+        details: blocked_details_for(reason)
+      )
+    end
+
     def active_lock_conflict?
       lock_keys.any? { |lock_key| Ownership.active_for_lock_key?(lock_key) }
     end
@@ -154,6 +166,18 @@ module WorkUnits
 
     def idempotency_key
       "#{WORKFLOW_IDEMPOTENCY_PREFIX}#{workflow.id}"
+    end
+
+    def blocked_details_for(reason)
+      details = workflow.artifact("start_blocked_details")
+      details = {} unless details.is_a?(Hash)
+      details.merge("start_blocked_reason" => reason)
+    end
+
+    def parse_time(value)
+      Time.iso8601(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
     end
   end
 end

@@ -57,6 +57,33 @@ RSpec.describe WorkUnits::Backfill do
     expect(first.work_unit).to eq(workflow.reload.work_unit)
   end
 
+  it "projects legacy start-block artifacts onto the backfilled WorkUnit" do
+    next_check_at = 10.minutes.from_now
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "queued",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "start_blocked_next_check_at" => next_check_at.iso8601,
+        "start_blocked_details" => { "pressure" => "high" }
+      }
+    )
+
+    unit = described_class.workflow!(workflow).work_unit
+
+    expect(unit).to have_attributes(
+      state: "blocked",
+      blocked_reason: "admission_control",
+      blocked_details: {
+        "pressure" => "high",
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON
+      }
+    )
+    expect(unit.blocked_until).to be_within(2.seconds).of(next_check_at)
+    expect(WorkUnits::StartBlock.for(workflow.reload).reason).to eq("admission_control")
+  end
+
   it "skips active workflows whose locks are already owned by another WorkUnit" do
     owner_workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: job)
     legacy_workflow = Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
