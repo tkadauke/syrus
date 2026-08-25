@@ -3,7 +3,6 @@ module WorkUnits
     Result = Data.define(:workflow, :run, :work_unit, :status, :reason) do
       def started? = status == "started"
       def blocked? = status == "blocked"
-      def legacy? = status == "legacy"
     end
 
     def self.call(workflow_id, step_id = nil)
@@ -20,7 +19,7 @@ module WorkUnits
 
     def call
       return result("terminal") unless workflow.queued? || workflow.running?
-      return legacy_resume unless work_unit&.active?
+      return result("unowned") unless work_unit&.active?
 
       step = target_step
       return result("no_step") unless step&.queued?
@@ -55,11 +54,6 @@ module WorkUnits
 
     def work_unit
       @work_unit ||= workflow.work_unit
-    end
-
-    def legacy_resume
-      run = StepDispatcher.resume_deferred_phase(workflow.id, step_id)
-      Result.new(workflow: workflow, run: run, work_unit: work_unit, status: "legacy", reason: nil)
     end
 
     def target_step

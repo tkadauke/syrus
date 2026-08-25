@@ -53,23 +53,23 @@ RSpec.describe WorkUnits::StartBlock do
     expect(block.data).to eq({})
   end
 
-  it "keeps artifact fallback for legacy replay workflows" do
+  it "ignores start-block artifacts on legacy replay workflows" do
     replay = Workflow.create!(job: job, trigger_kind: "replay", state: "queued")
-    next_check_at = 5.minutes.from_now
     replay.update!(
       artifacts: {
         "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
         "start_blocked_details" => { "reason" => "budget" },
-        "start_blocked_next_check_at" => next_check_at.iso8601
+        "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
       }
     )
 
     block = described_class.for(replay)
 
-    expect(block.reason).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
-    expect(block.details).to eq("reason" => "budget")
-    expect(block.next_check_at).to be_within(2.seconds).of(next_check_at)
-    expect(block.blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON)).to be(true)
+    expect(block.reason).to be_nil
+    expect(block.details).to eq({})
+    expect(block.next_check_at).to be_nil
+    expect(block.blocked_for?(StepDispatcher::ADMISSION_BLOCK_REASON)).to be(false)
+    expect(block.data).to eq({})
   end
 
   it "ignores start-block artifacts on unowned non-replay workflows" do

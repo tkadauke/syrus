@@ -10,27 +10,26 @@ module WorkUnits
     end
 
     def reason
-      workflow.work_unit&.blocked_reason.presence || legacy_replay_reason
+      workflow.work_unit&.blocked_reason.presence
     end
 
     def details
-      workflow.work_unit&.blocked_details.presence || legacy_replay_details
+      workflow.work_unit&.blocked_details.presence || {}
     end
 
     def data
       return work_unit_data if workflow.work_unit&.blocked_reason.present?
-      return legacy_replay_data if legacy_replay_reason.present?
 
       {}
     end
 
     def next_check_at
-      workflow.work_unit&.blocked_until || legacy_replay_next_check_at
+      workflow.work_unit&.blocked_until
     end
 
     def blocked_for?(start_blocked_reason)
       unit = workflow.work_unit
-      return legacy_replay_reason == start_blocked_reason.to_s unless unit
+      return false unless unit
 
       unit.blocked_reason == self.class.work_unit_reason_for(start_blocked_reason) ||
         unit.blocked_reason == start_blocked_reason.to_s ||
@@ -56,41 +55,5 @@ module WorkUnits
         details: details
       }
     end
-
-    def legacy_replay_reason
-      return nil unless legacy_replay_fallback?
-
-      workflow.artifact("start_blocked_reason").presence
-    end
-
-    def legacy_replay_details
-      return {} unless legacy_replay_fallback?
-
-      details = workflow.artifact("start_blocked_details")
-      details.is_a?(Hash) ? details : {}
-    end
-
-    def legacy_replay_next_check_at
-      return nil unless legacy_replay_fallback?
-
-      Time.iso8601(workflow.artifact("start_blocked_next_check_at").to_s)
-    rescue ArgumentError, TypeError
-      nil
-    end
-
-    def legacy_replay_data
-      {
-        reason: legacy_replay_reason,
-        at: nil,
-        next_check_at: legacy_replay_next_check_at&.iso8601,
-        count: nil,
-        details: legacy_replay_details
-      }
-    end
-
-    def legacy_replay_fallback?
-      workflow.work_unit.blank? && workflow.trigger_kind == "replay"
-    end
-
   end
 end

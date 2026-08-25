@@ -118,15 +118,15 @@ RSpec.describe WorkIntents::JobWakeup do
     }.not_to change { workflow.first_step.runs.reload.count }
   end
 
-  it "still starts replay queued workflows that do not have WorkUnit ownership yet" do
+  it "does not start replay queued workflows that do not have WorkUnit ownership" do
     job = Factories.job_record(user: user, repository: repository, state: "queued")
     workflow = Workflow.create!(job: job, trigger_kind: "replay", state: "queued", agent_provider: job.agent_provider)
     Step.create!(workflow: workflow, kind: "prepare", position: 0)
 
     expect {
       result = described_class.call(job)
-      expect(result).to be(true)
-    }.to change { workflow.first_step.runs.reload.count }.by(1)
+      expect(result).to be(false)
+    }.not_to change { workflow.first_step.runs.reload.count }
   end
 
   it "starts queued workflows discovered through WorkUnit membership" do
