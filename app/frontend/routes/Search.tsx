@@ -10,6 +10,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { FilterBar, type FilterLinkBuilder } from "../components/FilterBar"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
+import { PILL_TONE_CLASSES } from "../components/StatusPill"
 
 type SearchFilter = SearchResultType | "all"
 
@@ -34,12 +35,12 @@ const typeStyles: Record<SearchResultType, { border: string; badge: string; labe
   },
   chat: {
     border: "border-l-green-500",
-    badge: "bg-green-50 text-green-700 ring-green-200 dark:bg-green-950 dark:text-green-200 dark:ring-green-800",
+    badge: PILL_TONE_CLASSES.green,
     label: "Chat"
   },
   test_case: {
     border: "border-l-amber-500",
-    badge: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800",
+    badge: PILL_TONE_CLASSES.amber,
     label: "Test"
   }
 }

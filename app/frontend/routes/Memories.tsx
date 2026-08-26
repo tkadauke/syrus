@@ -27,6 +27,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Markdown } from "../lib/Markdown"
 import { useConfirm } from "../hooks/useConfirm"
 import { Button } from "../components/Button"
+import { PILL_TONE_CLASSES } from "../components/StatusPill"
 
 const kindKeys: Record<string, string> = {
   user_pref: "memories.kind_user_pref",
@@ -37,7 +38,7 @@ const kindKeys: Record<string, string> = {
 }
 
 const kindClasses: Record<string, string> = {
-  user_pref: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-800",
+  user_pref: PILL_TONE_CLASSES.blue,
   project_fact: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:ring-emerald-800",
   feedback: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800",
   reference: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
