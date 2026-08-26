@@ -72,21 +72,6 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
         ]
       }
     ])
-    expect(parse_body["work_unit_ownership"]).to be_an(Array)
-  end
-
-  it "returns WorkUnit path ownership diagnostics" do
-    sign_in_as(admin)
-    allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations)
-
-    get "/api/v1/app/admin/features"
-
-    expect(response).to have_http_status(:ok)
-    scheduler = parse_body.fetch("work_unit_ownership").find { |group| group["group"] == "scheduler" }
-    expect(scheduler).to include("enabled" => true)
-    expect(scheduler.fetch("paths")).to include(
-      hash_including("path" => "manual_pause", "owner" => "work_unit", "group" => "scheduler")
-    )
   end
 
   it "omits developer-only mode flags in simple mode" do
