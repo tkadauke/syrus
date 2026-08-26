@@ -85,7 +85,8 @@ RSpec.describe Steps::PromotionPublish do
 
       expect(client).to have_received(:create_pull_request).with(
         repository.slug, base: "main", head: "#{repository.owner}:#{branch_name}",
-        title: "Promote develop into main", body: kind_of(String)
+        title: "Promote develop into main",
+        body: a_string_including(PrProvenanceMarker.stamp(kind: "syrus_promotion", job: job))
       )
       expect(client).to have_received(:merge_pull_request).with(
         repository.slug, 501, commit_title: "Promote develop into main via Syrus", merge_method: "merge"
