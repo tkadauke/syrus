@@ -65,13 +65,22 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
   end
 
   it "blocks CI repair until the base SHA has healthy main-branch evidence" do
-    repository.update!(last_health_checked_sha: "older")
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
     unit = ci_unit_for(job)
 
     result = described_class.call(unit)
 
     expect(result).to be_blocked
     expect(result.details).to include("kind" => "base_not_known_healthy", "base_sha" => base_sha)
+  end
+
+  it "does not require healthy base evidence when main-branch health checking is disabled" do
+    repository.update!(main_branch_health_enabled: false, last_health_checked_sha: "older")
+    unit = ci_unit_for(job)
+
+    result = described_class.call(unit)
+
+    expect(result).to be_pass
   end
 
   it "blocks duplicate CI repairs for the same repository base SHA" do

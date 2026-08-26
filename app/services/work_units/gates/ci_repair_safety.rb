@@ -18,7 +18,7 @@ module WorkUnits
 
         return block("base_sha_unknown") if base_sha.blank?
         return block("branch_behind_base", "commits_behind_base" => job.commits_behind_base) if job.commits_behind_base.to_i.positive?
-        return block("base_not_known_healthy", "base_sha" => base_sha) unless clean_base_health_known?
+        return block("base_not_known_healthy", "base_sha" => base_sha) if require_clean_base_health? && !clean_base_health_known?
 
         if (duplicate = active_duplicate_for_base)
           return block(
@@ -64,6 +64,10 @@ module WorkUnits
           repository.last_graded_sha == base_sha &&
           repository.ci_health == "healthy" &&
           repository.grader_health == "healthy"
+      end
+
+      def require_clean_base_health?
+        job.repository&.main_branch_health_enabled?
       end
 
       def active_duplicate_for_base

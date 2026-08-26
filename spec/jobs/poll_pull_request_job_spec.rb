@@ -755,7 +755,12 @@ RSpec.describe PollPullRequestJob, :ci_only do
     end
 
     it "does not dispatch CI repair until the base SHA has known healthy main-branch evidence" do
-      repository.update!(last_health_checked_sha: "older", last_ci_evaluated_sha: "older", last_graded_sha: "older")
+      repository.update!(
+        main_branch_health_enabled: true,
+        last_health_checked_sha: "older",
+        last_ci_evaluated_sha: "older",
+        last_graded_sha: "older"
+      )
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
           html_url: "u", output: { summary: "fail" } }
@@ -766,6 +771,27 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id)
 
       expect(job.workflows.where(trigger_kind: "ci_failure").count).to eq(0)
+    end
+
+    it "dispatches CI repair without known base health when main health checking is disabled" do
+      repository.update!(
+        main_branch_health_enabled: false,
+        last_health_checked_sha: "older",
+        last_ci_evaluated_sha: "older",
+        last_graded_sha: "older"
+      )
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "ci_failure").last
+      expect(wf.artifact("base_sha")).to eq(base_sha)
+      expect(job.reload.last_ci_handled_sha).to eq(sha)
     end
 
     it "does not run parallel autonomous CI repairs for the same repository base SHA" do

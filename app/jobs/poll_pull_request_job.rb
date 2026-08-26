@@ -587,6 +587,7 @@ class PollPullRequestJob < ApplicationJob
       return true
     end
 
+    return false unless @job.repository.main_branch_health_enabled?
     return false if clean_base_health_known?(base_sha)
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed because base #{base_sha[0, 7]} is not known healthy")
