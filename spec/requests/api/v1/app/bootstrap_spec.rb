@@ -131,7 +131,6 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "epicless_job_bundling" => false,
       "landing_validation_prefetch" => false,
       "local_mode" => false,
-      "mysql_db_browser" => false,
       "operational_log_indexing" => false,
       "performance_logging" => false,
       "persistent_mcp_sidecar" => false,

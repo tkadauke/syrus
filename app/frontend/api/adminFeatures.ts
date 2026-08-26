@@ -17,19 +17,6 @@ export type AdminFeatureCategory = {
 
 export type AdminFeaturesPayload = {
   categories: AdminFeatureCategory[]
-  work_unit_ownership?: AdminWorkUnitOwnershipGroup[]
-}
-
-export type AdminWorkUnitOwnershipGroup = {
-  group: string
-  enabled: boolean
-  paths: AdminWorkUnitOwnershipPath[]
-}
-
-export type AdminWorkUnitOwnershipPath = {
-  path: string
-  owner: "legacy" | "work_unit"
-  group: string
 }
 
 export type AdminFeaturePayload = {

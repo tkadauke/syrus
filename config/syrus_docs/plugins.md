@@ -623,10 +623,6 @@ the plugin's component via `pluginWorkspaceTabComponentFor`, passing the full
 chat `payload` as a prop (a workspace tab renders inside one specific chat,
 unlike a standalone admin route that derives its context from the URL).
 
-The bundled `syrus_dev` plugin (default-disabled dev tooling — see below)
-registers a trivial `SyrusDev::WorkspaceTabs` provider as a live, always-built
-proof of this extension point, without moving any real feature into a plugin.
-
 **First real consumer: `whiteboard_tools`.** The whiteboard migration (moving
 the Excalidraw canvas tab, its 14 draw/move/delete/read/update/save/clear/load
 MCP tools, and its REST endpoints out of core) landed as `plugins/whiteboard_tools`,
@@ -1276,10 +1272,7 @@ Bundled plugins:
 - `syrus_dev` — installed but disabled by default. It owns Syrus-development-only
   diagnostics such as Admin → Performance and the `read_performance_diagnostics`
   / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
-  agents or operators should inspect Syrus's own production behavior. Also
-  provides `:workspace_tab` (`SyrusDev::WorkspaceTabs` — a trivial "Workspace
-  Tab Demo" tab, visible in chats attached to a repository, that exists only
-  to prove the `:workspace_tab` extension point end-to-end; see above).
+  agents or operators should inspect Syrus's own production behavior.
 - `ruby` — default-enabled. Provides Ruby-generic extension points usable by
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
   alike), not just Rails: `:grader_augmentor` — registers two providers,
@@ -1445,22 +1438,23 @@ Bundled plugins:
   `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own
   `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
-- `mysql_db_browser` — disabled by default (see the `mysql_db_browser`
-  feature flag in `config/syrus_docs/feature_flags.md`); the second
-  `sidebar_page` plugin. `MysqlDbBrowser::SidebarPages` provides
-  `mysql_db_browser.connections`: label "DB Browser", `path`/`paths`
-  `/db_browser`, `component: "mysql_db_browser/MysqlConnections"`,
-  `icon: "database"` (maps to `DatabaseIcon` via `sidebarNav.tsx`'s
-  `PLUGIN_ICONS`), `order: 70`. Unlike `spending_insights`, its
-  `sidebar_pages` method self-gates on both `MysqlDbBrowser.enabled?` (the
-  Feature flag and `PluginRecord.enabled`) and `Current.user&.admin?` and
-  returns `[]` otherwise — the extension point itself has no per-page
-  visibility concept, so admin-only sidebar pages must gate inside their own
-  provider. `MysqlConnections.tsx` consumes the admin CRUD + test-connection
-  API under `/api/v1/app/admin/mysql_connections` to list, add, edit, delete,
-  and test connections; edit forms never receive a stored password back from
-  the server. A "Browse Schema" button per connection switches the same page
-  into a two-pane schema explorer (`SchemaBrowser`/`DatabaseNode`/`TableDetail`
-  in the same file) backed by `MysqlDbBrowser::SchemaInspector` and the
-  `GET /api/v1/app/admin/mysql_connections/:id/schema[/…]` routes — see the
-  `mysql_db_browser` feature flag doc for the introspection design.
+- `mysql_db_browser` — disabled by default (see
+  `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
+  `MysqlDbBrowser::SidebarPages` provides `mysql_db_browser.connections`:
+  label "DB Browser", `path`/`paths` `/db_browser`,
+  `component: "mysql_db_browser/MysqlConnections"`, `icon: "database"` (maps
+  to `DatabaseIcon` via `sidebarNav.tsx`'s `PLUGIN_ICONS`), `order: 70`.
+  Unlike `spending_insights`, its `sidebar_pages` method self-gates on both
+  `MysqlDbBrowser.enabled?` (`PluginRecord.enabled` — the plugin's own
+  enable/disable toggle is the feature gate, no separate `Feature` flag) and
+  `Current.user&.admin?` and returns `[]` otherwise — the extension point
+  itself has no per-page visibility concept, so admin-only sidebar pages must
+  gate inside their own provider. `MysqlConnections.tsx` consumes the admin
+  CRUD + test-connection API under `/api/v1/app/admin/mysql_connections` to
+  list, add, edit, delete, and test connections; edit forms never receive a
+  stored password back from the server. A "Browse Schema" button per
+  connection switches the same page into a two-pane schema explorer
+  (`SchemaBrowser`/`DatabaseNode`/`TableDetail` in the same file) backed by
+  `MysqlDbBrowser::SchemaInspector` and the
+  `GET /api/v1/app/admin/mysql_connections/:id/schema[/…]` routes — see
+  `config/syrus_docs/mysql_db_browser.md` for the introspection design.

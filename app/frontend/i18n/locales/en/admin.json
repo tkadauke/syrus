@@ -447,10 +447,6 @@
       "persistent_mcp_sidecar": {
         "name": "Persistent MCP sidecar",
         "description": "Enables a worker-local persistent MCP sidecar daemon that boots once and exposes a local-only MCP transport and health check. Chat turns can route their MCP tool calls to it, with automatic fallback to stdio; workflow agent runs do not yet use it and always fall back to the per-run stdio sidecar. When disabled, all agents keep using the default per-run/per-session stdio sidecars."
-      },
-      "mysql_db_browser": {
-        "name": "MySQL DB browser",
-        "description": "Enables the MySQL DB browser plugin, which lets admins register and use connections to external MySQL databases with real credentials."
       }
     }
   },
