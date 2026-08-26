@@ -1,5 +1,6 @@
 import { inputClass } from "../lib/formClasses"
 import { routePrefix } from "../lib/routing"
+import { Button } from "../components/Button"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
@@ -349,9 +350,9 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
           </Field>
         ) : null}
 
-        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
+        <Button disabled={save.isPending} type="submit" variant="primary">
           {save.isPending ? t('account_settings.saving') : t('account_settings.save')}
-        </button>
+        </Button>
       </form>
     </section>
   )
@@ -455,14 +456,9 @@ function PasskeysPanel() {
             type="text"
             value={nickname}
           />
-          <button
-            className="shrink-0 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
-            disabled={addPending}
-            onClick={handleAdd}
-            type="button"
-          >
+          <Button className="shrink-0" disabled={addPending} onClick={handleAdd} variant="primary">
             {addPending ? t("account_settings.passkeys_saving") : t("account_settings.passkeys_save")}
-          </button>
+          </Button>
           <button
             className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
             disabled={addPending}

@@ -18,6 +18,7 @@ import {
   type PaginationMeta
 } from "../api/insights"
 import { errorMessage } from "../lib/errorMessage"
+import { Button } from "../components/Button"
 
 type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
@@ -455,94 +456,94 @@ function SuggestionCard({
         {suggestion.state === "pending" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
             {suggestion.proposal_type === "remove_memory" ? (
-              <button
-                className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              <Button
                 disabled={acceptRemoveMemoryMutation.isPending}
                 onClick={() => acceptRemoveMemoryMutation.mutate()}
-                type="button"
+                size="sm"
+                variant="danger"
               >
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
-              </button>
+              </Button>
             ) : legacyRevision ? null : (
-              <button
-                className="rounded bg-terracotta-600 px-3 py-1 text-xs font-medium text-white hover:bg-terracotta-700 disabled:opacity-50"
+              <Button
                 disabled={showAcceptForm}
                 onClick={() => { setShowAcceptForm(true); setExpanded(true) }}
-                type="button"
+                size="sm"
+                variant="primary"
               >
                 {t("accept")}
-              </button>
+              </Button>
             )}
-            <button
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
               disabled={discussMutation.isPending}
               onClick={() => discussMutation.mutate()}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
-            </button>
-            <button
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            </Button>
+            <Button
               disabled={dismissMutation.isPending}
               onClick={handleDismiss}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               {dismissMutation.isPending ? t("dismissing") : t("dismiss")}
-            </button>
+            </Button>
             {suggestion.has_memory_suggestion && (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              <Button
                 disabled={saveMemoryMutation.isPending}
                 onClick={() => saveMemoryMutation.mutate()}
-                type="button"
+                size="sm"
+                variant="secondary"
               >
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
-              </button>
+              </Button>
             )}
           </div>
         )}
 
         {suggestion.state === "accepted" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <button
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
               disabled={discussMutation.isPending}
               onClick={() => discussMutation.mutate()}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
-            </button>
+            </Button>
             {suggestion.has_memory_suggestion && (
-              <button
-                className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              <Button
                 disabled={saveMemoryMutation.isPending}
                 onClick={() => saveMemoryMutation.mutate()}
-                type="button"
+                size="sm"
+                variant="secondary"
               >
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
-              </button>
+              </Button>
             )}
           </div>
         )}
 
         {suggestion.state === "dismissed" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <button
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
               disabled={discussMutation.isPending}
               onClick={() => discussMutation.mutate()}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
-            </button>
-            <button
-              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            </Button>
+            <Button
               disabled={undismissMutation.isPending}
               onClick={() => undismissMutation.mutate()}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               {undismissMutation.isPending ? t("undismissing") : t("undismiss")}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -628,21 +629,19 @@ function AcceptForm({
       )}
 
       <div className="mt-3 flex gap-2">
-        <button
-          className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-700 disabled:opacity-50"
+        <Button
           disabled={mutation.isPending || !prompt.trim()}
           onClick={() => mutation.mutate()}
-          type="button"
+          variant="primary"
         >
           {mutation.isPending ? t("confirming") : t("confirm_accept")}
-        </button>
-        <button
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+        </Button>
+        <Button
           onClick={onClose}
-          type="button"
+          variant="secondary"
         >
           {t("cancel")}
-        </button>
+        </Button>
       </div>
     </div>
   )

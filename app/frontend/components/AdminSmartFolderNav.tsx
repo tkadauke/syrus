@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { createSmartFolder, deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 import { filterTreeFromPayload, filterTreesEqual, topFilterChildren } from "./FilterBar"
 
 export function AdminSmartFolderNav({
@@ -199,9 +200,9 @@ export function AdminSmartFolderNav({
                   value={folderName}
                 />
               </label>
-              <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
+              <Button className="w-full" disabled={createFolder.isPending} type="submit">
                 {createFolder.isPending ? t("smart_folder.saving") : t("smart_folder.save_as_new_folder")}
-              </button>
+              </Button>
               {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("smart_folder.unable_to_save")}</p> : null}
             </form>
           </div>

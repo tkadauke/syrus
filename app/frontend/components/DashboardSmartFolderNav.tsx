@@ -7,6 +7,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, updateDashboardPreferences, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
 import { deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
+import { Button } from "./Button"
 import { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren, type FilterNode, type FilterTree } from "./FilterBar"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
@@ -203,22 +204,17 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
               value={folderName}
             />
           </label>
-          <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
+          <Button className="w-full" disabled={createFolder.isPending} type="submit">
             {t("smart_folder.save_folder")}
-          </button>
+          </Button>
           {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, t("smart_folder.unable_to_save"))}</p> : null}
         </form>
       ) : null}
       {payload.landing_queue.visible ? (
         <div className="space-y-2 rounded border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
-          <button
-            className="w-full rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-            disabled={landingPause.isPending}
-            onClick={() => landingPause.mutate()}
-            type="button"
-          >
+          <Button className="w-full" disabled={landingPause.isPending} onClick={() => landingPause.mutate()} size="sm" variant="secondary">
             {payload.landing_queue.paused ? t("smart_folder.resume_landing") : t("smart_folder.pause_landing")}
-          </button>
+          </Button>
           {payload.landing_queue.paused && (payload.health_blocked_repositories ?? payload.broken_repositories)?.some((repo) => repo.main_branch_repair_blocks_work) ? (
             <p className="text-xs text-amber-700 dark:text-amber-300">{t("smart_folder.landing_paused_main_health")}</p>
           ) : null}

@@ -7,6 +7,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { buttonClass } from "../lib/buttonClasses"
+import { Button, buttonClasses } from "../components/Button"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
@@ -65,7 +66,7 @@ export function ScheduledTasksIndex() {
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
         </div>
-        <Link className={buttonClass("primary")} to={`${tasksBase(location.pathname)}/new`}>{t("scheduled_tasks.new_task")}</Link>
+        <Link className={buttonClasses("primary")} to={`${tasksBase(location.pathname)}/new`}>{t("scheduled_tasks.new_task")}</Link>
       </header>
 
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
@@ -212,7 +213,7 @@ function RepositoryPicker({
           ))}
         </select>
       </Field>
-      <button className={buttonClass("primary")} disabled={!value} type="submit">{t("scheduled_tasks.repository_continue")}</button>
+      <Button disabled={!value} type="submit" variant="primary">{t("scheduled_tasks.repository_continue")}</Button>
     </form>
   )
 }
@@ -367,15 +368,15 @@ function TaskActions({
   const { confirm, dialog } = useConfirm()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {task.editable ? <Link className={buttonClass("secondary")} to={`${basePath}/${task.id}/edit`}>{t("scheduled_tasks.action_edit")}</Link> : null}
+      {task.editable ? <Link className={buttonClasses("secondary")} to={`${basePath}/${task.id}/edit`}>{t("scheduled_tasks.action_edit")}</Link> : null}
       {task.pausable ? (
-        <button className={buttonClass("secondary")} disabled={command.isPending} onClick={() => command.mutate("pause")} type="button">{t("scheduled_tasks.action_pause")}</button>
+        <Button disabled={command.isPending} onClick={() => command.mutate("pause")} variant="secondary">{t("scheduled_tasks.action_pause")}</Button>
       ) : null}
       {task.resumable ? (
-        <button className={buttonClass("secondary")} disabled={command.isPending} onClick={() => command.mutate("resume")} type="button">{t("scheduled_tasks.action_resume")}</button>
+        <Button disabled={command.isPending} onClick={() => command.mutate("resume")} variant="secondary">{t("scheduled_tasks.action_resume")}</Button>
       ) : null}
       {task.fireable ? (
-        <button className={buttonClass("secondary")} disabled={command.isPending} onClick={() => command.mutate("fire")} type="button">{t("scheduled_tasks.action_fire")}</button>
+        <Button disabled={command.isPending} onClick={() => command.mutate("fire")} variant="secondary">{t("scheduled_tasks.action_fire")}</Button>
       ) : null}
       {task.editable ? (
         <button
@@ -596,13 +597,13 @@ function ScheduledTaskForm({
         </>
       )}
       <div className="flex items-center gap-3">
-        <button
-          className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+        <Button
           disabled={save.isPending || (taskSource === "skill" && !values.skill_name)}
           type="submit"
+          variant="primary"
         >
           {save.isPending ? t("scheduled_tasks.saving") : mode === "new" ? t("scheduled_tasks.create_task") : t("scheduled_tasks.save")}
-        </button>
+        </Button>
         <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>{t("scheduled_tasks.cancel")}</Link>
       </div>
     </form>

@@ -6,7 +6,7 @@ import { CloseIcon } from "../../components/CloseIcon"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
-import { buttonClass } from "../../lib/buttonClasses"
+import { Button } from "../../components/Button"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
@@ -217,7 +217,7 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
             <datalist id="job-tag-options">
               {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
             </datalist>
-            <button className={buttonClass("secondary")} disabled={command.isPending} type="submit">{t("tags_add")}</button>
+            <Button disabled={command.isPending} type="submit" variant="secondary">{t("tags_add")}</Button>
             <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">{t("tags_cancel")}</button>
           </form>
         ) : (

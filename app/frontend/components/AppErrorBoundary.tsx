@@ -3,6 +3,7 @@ import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErro
 import { createBugReport } from "../api/bugReports"
 import { fileEventJob } from "../api/eventActions"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 
 const STORAGE_KEY = "syrus_reported_errors"
 
@@ -75,13 +76,9 @@ function AppErrorFallback({ error, componentStack, fingerprint: fp, alreadyRepor
           {error.message}
         </code>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-            onClick={() => window.location.reload()}
-            type="button"
-          >
+          <Button onClick={() => window.location.reload()} variant="secondary">
             {t("route_error.reload_page")}
-          </button>
+          </Button>
           {reportState === "success" ? (
             <span className="text-sm text-gray-500">
               {jobId != null ? t("route_error.reported_as", { job_id: jobId }) : t("route_error.already_reported")}
@@ -91,14 +88,9 @@ function AppErrorFallback({ error, componentStack, fingerprint: fp, alreadyRepor
           ) : alreadyReported ? (
             <span className="text-sm text-gray-500">{t("route_error.already_reported")}</span>
           ) : (
-            <button
-              className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:opacity-60"
-              disabled={reportState === "loading"}
-              onClick={() => void sendReport()}
-              type="button"
-            >
+            <Button disabled={reportState === "loading"} onClick={() => void sendReport()}>
               {t("route_error.send_report")}
-            </button>
+            </Button>
           )}
           {browserEventId != null ? (
             <a className="text-sm text-gray-500 underline hover:text-gray-700" href={`/admin/browser_errors?id=${browserEventId}&revision_scope=all`}>

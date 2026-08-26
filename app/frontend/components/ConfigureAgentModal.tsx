@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
 import { GeminiSetupSheet } from "./GeminiSetupSheet"
@@ -106,31 +107,19 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 <>
                   <StatusBox tone="ok">{t('configure_agent.gemini_tab_configured')}</StatusBox>
                   <div className="flex justify-end">
-                    <button
-                      className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                      onClick={onClose}
-                      type="button"
-                    >
+                    <Button onClick={onClose}>
                       {t('configure_agent.done')}
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : (
                 <div className="flex items-center justify-end gap-2">
-                  <button
-                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    onClick={onClose}
-                    type="button"
-                  >
+                  <Button onClick={onClose} variant="secondary">
                     {t('configure_agent.skip_for_now')}
-                  </button>
-                  <button
-                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                    onClick={() => setGeminiSheetOpen(true)}
-                    type="button"
-                  >
+                  </Button>
+                  <Button onClick={() => setGeminiSheetOpen(true)}>
                     {t('configure_agent.gemini_tab_add_key')}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -147,13 +136,9 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               <div className="space-y-5">
                 <StatusBox tone="ok">{connected}</StatusBox>
                 <div className="flex justify-end">
-                  <button
-                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                    onClick={onClose}
-                    type="button"
-                  >
+                  <Button onClick={onClose}>
                     {t('configure_agent.done')}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -168,13 +153,9 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 }}
                 onPreflight={setAmbientReady}
                 secondaryAction={
-                  <button
-                    className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    onClick={onClose}
-                    type="button"
-                  >
+                  <Button onClick={onClose} variant="secondary">
                     {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
-                  </button>
+                  </Button>
                 }
               />
             )}

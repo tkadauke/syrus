@@ -17,6 +17,7 @@ import { ApiError } from "../api/client"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
+import { Button } from "../components/Button"
 
 export function AdminConsole() {
   const { t } = useT("admin")
@@ -149,14 +150,9 @@ function ReaperPanel() {
           <h2 className="font-medium text-gray-900 dark:text-gray-100">{t("console.reap_heading")}</h2>
           <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{t("console.reap_description")}</p>
         </div>
-        <button
-          className="shrink-0 rounded bg-red-600 dark:bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 dark:hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300 dark:disabled:bg-red-900"
-          disabled={mutation.isPending}
-          onClick={() => mutation.mutate()}
-          type="button"
-        >
+        <Button className="shrink-0" disabled={mutation.isPending} onClick={() => mutation.mutate()} variant="danger">
           {mutation.isPending ? t("console.running") : t("console.reap_now")}
-        </button>
+        </Button>
       </div>
       {mutation.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{t("console.reap_error")}</p> : null}
     </section>
@@ -189,14 +185,9 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
             <option key={user.id} value={user.id}>{user.email_address}</option>
           ))}
         </select>
-        <button
-          className="rounded bg-blue-600 dark:bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
-          disabled={mutation.isPending}
-          onClick={() => mutation.mutate()}
-          type="button"
-        >
+        <Button disabled={mutation.isPending} onClick={() => mutation.mutate()} variant="primary">
           {mutation.isPending ? t("console.clearing") : t("console.clear_cache")}
-        </button>
+        </Button>
       </div>
       <NoticeToast message={mutation.data?.message || null} onDismiss={() => mutation.reset()} />
       {mutation.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{t("console.clear_error")}</p> : null}
@@ -259,14 +250,9 @@ function RestartPanel({
     <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
       <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</h3>
       <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{description}</p>
-      <button
-        className="mt-3 rounded bg-red-600 dark:bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 dark:hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300 dark:disabled:bg-red-900"
-        disabled={mutation.isPending}
-        onClick={() => setConfirming(true)}
-        type="button"
-      >
+      <Button className="mt-3" disabled={mutation.isPending} onClick={() => setConfirming(true)} variant="danger">
         {title}
-      </button>
+      </Button>
       {mutation.isSuccess ? <NoticeToast message={t("console.restart_success")} onDismiss={() => mutation.reset()} /> : null}
       {mutation.isError ? (
         <p className="mt-2 text-xs text-red-700 dark:text-red-300">

@@ -1,7 +1,7 @@
 import { createRef } from "react"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { Button } from "./Button"
+import { Button, buttonClasses } from "./Button"
 
 describe("Button", () => {
   it("renders its children", () => {
@@ -36,8 +36,13 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Delete" }).className).toContain("bg-danger")
   })
 
+  it("applies the success variant's token classes", () => {
+    render(<Button variant="success">Approve</Button>)
+    expect(screen.getByRole("button", { name: "Approve" }).className).toContain("bg-success")
+  })
+
   it("never renders raw blue-* or terracotta-* utility classes", () => {
-    for (const variant of ["primary", "secondary", "danger"] as const) {
+    for (const variant of ["primary", "secondary", "danger", "success"] as const) {
       render(<Button variant={variant}>{variant}</Button>)
       const className = screen.getByRole("button", { name: variant }).className
       expect(className).not.toMatch(/\bblue-\d/)
@@ -81,5 +86,16 @@ describe("Button", () => {
     const ref = createRef<HTMLButtonElement>()
     render(<Button ref={ref}>Save</Button>)
     expect(ref.current).toBeInstanceOf(HTMLButtonElement)
+  })
+})
+
+describe("buttonClasses", () => {
+  it("matches the classes the Button component itself renders", () => {
+    render(<Button variant="danger">Delete</Button>)
+    expect(buttonClasses("danger")).toBe(screen.getByRole("button", { name: "Delete" }).className)
+  })
+
+  it("merges a caller-supplied className", () => {
+    expect(buttonClasses("primary", "md", "w-full")).toContain("w-full")
   })
 })

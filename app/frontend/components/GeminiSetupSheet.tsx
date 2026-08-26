@@ -3,6 +3,7 @@ import { useT } from "../hooks/useT"
 import { useQueryClient } from "@tanstack/react-query"
 import { testGeminiKey, updateCredentials } from "../api/credentials"
 import { openInNewTab } from "../lib/desktopShell"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Modal } from "./Modal"
 import { ValidationStages, type StageStatus, type ValidationStage as GenericValidationStage } from "./credentials/ValidationStages"
@@ -203,13 +204,9 @@ export function GeminiSetupSheet({
         ) : null}
 
         <div className="mt-4 flex justify-end">
-          <button
-            className="rounded bg-terracotta-600 px-4 py-2 text-sm font-semibold text-white hover:bg-terracotta-700 disabled:opacity-50"
-            disabled={busy || saved || key.trim().length === 0}
-            type="submit"
-          >
+          <Button disabled={busy || saved || key.trim().length === 0} type="submit">
             {busy ? labels.validating : labels.validateAndSave}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

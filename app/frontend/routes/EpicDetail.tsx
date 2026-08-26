@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@
 import { type FormEvent, type ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
-import { buttonClass } from "../lib/buttonClasses"
+import { Button, buttonClasses } from "../components/Button"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { NoticeToast } from "../components/NoticeToast"
@@ -155,31 +155,28 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
           {payload.epic.review_ready ? (
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                className={buttonClass("secondary")}
+              <Button
                 disabled={reviewCommand.isPending || !payload.paths.app_start_preview_path}
                 onClick={() => reviewCommand.mutate({ kind: "preview" })}
-                type="button"
+                variant="secondary"
               >
                 {t("start_preview")}
-              </button>
-              <button
-                className={buttonClass("success")}
+              </Button>
+              <Button
                 disabled={reviewCommand.isPending}
                 onClick={() => reviewCommand.mutate({ kind: "approve" })}
-                type="button"
+                variant="success"
               >
                 {t("looks_good")}
-              </button>
-              <button
+              </Button>
+              <Button
                 aria-expanded={reviewFeedbackOpen}
-                className={buttonClass("secondary")}
                 disabled={reviewCommand.isPending}
                 onClick={() => setReviewFeedbackOpen((open) => !open)}
-                type="button"
+                variant="secondary"
               >
                 {t("something_wrong")}
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -233,14 +230,13 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
         {(payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived) ? (
           <div className="flex flex-wrap items-center gap-2">
             {payload.epic.startable ? (
-              <button
-                className={buttonClass("primary")}
+              <Button
                 disabled={command.isPending}
                 onClick={() => command.mutate({ kind: "start" })}
-                type="button"
+                variant="primary"
               >
                 {command.isPending ? t("starting") : t("start_implementing")}
-              </button>
+              </Button>
             ) : null}
             {!payload.epic.startable && (payload.epic.start_blocked_on ?? []).length > 0 ? (
               <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -248,27 +244,25 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               </span>
             ) : null}
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
-              <button
-                className={buttonClass("secondary")}
+              <Button
                 disabled={command.isPending}
                 onClick={() => command.mutate({ kind: "claim" })}
-                type="button"
+                variant="secondary"
               >
                 {t("claim")}
-              </button>
+              </Button>
             ) : null}
             {payload.epic.claimable && payload.epic.owned_by_current_user ? (
-              <button
-                className={buttonClass("secondary")}
+              <Button
                 disabled={command.isPending}
                 onClick={() => command.mutate({ kind: "unclaim" })}
-                type="button"
+                variant="secondary"
               >
                 {t("unclaim")}
-              </button>
+              </Button>
             ) : null}
             {!payload.epic.archived ? (
-              <Link className={buttonClass(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>{t("edit")}</Link>
+              <Link className={buttonClasses(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>{t("edit")}</Link>
             ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />
@@ -278,31 +272,28 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
         {payload.epic.review_ready ? (
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              className={buttonClass("secondary")}
+            <Button
               disabled={reviewCommand.isPending || !payload.paths.app_start_preview_path}
               onClick={() => reviewCommand.mutate({ kind: "preview" })}
-              type="button"
+              variant="secondary"
             >
               {t("start_preview")}
-            </button>
-            <button
-              className={buttonClass("success")}
+            </Button>
+            <Button
               disabled={reviewCommand.isPending}
               onClick={() => reviewCommand.mutate({ kind: "approve" })}
-              type="button"
+              variant="success"
             >
               {t("looks_good")}
-            </button>
-            <button
+            </Button>
+            <Button
               aria-expanded={reviewFeedbackOpen}
-              className={buttonClass("secondary")}
               disabled={reviewCommand.isPending}
               onClick={() => setReviewFeedbackOpen((open) => !open)}
-              type="button"
+              variant="secondary"
             >
               {t("something_wrong")}
-            </button>
+            </Button>
           </div>
         ) : null}
 
@@ -456,7 +447,7 @@ function DependenciesSection({
             onChange={setSelectedDependency}
             selected={selectedDependency}
           />
-          <button className={buttonClass("secondary")} disabled={command.isPending || !selectedDependency} type="submit">{t("add_button")}</button>
+          <Button disabled={command.isPending || !selectedDependency} type="submit" variant="secondary">{t("add_button")}</Button>
         </form>
         {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, t("dependency_error"))}</p> : null}
       </div>
@@ -505,10 +496,10 @@ function EpicReviewFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
         />
         {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("review_command_error"))}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
-          <button className={buttonClass("primary")} disabled={isPending || !trimmedFeedback} type="submit">
+          <Button disabled={isPending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={isPending || !trimmedFeedback} type="submit" variant="primary">
             {isPending ? t("submitting") : t("submit_feedback")}
-          </button>
+          </Button>
         </div>
       </form>
     </section>
@@ -959,17 +950,16 @@ function EpicActionsMenu({
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={t("more_actions")}
-        className={buttonClass("secondary")}
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
-        type="button"
+        variant="secondary"
       >
         ⋯
-      </button>
+      </Button>
       {open ? (
         <div className="absolute left-0 z-20 mt-2 w-48 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
           {transitions.map((transition) => (

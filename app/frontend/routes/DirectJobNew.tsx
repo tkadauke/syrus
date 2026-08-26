@@ -5,6 +5,7 @@ import type { DragEvent, FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { Button } from "../components/Button"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
@@ -308,13 +309,9 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       </label>
 
       <div className="flex items-center gap-3">
-        <button
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-          disabled={save.isPending}
-          type="submit"
-        >
+        <Button disabled={save.isPending} type="submit">
           {save.isPending ? t("form_creating") : t("form_create_job")}
-        </button>
+        </Button>
         <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>{t("cancel")}</Link>
       </div>
       {dialog}

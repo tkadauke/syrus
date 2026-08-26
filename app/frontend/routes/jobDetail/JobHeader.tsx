@@ -1,6 +1,7 @@
 import type { FormEvent, KeyboardEvent } from "react"
 import { useRef, useState } from "react"
 import { useT } from "../../hooks/useT"
+import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
@@ -56,26 +57,24 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
     <>
       <div className="flex flex-wrap items-center justify-end gap-2" data-tour="job-approve">
         {canGiveFeedback ? (
-          <button
+          <Button
             aria-expanded={feedbackPanelOpen}
-            className={buttonClass("secondary")}
             data-tour="job-feedback"
             onClick={onToggleFeedbackPanel}
-            type="button"
+            variant="secondary"
           >
             {t("give_feedback")}
-          </button>
+          </Button>
         ) : null}
         {canRequestChanges ? (
-          <button
+          <Button
             aria-expanded={requestChangesPanelOpen}
-            className={buttonClass("secondary")}
             data-tour="job-request-changes"
             onClick={onToggleRequestChangesPanel}
-            type="button"
+            variant="secondary"
           >
             {t("request_changes")}
-          </button>
+          </Button>
         ) : null}
         {visibleActions.map((action) => (
           action.key === "approve" && onApprove
@@ -139,10 +138,10 @@ export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
         />
         {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("feedback_error"))}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
-          <button className={buttonClass("primary")} disabled={isPending || !trimmedBody} type="submit">
+          <Button disabled={isPending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={isPending || !trimmedBody} type="submit" variant="primary">
             {isPending ? t("submitting") : t("submit_feedback")}
-          </button>
+          </Button>
         </div>
       </form>
     </section>
@@ -176,10 +175,10 @@ export function RequestChangesPanel({ error, isPending, onCancel, onSubmit }: { 
         />
         {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("request_changes_error"))}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
-          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
-          <button className={buttonClass("primary")} disabled={isPending || !trimmedFeedback} type="submit">
+          <Button disabled={isPending} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={isPending || !trimmedFeedback} type="submit" variant="primary">
             {isPending ? t("submitting") : t("submit_request_changes")}
-          </button>
+          </Button>
         </div>
       </form>
     </section>
@@ -313,17 +312,16 @@ function HeaderActionsMenu({ actions, command, onActionClick, onRetryFeedback }:
 
   return (
     <div className="relative" ref={menuRef}>
-      <button
+      <Button
         aria-expanded={open}
         aria-haspopup="menu"
-        className={buttonClass("secondary")}
         disabled={command.isPending}
         onClick={handleToggle}
         ref={buttonRef}
-        type="button"
+        variant="secondary"
       >
         ⋯
-      </button>
+      </Button>
       {open ? (
         <div className={`absolute ${alignRight ? "right-0" : "left-0"} z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900`} role="menu">
           {actions.map((action) => (
@@ -397,10 +395,10 @@ function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<
             value={feedback}
           />
           <div className="flex flex-wrap justify-end gap-2">
-            <button className={buttonClass("secondary")} disabled={command.isPending} onClick={onClose} type="button">{t("cancel")}</button>
-            <button className={buttonClass("primary")} disabled={command.isPending || !trimmedFeedback} type="submit">
+            <Button disabled={command.isPending} onClick={onClose} variant="secondary">{t("cancel")}</Button>
+            <Button disabled={command.isPending || !trimmedFeedback} type="submit" variant="primary">
               {command.isPending ? t("retrying") : t("retry")}
-            </button>
+            </Button>
           </div>
         </form>
       </section>
