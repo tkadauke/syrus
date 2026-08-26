@@ -154,7 +154,7 @@ RSpec.describe ChatPendingAction do
     )
 
     expect(action).not_to be_valid
-    expect(action.errors[:payload]).to include("closure_reason must be one of pr_merged, external_pr_merged, pr_approved, no_changes")
+    expect(action.errors[:payload]).to include("closure_reason must be one of pr_merged, external_pr_merged, pr_approved, no_changes, promotion_landed, hotfix_sync_landed")
   end
 
   it "confirms a cancel_job action by closing the Job and cancelling active Runs" do
