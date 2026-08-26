@@ -294,7 +294,7 @@ function ConfidencePill({ confidence }: { confidence: RepositoryThroughputConfid
     high: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
   }[confidence]
 
-  return <span className={`rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase ${className}`}>{confidence}</span>
+  return <span className={`rounded border px-1.5 py-0.5 text-2xs font-medium uppercase ${className}`}>{confidence}</span>
 }
 
 function sampleLabel(duration: RepositoryThroughputDuration) {

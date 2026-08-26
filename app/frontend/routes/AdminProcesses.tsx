@@ -151,7 +151,7 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200"><RelativeTimestamp value={process.started_at} /></td>
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
                 <RelativeTimestamp value={process.last_chunk_at} />
-                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
+                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
               </td>
               <td className="px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDuration(process.duration_s)}</td>
               <td className="px-3 py-2 align-top text-xs"><Outcome process={process} /></td>
@@ -192,7 +192,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_started")}</dt>
         <dd><RelativeTimestamp value={process.started_at} /></dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_last_chunk")}</dt>
-        <dd><RelativeTimestamp value={process.last_chunk_at} /> {process.stale ? <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}</dd>
+        <dd><RelativeTimestamp value={process.last_chunk_at} /> {process.stale ? <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-2xs font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_finished")}</dt>
         <dd><RelativeTimestamp value={process.finished_at} /></dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_duration")}</dt>

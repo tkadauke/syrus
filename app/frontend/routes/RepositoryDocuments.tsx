@@ -15,6 +15,7 @@ import {
   type RepositoryDocumentsPayload
 } from "../api/repositoryDocuments"
 import { RepositoryTabs } from "../components/RepositoryTabs"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
@@ -75,9 +76,9 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
   return (
     <>
       <header>
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading mono>
           <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </h1>
+        </PageHeading>
       </header>
 
       <RepositoryTabs active="documents" prefix={prefix} tabs={payload.tabs} />
@@ -90,9 +91,9 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <SectionHeading>
             {t('repository_documents.documentation')}
-          </h2>
+          </SectionHeading>
         </div>
 
         {payload.documents.length === 0 ? (
@@ -186,9 +187,9 @@ function DocumentForms({
       {save.isError ? <div className="md:col-span-2"><PanelMessage tone="error">{errorMessage(save.error, "Unable to add document.")}</PanelMessage></div> : null}
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitFile}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           {t('repository_documents.upload_file')}
-        </h2>
+        </SectionHeading>
         <Field label="File title">
           <input className={inputClass()} onChange={(event) => setFileTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional_filename")} type="text" value={fileTitle} />
         </Field>
@@ -209,9 +210,9 @@ function DocumentForms({
       </form>
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitGoogleDoc}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           {t('repository_documents.link_google_doc')}
-        </h2>
+        </SectionHeading>
         <Field label="URL">
           <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
         </Field>

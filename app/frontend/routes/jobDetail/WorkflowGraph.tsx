@@ -176,7 +176,7 @@ function WorkDiagnosticDetails({ details }: { details: Record<string, unknown> |
       ) : null}
       <details className="text-gray-500 dark:text-gray-400">
         <summary className="cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Diagnostic details</summary>
-        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-[11px] leading-4 dark:bg-gray-950">{stringify(details)}</pre>
+        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-2xs leading-4 dark:bg-gray-950">{stringify(details)}</pre>
       </details>
     </div>
   )
@@ -612,7 +612,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
       {command ? (
         <div>
           <div className="mb-1 font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{t("grader_command_label")}</div>
-          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
+          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
         </div>
       ) : null}
     </div>
@@ -838,7 +838,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
         <dd>{status}</dd>
       </dl>
       {failure.output_tail ? (
-        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-[11px] text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
+        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-2xs text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
       ) : null}
     </section>
   )
@@ -868,7 +868,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
         <SmallPill>{humanize(warning.kind)}</SmallPill>
       </div>
       {warning.evidence != null ? (
-        <pre className="mt-2 max-h-48 overflow-auto rounded border border-black/10 bg-white/70 p-2 font-mono text-[11px] whitespace-pre-wrap dark:border-white/10 dark:bg-gray-950">
+        <pre className="mt-2 max-h-48 overflow-auto rounded border border-black/10 bg-white/70 p-2 font-mono text-2xs whitespace-pre-wrap dark:border-white/10 dark:bg-gray-950">
           {stringify(warning.evidence)}
         </pre>
       ) : null}
@@ -888,7 +888,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
               {promptExpanded ? (
                 <textarea
                   aria-label={t("warning_prompt_label")}
-                  className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-[11px] text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-2xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                   onChange={(event) => setPrompt(event.target.value)}
                   rows={5}
                   value={prompt}

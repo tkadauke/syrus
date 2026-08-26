@@ -144,7 +144,7 @@ function ReasonBadge({ reason }: { reason: string }) {
       ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
       : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
 
-  return <span className={`inline-flex rounded border px-1.5 py-0.5 text-[11px] font-medium ${classes}`}>{reason}</span>
+  return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{reason}</span>
 }
 
 function TestDetailPanel({ detail, error, isError, isPending, onPageChange, prefix }: { detail?: RepositoryTestDetailPayload; error: unknown; isError: boolean; isPending: boolean; onPageChange: (page: number) => void; prefix: string }) {
@@ -267,7 +267,7 @@ function DurationChart({ history, points, prefix }: { history: RepositoryTestHis
           {chart.ticks.map((tick) => (
             <g key={tick.value}>
               <line className="stroke-gray-200 dark:stroke-gray-700" strokeWidth="1" x1={CHART_LEFT} x2={CHART_WIDTH - CHART_RIGHT} y1={tick.y} y2={tick.y} />
-              <text className="fill-gray-400 text-[10px] dark:fill-gray-500" textAnchor="end" x={CHART_LEFT - 6} y={tick.y + 3}>
+              <text className="fill-gray-400 text-2xs dark:fill-gray-500" textAnchor="end" x={CHART_LEFT - 6} y={tick.y + 3}>
                 {formatDuration(tick.value)}
               </text>
             </g>

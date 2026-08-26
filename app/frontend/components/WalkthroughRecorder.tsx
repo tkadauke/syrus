@@ -571,7 +571,7 @@ export function WalkthroughRecorderHUD({
         ) : null}
         {annotation ? (
           <span
-            className={`items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 ${
+            className={`items-center gap-1.5 text-2xs text-gray-500 dark:text-gray-400 ${
               annotation.drawing ? "inline-flex" : "hidden sm:inline-flex"
             }`}
             data-testid="walkthrough-annotate-hint"

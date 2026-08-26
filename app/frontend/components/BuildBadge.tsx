@@ -50,7 +50,7 @@ export function BuildBadge({
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed bottom-1.5 right-2 z-40 select-none font-mono text-[10px] text-gray-400/80 dark:text-gray-600"
+      className="pointer-events-none fixed bottom-1.5 right-2 z-40 select-none font-mono text-2xs text-gray-400/80 dark:text-gray-600"
       data-testid="build-badge"
     >
       {parts.map((part, index) => (

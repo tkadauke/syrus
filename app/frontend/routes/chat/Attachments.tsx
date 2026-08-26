@@ -49,7 +49,7 @@ export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayl
             {(contextPayload.documents_in_scope ?? []).map((document) => (
               <div className="rounded border border-gray-200 px-2 py-1.5 text-xs dark:border-gray-700" key={document.id}>
                 <div className="font-medium text-gray-800 dark:text-gray-100">{document.title}</div>
-                <div className="font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{document.repository_slug}</div>
+                <div className="font-mono text-2xs text-gray-500 dark:text-gray-400">{document.repository_slug}</div>
               </div>
             ))}
           </div>

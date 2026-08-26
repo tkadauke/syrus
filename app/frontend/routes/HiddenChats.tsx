@@ -7,6 +7,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
+import { PageHeading } from "../components/Heading"
 
 export function HiddenChatsRoute() {
   const [notice, setNotice] = useState<string | null>(null)
@@ -17,7 +18,7 @@ export function HiddenChatsRoute() {
     <main aria-label={t("aria_hidden_chats")} className="mx-auto max-w-4xl space-y-6 p-6">
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('hidden.heading')}</h1>
+        <PageHeading>{t('hidden.heading')}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('hidden.description')}</p>
       </header>
       <HiddenChatsPanel onNotice={setNotice} />

@@ -331,7 +331,7 @@ function PreviewLogsModal({
                 <span>{log.path}</span>
                 {log.missing ? <span className="text-amber-600 dark:text-amber-400">{t("preview_logs_missing")}</span> : null}
               </div>
-              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-[11px] leading-4 text-gray-100">{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
+              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100">{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
             </div>
           ))}
         </div>

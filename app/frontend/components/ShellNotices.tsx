@@ -78,7 +78,7 @@ function BackendUpdateNotice({ update }: { update: SyrusBackendUpdate }) {
   return (
     <div className={noticeBoxClass()} data-testid="backend-update-notice" role="status">
       <span className="block font-medium text-gray-700 dark:text-gray-200">{t("shell.backend_update_title")}</span>
-      <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">{phaseLabel}</span>
+      <span className="mt-0.5 block text-2xs text-gray-500 dark:text-gray-400">{phaseLabel}</span>
       <span aria-hidden="true" className="mt-1.5 block h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
         {percent !== null ? (
           <span
@@ -106,7 +106,7 @@ function UpdateNotice({ bridge, version }: { bridge: SyrusShellBridge; version: 
       type="button"
     >
       <span className="block font-medium text-gray-700 dark:text-gray-200">{t("shell.update_ready")}</span>
-      <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">{t("shell.update_version", { version })}</span>
+      <span className="mt-0.5 block text-2xs text-gray-500 dark:text-gray-400">{t("shell.update_version", { version })}</span>
     </button>
   )
 }
@@ -180,7 +180,7 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
             <InfoIcon />
           </button>
           {infoOpen ? (
-            <span className="absolute bottom-full right-0 z-30 mb-1 block w-56 rounded border border-gray-200 bg-white p-2 text-[11px] font-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300" role="note">
+            <span className="absolute bottom-full right-0 z-30 mb-1 block w-56 rounded border border-gray-200 bg-white p-2 text-2xs font-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300" role="note">
               {t("shell.skill_info")}
             </span>
           ) : null}
@@ -194,10 +194,10 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
           <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </div>
-      {error ? <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">{error}</p> : null}
+      {error ? <p className="mt-1 text-2xs text-red-600 dark:text-red-400">{error}</p> : null}
       <div className="mt-1.5">
         <button
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-2xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
           disabled={phase === "installing"}
           onClick={install}
           type="button"

@@ -248,7 +248,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
               <h2>
                 <button
                   aria-expanded={!collapsed}
-                  className="flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left text-[0.68rem] font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                  className="flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left text-2xs font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
                   onClick={() => toggleCollapsedSection(section.key)}
                   type="button"
                 >
@@ -374,15 +374,15 @@ function SupervisorChatLink({ activeChatId, chat, onCloseDrawer, prefix }: { act
         onClick={onCloseDrawer}
         to={withRoutePrefix(chat.chat_path, prefix)}
       >
-        <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded border text-[0.68rem] font-bold ${active ? "border-white/40 bg-white/15" : "border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"}`}>
+        <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded border text-2xs font-bold ${active ? "border-white/40 bg-white/15" : "border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"}`}>
           S
         </span>
         <span className={`min-w-0 flex-1 truncate ${unread ? "font-bold" : ""}`}>Supervisor</span>
-        <span className={`rounded px-1.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-normal ${active ? "bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-950" : "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}>
+        <span className={`rounded px-1.5 py-0.5 text-2xs font-bold uppercase tracking-normal ${active ? "bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-950" : "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}>
           Admin
         </span>
         {unread ? (
-          <span className={`min-w-5 rounded px-1.5 py-0.5 text-center text-[0.68rem] font-bold ${severityClass}`}>
+          <span className={`min-w-5 rounded px-1.5 py-0.5 text-center text-2xs font-bold ${severityClass}`}>
             {count > 99 ? "99+" : Math.max(count, 1)}
           </span>
         ) : null}

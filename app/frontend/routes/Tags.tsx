@@ -7,6 +7,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import {
   createTag,
   deleteTag,
@@ -32,7 +33,7 @@ export function Tags() {
   return (
     <main aria-label={t("aria_tags")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('tags.heading')}</h1>
+        <PageHeading>{t('tags.heading')}</PageHeading>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('tags.description')}</p>
       </header>
 
@@ -77,7 +78,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('tags.create')}</h2>
+      <SectionHeading>{t('tags.create')}</SectionHeading>
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-name">
           {t('tags.field_name')}

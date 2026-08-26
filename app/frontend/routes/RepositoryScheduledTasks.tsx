@@ -12,6 +12,7 @@ import {
   type RepositoryScheduledTasksPayload
 } from "../api/scheduledTasks"
 import { RepositoryTabs } from "../components/RepositoryTabs"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { toRomanDate } from "../lib/romanCalendar"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -69,14 +70,14 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
     <>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">{payload.repository.slug}</h1>
+          <PageHeading mono>{payload.repository.slug}</PageHeading>
         </div>
       </header>
 
       <RepositoryTabs active="scheduled_tasks" prefix={prefix} tabs={payload.tabs} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h2>
+        <SectionHeading>{t("scheduled_tasks.heading")}</SectionHeading>
         <Link className={buttonClasses("primary")} to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>{t("scheduled_tasks.new_task")}</Link>
       </div>
 
