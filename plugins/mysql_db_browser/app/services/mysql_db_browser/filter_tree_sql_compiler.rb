@@ -44,7 +44,8 @@ module MysqlDbBrowser
       when Filters::Ast::OrNode
         join(node.children, " OR ")
       when Filters::Ast::NotNode
-        "NOT (#{compile_node(node.child)})"
+        clause = compile_node(node.child)
+        clause.present? ? "NOT (#{clause})" : nil
       when Filters::Ast::Chip
         compile_chip(node)
       else
@@ -53,14 +54,16 @@ module MysqlDbBrowser
     end
 
     def join(children, glue)
-      return "1=1" if children.empty?
+      compiled = children.filter_map { |child| compile_node(child).presence }
+      return nil if compiled.empty?
 
-      children.map { |child| "(#{compile_node(child)})" }.join(glue)
+      compiled.map { |clause| "(#{clause})" }.join(glue)
     end
 
     def compile_chip(chip)
       field = fields[chip.field.to_s] or raise UnknownField, chip.field
       raise UnsupportedOperator, chip.op unless field[:operators].include?(chip.op.to_s)
+      return nil if value_required?(field[:bucket], chip.op) && blank_filter_value?(chip.value)
 
       column = quote_identifier(field[:field])
       case field[:bucket]
@@ -70,6 +73,23 @@ module MysqlDbBrowser
       when "date" then compile_date(column, chip.op, chip.value)
       when "enum" then compile_enum(column, chip.op, chip.value)
       else raise UnsupportedOperator, "unknown bucket #{field[:bucket]}"
+      end
+    end
+
+    def value_required?(bucket, op)
+      return false if op.to_s.in?(%w[is_set is_unset is_true is_false])
+
+      bucket.to_s.in?(%w[string number date enum])
+    end
+
+    def blank_filter_value?(value)
+      case value
+      when Array
+        value.all? { |item| blank_filter_value?(item) }
+      when Hash
+        value.values.all? { |item| blank_filter_value?(item) }
+      else
+        value.blank?
       end
     end
 

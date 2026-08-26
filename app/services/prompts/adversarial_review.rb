@@ -150,6 +150,9 @@ module Prompts
         - critique: concise Markdown describing concrete findings, or a short note that you found no blocking issues.
         - verdict: "needs_work" when implementation changes are needed, otherwise "approved".
 
+        The tool call must include both required fields in one payload, for example:
+        {"verdict":"approved","critique":"No blocking issues found."}
+
         The verdict is recorded for future workflow control but is not acted on yet.
 
         Do not wait on long background commands or optional long-running builds before calling this tool. If you have enough evidence to decide, submit the review immediately; if verification is inconclusive but you found no concrete blocker, use verdict "approved" and mention the incomplete verification in the critique.

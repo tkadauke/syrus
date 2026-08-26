@@ -33,6 +33,39 @@ RSpec.describe MysqlDbBrowser::FilterTreeSqlCompiler do
     expect(sql).to eq("(`email` LIKE '%100\\\\%\\\\_off%')")
   end
 
+  it "drops blank value-requiring chips instead of compiling expensive no-op predicates" do
+    tree = {
+      "and" => [
+        { "field" => "email", "op" => "contains", "value" => "" },
+        { "field" => "amount_cents", "op" => "equals", "value" => nil },
+        { "field" => "active", "op" => "is_true" }
+      ]
+    }
+
+    expect(compiler.compile(tree)).to eq("(`active` = 1)")
+  end
+
+  it "preserves explicit blank checks through is_unset" do
+    sql = compiler.compile({ "and" => [ { "field" => "email", "op" => "is_unset", "value" => "" } ] })
+
+    expect(sql).to eq("((`email` IS NULL OR `email` = ''))")
+  end
+
+  it "drops logical groups that only contain blank value-requiring chips" do
+    tree = {
+      "and" => [
+        {
+          "or" => [
+            { "field" => "email", "op" => "contains", "value" => "" },
+            { "not" => { "field" => "amount_cents", "op" => "equals", "value" => "" } }
+          ]
+        }
+      ]
+    }
+
+    expect(compiler.compile(tree)).to be_nil
+  end
+
   it "compiles string equals/not_equals/is_set/is_unset" do
     expect(compiler.compile({ "and" => [ { "field" => "email", "op" => "equals", "value" => "a@example.com" } ] }))
       .to eq("(`email` = 'a@example.com')")
