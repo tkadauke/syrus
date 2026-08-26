@@ -291,6 +291,17 @@ RSpec.describe SyrusYml do
     expect(config.grade.steps.second.phases).to eq(%w[landing ci])
   end
 
+  it "accepts the promotion grader phase (Workflows::Promotion's grade loop selects graders by it)" do
+    config = parse(<<~YAML)
+      grade:
+        - name: promotion-check
+          run: bin/promotion-check
+          phases: [promotion]
+    YAML
+
+    expect(config.grade.steps.first.phases).to eq(%w[promotion])
+  end
+
   it "rejects unknown grader phases" do
     expect {
       parse(<<~YAML)

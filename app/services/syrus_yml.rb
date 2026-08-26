@@ -20,8 +20,15 @@ class SyrusYml
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
   GRADE_FAILURE_POLICIES = %w[strict allow_inherited].freeze
   DEFAULT_GRADE_FAILURE_POLICY = "strict".freeze
-  GRADE_PHASES = %w[review landing ci].freeze
-  DEFAULT_GRADE_PHASES = GRADE_PHASES.freeze
+  GRADE_PHASES = %w[review landing ci promotion].freeze
+  # A grader with no explicit `phases:` opts into review/landing/ci by
+  # default (unchanged, backward-compatible behavior) but never into
+  # promotion — that phase only runs graders that explicitly ask for it
+  # (`phases: [promotion]`), the same "safe default, explicit opt-in"
+  # posture `formatters:`/`generated:`/`deploy:` already use elsewhere in
+  # this file. Otherwise every existing grader in a repository with no
+  # promotion config would silently start running during promotions too.
+  DEFAULT_GRADE_PHASES = %w[review landing ci].freeze
 
   COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
   COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze

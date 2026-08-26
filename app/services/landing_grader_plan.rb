@@ -9,6 +9,7 @@ class LandingGraderPlan
     merge_train_validation
     external_pr_merge
   ].freeze
+  PROMOTION_TRIGGER_KINDS = %w[ promotion ].freeze
 
   def self.effective(plan, trigger_kind:, iteration:)
     new(plan, trigger_kind: trigger_kind, iteration: iteration).effective
@@ -45,6 +46,7 @@ class LandingGraderPlan
   def phase
     return :ci if CI_TRIGGER_KINDS.include?(trigger_kind)
     return :landing if LANDING_TRIGGER_KINDS.include?(trigger_kind)
+    return :promotion if PROMOTION_TRIGGER_KINDS.include?(trigger_kind)
 
     :review
   end
