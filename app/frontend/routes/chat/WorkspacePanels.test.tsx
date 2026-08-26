@@ -23,6 +23,11 @@ vi.mock("../../api/chats", async (importOriginal) => {
   }
 })
 
+vi.mock("../../pluginWorkspaceTabs", () => ({
+  pluginWorkspaceTabComponentFor: (key: string | null | undefined) =>
+    key === "test_plugin/DemoTab" ? function DemoTab() { return <div>Demo tab content</div> } : null
+}))
+
 function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload {
   return {
     chat: {
@@ -604,7 +609,7 @@ describe("ChatWorkspacePanel plugin tabs", () => {
     return {
       ...makePayload(),
       workspace_tabs: [
-        { id: "syrus_dev.workspace_tab_demo", label: "Workspace Tab Demo", label_key: "syrus_dev:workspace_tab_demo_label", component: "syrus_dev/WorkspaceTabDemo", order: 100 }
+        { id: "test_plugin.demo_tab", label: "Demo Tab", label_key: null, component: "test_plugin/DemoTab", order: 100 }
       ]
     }
   }
@@ -612,13 +617,13 @@ describe("ChatWorkspacePanel plugin tabs", () => {
   it("renders a tab button for each plugin-declared tab", () => {
     renderWorkspacePanel(payloadWithPluginTab(), { activeTab: "files" })
 
-    expect(screen.getByRole("button", { name: "Workspace Tab Demo" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Demo Tab" })).toBeInTheDocument()
   })
 
   it("lazily mounts the declared plugin component when its tab is active", async () => {
-    renderWorkspacePanel(payloadWithPluginTab(), { activeTab: "plugin:syrus_dev.workspace_tab_demo" as WorkspaceTab })
+    renderWorkspacePanel(payloadWithPluginTab(), { activeTab: "plugin:test_plugin.demo_tab" as WorkspaceTab })
 
-    expect(await screen.findByText(/syrus_dev/)).toBeInTheDocument()
+    expect(await screen.findByText("Demo tab content")).toBeInTheDocument()
   })
 
   it("shows an unavailable message for a tab whose component cannot be resolved", async () => {
@@ -637,6 +642,6 @@ describe("ChatWorkspacePanel plugin tabs", () => {
   it("does not render a plugin tab button once the workspace_tabs list is empty", () => {
     renderWorkspacePanel(makePayload(), { activeTab: "files" })
 
-    expect(screen.queryByRole("button", { name: "Workspace Tab Demo" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Demo Tab" })).not.toBeInTheDocument()
   })
 })

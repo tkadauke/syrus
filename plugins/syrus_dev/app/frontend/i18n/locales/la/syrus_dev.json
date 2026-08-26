@@ -3,8 +3,6 @@
   "nav_performance": "Celeritas",
   "nav_operational_logs": "Acta",
   "section_label": "Administratio",
-  "workspace_tab_demo_label": "Exemplum Tabulae Loci Operis",
-  "workspace_tab_demo_body": "Haec tabula ab instrumento additicio (syrus_dev) per punctum extensionis :workspace_tab redditur, in colloquio \"{{chat}}\".",
   "performance": {
     "heading": "Celeritas",
     "loading": "Acta celeritatis onerantur...",
