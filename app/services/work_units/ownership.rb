@@ -178,8 +178,8 @@ module WorkUnits
         .to_set
     end
 
-    def self.all_blocked_job_ids(kinds: nil, include_landing: false)
-      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
+    def self.all_blocked_job_ids(kinds: nil, include_landing: false, reasons: nil)
+      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing, reasons: reasons)
         .distinct
         .pluck(:job_id)
         .to_set
@@ -211,10 +211,11 @@ module WorkUnits
         end
     end
 
-    def self.blocked_unit_job_ids_scope(kinds: nil, include_landing: false)
+    def self.blocked_unit_job_ids_scope(kinds: nil, include_landing: false, reasons: nil)
       scope = WorkUnitMember.joins(:work_unit).where(work_units: { state: "blocked" })
       scope = scope.where(work_units: { kind: Array(kinds).map(&:to_s) }) if kinds.present?
       scope = scope.where.not(work_units: { kind: WorkDefinitions.landing_lock_kinds }) unless include_landing
+      scope = scope.where(work_units: { blocked_reason: Array(reasons).map(&:to_s) }) if reasons.present?
       scope
     end
 
