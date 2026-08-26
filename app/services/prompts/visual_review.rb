@@ -125,6 +125,11 @@ module Prompts
         3. Use your browser tools (navigate, snapshot, click, fill, wait_for, screenshot) to drive the
            running app against your own improvised test plan targeting what changed. Don't just load
            the homepage — exercise the actual feature.
+           For click/fill/single-element screenshots, call `browser_snapshot` first and copy the exact
+           `element` text plus `ref` returned by that snapshot. Never invent refs, use CSS selectors as
+           refs, pass an undefined target, or call click/fill when the element is absent. If the element
+           cannot be located, record that as a visual finding instead of repeatedly calling browser tools
+           with missing arguments.
         4. Capture "after" screenshots of what you tested with the image-artifact submit tool so an
            operator can see the result.
         5. Call `submit_visual_review` with your verdict and critique.

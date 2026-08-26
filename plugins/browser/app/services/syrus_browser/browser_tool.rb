@@ -20,6 +20,9 @@ module SyrusBrowser
       end
 
       def call(server_context:, **params)
+        missing = missing_required_arguments(params)
+        return error(missing_arguments_message(missing)) if missing.any?
+
         run = Mcp::Tools.run_from_context(server_context)
         session = SessionRegistry.fetch(run.id)
         response = session.call_tool(name: upstream_tool_name, arguments: upstream_arguments(params))
@@ -39,6 +42,20 @@ module SyrusBrowser
       end
 
       private
+
+      def missing_required_arguments(params)
+        required = Array(input_schema_value.to_h.dig(:required))
+        required.select do |key|
+          value = params[key.to_sym]
+          value.nil? || (value.respond_to?(:blank?) ? value.blank? : value.to_s.empty?)
+        end
+      end
+
+      def missing_arguments_message(keys)
+        "browser tool #{tool_name} requires #{keys.join(", ")}. " \
+          "Call browser_snapshot first, then pass the exact element/ref pair from the snapshot; " \
+          "do not invent refs or pass undefined targets."
+      end
 
       def upstream_arguments(params)
         argument_key_map.each_with_object({}) do |(our_key, upstream_key), arguments|

@@ -110,6 +110,15 @@ RSpec.describe SyrusBrowser::McpToolSet do
         name: "browser_click", arguments: { "element" => "Submit button", "ref" => "e3" }
       )
     end
+
+    it "rejects missing snapshot refs before calling the upstream browser" do
+      response = tool_set.handle("browser_click", { "element" => "Submit button" }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires ref")
+      expect(response.content.first[:text]).to include("browser_snapshot")
+      expect(session).not_to have_received(:call_tool)
+    end
   end
 
   describe "#handle browser_fill" do
@@ -122,6 +131,14 @@ RSpec.describe SyrusBrowser::McpToolSet do
         name: "browser_type",
         arguments: { "element" => "Email field", "ref" => "e1", "text" => "a@b.com" }
       )
+    end
+
+    it "rejects blank text before calling the upstream browser" do
+      response = tool_set.handle("browser_fill", { "element" => "Email field", "ref" => "e1", "text" => "" }, ctx)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("requires text")
+      expect(session).not_to have_received(:call_tool)
     end
   end
 

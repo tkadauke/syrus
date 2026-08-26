@@ -53,6 +53,12 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("verdict \"skipped\"")
   end
 
+  it "tells the reviewer to use exact browser_snapshot refs for browser interactions" do
+    expect(prompt).to include("call `browser_snapshot` first")
+    expect(prompt).to include("Never invent refs")
+    expect(prompt).to include("pass an undefined target")
+  end
+
   it "does not include a test-plan hint section by default" do
     expect(prompt).not_to include("recommended running visual review")
     expect(prompt).not_to include("did NOT recommend")
