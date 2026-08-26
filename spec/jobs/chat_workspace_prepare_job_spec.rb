@@ -76,7 +76,8 @@ RSpec.describe ChatWorkspacePrepareJob do
         command: [ "bash", "-c", "bundle install" ],
         chdir: path,
         timeout: described_class::PER_COMMAND_TIMEOUT,
-        kind: "chat_prepare"
+        kind: "chat_prepare",
+        chat_session: chat_session
       )
     ).and_return(runner_double)
 

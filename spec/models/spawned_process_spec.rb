@@ -71,6 +71,13 @@ RSpec.describe SpawnedProcess do
     expect(sp.redacted_command).not_to include("github_pat_11ABC")
   end
 
+  it "optionally belongs to a chat session" do
+    chat_session = ChatSession.create!(user: user)
+    sp = described_class.create!(base_attrs.merge(chat_session: chat_session))
+
+    expect(sp.reload.chat_session).to eq(chat_session)
+  end
+
   describe ".stale" do
     it "scopes to running rows whose heartbeat is older than the threshold" do
       fresh = described_class.create!(base_attrs.merge(last_chunk_at: 1.minute.ago))

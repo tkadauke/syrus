@@ -6743,7 +6743,8 @@ describe("App", () => {
               workflow_id: 2,
               stale: false,
               kill_requested_at: null,
-              kill_requested_by_user_id: null
+              kill_requested_by_user_id: null,
+              owner: { type: "workflow", label: "JOB-9 · Fix flaky spec", path: "/jobs/9?tab=workflows#workflow-2" }
             }
           ]
         }),
@@ -6762,6 +6763,7 @@ describe("App", () => {
 
       expect(screen.getByRole("main", { name: "Admin processes" })).toBeInTheDocument()
       expect(await screen.findByText("claude --print")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "JOB-9 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/9?tab=workflows#workflow-2")
       const disclosure = screen.getByText("Folders and filters").closest("details")
       expect(disclosure).not.toHaveAttribute("open")
       fireEvent.click(screen.getByText("Folders and filters"))
@@ -6902,6 +6904,7 @@ describe("App", () => {
           stale: false,
           kill_requested_at: null,
           kill_requested_by_user_id: null,
+          owner: { type: "workflow", label: "JOB-42 · Fix flaky spec", path: "/jobs/42?tab=workflows#workflow-2" },
           host_metrics: null
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -6922,6 +6925,7 @@ describe("App", () => {
     expect(within(processDetail).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")
     expect(within(processDetail).getByRole("link", { name: "#4" })).toHaveAttribute("href", "/app-shell/admin/runs/4/transcript")
     expect(within(processDetail).getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-2")
+    expect(within(processDetail).getByRole("link", { name: "JOB-42 · Fix flaky spec" })).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows#workflow-2")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/admin/processes/8",
       expect.objectContaining({
