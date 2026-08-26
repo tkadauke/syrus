@@ -27,13 +27,17 @@ module ChatSerialization
   def preview_panels_json(chat_session)
     base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
     scheme = request.ssl? ? "https" : "http"
-    chat_session.preview_panels.where(state: "open").with_attached_files.order(:created_at, :id).map do |panel|
+    chat_session.preview_panels.where(state: "open").includes(preview_panel_versions: { files_attachments: :blob }).order(:created_at, :id).map do |panel|
+      versions = panel.preview_panel_versions
+      current = versions.first
       {
         id: panel.id,
         title: panel.title,
-        file_count: panel.files.size,
+        file_count: current&.files&.size || 0,
         url: panel.preview_url(base_domain, scheme: scheme),
-        app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}"
+        app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}",
+        current_version_id: current&.id,
+        versions: versions.map { |version| { id: version.id, created_at: version.created_at.iso8601 } }
       }
     end
   end
