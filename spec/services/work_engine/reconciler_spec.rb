@@ -2468,6 +2468,56 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
+  it "finds terminal spawned-process evidence without expression-ordering the audit table" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(
+      state: "running",
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 30.seconds.ago
+    )
+    step.update_columns(state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+    older = SpawnedProcess.create!(
+      run: run,
+      workflow: workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-1",
+      started_at: 9.minutes.ago,
+      finished_at: 8.minutes.ago,
+      outcome: "failed"
+    )
+    newer = SpawnedProcess.create!(
+      run: run,
+      workflow: workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-1",
+      started_at: 7.minutes.ago,
+      finished_at: 6.minutes.ago,
+      outcome: "orphaned"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA" || payload[:cached]
+
+      sql = payload[:sql].to_s
+      queries << sql if sql.include?("spawned_processes")
+    end
+    result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { reconcile(run_id: run.id) }
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue.evidence).to include(
+      "terminal_spawned_process" => newer.id,
+      "terminal_spawned_process_outcome" => "orphaned"
+    )
+    expect(issue.affected_ids.fetch(:spawned_process_ids)).to include(newer.id, older.id)
+    expect(queries.join("\n")).not_to include("COALESCE")
+  end
+
   it "reports an accurate check_after for detached running Runs inside the short worker-evidence grace" do
     ensure_solid_queue_test_tables!
     heartbeat_at = 2.minutes.ago

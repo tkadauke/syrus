@@ -2566,13 +2566,17 @@ module WorkEngine
     end
 
     def running_spawned_process_for(run)
-      SpawnedProcess.running.where(run_id: run.id).order(Arel.sql("COALESCE(last_chunk_at, started_at) DESC")).first
+      # Keep this as an indexed run_id lookup. Ordering by COALESCE here makes
+      # MySQL abandon useful indexes; the per-run candidate set is tiny.
+      SpawnedProcess.running.where(run_id: run.id).to_a.max_by do |process|
+        [ process.last_chunk_at || process.started_at || Time.zone.at(0), process.id || 0 ]
+      end
     end
 
     def terminal_spawned_process_for(run)
       SpawnedProcess.where(run_id: run.id)
         .where.not(finished_at: nil)
-        .order(Arel.sql("COALESCE(finished_at, last_chunk_at, started_at) DESC"))
+        .order(finished_at: :desc, id: :desc)
         .first
     end
 
