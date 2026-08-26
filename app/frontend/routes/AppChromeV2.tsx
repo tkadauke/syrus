@@ -6,7 +6,6 @@ import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { BRAND_ICON_SRC } from "../lib/brandIcon"
 import { type DragEvent, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
@@ -29,7 +28,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
 import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
-import { TestChannelBadge, TestChannelDot } from "../components/TestChannelBadge"
+import { TestChannelBadge } from "../components/TestChannelBadge"
 import { ThemeProvider, useTheme, type Theme } from "../contexts/ThemeContext"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
@@ -71,8 +70,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
   const isDesktopSidebarViewport = useMediaQuery("(min-width: 1024px)", true)
+  const activeChatId = activeChatIdFromPath(location.pathname)
+  const isMobileChatPage = activeChatId != null && !isDesktopSidebarViewport
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -81,7 +81,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [groupChatCreating, setGroupChatCreating] = useState(false)
   const [groupChatError, setGroupChatError] = useState<string | null>(null)
   const [startingChat, setStartingChat] = useState(false)
-  const mainRef = useRef<HTMLElement | null>(null)
   const bugReportRef = useRef<BugReportButtonHandle | null>(null)
   const openBugReport = useCallback((options?: BugReportOpenOptions) => {
     bugReportRef.current?.open(options)
@@ -190,10 +189,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   useEffect(() => {
-    setMobileBrandFloating((mainRef.current?.scrollTop || 0) > 8)
-  }, [location.pathname])
-
-  useEffect(() => {
     if (!sidebarResize) return
 
     const resize = sidebarResize
@@ -244,11 +239,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     }
   }
 
-  function handleMainScroll() {
-    const nextFloating = (mainRef.current?.scrollTop || 0) > 8
-    setMobileBrandFloating((current) => current === nextFloating ? current : nextFloating)
-  }
-
   return (
     <ThemeProvider theme={user?.theme ?? "system"}>
     <BugReportContext.Provider value={bugReportContextValue}>
@@ -284,28 +274,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         />
       </aside>
 
-      {mobileBrandFloating && !drawerOpen ? (
-        <>
-          <button
-            aria-label={t("nav:open_sidebar")}
-            className="fixed left-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white text-gray-900 shadow-lg hover:bg-gray-50 hover:text-blue-600 dark:border-gray-800 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-900 dark:hover:text-blue-300 lg:hidden"
-            onClick={() => setDrawerOpen(true)}
-            type="button"
-          >
-            <img alt="" aria-hidden="true" className="h-6 w-6 rounded" src={BRAND_ICON_SRC} />
-            {/* The in-flow top-bar TEST badge scrolls away with the bar on
-                mobile; keep the floating trigger distinguishable from a
-                side-by-side production build with an amber corner dot. */}
-            <TestChannelDot />
-          </button>
-          {user ? (
-            <div className="fixed right-3 top-3 z-30 inline-flex h-11 w-11 items-center justify-center rounded border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-950 lg:hidden">
-              <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} />
-            </div>
-          ) : null}
-        </>
-      ) : null}
-
       {drawerOpen ? (
         <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
           <SidebarContent
@@ -327,8 +295,8 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         </div>
       ) : null}
 
-      <main className="min-w-0 flex-1 overflow-auto" onScroll={handleMainScroll} ref={mainRef}>
-        <div className="flex w-full items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+      <main className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
+        <div className="flex w-full shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <button
               aria-label={t("nav:open_sidebar")}
@@ -345,7 +313,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
         <FlashBanner flash={data?.flash} />
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-        {showAdminSubnav ? (
+        {isMobileChatPage ? (
+          <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
+        ) : showAdminSubnav ? (
           <div className="flex min-h-full min-w-0">
             <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
               {pageContent}
@@ -356,7 +326,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatIdFromPath(location.pathname)} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
+      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatId} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
       {groupChatPickerOpen ? (
         <ParticipantPickerModal
