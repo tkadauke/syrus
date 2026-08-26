@@ -2,6 +2,7 @@ class PollRepositoryDeploymentStagesJob < ApplicationJob
   queue_as :polling
 
   LOOKBACK = (Integer(ENV["SYRUS_DEPLOYMENT_STAGE_POLL_LOOKBACK_DAYS"], exception: false) || 14).days
+  MAX_JOBS_PER_POLL = Integer(ENV["SYRUS_DEPLOYMENT_STAGE_MAX_JOBS_PER_POLL"], exception: false) || 25
 
   limits_concurrency to: 1, key: ->(repo_id) { "deployment_stage_poll:#{repo_id}" }
 
@@ -24,6 +25,7 @@ class PollRepositoryDeploymentStagesJob < ApplicationJob
       jobs: jobs
     ).call
     Rails.logger.info("[PollRepositoryDeploymentStagesJob] #{repository.slug}: recorded #{recorded} deployment stage status(es)") if recorded.positive?
+    Rails.logger.info("[PollRepositoryDeploymentStagesJob] #{repository.slug}: capped deployment stage poll at #{jobs.size} job(s)") if jobs.size >= MAX_JOBS_PER_POLL
   end
 
   private
@@ -41,6 +43,8 @@ class PollRepositoryDeploymentStagesJob < ApplicationJob
         stage_names,
         stage_names.size
       )
+      .order(finished_at: :desc, id: :desc)
+      .limit(MAX_JOBS_PER_POLL)
       .to_a
   end
 end

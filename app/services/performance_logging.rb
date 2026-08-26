@@ -585,11 +585,31 @@ module PerformanceLogging
       priority: job_priority(job),
       executions: job.executions,
       arguments_count: job.arguments.size
-    }
+    }.merge(job_entity_context(job))
   end
 
   def job_priority(job)
     job.priority if job.respond_to?(:priority)
+  end
+
+  def job_entity_context(job)
+    return {} unless job.is_a?(RunJob)
+
+    run_id = Integer(job.arguments.first, exception: false)
+    return {} unless run_id
+
+    run = Run.includes(step: :workflow).find_by(id: run_id)
+    workflow = run&.step&.workflow
+    job_record = run&.job
+
+    {
+      run_id: run&.id,
+      workflow_id: workflow&.id,
+      job_id: job_record&.id,
+      repository_id: job_record&.repository_id
+    }.compact
+  rescue StandardError
+    {}
   end
 
   def threshold_from_env(name, fallback)

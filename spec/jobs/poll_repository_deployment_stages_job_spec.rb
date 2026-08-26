@@ -33,6 +33,28 @@ RSpec.describe PollRepositoryDeploymentStagesJob do
     described_class.perform_now(repository.id)
   end
 
+  it "caps each poll to a bounded number of landed jobs" do
+    stub_const("#{described_class}::MAX_JOBS_PER_POLL", 2)
+    jobs = 3.times.map do |index|
+      Factories.job_record(
+        repository: repository,
+        landed_sha: "sha#{index}",
+        finished_at: index.minutes.ago,
+        state: "closed",
+        issue_number: 200 + index
+      )
+    end
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(plan)
+
+    detector = instance_double(DeploymentStageDetector, call: 0)
+    expect(DeploymentStageDetector).to receive(:new) do |args|
+      expect(args[:jobs]).to eq([ jobs[0], jobs[1] ])
+      detector
+    end
+
+    described_class.perform_now(repository.id)
+  end
+
   it "returns when deployment stages are not configured" do
     disabled = RepoDeploymentStagesReader::Result.new(stages: [], source: "none", note: "no deployment_stages configured")
     allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(disabled)

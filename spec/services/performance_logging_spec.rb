@@ -211,6 +211,20 @@ RSpec.describe PerformanceLogging do
     expect(Current.performance_sql_count).to be_nil
   end
 
+  it "adds run, workflow, job, and repository context for RunJob events" do
+    run = Factories.run
+    context = described_class.job_context(RunJob.new(run.id))
+
+    expect(context).to include(
+      job_class: "RunJob",
+      run_id: run.id,
+      workflow_id: run.workflow.id,
+      job_id: run.job.id,
+      repository_id: run.job.repository_id,
+      arguments_count: 1
+    )
+  end
+
   it "records SQL-heavy ActiveJob events even below the job duration threshold" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
