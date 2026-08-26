@@ -54,12 +54,17 @@ class SyrusYml
   DEFAULT_DELIVERY_UPSTREAM_EXPORT_MODE = "per_job_pr".freeze
   DELIVERY_REF_MOVEMENT_MODES = %w[direct auto_pr manual_pr].freeze
 
+  EXTERNAL_PR_PROVENANCE_KINDS = %w[external_unknown syrus_job_export syrus_branch_export].freeze
+  DEFAULT_EXTERNAL_PR_UNKNOWN_ACTION = "review_and_grade".freeze
+  DEFAULT_EXTERNAL_PR_JOB_EXPORT_ACTION = "attach_or_create_job".freeze
+  DEFAULT_EXTERNAL_PR_BRANCH_EXPORT_ACTION = "create_epic".freeze
+
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
@@ -111,6 +116,22 @@ class SyrusYml
   ApprovalConfig = Data.define(:job, :promotion)
   ApprovalJobConfig = Data.define(:owner_required, :peer_count)
   ApprovalPromotionConfig = Data.define(:maintainer_count)
+  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 10 (PR
+  # ingestion classification). Like `Config#approval`, `Config#external_prs`
+  # is left nil when the `external_prs:` key is absent — absence means
+  # "classify nothing; every ingested PR stays `external_unknown`," the exact
+  # behavior `Workflows::ExternalPrIngest` already had before this
+  # classification existed. `ingest.enabled` is the actual behavior switch
+  # (`PrProvenanceClassifier` short-circuits to `external_unknown` unless
+  # it's true); `unknown`/`syrus_job_export`/`syrus_branch_export` are
+  # free-form action-name strings, parsed and defaulted from the plan's
+  # Story 10 example but not branched on yet — today there is exactly one
+  # implemented ingestion behavior per classification
+  # (`ExternalPrIngestions::Base.for`), so these exist for
+  # documentation/audit parity with the plan rather than to select between
+  # multiple real behaviors.
+  ExternalPrsConfig = Data.define(:ingest)
+  ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
@@ -189,7 +210,8 @@ class SyrusYml
       deploy: parse_deploy(raw["deploy"]),
       delivery: normalize_delivery(raw_delivery),
       raw_delivery: raw_delivery,
-      approval: parse_approval(raw["approval"])
+      approval: parse_approval(raw["approval"]),
+      external_prs: parse_external_prs(raw["external_prs"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -873,6 +895,25 @@ class SyrusYml
 
     ApprovalPromotionConfig.new(
       maintainer_count: required.key?("maintainer_count") ? parse_non_negative_integer(required["maintainer_count"], "approval.promotion.required.maintainer_count") : nil
+    )
+  end
+
+  def parse_external_prs(raw)
+    return nil if raw.nil?
+    raise ParseError, "external_prs: must be a mapping" unless raw.is_a?(Hash)
+
+    ExternalPrsConfig.new(ingest: parse_external_prs_ingest(raw["ingest"]))
+  end
+
+  def parse_external_prs_ingest(raw)
+    raw ||= {}
+    raise ParseError, "external_prs.ingest: must be a mapping" unless raw.is_a?(Hash)
+
+    ExternalPrsIngestConfig.new(
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      unknown: raw.fetch("unknown", DEFAULT_EXTERNAL_PR_UNKNOWN_ACTION).to_s.strip.presence,
+      syrus_job_export: raw.fetch("syrus_job_export", DEFAULT_EXTERNAL_PR_JOB_EXPORT_ACTION).to_s.strip.presence,
+      syrus_branch_export: raw.fetch("syrus_branch_export", DEFAULT_EXTERNAL_PR_BRANCH_EXPORT_ACTION).to_s.strip.presence
     )
   end
 

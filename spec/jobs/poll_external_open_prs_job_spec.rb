@@ -1,5 +1,7 @@
 require "rails_helper"
 require "ostruct"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe PollExternalOpenPrsJob do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
@@ -10,15 +12,17 @@ RSpec.describe PollExternalOpenPrsJob do
   let(:slug) { "acme/widgets" }
 
   def pr(number:, head_ref: "feature/cool-thing", head_repo: "acme/widgets",
-         base_repo: "acme/widgets", author: "contributor", title: "Some feature")
+         base_repo: "acme/widgets", author: "contributor", title: "Some feature", body: nil)
     OpenStruct.new(
       number: number,
       title: title,
+      body: body,
       head: OpenStruct.new(
         ref: head_ref,
         repo: OpenStruct.new(full_name: head_repo)
       ),
       base: OpenStruct.new(
+        ref: "main",
         repo: OpenStruct.new(full_name: base_repo)
       ),
       user: OpenStruct.new(login: author)
@@ -118,6 +122,18 @@ RSpec.describe PollExternalOpenPrsJob do
       expect(Job.find_by(repository: repository, external_pr_number: 21)).to be_present
     end
 
+    it "does not skip a fork's 'syrus/'-prefixed branch — it's a different instance's export, not a same-repo Syrus PR" do
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 22, head_ref: "syrus/direct-99", head_repo: "someone-else/widgets")
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1)
+
+      expect(Job.find_by(repository: repository, external_pr_number: 22)).to be_present
+    end
+
     it "skips PRs that already have a Job with that external_pr_number" do
       existing = Factories.job(repository: repository, issue_number: 99)
       existing.update!(external_pr_number: 30)
@@ -142,6 +158,65 @@ RSpec.describe PollExternalOpenPrsJob do
       expect {
         described_class.perform_now(repository.id)
       }.not_to change(Job, :count)
+    end
+  end
+
+  describe "provenance classification (external_prs.ingest.enabled: true)" do
+    around do |example|
+      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+      previous_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+      example.run
+      ENV["SYRUS_DATA_ROOT"] = previous_root
+      FileUtils.rm_rf(@data_root)
+    end
+
+    def write_bare_clone(repo, syrus_yml:)
+      work_dir = Dir.mktmpdir("syrus-work")
+      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml)
+      system("git", "-C", work_dir, "add", ".", exception: true)
+      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+      clone_path = RepositoryBareClone.path_for(repo)
+      FileUtils.mkdir_p(clone_path.dirname)
+      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    ensure
+      FileUtils.rm_rf(work_dir) if work_dir
+    end
+
+    it "attaches a per-job export from a registered fork to the existing Job instead of creating a new one" do
+      write_bare_clone(repository, syrus_yml: "external_prs:\n  ingest:\n    enabled: true\n")
+      fork = Factories.repository(user: user, owner: "casey", upstream_repository: repository)
+      source_job = Factories.job_record(user: user, repository: fork, issue_number: 7)
+
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 40, head_ref: "syrus/direct-#{source_job.id}", head_repo: fork.slug)
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(Job, :count)
+
+      expect(source_job.pr_links.find_by(role: JobPrLink::ROLE_EXTERNAL_INGEST, pr_number: 40)).to be_present
+    end
+
+    it "creates an umbrella Epic for a whole-branch export from a registered fork" do
+      write_bare_clone(repository, syrus_yml: "external_prs:\n  ingest:\n    enabled: true\n")
+      fork = Factories.repository(user: user, owner: "bob", default_branch: "main", upstream_repository: repository)
+
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 41, head_ref: "main", head_repo: fork.slug)
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Job, :count).by(1).and change(Epic, :count).by(1)
+
+      job = Job.find_by!(repository: repository, external_pr_number: 41)
+      expect(job.epic_id).to eq(Epic.last.id)
     end
   end
 

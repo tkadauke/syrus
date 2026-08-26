@@ -1790,4 +1790,58 @@ RSpec.describe SyrusYml do
       }.to raise_error(SyrusYml::ParseError, /approval\.promotion\.required\.maintainer_count: must not be negative/)
     end
   end
+
+  describe "external_prs: key" do
+    it "returns nil when the external_prs key is absent -- every ingested PR stays external_unknown" do
+      expect(parse("grade: []").external_prs).to be_nil
+    end
+
+    it "defaults ingest.enabled to false when external_prs.ingest is an empty mapping" do
+      config = parse("external_prs:\n  ingest: {}\n")
+
+      expect(config.external_prs.ingest.enabled).to be(false)
+    end
+
+    it "defaults ingest.enabled to false when external_prs.ingest key is absent" do
+      config = parse("external_prs: {}\n")
+
+      expect(config.external_prs.ingest.enabled).to be(false)
+    end
+
+    it "parses the Story 10 example config" do
+      config = parse(<<~YAML)
+        external_prs:
+          ingest:
+            enabled: true
+            unknown: review_and_grade
+            syrus_job_export: attach_or_create_job
+            syrus_branch_export: create_epic
+      YAML
+
+      expect(config.external_prs.ingest.enabled).to be(true)
+      expect(config.external_prs.ingest.unknown).to eq("review_and_grade")
+      expect(config.external_prs.ingest.syrus_job_export).to eq("attach_or_create_job")
+      expect(config.external_prs.ingest.syrus_branch_export).to eq("create_epic")
+    end
+
+    it "defaults the action-name fields when omitted but ingest is enabled" do
+      config = parse("external_prs:\n  ingest:\n    enabled: true\n")
+
+      expect(config.external_prs.ingest.unknown).to eq("review_and_grade")
+      expect(config.external_prs.ingest.syrus_job_export).to eq("attach_or_create_job")
+      expect(config.external_prs.ingest.syrus_branch_export).to eq("create_epic")
+    end
+
+    it "rejects a non-mapping external_prs value" do
+      expect {
+        parse("external_prs: true\n")
+      }.to raise_error(SyrusYml::ParseError, /external_prs: must be a mapping/)
+    end
+
+    it "rejects a non-mapping external_prs.ingest value" do
+      expect {
+        parse("external_prs:\n  ingest: true\n")
+      }.to raise_error(SyrusYml::ParseError, /external_prs\.ingest: must be a mapping/)
+    end
+  end
 end

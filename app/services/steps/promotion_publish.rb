@@ -92,7 +92,8 @@ module Steps
 
     def pr_body
       "Automated promotion of `#{source_branch}` into `#{target_branch}` via Syrus (#{workflow.slug}).\n\n" \
-        "Review carefully — this branch was assembled and, if needed, repaired by an LLM."
+        "Review carefully — this branch was assembled and, if needed, repaired by an LLM.\n\n" \
+        "#{PrProvenanceMarker.stamp(kind: 'syrus_promotion', job: job)}"
     end
 
     def existing_promotion_pr_number

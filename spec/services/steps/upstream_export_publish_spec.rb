@@ -75,6 +75,15 @@ RSpec.describe Steps::UpstreamExportPublish do
       )
     end
 
+    it "stamps a syrus_job_export provenance marker in the PR body" do
+      handler.call
+
+      expect(client).to have_received(:create_pull_request).with(
+        canonical.slug, base: "develop", head: anything, title: anything,
+        body: a_string_including(PrProvenanceMarker.stamp(kind: "syrus_job_export", job: job))
+      )
+    end
+
     it "reuses pr_title/pr_body from the job's most recent succeeded workflow" do
       Workflow.create!(
         job: job, trigger_kind: "initial", state: "succeeded",
