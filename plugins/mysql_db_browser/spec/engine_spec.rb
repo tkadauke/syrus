@@ -32,24 +32,11 @@ RSpec.describe MysqlDbBrowser::Engine do
   end
 
   describe ".enabled?" do
-    it "is false when neither the Feature flag nor the plugin record are enabled" do
+    it "is false when the plugin record is not enabled" do
       expect(MysqlDbBrowser.enabled?).to be(false)
     end
 
-    it "is false when only the Feature flag is enabled" do
-      Feature.create!(slug: "mysql_db_browser", category: "Labs", name: "MySQL DB browser", enabled: true)
-
-      expect(MysqlDbBrowser.enabled?).to be(false)
-    end
-
-    it "is false when only the plugin record is enabled" do
-      PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
-
-      expect(MysqlDbBrowser.enabled?).to be(false)
-    end
-
-    it "is true once both the Feature flag and the plugin record are enabled" do
-      Feature.create!(slug: "mysql_db_browser", category: "Labs", name: "MySQL DB browser", enabled: true)
+    it "is true once the plugin record is enabled" do
       PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
 
       expect(MysqlDbBrowser.enabled?).to be(true)
