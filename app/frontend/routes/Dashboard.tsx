@@ -596,7 +596,7 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
       <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{payload.simple_mode ? t("new_feature") : t("new_epic")}</Link>
-      {payload.simple_mode ? null : <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>}
+      {payload.simple_mode ? null : <Link className={buttonClasses("success")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>}
     </div>
   )
 }
