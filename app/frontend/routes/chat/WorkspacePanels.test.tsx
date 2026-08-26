@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
+import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider, updateChatPreviewPanelVisibility } from "../../api/chats"
 import type { WorkspaceTab } from "./workspaceTabs"
 
 vi.mock("../../api/chats", async (importOriginal) => {
@@ -14,12 +14,14 @@ vi.mock("../../api/chats", async (importOriginal) => {
     closeChatPreviewPanel: vi.fn(),
     fetchChatMedia: vi.fn(),
     fetchChatMessagePins: vi.fn(),
+    fetchChatPreviewPanelAccessToken: vi.fn(),
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
     fetchCodingFileTree: vi.fn(),
     fetchWhiteboardSnapshots: vi.fn(),
-    switchChatProvider: vi.fn()
+    switchChatProvider: vi.fn(),
+    updateChatPreviewPanelVisibility: vi.fn()
   }
 })
 
@@ -128,6 +130,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
   activeTab?: WorkspaceTab
   onSelectTab?: (tab: WorkspaceTab) => void
   onBookmarkSelect?: (messageId: number) => void
+  onNotice?: (message: string | null) => void
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -140,7 +143,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
           prefix=""
           queryKey={["chats", "1", ""] as const}
           onBookmarkSelect={options.onBookmarkSelect ?? (() => {})}
-          onNotice={() => {}}
+          onNotice={options.onNotice ?? (() => {})}
         />
       </MemoryRouter>
     </QueryClientProvider>
@@ -560,7 +563,10 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "http://preview-panel-7.lvh.me/",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
+          visibility: "public",
           current_version_id: null,
           versions: []
         }
@@ -589,7 +595,10 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "https://preview-panel-7.lvh.me/",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
+          visibility: "public",
           current_version_id: null,
           versions: []
         }
@@ -627,7 +636,10 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "http://preview-panel-7.lvh.me/",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
+          visibility: "public",
           current_version_id: 100,
           versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z" } ]
         }
@@ -649,7 +661,10 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "http://preview-panel-7.lvh.me",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
+          visibility: "public",
           current_version_id: 102,
           versions: [
             { id: 102, created_at: "2026-08-22T10:00:00Z" },
@@ -702,6 +717,130 @@ describe("ChatWorkspacePanel preview panels", () => {
     await waitFor(() => {
       expect(closeChatPreviewPanel).toHaveBeenCalledWith("/api/v1/app/chats/1/preview_panels/7")
     })
+  })
+})
+
+describe("ChatWorkspacePanel preview panel sharing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function payloadWithPrivatePanel(): ChatPayload {
+    return {
+      ...makePayload(),
+      preview_panels: [
+        {
+          id: 7,
+          title: "Layout mockup",
+          file_count: 2,
+          url: "http://preview-panel-7.lvh.me/",
+          visibility: "private",
+          app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
+          current_version_id: null,
+          versions: []
+        }
+      ]
+    }
+  }
+
+  it("requests an access token and waits before rendering a private panel's iframe", async () => {
+    let resolveToken: (value: { token: string; expires_in: number }) => void = () => {}
+    vi.mocked(fetchChatPreviewPanelAccessToken).mockReturnValue(
+      new Promise((resolve) => { resolveToken = resolve })
+    )
+
+    renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(fetchChatPreviewPanelAccessToken).toHaveBeenCalledWith("/api/v1/app/chats/1/preview_panels/7/token")
+    expect(document.querySelector("iframe")).toBeNull()
+    expect(screen.getByText("Requesting access…")).toBeInTheDocument()
+
+    resolveToken({ token: "signed-token", expires_in: 86400 })
+
+    await waitFor(() => {
+      expect(document.querySelector("iframe")?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/?token=signed-token")
+    })
+  })
+
+  it("disables opening a private panel in a new tab until the access token resolves", async () => {
+    vi.mocked(fetchChatPreviewPanelAccessToken).mockReturnValue(new Promise(() => {}))
+
+    renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(screen.queryByRole("link", { name: "Open Layout mockup in new tab" })).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Open Layout mockup in new tab")).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("shows an error when the access token request fails", async () => {
+    vi.mocked(fetchChatPreviewPanelAccessToken).mockRejectedValue(new Error("nope"))
+
+    renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    await waitFor(() => {
+      expect(screen.getByText("This preview could not be loaded. Reload the chat to try again.")).toBeInTheDocument()
+    })
+    expect(document.querySelector("iframe")).toBeNull()
+  })
+
+  it("does not request an access token for a public panel", () => {
+    renderWorkspacePanel(payloadWithPanelVisibility("public"), { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(fetchChatPreviewPanelAccessToken).not.toHaveBeenCalled()
+    expect(document.querySelector("iframe")?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/")
+  })
+
+  function payloadWithPanelVisibility(visibility: "private" | "public"): ChatPayload {
+    const payload = payloadWithPrivatePanel()
+    return { ...payload, preview_panels: [ { ...payload.preview_panels[0], visibility } ] }
+  }
+
+  it("shows the current visibility and switches to public through the API", async () => {
+    vi.mocked(fetchChatPreviewPanelAccessToken).mockResolvedValue({ token: "signed-token", expires_in: 86400 })
+    vi.mocked(updateChatPreviewPanelVisibility).mockResolvedValue({
+      ...payloadWithPanelVisibility("public"),
+      preview_panels: [ { ...payloadWithPrivatePanel().preview_panels[0], visibility: "public" } ]
+    })
+
+    renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(screen.getByRole("button", { name: "Change sharing for Layout mockup" })).toHaveTextContent("Private")
+
+    fireEvent.click(screen.getByRole("button", { name: "Change sharing for Layout mockup" }))
+    fireEvent.click(screen.getByRole("option", { name: /Public/ }))
+
+    await waitFor(() => {
+      expect(updateChatPreviewPanelVisibility).toHaveBeenCalledWith("/api/v1/app/chats/1/preview_panels/7", "public")
+    })
+  })
+
+  it("surfaces a copyable link only once the panel is public", async () => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+    const onNotice = vi.fn()
+
+    renderWorkspacePanel(payloadWithPanelVisibility("public"), { activeTab: "preview:7" as WorkspaceTab, onNotice })
+
+    fireEvent.click(screen.getByRole("button", { name: "Change sharing for Layout mockup" }))
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }))
+
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("http://preview-panel-7.lvh.me/")
+    })
+    expect(onNotice).toHaveBeenCalledWith("Link copied to clipboard")
+  })
+
+  it("does not offer a copy-link option while the panel is private", () => {
+    vi.mocked(fetchChatPreviewPanelAccessToken).mockReturnValue(new Promise(() => {}))
+
+    renderWorkspacePanel(payloadWithPrivatePanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    fireEvent.click(screen.getByRole("button", { name: "Change sharing for Layout mockup" }))
+
+    expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeInTheDocument()
   })
 })
 

@@ -25,4 +25,10 @@ class PreviewPanel::Service
     panel.broadcast_change!
     panel
   end
+
+  def update_visibility!(visibility)
+    panel.update!(visibility: visibility)
+    panel.broadcast_change!
+    panel
+  end
 end

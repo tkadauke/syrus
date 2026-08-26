@@ -95,4 +95,43 @@ RSpec.describe PreviewPanel::Service do
       described_class.new(panel).close!
     end
   end
+
+  describe "#update_visibility!" do
+    it "defaults a newly opened panel to private" do
+      panel = described_class.open!(chat_session: chat_session, title: "Widget preview", files: {})
+
+      expect(panel.visibility).to eq("private")
+    end
+
+    it "switches the panel to public" do
+      panel = described_class.open!(chat_session: chat_session, title: "Widget preview", files: {})
+
+      described_class.new(panel).update_visibility!("public")
+
+      expect(panel.reload.visibility).to eq("public")
+    end
+
+    it "switches a public panel back to private" do
+      panel = described_class.open!(chat_session: chat_session, title: "Widget preview", files: {})
+      described_class.new(panel).update_visibility!("public")
+
+      described_class.new(panel).update_visibility!("private")
+
+      expect(panel.reload.visibility).to eq("private")
+    end
+
+    it "broadcasts a live update" do
+      panel = described_class.open!(chat_session: chat_session, title: "Widget preview", files: {})
+
+      expect(AppEvents).to receive(:broadcast).with(hash_including(changed: [ "preview_panels" ]))
+
+      described_class.new(panel).update_visibility!("public")
+    end
+
+    it "rejects an invalid visibility" do
+      panel = described_class.open!(chat_session: chat_session, title: "Widget preview", files: {})
+
+      expect { described_class.new(panel).update_visibility!("unlisted") }.to raise_error(ActiveRecord::RecordInvalid)
+    end
+  end
 end
