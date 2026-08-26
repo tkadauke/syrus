@@ -12,6 +12,47 @@ RSpec.describe Repository do
     expect(repo.agent_provider).to be_nil
   end
 
+  describe "poll status tracking" do
+    let(:repo) { Repository.create!(user: owner, owner: "acme", name: "widgets") }
+
+    it "keeps a healthy poll status visible when a new poll starts" do
+      repo.update_columns(last_poll_status: "ok", last_poll_error: nil)
+
+      expect {
+        repo.mark_poll_started!
+      }.not_to change { repo.reload.last_poll_status }
+
+      expect(repo.last_poll_status).to eq("ok")
+      expect(repo.last_poll_started_at).to be_present
+    end
+
+    it "clears a failed poll status when a new poll starts" do
+      repo.update_columns(last_poll_status: "failed", last_poll_error: "old error")
+
+      repo.mark_poll_started!
+
+      expect(repo.reload.last_poll_status).to be_nil
+      expect(repo.last_poll_error).to be_nil
+    end
+
+    it "skips redundant successful poll writes" do
+      repo.update_columns(last_poll_status: "ok", last_poll_error: nil)
+
+      expect {
+        repo.mark_poll_success!
+      }.not_to change { repo.reload.attributes.slice("last_poll_status", "last_poll_error") }
+    end
+
+    it "records success after a prior failed poll" do
+      repo.update_columns(last_poll_status: "failed", last_poll_error: "old error")
+
+      repo.mark_poll_success!
+
+      expect(repo.reload.last_poll_status).to eq("ok")
+      expect(repo.last_poll_error).to be_nil
+    end
+  end
+
   it "allows a repository-level default agent override" do
     repo = Repository.create!(user: owner, owner: "acme", name: "widgets", agent_provider: "codex")
     expect(repo.agent_provider).to eq("codex")

@@ -15,7 +15,7 @@ class PollRepositoryJob < ApplicationJob
 
     previous_poll_started_at = repository.last_poll_started_at
     incremental_since = force ? nil : previous_poll_started_at
-    repository.update_columns(last_poll_started_at: Time.current, last_poll_status: nil, last_poll_error: nil)
+    repository.mark_poll_started!
 
     begin
       client = GithubClient.for(repository: repository, user: repository.user)
@@ -31,9 +31,9 @@ class PollRepositoryJob < ApplicationJob
       update_untagged_open_issue_count!(repository, client)
 
       log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
-      repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
+      repository.mark_poll_success!
     rescue => e
-      repository.update_columns(last_poll_status: "failed", last_poll_error: e.message)
+      repository.mark_poll_failure!(e.message)
       raise
     end
   end

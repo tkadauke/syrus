@@ -6,11 +6,7 @@ module InputSources
       return if repository.archived?
       return unless polling_enabled?
 
-      repository.update_columns(
-        last_poll_started_at: Time.current,
-        last_poll_status: nil,
-        last_poll_error: nil
-      )
+      repository.mark_poll_started!
 
       begin
         client = GithubClient.for(repository: repository, user: user)
@@ -22,9 +18,9 @@ module InputSources
         close_jobs_for_closed_issues!(closed_issues)
         InputSources::PendingWorkWakeup.call(repository)
 
-        repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
+        repository.mark_poll_success!
       rescue => e
-        repository.update_columns(last_poll_status: "failed", last_poll_error: e.message)
+        repository.mark_poll_failure!(e.message)
         raise
       ensure
         clear_ingest_caches

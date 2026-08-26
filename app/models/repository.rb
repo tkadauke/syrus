@@ -115,6 +115,31 @@ class Repository < ApplicationRecord
     archived_at.present?
   end
 
+  def mark_poll_started!(at: Time.current)
+    attrs = { last_poll_started_at: at }
+    if last_poll_status == "failed" || last_poll_error.present?
+      attrs[:last_poll_status] = nil
+      attrs[:last_poll_error] = nil
+    end
+    update_columns(attrs)
+    assign_attributes(attrs)
+  end
+
+  def mark_poll_success!
+    return if last_poll_status == "ok" && last_poll_error.blank?
+
+    update_columns(last_poll_status: "ok", last_poll_error: nil)
+    assign_attributes(last_poll_status: "ok", last_poll_error: nil)
+  end
+
+  def mark_poll_failure!(error)
+    message = error.to_s
+    return if last_poll_status == "failed" && last_poll_error == message
+
+    update_columns(last_poll_status: "failed", last_poll_error: message)
+    assign_attributes(last_poll_status: "failed", last_poll_error: message)
+  end
+
   def main_health
     return "unknown" unless main_branch_health_enabled?
     return "broken" if ci_health_broken? || grader_health_broken?

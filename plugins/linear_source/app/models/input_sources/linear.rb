@@ -5,11 +5,7 @@ module InputSources
     def poll!
       return unless polling_enabled?
 
-      repository.update_columns(
-        last_poll_started_at: Time.current,
-        last_poll_status: nil,
-        last_poll_error: nil
-      )
+      repository.mark_poll_started!
 
       begin
         api_key = credentials&.dig("api_key").to_s
@@ -23,16 +19,16 @@ module InputSources
 
         if issues.nil?
           Rails.logger.warn("[InputSources::Linear] #{repository.slug} rate limited; skipping poll")
-          repository.update_columns(last_poll_status: "ok")
+          repository.mark_poll_success!
           return
         end
 
         issues.each { |issue| ingest(issue) }
         InputSources::PendingWorkWakeup.call(repository)
 
-        repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
+        repository.mark_poll_success!
       rescue => e
-        repository.update_columns(last_poll_status: "failed", last_poll_error: e.message)
+        repository.mark_poll_failure!(e.message)
         raise
       end
     end
