@@ -59,14 +59,14 @@ export function MysqlConnections() {
 
   if (browsing) {
     return (
-      <main aria-label={t("aria_page")} className="mx-auto max-w-6xl space-y-6 p-6">
+      <main aria-label={t("aria_page")} className="mx-auto max-w-[96rem] space-y-6 p-6">
         <SchemaBrowser connectionId={browsing.connectionId} label={browsing.label} onBack={() => setBrowsing(null)} />
       </main>
     )
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-5xl space-y-6 p-6">
+    <main aria-label={t("aria_page")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p>
@@ -561,7 +561,7 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
                 </ul>
               </nav>
 
-              <div className="min-h-[200px] rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+              <div className="min-h-[200px] min-w-0 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 {selected ? (
                   <div>
                     <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
