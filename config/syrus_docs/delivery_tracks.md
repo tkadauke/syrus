@@ -2,7 +2,7 @@
 
 Delivery tracks let a repository declare its own branching model — a single strict branch, a development/release split, a hotfix track, or an upstream-export posture for forks — in a shared, non-personal `.syrus.yml` block, instead of every workflow special-casing branch names. See `docs/plans/delivery-tracks-and-promotion.md` for the full design and Story-by-Story rationale; this document tracks only what's actually implemented.
 
-This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below) — that's the only runtime caller so far. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` is still unwired; later Jobs in the Epic cover that.
+This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below). Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` is still unwired; later Jobs in the Epic cover that.
 
 ## `.syrus.yml` shape
 
@@ -111,6 +111,8 @@ None of these surfaces validate the value against the repository's configured tr
 
 `JobStackBase#effective_base_branch` (`app/models/concerns/job_stack_base.rb`) is the first runtime caller: once its `target_branch` override, `stack_base: main` override, and open stack/dependency parent checks are all exhausted, its final fallback calls `DeliveryPolicy.for(repository: base_repository).job_landing_branch(job)` instead of `base_default_branch` directly. `target_branch` is not removed and still short-circuits first — it remains the explicit, unconditional per-Job branch override; `delivery_track` only applies once every other resolution path has nothing to say. Because `effective_base_branch` feeds PR base-branch resolution (`PullRequestOpener`), rebase targeting, and workspace checkout across the codebase, this one change point is what actually lands a track-selected Job against its track's branch.
 
+`WorkDefinitions.landing_lock_key_for(job)` (`app/services/work_definitions.rb`) is the second runtime caller — see "Landing queue integration" below.
+
 ## `approval:` block (Story 7: owner + peer local approval)
 
 `approval:` is optional and independent of `delivery:` — a repository can configure one, both, or neither. Omitting it entirely means "use current approval behavior" (the repository's existing `review_policy` — `self`/`two_person`/`final_say`, see `ReviewPolicies`), not some new default.
@@ -131,9 +133,12 @@ approval:
 
 A peer approval only counts toward `peer_count` when that peer has repository access on this Syrus instance — a `RepositoryMembership` row for that user on the repository (any role). An approval from a user who has since lost access doesn't count, mirroring the collaborator-access check `ChatAttachment` already uses.
 
-`DeliveryPolicy` exposes two additional methods built from this config:
+`DeliveryPolicy` exposes three additional methods built from this config:
 
 ```ruby
+policy.approval_configured?
+# true once the repository has an approval: block at all (any sub-key); false when absent
+
 policy.job_approval_satisfied?(job)
 # No approval.job block at all -> job.approval_satisfied? (existing ReviewPolicies::REGISTRY lookup by repository.review_policy)
 # approval.job configured        -> owner approval (if required) AND at least peer_count eligible peer approvals
@@ -143,4 +148,11 @@ policy.requires_operator_approval_for_promotion?
 # approval.promotion absent                             -> falls back to delivery.promotion.approval_required
 ```
 
-Neither method is wired into any actual landing/approval gate yet — that happens in a later EPIC-268 Job (`landing-queue-track-approval-gating`).
+`job_approval_satisfied?` is wired into the landing gate — see "Landing queue integration" below. `requires_operator_approval_for_promotion?` is not wired into any gate yet; that lands with the promotion ref-movement workflow later in the Epic.
+
+## Landing queue integration
+
+`LandingQueueProcessor` (`app/services/landing_queue_processor.rb`) generalizes both its per-slot landing lock and its approval re-check to be delivery-track-aware, per Job:
+
+- **Per-slot lock.** `WorkDefinitions.landing_lock_key_for(job)` (also used by `WorkDefinitions::Base#lock_keys_for`, so the actual `WorkUnitLock` rows agree with `LandingQueueProcessor`'s own in-progress checks) resolves `DeliveryPolicy#job_landing_branch(job)` and keys the landing slot by branch instead of bare `repository_id`. When the resolved branch equals `Repository#default_branch` — true for every repository that only has the implicit `default` track, and for any job whose track happens to target the actual default branch — the key is the unchanged, unsuffixed `"landing:repository:<id>"`; only a job resolving to some other branch gets a `":branch:<branch>"`-suffixed key. A `hotfix` track landing straight to `main` and a `default` track landing to `develop` therefore hold distinct locks and land concurrently; two Jobs resolving to the same branch still serialize through the same lock, exactly as before this change.
+- **Approval gate.** `LandingQueueProcessor#try_land!`'s pre-existing approval re-check (guarding against a final approver being removed, or similar, after a Job reached `:approved`) now asks `DeliveryPolicy#job_approval_satisfied?(job)` whenever the repository's `approval:` block is configured (`policy.approval_configured?`), regardless of whether the Job has any `job_approvals` rows — a configured owner/peer policy is enforced even for Jobs that reached `:approved` through a path that never recorded a `JobApproval`. Repositories with no `approval:` block keep the exact previous behavior: the gate only runs (`job.approval_satisfied?`) when `job_approvals` rows exist at all, and auto-approved Jobs (no rows) bypass it by design.

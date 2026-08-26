@@ -205,6 +205,31 @@ RSpec.describe DeliveryPolicy do
     end
   end
 
+  describe "#approval_configured?" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "is false when there is no bare clone at all" do
+      expect(policy.approval_configured?).to be(false)
+    end
+
+    it "is false when .syrus.yml has no approval: block" do
+      write_bare_clone(repo)
+
+      expect(policy.approval_configured?).to be(false)
+    end
+
+    it "is true once an approval: block is present" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        approval:
+          job:
+            required:
+              owner: true
+      YAML
+
+      expect(policy.approval_configured?).to be(true)
+    end
+  end
+
   describe "#job_approval_satisfied? (Story 7: owner + peer approval)" do
     let(:owner) { user }
     let(:peer) { Factories.user }
