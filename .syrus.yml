@@ -40,6 +40,8 @@ visual_review:
   when_files_changed:
     - "app/frontend/**/*"
     - "app/views/**/*"
+    - "plugins/**/app/frontend/**/*"
+    - "plugins/**/app/views/**/*"
   seed_notes: |
     Log in as demo@syrus.local / password. Dashboard, Job/Epic detail,
     and chat are seeded. Live-updating panels (Job/Workflow progress,

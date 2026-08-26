@@ -242,6 +242,45 @@ RSpec.describe Steps::VisualReview do
     end
   end
 
+  context "when when_files_changed includes the plugin frontend globs and the diff is plugin-only (JOB-3662 regression)" do
+    before do
+      allow(handler.send(:workspace)).to receive(:base_ref).and_return("origin/main")
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+        SyrusYml::Config.new(
+          prepare: nil, grade: nil, hooks: nil, adversarial_review: nil, agent_insight: nil,
+          coverage: nil, formatters: [], generated: [], deployment_stages: [], preview: nil, review_plan: false, deploy: nil,
+          visual_review: SyrusYml::VisualReviewConfig.new(
+            enabled: true, rounds: 1,
+            when_files_changed: [
+              "app/frontend/**/*",
+              "app/views/**/*",
+              "plugins/**/app/frontend/**/*",
+              "plugins/**/app/views/**/*"
+            ],
+            seed_notes: nil
+          )
+        )
+      )
+      allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner).tap do |git|
+        allow(git).to receive(:run).with("diff", "--name-only", anything, chdir: "/tmp/workspace")
+                                    .and_return(
+                                      "plugins/mysql_db_browser/app/frontend/routes/DbBrowser.tsx\n" \
+                                      "plugins/mysql_db_browser/app/frontend/components/TablesPanel.tsx\n"
+                                    )
+      end)
+    end
+
+    it "invokes the agent instead of skipping via the pre-filter" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        workflow.set_artifact!("visual_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+  end
+
   context "in a pr_comment feedback workflow" do
     let(:user) { Factories.user(github_token: "ghp_test") }
     let(:repository) { Factories.repository(user: user) }
