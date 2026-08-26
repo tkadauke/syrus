@@ -152,6 +152,35 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     )
   end
 
+  it "labels slow phase summaries from fallback fields when durable events lack phase" do
+    sign_in_as(admin)
+    PerformanceLogging::Store.append(
+      "event_name" => PerformanceLogging::SLOW_PHASE_EVENT,
+      "name" => "plugin.agent_provider.invoke_one_shot",
+      "duration_ms" => 650.0,
+      "metadata" => { "extension_point" => "agent_provider", "operation" => "invoke_one_shot" },
+      "occurred_at" => "2026-08-01T12:00:05Z",
+      "app_revision" => "new-sha"
+    )
+    PerformanceLogging::Store.append(
+      "event" => PerformanceLogging::SLOW_PHASE_EVENT,
+      "duration_ms" => 600.0,
+      "metadata" => { "extension_point" => "mcp_tool_set", "op" => "browser_navigate" },
+      "occurred_at" => "2026-08-01T12:00:06Z",
+      "app_revision" => "new-sha"
+    )
+
+    get "/api/v1/app/admin/performance"
+
+    expect(response).to have_http_status(:ok)
+    phases = parse_body.dig("summaries", "slow_phases").map { |row| row["phase"] }
+    expect(phases).to include(
+      "plugin.agent_provider.invoke_one_shot",
+      "plugin.mcp_tool_set.browser_navigate"
+    )
+    expect(phases).not_to include(nil, "")
+  end
+
   it "does not synchronously flush performance events while rendering diagnostics" do
     sign_in_as(admin)
     allow(PerformanceLogging::Store).to receive(:flush!).and_call_original

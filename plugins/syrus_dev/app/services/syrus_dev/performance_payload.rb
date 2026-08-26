@@ -193,7 +193,7 @@ module SyrusDev
     end
 
     def grouped_slow_requests(events)
-      grouped = events.select { |event| event["event"] == PerformanceLogging::SLOW_REQUEST_EVENT }
+      grouped = events.select { |event| event_type(event) == PerformanceLogging::SLOW_REQUEST_EVENT }
         .group_by { |event| [ event["method"], event["path"], event["controller"], event["action"] ] }
 
       grouped.map do |(method, path, controller, action), rows|
@@ -215,7 +215,7 @@ module SyrusDev
     end
 
     def grouped_slow_jobs(events)
-      grouped = events.select { |event| event["event"] == PerformanceLogging::SLOW_JOB_EVENT }
+      grouped = events.select { |event| event_type(event) == PerformanceLogging::SLOW_JOB_EVENT }
         .group_by { |event| [ event["job_class"], event["queue_name"] ] }
 
       grouped.map do |(job_class, queue_name), rows|
@@ -238,8 +238,8 @@ module SyrusDev
     end
 
     def grouped_slow_phases(events)
-      grouped = events.select { |event| event["event"] == PerformanceLogging::SLOW_PHASE_EVENT }
-        .group_by { |event| event["phase"] }
+      grouped = events.select { |event| event_type(event) == PerformanceLogging::SLOW_PHASE_EVENT }
+        .group_by { |event| phase_label(event) }
 
       grouped.map do |phase, rows|
         durations = rows.map { |event| event["duration_ms"].to_f }
@@ -256,7 +256,7 @@ module SyrusDev
     end
 
     def grouped_browser_traces(events)
-      grouped = events.select { |event| event["event"] == PerformanceLogging::BROWSER_TRACE_EVENT }
+      grouped = events.select { |event| event_type(event) == PerformanceLogging::BROWSER_TRACE_EVENT }
         .group_by { |event| [ event["name"], event["path"] ] }
 
       grouped.map do |(name, path), rows|
@@ -287,7 +287,7 @@ module SyrusDev
     def grouped_sql_fingerprints(events)
       rows = []
       events.each do |event|
-        if event["event"] == PerformanceLogging::SLOW_SQL_EVENT && event["fingerprint"].present?
+        if event_type(event) == PerformanceLogging::SLOW_SQL_EVENT && event["fingerprint"].present?
           rows << {
             "fingerprint" => event["fingerprint"],
             "sample_sql" => event["sql"],
@@ -321,6 +321,34 @@ module SyrusDev
       return nil if values.empty?
 
       (values.sum.to_f / values.size).round(1)
+    end
+
+    def event_type(event)
+      event["event"].presence || event["event_name"].presence
+    end
+
+    def phase_label(event)
+      event["phase"].presence ||
+        event["name"].presence ||
+        metadata_value(event, "phase") ||
+        metadata_value(event, "name") ||
+        plugin_phase_label(event) ||
+        "(unknown phase)"
+    end
+
+    def metadata_value(event, key)
+      metadata = event["metadata"]
+      return unless metadata.respond_to?(:[])
+
+      metadata[key].presence || metadata[key.to_sym].presence
+    end
+
+    def plugin_phase_label(event)
+      extension_point = metadata_value(event, "extension_point")
+      operation = metadata_value(event, "operation") || metadata_value(event, "op")
+      return unless extension_point.present? && operation.present?
+
+      "plugin.#{extension_point}.#{operation}"
     end
   end
 end
