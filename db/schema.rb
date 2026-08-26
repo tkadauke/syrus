@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_154000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2040,6 +2040,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_150000) do
     t.index ["kind", "state", "finished_at", "workflow_id"], name: "idx_steps_throughput_kind_state_finished"
     t.index ["kind", "workflow_id"], name: "idx_steps_kind_workflow_id"
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
+    t.index ["state", "workflow_id", "id"], name: "idx_steps_state_workflow_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
