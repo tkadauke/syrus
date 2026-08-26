@@ -189,6 +189,18 @@ class DeliveryPolicy
     maintainer_count.positive?
   end
 
+  # Whether `PrProvenanceClassifier` should classify ingested external PRs
+  # at all (`external_prs.ingest.enabled`), per
+  # docs/plans/delivery-tracks-and-promotion.md Story 10. Absent
+  # `external_prs:` config, or `enabled: false`, means every ingested PR
+  # stays `external_unknown` — the exact behavior `Workflows::ExternalPrIngest`
+  # had before this classification existed. Reuses this object's own cached
+  # `config` (the full parsed `.syrus.yml`, not just the `delivery:` block)
+  # instead of a separate policy class re-reading the bare clone.
+  def external_pr_ingest_classification_enabled?
+    config.external_prs&.ingest&.enabled || false
+  end
+
   private
 
   def owner_approved?(job)
