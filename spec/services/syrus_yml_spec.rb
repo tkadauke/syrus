@@ -1294,4 +1294,381 @@ RSpec.describe SyrusYml do
       }.to raise_error(SyrusYml::ParseError, /deploy\.min_interval_minutes: must be a positive integer/)
     end
   end
+
+  describe "delivery: key" do
+    describe "backward-compatible default (no delivery: section)" do
+      it "normalizes to one default track with no explicit branch, review/landing/ci/ci grade phases, and everything else disabled" do
+        config = parse("grade: []")
+
+        expect(config.raw_delivery).to be_nil
+        expect(config.delivery.tracks.keys).to eq([ "default" ])
+
+        default_track = config.delivery.tracks.fetch("default")
+        expect(default_track.name).to eq("default")
+        expect(default_track.branch).to be_nil
+        expect(default_track.review_grade_phase).to eq("review")
+        expect(default_track.landing_grade_phase).to eq("landing")
+        expect(default_track.ci_failure_grade_phase).to eq("ci")
+        expect(default_track.branch_health_grade_phase).to eq("ci")
+        expect(default_track.after_landing_sync_to).to be_nil
+
+        expect(config.delivery.promotion.enabled).to be(false)
+        expect(config.delivery.hotfix_sync.enabled).to be(false)
+        expect(config.delivery.upstream_export.enabled).to be(false)
+        expect(config.delivery.ref_movement_actions).to eq({})
+      end
+    end
+
+    describe "tracks" do
+      it "parses an explicit tracks block, defaulting omitted grade phases" do
+        config = parse(<<~YAML)
+          delivery:
+            tracks:
+              default:
+                branch: develop
+                grade_phases:
+                  review: review_minimal
+                  landing: landing_minimal
+              hotfix:
+                branch: main
+                grade_phases:
+                  review: review_minimal
+                  landing: promotion
+                after_landing:
+                  sync_to: default
+        YAML
+
+        expect(config.raw_delivery.tracks.keys).to eq(%w[default hotfix])
+
+        default_track = config.delivery.tracks.fetch("default")
+        expect(default_track.branch).to eq("develop")
+        expect(default_track.review_grade_phase).to eq("review_minimal")
+        expect(default_track.landing_grade_phase).to eq("landing_minimal")
+        expect(default_track.ci_failure_grade_phase).to eq("ci")
+        expect(default_track.branch_health_grade_phase).to eq("ci")
+
+        hotfix_track = config.delivery.tracks.fetch("hotfix")
+        expect(hotfix_track.branch).to eq("main")
+        expect(hotfix_track.landing_grade_phase).to eq("promotion")
+        expect(hotfix_track.after_landing_sync_to).to eq("default")
+      end
+
+      it "requires a delivery: section's explicit tracks to include a default track" do
+        expect {
+          parse("delivery:\n  tracks:\n    hotfix:\n      branch: main\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.tracks: must include a "default" track/)
+      end
+
+      it "rejects a non-mapping tracks value" do
+        expect {
+          parse("delivery:\n  tracks: nope\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.tracks: must be a mapping/)
+      end
+
+      it "rejects a non-mapping track entry" do
+        expect {
+          parse("delivery:\n  tracks:\n    default: nope\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.tracks\.default: must be a mapping/)
+      end
+
+      it "rejects a track name with invalid characters" do
+        expect {
+          parse("delivery:\n  tracks:\n    \"bad name\":\n      branch: main\n    default:\n      branch: main\n")
+        }.to raise_error(SyrusYml::ParseError, /name must match/)
+      end
+
+      it "rejects a non-mapping grade_phases value" do
+        expect {
+          parse("delivery:\n  tracks:\n    default:\n      grade_phases: nope\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.tracks\.default\.grade_phases: must be a mapping/)
+      end
+
+      it "rejects a non-mapping after_landing value" do
+        expect {
+          parse("delivery:\n  tracks:\n    default:\n      after_landing: nope\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.tracks\.default\.after_landing: must be a mapping/)
+      end
+
+      it "defaults a track's branch to nil when omitted, for DeliveryPolicy to resolve from the repository" do
+        config = parse("delivery:\n  tracks:\n    default: {}\n")
+
+        expect(config.delivery.tracks.fetch("default").branch).to be_nil
+      end
+    end
+
+    describe "promotion" do
+      it "parses a full promotion block" do
+        config = parse(<<~YAML)
+          delivery:
+            promotion:
+              enabled: true
+              mode: auto_pr
+              approval_required: false
+              grade_phases: [promotion]
+              repair_skill: integrate_release_branch
+        YAML
+
+        expect(config.delivery.promotion.enabled).to be(true)
+        expect(config.delivery.promotion.mode).to eq("auto_pr")
+        expect(config.delivery.promotion.approval_required).to be(false)
+        expect(config.delivery.promotion.grade_phases).to eq([ "promotion" ])
+        expect(config.delivery.promotion.repair_skill).to eq("integrate_release_branch")
+      end
+
+      it "defaults mode to auto_pr and enabled/approval_required to false" do
+        config = parse("delivery:\n  promotion: {}\n")
+
+        expect(config.delivery.promotion.enabled).to be(false)
+        expect(config.delivery.promotion.mode).to eq("auto_pr")
+        expect(config.delivery.promotion.approval_required).to be(false)
+        expect(config.delivery.promotion.grade_phases).to eq([])
+      end
+
+      it "accepts a single grade_phases string" do
+        config = parse("delivery:\n  promotion:\n    grade_phases: promotion\n")
+
+        expect(config.delivery.promotion.grade_phases).to eq([ "promotion" ])
+      end
+
+      it "rejects a non-mapping promotion value" do
+        expect {
+          parse("delivery:\n  promotion: true\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.promotion: must be a mapping/)
+      end
+
+      it "rejects an invalid promotion mode" do
+        expect {
+          parse("delivery:\n  promotion:\n    mode: whenever\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.promotion\.mode: must be one of direct, auto_pr, manual_pr/)
+      end
+    end
+
+    describe "hotfix_sync" do
+      it "parses a full hotfix_sync block" do
+        config = parse(<<~YAML)
+          delivery:
+            hotfix_sync:
+              enabled: true
+              direction: release_to_development
+              mode: auto
+              grade_phases: [promotion]
+              repair_skill: backport_release_hotfix
+        YAML
+
+        expect(config.delivery.hotfix_sync.enabled).to be(true)
+        expect(config.delivery.hotfix_sync.direction).to eq("release_to_development")
+        expect(config.delivery.hotfix_sync.mode).to eq("auto")
+        expect(config.delivery.hotfix_sync.grade_phases).to eq([ "promotion" ])
+        expect(config.delivery.hotfix_sync.repair_skill).to eq("backport_release_hotfix")
+      end
+
+      it "defaults direction to release_to_development and mode to auto" do
+        config = parse("delivery:\n  hotfix_sync:\n    enabled: true\n")
+
+        expect(config.delivery.hotfix_sync.direction).to eq("release_to_development")
+        expect(config.delivery.hotfix_sync.mode).to eq("auto")
+      end
+
+      it "rejects a non-mapping hotfix_sync value" do
+        expect {
+          parse("delivery:\n  hotfix_sync: true\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.hotfix_sync: must be a mapping/)
+      end
+
+      it "rejects an invalid direction" do
+        expect {
+          parse("delivery:\n  hotfix_sync:\n    direction: sideways\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.hotfix_sync\.direction: must be one of release_to_development/)
+      end
+
+      it "rejects an invalid mode" do
+        expect {
+          parse("delivery:\n  hotfix_sync:\n    mode: whenever\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.hotfix_sync\.mode: must be one of auto, auto_pr, manual_pr/)
+      end
+    end
+
+    describe "upstream_export" do
+      it "parses a full upstream_export block" do
+        config = parse(<<~YAML)
+          delivery:
+            upstream_export:
+              enabled: true
+              mode: per_job_pr
+              after_local_approval: true
+              target: upstream_intake
+        YAML
+
+        expect(config.delivery.upstream_export.enabled).to be(true)
+        expect(config.delivery.upstream_export.mode).to eq("per_job_pr")
+        expect(config.delivery.upstream_export.after_local_approval).to be(true)
+        expect(config.delivery.upstream_export.target).to eq("upstream_intake")
+      end
+
+      it "defaults mode to per_job_pr and after_local_approval to true" do
+        config = parse("delivery:\n  upstream_export:\n    enabled: true\n")
+
+        expect(config.delivery.upstream_export.mode).to eq("per_job_pr")
+        expect(config.delivery.upstream_export.after_local_approval).to be(true)
+      end
+
+      it "rejects a non-mapping upstream_export value" do
+        expect {
+          parse("delivery:\n  upstream_export: true\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.upstream_export: must be a mapping/)
+      end
+
+      it "rejects an invalid mode" do
+        expect {
+          parse("delivery:\n  upstream_export:\n    mode: telepathy\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.upstream_export\.mode: must be one of per_job_pr, branch_pr/)
+      end
+    end
+
+    describe "ref_movement_actions" do
+      it "parses a full ref_movement_actions block" do
+        config = parse(<<~YAML)
+          delivery:
+            ref_movement_actions:
+              send_job_upstream:
+                enabled: true
+                source: { kind: job_branch }
+                target: { kind: upstream_intake }
+                mode: manual_pr
+                grade_phases: [promotion]
+              promote_development:
+                enabled: true
+                source: { kind: track, name: default }
+                target: { kind: branch, name: main }
+                mode: auto_pr
+        YAML
+
+        actions = config.delivery.ref_movement_actions
+        expect(actions.keys).to eq(%w[send_job_upstream promote_development])
+
+        send_job_upstream = actions.fetch("send_job_upstream")
+        expect(send_job_upstream.enabled).to be(true)
+        expect(send_job_upstream.source).to eq(described_class::DeliveryRefEndpoint.new(kind: "job_branch", name: nil))
+        expect(send_job_upstream.target).to eq(described_class::DeliveryRefEndpoint.new(kind: "upstream_intake", name: nil))
+        expect(send_job_upstream.mode).to eq("manual_pr")
+        expect(send_job_upstream.grade_phases).to eq([ "promotion" ])
+
+        promote_development = actions.fetch("promote_development")
+        expect(promote_development.source).to eq(described_class::DeliveryRefEndpoint.new(kind: "track", name: "default"))
+        expect(promote_development.target).to eq(described_class::DeliveryRefEndpoint.new(kind: "branch", name: "main"))
+      end
+
+      it "defaults enabled to false when omitted" do
+        config = parse(<<~YAML)
+          delivery:
+            ref_movement_actions:
+              send_job_upstream:
+                source: { kind: job_branch }
+                target: { kind: upstream_intake }
+                mode: manual_pr
+        YAML
+
+        expect(config.delivery.ref_movement_actions.fetch("send_job_upstream").enabled).to be(false)
+      end
+
+      it "rejects a non-mapping ref_movement_actions value" do
+        expect {
+          parse("delivery:\n  ref_movement_actions: nope\n")
+        }.to raise_error(SyrusYml::ParseError, /delivery\.ref_movement_actions: must be a mapping/)
+      end
+
+      it "rejects an action missing mode" do
+        expect {
+          parse(<<~YAML)
+            delivery:
+              ref_movement_actions:
+                send_job_upstream:
+                  source: { kind: job_branch }
+                  target: { kind: upstream_intake }
+          YAML
+        }.to raise_error(SyrusYml::ParseError, /send_job_upstream\.mode: is required/)
+      end
+
+      it "rejects an action with an invalid mode" do
+        expect {
+          parse(<<~YAML)
+            delivery:
+              ref_movement_actions:
+                send_job_upstream:
+                  source: { kind: job_branch }
+                  target: { kind: upstream_intake }
+                  mode: telepathically
+          YAML
+        }.to raise_error(SyrusYml::ParseError, /send_job_upstream\.mode: must be one of direct, auto_pr, manual_pr/)
+      end
+
+      it "rejects an action missing a source" do
+        expect {
+          parse(<<~YAML)
+            delivery:
+              ref_movement_actions:
+                send_job_upstream:
+                  target: { kind: upstream_intake }
+                  mode: manual_pr
+          YAML
+        }.to raise_error(SyrusYml::ParseError, /send_job_upstream\.source: is required/)
+      end
+
+      it "rejects a source/target missing a kind" do
+        expect {
+          parse(<<~YAML)
+            delivery:
+              ref_movement_actions:
+                send_job_upstream:
+                  source: { name: default }
+                  target: { kind: upstream_intake }
+                  mode: manual_pr
+          YAML
+        }.to raise_error(SyrusYml::ParseError, /send_job_upstream\.source\.kind: is required/)
+      end
+    end
+
+    it "rejects a non-mapping delivery value" do
+      expect {
+        parse("delivery: true\n")
+      }.to raise_error(SyrusYml::ParseError, /delivery: must be a mapping/)
+    end
+
+    it "parses the full Story 2 example from the delivery tracks plan" do
+      config = parse(<<~YAML)
+        delivery:
+          tracks:
+            default:
+              branch: develop
+              grade_phases:
+                review: review_minimal
+                landing: landing_minimal
+            hotfix:
+              branch: main
+              grade_phases:
+                review: review_minimal
+                landing: promotion
+              after_landing:
+                sync_to: default
+
+          promotion:
+            enabled: true
+            mode: auto_pr
+            approval_required: false
+            repair_skill: integrate_release_branch
+
+          hotfix_sync:
+            enabled: true
+            direction: release_to_development
+            mode: auto
+            repair_skill: backport_release_hotfix
+      YAML
+
+      expect(config.delivery.tracks.keys).to eq(%w[default hotfix])
+      expect(config.delivery.promotion.enabled).to be(true)
+      expect(config.delivery.hotfix_sync.enabled).to be(true)
+      expect(config.delivery.upstream_export.enabled).to be(false)
+      expect(config.delivery.ref_movement_actions).to eq({})
+    end
+  end
 end
