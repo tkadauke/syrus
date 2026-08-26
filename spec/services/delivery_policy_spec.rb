@@ -546,4 +546,72 @@ RSpec.describe DeliveryPolicy do
       expect(policy.external_pr_ingest_classification_enabled?).to be(true)
     end
   end
+
+  describe "#tracks" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "resolves a blank track branch to the repository default branch" do
+      expect(policy.tracks.keys).to eq(%w[default])
+      expect(policy.tracks.fetch("default").branch).to eq("main")
+    end
+
+    it "includes every configured track, each with its own resolved branch" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          tracks:
+            default:
+              branch: develop
+            hotfix:
+              branch: main
+      YAML
+
+      expect(policy.tracks.keys).to contain_exactly("default", "hotfix")
+      expect(policy.tracks.fetch("default").branch).to eq("develop")
+      expect(policy.tracks.fetch("hotfix").branch).to eq("main")
+    end
+  end
+
+  describe "#ref_movement_actions, #ref_movement_action_config, #ref_movement_action_enabled?" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "is empty with no bare clone or ref_movement_actions configured" do
+      expect(policy.ref_movement_actions).to eq({})
+      expect(policy.ref_movement_action_config("send_job_upstream")).to be_nil
+      expect(policy.ref_movement_action_enabled?("send_job_upstream")).to be(false)
+    end
+
+    it "resolves a configured, enabled action" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          ref_movement_actions:
+            send_job_upstream:
+              enabled: true
+              source: { kind: job_branch }
+              target: { kind: upstream_intake }
+              mode: manual_pr
+              grade_phases: [promotion]
+      YAML
+
+      config = policy.ref_movement_action_config("send_job_upstream")
+      expect(config.enabled).to be(true)
+      expect(config.mode).to eq("manual_pr")
+      expect(config.grade_phases).to eq(%w[promotion])
+      expect(policy.ref_movement_action_enabled?("send_job_upstream")).to be(true)
+    end
+
+    it "reports an explicitly-disabled action as not enabled" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          ref_movement_actions:
+            send_job_upstream:
+              enabled: false
+              source: { kind: job_branch }
+              target: { kind: upstream_intake }
+              mode: manual_pr
+      YAML
+
+      expect(policy.ref_movement_action_config("send_job_upstream")).to be_present
+      expect(policy.ref_movement_action_enabled?("send_job_upstream")).to be(false)
+    end
+  end
 end

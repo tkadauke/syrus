@@ -2,7 +2,7 @@
 
 Delivery tracks let a repository declare its own branching model — a single strict branch, a development/release split, a hotfix track, or an upstream-export posture for forks — in a shared, non-personal `.syrus.yml` block, instead of every workflow special-casing branch names. See `docs/plans/delivery-tracks-and-promotion.md` for the full design and Story-by-Story rationale; this document tracks only what's actually implemented.
 
-This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below); a fifth Job added the `JobPrLink` model (see "`JobPrLink`" below) as the durable foundation the promotion/hotfix-sync/upstream-export Jobs later in this Epic persist their PR links to; a sixth Job added `DeliveryStatus` (see "`DeliveryStatus` (apparent delivery status)" below), the first reader of `JobPrLink`, deriving a Job's UI-facing delivery status from delivery facts instead of a new AASM state; a seventh Job added `Workflows::Promotion` (see "Promotion workflow" below), the first ref-movement workflow and the first consumer of the `promotion` grade phase; an eighth Job added `Workflows::HotfixSync` and its detection poller (see "Hotfix sync workflow" below), the reverse `main -> develop` ref-movement workflow; a ninth Job added `Workflows::UpstreamExport` (see "Upstream export workflow" below), Story 8/9's per-job `b/foo -> a/foo` ref-movement workflow, and stopped routing new Jobs into fork-review mode wherever a repository has opted into it; a tenth Job added Story 10's PR-provenance classification (see "PR ingestion classification" below), the first reader of `JobPrLink`'s `external_ingest` role and the first writer of `PrProvenanceMarker` PR-body markers. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` (per-track, not promotion's/hotfix-sync's) is still unwired; later Jobs in the Epic cover that.
+This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below); a fifth Job added the `JobPrLink` model (see "`JobPrLink`" below) as the durable foundation the promotion/hotfix-sync/upstream-export Jobs later in this Epic persist their PR links to; a sixth Job added `DeliveryStatus` (see "`DeliveryStatus` (apparent delivery status)" below), the first reader of `JobPrLink`, deriving a Job's UI-facing delivery status from delivery facts instead of a new AASM state; a seventh Job added `Workflows::Promotion` (see "Promotion workflow" below), the first ref-movement workflow and the first consumer of the `promotion` grade phase; an eighth Job added `Workflows::HotfixSync` and its detection poller (see "Hotfix sync workflow" below), the reverse `main -> develop` ref-movement workflow; a ninth Job added `Workflows::UpstreamExport` (see "Upstream export workflow" below), Story 8/9's per-job `b/foo -> a/foo` ref-movement workflow, and stopped routing new Jobs into fork-review mode wherever a repository has opted into it; a tenth Job added Story 10's PR-provenance classification (see "PR ingestion classification" below), the first reader of `JobPrLink`'s `external_ingest` role and the first writer of `PrProvenanceMarker` PR-body markers; an eleventh Job added Story 11's `RefMovementAction` audit model and `send_job_upstream`/`submit_branch_upstream` ref-movement actions (see "Ref-movement action dispatcher" below), plus the chat/skill-facing `list_delivery_tracks`/`resolve_delivery_policy`/`select_job_delivery_track`/`list_ref_movement_actions`/`dispatch_ref_movement_action`/`read_ref_movement_status`/`classify_pull_request`/`ingest_pull_request` MCP tools. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` (per-track, not promotion's/hotfix-sync's) is still unwired; later Jobs in the Epic cover that.
 
 ## `.syrus.yml` shape
 
@@ -319,3 +319,62 @@ Anything none of these match stays `external_unknown`.
 - **`ManualHotfix`** — creates no Job. Feeds hotfix-sync detection instead of becoming review work: if `DeliveryPolicy#hotfix_sync_enabled?` and no sync is already pending (`HotfixSyncDispatcher.pending_for?`), dispatches `HotfixSyncDispatcher.call!` immediately rather than waiting up to 5 minutes for `PollHotfixSyncJob`'s own branch-comparison tick.
 
 **Poller fix: fork `syrus/`-branches must reach classification.** `PollExternalOpenPrsJob` previously skipped every PR whose head branch started with `syrus/`, on the assumption that such a branch is always a same-repo PR Syrus already tracks by `Job#pr_number`. That assumption breaks for a fork's own per-job/branch export — `job.branch_name` uses the same `syrus/`-prefixed shape regardless of which repository cut the branch, so Casey's and Bob's exports would never have reached ingestion at all. The guard is now scoped to same-repo PRs only (`we_control_head?(pr) && pr.head.ref.start_with?("syrus/")`); a fork's `syrus/`-prefixed branch now reaches classification like any other PR.
+
+## Ref-movement action dispatcher
+
+Story 11 (docs/plans/delivery-tracks-and-promotion.md): `send_job_upstream` and `submit_branch_upstream` are explicit, operator/MCP-triggerable ref-movement actions, gated by `.syrus.yml`'s `delivery.ref_movement_actions` block (parsed by `SyrusYml`/exposed by `DeliveryPolicy` — see the `.syrus.yml` shape above). Neither introduces a new ref-movement primitive: both reuse `UpstreamExportDispatcher`/`Workflows::UpstreamExport` exactly as earlier Jobs in this Epic built them.
+
+```yaml
+delivery:
+  ref_movement_actions:
+    send_job_upstream:
+      enabled: true
+      source: { kind: job_branch }
+      target: { kind: upstream_intake }
+      mode: manual_pr
+      grade_phases: [promotion]
+    submit_branch_upstream:
+      enabled: true
+      mode: manual_pr
+```
+
+`DeliveryPolicy` exposes this config:
+
+```ruby
+policy.ref_movement_actions                        # => { "send_job_upstream" => #<SyrusYml::DeliveryRefMovementAction ...>, ... }
+policy.ref_movement_action_config("send_job_upstream")  # => the one entry, or nil if not configured
+policy.ref_movement_action_enabled?("send_job_upstream") # => false when absent or enabled: false
+```
+
+### `RefMovementAction` (durable audit record)
+
+Every dispatch attempt — whether it actually launches a Workflow or was blocked by config/eligibility — gets a `ref_movement_actions` table row (`app/models/ref_movement_action.rb`), per the plan's `RefMovementAction.dispatch!` sketch: who requested it (`requested_by_user`), what source/target refs were resolved (`source_kind`/`source_ref`/`target_kind`/`target_ref`/`target_repository`), whether the target was inferred rather than explicitly given (`target_inferred`), what validation policy applied (`mode`/`grade_phases`), and the resulting `job`/`workflow` (both nullable — a blocked dispatch has neither). `state` is `dispatched` or `blocked`; `blocked_reason` is a short human-readable string. No database-level foreign keys, per this repository's FK policy (`config/initializers/foreign_keys.rb`) — associations are plain `belongs_to`s over bigint columns.
+
+```ruby
+record = RefMovementAction.dispatch!(repository:, actor:, action: "send_job_upstream", source: job)
+record.dispatched?  # => true once a Workflow launched
+record.blocked?     # => true when config/eligibility blocked it; check record.blocked_reason
+```
+
+`RefMovementActions::Base.for(action_name)` (`app/services/ref_movement_actions/`) is a class-per-action dispatch hierarchy — not a `case action_name` chain, per CLAUDE.md's enum-driven-behavior convention — mirroring `ExternalPrIngestions::Base.for(classification)`. `RefMovementActions::Unsupported` handles any action name outside the two built-ins (or one with no `.syrus.yml` config at all), always producing a `blocked` row rather than raising.
+
+### `send_job_upstream`
+
+`RefMovementActions::SendJobUpstream` requires `source:` to be an existing Job (the dev Job whose own branch should export upstream) and reuses `UpstreamExportDispatcher.call!(job, explicit: true)`. The `explicit:` kwarg (new on `UpstreamExportDispatcher`, default `false`) bypasses `DeliveryPolicy#export_upstream_after_local_approval?` — that flag only controls the *automatic* post-approval trigger (`Job#dispatch_upstream_export_after_approval`); a repository can set it `false` to mean "never auto-export, only via an explicit `send_job_upstream` action" and an explicit dispatch still needs to work. `explicit: true` still requires `DeliveryPolicy#upstream_export_enabled?` — only the auto-trigger sub-flag is bypassed. Availability additionally requires the Job to be open, have a branch, belong to a repository with an in-instance `upstream_repository`, and have no PR already exported or export Workflow already in flight (the same guards `UpstreamExportDispatcher#eligible?` already enforced). `target_inferred` is always `true` for this action — the target branch is always resolved via `DeliveryPolicy#upstream_export_target_branch`, never given explicitly.
+
+### `submit_branch_upstream`
+
+`RefMovementActions::SubmitBranchUpstream` exports a whole development-track branch (not one Job's per-job branch) — the shape `PrProvenanceClassifier` already classifies as `syrus_branch_export` on the receiving end (see "PR ingestion classification" above). `source:` is an optional branch name string, defaulting to `DeliveryPolicy#job_landing_branch` (the default track's branch); `target:` is an optional branch name override, defaulting to `DeliveryPolicy#upstream_export_target_branch` (`target_inferred: false` only when an explicit override is given). Since `Steps::UpstreamExportPublish` only ever opens/updates a PR from `job.branch_name` (assumed already pushed) to the resolved target, this action creates a synthetic anchor `Job` (`kind: "direct"`, no issue, `branch_name:` set to the source branch — the same synthetic-anchor-Job pattern `PromotionDispatcher`/`HotfixSyncDispatcher` use) and dispatches `Workflows::UpstreamExport` onto it via `WorkUnits::Launcher`, exactly like a per-job export. Availability requires an in-instance `upstream_repository` and `upstream_export_enabled?`, and blocks while a matching export (same repository + source branch) already has a queued/running `upstream_export` Workflow.
+
+### MCP tools
+
+Chat- and skill-facing (available in chat sessions, and to a `run_skill` step's agent — `Mcp::Sidecar`/`McpToolPolicy#workflow_tools` grants `McpToolPolicy::REF_MOVEMENT_TOOLS` specifically for `run_skill`, not every `WORKFLOW_IMPLEMENT` run, so an ordinary `implement` step on an unrelated Job doesn't gain unrelated dispatch tools):
+
+- `list_delivery_tracks` — every configured track (`DeliveryPolicy#tracks`), resolved branch, and grade phases.
+- `resolve_delivery_policy(job_id:)` — selected track, landing branch, grade phases, approval requirements, and enabled promotion/hotfix-sync/upstream-export/ref-movement-action config, optionally resolved for one Job.
+- `select_job_delivery_track(job_id:, track:)` — changes an existing Job's `delivery_track` before it is approved/landing/closed; distinct from the creation-time selection already exposed on direct-Job/admin-Job creation and `SkillJobs::Creator`. Not validated against the repository's configured track names, matching those creation-time surfaces.
+- `list_ref_movement_actions(job_id:)` — every configured `ref_movement_actions` entry plus whether it's currently available to dispatch and why not, via the same `RefMovementActions::Base.for(name).available?` check `dispatch_ref_movement_action` uses.
+- `dispatch_ref_movement_action(action:, job_id:, source_branch:, target_branch:)` — dispatches `send_job_upstream` (`job_id` required) or `submit_branch_upstream` (`source_branch`/`target_branch` optional overrides); always returns a `RefMovementAction` payload, dispatched or blocked.
+- `read_ref_movement_status(ref_movement_action_id:)` — inspects one dispatched action's current Workflow state and any `JobPrLink` (role: `upstream_export`) it opened.
+- `classify_pull_request(pr_number:)` — runs `PrProvenanceClassifier` against an open PR and returns the classification plus supporting evidence (head/base refs, fork status, provenance marker, whether classification is even enabled).
+- `ingest_pull_request(pr_number:, classification:)` — manually ingests a PR through `ExternalPrIngestions::Base.for(classification)`, the same dispatch `PollExternalOpenPrsJob` uses. An already-ingested PR (an existing Job with that `external_pr_number`) always returns the existing Job — Syrus's ingestion classes are not idempotent against re-classifying an already-created Job, so a `classification:` override only changes which classification is used the *first* time a PR is ingested (when automatic heuristics would misclassify it), not a way to retroactively reclassify one.
