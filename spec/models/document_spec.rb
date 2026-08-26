@@ -45,4 +45,29 @@ RSpec.describe Document, type: :model do
     expect(document.attachable).to eq(job)
     expect(job.job_attachments).to include(document)
   end
+
+  describe "ACCEPTED_FILE_CONTENT_TYPES" do
+    it "accepts text/html, text/css, and text/javascript (preview panel mockup files)" do
+      %w[text/html text/css text/javascript].each do |content_type|
+        document = job.documents.create!(
+          kind: "file",
+          user: user,
+          file: upload(filename: "mockup.#{content_type.split('/').last}", content_type: content_type, content: "body {}")
+        )
+
+        expect(document).to be_valid
+      end
+    end
+
+    it "rejects an unsupported content type" do
+      document = job.job_attachments.build(
+        kind: "file",
+        user: user,
+        file: upload(filename: "archive.zip", content_type: "application/zip", content: "PK")
+      )
+
+      expect(document).not_to be_valid
+      expect(document.errors[:file]).to include("must be a supported text, PDF, Office, or image file")
+    end
+  end
 end

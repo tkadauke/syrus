@@ -32,4 +32,29 @@ RSpec.describe JobAttachmentContext do
       expect(File).not_to exist(File.join(dir, "tmp/attachments"))
     end
   end
+
+  it "frames files attached from a preview panel mockup as reference material to adapt, not copy verbatim" do
+    upload = job.job_attachments.build(attachment_type: "uploaded_file", source_url: "preview_panel_version:1")
+    upload.file.attach(io: StringIO.new("<h1>hi</h1>"), filename: "index.html", content_type: "text/html")
+    upload.save!
+
+    Dir.mktmpdir do |dir|
+      prompt = described_class.new(job: job, workspace_path: dir).apply_to("Original prompt")
+
+      expect(prompt).to include("Treat them as reference")
+      expect(prompt).to include("rather than copying the markup or files verbatim")
+    end
+  end
+
+  it "does not add the mockup framing note for ordinary uploaded files" do
+    upload = job.job_attachments.build(attachment_type: "uploaded_file")
+    upload.file.attach(io: StringIO.new("mockup notes"), filename: "notes.md", content_type: "text/markdown")
+    upload.save!
+
+    Dir.mktmpdir do |dir|
+      prompt = described_class.new(job: job, workspace_path: dir).apply_to("Original prompt")
+
+      expect(prompt).not_to include("Treat them as reference")
+    end
+  end
 end
