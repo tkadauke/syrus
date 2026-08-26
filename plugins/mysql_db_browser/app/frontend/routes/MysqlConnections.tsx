@@ -561,7 +561,7 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
                 </ul>
               </nav>
 
-              <div className="min-h-[200px] rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+              <div className="min-h-[200px] min-w-0 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 {selected ? (
                   <div>
                     <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">

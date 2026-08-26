@@ -316,6 +316,27 @@ describe("MysqlConnections", () => {
       expect(screen.getByText("ada@example.com")).toBeInTheDocument()
     })
 
+    it("constrains the content column so a wide results table scrolls instead of widening the page", async () => {
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByText("app_staging"))
+      fireEvent.click(await screen.findByText("users"))
+      await screen.findByText("grace@example.com")
+
+      const contentTab = screen.getByRole("tab", { name: "Content" })
+      const tablist = contentTab.closest('[role="tablist"]') as HTMLElement
+      expect(tablist).not.toBeNull()
+
+      const column = tablist.parentElement?.parentElement as HTMLElement | null
+      expect(column).not.toBeNull()
+      expect(column).toHaveClass("min-w-0")
+
+      const scrollArea = screen.getByText("grace@example.com").closest("table")?.parentElement
+      expect(scrollArea).toHaveClass("overflow-auto")
+    })
+
     it("switches to the Structure sub-tab to see columns and indexes", async () => {
       setupFetchMock()
       renderConnections()
