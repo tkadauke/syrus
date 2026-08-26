@@ -520,4 +520,30 @@ RSpec.describe DeliveryPolicy do
       expect(policy.requires_operator_approval_for_promotion?).to be(false)
     end
   end
+
+  describe "#external_pr_ingest_classification_enabled?" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "is false with no bare clone" do
+      expect(policy.external_pr_ingest_classification_enabled?).to be(false)
+    end
+
+    it "is false when external_prs: is absent" do
+      write_bare_clone(repo)
+
+      expect(policy.external_pr_ingest_classification_enabled?).to be(false)
+    end
+
+    it "is false when external_prs.ingest.enabled is not set" do
+      write_bare_clone(repo, syrus_yml: "external_prs:\n  ingest: {}\n")
+
+      expect(policy.external_pr_ingest_classification_enabled?).to be(false)
+    end
+
+    it "is true when external_prs.ingest.enabled is true" do
+      write_bare_clone(repo, syrus_yml: "external_prs:\n  ingest:\n    enabled: true\n")
+
+      expect(policy.external_pr_ingest_classification_enabled?).to be(true)
+    end
+  end
 end

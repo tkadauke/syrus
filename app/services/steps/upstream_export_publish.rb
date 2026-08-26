@@ -68,7 +68,8 @@ module Steps
 
     def pr_body
       base_body = upstream_source_workflow&.artifact("pr_body").presence || fallback_body
-      "#{base_body}\n\n---\n_Exported from #{repository.slug}##{job.pr_number || job.issue_number} via Syrus upstream export. Review carefully — this PR was authored by an LLM._"
+      "#{base_body}\n\n---\n_Exported from #{repository.slug}##{job.pr_number || job.issue_number} via Syrus upstream export. Review carefully — this PR was authored by an LLM._\n\n" \
+        "#{PrProvenanceMarker.stamp(kind: 'syrus_job_export', job: job)}"
     end
 
     def upstream_source_workflow
