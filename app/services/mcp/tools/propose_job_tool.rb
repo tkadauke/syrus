@@ -12,8 +12,12 @@ module Mcp::Tools
       creates an epicless direct Job.
       Syrus Epics execute as one stacked branch, not parallel branches, so a
       Job proposed into an Epic that already has Jobs is REQUIRED to set
-      depends_on_job_ids to one of that Epic's existing Jobs — otherwise it
-      would materialize as a disconnected parallel branch and the tool
+      depends_on_job_ids to that Epic's current tail Job (read the Epic's
+      Jobs first if you don't already know its current tail) — otherwise it
+      would materialize as a disconnected parallel branch (no
+      depends_on_job_ids naming an existing Job), a fork (chaining onto a
+      Job that already has a downstream child in the Epic), or a merge
+      (chaining onto more than one existing Job at once), and the tool
       rejects it before creating the proposal card. For proposing an Epic
       together with a batch of new child Jobs in one call, prefer
       propose_epic_with_jobs instead, which also validates the whole batch
@@ -81,13 +85,18 @@ module Mcp::Tools
         return Mcp::Tools.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
         dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
         return Mcp::Tools.invalid(dependency_error) if dependency_error
-        if target_epic && target_epic.jobs.exists? && (depends_on_job_ids & target_epic.jobs.pluck(:id)).empty?
-          return Mcp::Tools.invalid(
-            "Epic #{epic_id} already has Jobs — Syrus Epics execute as one stacked branch, not parallel " \
-            "branches, so this Job must chain onto the Epic via depends_on_job_ids naming one of its " \
-            "existing Jobs (read the Epic's Jobs first if you don't already know its current tail), or it " \
-            "would become a disconnected parallel branch."
-          )
+        if target_epic && target_epic.jobs.exists?
+          if (depends_on_job_ids & target_epic.jobs.pluck(:id)).empty?
+            return Mcp::Tools.invalid(
+              "Epic #{epic_id} already has Jobs — Syrus Epics execute as one stacked branch, not parallel " \
+              "branches, so this Job must chain onto the Epic via depends_on_job_ids naming one of its " \
+              "existing Jobs (read the Epic's Jobs first if you don't already know its current tail), or it " \
+              "would become a disconnected parallel branch."
+            )
+          end
+
+          linear_chain_error = linear_chain_violation_message(target_epic, depends_on_job_ids, title)
+          return Mcp::Tools.invalid(linear_chain_error) if linear_chain_error
         end
 
         proposal = nil
@@ -113,6 +122,34 @@ module Mcp::Tools
         Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal))
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      end
+
+      private
+
+      # Folds the not-yet-persisted proposal in as a synthetic node alongside
+      # the target Epic's existing Jobs (and their same-epic JobDependency
+      # edges), then runs it through the same single-chain graph check
+      # ChatEpicProposalMaterializer uses at confirmation time. This catches
+      # fork (chaining onto a Job that already has a downstream child) and
+      # merge (chaining onto more than one existing Job) before the proposal
+      # card is created, not just the "no chain at all" case checked above.
+      def linear_chain_violation_message(target_epic, depends_on_job_ids, title)
+        existing_jobs = target_epic.jobs.to_a
+        new_key = "new_job"
+        labels_by_key = { new_key => title }
+        existing_jobs.each { |job| labels_by_key[EpicDependencyPolicy::Linear.job_key(job.id)] = job.slug }
+
+        edges = depends_on_job_ids
+                  .select { |job_id| existing_jobs.any? { |existing| existing.id == job_id } }
+                  .map { |job_id| [ new_key, EpicDependencyPolicy::Linear.job_key(job_id) ] }
+        JobDependency.where(job_id: existing_jobs.map(&:id), depends_on_job_id: existing_jobs.map(&:id))
+                     .pluck(:job_id, :depends_on_job_id)
+                     .each { |dependent_id, dependency_id| edges << [ EpicDependencyPolicy::Linear.job_key(dependent_id), EpicDependencyPolicy::Linear.job_key(dependency_id) ] }
+
+        EpicDependencyPolicy::Linear.validate_chain!(labels_by_key: labels_by_key, edges: edges)
+        nil
+      rescue ArgumentError => e
+        e.message
       end
     end
   end
