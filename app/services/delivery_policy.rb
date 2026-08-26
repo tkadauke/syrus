@@ -54,7 +54,61 @@ class DeliveryPolicy
     delivery.hotfix_sync.mode
   end
 
+  # Story 7 (owner + peer local approval). When the repository's
+  # `.syrus.yml` has no `approval:` block at all, falls back to the job's
+  # existing `ReviewPolicies::REGISTRY` policy (`self`/`two_person`/
+  # `final_say`) so repositories that haven't opted into the new config
+  # keep their current approval behavior unchanged. Once `approval.job` is
+  # configured, a peer's approval only counts toward `peer_count` when that
+  # peer has repository access on this Syrus instance (a `RepositoryMembership`
+  # row) — an approval from someone who has since lost access doesn't count.
+  def job_approval_satisfied?(job = @job)
+    return job.approval_satisfied? if config.approval.nil?
+
+    job_approval = config.approval.job
+    owner_required = job_approval&.owner_required
+    owner_required = true if owner_required.nil?
+    required_peer_count = job_approval&.peer_count || 0
+
+    return false if owner_required && !owner_approved?(job)
+
+    eligible_peer_approval_count(job) >= required_peer_count
+  end
+
+  # Whether landing a promotion ref-movement should be gated on an explicit
+  # operator (maintainer) approval rather than proceeding automatically once
+  # its own grade phases are green. Falls back to the existing
+  # `delivery.promotion.approval_required` flag when `approval.promotion` is
+  # not configured, so this is additive to the config parsed in the prior
+  # Job, not a replacement for it. Not wired into any landing gate yet — see
+  # `landing-queue-track-approval-gating`.
+  def requires_operator_approval_for_promotion?
+    maintainer_count = config.approval&.promotion&.maintainer_count
+    return delivery.promotion.approval_required if maintainer_count.nil?
+
+    maintainer_count.positive?
+  end
+
   private
+
+  def owner_approved?(job)
+    job.job_approvals.where(user_id: effective_owner_id(job)).exists?
+  end
+
+  # Counts distinct peer approvers (not the job's owner) who currently have
+  # repository access on this Syrus instance. Reuses the same
+  # `RepositoryMembership` existence check `ChatAttachment` uses for access
+  # gating rather than inventing a new one.
+  def eligible_peer_approval_count(job)
+    peer_user_ids = job.job_approvals.where.not(user_id: effective_owner_id(job)).distinct.pluck(:user_id)
+    return 0 if peer_user_ids.empty?
+
+    repository.repository_memberships.where(user_id: peer_user_ids).distinct.count(:user_id)
+  end
+
+  def effective_owner_id(job)
+    job.owner_user_id.presence || job.user_id
+  end
 
   attr_reader :repository
 
