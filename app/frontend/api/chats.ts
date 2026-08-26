@@ -486,12 +486,19 @@ export type ChatWalkthroughMedia = {
   created_at: string
 }
 
+export type ChatPreviewPanelVersion = {
+  id: number
+  created_at: string
+}
+
 export type ChatPreviewPanel = {
   id: number
   title: string
   file_count: number
   url: string
   app_close_path: string
+  current_version_id: number | null
+  versions: ChatPreviewPanelVersion[]
 }
 
 export type ChatWorkspaceTab = {

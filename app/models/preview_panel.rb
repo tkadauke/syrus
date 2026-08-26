@@ -3,7 +3,7 @@ class PreviewPanel < ApplicationRecord
   DEFAULT_ENTRY_FILENAME = "index.html"
 
   belongs_to :chat_session
-  has_many_attached :files
+  has_many :preview_panel_versions, dependent: :destroy
 
   validates :title, presence: true
   validates :state, presence: true, inclusion: { in: STATES }
@@ -20,30 +20,33 @@ class PreviewPanel < ApplicationRecord
   # URL) or browsers block the iframe load as mixed active content.
   def preview_url(base_domain, scheme: "http") = "#{scheme}://preview-panel-#{id}.#{base_domain}"
 
-  # Looks up an attached file by its stored relative path (e.g.
-  # "index.html", "css/app.css"). Blank/root paths resolve to the
-  # conventional entry point. Path lookup goes through blob metadata,
-  # not ActiveStorage's filename attribute, because ActiveStorage
-  # sanitizes "/" out of filenames (mirrors Workflow#visual_artifact_for's
-  # metadata-keyed lookup).
-  def file_for(relative_path)
-    path = relative_path.to_s.delete_prefix("/").presence || DEFAULT_ENTRY_FILENAME
-    files.find { |attachment| attachment.blob.metadata["relative_path"] == path }
+  # preview_panel_versions is newest-first (PreviewPanelVersion's default
+  # scope), so the first row is always the latest published snapshot.
+  def current_version
+    preview_panel_versions.first
   end
 
-  # Replaces the full attached file set. update! calls through here so a
-  # panel always reflects the latest upload rather than accumulating stale
-  # files from earlier revisions.
-  def replace_files!(files_by_path)
-    files.purge
+  # Looks up an attached file by its stored relative path (e.g.
+  # "index.html", "css/app.css") within a version, defaulting to the
+  # current (latest) one.
+  def file_for(relative_path, version: nil)
+    (version || current_version)&.file_for(relative_path)
+  end
+
+  # Creates a new PreviewPanelVersion snapshot from the given files and
+  # leaves prior versions intact, so old versions stay servable after a
+  # later show_preview call republishes the panel.
+  def create_version!(files_by_path)
+    version = preview_panel_versions.create!
     files_by_path.each do |relative_path, content|
       io = content.respond_to?(:read) ? content : StringIO.new(content.to_s)
-      files.attach(
+      version.files.attach(
         io: io,
         filename: relative_path.to_s,
         metadata: { "relative_path" => relative_path.to_s }
       )
     end
+    version
   end
 
   def broadcast_change!
@@ -64,7 +67,7 @@ class PreviewPanel < ApplicationRecord
       "id" => id,
       "title" => title,
       "state" => state,
-      "file_count" => files.size
+      "file_count" => current_version&.files&.size || 0
     }
   end
 end

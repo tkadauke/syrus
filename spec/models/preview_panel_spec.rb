@@ -69,10 +69,10 @@ RSpec.describe PreviewPanel, type: :model do
     end
   end
 
-  describe "#replace_files! and #file_for" do
+  describe "#create_version! and #file_for" do
     it "attaches files by relative filename" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hi</h1>", "css/app.css" => "body { color: red; }")
+      panel.create_version!("index.html" => "<h1>hi</h1>", "css/app.css" => "body { color: red; }")
 
       expect(panel.file_for("index.html").blob.metadata["relative_path"]).to eq("index.html")
       expect(panel.file_for("css/app.css").blob.metadata["relative_path"]).to eq("css/app.css")
@@ -80,7 +80,7 @@ RSpec.describe PreviewPanel, type: :model do
 
     it "resolves a blank or root path to index.html" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hi</h1>")
+      panel.create_version!("index.html" => "<h1>hi</h1>")
 
       expect(panel.file_for("/").blob.metadata["relative_path"]).to eq("index.html")
       expect(panel.file_for("").blob.metadata["relative_path"]).to eq("index.html")
@@ -88,25 +88,50 @@ RSpec.describe PreviewPanel, type: :model do
 
     it "returns nil for a path with no matching attachment" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hi</h1>")
+      panel.create_version!("index.html" => "<h1>hi</h1>")
 
       expect(panel.file_for("missing.js")).to be_nil
     end
 
-    it "purges the previous file set before attaching the new one" do
+    it "creates a new version rather than purging the previous one" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>v1</h1>", "old.js" => "console.log('old')")
-      panel.replace_files!("index.html" => "<h1>v2</h1>")
+      first_version = panel.create_version!("index.html" => "<h1>v1</h1>", "old.js" => "console.log('old')")
+      second_version = panel.create_version!("index.html" => "<h1>v2</h1>")
 
-      expect(panel.files.reload.map { |f| f.blob.filename.to_s }).to eq([ "index.html" ])
+      expect(panel.preview_panel_versions.reload.count).to eq(2)
+      expect(first_version.files.reload.map { |f| f.blob.filename.to_s }.sort).to eq([ "index.html", "old.js" ])
+      expect(second_version.files.reload.map { |f| f.blob.filename.to_s }).to eq([ "index.html" ])
       expect(panel.file_for("index.html").download).to eq("<h1>v2</h1>")
     end
 
     it "accepts IO-like content in addition to strings" do
       panel = create_panel
-      panel.replace_files!("index.html" => StringIO.new("<h1>from io</h1>"))
+      panel.create_version!("index.html" => StringIO.new("<h1>from io</h1>"))
 
       expect(panel.file_for("index.html").download).to eq("<h1>from io</h1>")
+    end
+
+    it "looks up a file within a specific version instead of the current one" do
+      panel = create_panel
+      first_version = panel.create_version!("index.html" => "<h1>v1</h1>")
+      panel.create_version!("index.html" => "<h1>v2</h1>")
+
+      expect(panel.file_for("index.html", version: first_version).download).to eq("<h1>v1</h1>")
+    end
+  end
+
+  describe "#current_version" do
+    it "is nil when the panel has no versions" do
+      expect(create_panel.current_version).to be_nil
+    end
+
+    it "returns the most recently created version" do
+      panel = create_panel
+      first_version = panel.create_version!("index.html" => "<h1>v1</h1>")
+      first_version.update_columns(created_at: 1.hour.ago)
+      second_version = panel.create_version!("index.html" => "<h1>v2</h1>")
+
+      expect(panel.current_version).to eq(second_version)
     end
   end
 
@@ -125,11 +150,29 @@ RSpec.describe PreviewPanel, type: :model do
 
       panel.broadcast_change!
     end
+
+    it "reports the current version's file count" do
+      panel = create_panel(title: "Widget preview")
+      panel.create_version!("index.html" => "<h1>v1</h1>", "old.js" => "console.log('old')")
+
+      expect(AppEvents).to receive(:broadcast).with(
+        hash_including(payload: hash_including("file_count" => 2))
+      )
+
+      panel.broadcast_change!
+    end
   end
 
   it "is destroyed with its chat session" do
     panel = create_panel
 
     expect { chat_session.destroy }.to change { described_class.where(id: panel.id).count }.by(-1)
+  end
+
+  it "destroys its versions when destroyed" do
+    panel = create_panel
+    version = panel.create_version!("index.html" => "<h1>hi</h1>")
+
+    expect { panel.destroy }.to change { PreviewPanelVersion.where(id: version.id).count }.by(-1)
   end
 end
