@@ -154,6 +154,28 @@ RSpec.describe ChatMessage do
 
       described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Hello from React." })
     end
+
+    it "falls back to invalidating messages when the realtime tail payload cannot be loaded" do
+      allow_any_instance_of(described_class).to receive(:realtime_tail_payload).and_return(nil)
+
+      expect(AppEvents).to receive(:broadcast) do |user:, type:, resource:, id:, changed:, payload:|
+        expect(user).to eq(session.user)
+        expect(type).to eq("updated")
+        expect(resource).to eq("chat")
+        expect(id).to eq(session.id)
+        expect(changed).to eq([ "messages" ])
+        expect(payload).to include(
+          action: "invalidate_messages",
+          reason: "tail_payload_too_large",
+          turn_in_flight: false,
+          agent_busy: false
+        )
+      end
+
+      expect {
+        described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Hello from fallback." })
+      }.not_to raise_error
+    end
   end
 
   describe "#canonical_content_format?" do

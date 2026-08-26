@@ -94,22 +94,13 @@ class ChatMessage < ApplicationRecord
 
   def broadcast_app_event
     chat = chat_session
-    tail = chat.messages
-               .active
-               .includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
-               .order(id: :desc)
-               .limit(SPA_EVENT_TAIL_SIZE)
-               .to_a
-               .reverse
+    tail_payload = realtime_tail_payload(chat)
 
-    messages_payload = ::App::ChatMessagePayload.messages(tail, repository: chat.repository)
-    inline_payload = ActiveSupport::JSON.encode(messages_payload).bytesize <= SPA_EVENT_MAX_INLINE_BYTES
-
-    payload = if inline_payload
+    payload = if tail_payload
       {
         action: "replace_tail",
-        replace_from_id: tail.first&.id,
-        messages: messages_payload,
+        replace_from_id: tail_payload.fetch(:replace_from_id),
+        messages: tail_payload.fetch(:messages),
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: chat.agent_busy?,
         stop_requested_at: chat.stop_requested_at&.iso8601,
@@ -135,6 +126,30 @@ class ChatMessage < ApplicationRecord
     }
 
     chat.send(:broadcast_to_participants, **event_args)
+  end
+
+  def realtime_tail_payload(chat)
+    tail = chat.messages
+               .active
+               .includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
+               .order(id: :desc)
+               .limit(SPA_EVENT_TAIL_SIZE)
+               .to_a
+               .reverse
+
+    messages_payload = ::App::ChatMessagePayload.messages(tail, repository: chat.repository)
+    return nil if ActiveSupport::JSON.encode(messages_payload).bytesize > SPA_EVENT_MAX_INLINE_BYTES
+
+    {
+      replace_from_id: tail.first&.id,
+      messages: messages_payload
+    }
+  rescue ActiveRecord::StatementInvalid => e
+    Rails.logger.warn(
+      "[chat_message] realtime tail payload skipped " \
+      "chat_id=#{chat.id} message_id=#{id} error=#{e.class}: #{e.message}"
+    )
+    nil
   end
 
   def record_chat_turn_state

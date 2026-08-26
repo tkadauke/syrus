@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_164000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -336,6 +336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_164000) do
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "created_at", "id"], name: "idx_chat_messages_session_created_id"
     t.index ["chat_session_id", "created_at"], name: "index_chat_messages_on_chat_session_id_and_created_at"
+    t.index ["chat_session_id", "deleted_at", "id"], name: "idx_chat_messages_active_tail"
     t.index ["chat_session_id", "id"], name: "index_chat_messages_on_session_id_and_id"
     t.index ["chat_session_id", "role", "created_at", "id"], name: "idx_chat_messages_session_role_created_id"
     t.index ["chat_session_id", "role", "id"], name: "idx_chat_messages_session_role_id"
@@ -2555,5 +2556,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_164000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end
