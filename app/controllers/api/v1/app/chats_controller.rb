@@ -710,6 +710,20 @@ module Api
           render json: chat_payload(chat_session.reload, message: "#{title} closed.")
         end
 
+        def export_preview_panel
+          chat_session = find_chat_session
+          panel = chat_session.preview_panels.find(params[:panel_id])
+          version = params[:v].present? ? panel.preview_panel_versions.find_by(id: params[:v]) : panel.current_version
+          return render_error("not_found", "Preview panel version not found.", status: :not_found) unless version
+
+          send_data(
+            PreviewPanel::ZipExporter.new(version).call,
+            filename: "#{panel.title.parameterize.presence || 'preview'}.zip",
+            type: "application/zip",
+            disposition: "attachment"
+          )
+        end
+
         def create_bookmark
           chat_session = find_chat_session
           message = params[:message_id].present? ? chat_session.messages.find(params[:message_id]) : chat_session.messages.order(:created_at, :id).last

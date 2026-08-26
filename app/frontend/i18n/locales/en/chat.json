@@ -300,6 +300,8 @@
   "preview_version_label": "Version {{index}}",
   "preview_open_new_tab": "Open in new tab",
   "preview_open_new_tab_aria": "Open {{title}} in new tab",
+  "preview_export": "Export as zip",
+  "preview_export_aria": "Export {{title}} as zip",
   "mark_as_read": "Mark as read",
   "mark_as_unread": "Mark as unread",
   "decline_to_answer": "Decline to answer",

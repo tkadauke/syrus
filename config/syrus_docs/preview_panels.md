@@ -68,21 +68,43 @@ browser tab navigated directly to a copied preview URL.
 sidebar's other, singleton, static tab kinds. `WorkspacePanels.tsx` renders
 one tab strip entry per open panel and, for the active panel, a small toolbar
 strip above the iframe: a version selector dropdown (hidden when the panel
-only has one version) and an "open in new tab" button, followed by a
-sandboxed iframe (`allow-scripts`, deliberately no `allow-same-origin`)
-pointed at the panel's per-instance subdomain. The version selector lists
-`panel.versions` newest-first (each labeled "Latest" / "Version N" with a
-relative timestamp); switching versions updates both the iframe `src`'s `?v=`
-param (triggering a reload) and the open-in-new-tab link, so the link always
-carries whichever version is currently selected rather than hardcoding the
-latest. Chat payload serialization includes `preview_panels` (`id`, `title`,
-`file_count`, `url`, `app_close_path`, `current_version_id`, `versions` — each
+only has one version), an export-as-zip button, and an "open in new tab"
+button, followed by a sandboxed iframe (`allow-scripts`, deliberately no
+`allow-same-origin`) pointed at the panel's per-instance subdomain. The
+version selector lists `panel.versions` newest-first (each labeled "Latest" /
+"Version N" with a relative timestamp); switching versions updates the iframe
+`src`'s `?v=` param (triggering a reload), the open-in-new-tab link, and the
+export link, so all three always act on whichever version is currently
+selected rather than hardcoding the latest. Chat payload serialization
+includes `preview_panels` (`id`, `title`, `file_count`, `url`,
+`app_close_path`, `app_export_path`, `current_version_id`, `versions` — each
 `{ id, created_at }`, newest-first) so opening or closing a panel, or
 publishing a new version, shows up live through the existing app-events
 refresh path. Closing a tab calls `DELETE
 /api/v1/app/chats/:id/preview_panels/:panel_id`, which drives
 `PreviewPanel::Service#close!` — the panel actually stops resolving
 server-side rather than just hiding client-side.
+
+## Exporting a version as a zip
+
+The export button is a plain authenticated link (no client-side blob
+assembly) pointed at `GET
+/api/v1/app/chats/:id/preview_panels/:panel_id/export`, carrying the
+currently selected version's id as `?v=<version_id>` the same way the
+iframe/proxy URL does (defaulting to `panel.current_version` when omitted or
+when the id doesn't belong to the panel, mirroring
+`PreviewProxyMiddleware#resolve_panel_version`). Unlike the sandboxed
+`preview-panel-*` proxy origin (which has no auth check at all — see below),
+export runs through the normal authenticated `ChatsController` action scoped
+via `Current.user.accessible_chat_sessions`, since this is an operator
+download action, not part of the iframe's own access model.
+`PreviewPanel::ZipExporter` streams every attachment on the resolved
+`PreviewPanelVersion` into a `Zip::OutputStream` keyed by each blob's stored
+`relative_path` metadata (preserving directory structure), and the controller
+sends the result with `send_data(..., disposition: "attachment")` so the
+browser downloads rather than tries to render the archive inline. Requires
+the `rubyzip` gem (declared explicitly in the `Gemfile` — it was previously
+only a transitive dependency of `docx`/`selenium-webdriver`).
 
 ## Chat MCP tools (`preview_tools` plugin)
 
