@@ -58,10 +58,21 @@ RSpec.describe DeliveryPolicy do
       expect(policy.upstream_export_enabled?).to be(false)
     end
 
-    it "reports the default promotion/hotfix sync/upstream export modes even when disabled" do
+    it "reports the default promotion/hotfix sync modes even when disabled" do
       expect(policy.promotion_mode).to eq("auto_pr")
       expect(policy.hotfix_sync_mode).to eq("auto")
-      expect(policy.upstream_export_mode).to eq("per_job_pr")
+    end
+
+    it "reports upstream_export_mode as 'none' when upstream export is disabled" do
+      expect(policy.upstream_export_mode).to eq("none")
+    end
+
+    it "reports export_upstream_after_local_approval? as false when upstream export is disabled" do
+      expect(policy.export_upstream_after_local_approval?).to be(false)
+    end
+
+    it "resolves upstream_export_target_branch to nil when the repository has no upstream_repository" do
+      expect(policy.upstream_export_target_branch).to be_nil
     end
   end
 
@@ -192,6 +203,79 @@ RSpec.describe DeliveryPolicy do
       YAML
 
       expect(policy.hotfix_sync_repair_skill).to eq("backport_release_hotfix")
+    end
+  end
+
+  describe "#export_upstream_after_local_approval?" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "defaults to true once upstream export is enabled" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          upstream_export:
+            enabled: true
+      YAML
+
+      expect(policy.export_upstream_after_local_approval?).to be(true)
+    end
+
+    it "respects an explicit after_local_approval: false" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          upstream_export:
+            enabled: true
+            after_local_approval: false
+      YAML
+
+      expect(policy.export_upstream_after_local_approval?).to be(false)
+    end
+
+    it "is false when upstream export is not enabled, even if after_local_approval is set" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          upstream_export:
+            after_local_approval: true
+      YAML
+
+      expect(policy.export_upstream_after_local_approval?).to be(false)
+    end
+  end
+
+  describe "#upstream_export_target_branch" do
+    let(:canonical) { Factories.repository(user: user, default_branch: "main") }
+
+    subject(:policy) { described_class.for(repository: repo) }
+
+    before { repo.update!(upstream_repository: canonical) }
+
+    context "when the repository has no in-instance canonical repository" do
+      it "resolves to nil" do
+        repo.update!(upstream_repository: nil)
+        expect(policy.upstream_export_target_branch).to be_nil
+      end
+    end
+
+    context "when canonical has a configured development track (canonical-has-dev-track)" do
+      before do
+        write_bare_clone(canonical, syrus_yml: <<~YAML)
+          delivery:
+            tracks:
+              default:
+                branch: develop
+        YAML
+      end
+
+      it "resolves to canonical's configured development branch" do
+        expect(policy.upstream_export_target_branch).to eq("develop")
+      end
+    end
+
+    context "when canonical uses strict main with no delivery: block (canonical-strict-main)" do
+      before { write_bare_clone(canonical) }
+
+      it "resolves to canonical's default branch" do
+        expect(policy.upstream_export_target_branch).to eq("main")
+      end
     end
   end
 
