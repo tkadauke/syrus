@@ -179,6 +179,15 @@ module WorkDefinitions
     self.scope = "repository"
   end
 
+  class UpstreamExport < Base
+    include ResumesFailedSteps
+
+    self.kind = "upstream_export"
+    self.workflow_trigger_kind = "upstream_export"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class AutoMerge < Base
     include BlocksCiFailure
     include LandingValidationPrefetchSource

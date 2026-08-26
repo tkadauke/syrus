@@ -110,8 +110,38 @@ class DeliveryPolicy
     delivery.upstream_export.enabled
   end
 
-  def upstream_export_mode
+  # Story 8 (docs/plans/delivery-tracks-and-promotion.md): `per_job_pr`,
+  # `branch_pr`, or `none`. `none` is not a value `SyrusYml` ever parses —
+  # it only exists at this policy layer, standing in for "not configured/not
+  # enabled" so callers can gate on the tri-state without a separate
+  # `upstream_export_enabled?` check.
+  def upstream_export_mode(job = @job)
+    return "none" unless upstream_export_enabled?
+
     delivery.upstream_export.mode
+  end
+
+  # Whether an approved Job should trigger the per-job upstream-export
+  # workflow immediately upon local approval (`delivery.upstream_export.after_local_approval`,
+  # default true once upstream export is enabled at all).
+  def export_upstream_after_local_approval?(job = @job)
+    upstream_export_enabled? && delivery.upstream_export.after_local_approval
+  end
+
+  # Target branch for the per-job upstream-export PR: the canonical
+  # repository's (`Repository#upstream_repository`) configured development
+  # track branch when it has one, else its own default branch — the same
+  # `resolved_branch(default_track)` computation `job_landing_branch`/
+  # `promotion_source_branch` use, just resolved against the canonical repo's
+  # own `.syrus.yml` instead of this repository's. `nil` when this repository
+  # has no in-instance canonical repository to resolve against (a fork whose
+  # upstream isn't itself a Syrus-managed Repository is out of scope for this
+  # policy method — see `UpstreamExportDispatcher`).
+  def upstream_export_target_branch(job = @job)
+    canonical = repository.upstream_repository
+    return nil unless canonical
+
+    DeliveryPolicy.for(repository: canonical).job_landing_branch
   end
 
   # Story 7 (owner + peer local approval). When the repository's

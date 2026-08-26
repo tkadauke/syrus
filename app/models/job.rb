@@ -638,6 +638,7 @@ class Job < ApplicationRecord
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
   after_update_commit :poll_pr_checks_after_approval, if: :saved_change_to_approved?
+  after_update_commit :dispatch_upstream_export_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
   after_update_commit :enqueue_search_index_after_update
   after_update_commit :broadcast_app_job_updated
@@ -1154,6 +1155,17 @@ class Job < ApplicationRecord
     PollPullRequestJob.perform_later(id)
   end
 
+  # Story 8 (docs/plans/delivery-tracks-and-promotion.md): "B approves
+  # locally -> Syrus opens/updates a PR to A." Fires on every transition
+  # into `approved`, not just the first — `UpstreamExportDispatcher` is the
+  # one that actually decides whether a new workflow is warranted (it's a
+  # no-op once a PR link already exists), so this callback stays a cheap,
+  # unconditional enqueue rather than trying to guess eligibility inline in
+  # an AR callback.
+  def dispatch_upstream_export_after_approval
+    UpstreamExportDispatchJob.perform_later(id)
+  end
+
   def promote_queued_chat_pending_actions
     ChatPendingAction.promote_queued_for_job!(self)
   end
@@ -1577,6 +1589,15 @@ class Job < ApplicationRecord
   def set_target_repository_from_epic
     return unless epic
     return unless repository
+
+    # Per docs/plans/delivery-tracks-and-promotion.md's "Current
+    # Implementation Debt": new work should stop routing Jobs into
+    # fork-review mode once a repository has opted into the upstream-export
+    # workflow. Leave `in_fork_review_mode?`/`ForkReviewApprover`/
+    # `PollForkReviewPrJob` untouched for repositories/Jobs already using
+    # them — this only changes what happens for a *new* Job's
+    # `target_repository_id` assignment.
+    return if DeliveryPolicy.for(repository: repository).upstream_export_enabled?
 
     if repository.upstream_repository_id == epic.repository_id
       self.target_repository_id = epic.repository_id
