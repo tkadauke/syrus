@@ -47,4 +47,16 @@ describe("Input", () => {
     render(<Input aria-label="Name" ref={ref} />)
     expect(ref.current).toBeInstanceOf(HTMLInputElement)
   })
+
+  it("is full width by default", () => {
+    render(<Input aria-label="Name" />)
+    expect(screen.getByLabelText("Name").className).toContain("w-full")
+  })
+
+  it("renders w-auto instead of w-full when fullWidth is false", () => {
+    render(<Input aria-label="Name" fullWidth={false} />)
+    const className = screen.getByLabelText("Name").className
+    expect(className).toContain("w-auto")
+    expect(className).not.toMatch(/\bw-full\b/)
+  })
 })

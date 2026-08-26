@@ -14,8 +14,10 @@ import {
 import { syncAdminGithubAppInstallations } from "../api/adminGithubApp"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Modal } from "./Modal"
+import { Select } from "./Select"
 import { useT } from "../hooks/useT"
 
 type OwnerOption = { login: string; type: "user" | "org" }
@@ -287,13 +289,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                 {t('add_repository.install_on_github')} <span aria-hidden="true">↗</span>
               </button>
             ) : null}
-            <button
-              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              onClick={() => { onSaved?.(); onClose() }}
-              type="button"
-            >
+            <Button onClick={() => { onSaved?.(); onClose() }}>
               {t('add_repository.done')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -329,10 +327,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                 ) : ownersLoading ? (
                   <Loading>{t('add_repository.loading_accounts')}</Loading>
                 ) : (
-                  <select aria-label={t('add_repository.field_user_org')} className={selectClass()} onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
+                  <Select aria-label={t('add_repository.field_user_org')} className="font-mono" onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
                     <option value="">{t('add_repository.select_user_org')}</option>
                     {ownerOptions.map((o) => <option key={o.login} value={o.login}>{o.login}</option>)}
-                  </select>
+                  </Select>
                 )}
               </Field>
 
@@ -343,10 +341,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                   ) : reposNotice ? (
                     <Box tone="error">{reposNotice}</Box>
                   ) : (
-                    <select aria-label={t('add_repository.field_repository')} className={selectClass()} onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
+                    <Select aria-label={t('add_repository.field_repository')} className="font-mono" onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
                       <option value="">{t('add_repository.select_repository')}</option>
                       {repoOptions.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
-                    </select>
+                    </Select>
                   )}
                 </Field>
               ) : null}
@@ -356,9 +354,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                   {loadingBranches ? (
                     <Loading>{t('add_repository.loading_branches')}</Loading>
                   ) : (
-                    <select aria-label={t('add_repository.field_default_branch')} className={selectClass()} onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
+                    <Select aria-label={t('add_repository.field_default_branch')} className="font-mono" onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
                       {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
-                    </select>
+                    </Select>
                   )}
                 </Field>
               ) : null}
@@ -372,12 +370,12 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
               {error ? <Box tone="error">{error}</Box> : null}
 
               <div className="flex items-center justify-end gap-2">
-                <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} type="button">
+                <Button onClick={onClose} variant="secondary">
                   {t('add_repository.cancel')}
-                </button>
-                <button className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={save.isPending || !values.owner || !values.name} type="submit">
+                </Button>
+                <Button disabled={save.isPending || !values.owner || !values.name} type="submit">
                   {save.isPending ? <><Spinner light /> {t('add_repository.adding')}</> : t('add_repository.add_repository')}
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -428,10 +426,6 @@ function Spinner({ light }: { light?: boolean }) {
       <path className="opacity-75" d="M4 12a8 8 0 018-8" fill="currentColor" />
     </svg>
   )
-}
-
-function selectClass() {
-  return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono shadow-sm focus:outline-blue-600"
 }
 
 type TFunction = (key: string) => string

@@ -5,6 +5,9 @@ import { Link } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import {
   createTag,
   deleteTag,
@@ -30,7 +33,7 @@ export function Tags() {
   return (
     <main aria-label={t("aria_tags")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('tags.heading')}</h1>
+        <PageHeading>{t('tags.heading')}</PageHeading>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('tags.description')}</p>
       </header>
 
@@ -75,13 +78,14 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('tags.create')}</h2>
+      <SectionHeading>{t('tags.create')}</SectionHeading>
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-name">
           {t('tags.field_name')}
-          <input
+          <Input
             id="new-tag-name"
-            className="mt-1 block rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
+            className="mt-1 normal-case"
+            fullWidth={false}
             onChange={(event) => setName(event.target.value)}
             required
             type="text"
@@ -90,16 +94,17 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
         </label>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-color">
           {t('tags.field_color')}
-          <select
+          <Select
             id="new-tag-color"
-            className="mt-1 block rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
+            className="mt-1 normal-case"
+            fullWidth={false}
             onChange={(event) => setColor(event.target.value)}
             value={color}
           >
             {palette.map((option) => (
               <option key={option.key} value={option.key}>{option.label}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <button
           className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
@@ -171,24 +176,25 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{tag.jobs_count}</td>
       <td className="px-4 py-3">
         <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
-          <input
-            aria-label={t('tags.name_for', { name: tag.name })}
-            className="w-48 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300"
-            onChange={(event) => setName(event.target.value)}
-            required
-            type="text"
-            value={name}
-          />
-          <select
+          <div className="w-48">
+            <Input
+              aria-label={t('tags.name_for', { name: tag.name })}
+              onChange={(event) => setName(event.target.value)}
+              required
+              type="text"
+              value={name}
+            />
+          </div>
+          <Select
             aria-label={t('tags.color_for', { name: tag.name })}
-            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300"
+            fullWidth={false}
             onChange={(event) => setColor(event.target.value)}
             value={color}
           >
             {palette.map((option) => (
               <option key={option.key} value={option.key}>{option.label}</option>
             ))}
-          </select>
+          </Select>
           <button
             className="rounded bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-400"
             disabled={update.isPending}

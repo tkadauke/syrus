@@ -10,7 +10,7 @@ import { CloseIcon } from "../../components/CloseIcon"
 import { StatusPill, TonePill } from "../../components/StatusPill"
 import { Markdown } from "../../lib/Markdown"
 import { workflowSlug } from "../../lib/slugs"
-import { buttonClass } from "../../lib/buttonClasses"
+import { Button, buttonClasses } from "../../components/Button"
 import { pluginIconSrc } from "../../lib/pluginIcon"
 import { fetchJobGradeLog, fetchJobRunArtifacts, type JobAdversarialReviewIteration, type JobDetailPayload, type JobRun, type JobStep, type JobVisualReviewIteration, type JobWorkflow, type JobWorkIntent, type JobWorkUnit, type WorkflowWarning } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
@@ -176,7 +176,7 @@ function WorkDiagnosticDetails({ details }: { details: Record<string, unknown> |
       ) : null}
       <details className="text-gray-500 dark:text-gray-400">
         <summary className="cursor-pointer select-none hover:text-gray-700 dark:hover:text-gray-200">Diagnostic details</summary>
-        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-[11px] leading-4 dark:bg-gray-950">{stringify(details)}</pre>
+        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-50 p-2 text-2xs leading-4 dark:bg-gray-950">{stringify(details)}</pre>
       </details>
     </div>
   )
@@ -363,9 +363,9 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
         <div className="flex flex-wrap items-center gap-2">
           {workflow.state === "running" ? null : <StatusPill state={workflow.state} />}
           {payload.feature_flags?.terminal ? (
-            <button className={buttonClass("secondary")} disabled={terminalOpening} onClick={openTerminal} type="button">
+            <Button disabled={terminalOpening} onClick={openTerminal} variant="secondary">
               {t("open_terminal_in_workspace")}
-            </button>
+            </Button>
           ) : null}
           {workflow.retry_available ? <CommandButton command={command} input={{ method: "post", path: workflow.app_retry_step_path }} tone="secondary">{t("retry_failed_step")}</CommandButton> : null}
           {workflow.state === "failed" && !workflow.cleaned_up_at ? <CommandButton command={command} input={{ method: "post", path: workflow.app_push_commits_path }} tone="secondary">{t("push_commits")}</CommandButton> : null}
@@ -423,12 +423,12 @@ function BranchDivergencePanel({
         <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300">{t("workflow_replace_failed", { message: divergence.recovery_error.message })}</p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link className={buttonClass("secondary")} to={sourcePath}>{t("workflow_open_source")}</Link>
+        <Link className={buttonClasses("secondary")} to={sourcePath}>{t("workflow_open_source")}</Link>
         <CommandButton command={command} input={{ method: "post", path: payload.paths.app_run_again_path }} tone="secondary">
           {t("workflow_retry_from_pr")}
         </CommandButton>
         {divergence.recovery_pending ? (
-          <button className={buttonClass("secondary")} disabled type="button">{t("workflow_replace_queued")}</button>
+          <Button disabled variant="secondary">{t("workflow_replace_queued")}</Button>
         ) : (
           <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: t("workflow_replace_confirm", { branch }) }} tone="danger">
             {t("workflow_replace_pr_branch")}
@@ -612,7 +612,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
       {command ? (
         <div>
           <div className="mb-1 font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{t("grader_command_label")}</div>
-          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
+          <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-2xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{command}</pre>
         </div>
       ) : null}
     </div>
@@ -838,7 +838,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
         <dd>{status}</dd>
       </dl>
       {failure.output_tail ? (
-        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-[11px] text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
+        <pre className="mt-3 max-h-64 overflow-auto rounded border border-amber-200 bg-white/70 p-2 font-mono text-2xs text-amber-950 whitespace-pre-wrap dark:border-amber-800 dark:bg-gray-950 dark:text-amber-100">{failure.output_tail}</pre>
       ) : null}
     </section>
   )
@@ -868,7 +868,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
         <SmallPill>{humanize(warning.kind)}</SmallPill>
       </div>
       {warning.evidence != null ? (
-        <pre className="mt-2 max-h-48 overflow-auto rounded border border-black/10 bg-white/70 p-2 font-mono text-[11px] whitespace-pre-wrap dark:border-white/10 dark:bg-gray-950">
+        <pre className="mt-2 max-h-48 overflow-auto rounded border border-black/10 bg-white/70 p-2 font-mono text-2xs whitespace-pre-wrap dark:border-white/10 dark:bg-gray-950">
           {stringify(warning.evidence)}
         </pre>
       ) : null}
@@ -888,7 +888,7 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
               {promptExpanded ? (
                 <textarea
                   aria-label={t("warning_prompt_label")}
-                  className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-[11px] text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                  className="mt-1 w-full rounded border border-gray-300 p-2 font-mono text-2xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
                   onChange={(event) => setPrompt(event.target.value)}
                   rows={5}
                   value={prompt}
@@ -898,23 +898,21 @@ function WarningPanel({ warning, jobId, command }: { warning: WorkflowWarning; j
           ) : null}
           <div className="mt-2 flex gap-2">
             {warning.suggested_prompt ? (
-              <button
-                className={buttonClass("primary")}
+              <Button
                 disabled={command.isPending || !prompt.trim()}
                 onClick={() => command.mutate({ method: "post", path: filePath, body: { prompt } })}
-                type="button"
+                variant="primary"
               >
                 {t("warning_file_fix_job")}
-              </button>
+              </Button>
             ) : null}
-            <button
-              className={buttonClass("secondary")}
+            <Button
               disabled={command.isPending}
               onClick={() => command.mutate({ method: "post", path: dismissPath })}
-              type="button"
+              variant="secondary"
             >
               {t("warning_dismiss")}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1007,47 +1005,47 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {run.job_log_count > 0 ? (
-            <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} type="button">
+            <Button disabled={artifactsLoading} onClick={() => showArtifacts("transcript")} variant="secondary">
               {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
-            </button>
+            </Button>
           ) : null}
           {stepSummaryArtifact !== null ? (
-            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("summary")} type="button">
+            <Button onClick={() => toggleStepArtifact("summary")} variant="secondary">
               {t("step_btn_summary")}
-            </button>
+            </Button>
           ) : null}
           {stepTestPlanArtifact !== null ? (
-            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("test_plan")} type="button">
+            <Button onClick={() => toggleStepArtifact("test_plan")} variant="secondary">
               {t("step_btn_test_plan")}
-            </button>
+            </Button>
           ) : null}
           {stepAdversarialReviewArtifact !== null ? (
-            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("adversarial_review")} type="button">
+            <Button onClick={() => toggleStepArtifact("adversarial_review")} variant="secondary">
               {t("step_btn_adversarial_review")}
-            </button>
+            </Button>
           ) : null}
           {stepVisualReviewArtifact !== null ? (
-            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("visual_review")} type="button">
+            <Button onClick={() => toggleStepArtifact("visual_review")} variant="secondary">
               {t("step_btn_visual_review")}
-            </button>
+            </Button>
           ) : null}
           {run.agent_diff_present ? (
-            <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("diff")} type="button">
+            <Button disabled={artifactsLoading} onClick={() => showArtifacts("diff")} variant="secondary">
               {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
-            </button>
+            </Button>
           ) : null}
           {run.step_agent_diff_present ? (
-            <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("step_diff")} type="button">
+            <Button disabled={artifactsLoading} onClick={() => showArtifacts("step_diff")} variant="secondary">
               {artifactsLoading && artifactView === "step_diff" ? t("run_loading") : t("run_step_diff")}
-            </button>
+            </Button>
           ) : null}
           {run.can_stop ? <CommandButton command={command} input={{ method: "post", path: run.app_stop_path }} tone="danger">{t("run_stop")}</CommandButton> : null}
           {run.can_diagnose ? <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">{t("run_diagnose")}</CommandButton> : null}
           {run.can_resume ? <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">{t("run_resume")}</CommandButton> : null}
           {run.app_grade_log_path ? (
-            <button className={buttonClass("secondary")} disabled={gradeLog.isPending} onClick={() => showGradeLog(run.app_grade_log_path!)} type="button">
+            <Button disabled={gradeLog.isPending} onClick={() => showGradeLog(run.app_grade_log_path!)} variant="secondary">
               {gradeLog.isPending ? t("run_loading_log") : t("run_grade_log")}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

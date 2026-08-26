@@ -339,7 +339,7 @@ function SourceDiffStatusBadge({ status }: { status: string }) {
   }
   const labels: Record<string, string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
 
-  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-semibold ${styles[normalized] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{labels[normalized] || normalized.slice(0, 1).toUpperCase()}</span>
+  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-2xs font-semibold ${styles[normalized] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{labels[normalized] || normalized.slice(0, 1).toUpperCase()}</span>
 }
 
 function SourceTreeRow({

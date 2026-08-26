@@ -69,13 +69,13 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true")
   })
 
-  it("applies red confirm button when destructive is true", () => {
+  it("applies the danger variant when destructive is true", () => {
     renderDialog({ destructive: true })
-    expect(screen.getByRole("button", { name: "Confirm" }).className).toContain("bg-red-600")
+    expect(screen.getByRole("button", { name: "Confirm" }).className).toContain("bg-danger")
   })
 
-  it("applies blue confirm button when destructive is false", () => {
+  it("applies the primary variant when destructive is false", () => {
     renderDialog({ destructive: false })
-    expect(screen.getByRole("button", { name: "Confirm" }).className).toContain("bg-blue-600")
+    expect(screen.getByRole("button", { name: "Confirm" }).className).toContain("bg-brand")
   })
 })

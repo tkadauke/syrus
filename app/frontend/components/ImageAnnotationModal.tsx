@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { ConfirmDialog } from "./ConfirmDialog"
+import { Modal } from "./Modal"
 
 // --- Shape model ---
 
@@ -826,7 +828,15 @@ export function ImageAnnotationModal({
   } : undefined
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-gray-950/80 p-3 text-gray-900 dark:text-gray-100" role="presentation">
+    <Modal
+      backdropClassName="fixed inset-0 z-50 flex flex-col bg-gray-950/80 p-3 text-gray-900 dark:text-gray-100"
+      className="flex min-h-0 flex-1 flex-col gap-3"
+      closeOnBackdropClick={false}
+      closeOnEscape={false}
+      label={t("image_annotation.annotate", { name })}
+      onClose={onClose}
+      open
+    >
       <ConfirmDialog
         cancelLabel={t("image_annotation.keep_editing")}
         confirmLabel={t("image_annotation.discard")}
@@ -836,118 +846,116 @@ export function ImageAnnotationModal({
         onConfirm={() => { setShowDiscardConfirm(false); onClose() }}
         open={showDiscardConfirm}
       />
-      <section aria-label={t("image_annotation.annotate", { name })} aria-modal="true" className="flex min-h-0 flex-1 flex-col gap-3" role="dialog">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
-            {TOOLS.map((item) => (
-              <button
-                aria-pressed={tool === item.id}
-                className={`rounded px-2.5 py-1 text-sm font-medium ${tool === item.id ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
-                key={item.id}
-                onClick={() => setTool(item.id)}
-                type="button"
-              >
-                {t(`image_annotation.tool_${item.id}`)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.colors")}>
-            {COLORS.map((item) => (
-              <button
-                aria-label={t(`image_annotation.color_${item.key}`)}
-                aria-checked={color === item.value}
-                className={`h-7 w-7 rounded-full border ${color === item.value ? "border-blue-600 ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900" : "border-gray-300 dark:border-gray-600"}`}
-                key={item.value}
-                onClick={() => setColor(item.value)}
-                role="radio"
-                style={{ backgroundColor: item.value }}
-                type="button"
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={secondaryButton()} disabled={undoCount === 0} onClick={undo} type="button">{t("image_annotation.undo")}</button>
-            <button className={secondaryButton()} disabled={redoCount === 0} onClick={redo} type="button">{t("image_annotation.redo")}</button>
-            <button className={secondaryButton()} onClick={requestClose} type="button">{t("image_annotation.cancel")}</button>
-            <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={!imageSize} onClick={finishAnnotation} type="button">{t("image_annotation.done")}</button>
-            <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={requestClose} type="button">
-              <CloseIcon className="h-4 w-4" />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
+          {TOOLS.map((item) => (
+            <button
+              aria-pressed={tool === item.id}
+              className={`rounded px-2.5 py-1 text-sm font-medium ${tool === item.id ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+              key={item.id}
+              onClick={() => setTool(item.id)}
+              type="button"
+            >
+              {t(`image_annotation.tool_${item.id}`)}
             </button>
-          </div>
+          ))}
         </div>
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          {/* Canvas viewport — clips zoom overflow so the zoom bar stays visible */}
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-            <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
-              <div
-                className="relative"
-                style={{ transform: wrapperTransform, transformOrigin: "center" }}
-              >
-                <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
-                <canvas
-                  aria-label={t("image_annotation.canvas")}
-                  className="absolute inset-0 h-full w-full touch-none rounded"
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  ref={overlayCanvasRef}
-                  style={overlayCursor ? { cursor: overlayCursor } : undefined}
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.colors")}>
+          {COLORS.map((item) => (
+            <button
+              aria-label={t(`image_annotation.color_${item.key}`)}
+              aria-checked={color === item.value}
+              className={`h-7 w-7 rounded-full border ${color === item.value ? "border-blue-600 ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900" : "border-gray-300 dark:border-gray-600"}`}
+              key={item.value}
+              onClick={() => setColor(item.value)}
+              role="radio"
+              style={{ backgroundColor: item.value }}
+              type="button"
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" disabled={undoCount === 0} onClick={undo}>{t("image_annotation.undo")}</Button>
+          <Button variant="secondary" disabled={redoCount === 0} onClick={redo}>{t("image_annotation.redo")}</Button>
+          <Button variant="secondary" onClick={requestClose}>{t("image_annotation.cancel")}</Button>
+          <Button disabled={!imageSize} onClick={finishAnnotation}>{t("image_annotation.done")}</Button>
+          <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={requestClose} type="button">
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Canvas viewport — clips zoom overflow so the zoom bar stays visible */}
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+          <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
+            <div
+              className="relative"
+              style={{ transform: wrapperTransform, transformOrigin: "center" }}
+            >
+              <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
+              <canvas
+                aria-label={t("image_annotation.canvas")}
+                className="absolute inset-0 h-full w-full touch-none rounded"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                ref={overlayCanvasRef}
+                style={overlayCursor ? { cursor: overlayCursor } : undefined}
+              />
+              {textPlacement ? (
+                <input
+                  aria-label={t("image_annotation.text_input")}
+                  autoFocus
+                  className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
+                  onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
+                  onKeyDown={handleTextKeyDown}
+                  placeholder={t("image_annotation.text_placeholder")}
+                  style={inputStyle}
+                  value={textPlacement.value}
                 />
-                {textPlacement ? (
-                  <input
-                    aria-label={t("image_annotation.text_input")}
-                    autoFocus
-                    className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
-                    onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
-                    onKeyDown={handleTextKeyDown}
-                    placeholder={t("image_annotation.text_placeholder")}
-                    style={inputStyle}
-                    value={textPlacement.value}
-                  />
-                ) : null}
-              </div>
+              ) : null}
             </div>
           </div>
-
-          {/* Zoom bar — pinned to the right edge, outside the canvas overflow area */}
-          <div className="flex flex-shrink-0 flex-col items-center gap-1 justify-center border-l border-gray-200 bg-white py-2 px-2 dark:border-gray-700 dark:bg-gray-900">
-            <button
-              aria-label={t("image_annotation.zoom_in")}
-              className={secondaryButton() + " px-2 py-1 text-base font-bold"}
-              disabled={zoom >= ZOOM_MAX}
-              onClick={() => changeZoom(ZOOM_STEP)}
-              type="button"
-            >
-              +
-            </button>
-            <input
-              aria-label={t("image_annotation.zoom_label")}
-              className="h-24"
-              max={ZOOM_MAX}
-              min={ZOOM_MIN}
-              onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
-              step={0.05}
-              style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
-              type="range"
-              value={zoom}
-            />
-            <button
-              aria-label={t("image_annotation.zoom_out")}
-              className={secondaryButton() + " px-2 py-1 text-base font-bold"}
-              disabled={zoom <= ZOOM_MIN}
-              onClick={() => changeZoom(-ZOOM_STEP)}
-              type="button"
-            >
-              −
-            </button>
-            <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
-              {Math.round(zoom * 100)}%
-            </span>
-          </div>
         </div>
-      </section>
-    </div>
+
+        {/* Zoom bar — pinned to the right edge, outside the canvas overflow area */}
+        <div className="flex flex-shrink-0 flex-col items-center gap-1 justify-center border-l border-gray-200 bg-white py-2 px-2 dark:border-gray-700 dark:bg-gray-900">
+          <button
+            aria-label={t("image_annotation.zoom_in")}
+            className={secondaryButton() + " px-2 py-1 text-base font-bold"}
+            disabled={zoom >= ZOOM_MAX}
+            onClick={() => changeZoom(ZOOM_STEP)}
+            type="button"
+          >
+            +
+          </button>
+          <input
+            aria-label={t("image_annotation.zoom_label")}
+            className="h-24"
+            max={ZOOM_MAX}
+            min={ZOOM_MIN}
+            onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
+            step={0.05}
+            style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
+            type="range"
+            value={zoom}
+          />
+          <button
+            aria-label={t("image_annotation.zoom_out")}
+            className={secondaryButton() + " px-2 py-1 text-base font-bold"}
+            disabled={zoom <= ZOOM_MIN}
+            onClick={() => changeZoom(-ZOOM_STEP)}
+            type="button"
+          >
+            −
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+            {Math.round(zoom * 100)}%
+          </span>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
+import { Button } from "../components/Button"
 import { withRoutePrefix } from "../lib/routing"
 import { useT } from "../hooks/useT"
 import { acceptRemoveMemoryInsight, fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
@@ -249,14 +250,14 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
               {t("view_job")}
             </Link>
             {suggestion.has_memory_suggestion && (
-              <button
-                className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              <Button
                 disabled={promoteMutation.isPending}
                 onClick={() => promoteMutation.mutate()}
-                type="button"
+                size="sm"
+                variant="secondary"
               >
                 {promoteMutation.isPending ? t("promoting") : t("promote_to_instance")}
-              </button>
+              </Button>
             )}
             {suggestion.state === "pending" && suggestion.proposal_type === "remove_memory" && (
               <button

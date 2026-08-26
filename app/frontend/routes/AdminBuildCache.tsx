@@ -15,6 +15,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { useConfirm } from "../hooks/useConfirm"
 import { formatBytes } from "../lib/format"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { Button } from "../components/Button"
 
 const QUERY_KEY = ["admin", "build_cache"]
 
@@ -171,13 +172,9 @@ function ClearRequestForm() {
         <p className="text-sm text-red-600 dark:text-red-300">{create.error instanceof ApiError ? create.error.message : t("build_cache.error_generic")}</p>
       ) : null}
 
-      <button
-        className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={create.isPending || !reason.trim()}
-        type="submit"
-      >
+      <Button disabled={create.isPending || !reason.trim()} type="submit" variant="primary">
         {create.isPending ? t("build_cache.requesting") : t("build_cache.request_button")}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -223,22 +220,12 @@ function PendingRequestCard({ request }: { request: BuildCacheClearRequest }) {
       ) : null}
 
       <div className="mt-3 flex gap-2">
-        <button
-          className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={confirmMutation.isPending}
-          onClick={onConfirmClick}
-          type="button"
-        >
+        <Button disabled={confirmMutation.isPending} onClick={onConfirmClick} variant="danger">
           {confirmMutation.isPending ? t("build_cache.confirming") : t("build_cache.confirm_button")}
-        </button>
-        <button
-          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={cancelMutation.isPending}
-          onClick={() => cancelMutation.mutate()}
-          type="button"
-        >
+        </Button>
+        <Button disabled={cancelMutation.isPending} onClick={() => cancelMutation.mutate()} variant="secondary">
           {t("build_cache.cancel_button")}
-        </button>
+        </Button>
       </div>
     </section>
   )

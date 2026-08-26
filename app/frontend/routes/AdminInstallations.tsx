@@ -10,6 +10,8 @@ import {
   type PatOwnerGroup
 } from "../api/adminInstallations"
 import { ApiError } from "../api/client"
+import { Button } from "../components/Button"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 
 export function AdminInstallations() {
@@ -25,7 +27,7 @@ export function AdminInstallations() {
     <main aria-label={t("aria_installations")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("installations.heading")}</h1>
+        <PageHeading className="mt-1">{t("installations.heading")}</PageHeading>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {t("installations.description")}
         </p>
@@ -53,7 +55,7 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
 
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("installations.credential_modes")}</h2>
+          <SectionHeading>{t("installations.credential_modes")}</SectionHeading>
           <RefreshButton />
         </div>
         <SyncStatus payload={payload} />
@@ -101,14 +103,12 @@ function RefreshButton() {
   })
 
   return (
-    <button
-      className="rounded bg-blue-600 dark:bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+    <Button
       disabled={refresh.isPending}
       onClick={() => refresh.mutate()}
-      type="button"
     >
       {refresh.isPending ? t("installations.refreshing") : t("installations.refresh")}
-    </button>
+    </Button>
   )
 }
 
@@ -149,7 +149,7 @@ function PatOwnerGroups({ groups }: { groups: PatOwnerGroup[] }) {
 
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("installations.install_on_pat_repos")}</h2>
+      <SectionHeading>{t("installations.install_on_pat_repos")}</SectionHeading>
       <div className="divide-y divide-gray-100 dark:divide-gray-800 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {groups.map((group) => (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={group.owner}>
@@ -176,7 +176,7 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("installations.repositories_heading")}</h2>
+      <SectionHeading className="mb-3">{t("installations.repositories_heading")}</SectionHeading>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">

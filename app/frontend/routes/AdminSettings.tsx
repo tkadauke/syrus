@@ -9,6 +9,7 @@ import {
   type AdminSettingsPayload,
   type ClearableSecret
 } from "../api/adminSettings"
+import { Button } from "../components/Button"
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -312,13 +313,12 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         </select>
       </div>
 
-      <button
-        className="rounded bg-blue-600 dark:bg-blue-500 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+      <Button
         disabled={update.isPending}
         type="submit"
       >
         {update.isPending ? t("settings.saving") : t("settings.save")}
-      </button>
+      </Button>
       {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("settings.error_update"))}</p> : null}
       {dialog}
     </form>
@@ -375,14 +375,12 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
           type="password"
           value={tokenInput}
         />
-        <button
-          className="rounded bg-terracotta-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:opacity-50"
+        <Button
           disabled={saveToken.isPending || !tokenInput.trim()}
           onClick={() => { onNotice(null); saveToken.mutate() }}
-          type="button"
         >
           {saveToken.isPending ? t("settings.saving") : t("settings.telegram_save_token")}
-        </button>
+        </Button>
         {tokenSet && (
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"
@@ -459,14 +457,12 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
           type="password"
           value={tokenInput}
         />
-        <button
-          className="rounded bg-terracotta-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:opacity-50"
+        <Button
           disabled={saveToken.isPending || !tokenInput.trim()}
           onClick={() => { onNotice(null); saveToken.mutate() }}
-          type="button"
         >
           {saveToken.isPending ? t("settings.saving") : t("settings.discord_save_token")}
-        </button>
+        </Button>
         {tokenSet && (
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"

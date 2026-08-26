@@ -22,6 +22,7 @@ import { BugReportButton, type BugReportButtonHandle } from "../components/BugRe
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { BuildBadge } from "../components/BuildBadge"
+import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { NoticeToast } from "../components/NoticeToast"
@@ -799,25 +800,25 @@ function SidebarContent({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="sticky top-0 z-20 space-y-3 bg-white px-3 py-4 dark:bg-gray-950">
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+          <Button
+            className="w-full"
             disabled={!user || startingChat}
             onClick={onStartChat}
-            type="button"
           >
             <PlusIcon />
             <span>{t("nav:new_chat")}</span>
-          </button>
+          </Button>
           {showTeamProfile ? (
-            <button
-              className="inline-flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
+              className="w-full"
               disabled={!user}
               onClick={onStartGroupChat}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               <TeamIcon />
               <span>{t("nav:new_group_chat")}</span>
-            </button>
+            </Button>
           ) : null}
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
         </div>
@@ -1120,7 +1121,7 @@ function ThemePicker() {
           return (
             <button
               aria-pressed={active}
-              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-[11px] font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={option.value}
               onClick={() => setTheme(option.value)}
               type="button"

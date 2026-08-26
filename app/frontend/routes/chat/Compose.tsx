@@ -12,6 +12,7 @@ import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } fr
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, scheduleChatMessage, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
+import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
@@ -26,7 +27,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
 import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
-import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, primaryButton, secondaryButton, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
+import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
@@ -1383,8 +1384,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
             <span>{t("clear_confirm")}</span>
             <span className="flex gap-2">
-              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} type="button">{t("clear")}</button>
-              <button className={secondaryButton()} disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} type="button">{t("cancel")}</button>
+              <Button disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} variant="secondary">{t("clear")}</Button>
+              <Button disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} variant="secondary">{t("cancel")}</Button>
             </span>
           </div>
         ) : null}
@@ -1577,7 +1578,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         {ghostSuggestion ? (
           <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
             <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
-            <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+            <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-2xs font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
           </div>
         ) : null}
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
@@ -2441,8 +2442,8 @@ function SlashCommandConfirmation({ commandName, disabled, prompt, text, onCance
           )}
         </div>
         <div className="flex shrink-0 gap-2">
-          <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">{t("cancel")}</button>
-          <button className={primaryButton()} disabled={disabled} onClick={onConfirm} type="button">{t("confirm")}</button>
+          <Button disabled={disabled} onClick={onCancel} variant="secondary">{t("cancel")}</Button>
+          <Button disabled={disabled} onClick={onConfirm} variant="primary">{t("confirm")}</Button>
         </div>
       </div>
     </div>
@@ -2483,7 +2484,7 @@ function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }
               </span>
               <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{slashCommandDescription(command, context)}</span>
             </span>
-            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}>{command.kind}</span>
+            <span className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase ${command.kind === "system" ? "bg-cyan-50 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200" : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200"}`}>{command.kind}</span>
           </button>
         )
       })}
@@ -2559,8 +2560,8 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
           value={draft}
         />
         <div className="mt-2 flex justify-end gap-2">
-          <button className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" disabled={update.isPending} onClick={() => setEditing(false)} type="button">{t("cancel")}</button>
-          <button className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700" disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} type="button">{t("save")}</button>
+          <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">{t("cancel")}</Button>
+          <Button disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} size="sm" variant="primary">{t("save")}</Button>
         </div>
       </div>
     )

@@ -1024,7 +1024,7 @@ function CodingDiffStatusBadge({ status }: { status: CodingDiffFile["status"] })
   }
   const labels: Record<CodingDiffFile["status"], string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
 
-  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-semibold ${styles[status]}`}>{labels[status]}</span>
+  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-2xs font-semibold ${styles[status]}`}>{labels[status]}</span>
 }
 
 function parseCodingDiffFiles(diff: string): CodingDiffFile[] {

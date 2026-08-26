@@ -1,6 +1,7 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { useColorTokens } from "../lib/colorTokens"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
@@ -49,13 +50,18 @@ type WorkerHealthChartMetric = {
   critical?: number
 }
 
-const workerHealthChartMetrics: WorkerHealthChartMetric[] = [
-  { key: "cpu_used_percent", labelKey: "queue.metric_cpu", unit: "percent", max: 100, warning: 80, critical: 95, color: "#2563eb" },
-  { key: "load_1m", labelKey: "queue.metric_load", unit: "number", color: "#7c3aed" },
-  { key: "memory_used_percent", labelKey: "queue.metric_memory", unit: "percent", max: 100, warning: 85, critical: 95, color: "#059669" },
-  { key: "data_root_used_percent", labelKey: "queue.metric_disk", unit: "percent", max: 100, warning: 85, critical: 95, color: "#d97706" },
-  { key: "cpu_pressure_some", labelKey: "queue.metric_cpu_pressure", unit: "percent", max: 100, warning: 10, critical: 30, color: "#dc2626" },
-  { key: "io_pressure_some", labelKey: "queue.metric_io_pressure", unit: "percent", max: 100, warning: 10, critical: 30, color: "#0891b2" }
+// colorVar names a semantic design token (app/assets/tailwind/application.css)
+// instead of a literal hex: the SVG stroke attribute below can't take a
+// Tailwind class, so the actual color is resolved at render time via
+// useColorTokens, which keeps it tracking the token layer (including
+// light/dark) instead of a hand-copied value that can drift from it.
+const workerHealthChartMetricSpecs: Array<Omit<WorkerHealthChartMetric, "color"> & { colorVar: string }> = [
+  { key: "cpu_used_percent", labelKey: "queue.metric_cpu", unit: "percent", max: 100, warning: 80, critical: 95, colorVar: "--color-info" },
+  { key: "load_1m", labelKey: "queue.metric_load", unit: "number", colorVar: "--color-brand" },
+  { key: "memory_used_percent", labelKey: "queue.metric_memory", unit: "percent", max: 100, warning: 85, critical: 95, colorVar: "--color-success" },
+  { key: "data_root_used_percent", labelKey: "queue.metric_disk", unit: "percent", max: 100, warning: 85, critical: 95, colorVar: "--color-warning" },
+  { key: "cpu_pressure_some", labelKey: "queue.metric_cpu_pressure", unit: "percent", max: 100, warning: 10, critical: 30, colorVar: "--color-danger" },
+  { key: "io_pressure_some", labelKey: "queue.metric_io_pressure", unit: "percent", max: 100, warning: 10, critical: 30, colorVar: "--color-neutral" }
 ]
 
 type WorkerHealthBucket = WorkerHealthPayload["hosts"][number]["minute_buckets"][number]
@@ -503,6 +509,8 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
 
 function WorkerHealthCharts({ buckets, hostname }: { buckets: WorkerHealthBucket[]; hostname: string }) {
   const { t } = useT("admin")
+  const colors = useColorTokens(workerHealthChartMetricSpecs.map((spec) => spec.colorVar))
+  const metrics = workerHealthChartMetricSpecs.map(({ colorVar, ...spec }, index) => ({ ...spec, color: colors[index] }))
 
   if (buckets.length === 0) {
     return <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("queue.no_worker_health_buckets")}</p>
@@ -510,7 +518,7 @@ function WorkerHealthCharts({ buckets, hostname }: { buckets: WorkerHealthBucket
 
   return (
     <div className="mt-4 grid gap-x-4 gap-y-5 md:grid-cols-2" data-testid={`worker-health-charts-${hostname}`}>
-      {workerHealthChartMetrics.map((metric) => (
+      {metrics.map((metric) => (
         <WorkerHealthMetricChart buckets={buckets} hostname={hostname} key={metric.key} metric={metric} title={t(metric.labelKey)} />
       ))}
     </div>
@@ -571,7 +579,7 @@ function WorkerHealthMetricChart({ buckets, hostname, metric, title }: { buckets
         ) : null)}
         {path ? <path d={path} fill="none" stroke={metric.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /> : null}
       </svg>
-      <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+      <div className="mt-1 flex items-center justify-between gap-2 text-2xs text-gray-500 dark:text-gray-400">
         <span>{formatRelativeDate(new Date(buckets[0]?.minute))}</span>
         <span>{missingCount > 0 ? `${missingCount} missing` : `${numericValues.length} samples`}</span>
         <span>{formatRelativeDate(new Date(buckets[buckets.length - 1]?.minute))}</span>
@@ -586,7 +594,7 @@ function ThresholdLine({ label, max, value }: { label: string; max: number; valu
   return (
     <>
       <line className="stroke-amber-500/70" strokeDasharray="4 4" x1="0" x2="320" y1={y} y2={y} vectorEffect="non-scaling-stroke" />
-      <text className="fill-amber-700 text-[10px] dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>{label}</text>
+      <text className="fill-amber-700 text-2xs dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>{label}</text>
     </>
   )
 }
@@ -632,7 +640,7 @@ function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hos
 function HealthStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-2xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
       <div className="mt-0.5 font-mono text-gray-900 dark:text-gray-100">{value}</div>
     </div>
   )

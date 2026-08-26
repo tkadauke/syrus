@@ -26,6 +26,8 @@ import { FilterBar } from "../components/FilterBar"
 import { NoticeToast } from "../components/NoticeToast"
 import { Markdown } from "../lib/Markdown"
 import { useConfirm } from "../hooks/useConfirm"
+import { Button } from "../components/Button"
+import { PILL_TONE_CLASSES } from "../components/StatusPill"
 
 const kindKeys: Record<string, string> = {
   user_pref: "memories.kind_user_pref",
@@ -36,7 +38,7 @@ const kindKeys: Record<string, string> = {
 }
 
 const kindClasses: Record<string, string> = {
-  user_pref: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-800",
+  user_pref: PILL_TONE_CLASSES.blue,
   project_fact: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:ring-emerald-800",
   feedback: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800",
   reference: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
@@ -96,13 +98,13 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
             search={location.search}
           />
           <div className="flex shrink-0 gap-2">
-            <button className="rounded border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={toggleDeletedView} type="button">
+            <Button onClick={toggleDeletedView} variant="secondary">
               {showDeleted ? t('memories.view_active') : t('memories.view_deleted')}
-            </button>
+            </Button>
             {showDeleted ? null : (
-              <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" onClick={() => setCreating(true)} type="button">
+              <Button onClick={() => setCreating(true)} variant="primary">
                 {t('memories.create')}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -205,19 +207,19 @@ function MemoryRowView({ memory, payload, showOwner, showDeleted, onNotice }: { 
       <td className="px-4 py-3">
         <div className="flex justify-end gap-2">
           {memory.permissions.can_manage ? (
-            <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setViewingHistory(true)} type="button">
+            <Button onClick={() => setViewingHistory(true)} size="sm" variant="secondary">
               {t('memories.history')}
-            </button>
+            </Button>
           ) : null}
           {!showDeleted && memory.permissions.can_manage ? (
-            <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setEditing(true)} type="button">
+            <Button onClick={() => setEditing(true)} size="sm" variant="secondary">
               {t('memories.edit')}
-            </button>
+            </Button>
           ) : null}
           {!showDeleted && memory.permissions.can_publish ? (
-            <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" disabled={publish.isPending} onClick={() => publish.mutate()} type="button">
+            <Button disabled={publish.isPending} onClick={() => publish.mutate()} size="sm" variant="secondary">
               {memory.published ? t('memories.unpublish') : t('memories.publish')}
-            </button>
+            </Button>
           ) : null}
           {!showDeleted && memory.permissions.can_manage ? (
             <button
@@ -511,12 +513,12 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
           {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, mode === "create" ? "Unable to create memory." : "Unable to update memory.")}</p> : null}
 
           <div className="flex justify-end gap-2">
-            <button className="rounded border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onClose} type="button">
+            <Button onClick={onClose} variant="secondary">
               {t('memories.cancel')}
-            </button>
-            <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={pending} type="submit">
+            </Button>
+            <Button disabled={pending} type="submit" variant="primary">
               {pending ? t('memories.saving') : t('memories.save')}
-            </button>
+            </Button>
           </div>
         </form>
       </section>

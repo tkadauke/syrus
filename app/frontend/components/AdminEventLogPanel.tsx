@@ -106,7 +106,7 @@ export function AdminEventSortableHeader({
     <th className={className}>
       <button className="group inline-flex items-center gap-1 text-left font-medium uppercase hover:text-gray-900 dark:hover:text-gray-100" onClick={sort} type="button">
         <span>{children}</span>
-        <span className={`text-[10px] ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}>
+        <span className={`text-2xs ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}>
           {active ? (currentDirection === "asc" ? "↑" : "↓") : "↕"}
         </span>
       </button>

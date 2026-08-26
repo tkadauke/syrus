@@ -5,6 +5,10 @@ import type { DragEvent, FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { Button } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
@@ -146,8 +150,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_target")}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("form_repository_label")}>
-            <select
-              className={inputClass()}
+            <Select
               name="repository_id"
               onChange={(event) => setValues({ ...values, repositoryId: event.target.value })}
               required
@@ -157,7 +160,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
               {payload.repositories.map((repository) => (
                 <option key={repository.id} value={repository.id}>{repository.slug}</option>
               ))}
-            </select>
+            </Select>
           </Field>
 
           {payload.configured_agent_providers.length > 1 ? (
@@ -166,8 +169,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 {values.agentProvider || selectedRepository?.default_agent_provider ? (
                   <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")} />
                 ) : null}
-                <select
-                  className={inputClass()}
+                <Select
                   name="agent_provider"
                   onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
                   value={values.agentProvider}
@@ -176,7 +178,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                   {payload.configured_agent_providers.map((provider) => (
                     <option key={provider.value} value={provider.value}>{provider.label}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </Field>
           ) : null}
@@ -205,8 +207,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_prompt")}</h2>
         <Field label={t("form_title_label")}>
-          <input
-            className={inputClass()}
+          <Input
             name="title"
             onChange={(event) => setValues({ ...values, title: event.target.value })}
             placeholder={t("form_title_placeholder")}
@@ -227,8 +228,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           />
         </Field>
         <Field label={t("form_priority_label")}>
-          <select
-            className={inputClass()}
+          <Select
             name="priority"
             onChange={(event) => setValues({ ...values, priority: event.target.value })}
             value={values.priority}
@@ -238,7 +238,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
                 {priority.label} {priority.description ? `- ${priority.description}` : ""}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
       </section>
 
@@ -265,7 +265,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           <div className="font-medium text-gray-700 dark:text-gray-300">{t("form_drop_files")}</div>
           <div className="mt-1 text-xs">{t("form_file_types_hint")}</div>
         </div>
-        <input
+        <Input
           accept={payload.accepted_file_content_types.join(",")}
           className="hidden"
           multiple
@@ -285,8 +285,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </div>
 
         <Field label={t("attachment_google_doc_label")}>
-          <input
-            className={inputClass()}
+          <Input
             name="job_attachment_google_doc_url"
             onChange={(event) => setValues({ ...values, googleDocUrl: event.target.value })}
             placeholder={t("attachment_google_doc_placeholder")}
@@ -296,25 +295,17 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </Field>
       </section>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-        <input
-          checked={values.createMore}
-          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950"
-          name="create_more"
-          onChange={(event) => setValues({ ...values, createMore: event.target.checked })}
-          type="checkbox"
-        />
-        {t("form_create_more")}
-      </label>
+      <Checkbox
+        checked={values.createMore}
+        label={t("form_create_more")}
+        name="create_more"
+        onChange={(event) => setValues({ ...values, createMore: event.target.checked })}
+      />
 
       <div className="flex items-center gap-3">
-        <button
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-          disabled={save.isPending}
-          type="submit"
-        >
+        <Button disabled={save.isPending} type="submit">
           {save.isPending ? t("form_creating") : t("form_create_job")}
-        </button>
+        </Button>
         <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>{t("cancel")}</Link>
       </div>
       {dialog}

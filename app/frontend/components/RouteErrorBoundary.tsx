@@ -3,6 +3,7 @@ import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErro
 import { createBugReport } from "../api/bugReports"
 import { fileEventJob } from "../api/eventActions"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 
 const STORAGE_KEY = "syrus_reported_errors"
 
@@ -74,20 +75,20 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
       <p className="font-medium text-red-800 dark:text-red-200">{t("route_error.heading")}</p>
       <code className="mt-2 block break-all text-xs text-red-700 dark:text-red-300">{error.message}</code>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => window.history.back()}
-          type="button"
         >
           {t("route_error.go_back")}
-        </button>
-        <button
-          className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => window.location.reload()}
-          type="button"
         >
           {t("route_error.reload_page")}
-        </button>
+        </Button>
         {reportState === "success" ? (
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {jobId != null ? t("route_error.reported_as", { job_id: jobId }) : t("route_error.already_reported")}
@@ -97,14 +98,13 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
         ) : alreadyReported ? (
           <span className="text-xs text-gray-500 dark:text-gray-400">{t("route_error.already_reported")}</span>
         ) : (
-          <button
-            className="rounded bg-terracotta-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-terracotta-500 disabled:opacity-60"
+          <Button
+            size="sm"
             disabled={reportState === "loading"}
             onClick={() => void sendReport()}
-            type="button"
           >
             {t("route_error.send_report")}
-          </button>
+          </Button>
         )}
         {browserEventId != null ? (
           <a className="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" href={`/admin/browser_errors?id=${browserEventId}&revision_scope=all`}>

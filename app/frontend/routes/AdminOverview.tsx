@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { fetchAdminOverview, type AdminOverviewPayload, type ResourceAdmissionDiagnosticsPayload } from "../api/adminOverview"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 
@@ -105,7 +106,7 @@ function AdminOverviewPage({
     <main aria-label={t(ariaKey)} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t(headingKey)}</h1>
+        <PageHeading className="mt-1">{t(headingKey)}</PageHeading>
       </header>
 
       {page === "overview" ? (
@@ -137,7 +138,7 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
     <section aria-label={t("overview.aria_resource_admission")} className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("overview.resource_admission_section")}</h2>
+          <SectionHeading>{t("overview.resource_admission_section")}</SectionHeading>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.resource_admission_window", { recent: data.windows.recent_hours, delayed: data.windows.delayed_hours })}</p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
@@ -299,7 +300,7 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
     <section aria-label={t("overview.aria_chat_events")} className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("overview.chat_events_section")}</h2>
+          <SectionHeading>{t("overview.chat_events_section")}</SectionHeading>
           <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.chat_events_window", { hours: data.window_hours, total: data.total })}</p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">

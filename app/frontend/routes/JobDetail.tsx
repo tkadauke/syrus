@@ -14,7 +14,7 @@ import { StartBlockedReasonPill } from "../components/StartBlockedReasonPill"
 import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
-import { buttonClass } from "../lib/buttonClasses"
+import { Button } from "../components/Button"
 import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
@@ -729,14 +729,13 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
                   value={replaceBody}
                 />
                 <div className="flex gap-2">
-                  <button
-                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  <Button
                     disabled={isPending || !replaceBody.trim()}
                     onClick={() => replace.mutate({ commentId: comment.id, body: replaceBody })}
-                    type="button"
+                    size="sm"
                   >
                     Submit replacement
-                  </button>
+                  </Button>
                   <button
                     className="text-xs text-gray-500 hover:underline dark:text-gray-400"
                     onClick={() => { setReplaceId(null); setReplaceBody("") }}
@@ -749,32 +748,22 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
             ) : (
               <div className="mt-3 flex flex-wrap gap-2">
                 {comment.retryable ? (
-                  <button
-                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isPending}
-                    onClick={() => retry.mutate(comment.id)}
-                    type="button"
-                  >
+                  <Button disabled={isPending} onClick={() => retry.mutate(comment.id)} size="sm">
                     {t("pending_feedback_retry")}
-                  </button>
+                  </Button>
                 ) : (
                   <>
-                    <button
-                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={isPending}
-                      onClick={() => apply.mutate(comment.id)}
-                      type="button"
-                    >
+                    <Button disabled={isPending} onClick={() => apply.mutate(comment.id)} size="sm">
                       Apply
-                    </button>
-                    <button
-                      className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                    </Button>
+                    <Button
                       disabled={isPending}
                       onClick={() => { setReplaceId(comment.id); setReplaceBody("") }}
-                      type="button"
+                      size="sm"
+                      variant="secondary"
                     >
                       Replace
-                    </button>
+                    </Button>
                   </>
                 )}
                 <button
@@ -1689,7 +1678,7 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
             {t("attachment_google_doc_label")}
             <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder={t("attachment_google_doc_placeholder")} type="url" value={googleDocUrl} />
           </label>
-          <button className={buttonClass("primary")} disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">{t("attachment_add_button")}</button>
+          <Button disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">{t("attachment_add_button")}</Button>
         </div>
         {add.isError ? <p className="mt-2 text-sm text-red-700">{errorMessage(add.error, t("attachment_add_error"))}</p> : null}
       </form>
