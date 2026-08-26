@@ -2338,6 +2338,7 @@ function baseJob(): JobDetailPayload["job"] {
     any_active_run: false,
     prepare_skipped: false,
     prepare_skip_reason: null,
+    delivery_status: "waiting_for_local_approval",
     needs_attention: false,
     needs_attention_reason: null,
     needs_attention_since: null,

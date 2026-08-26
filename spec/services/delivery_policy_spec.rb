@@ -52,14 +52,16 @@ RSpec.describe DeliveryPolicy do
       expect(policy.branch_health_grade_phase("main")).to eq("ci")
     end
 
-    it "reports promotion, hotfix sync as disabled" do
+    it "reports promotion, hotfix sync, and upstream export as disabled" do
       expect(policy.promotion_enabled?).to be(false)
       expect(policy.hotfix_sync_enabled?).to be(false)
+      expect(policy.upstream_export_enabled?).to be(false)
     end
 
-    it "reports the default promotion/hotfix sync modes even when disabled" do
+    it "reports the default promotion/hotfix sync/upstream export modes even when disabled" do
       expect(policy.promotion_mode).to eq("auto_pr")
       expect(policy.hotfix_sync_mode).to eq("auto")
+      expect(policy.upstream_export_mode).to eq("per_job_pr")
     end
   end
 
@@ -76,6 +78,7 @@ RSpec.describe DeliveryPolicy do
       expect(policy.branch_health_grade_phase("main")).to eq("ci")
       expect(policy.promotion_enabled?).to be(false)
       expect(policy.hotfix_sync_enabled?).to be(false)
+      expect(policy.upstream_export_enabled?).to be(false)
     end
   end
 
@@ -105,6 +108,10 @@ RSpec.describe DeliveryPolicy do
           hotfix_sync:
             enabled: true
             mode: auto_pr
+
+          upstream_export:
+            enabled: true
+            mode: branch_pr
       YAML
     end
 
@@ -130,11 +137,13 @@ RSpec.describe DeliveryPolicy do
       expect(policy.branch_health_grade_phase("some-other-branch")).to eq(policy.branch_health_grade_phase("develop"))
     end
 
-    it "reports promotion and hotfix sync as enabled with their configured modes" do
+    it "reports promotion, hotfix sync, and upstream export as enabled with their configured modes" do
       expect(policy.promotion_enabled?).to be(true)
       expect(policy.promotion_mode).to eq("manual_pr")
       expect(policy.hotfix_sync_enabled?).to be(true)
       expect(policy.hotfix_sync_mode).to eq("auto_pr")
+      expect(policy.upstream_export_enabled?).to be(true)
+      expect(policy.upstream_export_mode).to eq("branch_pr")
     end
   end
 
