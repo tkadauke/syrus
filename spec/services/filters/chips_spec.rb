@@ -20,7 +20,7 @@ RSpec.describe "Filters::Chips" do
     )
   end
 
-  def create_blocked_work_unit_for(job, kind: "initial")
+  def create_blocked_work_unit_for(job, kind: "initial", blocked_reason: "admission_control")
     workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running")
     intent = WorkIntent.create!(
       kind: kind,
@@ -37,7 +37,7 @@ RSpec.describe "Filters::Chips" do
       scope_type: "job",
       scope_id: job.id,
       workflow: workflow,
-      blocked_reason: "admission_control"
+      blocked_reason: blocked_reason
     )
     unit.work_unit_members.create!(job: job, role: "primary")
     unit
@@ -326,6 +326,21 @@ RSpec.describe "Filters::Chips" do
 
       expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(work_unit_paused)
       expect(run(field: "has_start_blocked_reason", op: "is_true", value: nil)).to contain_exactly(work_unit_paused)
+    end
+
+    it "paused: excludes jobs blocked only for a dependency-wait reason" do
+      genuinely_paused = Factories.job_record(repository: repo, issue_number: 40, state: "running")
+      create_blocked_work_unit_for(genuinely_paused, blocked_reason: "admission_control")
+
+      WorkUnit::DEPENDENCY_BLOCKED_REASONS.each_with_index do |reason, index|
+        dependency_waiting = Factories.job_record(repository: repo, issue_number: 41 + index, state: "approved")
+        create_blocked_work_unit_for(dependency_waiting, blocked_reason: reason)
+
+        result = run(field: "attention", op: "is", value: "paused")
+        expect(result).not_to include(dependency_waiting), "expected #{reason.inspect}-blocked job to be excluded from paused"
+      end
+
+      expect(run(field: "attention", op: "is", value: "paused")).to contain_exactly(genuinely_paused)
     end
 
     it "queued: excludes jobs with a running infrastructure workflow (e.g. main_grader)" do

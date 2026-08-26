@@ -264,7 +264,7 @@ module Filters
         end
 
         def paused_job_ids
-          blocked_work_unit_job_ids - actively_executing_job_ids
+          pause_blocked_work_unit_job_ids - actively_executing_job_ids
         end
 
         def active_repair_work_job_ids
@@ -277,6 +277,14 @@ module Filters
 
         def blocked_work_unit_job_ids
           @blocked_work_unit_job_ids ||= WorkUnits::Ownership.all_blocked_job_ids.to_a
+        end
+
+        # "Paused" means a human paused the Job or the system halted it
+        # for an infra reason — not "waiting in line on a dependency".
+        # That's the "Blocked" smart folder's territory (blocked_dependency_ids).
+        def pause_blocked_work_unit_job_ids
+          @pause_blocked_work_unit_job_ids ||=
+            WorkUnits::Ownership.all_blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS).to_a
         end
 
         def runtime_running_job_ids(trigger_kind: nil, excluding_trigger_kind: nil)

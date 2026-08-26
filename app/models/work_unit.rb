@@ -1,5 +1,16 @@
 class WorkUnit < ApplicationRecord
   STATES = %w[queued blocked running succeeded failed cancelled].freeze
+
+  # Reasons that mean "this Job is simply waiting in line on an
+  # unfinished dependency" — the "Blocked" smart folder's territory,
+  # not "Paused".
+  DEPENDENCY_BLOCKED_REASONS = %w[
+    dependency_failed
+    stack_dependencies_not_ready
+    stack_fan_in_base_unavailable
+    job_not_ready_for_execution
+  ].freeze
+
   BLOCKED_REASONS = %w[
     admission_control
     provider_availability
@@ -17,6 +28,11 @@ class WorkUnit < ApplicationRecord
     auto_retry_backoff
     preempted
   ].freeze
+
+  # Genuine pause / infra-hold reasons — a human paused the Job, or the
+  # system halted it for an infra reason. Excludes the dependency-wait
+  # reasons above so "Paused" doesn't double up with "Blocked".
+  PAUSE_BLOCKED_REASONS = (BLOCKED_REASONS - DEPENDENCY_BLOCKED_REASONS).freeze
 
   belongs_to :work_intent
   belongs_to :repository, optional: true
