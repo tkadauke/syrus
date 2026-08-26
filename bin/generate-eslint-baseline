@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+"use strict"
+
+// Regenerates eslint-rules/baseline.json from the current state of
+// app/frontend. Run this after a follow-up job (buttons, forms, etc.)
+// migrates a file's raw elements/classes onto the design-system primitives
+// -- its baseline entry shrinks (or drops out entirely once it hits zero),
+// so the ratchet keeps tightening as adoption grows.
+//
+// Setting ESLINT_BASELINE_GENERATE=1 makes every design-system/* rule
+// report ALL occurrences (ignoring the existing baseline.json), which is
+// what lets this script recompute exact counts instead of drifting from the
+// rules' own matching logic.
+
+const path = require("node:path")
+const fs = require("node:fs")
+
+async function main() {
+  process.env.ESLINT_BASELINE_GENERATE = "1"
+
+  // eslint's flat config is loaded fresh per ESLint instance, so setting the
+  // env var before requiring it is enough -- no need to reach into the
+  // rule modules directly.
+  const { ESLint } = require("eslint")
+  const root = path.resolve(__dirname, "..")
+  const eslint = new ESLint({ cwd: root })
+  const results = await eslint.lintFiles(["app/frontend/**/*.{ts,tsx}"])
+
+  const baseline = {}
+  for (const result of results) {
+    const relative = path.relative(root, result.filePath).split(path.sep).join("/")
+    for (const message of result.messages) {
+      if (!message.ruleId) continue
+      const ruleKey = message.ruleId.replace(/^design-system\//, "")
+      baseline[ruleKey] ??= {}
+      baseline[ruleKey][relative] = (baseline[ruleKey][relative] ?? 0) + 1
+    }
+  }
+
+  // Stable key order so the diff of a regenerated baseline only shows the
+  // files that actually changed.
+  const sorted = {}
+  for (const ruleKey of Object.keys(baseline).sort()) {
+    sorted[ruleKey] = {}
+    for (const file of Object.keys(baseline[ruleKey]).sort()) {
+      sorted[ruleKey][file] = baseline[ruleKey][file]
+    }
+  }
+
+  const outPath = path.join(root, "eslint-rules", "baseline.json")
+  fs.writeFileSync(outPath, `${JSON.stringify(sorted, null, 2)}\n`)
+
+  const totalFiles = Object.values(sorted).reduce((sum, rule) => sum + Object.keys(rule).length, 0)
+  const totalViolations = Object.values(sorted).reduce(
+    (sum, rule) => sum + Object.values(rule).reduce((s, n) => s + n, 0),
+    0
+  )
+  console.log(`[generate-eslint-baseline] wrote ${outPath} (${totalViolations} violations across ${totalFiles} file entries)`)
+}
+
+main().catch(err => {
+  console.error(err)
+  process.exitCode = 1
+})
