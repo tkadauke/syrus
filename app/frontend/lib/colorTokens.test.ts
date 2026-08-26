@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { afterEach, beforeAll, describe, expect, it } from "vitest"
+import { readColorToken } from "./colorTokens"
 
 // app/assets/tailwind/application.css declares the semantic color design
 // tokens as plain `:root`/`.dark` custom properties (see the comment block
@@ -65,5 +66,24 @@ describe("semantic color design tokens", () => {
 
   it("keeps the same token set in both modes", () => {
     expect(Object.keys(DARK_TOKENS).sort()).toEqual(Object.keys(LIGHT_TOKENS).sort())
+  })
+})
+
+describe("readColorToken", () => {
+  it("resolves a declared custom property to its trimmed value", () => {
+    expect(readColorToken("--color-brand")).toBe("#b6492e")
+  })
+
+  it("follows the current theme", () => {
+    document.documentElement.classList.add("dark")
+    expect(readColorToken("--color-neutral")).toBe("#e5e7eb")
+  })
+
+  it("returns the fallback when the property isn't declared", () => {
+    expect(readColorToken("--color-does-not-exist", "#000000")).toBe("#000000")
+  })
+
+  it("returns an empty string by default when there's no fallback and no value", () => {
+    expect(readColorToken("--color-does-not-exist")).toBe("")
   })
 })
