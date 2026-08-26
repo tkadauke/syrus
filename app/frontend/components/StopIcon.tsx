@@ -1,3 +1,5 @@
+// Exception to the stroke convention (see ChevronIcon.tsx): a stop control
+// reads as a solid square, so this one stays filled rather than outlined.
 export function StopIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
