@@ -84,6 +84,19 @@
 }
 
 /*
+ * `text-2xs` — the single tiny-label/caption size for anything smaller than
+ * Tailwind's built-in `text-xs` (0.75rem/12px): timestamps, badge overlines,
+ * chart axis labels, avatar initials. Consolidates what used to be a mix of
+ * one-off arbitrary values (`text-[9px]`, `text-[10px]`, `text-[11px]`,
+ * `text-[0.6Nrem]`) scattered across ~47 call sites onto one token. 11px was
+ * chosen because it was already the most common of those arbitrary values.
+ */
+@theme {
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+/*
  * iOS Safari zooms the page when focused form controls render below 16px.
  * Keep the mobile app shell stable while preserving desktop's denser controls.
  */

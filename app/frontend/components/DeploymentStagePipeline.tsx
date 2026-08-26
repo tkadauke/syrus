@@ -8,7 +8,7 @@ type StageFillState = "reached" | "partial" | "pending"
 function StageCircle({ state }: { state: StageFillState }) {
   if (state === "reached") {
     return (
-      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-100 text-[11px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-100 text-2xs font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
         ✓
       </span>
     )
@@ -22,7 +22,7 @@ function StageCircle({ state }: { state: StageFillState }) {
     )
   }
 
-  return <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-100 text-[11px] font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500" />
+  return <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-100 text-2xs font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500" />
 }
 
 function StageConnector({ filled }: { filled: boolean }) {
