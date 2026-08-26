@@ -193,6 +193,7 @@ module App
         no_pr_reason: no_pr_reason_json,
         pr_mergeable: @job.pr_mergeable,
         pr_mergeable_checked_at: iso8601(@job.pr_mergeable_checked_at),
+        pr_checks: pr_checks_json,
         commits_behind_base: @job.commits_behind_base,
         last_seen_comment_at: iso8601(@job.last_seen_comment_at),
         last_feedback_addressed_at: iso8601(@job.last_feedback_addressed_at),
@@ -900,6 +901,20 @@ module App
       return if number.blank?
 
       "https://github.com/#{@job.repository.owner}/#{@job.repository.name}/pull/#{number}"
+    end
+
+    def pr_checks_json
+      state = @job.pr_checks_state.to_s.presence
+      return nil unless state
+
+      sha = @job.pr_checks_sha.to_s.presence
+      {
+        state: state,
+        sha: sha,
+        short_sha: sha&.first(7),
+        checked_at: iso8601(@job.pr_checks_checked_at),
+        checks_url: @job.pr_number.present? ? "#{pr_url(@job.pr_number)}/checks" : nil
+      }
     end
 
     def issue_url

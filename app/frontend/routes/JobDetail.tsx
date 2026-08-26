@@ -377,6 +377,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
         </PanelMessage>
       ) : null}
       {payload.job.landing_failure_reason ? <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage> : null}
+      <PrChecksBanner payload={payload} />
       <AdmissionBudgetPanel payload={payload} />
       <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
@@ -869,6 +870,31 @@ function jobMergeTrainDetail(status: NonNullable<JobDetailPayload["merge_train_s
   if (status.reconciliation?.result === "failed") return t("merge_train_reconcile_failed")
   if (status.current_step_label) return t("merge_train_current_step", { step: status.current_step_label })
   return t("merge_train_running")
+}
+
+function PrChecksBanner({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
+  const checks = payload.job.pr_checks
+  if (!checks || (checks.state !== "failing" && checks.state !== "pending")) return null
+
+  const sha = checks.short_sha || t("pr_checks_unknown_sha")
+  const message = checks.state === "failing"
+    ? t("pr_checks_failing", { sha })
+    : t("pr_checks_pending", { sha })
+
+  return (
+    <PanelMessage tone={checks.state === "failing" ? "error" : "muted"}>
+      {message}
+      {checks.checks_url ? (
+        <>
+          {" "}
+          <a className="font-medium text-blue-700 underline hover:no-underline dark:text-blue-300" href={checks.checks_url} rel="noopener" target="_blank">
+            {t("pr_checks_view_github")}
+          </a>
+        </>
+      ) : null}
+    </PanelMessage>
+  )
 }
 
 function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {

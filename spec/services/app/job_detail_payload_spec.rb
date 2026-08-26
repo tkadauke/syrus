@@ -114,6 +114,32 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :approval_evidence)).to be_nil
     end
 
+    it "includes cached PR check state and a GitHub checks link" do
+      checked_at = Time.zone.parse("2026-08-26T19:20:00Z")
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        pr_number: 2796,
+        pr_checks_state: "failing",
+        pr_checks_sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+        pr_checks_checked_at: checked_at
+      )
+
+      expect(payload_for(job).dig(:job, :pr_checks)).to eq(
+        state: "failing",
+        sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+        short_sha: "3bf7b45",
+        checked_at: checked_at.iso8601,
+        checks_url: "https://github.com/#{repo.owner}/#{repo.name}/pull/2796/checks"
+      )
+    end
+
+    it "omits PR check details when no cached state exists" do
+      job = Factories.job_record(user: user, repository: repo, pr_number: 2796)
+
+      expect(payload_for(job).dig(:job, :pr_checks)).to be_nil
+    end
+
     it "includes a link to the repository's edit settings page" do
       job = Factories.job_record(user: user, repository: repo)
 

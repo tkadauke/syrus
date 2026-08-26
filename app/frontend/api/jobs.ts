@@ -85,6 +85,7 @@ export type JobRecord = {
   no_pr_reason: { kind?: string; message?: string; base_branch?: string; detected_at?: string } | null
   pr_mergeable: boolean | null
   pr_mergeable_checked_at: string | null
+  pr_checks: JobPrChecks | null
   closure_reason: string | null
   runaway_protection: string | null
   landing_failure_reason: string | null
@@ -137,6 +138,14 @@ export type JobRecord = {
   start_blocked_details: StartBlockedDetails | null
   start_blocked_breakdown: AdmissionBreakdown | null
   deployment_stages?: JobDeploymentStage[]
+}
+
+export type JobPrChecks = {
+  state: "passing" | "pending" | "failing" | "unknown" | string
+  sha: string | null
+  short_sha: string | null
+  checked_at: string | null
+  checks_url: string | null
 }
 
 export type WorkerHealthMetricSummary = {

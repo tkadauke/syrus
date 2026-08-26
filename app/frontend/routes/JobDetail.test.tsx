@@ -152,6 +152,42 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("Admission budget blocked")).not.toBeInTheDocument()
   })
 
+  it("shows failing PR checks with a GitHub checks link", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        pr_checks: {
+          state: "failing",
+          sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+          short_sha: "3bf7b45",
+          checked_at: "2026-08-26T19:20:00Z",
+          checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+        }
+      }
+    }))
+
+    expect(screen.getByText("PR checks are failing for 3bf7b45.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View GitHub checks." })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/2796/checks")
+  })
+
+  it("does not show passing PR checks", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        pr_checks: {
+          state: "passing",
+          sha: "3bf7b4593d430ad7c5a75b0fecfe4fe3c34bfc4e",
+          short_sha: "3bf7b45",
+          checked_at: "2026-08-26T19:20:00Z",
+          checks_url: "https://github.com/acme/widgets/pull/2796/checks"
+        }
+      }
+    }))
+
+    expect(screen.queryByText("PR checks are failing for 3bf7b45.")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "View GitHub checks." })).not.toBeInTheDocument()
+  })
+
   it("hides the admin diagnostics link for users who cannot view it", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -2281,6 +2317,7 @@ function baseJob(): JobDetailPayload["job"] {
     no_pr_reason: null,
     pr_mergeable: null,
     pr_mergeable_checked_at: null,
+    pr_checks: null,
     closure_reason: null,
     landing_failure_reason: null,
     retry_state: undefined,
