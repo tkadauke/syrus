@@ -26,6 +26,7 @@ RSpec.describe Workflow::TriggerKind do
       "ci_failure",
       "rebase",
       "stack_rebase",
+      "promotion",
       "auto_merge",
       "external_pr_merge",
       "merge_train",

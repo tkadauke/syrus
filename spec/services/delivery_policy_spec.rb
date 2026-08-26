@@ -145,6 +145,39 @@ RSpec.describe DeliveryPolicy do
       expect(policy.upstream_export_enabled?).to be(true)
       expect(policy.upstream_export_mode).to eq("branch_pr")
     end
+
+    it "resolves promotion source/target branches from the default track and the repository default branch" do
+      expect(policy.promotion_source_branch).to eq("develop")
+      expect(policy.promotion_target_branch).to eq("main")
+    end
+
+    it "resolves promotion_repair_skill to nil when not configured" do
+      expect(policy.promotion_repair_skill).to be_nil
+    end
+  end
+
+  describe "#promotion_repair_skill" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "resolves the configured delivery.promotion.repair_skill" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          promotion:
+            enabled: true
+            repair_skill: integrate_release_branch
+      YAML
+
+      expect(policy.promotion_repair_skill).to eq("integrate_release_branch")
+    end
+  end
+
+  describe "#promotion_source_branch and #promotion_target_branch against a bare repository" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "falls back to the repository default branch for both when no delivery: block is configured" do
+      expect(policy.promotion_source_branch).to eq("main")
+      expect(policy.promotion_target_branch).to eq("main")
+    end
   end
 
   describe "against a repository whose .syrus.yml fails to parse" do
