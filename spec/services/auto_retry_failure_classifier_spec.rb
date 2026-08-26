@@ -88,4 +88,14 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("mcp_sidecar_failed")
     expect(result.reason).to eq("MCP sidecar failed to start or connect")
   end
+
+  it "classifies provider server_error outcomes as retryable" do
+    fail_run!(agent_outcome: "server_error")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("server_error")
+    expect(result.reason).to eq("provider reported a server-side transient error")
+  end
 end

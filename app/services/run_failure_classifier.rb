@@ -198,6 +198,7 @@ class RunFailureClassifier
 
   def provider_transient?
     return false if run.agent_provider.blank?
+    return true if run.agent_outcome.to_s == "server_error"
 
     text_match?(%r{
       overloaded|

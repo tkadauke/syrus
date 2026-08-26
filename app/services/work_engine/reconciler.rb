@@ -2750,6 +2750,8 @@ module WorkEngine
 
     def effective_failure_classification(run)
       classification = run.run_failure_classification
+      return RunFailureClassifier.persist!(run) if classification.nil?
+      return RunFailureClassifier.persist!(run) if stale_server_error_classification?(run, classification)
       return classification unless provider_delayed_classification?(classification)
       return classification if trusted_provider_delay_classification?(run, classification)
 
@@ -2757,6 +2759,11 @@ module WorkEngine
     rescue StandardError => e
       Rails.logger.warn("[WorkEngine::Reconciler] failed to refresh Run ##{run.id} failure classification: #{e.class}: #{e.message}")
       classification
+    end
+
+    def stale_server_error_classification?(run, classification)
+      classification.classification == "application_error" &&
+        run.agent_outcome.to_s == "server_error"
     end
 
     def provider_delayed_classification?(classification)

@@ -66,6 +66,13 @@ RSpec.describe RunFailureClassifier do
     expect(classification.retryable).to eq(true)
   end
 
+  it "classifies Claude server_error outcomes as retryable provider transients" do
+    run.update!(state: "failed", agent_provider: "claude", agent_outcome: "server_error")
+
+    expect(classification.classification).to eq("provider_transient")
+    expect(classification.retryable).to eq(true)
+  end
+
   it "classifies Codex auth/config failures from final payload text" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed", agent_summary: "CODEX_API_KEY is invalid or not configured.")
 

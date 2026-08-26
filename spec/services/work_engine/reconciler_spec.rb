@@ -4315,6 +4315,25 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :retry_failed_step)).to be_nil
   end
 
+  it "refreshes missing classifications so provider server errors can auto-retry" do
+    step.update_columns(kind: "implement", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", agent_outcome: "server_error", agent_provider: "claude", finished_at: Time.current)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :retryable_run_failure)
+
+    expect(issue).to be_present
+    expect(issue.evidence).to include(
+      "classification" => "provider_transient",
+      "retryable" => true
+    )
+    expect(run.reload.run_failure_classification).to have_attributes(
+      classification: "provider_transient",
+      retryable: true
+    )
+  end
+
   it "executes safe retry plans through AutoRetryAttempt and AutoRetryJob" do
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)

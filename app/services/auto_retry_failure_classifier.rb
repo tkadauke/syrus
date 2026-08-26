@@ -6,6 +6,7 @@ class AutoRetryFailureClassifier
   RETRYABLE_AGENT_OUTCOMES = {
     "worker_died" => "worker process died",
     "error_during_execution" => "provider reported a transient execution error",
+    "server_error" => "provider reported a server-side transient error",
     "turn_failed" => "provider turn failed",
     "error" => "provider reported a generic transient error",
     "mcp_sidecar_failed" => "MCP sidecar failed to start or connect"
