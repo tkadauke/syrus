@@ -44,7 +44,7 @@ RSpec.describe Filters::Compiler do
     expect(result).to contain_exactly(queued_job, closed_job)
   end
 
-  it "compiles OR groups as SQL subqueries instead of materialized ID lists" do
+  it "compiles compatible OR groups directly instead of materialized ID lists or subqueries" do
     Factories.job(repository: repo, issue_number: 1)
     closed_job = Factories.job(repository: repo, issue_number: 2)
     closed_job.close!; closed_job.save!
@@ -54,7 +54,7 @@ RSpec.describe Filters::Compiler do
       { "field" => "state", "op" => "is", "value" => "closed" }
     ])
 
-    expect(result.to_sql).to include("SELECT")
+    expect(result.to_sql).not_to include(" IN (SELECT")
     expect(result.to_sql).not_to match(/\bIN\s*\(\s*\d/i)
   end
 

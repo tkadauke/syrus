@@ -8,7 +8,7 @@ module Steps
     def call
       perform_agentic_change_step(
         log_message: "invoking agent for analyze_and_fix step (#{workflow.slug}, ci_failure)",
-        commit_message: "Syrus analyze_and_fix step (will be rewritten by summarize_amend)"
+        commit_message: job_commit_subject("Fix CI")
       ) do
         run.update!(prompt: compose_prompt) if run.prompt.blank?
       end

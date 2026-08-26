@@ -455,9 +455,10 @@ module Steps
       RunCheckpointPublisher.publish!(run: run, workspace: workspace, log: method(:log))
     end
 
-    # Agent edits files; we commit them locally with a placeholder
-    # message. Downstream summarize steps rewrite the final commit
-    # message before push/open.
+    # Agent edits files; we commit them locally with a readable fallback
+    # subject. Downstream summarize steps may rewrite the latest commit
+    # message before push/open, but intermediate commits can still appear in
+    # GitHub history, so the fallback must be reviewer-facing.
     def commit_agent_changes(commit_message)
       chdir = workspace.path.to_s
       git = streaming_git
@@ -467,6 +468,12 @@ module Steps
       git.run("add", "-A", chdir: chdir)
       git.configure_author(BotIdentity.for(job), chdir: chdir)
       git.run("commit", "-m", commit_message, chdir: chdir)
+    end
+
+    def job_commit_subject(prefix, title: job.title)
+      base = title.to_s.squish.presence
+      subject = [ prefix, job.slug, base ].compact_blank.join(": ")
+      subject.truncate(160)
     end
 
     # Defensive check: the agent didn't run a `git checkout

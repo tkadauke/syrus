@@ -49,7 +49,7 @@ RSpec.describe Steps::Respond do
 
   it "uses the shared agentic change path to commit and capture the diff" do
     expect(handler).to receive(:commit_agent_changes)
-      .with("Syrus respond step (will be rewritten by summarize_amend)")
+      .with(a_string_starting_with("Address feedback: #{job.slug}:"))
     expect(handler).to receive(:assert_branch_history_intact!)
 
     handler.call

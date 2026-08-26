@@ -31,7 +31,7 @@ module Steps
 
       perform_agentic_change_step(
         log_message: "invoking agent for run_skill step (#{workflow.slug}, skill=#{skill_name.inspect}, source=#{resolution.source})",
-        commit_message: "Syrus skill run: #{skill_name} (will be rewritten by summarize)"
+        commit_message: job_commit_subject("Run #{skill_name} skill")
       ) do
         persist_prompt_if_needed(resolution)
       end

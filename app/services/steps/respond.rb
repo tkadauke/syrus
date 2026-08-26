@@ -11,7 +11,7 @@ module Steps
     def call
       perform_agentic_change_step(
         log_message: "invoking agent for respond step (#{workflow.slug}, #{workflow.trigger_kind})",
-        commit_message: "Syrus respond step (will be rewritten by summarize_amend)"
+        commit_message: job_commit_subject("Address feedback")
       ) do
         run.update!(prompt: compose_prompt) if run.prompt.blank?
       end

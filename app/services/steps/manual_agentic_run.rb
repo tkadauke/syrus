@@ -8,7 +8,7 @@ module Steps
       base_sha = head_sha
       run_agent(prompt: run.prompt)
 
-      commit_agent_changes("Syrus manual agentic run (will be rewritten by summarize)")
+      commit_agent_changes(job_commit_subject("Manual update"))
       assert_branch_history_intact!
 
       diff = diff_against_default

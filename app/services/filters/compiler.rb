@@ -36,9 +36,22 @@ module Filters
     def compile_or(node)
       return @scope if node.children.empty?
 
+      child_scopes = node.children.map do |child|
+        self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(child)
+      end
+
+      direct_or_scope(child_scopes) || subquery_or_scope(child_scopes)
+    end
+
+    def direct_or_scope(scopes)
+      scopes.reduce { |left, right| left.or(right) }
+    rescue ArgumentError
+      nil
+    end
+
+    def subquery_or_scope(scopes)
       primary_key = primary_key_attribute
-      predicates = node.children.map do |child|
-        child_scope = self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(child)
+      predicates = scopes.map do |child_scope|
         primary_key_column.in(primary_key_subquery(child_scope, primary_key))
       end
 

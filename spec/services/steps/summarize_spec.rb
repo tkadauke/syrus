@@ -35,7 +35,7 @@ RSpec.describe Steps::Summarize, :ci_only do
     sh(git_env, "git -C #{@ws_path} config user.email 'ada@example.com'")
     File.write(@ws_path.join("feature.rb"), "def greet = 'hello'\n")
     sh(git_env, "git -C #{@ws_path} add feature.rb")
-    sh(git_env, "git -C #{@ws_path} commit -q -m 'Syrus implement step (will be rewritten by summarize)'")
+    sh(git_env, "git -C #{@ws_path} commit -q -m 'Implement: JOB-42: Add greeting helper'")
 
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "main",
                               branch_name: "syrus/issue-42-#{job.id}")
