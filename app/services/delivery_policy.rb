@@ -47,6 +47,30 @@ class DeliveryPolicy
     delivery.promotion.mode
   end
 
+  # The skill name (`delivery.promotion.repair_skill`) a promotion
+  # ref-movement workflow should invoke — via the same `Skills.for`
+  # resolution `Steps::RunSkill` uses — when the deterministic merge attempt
+  # conflicts or the `promotion` grade phase fails. `nil` when unconfigured;
+  # `Steps::PromotionRepair` fails the step rather than guessing a skill.
+  def promotion_repair_skill
+    delivery.promotion.repair_skill
+  end
+
+  # First-iteration source/target resolution for the promotion ref-movement
+  # workflow (docs/plans/delivery-tracks-and-promotion.md Story 2): the
+  # `default` delivery track's branch promotes into the repository's actual
+  # GitHub default branch. `delivery.promotion` has no explicit source/target
+  # track fields yet (a later Story's `from`/`to` config) — until then this is
+  # the one meaningful reading of "promote the track I develop on into the
+  # branch GitHub treats as canonical."
+  def promotion_source_branch
+    resolved_branch(default_track)
+  end
+
+  def promotion_target_branch
+    repository.default_branch
+  end
+
   def hotfix_sync_enabled?
     delivery.hotfix_sync.enabled
   end

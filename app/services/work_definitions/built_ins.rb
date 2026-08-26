@@ -157,6 +157,17 @@ module WorkDefinitions
     end
   end
 
+  class Promotion < Base
+    include ManagesOwnJobLifecycle
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+
+    self.kind = "promotion"
+    self.workflow_trigger_kind = "promotion"
+    self.runtime_role = "first_class"
+    self.scope = "repository"
+  end
+
   class AutoMerge < Base
     include BlocksCiFailure
     include LandingValidationPrefetchSource

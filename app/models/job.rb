@@ -899,6 +899,7 @@ class Job < ApplicationRecord
     external_pr_merged
     pr_approved
     no_changes
+    promotion_landed
   ].freeze
   # --- needs_attention flag --------------------------------------------------
   # Called by RunJob after a non-rebase run fails. Increments the
