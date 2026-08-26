@@ -52,6 +52,20 @@ RSpec.describe WorkUnit do
     end
   end
 
+  it "splits dependency-wait reasons out of the pause-worthy reasons" do
+    expect(described_class::DEPENDENCY_BLOCKED_REASONS).to contain_exactly(
+      "dependency_failed",
+      "stack_dependencies_not_ready",
+      "stack_fan_in_base_unavailable",
+      "job_not_ready_for_execution"
+    )
+
+    expect(described_class::PAUSE_BLOCKED_REASONS).to match_array(
+      described_class::BLOCKED_REASONS - described_class::DEPENDENCY_BLOCKED_REASONS
+    )
+    expect(described_class::PAUSE_BLOCKED_REASONS & described_class::DEPENDENCY_BLOCKED_REASONS).to be_empty
+  end
+
   it "resolves its work definition from kind" do
     unit = described_class.create!(work_intent: intent, kind: "initial", state: "queued", scope_type: "job", scope_id: 123)
 

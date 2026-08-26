@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe WorkUnits::Ownership do
-  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running")
+  def attach_work_unit(workflow, member_jobs:, kind: workflow.trigger_kind, state: "running", blocked_reason: nil)
     primary = member_jobs.first
     intent = WorkIntent.create!(
       kind: kind,
@@ -19,7 +19,8 @@ RSpec.describe WorkUnits::Ownership do
       repository: primary.repository,
       scope_type: intent.scope_type,
       scope_id: intent.scope_id,
-      workflow: workflow
+      workflow: workflow,
+      blocked_reason: blocked_reason
     )
     member_jobs.each_with_index do |job, index|
       unit.work_unit_members.create!(job: job, role: index.zero? ? "primary" : "member")
@@ -231,6 +232,21 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.all_blocked_job_ids).to include(blocked.id)
     expect(described_class.all_blocked_job_ids).not_to include(landing.id)
     expect(described_class.all_blocked_job_ids(include_landing: true)).to include(blocked.id, landing.id)
+  end
+
+  it "filters blocked job ids by blocked_reason when reasons: is given" do
+    admission_blocked = Factories.job_record(issue_number: 304)
+    dependency_blocked = Factories.job_record(repository: admission_blocked.repository, issue_number: 305)
+    admission_workflow = Workflow.create!(job: admission_blocked, trigger_kind: "initial", state: "running")
+    dependency_workflow = Workflow.create!(job: dependency_blocked, trigger_kind: "initial", state: "running")
+    attach_work_unit(admission_workflow, member_jobs: [ admission_blocked ], kind: "initial", state: "blocked", blocked_reason: "admission_control")
+    attach_work_unit(dependency_workflow, member_jobs: [ dependency_blocked ], kind: "initial", state: "blocked", blocked_reason: "stack_dependencies_not_ready")
+
+    scoped = described_class.all_blocked_job_ids(reasons: WorkUnit::PAUSE_BLOCKED_REASONS)
+
+    expect(scoped).to include(admission_blocked.id)
+    expect(scoped).not_to include(dependency_blocked.id)
+    expect(described_class.all_blocked_job_ids).to include(admission_blocked.id, dependency_blocked.id)
   end
 
   it "returns blocked metadata keyed by job id" do
