@@ -27,6 +27,12 @@ module Mcp::Tools
       next turn's system prompt under "Recent proposal activity".
       To attach the current whiteboard, call save_canvas first and pass the
       returned snapshot_id as "snapshot:ID" in the media array.
+      To hand the implementation agent a preview panel mockup's source files,
+      pass the panel's current version id as "preview_panel_version:ID" in
+      the media array (show_preview's response includes version_id). Frame
+      the mockup in the Job description as reference material describing the
+      intended look and behavior for the implementing agent to adapt to the
+      target repo's own conventions -- not boilerplate to copy verbatim.
     DESC
 
     input_schema(
@@ -41,7 +47,7 @@ module Mcp::Tools
         media: {
           type: "array",
           items: { type: "string" },
-          description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), or pass chat image IDs as \"chat_image:123\". Omit if no media is relevant."
+          description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), pass chat image IDs as \"chat_image:123\", or pass a preview panel's current version id as \"preview_panel_version:42\" to hand the implementing agent that mockup's source files. Omit if no media is relevant."
         }
       },
       required: %w[repo title description]

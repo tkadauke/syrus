@@ -1,5 +1,5 @@
 module ChatMediaRef
-  FORMAT = /\A(snapshot|chat_image):\d+\z/
+  FORMAT = /\A(snapshot|chat_image|preview_panel_version):\d+\z/
 
   def self.valid?(ref)
     FORMAT.match?(ref.to_s)

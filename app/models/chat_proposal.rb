@@ -265,7 +265,7 @@ class ChatProposal < ApplicationRecord
     media_ids.each do |ref|
       next if MEDIA_ID_FORMAT.match?(ref.to_s)
 
-      errors.add(:media_ids, "contains invalid entry '#{ref}'; must be snapshot:ID or chat_image:ID")
+      errors.add(:media_ids, "contains invalid entry '#{ref}'; must be snapshot:ID, chat_image:ID, or preview_panel_version:ID")
     end
   end
 
@@ -286,6 +286,10 @@ class ChatProposal < ApplicationRecord
       when "chat_image"
         unless chat_session.attached_repository_documents.exists?(id)
           errors.add(:media_ids, "contains chat_image:#{id} that does not belong to this chat session")
+        end
+      when "preview_panel_version"
+        unless PreviewPanelVersion.where(preview_panel: chat_session.preview_panels).exists?(id)
+          errors.add(:media_ids, "contains preview_panel_version:#{id} that does not belong to this chat session")
         end
       end
     end
