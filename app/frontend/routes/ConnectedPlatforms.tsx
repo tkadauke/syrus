@@ -2,6 +2,7 @@ import { createConsumer } from "@rails/actioncable"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
+import { Button } from "../components/Button"
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
 import {
@@ -148,18 +149,16 @@ function PlatformRow({
               {disconnectPending ? t("connected_platforms.disconnecting") : t("connected_platforms.disconnect")}
             </button>
           ) : availablePlatform.configured ? (
-            <button
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-900"
+            <Button
               disabled={connect.isPending}
               onClick={() => connect.mutate()}
-              type="button"
             >
               {connect.isPending
                 ? t("connected_platforms.generating_link")
                 : linkingToken
                   ? t("connected_platforms.regenerate_link")
                   : t("connected_platforms.connect")}
-            </button>
+            </Button>
           ) : (
             <button
               className="rounded border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500 cursor-not-allowed"

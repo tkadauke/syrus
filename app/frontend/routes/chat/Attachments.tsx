@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
+import { Button } from "../../components/Button"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
@@ -139,14 +140,14 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
                   {pending ? `Detach ${row.label}?` : row.label}
                 </button>
                 {pending ? (
-                  <button
-                    className="shrink-0 rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+                  <Button
                     disabled={detach.isPending}
                     onClick={() => setPendingDetachId(null)}
-                    type="button"
+                    size="sm"
+                    variant="secondary"
                   >
                     Cancel
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             )

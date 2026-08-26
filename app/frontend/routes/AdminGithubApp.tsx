@@ -11,6 +11,7 @@ import {
 import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Button } from "../components/Button"
 
 export function AdminGithubAppRegister() {
   const { t } = useT("admin")
@@ -80,13 +81,13 @@ function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
         <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">
           {t("github_app.register_instructions")}
         </p>
-        <button
-          className="mt-4 rounded bg-blue-600 dark:bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400"
-          type="button"
+        <Button
+          className="mt-4"
           onClick={() => setPopupBlocked(openInNewTab(payload.bounce_url) ? null : payload.bounce_url)}
+          variant="primary"
         >
           {payload.submit_label}
-        </button>
+        </Button>
         {popupBlocked ? (
           <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
             {t("github_app.popup_blocked_prefix")}{" "}

@@ -4,6 +4,7 @@ import { fetchAdminGithubAppConfirm, fetchAdminGithubAppRegister, syncAdminGithu
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 
 // Admin-only panel: create the singleton Syrus GitHub App from a manifest,
 // then install it on the operator's account (All repositories recommended —
@@ -84,9 +85,9 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
           {t('github_app_panel.installed_on', { accounts: installations.map((i) => i.account_login).join(', ') })}
         </Box>
         <div className="flex justify-end">
-          <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" onClick={onClose} type="button">
+          <Button onClick={onClose}>
             {t('github_app_panel.done')}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -101,9 +102,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
         </p>
 
         {status?.install_url ? (
-          <button
-            className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            type="button"
+          <Button
             onClick={() => {
               const installUrl = status.install_url as string
               setPopupBlocked(openInNewTab(installUrl) ? null : installUrl)
@@ -112,7 +111,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
             }}
           >
             {t('github_app_panel.install_on_github')} <span aria-hidden="true">↗</span>
-          </button>
+          </Button>
         ) : null}
 
         {popupBlocked ? (
@@ -132,9 +131,9 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
         ) : null}
 
         <div className="flex justify-end">
-          <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} type="button">
+          <Button variant="secondary" onClick={onClose}>
             {awaitingInstall ? t('github_app_panel.close_connecting') : t('github_app_panel.skip_for_now')}
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -150,9 +149,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
         <li><span className="font-medium text-gray-900 dark:text-gray-100">2.</span> {t('github_app_panel.register_step2')}</li>
       </ol>
 
-      <button
-        className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        type="button"
+      <Button
         onClick={() => {
           const bounceUrl = register.data.bounce_url
           setPopupBlocked(openInNewTab(bounceUrl) ? null : bounceUrl)
@@ -160,7 +157,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
         }}
       >
         {register.data.submit_label} <span aria-hidden="true">↗</span>
-      </button>
+      </Button>
 
       {popupBlocked ? (
         <p className="text-xs text-amber-700 dark:text-amber-300">

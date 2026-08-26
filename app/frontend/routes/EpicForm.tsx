@@ -14,6 +14,7 @@ import {
 } from "../api/epics"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Button } from "../components/Button"
 
 export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
   const { t } = useT("epics")
@@ -123,24 +124,21 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
 
         <div className="flex flex-wrap items-center gap-3">
           {mode === "new" ? (
-            <button
-              className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+            <Button
               disabled={save.isPending}
               onClick={createAndStart}
-              type="button"
+              variant="primary"
             >
               {save.isPending ? t("saving") : t("create_and_start")}
-            </button>
+            </Button>
           ) : null}
-          <button
-            className={mode === "new"
-              ? "rounded border border-gray-300 bg-white px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-              : "rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"}
+          <Button
             disabled={save.isPending}
             type="submit"
+            variant={mode === "new" ? "secondary" : "primary"}
           >
             {save.isPending ? t("saving") : mode === "new" ? t("create") : t("save")}
-          </button>
+          </Button>
           <Link className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(mode === "new" ? payload.dashboard_epics_path : payload.epic.epic_path || payload.dashboard_epics_path, prefix)}>{t("cancel")}</Link>
         </div>
       </form>

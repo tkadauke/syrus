@@ -5,6 +5,7 @@ import { useT } from "../hooks/useT"
 import { fetchDeploy, fetchPreview, fetchPreviewLogs, startDeploy, startPreview, stopPreview, type DeployWorkflowRecord, type PreviewEnvironmentRecord } from "../api/jobs"
 import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
+import { Button, buttonClasses } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 
@@ -209,14 +210,13 @@ export function PreviewPanel({
               <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
             ) : null}
             {env?.state === "failed" && env.error_reason === "not_reachable" ? (
-              <button
-                className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+              <Button
+                size="sm"
                 disabled={fixPreview.isPending}
                 onClick={() => fixPreview.mutate()}
-                type="button"
               >
                 {t("preview_fix_button")}
-              </button>
+              </Button>
             ) : null}
           </>
         ) : null}
@@ -362,14 +362,13 @@ function PreviewControls({
   if (!state || state === "stopped" || state === "failed") {
     if (!canStart && !expired) return null
     return (
-      <button
-        className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+      <Button
+        size="sm"
         disabled={isPending}
         onClick={onStart}
-        type="button"
       >
         {t("preview_start")}
-      </button>
+      </Button>
     )
   }
 
@@ -403,35 +402,34 @@ function PreviewControls({
   if (state === "running") {
     if (expired) {
       return (
-        <button
-          className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+        <Button
+          size="sm"
           disabled={isPending}
           onClick={onStart}
-          type="button"
         >
           {t("preview_restart")}
-        </button>
+        </Button>
       )
     }
 
     return (
       <div className="flex flex-wrap items-center gap-2">
         <a
-          className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+          className={buttonClasses("success", "sm")}
           href={env!.url ?? "#"}
           rel="noopener noreferrer"
           target="_blank"
         >
           {t("preview_open")}
         </a>
-        <button
-          className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={isPending}
           onClick={onStop}
-          type="button"
         >
           {t("preview_stop")}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -545,21 +543,19 @@ export function PreviewStopModal({
           </h2>
           <p className="text-sm text-gray-700 dark:text-gray-300">{t("preview_stop_on_action_body")}</p>
           <div className="flex justify-end gap-3">
-            <button
-              className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
+              variant="secondary"
               onClick={onKeepRunning}
               ref={cancelRef}
-              type="button"
             >
               {t("preview_keep_running")}
-            </button>
-            <button
-              className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+            </Button>
+            <Button
+              variant="danger"
               onClick={onStop}
-              type="button"
             >
               {t("preview_stop_yes")}
-            </button>
+            </Button>
           </div>
         </div>
       </section>

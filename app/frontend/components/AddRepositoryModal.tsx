@@ -14,6 +14,7 @@ import {
 import { syncAdminGithubAppInstallations } from "../api/adminGithubApp"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Modal } from "./Modal"
 import { useT } from "../hooks/useT"
@@ -287,13 +288,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                 {t('add_repository.install_on_github')} <span aria-hidden="true">↗</span>
               </button>
             ) : null}
-            <button
-              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              onClick={() => { onSaved?.(); onClose() }}
-              type="button"
-            >
+            <Button onClick={() => { onSaved?.(); onClose() }}>
               {t('add_repository.done')}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -372,12 +369,12 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
               {error ? <Box tone="error">{error}</Box> : null}
 
               <div className="flex items-center justify-end gap-2">
-                <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} type="button">
+                <Button onClick={onClose} variant="secondary">
                   {t('add_repository.cancel')}
-                </button>
-                <button className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={save.isPending || !values.owner || !values.name} type="submit">
+                </Button>
+                <Button disabled={save.isPending || !values.owner || !values.name} type="submit">
                   {save.isPending ? <><Spinner light /> {t('add_repository.adding')}</> : t('add_repository.add_repository')}
-                </button>
+                </Button>
               </div>
             </>
           )}

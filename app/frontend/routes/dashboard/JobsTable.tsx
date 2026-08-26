@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
+import { Button, buttonClasses } from "../../components/Button"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { PrHoverCard } from "../../components/PrHoverCard"
@@ -170,14 +171,14 @@ function SimplePreviewApprove({ job }: { job: DashboardJobItem }) {
         <SimplePreviewControls env={env} isPending={previewPending} onStart={() => start.mutate()} onStop={() => stop.mutate()} t={tJobs} />
       ) : null}
       {job.can_approve ? (
-        <button
-          className="rounded bg-terracotta-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-50"
+        <Button
           disabled={approve.isPending}
           onClick={() => approve.mutate()}
-          type="button"
+          size="sm"
+          variant="primary"
         >
           {t("simple_review_approve")}
-        </button>
+        </Button>
       ) : null}
       {approve.isError ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{errorMessage(approve.error, t("simple_review_approve_error"))}</span> : null}
       {start.isError || stop.isError ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{errorMessage(start.error ?? stop.error, t("simple_review_preview_error"))}</span> : null}
@@ -191,14 +192,14 @@ function SimplePreviewControls({ env, isPending, onStart, onStop, t }: { env: Pr
 
   if (!state || state === "stopped" || state === "failed") {
     return (
-      <button
-        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+      <Button
         disabled={isPending}
         onClick={onStart}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         {t("preview_start")}
-      </button>
+      </Button>
     )
   }
 
@@ -213,21 +214,21 @@ function SimplePreviewControls({ env, isPending, onStart, onStop, t }: { env: Pr
   return (
     <div className="flex flex-wrap items-center gap-2">
       <a
-        className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+        className={buttonClasses("success", "sm")}
         href={env!.url ?? "#"}
         rel="noopener noreferrer"
         target="_blank"
       >
         {t("preview_open")}
       </a>
-      <button
-        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+      <Button
         disabled={isPending}
         onClick={onStop}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         {t("preview_stop")}
-      </button>
+      </Button>
     </div>
   )
 }

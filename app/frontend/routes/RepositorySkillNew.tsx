@@ -13,6 +13,7 @@ import {
   type SkillSummary
 } from "../api/skills"
 import { errorMessage } from "../lib/errorMessage"
+import { Button } from "../components/Button"
 
 export function RepositorySkillNewRoute() {
   const { t } = useT("jobs")
@@ -138,13 +139,13 @@ function SkillLaunchForm({
             </select>
           </Field>
         </div>
-        <button
-          className="rounded bg-terracotta-600 px-4 py-2 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:bg-terracotta-300"
+        <Button
           disabled={!selectedSkill || create.isPending}
           type="submit"
+          variant="primary"
         >
           {create.isPending ? t("skill_job_submitting") : t("skill_job_submit")}
-        </button>
+        </Button>
       </section>
     </form>
   )
