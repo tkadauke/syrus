@@ -1,4 +1,6 @@
 require "rails_helper"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe LandingQueueProcessor do
   include ActiveJob::TestHelper
@@ -1437,6 +1439,247 @@ RSpec.describe LandingQueueProcessor do
       expect(external.reload).to be_landing
       expect(Workflow.where(trigger_kind: "auto_merge").pluck(:job_id)).to eq([ regular.id ])
       expect(Workflow.where(trigger_kind: "external_pr_merge").pluck(:job_id)).to eq([ external.id ])
+    end
+  end
+
+  it "creates the WorkUnitLock with the unsuffixed legacy key for a repository using only the implicit default track" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+
+    described_class.call
+
+    unit = WorkUnits::Ownership.active_unit_for_lock_key("landing:repository:#{repository.id}")
+    expect(unit).to be_present
+    expect(unit.work_unit_locks.pluck(:lock_key)).to include("landing:repository:#{repository.id}")
+    expect(job.reload).to be_landing
+  end
+
+  describe "delivery-track-aware landing (EPIC-268)" do
+    around do |example|
+      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+      previous_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+      example.run
+      ENV["SYRUS_DATA_ROOT"] = previous_root
+      FileUtils.rm_rf(@data_root)
+    end
+
+    def write_bare_clone(repo, syrus_yml:)
+      work_dir = Dir.mktmpdir("syrus-work")
+      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml)
+      system("git", "-C", work_dir, "add", ".", exception: true)
+      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+      clone_path = RepositoryBareClone.path_for(repo)
+      FileUtils.mkdir_p(clone_path.dirname)
+      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    ensure
+      FileUtils.rm_rf(work_dir) if work_dir
+    end
+
+    describe "track-scoped landing locks" do
+      def track_repository
+        Factories.repository(user: user, auto_merge_enabled: true, default_branch: "main", name: "trackrepo").tap do |repo|
+          write_bare_clone(repo, syrus_yml: <<~YAML)
+            delivery:
+              tracks:
+                default:
+                  branch: develop
+                hotfix:
+                  branch: main
+          YAML
+        end
+      end
+
+      def track_job(repo, issue_number:, approved_at:, delivery_track: nil, pr_number: issue_number)
+        Factories.job_record(
+          user: user,
+          repository: repo,
+          issue_number: issue_number,
+          pr_number: pr_number,
+          delivery_track: delivery_track,
+          state: "implemented"
+        ).tap do |job|
+          job.approve!(via: "github_review")
+          job.update!(approved_at: approved_at)
+        end
+      end
+
+      it "lands a hotfix-track Job straight to main concurrently with a default-track Job already landing to develop" do
+        repo = track_repository
+        landing_default = track_job(repo, issue_number: 1, approved_at: 2.minutes.ago, delivery_track: nil)
+        landing_default.start_landing!
+        landing_default.save!
+
+        hotfix = track_job(repo, issue_number: 2, approved_at: 1.minute.ago, delivery_track: "hotfix")
+
+        workflow = described_class.call
+
+        expect(workflow.job).to eq(hotfix)
+        expect(hotfix.reload).to be_landing
+        expect(landing_default.reload).to be_landing
+      end
+
+      it "serializes two hotfix-track Jobs landing to the same branch" do
+        repo = track_repository
+        landing_hotfix = track_job(repo, issue_number: 1, approved_at: 2.minutes.ago, delivery_track: "hotfix")
+        landing_hotfix.start_landing!
+        landing_hotfix.save!
+
+        other_hotfix = track_job(repo, issue_number: 2, approved_at: 1.minute.ago, delivery_track: "hotfix")
+
+        expect(described_class.call).to be_nil
+        expect(other_hotfix.reload).to be_approved
+      end
+
+      it "uses the unsuffixed legacy key when a configured track's branch equals the repository default branch" do
+        repo = track_repository
+        hotfix = track_job(repo, issue_number: 1, approved_at: 1.minute.ago, delivery_track: "hotfix")
+
+        described_class.call
+
+        unit = WorkUnits::Ownership.active_unit_for_lock_key("landing:repository:#{repo.id}")
+        expect(unit).to be_present
+        expect(unit.work_unit_locks.pluck(:lock_key)).to include("landing:repository:#{repo.id}")
+        expect(hotfix.reload).to be_landing
+      end
+
+      it "does not let a track-scoped active WorkUnit lock block a different-track try_land!" do
+        repo = track_repository
+        owner = Factories.job_record(
+          user: user,
+          repository: repo,
+          issue_number: 1,
+          state: "implemented",
+          pr_number: 101,
+          branch_name: "syrus/issue-1",
+          delivery_track: nil
+        )
+        workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+        workflow.work_unit.update!(state: "running")
+
+        hotfix = track_job(repo, issue_number: 2, approved_at: 1.minute.ago, delivery_track: "hotfix")
+
+        result = described_class.try_land!(hotfix)
+
+        expect(result).to be_present
+        expect(hotfix.reload).to be_landing
+      end
+
+      it "blocks try_land! for a same-track Job owned by an active WorkUnit lock" do
+        repo = track_repository
+        owner = Factories.job_record(
+          user: user,
+          repository: repo,
+          issue_number: 1,
+          state: "implemented",
+          pr_number: 101,
+          branch_name: "syrus/issue-1",
+          delivery_track: "hotfix"
+        )
+        workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: owner)
+        workflow.work_unit.update!(state: "running")
+
+        other_hotfix = track_job(repo, issue_number: 2, approved_at: 1.minute.ago, delivery_track: "hotfix")
+
+        expect(described_class.try_land!(other_hotfix)).to be_nil
+        expect(other_hotfix.reload).to be_approved
+      end
+    end
+
+    describe "approval: policy gating" do
+      let(:peer) { Factories.user }
+
+      def approval_configured_job(syrus_yml:, owner_user: user)
+        write_bare_clone(repository, syrus_yml: syrus_yml)
+        Factories.job_record(
+          user: user,
+          repository: repository,
+          owner_user: owner_user,
+          issue_number: 1,
+          pr_number: 1,
+          state: "implemented"
+        ).tap do |job|
+          job.approve!(via: "operator")
+          job.update!(approved_at: 1.minute.ago)
+        end
+      end
+
+      it "lands on owner approval alone when only owner approval is required" do
+        job = approval_configured_job(syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+        YAML
+        JobApproval.create!(job: job, user: user, approved_at: Time.current)
+
+        workflow = described_class.try_land!(job)
+
+        expect(workflow).to be_present
+        expect(job.reload).to be_landing
+      end
+
+      it "blocks landing when owner approval is required but missing" do
+        job = approval_configured_job(syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+        YAML
+
+        expect(described_class.try_land!(job)).to be_nil
+        expect(job.reload).to be_approved
+      end
+
+      it "lands once the owner and an eligible peer have both approved" do
+        job = approval_configured_job(syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+                peer_count: 1
+        YAML
+        JobApproval.create!(job: job, user: user, approved_at: Time.current)
+        JobApproval.create!(job: job, user: peer, approved_at: Time.current)
+        RepositoryMembership.create!(repository: repository, user: peer, role: "write")
+
+        workflow = described_class.try_land!(job)
+
+        expect(workflow).to be_present
+        expect(job.reload).to be_landing
+      end
+
+      it "blocks landing when the required peer approval is missing" do
+        job = approval_configured_job(syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+                peer_count: 1
+        YAML
+        JobApproval.create!(job: job, user: user, approved_at: Time.current)
+
+        expect(described_class.try_land!(job)).to be_nil
+        expect(job.reload).to be_approved
+      end
+
+      it "does not count a peer approval from someone without repository access" do
+        job = approval_configured_job(syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+                peer_count: 1
+        YAML
+        JobApproval.create!(job: job, user: user, approved_at: Time.current)
+        JobApproval.create!(job: job, user: peer, approved_at: Time.current)
+
+        expect(described_class.try_land!(job)).to be_nil
+        expect(job.reload).to be_approved
+      end
     end
   end
 
