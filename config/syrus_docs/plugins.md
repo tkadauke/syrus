@@ -623,10 +623,6 @@ the plugin's component via `pluginWorkspaceTabComponentFor`, passing the full
 chat `payload` as a prop (a workspace tab renders inside one specific chat,
 unlike a standalone admin route that derives its context from the URL).
 
-The bundled `syrus_dev` plugin (default-disabled dev tooling — see below)
-registers a trivial `SyrusDev::WorkspaceTabs` provider as a live, always-built
-proof of this extension point, without moving any real feature into a plugin.
-
 **First real consumer: `whiteboard_tools`.** The whiteboard migration (moving
 the Excalidraw canvas tab, its 14 draw/move/delete/read/update/save/clear/load
 MCP tools, and its REST endpoints out of core) landed as `plugins/whiteboard_tools`,
@@ -1276,10 +1272,7 @@ Bundled plugins:
 - `syrus_dev` — installed but disabled by default. It owns Syrus-development-only
   diagnostics such as Admin → Performance and the `read_performance_diagnostics`
   / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
-  agents or operators should inspect Syrus's own production behavior. Also
-  provides `:workspace_tab` (`SyrusDev::WorkspaceTabs` — a trivial "Workspace
-  Tab Demo" tab, visible in chats attached to a repository, that exists only
-  to prove the `:workspace_tab` extension point end-to-end; see above).
+  agents or operators should inspect Syrus's own production behavior.
 - `ruby` — default-enabled. Provides Ruby-generic extension points usable by
   any Ruby project (gems, Sinatra apps, plain Ruby scripts, and Rails apps
   alike), not just Rails: `:grader_augmentor` — registers two providers,
