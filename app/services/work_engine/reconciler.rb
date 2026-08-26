@@ -626,10 +626,12 @@ module WorkEngine
         repair_ready = (heartbeat_stale && !live_process) || detached_ready || terminal_process_ready
         next if !repair_ready && !detached && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
+        related_spawned_process_ids = spawned_process_ids_for([ run.id ], [ run.workflow_id ].compact)
+
         issue(
           kind: :running_run_without_live_worker_evidence,
           severity: repair_ready ? :critical : :warning,
-          affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq&.dig(:id) ], spawned_process_ids: [ live_process&.id || terminal_process&.id ]),
+          affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq&.dig(:id) ], spawned_process_ids: related_spawned_process_ids),
           safe_to_auto_repair: repair_ready && run.may_fail?,
           recommended_repair_action: repair_ready ? "fail_run_as_worker_died" : "capture_diagnostics",
           check_after: repair_ready ? nil : check_after_for_running_run(
