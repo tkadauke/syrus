@@ -63,6 +63,16 @@ class DeliveryPolicy
   # configured, a peer's approval only counts toward `peer_count` when that
   # peer has repository access on this Syrus instance (a `RepositoryMembership`
   # row) — an approval from someone who has since lost access doesn't count.
+  # Whether this repository has opted into the Story 7 `approval:` block at
+  # all. Callers that need to decide between "enforce the configured
+  # owner/peer policy" and "fall back to legacy behavior" (rather than just
+  # calling `job_approval_satisfied?`, which already degrades gracefully)
+  # use this to change bypass semantics around jobs with no `job_approvals`
+  # rows — see `LandingQueueProcessor#landing_approval_satisfied?`.
+  def approval_configured?
+    config.approval.present?
+  end
+
   def job_approval_satisfied?(job = @job)
     return job.approval_satisfied? if config.approval.nil?
 

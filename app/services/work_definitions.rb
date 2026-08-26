@@ -16,6 +16,36 @@ module WorkDefinitions
     @landing_lock_kinds ||= kinds_matching(&:landing_lock?)
   end
 
+  # The per-slot landing lock key for a Job, generalized from bare
+  # repository locking to the Job's resolved delivery-track target ref
+  # (`DeliveryPolicy#job_landing_branch`). Two Jobs whose resolved landing
+  # branch matches share a key and serialize; Jobs landing to different
+  # branches (e.g. a `hotfix` track straight to `main` alongside a
+  # `default` track landing to `develop`) get distinct keys and can land
+  # concurrently.
+  #
+  # Byte-for-byte compatibility for the common case: whenever the resolved
+  # branch equals `Repository#default_branch` (true for every repository
+  # that only has the implicit `default` track, and for any job whose
+  # track happens to target the repository's actual default branch), this
+  # returns the exact same key format Syrus has always used
+  # (`"landing:repository:<id>"`) — no suffix. Only a job resolving to a
+  # non-default branch gets the generalized, branch-suffixed key. Callers
+  # that already resolved a `DeliveryPolicy` for this job's repository may
+  # pass it via `policy:` to avoid a redundant `.syrus.yml` read.
+  def landing_lock_key_for(job, policy: nil)
+    return nil unless job&.repository_id
+
+    bare_key = "landing:repository:#{job.repository_id}"
+    repository = job.repository
+    return bare_key unless repository
+
+    branch = (policy || DeliveryPolicy.for(repository: repository, job: job)).job_landing_branch(job)
+    return bare_key if branch.blank? || branch == repository.default_branch
+
+    "#{bare_key}:branch:#{branch}"
+  end
+
   def landing_workflow_kinds
     @landing_workflow_kinds ||= definitions_matching { |definition| definition.landing_lock? && definition.first_class? }
       .map(&:workflow_trigger_kind)

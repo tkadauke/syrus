@@ -125,7 +125,7 @@ class LandingQueueProcessor
   def try_land!(job)
     release_main_health_blocked_landing_slots_for_repair!(job) if MainHealthChangedService.fix_main_job?(job)
     release_urgent_blocked_landing_slots_for_urgent_job!(job) if job.priority == "urgent"
-    return if landing_in_progress_for_repository?(job.repository_id)
+    return if landing_in_progress_for_job?(job)
 
     # When merge-trains are on, an Epic child lands only as part of its
     # Epic's atomic train — never individually (that would create a
@@ -138,11 +138,7 @@ class LandingQueueProcessor
     return JobBundleDispatcher.try_dispatch!(job.repository) if bundle_eligible_epicless_job?(job)
 
     return unless job.approved?
-    # For jobs that went through the operator review flow (job_approvals exist),
-    # re-verify the policy is still satisfied — e.g. a final approver may have
-    # been removed after the job reached :approved. Auto-approved jobs (no
-    # job_approvals) bypass this gate by design.
-    return if job.job_approvals.exists? && !job.approval_satisfied?
+    return unless landing_approval_satisfied?(job)
     return unless blockage_for(job)[:blocked_reason].blank?
 
     land(job)
@@ -157,12 +153,14 @@ class LandingQueueProcessor
     released_slots = release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
     released_slots.concat(release_urgent_blocked_landing_slots_for_urgent_jobs!(queue_entries))
     queue_entries = refresh_snapshot!(Job.landing_queue) if released_slots.any?
-    occupied_repo_ids = Set.new(Job.landing.pluck(:repository_id))
+    occupied_lock_keys = Set.new(
+      Job.landing.includes(:repository).filter_map { |landing_job| landing_lock_key_for(landing_job) }
+    )
 
     queue_entries.group_by(&:landing_unit_key).each_value do |unit_entries|
       first_entry = unit_entries.first
-      repository_id = first_entry.job.repository_id
-      next if occupied_repo_ids.include?(repository_id)
+      lock_key = landing_lock_key_for(first_entry.job)
+      next if lock_key && occupied_lock_keys.include?(lock_key)
 
       workflow = if merge_train_unit?(first_entry)
         next if first_entry.blocker_jobs.any?
@@ -179,7 +177,7 @@ class LandingQueueProcessor
       next unless workflow
 
       landed_workflows << workflow
-      occupied_repo_ids << repository_id
+      occupied_lock_keys << lock_key if lock_key
     end
 
     refresh_snapshot!(Job.landing_queue) if landed_workflows.any?
@@ -529,7 +527,7 @@ class LandingQueueProcessor
     landed = false
     Job.transaction do
       job.lock!
-      raise ActiveRecord::Rollback if landing_in_progress_for_repository?(job.repository_id)
+      raise ActiveRecord::Rollback if landing_in_progress_for_job?(job)
       raise ActiveRecord::Rollback if active_landing_workflow_for_job?(job)
       raise ActiveRecord::Rollback unless job.approved?
       # This re-check is the race guard against state that changed since the
@@ -556,11 +554,55 @@ class LandingQueueProcessor
     workflow
   end
 
-  def landing_in_progress_for_repository?(repository_id)
-    WorkUnits::Ownership.active_for_lock_key?(
-      "landing:repository:#{repository_id}",
-      kinds: WorkDefinitions.landing_lock_kinds
-    ) || Job.landing.where(repository_id: repository_id).exists?
+  # Whether the landing slot `job` would occupy is already taken — keyed by
+  # the Job's resolved delivery-track target ref (see
+  # `WorkDefinitions.landing_lock_key_for`), not bare `repository_id`, so a
+  # `hotfix` track landing straight to `main` doesn't contend with a
+  # `default` track landing to `develop`. Two Jobs resolving to the same
+  # branch still serialize exactly as before.
+  def landing_in_progress_for_job?(job)
+    lock_key = landing_lock_key_for(job)
+    return false unless lock_key
+
+    WorkUnits::Ownership.active_for_lock_key?(lock_key, kinds: WorkDefinitions.landing_lock_kinds) ||
+      landing_jobs_sharing_lock_key?(job, lock_key)
+  end
+
+  def landing_jobs_sharing_lock_key?(job, lock_key)
+    Job.landing.where(repository_id: job.repository_id).any? do |landing_job|
+      landing_lock_key_for(landing_job) == lock_key
+    end
+  end
+
+  def landing_lock_key_for(job)
+    WorkDefinitions.landing_lock_key_for(job, policy: delivery_policy_for(job))
+  end
+
+  # Memoized per repository_id for the same reason
+  # active_urgent_jobs_for_repository is (see comment there): DeliveryPolicy
+  # shells out to read `.syrus.yml` from the repository's bare clone, and a
+  # single entries()/call pass resolves the landing lock key for many Jobs
+  # in the same repository. Not busted by reset_blockage_caches! — the
+  # repository's delivery config doesn't change mid-tick, and re-reading it
+  # on every race-guard re-check would defeat the point of caching it.
+  def delivery_policy_for(job)
+    @delivery_policies_by_repository_id ||= {}
+    @delivery_policies_by_repository_id[job.repository_id] ||= DeliveryPolicy.for(repository: job.repository)
+  end
+
+  # For jobs that went through the operator review flow (job_approvals
+  # exist) or whose repository has an explicit `approval:` policy
+  # configured, re-verify the policy is still satisfied — e.g. a final
+  # approver may have been removed after the job reached :approved, or a
+  # configured owner/peer approval has since been withdrawn. A Job with
+  # neither (no job_approvals and no configured approval: policy) was
+  # auto-approved and bypasses this gate by design.
+  def landing_approval_satisfied?(job)
+    policy = delivery_policy_for(job)
+    return policy.job_approval_satisfied?(job) if policy.approval_configured?
+    return true unless job.job_approvals.exists?
+
+    job.approval_satisfied?
   end
 
   def release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
