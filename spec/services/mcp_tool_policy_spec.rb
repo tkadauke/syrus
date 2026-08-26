@@ -122,6 +122,21 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(Mcp::Tools::SubmitJobMetadataTool)
     end
 
+    it "includes the delivery-track/ref-movement tools only for run_skill steps" do
+      run.step.update_columns(kind: "run_skill")
+      context = McpToolContext.from_run(run.reload)
+      tools   = described_class.for(context)
+
+      expect(tools).to include(*McpToolPolicy::REF_MOVEMENT_TOOLS)
+    end
+
+    it "does not include the delivery-track/ref-movement tools for an ordinary implement run" do
+      context = McpToolContext.from_run(run)
+      tools   = described_class.for(context)
+
+      expect(tools).not_to include(*McpToolPolicy::REF_MOVEMENT_TOOLS)
+    end
+
     describe ".capability_permitted?" do
       it "permits submit_summary for the implement role" do
         context = McpToolContext.from_run(run)
