@@ -125,6 +125,7 @@ export type ChatProposal = {
   dependency_slugs?: string[]
   dependencies: ChatProposalDependency[]
   has_dependencies: boolean
+  target_epic_id: number | null
   target_epic_label: string | null
   app_update_path: string
   app_confirm_path: string
@@ -181,6 +182,7 @@ export type ChatProposalUpdateInput = {
   depends_on_job_ids: number[]
   depends_on_epic_ids: number[]
   media_ids?: string[]
+  target_epic_id?: number | null
 }
 
 export type ChatMediaSnapshot = {

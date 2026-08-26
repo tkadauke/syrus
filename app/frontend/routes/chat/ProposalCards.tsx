@@ -45,6 +45,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [proposalDeps, setProposalDeps] = useState<DependencyPill[]>(initialProposalDependencyPills(proposal))
   const [jobDeps, setJobDeps] = useState<DependencyPill[]>((proposal.depends_on_job_ids || []).map((id) => ({ key: String(id), label: `JOB-${id}` })))
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
+  const [targetEpicId, setTargetEpicId] = useState<number | null>(proposal.target_epic_id ?? null)
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -59,7 +60,8 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     body !== proposal.body ||
     !sameValues(proposalDeps.map((dep) => dep.key), initialProposalDependencyPills(proposal).map((dep) => dep.key)) ||
     !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
-    !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String))
+    !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
+    targetEpicId !== (proposal.target_epic_id ?? null)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -82,7 +84,8 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
       body,
       dependency_slugs: proposalDeps.map((dep) => dep.key),
       depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id))
+      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+      target_epic_id: targetEpicId
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -151,6 +154,23 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 </div>
               </div>
             </div>
+            {proposal.target_epic_id != null ? (
+              <div>
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("target_epic")}</div>
+                <div className="mt-1">
+                  {targetEpicId != null ? (
+                    <span className="inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                      <span className="min-w-0 truncate font-medium">{proposal.target_epic_label}</span>
+                      <button className="ml-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-300" onClick={() => setTargetEpicId(null)} type="button" aria-label={t("aria_remove_target_epic")}>
+                        <CloseIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{t("none")}</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-4 lg:grid-cols-3">
               <DependencyPicker
                 label="Proposal dependencies"

@@ -256,6 +256,7 @@
   "no_repository_attached": "Nullum repositorium adnexum",
   "dependencies": "Dependentiae",
   "target_epic": "Epicus destinatus",
+  "aria_remove_target_epic": "Epicum destinatum removere",
   "aria_report_dialog": "Quaestionem GitHub de Syrus referre",
   "report_heading": "Quaestionem GitHub referre",
   "aria_close_report": "Dialogum relationis claudere",

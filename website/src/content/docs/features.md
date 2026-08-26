@@ -346,6 +346,10 @@ single-Job `propose_job` tool enforces the same rule when its `epic_id`
 targets a non-empty Epic: it requires `depends_on_job_ids` to name one of
 that Epic's existing Jobs.
 
+When a Job proposal card targets an Epic, editing the card shows the target
+Epic as a removable pill so an operator can clear it before confirming,
+turning the proposal back into an epicless direct Job.
+
 ### Epic reconciliation
 
 When merge trains are enabled, approved child Jobs land atomically only after
