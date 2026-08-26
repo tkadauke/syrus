@@ -41,36 +41,34 @@ class ChatJobStatusQuery
 
     result = []
 
-    App::Presentation.with_job_slug_cache(jobs) do
-      epic_proposals.each do |epic_proposal|
-        epic = epic_proposal.epic
-        next unless epic
+    epic_proposals.each do |epic_proposal|
+      epic = epic_proposal.epic
+      next unless epic
 
-        children_proposals = epic_children[epic_proposal.id]
-        child_items        = children_proposals.filter_map { |p| build_job_item(p) }
-                               .sort_by { |c| c[:updated_at] }.reverse
-        done_count         = children_proposals.count { |p| p.job && job_done?(p.job) }
-        latest_updated_at  = child_items.map { |c| c[:updated_at] }.max || epic.updated_at.iso8601
+      children_proposals = epic_children[epic_proposal.id]
+      child_items        = children_proposals.filter_map { |p| build_job_item(p) }
+                             .sort_by { |c| c[:updated_at] }.reverse
+      done_count         = children_proposals.count { |p| p.job && job_done?(p.job) }
+      latest_updated_at  = child_items.map { |c| c[:updated_at] }.max || epic.updated_at.iso8601
 
-        result << {
-          kind:              "epic",
-          epic_id:           epic.id,
-          slug:              epic.slug,
-          title:             epic.title,
-          state:             epic.state,
-          progress:          { done: done_count, total: child_items.size },
-          children:          child_items,
-          latest_updated_at: latest_updated_at
-        }
-      end
-
-      standalone_jobs.each do |proposal|
-        item = build_job_item(proposal)
-        result << item if item
-      end
-
-      direct_jobs.each { |job| result << build_job_hash(job) }
+      result << {
+        kind:              "epic",
+        epic_id:           epic.id,
+        slug:              epic.slug,
+        title:             epic.title,
+        state:             epic.state,
+        progress:          { done: done_count, total: child_items.size },
+        children:          child_items,
+        latest_updated_at: latest_updated_at
+      }
     end
+
+    standalone_jobs.each do |proposal|
+      item = build_job_item(proposal)
+      result << item if item
+    end
+
+    direct_jobs.each { |job| result << build_job_hash(job) }
 
     result.sort_by { |item| item[:latest_updated_at] || item[:updated_at] || "" }.reverse
   end
