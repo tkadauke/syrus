@@ -26,6 +26,7 @@
 module Skills
   REPO_LOCAL_DIR = ".syrus/skills".freeze
   NAME_PATTERN = /\A[a-z0-9][a-z0-9_-]*\z/
+  ALL_FOR_CACHE_TTL = 2.minutes
 
   NotFoundError = Class.new(StandardError)
 
@@ -75,7 +76,12 @@ module Skills
   # make every other skill unlaunchable from the picker.
   def self.all_for(repository:, user: nil, client: nil)
     raise ArgumentError, "repository is required" if repository.nil?
+    return uncached_all_for(repository: repository, user: user, client: client) if client
 
+    cached_all_for(repository: repository, user: user)
+  end
+
+  def self.uncached_all_for(repository:, user: nil, client: nil)
     repo_local_names = repo_local_skill_names(repository: repository, user: user, client: client)
 
     (Registry.values + repo_local_names).uniq.sort.filter_map do |name|
@@ -85,6 +91,59 @@ module Skills
       )
     end
   end
+  private_class_method :uncached_all_for
+
+  def self.cached_all_for(repository:, user:)
+    now = all_for_cache_now
+    key = all_for_cache_key(repository: repository, user: user)
+
+    all_for_cache_mutex.synchronize do
+      cached = all_for_cache[key]
+      return cached[:value] if cached && cached[:expires_at] > now
+    end
+
+    value = uncached_all_for(repository: repository, user: user)
+    all_for_cache_mutex.synchronize do
+      all_for_cache[key] = { value: value, expires_at: now + ALL_FOR_CACHE_TTL.to_f }
+      prune_all_for_cache(now)
+    end
+    value
+  end
+  private_class_method :cached_all_for
+
+  def self.all_for_cache_now
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+  private_class_method :all_for_cache_now
+
+  def self.all_for_cache_key(repository:, user:)
+    [
+      repository.id,
+      repository.cache_key_with_version,
+      repository.default_branch,
+      repository.installation_id,
+      (user || repository.user)&.id
+    ]
+  end
+  private_class_method :all_for_cache_key
+
+  def self.all_for_cache
+    @all_for_cache ||= {}
+  end
+  private_class_method :all_for_cache
+
+  def self.all_for_cache_mutex
+    @all_for_cache_mutex ||= Mutex.new
+  end
+  private_class_method :all_for_cache_mutex
+
+  def self.prune_all_for_cache(now)
+    return if all_for_cache.size <= 256
+
+    all_for_cache.delete_if { |_key, entry| entry[:expires_at] <= now }
+    all_for_cache.shift while all_for_cache.size > 256
+  end
+  private_class_method :prune_all_for_cache
 
   def self.repo_local_skill_names(repository:, user:, client:)
     return [] unless credentials_available?(repository: repository, user: user)

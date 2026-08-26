@@ -105,6 +105,10 @@ RSpec.describe Skills do
   end
 
   describe ".all_for" do
+    before do
+      described_class.remove_instance_variable(:@all_for_cache) if described_class.instance_variable_defined?(:@all_for_cache)
+    end
+
     def tree(*paths)
       { items: paths.map { |path| { path: path, size: 10 } }, truncated: false }
     end
@@ -182,6 +186,34 @@ RSpec.describe Skills do
       resolutions = described_class.all_for(repository: repository, user: user)
 
       expect(resolutions.map { |r| r.definition.name }).to eq([ "add-ci-workflow", "changelog-generate", "coverage-gap-report", "dead-code-sweep", "debug", "dependency-audit", "explain-failing-ci", "init-docs", "investigate", "license-audit", "onboard-to-syrus", "rebase-conflict-resolver", "security-review" ])
+    end
+
+    it "caches repository skill listings briefly when no client is injected" do
+      first = [ Skills::Resolution.new(source: :built_in, path: nil, klass: Skills::Investigate, definition: Skills::Investigate.definition) ]
+      second = [ Skills::Resolution.new(source: :built_in, path: nil, klass: Skills::Debug, definition: Skills::Debug.definition) ]
+      now = 1_000.0
+
+      allow(described_class).to receive(:uncached_all_for).and_return(first, second)
+      allow(described_class).to receive(:all_for_cache_now).and_return(now, now + 1, now + Skills::ALL_FOR_CACHE_TTL.to_f + 1)
+
+      expect(described_class.all_for(repository: repository, user: user)).to eq(first)
+      expect(described_class.all_for(repository: repository, user: user)).to eq(first)
+      expect(described_class.all_for(repository: repository, user: user)).to eq(second)
+
+      expect(described_class).to have_received(:uncached_all_for).twice
+    end
+
+    it "bypasses the listing cache when a client is injected" do
+      allow(client).to receive(:file_content_at).and_return(nil)
+      allow(client).to receive(:file_tree_at)
+        .with("acme/widgets", "main")
+        .and_return(tree("README.md"), tree(".syrus/skills/audit/SKILL.md"))
+      allow(client).to receive(:file_content_at)
+        .with("acme/widgets", ".syrus/skills/audit/SKILL.md", "main")
+        .and_return(content: skill_md(name: "audit"), size: 50)
+
+      expect(described_class.all_for(repository: repository, client: client).map { |r| r.definition.name }).not_to include("audit")
+      expect(described_class.all_for(repository: repository, client: client).map { |r| r.definition.name }).to include("audit")
     end
   end
 end
