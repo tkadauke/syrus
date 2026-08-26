@@ -903,6 +903,7 @@ module Api
               depends_on_epic_ids: depends_on_epic_ids
             }
             update_attrs[:media_ids] = Array(attrs[:media_ids]).reject(&:blank?) if attrs.key?(:media_ids)
+            update_attrs[:target_epic_id] = attrs[:target_epic_id].presence if attrs.key?(:target_epic_id)
             proposal.update!(update_attrs)
             rebuild_proposal_dependencies!(chat_session, proposal, Array(attrs[:dependency_slugs]))
             proposal.reset_to_proposed_after_edit!
@@ -1257,7 +1258,7 @@ module Api
 
 
         def proposal_update_params
-          params.require(:proposal).permit(:title, :body, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
+          params.require(:proposal).permit(:title, :body, :target_epic_id, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
         end
 
         def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

@@ -256,6 +256,7 @@
   "no_repository_attached": "No repository attached",
   "dependencies": "Dependencies",
   "target_epic": "Target Epic",
+  "aria_remove_target_epic": "Remove target epic",
   "aria_report_dialog": "File a GitHub issue about Syrus",
   "report_heading": "File a GitHub issue",
   "aria_close_report": "Close report dialog",
