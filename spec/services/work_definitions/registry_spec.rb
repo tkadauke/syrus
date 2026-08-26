@@ -94,6 +94,7 @@ RSpec.describe WorkDefinitions do
       deploy
       promotion
       hotfix_sync
+      upstream_export
     ]
 
     resume_failed_step_kinds.each do |kind|
