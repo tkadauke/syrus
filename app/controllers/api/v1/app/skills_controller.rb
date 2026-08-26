@@ -26,7 +26,8 @@ module Api
             name: params[:name].to_s,
             args: plain_json(params[:args].presence || {}),
             agent_provider: agent_provider,
-            priority: params[:priority].to_s.presence
+            priority: params[:priority].to_s.presence,
+            delivery_track: params[:delivery_track].to_s.presence
           )
 
           unless result.success?

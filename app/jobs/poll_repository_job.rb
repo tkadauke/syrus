@@ -148,7 +148,8 @@ class PollRepositoryJob < ApplicationJob
       issue_body: issue_body(issue),
       state: initial_state_for_issue(issue),
       skip_prepare: skip_prepare_label_present?(issue),
-      prepare_skip_reason_override: prepare_skip_reason(issue)
+      prepare_skip_reason_override: prepare_skip_reason(issue),
+      delivery_track: delivery_track_label_value(issue)
     )
     classify_if_available(job)
     enqueue_issue_image_ingest(job)
@@ -218,6 +219,7 @@ class PollRepositoryJob < ApplicationJob
       issue_body: issue_body(issue),
       skip_prepare: skip_prepare_label_present?(issue),
       prepare_skip_reason_override: prepare_skip_reason(issue),
+      delivery_track: delivery_track_label_value(issue),
       epic: epic,
       state: initial_state_for_issue(issue),
       triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
@@ -249,14 +251,20 @@ class PollRepositoryJob < ApplicationJob
 
   def sync_issue_label_state!(job, issue)
     skip = skip_prepare_label_present?(issue)
+    track = delivery_track_label_value(issue)
 
     updates = {}
     updates[:skip_prepare] = skip if job.skip_prepare? != skip
+    updates[:delivery_track] = track if job.delivery_track != track
     job.update!(updates) if updates.any?
   end
 
   def skip_prepare_label_present?(issue)
     label_names(issue).include?(Workflows::SKIP_PREPARE_LABEL)
+  end
+
+  def delivery_track_label_value(issue)
+    Workflows.track_label_value(issue.labels)
   end
 
   def label_names(issue)

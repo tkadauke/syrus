@@ -30,7 +30,10 @@ module JobStackBase
         !dependency_job.dependency_succeeded?
     end
 
-    parent&.branch_name.presence || base_default_branch
+    # No explicit override, forced-main, or open stack/dependency parent —
+    # fall back to the delivery track's landing branch (defaults to
+    # `base_default_branch` when no `delivery:` track config applies).
+    parent&.branch_name.presence || policy_landing_branch
   end
 
   # The repository whose default branch is this Job's base. For a fork with an
@@ -66,5 +69,15 @@ module JobStackBase
 
   def stack_base_forces_main?
     stack_base_main? && !epic_internal_dependency?
+  end
+
+  private
+
+  # Reads `.syrus.yml`'s `delivery:` tracks off `base_repository` (not
+  # `repository`), matching `base_default_branch`'s own upstream-vs-self
+  # resolution — a fork contributing upstream resolves its track config
+  # against the upstream repository, not its own fork-side config.
+  def policy_landing_branch
+    DeliveryPolicy.for(repository: base_repository).job_landing_branch(self)
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_164000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_190444) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1052,6 +1052,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_164000) do
     t.integer "commits_behind_base"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
+    t.string "delivery_track"
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.integer "epic_id"
@@ -2555,5 +2556,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_164000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end

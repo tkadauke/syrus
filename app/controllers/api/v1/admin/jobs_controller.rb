@@ -92,6 +92,7 @@ module Api
           selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = attrs[:title].to_s.strip.presence
           target_branch = attrs[:target_branch].to_s.strip.presence
+          delivery_track = attrs[:delivery_track].to_s.strip.presence
           job = repository.user.jobs.create!(
             repository: repository,
             kind: "direct",
@@ -103,7 +104,8 @@ module Api
             priority: priority,
             epic: epic,
             owner_user: owner_user,
-            target_branch: target_branch
+            target_branch: target_branch,
+            delivery_track: delivery_track
           )
           GenerateJobTitleJob.perform_later(job) if job.title_pending?
           job.advance_after_triage! if job.may_advance_after_triage?
@@ -118,7 +120,7 @@ module Api
 
         def job_params
           source = params[:job].present? ? params.require(:job) : params
-          source.permit(:repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id, :target_branch)
+          source.permit(:repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id, :target_branch, :delivery_track)
         end
 
         def find_active_repository(attrs)
@@ -193,6 +195,7 @@ module Api
             title_pending:  job.title_pending?,
             pr_number:      job.pr_number,
             branch_name:    job.branch_name,
+            delivery_track: job.delivery_track,
             pr_mergeable:   job.pr_mergeable,
             pr_mergeable_checked_at: job.pr_mergeable_checked_at,
             github_mergeable: job.github_mergeable,
@@ -236,6 +239,7 @@ module Api
             job_provider_setting: job.job_provider_setting,
             stack_base: job.stack_base,
             parent_job_id: job.parent_job_id,
+            delivery_track: job.delivery_track,
             effective_base_branch: job.effective_base_branch,
             closure_reason: job.closure_reason,
             runaway_protection: job.runaway_protection,

@@ -945,6 +945,16 @@ Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.
 
+Repositories that configure a branching model in `.syrus.yml`'s `delivery:`
+block (a development/release split, a hotfix track, and so on) can select a
+delivery track per Job instead of always landing on the repository's default
+branch. The direct job API and admin job creation both accept an optional
+track selection (e.g. `hotfix`, when the repository defines a `hotfix`
+track); leaving it unset lands the Job on the repository's normal default
+track. A GitHub issue can select a track the same way with a
+`syrus-track-<name>` label (e.g. `syrus-track-hotfix`). See
+`config/syrus_docs/delivery_tracks.md` for the full `.syrus.yml` shape.
+
 ## Skills
 
 Skills are named, freeform instruction sets for work that resists being
