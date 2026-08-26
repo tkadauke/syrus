@@ -30,12 +30,12 @@ RSpec.describe PreviewPanel::Service do
     it "defaults files to an empty set when omitted" do
       panel = described_class.open!(chat_session: chat_session, title: "Widget preview")
 
-      expect(panel.files).to be_empty
+      expect(panel.current_version.files).to be_empty
     end
   end
 
   describe "#update!" do
-    it "replaces the panel's attached files" do
+    it "publishes the panel's current files" do
       panel = described_class.open!(
         chat_session: chat_session,
         title: "Widget preview",
@@ -45,6 +45,20 @@ RSpec.describe PreviewPanel::Service do
       described_class.new(panel).update!(files: { "index.html" => "<h1>v2</h1>" })
 
       expect(panel.file_for("index.html").download).to eq("<h1>v2</h1>")
+    end
+
+    it "creates a new version and leaves the prior version's files intact" do
+      panel = described_class.open!(
+        chat_session: chat_session,
+        title: "Widget preview",
+        files: { "index.html" => "<h1>v1</h1>" }
+      )
+      first_version = panel.current_version
+
+      described_class.new(panel).update!(files: { "index.html" => "<h1>v2</h1>" })
+
+      expect(panel.preview_panel_versions.reload.count).to eq(2)
+      expect(first_version.file_for("index.html").download).to eq("<h1>v1</h1>")
     end
 
     it "broadcasts a live update" do

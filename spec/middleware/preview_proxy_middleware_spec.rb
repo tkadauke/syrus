@@ -326,7 +326,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "streams the index.html attachment for the panel root path" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hello</h1>")
+      panel.create_version!("index.html" => "<h1>hello</h1>")
 
       status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
 
@@ -335,9 +335,48 @@ RSpec.describe PreviewProxyMiddleware do
       expect(body.join).to eq("<h1>hello</h1>")
     end
 
+    it "defaults to the panel's current (latest) version when no v param is given" do
+      panel = create_panel
+      panel.create_version!("index.html" => "<h1>v1</h1>")
+      panel.create_version!("index.html" => "<h1>v2</h1>")
+
+      status, _, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>v2</h1>")
+    end
+
+    it "serves a specific older version via the v query param" do
+      panel = create_panel
+      first_version = panel.create_version!("index.html" => "<h1>v1</h1>")
+      panel.create_version!("index.html" => "<h1>v2</h1>")
+
+      status, _, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "v=#{first_version.id}"))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>v1</h1>")
+    end
+
+    it "returns 404 for an unknown version id" do
+      panel = create_panel
+      panel.create_version!("index.html" => "<h1>v1</h1>")
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "v=999999"))
+
+      expect(status).to eq(404)
+    end
+
+    it "returns 404 for a panel with no versions yet" do
+      panel = create_panel
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(404)
+    end
+
     it "streams a nested file by its relative path" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hi</h1>", "css/app.css" => "body { color: red; }")
+      panel.create_version!("index.html" => "<h1>hi</h1>", "css/app.css" => "body { color: red; }")
 
       status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", path: "/css/app.css"))
 
@@ -348,7 +387,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "infers the content type from the file extension" do
       panel = create_panel
-      panel.replace_files!("app.js" => "console.log('hi')")
+      panel.create_version!("app.js" => "console.log('hi')")
 
       _, headers, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", path: "/app.js"))
 
@@ -357,7 +396,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "applies the shared preview CSP" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hi</h1>")
+      panel.create_version!("index.html" => "<h1>hi</h1>")
 
       _, headers, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
 
@@ -373,7 +412,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "returns 404 for a closed panel" do
       panel = create_panel(state: "closed")
-      panel.replace_files!("index.html" => "<h1>hi</h1>")
+      panel.create_version!("index.html" => "<h1>hi</h1>")
 
       status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
 
@@ -382,7 +421,7 @@ RSpec.describe PreviewProxyMiddleware do
 
     it "returns 404 for a path with no matching attachment" do
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>hi</h1>")
+      panel.create_version!("index.html" => "<h1>hi</h1>")
 
       status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", path: "/missing.js"))
 
@@ -400,7 +439,7 @@ RSpec.describe PreviewProxyMiddleware do
       stub_const("ENV", ENV.to_h.merge("SYRUS_PREVIEW_BASE_DOMAIN" => "preview.example.com"))
       custom_middleware = described_class.new(inner_app)
       panel = create_panel
-      panel.replace_files!("index.html" => "<h1>custom domain</h1>")
+      panel.create_version!("index.html" => "<h1>custom domain</h1>")
 
       status, _, body = custom_middleware.call(env_for(host: "preview-panel-#{panel.id}.preview.example.com"))
 
