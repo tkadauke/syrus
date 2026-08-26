@@ -315,7 +315,7 @@ function HealthSourceBadge({ source, t }: { source: string; t: (key: string) => 
   return (
     <span
       className={[
-        "inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase leading-none",
+        "inline-flex items-center rounded border px-1.5 py-0.5 text-2xs font-medium uppercase leading-none",
         isQuorum
           ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
           : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"

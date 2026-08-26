@@ -129,7 +129,7 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
       {activeProcess ? (
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-blue-700 dark:text-blue-300">
           <span>{t("run_active_process", { kind: humanize(activeProcess.kind) })}</span>
-          <code className="max-w-full truncate rounded bg-white/75 px-1.5 py-0.5 font-mono text-[11px] text-blue-950 dark:bg-blue-900/40 dark:text-blue-100">
+          <code className="max-w-full truncate rounded bg-white/75 px-1.5 py-0.5 font-mono text-2xs text-blue-950 dark:bg-blue-900/40 dark:text-blue-100">
             {activeProcess.command || t("run_active_process_unknown_command")}
           </code>
           {budgetParts.length > 0 ? <span>{t("run_active_process_budget", { budget: budgetParts.join(" · ") })}</span> : null}

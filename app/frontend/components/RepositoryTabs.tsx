@@ -14,7 +14,7 @@ export function RepositoryTabs({ active, prefix, tabs }: { active: string; prefi
           to={withRoutePrefix(tab.path, prefix)}
         >
           {tab.label}
-          {tab.badge ? <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] leading-none text-white">{tab.badge}</span> : null}
+          {tab.badge ? <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-2xs leading-none text-white">{tab.badge}</span> : null}
         </Link>
       ))}
     </nav>

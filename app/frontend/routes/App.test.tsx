@@ -8044,7 +8044,7 @@ describe("App", () => {
       expect(within(scheduledTabs).queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
       expect(within(scheduledTabs).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/repositories/3/documents")
       expect(within(scheduledTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveClass("border-blue-600")
-      expect(screen.getByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-3xl")
+      expect(screen.getByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-2xl", "font-mono")
       expect(await screen.findByText("Daily review")).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "New scheduled task" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks/new")
       fireEvent.click(screen.getByRole("button", { name: "Disable" }))
@@ -8691,7 +8691,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Repository documents" })).toHaveClass("max-w-[96rem]")
-    expect(await screen.findByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-3xl")
+    expect(await screen.findByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-2xl", "font-mono")
     const repositoryTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
     expect(within(repositoryTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(within(repositoryTabs).getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")

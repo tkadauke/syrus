@@ -524,7 +524,7 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
               </PrHoverCard>
             ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
-          {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
+          {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-2xs text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
         </div>
       </td>
     )
@@ -1035,7 +1035,7 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
       <span>{t("manual_paused")}</span>
       <span aria-hidden="true" className="select-none">·</span>
       <button
-        className="rounded border border-amber-300 bg-white px-1 py-0 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-700 dark:bg-gray-950 dark:text-amber-100 dark:hover:bg-amber-900/50"
+        className="rounded border border-amber-300 bg-white px-1 py-0 text-2xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-700 dark:bg-gray-950 dark:text-amber-100 dark:hover:bg-amber-900/50"
         disabled={!canUnpause || unpauseMutation.isPending}
         onClick={(event) => {
           event.preventDefault()
