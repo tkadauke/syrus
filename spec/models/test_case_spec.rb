@@ -270,24 +270,13 @@ RSpec.describe TestCase do
       expect(tests.size).to eq(3)
     end
 
-    it "embeds repository_id, lookback, and limit as raw integers rather than quoted bind values" do
-      # Regression: this query used to build its SQL via sanitize_sql named
-      # binds. MySQL's adapter-specific cast_bound_value stringifies Numeric
-      # binds before quoting, turning `LIMIT :limit` into `LIMIT '20'` --
-      # a MySQL syntax error that SQLite silently tolerates. Assert on the
-      # raw SQL text so this can't regress unnoticed on the SQLite test DB.
-      captured_sql = nil
-      allow(TestCase.connection).to receive(:exec_query) do |sql|
-        captured_sql = sql
-        ActiveRecord::Result.new([], [])
-      end
+    it "uses durable test identities instead of a repository-wide test case scan" do
+      create_case(name: "flaky", suite_name: "S", status: "passed")
+      create_case(name: "flaky", suite_name: "S", status: "failed")
 
       TestCase.top_flaky_tests(repository: repo, lookback: "20", limit: "3")
 
-      expect(captured_sql).to include("WHERE repository_id = #{repo.id}\n")
-      expect(captured_sql).to include("WHERE rn <= 20\n")
-      expect(captured_sql).to match(/LIMIT 3\s*\z/)
-      expect(captured_sql).not_to match(/'\d+'/)
+      expect(TestIdentity.find_by!(repository: repo, name: "flaky")).to be_present
     end
   end
 

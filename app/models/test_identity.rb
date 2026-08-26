@@ -55,7 +55,7 @@ class TestIdentity < ApplicationRecord
     where(repository_id: repository.id, fingerprint: attrs_by_fingerprint.keys).index_by(&:fingerprint)
   end
 
-  def self.ensure_for_repository!(repository)
+  def self.ensure_for_repository!(repository, index_search: true)
     rows = TestCase
       .where(repository_id: repository.id, test_identity_id: nil)
       .select(:id, :suite_name, :name, :file_path)
@@ -72,7 +72,7 @@ class TestIdentity < ApplicationRecord
     end
 
     refresh_many!(identities.values.map(&:id))
-    TestIdentitySearchIndex.upsert_many(where(id: identities.values.map(&:id)).includes(:repository))
+    TestIdentitySearchIndex.upsert_many(where(id: identities.values.map(&:id)).includes(:repository)) if index_search
   end
 
   def self.refresh_many!(ids)

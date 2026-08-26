@@ -19,8 +19,7 @@ class TestCase < ApplicationRecord
   # A test is flaky if it has both passed and failed within the lookback window.
   # Returns nil if no history exists.
   def self.flakiness_score(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
-    statuses = where(repository_id: repository.id, suite_name: suite_name, name: name)
-      .order(created_at: :desc)
+    statuses = history_scope_for(repository: repository, suite_name: suite_name, name: name)
       .limit(lookback)
       .pluck(:status)
 
@@ -42,9 +41,8 @@ class TestCase < ApplicationRecord
   # Returns avg, p50, p95 duration_ms for the lookback window.
   # Returns nil if no duration data exists.
   def self.runtime_percentiles(repository:, suite_name:, name:, lookback: FLAKINESS_LOOKBACK)
-    durations = where(repository_id: repository.id, suite_name: suite_name, name: name)
+    durations = history_scope_for(repository: repository, suite_name: suite_name, name: name)
       .where.not(duration_ms: nil)
-      .order(created_at: :desc)
       .limit(lookback)
       .pluck(:duration_ms)
 
@@ -62,98 +60,104 @@ class TestCase < ApplicationRecord
   # Returns the top flakiest tests for a repository, sorted by flakiness score descending.
   # Only returns tests that have both passed and failed (truly flaky).
   def self.top_flaky_tests(repository:, lookback: FLAKINESS_LOOKBACK, limit: 20)
-    # repository_id/lookback/limit are embedded as validated integers rather than
-    # via sanitize_sql named binds: the MySQL adapter's Quoting#cast_bound_value
-    # stringifies Numeric binds before quoting, which turns `LIMIT :limit` into
-    # `LIMIT '20'` -- a MySQL syntax error (SQLite tolerates the quoted literal,
-    # which is why this only broke in production).
-    repository_id = repository.id.to_i
     lookback = lookback.to_i
     limit = limit.to_i
-
-    sql = <<~SQL
-      WITH ranked AS (
-        SELECT suite_name, name, status, duration_ms, created_at,
-               ROW_NUMBER() OVER (PARTITION BY suite_name, name ORDER BY created_at DESC) AS rn
-        FROM test_cases
-        WHERE repository_id = #{repository_id}
-      ),
-      stats AS (
-        SELECT
-          suite_name,
-          name,
-          COUNT(*) AS total_count,
-          SUM(CASE WHEN status IN ('failed', 'error') THEN 1 ELSE 0 END) AS failed_count,
-          SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) AS passed_count,
-          AVG(CAST(duration_ms AS REAL)) AS avg_duration_ms,
-          MAX(created_at) AS last_seen_at
-        FROM ranked
-        WHERE rn <= #{lookback}
-        GROUP BY suite_name, name
-        HAVING SUM(CASE WHEN status IN ('failed', 'error') THEN 1 ELSE 0 END) > 0
-           AND SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) > 0
-      )
-      SELECT
-        suite_name,
-        name,
-        total_count,
-        failed_count,
-        avg_duration_ms,
-        last_seen_at
-      FROM stats
-      ORDER BY failed_count * 1.0 / total_count DESC
-      LIMIT #{limit}
-    SQL
-
-    rows = connection.exec_query(sql)
-
-    rows.map do |row|
-      total  = row["total_count"].to_i
-      failed = row["failed_count"].to_i
-      {
-        suite_name:       row["suite_name"],
-        name:             row["name"],
-        flakiness_score:  failed.to_f / total,
-        failed_count:     failed,
-        total_count:      total,
-        avg_duration_ms:  row["avg_duration_ms"]&.round,
-        last_seen_at:     row["last_seen_at"]
-      }
+    if repository.test_identities.none? && where(repository_id: repository.id).exists?
+      TestIdentity.ensure_for_repository!(repository, index_search: false)
     end
+
+    repository.test_identities
+      .where.not(last_failed_at: nil)
+      .where.not(last_passed_at: nil)
+      .order(last_failed_at: :desc, last_passed_at: :desc, id: :desc)
+      .limit(limit * 4)
+      .filter_map do |identity|
+        stats = identity.recent_stats(lookback: lookback)
+        total = stats.fetch(:total_count)
+        failed = stats.fetch(:failed_count)
+        next unless failed.positive? && stats.fetch(:passed_count).positive?
+
+        {
+          suite_name:       identity.suite_name,
+          name:             identity.name,
+          flakiness_score:  failed.to_f / total,
+          failed_count:     failed,
+          total_count:      total,
+          avg_duration_ms:  stats.fetch(:avg_duration_ms),
+          last_seen_at:     identity.last_seen_at
+        }
+      end
+      .sort_by { |test| [ -test.fetch(:flakiness_score), -test.fetch(:failed_count), test.fetch(:suite_name), test.fetch(:name) ] }
+      .first(limit)
   end
 
   # Batch-loads flakiness data for a set of test cases from a given repository.
   # Returns a hash keyed by [suite_name, name] => flakiness_data.
   def self.batch_flakiness(repository, test_cases_enum, lookback: FLAKINESS_LOOKBACK)
-    pairs = test_cases_enum.map { |tc| [ tc.suite_name, tc.name ] }.uniq
-    return {} if pairs.empty?
+    cases = test_cases_enum.to_a
+    return {} if cases.empty?
 
-    condition = pairs.map { "(suite_name = ? AND name = ?)" }.join(" OR ")
-    values    = pairs.flat_map { |s, n| [ s, n ] }
+    result = batch_flakiness_by_identity(cases, lookback: lookback)
+    fallback_cases = cases.select { |tc| tc.test_identity_id.blank? }
+    return result if fallback_cases.empty?
+
+    fallback_pairs = cases.select { |tc| tc.test_identity_id.blank? }.map { |tc| [ tc.suite_name, tc.name ] }.uniq
+    condition = fallback_pairs.map { "(suite_name = ? AND name = ?)" }.join(" OR ")
+    values = fallback_pairs.flat_map { |suite_name, name| [ suite_name, name ] }
 
     recent = where(repository_id: repository.id)
       .where(condition, *values)
-      .order(:suite_name, :name, created_at: :desc)
+      .order(:suite_name, :name, created_at: :desc, id: :desc)
       .select(:suite_name, :name, :status, :duration_ms, :created_at)
 
     grouped = recent.group_by { |tc| [ tc.suite_name, tc.name ] }
-
-    result = {}
-    grouped.each do |(suite, name), cases|
-      window = cases.first(lookback)
-      total  = window.size
-      failed = window.count { |tc| tc.status == "failed" || tc.status == "error" }
-      passed = window.count { |tc| tc.status == "passed" }
-
-      result[[ suite, name ]] = {
-        score:        failed.to_f / total,
-        failed_count: failed,
-        total_count:  total,
-        flaky:        failed > 0 && passed > 0,
-        run_statuses: window.reverse.map(&:status)
-      }
+    grouped.each do |pair, history|
+      result[pair] = flakiness_for_history(history.first(lookback))
     end
 
     result
+  end
+
+  def self.history_scope_for(repository:, suite_name:, name:)
+    identity = TestIdentity.find_by(
+      repository_id: repository.id,
+      fingerprint: TestIdentity.fingerprint_for(suite_name: suite_name, name: name)
+    )
+    return identity.test_cases.order(created_at: :desc, id: :desc) if identity
+
+    where(repository_id: repository.id, suite_name: suite_name, name: name).order(created_at: :desc, id: :desc)
+  end
+
+  def self.batch_flakiness_by_identity(cases, lookback:)
+    cases_by_identity_id = cases.filter_map { |tc| [ tc.test_identity_id, tc ] if tc.test_identity_id }.to_h
+    return {} if cases_by_identity_id.empty?
+
+    recent = where(test_identity_id: cases_by_identity_id.keys)
+      .order(:test_identity_id, created_at: :desc, id: :desc)
+      .select(:test_identity_id, :suite_name, :name, :status, :duration_ms, :created_at)
+
+    result = {}
+    grouped = recent.group_by(&:test_identity_id)
+    grouped.each do |identity_id, history|
+      window = history.first(lookback)
+      test_case = cases_by_identity_id.fetch(identity_id)
+      result[[ test_case.suite_name, test_case.name ]] = flakiness_for_history(window)
+    end
+
+    result
+  end
+
+  def self.flakiness_for_history(history)
+    total  = history.size
+    failed = history.count { |tc| tc.status == "failed" || tc.status == "error" }
+    passed = history.count { |tc| tc.status == "passed" }
+
+    {
+      score:        failed.to_f / total,
+      failed_count: failed,
+      total_count:  total,
+      flaky:        failed > 0 && passed > 0,
+      run_statuses: history.reverse.map(&:status)
+    }
   end
 end
