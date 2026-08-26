@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_214706) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1537,6 +1537,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
     t.index ["state"], name: "index_preview_environments_on_state"
   end
 
+  create_table "preview_panel_versions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "preview_panel_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["preview_panel_id"], name: "index_preview_panel_versions_on_preview_panel_id"
+  end
+
   create_table "preview_panels", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
@@ -2556,4 +2563,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "preview_panel_versions", "preview_panels"
 end

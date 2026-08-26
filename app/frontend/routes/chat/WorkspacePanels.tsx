@@ -143,7 +143,7 @@ export function ChatWorkspacePanel({
         </nav>
       )}
       <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
-        {activePreviewPanel ? <PreviewPanelFrame panel={activePreviewPanel} /> : null}
+        {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} panel={activePreviewPanel} /> : null}
         {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
@@ -173,19 +173,151 @@ function PluginWorkspaceTabPanel({ activeTab, payload }: { activeTab: WorkspaceT
   )
 }
 
+function ExternalLinkIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
+      <line strokeLinecap="round" strokeLinejoin="round" x1="10" x2="21" y1="14" y2="3" />
+    </svg>
+  )
+}
+
+function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null) {
+  if (!versionId) return panel.url
+
+  const url = new URL(panel.url)
+  url.searchParams.set("v", String(versionId))
+  return url.toString()
+}
+
+// Toolbar dropdown pattern (button + absolutely positioned listbox), same
+// shape as ChatModeSelector/ChatModelSelector/ChatEffortSelector in
+// Compose.tsx, opening downward since this toolbar sits above its panel
+// rather than below a composer.
+function PreviewVersionSelector({
+  panel,
+  selectedVersionId,
+  onChange
+}: {
+  panel: ChatPreviewPanel
+  selectedVersionId: number | null
+  onChange: (versionId: number) => void
+}) {
+  const { t } = useT("chat")
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  if (panel.versions.length <= 1) return null
+
+  const latestVersionId = panel.versions[0]?.id
+  const currentLabel = selectedVersionId === latestVersionId
+    ? t("preview_version_latest")
+    : t("preview_version_label", { index: panel.versions.findIndex((v) => v.id === selectedVersionId) + 1 })
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("preview_version_selector_label")}
+        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        type="button"
+      >
+        <span className="min-w-0 truncate">{currentLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {dropdownOpen ? (
+        <div
+          className="absolute left-0 top-full z-20 mt-1 min-w-[10rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          ref={dropdownRef}
+          role="listbox"
+        >
+          {panel.versions.map((version, index) => (
+            <button
+              aria-selected={selectedVersionId === version.id}
+              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm ${
+                selectedVersionId === version.id
+                  ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              }`}
+              key={version.id}
+              onClick={() => {
+                onChange(version.id)
+                setDropdownOpen(false)
+              }}
+              role="option"
+              type="button"
+            >
+              <span>{index === 0 ? t("preview_version_latest") : t("preview_version_label", { index: index + 1 })}</span>
+              <RelativeTimestamp className="text-xs text-gray-400 dark:text-gray-500" value={version.created_at} />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 // Origin isolation (the panel's own preview-panel-<id> subdomain, enforced by
 // PreviewProxyMiddleware) is the real security boundary; sandbox is
 // defense-in-depth on top of it. Never add allow-same-origin — combined with
 // allow-scripts that would let framed content reach for the parent origin.
 function PreviewPanelFrame({ panel }: { panel: ChatPreviewPanel }) {
+  const { t } = useT("chat")
+  const [selectedVersionId, setSelectedVersionId] = useState(panel.current_version_id)
+  const lastCurrentVersionId = useRef(panel.current_version_id)
+
+  useEffect(() => {
+    if (panel.current_version_id !== lastCurrentVersionId.current) {
+      lastCurrentVersionId.current = panel.current_version_id
+      setSelectedVersionId(panel.current_version_id)
+    }
+  }, [panel.current_version_id])
+
+  const versionedUrl = previewVersionUrl(panel, selectedVersionId)
+
   return (
-    <iframe
-      className="h-full w-full border-0"
-      referrerPolicy="no-referrer"
-      sandbox="allow-scripts"
-      src={panel.url}
-      title={panel.title}
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-1.5 dark:border-gray-700">
+        <PreviewVersionSelector onChange={setSelectedVersionId} panel={panel} selectedVersionId={selectedVersionId} />
+        <a
+          aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
+          className="ml-auto rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          href={versionedUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+          title={t("preview_open_new_tab")}
+        >
+          <ExternalLinkIcon className="h-3.5 w-3.5" />
+        </a>
+      </div>
+      <iframe
+        className="h-full w-full min-h-0 flex-1 border-0"
+        referrerPolicy="no-referrer"
+        sandbox="allow-scripts"
+        src={versionedUrl}
+        title={panel.title}
+      />
+    </div>
   )
 }
 

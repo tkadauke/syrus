@@ -554,7 +554,15 @@ describe("ChatWorkspacePanel preview panels", () => {
     return {
       ...makePayload(),
       preview_panels: [
-        { id: 7, title: "Layout mockup", file_count: 2, url: "http://preview-panel-7.lvh.me/", app_close_path: "/api/v1/app/chats/1/preview_panels/7" }
+        {
+          id: 7,
+          title: "Layout mockup",
+          file_count: 2,
+          url: "http://preview-panel-7.lvh.me/",
+          app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          current_version_id: null,
+          versions: []
+        }
       ]
     }
   }
@@ -574,7 +582,15 @@ describe("ChatWorkspacePanel preview panels", () => {
     const payload: ChatPayload = {
       ...makePayload(),
       preview_panels: [
-        { id: 7, title: "Layout mockup", file_count: 2, url: "https://preview-panel-7.lvh.me/", app_close_path: "/api/v1/app/chats/1/preview_panels/7" }
+        {
+          id: 7,
+          title: "Layout mockup",
+          file_count: 2,
+          url: "https://preview-panel-7.lvh.me/",
+          app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          current_version_id: null,
+          versions: []
+        }
       ]
     }
 
@@ -582,6 +598,76 @@ describe("ChatWorkspacePanel preview panels", () => {
 
     const iframe = document.querySelector("iframe")
     expect(iframe?.getAttribute("src")).toBe("https://preview-panel-7.lvh.me/")
+  })
+
+  it("renders an open-in-new-tab link pointed at the panel URL", () => {
+    renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    const link = screen.getByRole("link", { name: "Open Layout mockup in new tab" })
+    expect(link).toHaveAttribute("href", "http://preview-panel-7.lvh.me/")
+    expect(link).toHaveAttribute("target", "_blank")
+  })
+
+  it("does not render a version selector when the panel has a single version", () => {
+    const payload: ChatPayload = {
+      ...makePayload(),
+      preview_panels: [
+        {
+          id: 7,
+          title: "Layout mockup",
+          file_count: 2,
+          url: "http://preview-panel-7.lvh.me/",
+          app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          current_version_id: 100,
+          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z" } ]
+        }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(screen.queryByLabelText("Preview version")).not.toBeInTheDocument()
+  })
+
+  it("lists versions newest-first and switches the iframe src and open-in-new-tab link on selection", () => {
+    const payload: ChatPayload = {
+      ...makePayload(),
+      preview_panels: [
+        {
+          id: 7,
+          title: "Layout mockup",
+          file_count: 2,
+          url: "http://preview-panel-7.lvh.me",
+          app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          current_version_id: 102,
+          versions: [
+            { id: 102, created_at: "2026-08-22T10:00:00Z" },
+            { id: 101, created_at: "2026-08-21T10:00:00Z" },
+            { id: 100, created_at: "2026-08-20T10:00:00Z" }
+          ]
+        }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    const iframe = document.querySelector("iframe")
+    expect(iframe?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/?v=102")
+
+    fireEvent.click(screen.getByLabelText("Preview version"))
+    const options = screen.getAllByRole("option")
+    expect(options).toHaveLength(3)
+    expect(options[0]).toHaveTextContent("Latest")
+    expect(options[1]).toHaveTextContent("Version 2")
+    expect(options[2]).toHaveTextContent("Version 3")
+
+    fireEvent.click(options[1])
+
+    expect(iframe?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/?v=101")
+    expect(screen.getByRole("link", { name: "Open Layout mockup in new tab" })).toHaveAttribute(
+      "href",
+      "http://preview-panel-7.lvh.me/?v=101"
+    )
   })
 
   it("does not render a preview tab or iframe once the panel list is empty", () => {
