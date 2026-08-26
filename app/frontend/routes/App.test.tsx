@@ -9534,7 +9534,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Edit Epic" })).toBeInTheDocument()
     expect(await screen.findByRole("heading", { name: "Edit Epic" })).toHaveClass("dark:text-gray-100")
-    expect(screen.getByLabelText("Title")).toHaveClass("dark:bg-gray-950", "dark:text-gray-100")
+    expect(screen.getByLabelText("Title")).toHaveClass("bg-surface", "text-text-primary", "border-border")
     expect(await screen.findByRole("link", { name: "Back to Epic" })).toHaveAttribute("href", "/app-shell/epics/7")
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute("href", "/app-shell/epics/7")
   })
