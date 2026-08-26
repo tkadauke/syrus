@@ -118,6 +118,38 @@ RSpec.describe ChatEventEvaluator do
     expect(ProviderSession.where(resumable: chat_session).count).to eq(1)
   end
 
+  it "short-circuits low-severity informational events without invoking an evaluator agent" do
+    event.update!(
+      source_kind: "pr_merged",
+      payload: { "kind" => "pr_merged", "severity" => "info", "summary" => "PR merged" }
+    )
+    runner = lambda do |**_kwargs|
+      raise "runner should not be called"
+    end
+
+    result = described_class.new(event: event, chat_session: chat_session, runner: runner).call
+
+    expect(result).to include(
+      "decision" => "no_op",
+      "submitted_via" => "deterministic_info_no_op",
+      "confidence" => 1.0
+    )
+    expect(event.reload).to be_evaluator_completed
+  end
+
+  it "still invokes the evaluator agent for warning and error events" do
+    calls = []
+    runner = lambda do |**kwargs|
+      calls << kwargs
+      Result.new(final_text: JSON.generate(decision: "respond", reason: "needs attention", urgency: 0.5, confidence: 0.8))
+    end
+
+    result = described_class.new(event: event, chat_session: chat_session, runner: runner).call
+
+    expect(calls.size).to eq(1)
+    expect(result).to include("decision" => "respond", "reason" => "needs attention")
+  end
+
   it "accepts a structured MCP tool decision even when final text is malformed" do
     runner = lambda do |**kwargs|
       kwargs.fetch(:event).update!(
@@ -164,8 +196,8 @@ RSpec.describe ChatEventEvaluator do
 
   it "treats malformed low-severity informational events as no-op after the repair retry fails" do
     event.update!(
-      source_kind: "pull_request_merged",
-      payload: { "kind" => "pr_merged", "severity" => "info", "summary" => "PR merged" }
+      source_kind: "insight_created",
+      payload: { "kind" => "insight_created", "severity" => "info", "summary" => "Insight recorded" }
     )
     runner = lambda do |**_kwargs|
       Result.new(final_text: '{ "decision" "respond" }')

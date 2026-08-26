@@ -40,6 +40,10 @@ class ChatEventEvaluator
 
   def call
     return @event.evaluator_result if @event.evaluator_completed?
+    if (result = deterministic_result)
+      @event.record_evaluator_result!(result)
+      return result
+    end
 
     session_id = "chat-eval-#{SecureRandom.uuid}"
     @event.mark_evaluator_running!(session_id: session_id)
@@ -102,6 +106,25 @@ class ChatEventEvaluator
   end
 
   private
+
+  def deterministic_result
+    return unless low_severity_informational_event?
+
+    kind = event_kind
+    return unless %w[pr_merged pull_request_merged job_implemented epic_completed].include?(kind)
+
+    {
+      "decision" => "no_op",
+      "reason" => "Low-severity #{kind} event does not require a visible chat wakeup.",
+      "urgency" => 0.0,
+      "confidence" => 1.0,
+      "submitted_via" => "deterministic_info_no_op"
+    }
+  end
+
+  def event_kind
+    @event.payload["kind"].to_s.presence || @event.source_kind.to_s
+  end
 
   def latest_messages(limit)
     ids = messages_scope.reselect(:id).order(id: :desc).limit(limit).pluck(:id)
