@@ -308,7 +308,7 @@ module Api
             rank: row.fetch(:rank),
             path: chat_path(chat_session, message_id: message.id),
             state: nil,
-            repository_slug: nil,
+            repository_slug: chat_session.repository&.slug,
             created_at: message.created_at&.iso8601
           }
           if row.key?(:grouped_matches)
