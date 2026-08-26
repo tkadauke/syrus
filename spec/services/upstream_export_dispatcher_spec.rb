@@ -10,11 +10,12 @@ RSpec.describe UpstreamExportDispatcher do
     allow(StepDispatcher).to receive(:start_workflow)
   end
 
-  def stub_policy(export_after_approval:, target_branch: "main", for_job: job, for_repo: fork_repo)
+  def stub_policy(export_after_approval:, target_branch: "main", for_job: job, for_repo: fork_repo, upstream_export_enabled: true)
     allow(DeliveryPolicy).to receive(:for).with(repository: for_repo, job: for_job).and_return(
       instance_double(
         DeliveryPolicy,
         export_upstream_after_local_approval?: export_after_approval,
+        upstream_export_enabled?: upstream_export_enabled,
         upstream_export_target_branch: target_branch
       )
     )
@@ -97,6 +98,34 @@ RSpec.describe UpstreamExportDispatcher do
       described_class.call!(job)
 
       expect(job.workflows.where(trigger_kind: "upstream_export", state: "queued")).to be_present
+    end
+
+    describe "explicit: true (Story 11's send_job_upstream ref-movement action)" do
+      it "dispatches even when after_local_approval is false, as long as upstream_export is enabled" do
+        stub_policy(export_after_approval: false, upstream_export_enabled: true)
+
+        described_class.call!(job, explicit: true)
+
+        workflow = job.workflows.order(:id).last
+        expect(workflow).to be_present
+        expect(workflow.trigger_kind).to eq("upstream_export")
+      end
+
+      it "still does not dispatch when upstream_export itself is disabled" do
+        stub_policy(export_after_approval: false, upstream_export_enabled: false)
+
+        described_class.call!(job, explicit: true)
+
+        expect(job.workflows.where(trigger_kind: "upstream_export")).to be_empty
+      end
+
+      it "does not affect the default (non-explicit) auto-trigger gate" do
+        stub_policy(export_after_approval: false, upstream_export_enabled: true)
+
+        described_class.call!(job)
+
+        expect(job.workflows.where(trigger_kind: "upstream_export")).to be_empty
+      end
     end
   end
 end

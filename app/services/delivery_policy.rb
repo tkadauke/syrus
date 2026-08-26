@@ -23,6 +23,16 @@ class DeliveryPolicy
     track_for(job).name
   end
 
+  # All configured tracks, keyed by name, each resolved so `branch` always
+  # reflects `Repository#default_branch` when the track left it blank. Used
+  # by the `list_delivery_tracks` MCP tool to enumerate every track, not
+  # just the one a particular Job resolves to.
+  def tracks
+    delivery.tracks.transform_values do |track|
+      track.branch.present? ? track : track.with(branch: repository.default_branch)
+    end
+  end
+
   def job_landing_branch(job = @job)
     resolved_branch(track_for(job))
   end
@@ -199,6 +209,28 @@ class DeliveryPolicy
   # instead of a separate policy class re-reading the bare clone.
   def external_pr_ingest_classification_enabled?
     config.external_prs&.ingest&.enabled || false
+  end
+
+  # All configured `delivery.ref_movement_actions` entries, keyed by name —
+  # `{}` when the repository hasn't configured any (`SyrusYml`'s normalized
+  # default). Used by `list_ref_movement_actions`/`dispatch_ref_movement_action`
+  # MCP tools to enumerate what a repository has opted into.
+  def ref_movement_actions
+    delivery.ref_movement_actions
+  end
+
+  # The parsed `SyrusYml::DeliveryRefMovementAction` for one named action, or
+  # `nil` when the repository hasn't configured it at all.
+  def ref_movement_action_config(name)
+    ref_movement_actions[name.to_s]
+  end
+
+  # Whether a named ref-movement action is both configured and enabled.
+  # Absent config and `enabled: false` both read as "not available" — the
+  # same safe-default posture `promotion_enabled?`/`hotfix_sync_enabled?`/
+  # `upstream_export_enabled?` already use.
+  def ref_movement_action_enabled?(name)
+    ref_movement_action_config(name)&.enabled || false
   end
 
   private

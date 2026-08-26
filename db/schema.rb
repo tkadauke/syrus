@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_232016) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1614,6 +1614,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
     t.index ["session_id"], name: "index_provider_sessions_on_session_id"
+  end
+
+  create_table "ref_movement_actions", force: :cascade do |t|
+    t.string "action_name", limit: 64, null: false
+    t.string "blocked_reason"
+    t.datetime "created_at", null: false
+    t.json "grade_phases"
+    t.bigint "job_id"
+    t.string "mode", limit: 32
+    t.bigint "repository_id", null: false
+    t.bigint "requested_by_user_id", null: false
+    t.string "source_kind", limit: 32
+    t.string "source_ref"
+    t.string "state", limit: 32, default: "blocked", null: false
+    t.boolean "target_inferred", default: false, null: false
+    t.string "target_kind", limit: 32
+    t.string "target_ref"
+    t.bigint "target_repository_id"
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id"
+    t.index ["action_name"], name: "index_ref_movement_actions_on_action_name"
+    t.index ["job_id"], name: "index_ref_movement_actions_on_job_id"
+    t.index ["repository_id"], name: "index_ref_movement_actions_on_repository_id"
+    t.index ["requested_by_user_id"], name: "index_ref_movement_actions_on_requested_by_user_id"
+    t.index ["target_repository_id"], name: "index_ref_movement_actions_on_target_repository_id"
+    t.index ["workflow_id"], name: "index_ref_movement_actions_on_workflow_id"
   end
 
   create_table "repositories", force: :cascade do |t|

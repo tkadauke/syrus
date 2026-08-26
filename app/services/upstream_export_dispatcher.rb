@@ -9,14 +9,17 @@
 # dispatches Workflows::Rebase onto an existing Job.
 #
 # Called from Job#dispatch_upstream_export_after_approval via
-# UpstreamExportDispatchJob.
+# UpstreamExportDispatchJob, and from `RefMovementActions::SendJobUpstream`
+# (Story 11's explicit, operator/MCP-triggerable `send_job_upstream`
+# ref-movement action — `explicit: true` there).
 class UpstreamExportDispatcher
-  def self.call!(job)
-    new(job).call!
+  def self.call!(job, explicit: false)
+    new(job, explicit: explicit).call!
   end
 
-  def initialize(job)
+  def initialize(job, explicit: false)
     @job = job
+    @explicit = explicit
   end
 
   def call!
@@ -25,18 +28,24 @@ class UpstreamExportDispatcher
     workflow = WorkUnits::Launcher.instantiate(
       kind: "upstream_export",
       job: @job,
-      source_type: "upstream_export_dispatcher"
+      source_type: @explicit ? "ref_movement_action" : "upstream_export_dispatcher"
     )
     WorkUnits::Launcher.start!(workflow)
   end
 
   private
 
+  # `after_local_approval` only governs the *automatic* post-approval
+  # trigger (`Job#dispatch_upstream_export_after_approval`) — a repository
+  # can set it `false` to mean "never auto-export, only via an explicit
+  # `send_job_upstream` ref-movement action." An explicit dispatch therefore
+  # only requires upstream export to be enabled at all, not that specific
+  # auto-trigger sub-flag.
   def eligible?
     return false unless @job.open?
     return false unless @job.branch_name.present?
     return false unless canonical.present?
-    return false unless policy.export_upstream_after_local_approval?(@job)
+    return false unless @explicit ? policy.upstream_export_enabled? : policy.export_upstream_after_local_approval?(@job)
     return false if already_exported?
     return false if active_export_workflow?
 
