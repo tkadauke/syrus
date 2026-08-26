@@ -148,6 +148,53 @@ RSpec.describe Steps::PrOpen, :ci_only do
 
     expect(job.reload.pr_number).to eq(99)
     expect(job.reload.pr_repository_id).to eq(repository.id)
+
+    link = job.pr_links.sole
+    expect(link.role).to eq(JobPrLink::ROLE_LOCAL)
+    expect(link.pr_number).to eq(99)
+    expect(link.source_repository_id).to eq(repository.id)
+    expect(link.source_ref).to eq("syrus/issue-42-#{job.id}")
+    expect(link.target_repository_id).to eq(repository.id)
+    expect(link.target_ref).to eq("main")
+  end
+
+  context "when the Job is a fork contributing directly to its in-instance upstream" do
+    let(:repo_owner) { user }
+    let(:upstream) { Factories.repository(user: repo_owner, owner: "upstream-org", name: "project", default_branch: "main") }
+    let(:repository) do
+      Factories.repository(user: repo_owner, owner: "fork-user", name: "project", default_branch: "main", upstream_repository: upstream)
+    end
+    let(:job) { Factories.job(repository: repository, issue_number: 42) }
+
+    it "additively writes a role: local JobPrLink alongside pr_number/pr_repository_id" do
+      pr_open_run = Run.create!(
+        job: job,
+        step: pr_open_step,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider
+      )
+      handler = described_class.new(pr_open_run)
+      workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+      opener = instance_double(PullRequestOpener, open: 55)
+      client = instance_double(GithubClient, access_token: "tok")
+
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:push_branch)
+      allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(PullRequestOpener).to receive(:new).and_return(opener)
+
+      handler.call
+
+      expect(job.reload.pr_number).to eq(55)
+      expect(job.reload.pr_repository_id).to eq(upstream.id)
+
+      link = job.pr_links.sole
+      expect(link.role).to eq(JobPrLink::ROLE_LOCAL)
+      expect(link.pr_number).to eq(55)
+      expect(link.source_repository_id).to eq(repository.id)
+      expect(link.target_repository_id).to eq(upstream.id)
+    end
   end
 
   it "uses the Job's target_branch override for pr_base_branch even when the Job is otherwise stacked" do
