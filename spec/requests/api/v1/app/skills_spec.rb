@@ -164,6 +164,18 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
       expect(parse_body.dig("error", "message")).to match(/could not resolve skill/)
     end
 
+    it "sets delivery_track when provided" do
+      stub_repo_local_tree([])
+      sign_in_as(user)
+
+      post "/api/v1/app/repositories/#{repository.id}/skills",
+           params: { name: "investigate", args: { question: "What does the widget do?" }, delivery_track: "hotfix" },
+           as: :json
+
+      expect(response).to have_http_status(:created)
+      expect(Job.last.delivery_track).to eq("hotfix")
+    end
+
     it "rejects an agent provider the user hasn't configured" do
       stub_repo_local_tree([])
       sign_in_as(user)

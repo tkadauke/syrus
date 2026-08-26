@@ -67,6 +67,7 @@ module Api
           priority = params[:priority].to_s.presence
           priority = "medium" unless Job::PRIORITIES.include?(priority)
           target_branch = params[:target_branch].to_s.strip.presence
+          delivery_track = params[:delivery_track].to_s.strip.presence
 
           Current.user.jobs.create!(
             repository: repository,
@@ -79,6 +80,7 @@ module Api
             job_provider_setting: agent_provider || "default",
             priority: priority,
             target_branch: target_branch,
+            delivery_track: delivery_track,
             state: Job.initial_state_for_creator(Current.user)
           )
         end

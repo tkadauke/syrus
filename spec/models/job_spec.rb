@@ -1,4 +1,6 @@
 require "rails_helper"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe Job do
   include ActiveJob::TestHelper
@@ -2843,6 +2845,72 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       job = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued", target_branch: "")
 
       expect(job.effective_base_branch).to eq("main")
+    end
+
+    context "with a repository-configured delivery track" do
+      around do |example|
+        @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+        previous_root = ENV["SYRUS_DATA_ROOT"]
+        ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+        example.run
+        ENV["SYRUS_DATA_ROOT"] = previous_root
+        FileUtils.rm_rf(@data_root)
+      end
+
+      before do
+        work_dir = Dir.mktmpdir("syrus-work")
+        system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+        system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+        system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+        File.write(File.join(work_dir, ".syrus.yml"), <<~YAML)
+          delivery:
+            tracks:
+              default:
+                branch: develop
+              hotfix:
+                branch: release
+        YAML
+        system("git", "-C", work_dir, "add", ".", exception: true)
+        system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+        clone_path = RepositoryBareClone.path_for(repository)
+        FileUtils.mkdir_p(clone_path.dirname)
+        system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+        FileUtils.rm_rf(work_dir)
+      end
+
+      it "resolves to the delivery track's configured branch when no override or open stack/dependency applies" do
+        job = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued", delivery_track: "hotfix")
+
+        expect(job.effective_base_branch).to eq("release")
+      end
+
+      it "resolves to the default track's configured branch when delivery_track is unset" do
+        job = Factories.job_record(user: user, repository: repository, issue_number: 44, state: "queued")
+
+        expect(job.effective_base_branch).to eq("develop")
+      end
+
+      it "still lets an explicit target_branch short-circuit delivery-track resolution" do
+        job = Factories.job_record(user: user, repository: repository, issue_number: 45, state: "queued", delivery_track: "hotfix", target_branch: "release/4.2")
+
+        expect(job.effective_base_branch).to eq("release/4.2")
+      end
+
+      it "still prefers an open dependency's PR branch over delivery-track resolution" do
+        parent = Factories.job_record(
+          user: user,
+          repository: repository,
+          issue_number: 46,
+          state: "queued",
+          branch_name: "syrus/issue-46",
+          pr_number: 46
+        )
+        child = Factories.job_record(user: user, repository: repository, issue_number: 47, state: "queued", delivery_track: "hotfix")
+        JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+        expect(child.effective_base_branch).to eq("syrus/issue-46")
+      end
     end
   end
 

@@ -4,10 +4,11 @@
 # object questions instead of reading `.syrus.yml`'s `delivery:` block or
 # repository columns directly (see "Policy Objects" in the plan).
 #
-# `Job` has no `delivery_track` column yet (added in a later Job in the
-# Delivery Tracks Epic), so every job currently resolves to the config's
-# `default` track. Nothing in the runtime calls this yet — this class exists
-# so later Jobs in the Epic have a stable interface to build on.
+# `Job#delivery_track` selects a track by name; a blank/unset value, or a
+# name that doesn't match any configured track, resolves to the config's
+# `default` track (see `track_for`). `JobStackBase#effective_base_branch`
+# calls `job_landing_branch` for its final fallback once `target_branch` and
+# stack/dependency resolution are exhausted.
 class DeliveryPolicy
   def self.for(repository:, job: nil)
     new(repository: repository, job: job)
@@ -112,10 +113,13 @@ class DeliveryPolicy
 
   attr_reader :repository
 
-  # Job track selection doesn't exist yet (see class comment); every job
-  # resolves to the `default` track until that column lands.
-  def track_for(_job)
-    default_track
+  def track_for(job)
+    return default_track if job.nil?
+
+    name = job.delivery_track.presence
+    return default_track if name.blank?
+
+    delivery.tracks[name] || default_track
   end
 
   def track_for_branch(branch)

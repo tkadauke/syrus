@@ -33,6 +33,24 @@ RSpec.describe SkillJobs::Creator do
       expect(result.job.agent_provider).to eq(repository.effective_agent_provider)
     end
 
+    it "leaves delivery_track nil by default" do
+      result = described_class.call(user: user, repository: repository, name: "investigate", args: { "question" => "x" })
+
+      expect(result.job.delivery_track).to be_nil
+    end
+
+    it "persists an explicit delivery_track" do
+      result = described_class.call(
+        user: user,
+        repository: repository,
+        name: "investigate",
+        args: { "question" => "x" },
+        delivery_track: "hotfix"
+      )
+
+      expect(result.job.delivery_track).to eq("hotfix")
+    end
+
     it "fails without creating a Job when the skill name doesn't resolve" do
       expect {
         result = described_class.call(user: user, repository: repository, name: "does-not-exist", args: {})

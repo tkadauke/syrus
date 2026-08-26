@@ -1,5 +1,6 @@
 module Workflows
   SKIP_PREPARE_LABEL = "syrus-skip-prepare".freeze
+  TRACK_LABEL_PREFIX = "syrus-track-".freeze
 
   def self.label_names(labels)
     Array(labels).map do |label|
@@ -11,6 +12,16 @@ module Workflows
         label.to_s
       end
     end
+  end
+
+  # A `syrus-track-<name>` label selects `Job#delivery_track` at issue
+  # ingest time, e.g. `syrus-track-hotfix` -> "hotfix". Returns nil when no
+  # such label is present, or when the part after the prefix is blank —
+  # nil means "use the policy default" (see `DeliveryPolicy#track_for`).
+  def self.track_label_value(labels)
+    label_names(labels).find { |name| name.start_with?(TRACK_LABEL_PREFIX) }
+                        &.delete_prefix(TRACK_LABEL_PREFIX)
+                        &.presence
   end
 
   REGISTRY = Workflow::TriggerKind.registry

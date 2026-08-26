@@ -2,7 +2,7 @@
 
 Delivery tracks let a repository declare its own branching model — a single strict branch, a development/release split, a hotfix track, or an upstream-export posture for forks — in a shared, non-personal `.syrus.yml` block, instead of every workflow special-casing branch names. See `docs/plans/delivery-tracks-and-promotion.md` for the full design and Story-by-Story rationale; this document tracks only what's actually implemented.
 
-This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below, and a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval). **Nothing in the runtime calls `DeliveryPolicy` yet** — no workflow, landing path, or grader selection reads it. Later Jobs in the Epic wire it into job PR opening, landing, and grading.
+This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below) — that's the only runtime caller so far. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` is still unwired; later Jobs in the Epic cover that.
 
 ## `.syrus.yml` shape
 
@@ -87,7 +87,7 @@ One thing normalization can't do inside `SyrusYml`: resolve a track's blank `bra
 policy = DeliveryPolicy.for(repository:, job: nil)
 
 policy.job_landing_branch(job)          # => "develop", or repository.default_branch if the track has no explicit branch
-policy.job_delivery_track(job)          # => "default" — Job has no delivery_track column yet, so this always resolves to "default"
+policy.job_delivery_track(job)          # => "hotfix" when job.delivery_track == "hotfix" and a "hotfix" track is configured; else "default"
 policy.review_grade_phase(job)
 policy.landing_grade_phase(job)
 policy.branch_health_grade_phase(branch)  # matches branch against configured track branches, falling back to the default track
@@ -97,7 +97,19 @@ policy.hotfix_sync_enabled?
 policy.hotfix_sync_mode
 ```
 
-`Job` has no `delivery_track` column yet — that's a later Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy). Until it lands, `job_delivery_track` and every job-scoped method above always resolve against the config's `default` track regardless of which job is passed.
+## `Job#delivery_track`
+
+`Job#delivery_track` is a plain nullable string column — like `target_branch`, it carries no enum/validation, because valid track names are repository-configured (`delivery.tracks` keys), not a fixed set. `nil` means "use the policy default" (`DeliveryPolicy#track_for` resolves a blank or unrecognized track name to the config's `default` track), so every existing Job is unaffected until something explicitly sets it.
+
+Track selection is exposed at every surface that creates a Job:
+
+- **Direct job API** (`Api::V1::App::DirectJobsController#create`) and **admin job creation** (`Api::V1::Admin::JobsController#create`) both accept an optional `delivery_track` param, persisted as-is (trimmed, blank -> `nil`).
+- **Issue ingestion** (`PollRepositoryJob`) reads a `syrus-track-<name>` label off the GitHub issue — e.g. `syrus-track-hotfix` sets `delivery_track: "hotfix"` — via `Workflows.track_label_value`, the same label-based convention `SKIP_PREPARE_LABEL` uses. Removing/changing the label on a later poll resyncs the column on the existing Job, mirroring `skip_prepare`'s resync behavior.
+- **Skills that file jobs** (`SkillJobs::Creator`, and the `Api::V1::App::SkillsController#create` surface backing it) accept an optional `delivery_track:` kwarg/param, passed straight through to the created Job.
+
+None of these surfaces validate the value against the repository's configured track names — an unrecognized or unconfigured name (e.g. `delivery_track: "hotfix"` on a repository with no `hotfix` track) just resolves to the `default` track at read time via `DeliveryPolicy#track_for`, the same graceful-fallback posture the rest of this policy already has for a missing/unparsable `.syrus.yml`. A repository that defines a `hotfix` track (per the `.syrus.yml` shape above) makes `hotfix` a live selectable track the moment a Job sets `delivery_track: "hotfix"` — no separate opt-in is required beyond configuring the track.
+
+`JobStackBase#effective_base_branch` (`app/models/concerns/job_stack_base.rb`) is the first runtime caller: once its `target_branch` override, `stack_base: main` override, and open stack/dependency parent checks are all exhausted, its final fallback calls `DeliveryPolicy.for(repository: base_repository).job_landing_branch(job)` instead of `base_default_branch` directly. `target_branch` is not removed and still short-circuits first — it remains the explicit, unconditional per-Job branch override; `delivery_track` only applies once every other resolution path has nothing to say. Because `effective_base_branch` feeds PR base-branch resolution (`PullRequestOpener`), rebase targeting, and workspace checkout across the codebase, this one change point is what actually lands a track-selected Job against its track's branch.
 
 ## `approval:` block (Story 7: owner + peer local approval)
 
