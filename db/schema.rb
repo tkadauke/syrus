@@ -1053,6 +1053,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.integer "commits_behind_base"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
+    t.string "delivery_track"
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.integer "epic_id"

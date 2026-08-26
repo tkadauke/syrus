@@ -14,7 +14,7 @@ module SkillJobs
 
     def self.call(...) = new(...).call
 
-    def initialize(user:, repository:, name:, args: {}, agent_provider: nil, priority: nil, epic: nil)
+    def initialize(user:, repository:, name:, args: {}, agent_provider: nil, priority: nil, epic: nil, delivery_track: nil)
       @user = user
       @repository = repository
       @name = name.to_s.strip
@@ -22,6 +22,7 @@ module SkillJobs
       @agent_provider = agent_provider.to_s.presence
       @priority = priority.to_s.presence
       @epic = epic
+      @delivery_track = delivery_track.to_s.presence
     end
 
     def call
@@ -65,6 +66,7 @@ module SkillJobs
         agent_provider: @agent_provider || @repository.effective_agent_provider,
         job_provider_setting: @agent_provider || "default",
         priority: Job::PRIORITIES.include?(@priority) ? @priority : "medium",
+        delivery_track: @delivery_track,
         state: Job.initial_state_for_creator(@user)
       )
     end

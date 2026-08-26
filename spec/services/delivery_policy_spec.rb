@@ -161,6 +161,50 @@ RSpec.describe DeliveryPolicy do
     end
   end
 
+  describe "Job#delivery_track selection" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    before do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          tracks:
+            default:
+              branch: develop
+              grade_phases:
+                review: review_minimal
+                landing: landing_minimal
+            hotfix:
+              branch: main
+              grade_phases:
+                review: review_minimal
+                landing: promotion
+      YAML
+    end
+
+    it "resolves the landing branch and delivery track from Job#delivery_track when it names a configured track" do
+      job = Factories.job(repository: repo, delivery_track: "hotfix")
+
+      expect(policy.job_delivery_track(job)).to eq("hotfix")
+      expect(policy.job_landing_branch(job)).to eq("main")
+      expect(policy.review_grade_phase(job)).to eq("review_minimal")
+      expect(policy.landing_grade_phase(job)).to eq("promotion")
+    end
+
+    it "falls back to the default track when Job#delivery_track is blank" do
+      job = Factories.job(repository: repo, delivery_track: nil)
+
+      expect(policy.job_delivery_track(job)).to eq("default")
+      expect(policy.job_landing_branch(job)).to eq("develop")
+    end
+
+    it "falls back to the default track when Job#delivery_track names a track the repository hasn't configured" do
+      job = Factories.job(repository: repo, delivery_track: "nonexistent")
+
+      expect(policy.job_delivery_track(job)).to eq("default")
+      expect(policy.job_landing_branch(job)).to eq("develop")
+    end
+  end
+
   describe "#job_approval_satisfied? (Story 7: owner + peer approval)" do
     let(:owner) { user }
     let(:peer) { Factories.user }

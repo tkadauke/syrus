@@ -55,6 +55,36 @@ RSpec.describe PollRepositoryJob do
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[ implement coverage_analyze dependency_audit summarize test_plan pr_open review_plan ])
     end
 
+    it "sets delivery_track from a syrus-track-<name> label on a new issue" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus", "syrus-track-hotfix" ]) ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.delivery_track).to eq("hotfix")
+    end
+
+    it "leaves delivery_track nil when no track label is present" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus" ]) ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.delivery_track).to be_nil
+    end
+
+    it "syncs delivery_track on re-poll when the issue's track label changes" do
+      job = Factories.job(user: user, repository: repository, issue_number: 42, delivery_track: "hotfix")
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus" ]) ])
+
+      described_class.perform_now(repository.id)
+
+      expect(job.reload.delivery_track).to be_nil
+    end
+
     it "keeps the initial workflow starting with prepare when the skip-prepare label is absent" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus" ]) ])
