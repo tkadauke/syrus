@@ -62,6 +62,6 @@ describe("useConfirm", () => {
     act(() => { confirm({ message: "Delete it?", confirmLabel: "Yes, delete", destructive: true }) })
 
     expect(screen.getByText("Delete it?")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Yes, delete" }).className).toContain("bg-red-600")
+    expect(screen.getByRole("button", { name: "Yes, delete" }).className).toContain("bg-danger")
   })
 })
