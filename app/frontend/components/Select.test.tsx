@@ -56,4 +56,24 @@ describe("Select", () => {
     )
     expect(ref.current).toBeInstanceOf(HTMLSelectElement)
   })
+
+  it("is full width by default", () => {
+    render(
+      <Select aria-label="Provider">
+        <option value="claude">Claude</option>
+      </Select>
+    )
+    expect(screen.getByLabelText("Provider").className).toContain("w-full")
+  })
+
+  it("renders w-auto instead of w-full when fullWidth is false", () => {
+    render(
+      <Select aria-label="Provider" fullWidth={false}>
+        <option value="claude">Claude</option>
+      </Select>
+    )
+    const className = screen.getByLabelText("Provider").className
+    expect(className).toContain("w-auto")
+    expect(className).not.toMatch(/\bw-full\b/)
+  })
 })

@@ -15,6 +15,8 @@ import {
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 
 export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
   const { t } = useT("epics")
@@ -81,8 +83,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
 
       <form className="space-y-5" onSubmit={submit}>
         <Field label={t("form_title")}>
-          <input
-            className={inputClass()}
+          <Input
             onChange={(event) => setValues({ ...values, title: event.target.value })}
             required
             type="text"
@@ -100,8 +101,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
         </Field>
 
         <Field label={t("form_repository")}>
-          <select
-            className={inputClass()}
+          <Select
             onChange={(event) => setValues({ ...values, repository_id: event.target.value })}
             required
             value={values.repository_id}
@@ -110,12 +110,12 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
             {payload.repositories.map((repository) => (
               <option key={repository.id} value={repository.id}>{repository.slug}</option>
             ))}
-          </select>
+          </Select>
         </Field>
 
         <Field label={t("github_issue_url")}>
-          <input
-            className={`${inputClass()} font-mono`}
+          <Input
+            className="font-mono"
             onChange={(event) => setValues({ ...values, github_issue_url: event.target.value })}
             type="text"
             value={values.github_issue_url}
