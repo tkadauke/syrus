@@ -1090,7 +1090,20 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   paths use conditional `update_all(WHERE finished_at IS NULL)` so
   they race safely with each other and with ProcessRunner's own
   finalize call. `SpawnedProcessPruneJob` (daily 3:20am) deletes
-  finished rows past 7 days.
+  finished rows past 7 days. `SpawnedProcess` optionally belongs to a
+  `chat_session` alongside its existing `run`/`workflow` associations —
+  `ChatTurnJob` sets `Thread.current[:syrus_current_chat_session]` around
+  the agent invocation (mirroring `RunJob`'s `:syrus_current_run`) so
+  `ClaudeInvocation`/`CodexInvocation` can attribute chat-turn `agent`
+  processes to their chat, and `ChatWorkspacePrepareJob` attributes
+  `chat_prepare` processes the same way. `Admin::SpawnedProcesses::Payload`
+  derives a best-effort `owner` summary (`type`/`label`/`path`) from
+  `workflow` (→ Job), `chat_session`, or — for `preview` processes, which
+  are spawned directly by `PreviewService` rather than through
+  `ProcessRunner` — the `job_id` already carried in `resource_attribution`.
+  Coverage isn't exhaustive (e.g. `credential_probe`/`chat_stt` processes
+  still resolve to no owner); the admin Processes list and detail page
+  render `owner` as a link when present.
 
 ## Tests are not optional
 

@@ -36,7 +36,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
     plan.commands.each_with_index do |cmd, i|
       Rails.logger.info("[ChatWorkspacePrepareJob] (#{i + 1}/#{plan.commands.size}) $ #{cmd}")
-      success = run_prep_command(cmd, path)
+      success = run_prep_command(cmd, path, chat_session)
       next if success
 
       if plan.guessed?
@@ -58,14 +58,15 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
   private
 
-  def run_prep_command(cmd, path)
+  def run_prep_command(cmd, path, chat_session)
     env = ProcessRunner.forwarded_env(PREP_ENV_FORWARD)
     result = ProcessRunner.new(
       env: env,
       command: [ "bash", "-c", cmd ],
       chdir: path,
       timeout: PER_COMMAND_TIMEOUT,
-      kind: "chat_prepare"
+      kind: "chat_prepare",
+      chat_session: chat_session
     ).run
     result.success?
   rescue StandardError => e

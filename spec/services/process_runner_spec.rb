@@ -119,6 +119,23 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(spawned_processes.first.resource_attribution).to include("method" => "linux_proc_process_group")
   end
 
+  it "attributes the spawned process row to a chat session when given one" do
+    chat_session = ChatSession.create!(user: Factories.user)
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "chat_prepare",
+      chat_session: chat_session
+    ).run
+
+    expect(result).to be_success
+    spawned_process = SpawnedProcess.order(:id).last
+    expect(spawned_process.chat_session).to eq(chat_session)
+  end
+
   it "keeps command span attribution distinct from spawned process attribution" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

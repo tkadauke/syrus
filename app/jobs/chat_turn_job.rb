@@ -49,6 +49,7 @@ class ChatTurnJob < ApplicationJob
     @turn_started_at = Time.current
     @stop_request_cutoff_at = @user_message.created_at || @turn_started_at
     @cancelled = false
+    Thread.current[:syrus_current_chat_session] = @chat
 
     clear_stale_stop_request!
     @chat.clear_suggested_next_step!
@@ -117,6 +118,7 @@ class ChatTurnJob < ApplicationJob
     raise
   ensure
     finalize_turn!
+    Thread.current[:syrus_current_chat_session] = nil
   end
 
   private
