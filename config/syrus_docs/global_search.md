@@ -12,9 +12,14 @@ on this route, matching dashboard/list filtering. Result type selection remains
 Filtering is applied after the FTS query and preserves FTS relevance order.
 Combined results expose common filter chips (`repository_id`, `created_at`,
 `updated_at`). Single Job and Epic views expose their existing subject schemas.
-Chat and Test views expose only the minimal common filters they support.
-Unsupported chips are ignored for result types that do not understand them
-rather than failing the whole search.
+Chat and Test views expose `repository_id`, `created_at`, and `updated_at`.
+For chats, `repository_id` filters by the repository(ies) attached to the
+message's chat session (via `ChatAttachment`), since `ChatMessage` has no
+`repository_id` column of its own; chat search results also now surface a
+`repository_slug` (the session's first attached repository) alongside the
+existing job/epic/test repository slugs. Unsupported chips are ignored for
+result types that do not understand them rather than failing the whole
+search.
 
 This phase intentionally has no explicit sort controls or sort URL parameters.
 
