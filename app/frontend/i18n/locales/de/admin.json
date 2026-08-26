@@ -360,10 +360,6 @@
       "persistent_mcp_sidecar": {
         "name": "Persistenter MCP-Sidecar",
         "description": "Aktiviert einen persistenten, worker-lokalen MCP-Sidecar-Daemon, der einmal startet und einen rein lokalen MCP-Transport samt Health-Check bereitstellt. Chat-Turns können ihre MCP-Tool-Aufrufe dorthin leiten, mit automatischem Fallback auf Stdio; Workflow-Agent-Läufe nutzen ihn noch nicht und verwenden weiterhin den Stdio-Sidecar pro Run. Solange deaktiviert, nutzen alle Agenten weiterhin die üblichen Stdio-Sidecars pro Run/Sitzung."
-      },
-      "mysql_db_browser": {
-        "name": "MySQL-DB-Browser",
-        "description": "Aktiviert das MySQL-DB-Browser-Plugin, mit dem Admins Verbindungen zu externen MySQL-Datenbanken mit echten Zugangsdaten anlegen und nutzen können."
       }
     }
   },

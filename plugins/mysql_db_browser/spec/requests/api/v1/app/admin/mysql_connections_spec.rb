@@ -7,25 +7,11 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
   def parse_body = JSON.parse(response.body)
 
   def enable_plugin!
-    Feature.find_or_create_by!(slug: "mysql_db_browser") { |f| f.category = "Labs"; f.name = "MySQL DB browser" }
-      .update!(enabled: true)
     PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
   end
 
-  it "is disabled by default (feature flag off)" do
+  it "is disabled by default (plugin disabled)" do
     sign_in_as(admin)
-    PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
-
-    get "/api/v1/app/admin/mysql_connections"
-
-    expect(response).to have_http_status(:not_found)
-    expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
-  end
-
-  it "is disabled when the plugin record itself is disabled, even with the feature flag on" do
-    sign_in_as(admin)
-    Feature.find_or_create_by!(slug: "mysql_db_browser") { |f| f.category = "Labs"; f.name = "MySQL DB browser" }
-      .update!(enabled: true)
 
     get "/api/v1/app/admin/mysql_connections"
 
