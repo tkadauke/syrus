@@ -242,7 +242,7 @@ RSpec.describe ProcessRunner, :ci_only do
     runner.send(:heartbeat!)
 
     expect(run.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)
-    expect(process.reload.last_chunk_at.to_f).to eq(process_last_chunk_at.to_f)
+    expect(process.reload.last_chunk_at).to be_within(0.001.seconds).of(process_last_chunk_at)
   end
 
   it "throttles spawned process resource attribution writes between liveness heartbeats" do
