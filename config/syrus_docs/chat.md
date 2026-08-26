@@ -293,3 +293,10 @@ The chat MCP `add_job_dependency` tool accepts `satisfaction_mode`. The default
 `success` mode is for implementation ordering and waits for a successful close.
 Use `closed` only for cleanup or teardown gates where the dependent Job should
 start once the target Job is terminal even if it was cancelled.
+
+A `propose_job` card with `epic_id` set targets an existing Epic — confirming
+it adds the Job as that Epic's child instead of creating an epicless direct
+Job. The proposal edit modal shows the target Epic as a removable pill; an
+operator can clear it before confirming so the Job materializes without an
+Epic. There is no UI to assign or change the target Epic to a different one
+from the edit modal — only remove it.

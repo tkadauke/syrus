@@ -12,6 +12,8 @@ export type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "bod
   dependencies?: ChatProposalDependency[]
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  target_epic_id?: number | null
+  target_epic_label?: string | null
 }
 
 export type DependencyPill = {
