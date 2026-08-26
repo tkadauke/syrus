@@ -138,3 +138,17 @@ scratch alternative.
 Reuses `SYRUS_PREVIEW_BASE_DOMAIN` (see [Preview
 Environments](preview_environments.md#configuration)) — no separate
 environment variable.
+
+## Handing a mockup to an implementation Job
+
+`show_preview`'s response includes `version_id` (the just-published
+`PreviewPanelVersion`'s id). A planning agent that built a mockup can pass
+`"preview_panel_version:<version_id>"` in `propose_job`'s `media` array (see
+[Chat](chat.md#media-attachments)) to give the implementing agent direct
+access to that version's HTML/CSS/JS source, reusing the same
+`ChatMediaAttacher` blob-sharing pipeline snapshots and chat images already
+go through — one `Document` per attached file, sharing the existing blob
+rather than copying it. No zip/unzip, screenshot, or browser-automation step
+is involved. `JobAttachmentContext` frames these files to the implementing
+agent as reference material to adapt to the target repo's own conventions,
+not boilerplate to copy verbatim.

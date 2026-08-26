@@ -157,6 +157,7 @@ RSpec.describe PreviewTools::ChatToolSet do
         expect(response.error?).to be false
         payload = json(response)
         expect(payload["file_count"]).to eq(2)
+        expect(payload["version_id"]).to eq(panel.reload.current_version.id)
         expect(panel.reload.file_for("index.html").download).to eq("<h1>hi</h1>")
         expect(panel.reload.file_for("css/app.css").download).to eq("body {}")
       end
