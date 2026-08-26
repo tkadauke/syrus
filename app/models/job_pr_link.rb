@@ -8,9 +8,10 @@ class JobPrLink < ApplicationRecord
   ROLE_LOCAL = "local".freeze
   ROLE_UPSTREAM_EXPORT = "upstream_export".freeze
   ROLE_PROMOTION = "promotion".freeze
+  ROLE_HOTFIX_SYNC = "hotfix_sync".freeze
   ROLE_EXTERNAL_INGEST = "external_ingest".freeze
 
-  ROLES = [ ROLE_LOCAL, ROLE_UPSTREAM_EXPORT, ROLE_PROMOTION, ROLE_EXTERNAL_INGEST ].freeze
+  ROLES = [ ROLE_LOCAL, ROLE_UPSTREAM_EXPORT, ROLE_PROMOTION, ROLE_HOTFIX_SYNC, ROLE_EXTERNAL_INGEST ].freeze
 
   belongs_to :job
   belongs_to :source_repository, class_name: "Repository", optional: true

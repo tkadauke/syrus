@@ -30,6 +30,10 @@ default: &default
     class: PollAllMergeStatesJob
     queue: polling
     schedule: every 5 minutes
+  poll_hotfix_syncs:
+    class: PollAllHotfixSyncsJob
+    queue: polling
+    schedule: every 5 minutes
   poll_deployment_stages:
     class: PollAllDeploymentStagesJob
     queue: polling
