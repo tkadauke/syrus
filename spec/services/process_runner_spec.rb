@@ -228,21 +228,24 @@ RSpec.describe ProcessRunner, :ci_only do
       started_at: Time.zone.parse("2026-08-20T11:59:00Z"),
       last_heartbeat_at: Time.zone.parse("2026-08-20T11:59:00Z")
     )
-    process_last_chunk_at = 5.seconds.ago
     process = SpawnedProcess.create!(
       kind: "agent",
       command: "agent",
       hostname: "worker-a",
       started_at: 2.minutes.ago,
-      last_chunk_at: process_last_chunk_at
+      last_chunk_at: 5.seconds.ago
     )
+    # Compare against the persisted value (not the pre-save in-memory Time)
+    # so this assertion isn't sensitive to sub-microsecond float rounding
+    # across the DB round-trip -- only whether heartbeat! left it untouched.
+    process_last_chunk_at = process.reload.last_chunk_at
     runner = described_class.new(env: {}, command: [ ruby, "-e", "exit 0" ], chdir: @dir, timeout: 5, run: run)
     runner.instance_variable_set(:@spawned_process, process)
 
     runner.send(:heartbeat!)
 
     expect(run.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)
-    expect(process.reload.last_chunk_at.to_f).to eq(process_last_chunk_at.to_f)
+    expect(process.reload.last_chunk_at).to eq(process_last_chunk_at)
   end
 
   it "throttles spawned process resource attribution writes between liveness heartbeats" do
