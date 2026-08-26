@@ -146,7 +146,8 @@ RSpec.describe Steps::AdversarialReview do
           review_plan: false,
           deploy: nil,
           delivery: nil,
-          raw_delivery: nil
+          raw_delivery: nil,
+          approval: nil
         )
       )
     end
@@ -240,7 +241,8 @@ RSpec.describe Steps::AdversarialReview do
           review_plan: false,
           deploy: nil,
           delivery: nil,
-          raw_delivery: nil
+          raw_delivery: nil,
+          approval: nil
         )
       )
 
