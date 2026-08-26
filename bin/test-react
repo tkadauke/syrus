@@ -12,8 +12,9 @@ vitest_max_workers="${VITEST_MAX_WORKERS:-4}"
 vitest_junit_output="${VITEST_JUNIT_OUTPUT:-.syrus/grade-output/react-tests-junit.xml}"
 mkdir -p "$(dirname "$vitest_junit_output")"
 
-# Vitest is the dominant cost here; run `tsc --noEmit` concurrently instead
-# of after it so the two don't serialize inside the grader's wall-clock
+# Vitest is the dominant cost here; run `tsc --noEmit` and `eslint` (the
+# design-system lint ratchet, see eslint.config.js) concurrently instead of
+# after it so none of the three serialize inside the grader's wall-clock
 # budget (see the react-tests grader in .syrus.yml).
 npx vitest run --coverage --maxWorkers "$vitest_max_workers" --reporter=default --reporter=junit --outputFile.junit="$vitest_junit_output" &
 vitest_pid=$!
@@ -21,12 +22,20 @@ vitest_pid=$!
 npm run typecheck &
 typecheck_pid=$!
 
+npm run lint &
+lint_pid=$!
+
 vitest_status=0
 typecheck_status=0
+lint_status=0
 wait "$vitest_pid" || vitest_status=$?
 wait "$typecheck_pid" || typecheck_status=$?
+wait "$lint_pid" || lint_status=$?
 
 if [ "$vitest_status" -ne 0 ]; then
   exit "$vitest_status"
 fi
-exit "$typecheck_status"
+if [ "$typecheck_status" -ne 0 ]; then
+  exit "$typecheck_status"
+fi
+exit "$lint_status"
