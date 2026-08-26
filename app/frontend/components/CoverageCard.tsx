@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { useT } from "../hooks/useT"
 import type { CoverageArtifact } from "../api/jobs"
+import { Card } from "./Card"
+import { TonePill, type PillTone } from "./StatusPill"
 
 type CoverageCardProps = {
   coverage: CoverageArtifact
@@ -12,10 +14,10 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
 
   if (coverage.coverage_unavailable) {
     return (
-      <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+      <Card>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("coverage_title")}</h2>
         <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("coverage_unavailable")}</p>
-      </section>
+      </Card>
     )
   }
 
@@ -33,7 +35,7 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
   })
 
   return (
-    <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" data-testid="coverage-card">
+    <Card data-testid="coverage-card">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("coverage_title")}</h2>
 
       {summary ? (
@@ -126,23 +128,18 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
           ) : null}
         </div>
       ) : null}
-    </section>
+    </Card>
   )
 }
 
 function CoverageBadge({ label, pct }: { label: string; pct: number | null | undefined }) {
-  const tone = pctTone(pct)
-  const textClass = tone === "green"
-    ? "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/40 dark:border-emerald-900"
-    : tone === "yellow"
-    ? "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-900"
-    : "text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/40 dark:border-red-900"
-
   return (
-    <div className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-medium ${textClass}`} data-testid="coverage-badge">
-      <span className="text-gray-500 dark:text-gray-400">{label}</span>
-      <span>{pct != null ? `${pct.toFixed(1)}%` : "—"}</span>
-    </div>
+    <TonePill tone={pctTone(pct)}>
+      <span className="flex items-center gap-1.5">
+        <span className="text-gray-500 dark:text-gray-400">{label}</span>
+        <span>{pct != null ? `${pct.toFixed(1)}%` : "—"}</span>
+      </span>
+    </TonePill>
   )
 }
 
@@ -151,15 +148,15 @@ function CoveragePct({ pct }: { pct: number | null | undefined }) {
   const tone = pctTone(pct)
   const cls = tone === "green"
     ? "text-emerald-700 dark:text-emerald-400"
-    : tone === "yellow"
+    : tone === "amber"
     ? "text-amber-700 dark:text-amber-400"
     : "text-red-700 dark:text-red-400"
   return <span className={cls}>{pct.toFixed(1)}%</span>
 }
 
-function pctTone(pct: number | null | undefined): "green" | "yellow" | "red" {
+function pctTone(pct: number | null | undefined): PillTone {
   if (pct == null) return "red"
   if (pct >= 80) return "green"
-  if (pct >= 60) return "yellow"
+  if (pct >= 60) return "amber"
   return "red"
 }

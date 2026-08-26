@@ -20,7 +20,7 @@ describe("CoverageCard", () => {
   it("renders the coverage summary badges when summary data is present", () => {
     render(<CoverageCard coverage={fullCoverage} />)
 
-    const badges = screen.getAllByTestId("coverage-badge")
+    const badges = screen.getByTestId("coverage-summary").querySelectorAll("[data-status-pill]")
     expect(badges).toHaveLength(3)
     expect(badges[0]).toHaveTextContent("85.2%")
     expect(badges[1]).toHaveTextContent("72.1%")
@@ -138,7 +138,7 @@ describe("CoverageCard", () => {
   it("uses a dash for null summary values", () => {
     render(<CoverageCard coverage={{ summary: { lines_pct: null, branches_pct: null, functions_pct: null } }} />)
 
-    const badges = screen.getAllByTestId("coverage-badge")
+    const badges = screen.getByTestId("coverage-summary").querySelectorAll("[data-status-pill]")
     badges.forEach((badge) => expect(badge).toHaveTextContent("—"))
   })
 })
