@@ -117,9 +117,9 @@ RSpec.describe OperationalLogIndex do
     event(message: "seed", occurred_at: 1.minute.ago)
 
     # The empty local index is stale relative to the seeded primary-DB event,
-    # so the first search triggers exactly one rebuild (one upsert); the next
-    # two searches happen inside the same freshness-check interval and must
-    # not repeat it.
+    # so the first search triggers exactly one rebuild batch; the next two
+    # searches happen inside the same freshness-check interval and must not
+    # repeat it.
     expect(upsert_query_count { 3.times { described_class.search(since: 1.hour.ago) } }).to eq(1)
   end
 
@@ -154,7 +154,7 @@ RSpec.describe OperationalLogIndex do
     end
 
     expect(delete_sql).to eq([ "DELETE FROM operational_log_fts WHERE rowid BETWEEN ? AND ?" ])
-    expect(described_class.search(query: "contiguous", since: 1.hour.ago)).to be_empty
+    expect(indexed_event_ids).to be_empty
   end
 
   it "keeps sparse delete batches precise while still using compact ranges" do
@@ -174,17 +174,21 @@ RSpec.describe OperationalLogIndex do
     end
 
     expect(delete_sql).to eq([ "DELETE FROM operational_log_fts WHERE rowid BETWEEN ? AND ? OR rowid = ?" ])
-    expect(described_class.search(query: "sparse", since: 1.hour.ago).map { |row| row[:operational_log_event_id] }).to eq([ third.id ])
+    expect(indexed_event_ids).to eq([ third.id ])
   end
 
   def upsert_query_count
     count = 0
     callback = lambda do |_name, _started, _finished, _id, payload|
-      count += 1 if payload[:name] == "OperationalLogIndex Upsert"
+      count += 1 if payload[:name].in?([ "OperationalLogIndex Upsert", "OperationalLogIndex Upsert Many" ])
     end
 
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
     count
+  end
+
+  def indexed_event_ids
+    SearchRecord.connection.select_values("SELECT operational_log_event_id FROM operational_log_fts ORDER BY operational_log_event_id").map(&:to_i)
   end
 
   def event(**attrs)

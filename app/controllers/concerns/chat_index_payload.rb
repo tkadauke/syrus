@@ -188,6 +188,7 @@ module ChatIndexPayload
   def chat_index_initial_group_rows
     ranked_scope = Current.user.accessible_chat_sessions
       .visible
+      .active
       .ordinary_chats
       .left_outer_joins(:repository_attachments)
       .reselect(Arel.sql(<<~SQL.squish))

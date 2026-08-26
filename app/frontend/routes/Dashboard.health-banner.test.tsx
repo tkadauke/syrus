@@ -115,7 +115,7 @@ describe("RepositoryHealthBanners", () => {
     ])
 
     expect(screen.getByText("tkadauke/my-repo", { exact: false })).toBeInTheDocument()
-    expect(screen.getByText(/Main branch is broken\.$/)).toBeInTheDocument()
+    expect(screen.getByText(/Main branch is broken — work is not paused\./)).toBeInTheDocument()
     expect(screen.queryByText(/queued jobs are held/)).not.toBeInTheDocument()
   })
 })

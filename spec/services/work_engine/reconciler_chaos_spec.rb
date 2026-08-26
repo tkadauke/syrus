@@ -898,8 +898,16 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end
 
     def active_workflow!(job:, trigger_kind:, step_kind:, age:)
-      workflow = Workflow.create!(job: job, trigger_kind: trigger_kind)
-      step = Step.create!(workflow: workflow, kind: step_kind, position: 0)
+      workflow = WorkUnits::Launcher.instantiate(
+        kind: trigger_kind,
+        job: job,
+        artifacts: {},
+        agent_provider: job.agent_provider,
+        source_type: "reconciler_chaos_spec"
+      )
+      unit = workflow.work_unit
+      step = workflow.steps.find_by(kind: step_kind) ||
+        Step.create!(workflow: workflow, kind: step_kind, position: workflow.steps.maximum(:position).to_i + 1)
       run = Run.create!(
         job: job,
         user: job.user,
@@ -910,6 +918,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         started_at: age.ago,
         last_heartbeat_at: Time.current
       )
+      unit&.update_columns(state: "running", started_at: age.ago, created_at: age.ago, updated_at: age.ago)
       workflow.update_columns(state: "running", started_at: age.ago, created_at: age.ago, updated_at: age.ago)
       step.update_columns(state: "running", started_at: age.ago, updated_at: age.ago)
       trace << "workflow=#{workflow.id}:active trigger=#{trigger_kind} step=#{step.kind} run=#{run.id}"
