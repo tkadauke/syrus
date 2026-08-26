@@ -16,47 +16,22 @@ module App
       klass&.display_name || provider.to_s.titleize
     end
 
+    # The canonical, compact Syrus Job identifier shown everywhere in the
+    # app (chat proposal confirmations, dependency badges, pending-action
+    # labels, PR backlinks, admin/insight payloads). Deliberately ignores
+    # the descriptive `jobs.slug` column here — that column is a
+    # human-readable, title-derived value meant for typed references
+    # (`syrus checkout <slug>`, JobEpicRefFinder) and for list-style UI
+    # that opts in explicitly (see ChatJobStatusQuery), not for the
+    # identifier operators and agents use to refer to a Job in prose.
     def job_slug(job_or_id)
-      if job_or_id.respond_to?(:has_attribute?) && job_or_id.has_attribute?(:slug)
-        persisted_slug = job_or_id[:slug]
-        return persisted_slug if persisted_slug.present?
-        return "JOB-#{job_or_id.id}" if job_or_id.respond_to?(:id)
-      end
-
       id = job_or_id.respond_to?(:id) ? job_or_id.id : job_or_id
-      cached_slug = job_slug_cache[id.to_i]
-      return cached_slug if cached_slug.present?
-
-      persisted_slug = Job.where(id: id).pick(:slug) if id.to_i.positive?
-      return persisted_slug if persisted_slug.present?
-
       "JOB-#{id}"
-    end
-
-    def with_job_slug_cache(jobs)
-      previous_cache = Thread.current[:app_presentation_job_slug_cache]
-      merged_cache = previous_cache.to_h.merge(
-        Array(jobs).compact.each_with_object({}) do |job, cache|
-          next unless job.respond_to?(:id)
-          next unless job.respond_to?(:has_attribute?) && job.has_attribute?(:slug)
-
-          cache[job.id.to_i] = job[:slug] if job[:slug].present?
-        end
-      )
-
-      Thread.current[:app_presentation_job_slug_cache] = merged_cache
-      yield
-    ensure
-      Thread.current[:app_presentation_job_slug_cache] = previous_cache
     end
 
     def epic_slug(epic_or_number)
       number = epic_or_number.respond_to?(:number) ? epic_or_number.number : epic_or_number
       "EPIC-#{number}"
-    end
-
-    def job_slug_cache
-      Thread.current[:app_presentation_job_slug_cache].to_h
     end
 
     # Generic install URL (operator picks repos in GitHub's UI). Used by

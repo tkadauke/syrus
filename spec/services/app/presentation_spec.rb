@@ -19,6 +19,13 @@ RSpec.describe App::Presentation do
       expect(described_class.job_slug(job)).to eq("JOB-771")
       expect(described_class.job_slug(772)).to eq("JOB-772")
     end
+
+    it "ignores the persisted descriptive slug column and always returns the JOB-<id> form" do
+      job = Factories.job_record(id: 772, issue_title: "Extend visual_review when_files_changed to cover plugin frontend UI")
+      expect(job[:slug]).to eq("extend-visual_review-when_files_changed-to-cover-p")
+
+      expect(described_class.job_slug(job)).to eq("JOB-772")
+    end
   end
 
   describe ".github_app_install_url_for" do
