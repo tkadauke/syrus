@@ -1028,6 +1028,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.index ["user_id"], name: "index_job_pins_on_user_id"
   end
 
+  create_table "job_pr_links", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.json "metadata"
+    t.integer "pr_number"
+    t.string "role", limit: 32, null: false
+    t.string "source_ref"
+    t.bigint "source_repository_id"
+    t.string "target_ref"
+    t.bigint "target_repository_id"
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "role"], name: "index_job_pr_links_on_job_id_and_role", unique: true
+    t.index ["job_id"], name: "index_job_pr_links_on_job_id"
+    t.index ["source_repository_id"], name: "index_job_pr_links_on_source_repository_id"
+    t.index ["target_repository_id"], name: "index_job_pr_links_on_target_repository_id"
+  end
+
   create_table "job_tags", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "job_id", null: false
@@ -2568,4 +2585,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
+  add_foreign_key "job_pr_links", "jobs"
+  add_foreign_key "job_pr_links", "repositories", column: "source_repository_id"
+  add_foreign_key "job_pr_links", "repositories", column: "target_repository_id"
 end
