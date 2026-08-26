@@ -204,9 +204,7 @@ function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null) {
 function previewExportUrl(panel: ChatPreviewPanel, versionId: number | null) {
   if (!versionId) return panel.app_export_path
 
-  const url = new URL(panel.app_export_path, window.location.origin)
-  url.searchParams.set("v", String(versionId))
-  return `${url.pathname}${url.search}`
+  return `${panel.app_export_path}?${new URLSearchParams({ v: String(versionId) }).toString()}`
 }
 
 // Toolbar dropdown pattern (button + absolutely positioned listbox), same
