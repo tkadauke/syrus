@@ -528,7 +528,7 @@ module App
 
       run = @job.runs
                 .where.not(agent_summary: [ nil, "" ])
-                .order(created_at: :desc, id: :desc)
+                .reorder(created_at: :desc, id: :desc)
                 .first
       return unless run
 

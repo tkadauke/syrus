@@ -759,6 +759,30 @@ RSpec.describe App::JobDetailPayload do
         text: "Latest completed run summary."
       )
     end
+
+    it "uses the latest run summary without inheriting the ascending job runs order" do
+      job = Factories.job(repository: repo)
+      job.initial_run.update!(
+        agent_summary: "Older run summary.",
+        created_at: 2.hours.ago,
+        finished_at: 2.hours.ago
+      )
+      workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "succeeded")
+      step = Step.create!(workflow: workflow, kind: "respond", position: 0, state: "succeeded")
+      latest_run = step.runs.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        agent_summary: "Latest run summary.",
+        created_at: 1.hour.ago,
+        finished_at: 1.hour.ago
+      )
+
+      expect(payload_for(job)[:summary]).to include(
+        run_id: latest_run.id,
+        text: "Latest run summary."
+      )
+    end
   end
 
   describe "#has_test_results?" do
