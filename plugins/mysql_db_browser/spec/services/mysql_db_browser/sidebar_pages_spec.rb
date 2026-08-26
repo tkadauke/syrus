@@ -10,8 +10,6 @@ RSpec.describe MysqlDbBrowser::SidebarPages do
   let(:member) { Factories.user(admin: false) }
 
   def enable_plugin!
-    Feature.find_or_create_by!(slug: "mysql_db_browser") { |f| f.category = "Labs"; f.name = "MySQL DB browser" }
-      .update!(enabled: true)
     PluginRecord.find_by!(name: "mysql_db_browser").update!(enabled: true)
   end
 

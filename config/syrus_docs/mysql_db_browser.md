@@ -4,11 +4,11 @@ The `mysql_db_browser` plugin (`plugins/mysql_db_browser/`) lets an operator
 register connections to arbitrary external MySQL databases and browse/query
 them in a grid-first, Sequel Pro/TablePlus-style browser. It is a
 self-contained Rails engine plugin, installed but disabled by default
-(`default_enabled: false`, `disableable: true`, category `observability`),
-gated behind the `mysql_db_browser` instance-wide `Feature` flag. Every
-controller action additionally checks `MysqlDbBrowser.enabled?` (flag AND
-plugin record both enabled) and `Current.user.admin?`, so the whole surface
-is admin-only.
+(`default_enabled: false`, `disableable: true`, category `observability`).
+In Syrus's plugin architecture, the plugin's own `PluginRecord.enabled`
+toggle *is* the feature gate — there is no separate `Feature` flag. Every
+controller action checks `MysqlDbBrowser.enabled?` (the plugin record
+enabled) and `Current.user.admin?`, so the whole surface is admin-only.
 
 ## Connections (`MysqlConnection`)
 
@@ -147,7 +147,7 @@ derives the join spec from whichever side isn't that table.
 
 Each `MysqlConnection` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
-independent of the instance-wide `mysql_db_browser` `Feature` flag. When set,
+independent of the plugin's own enable/disable toggle. When set,
 that specific connection becomes queryable by workflow and chat agents
 through four MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`MysqlDbBrowser::WorkflowToolSet` / `MysqlDbBrowser::ChatToolSet`,

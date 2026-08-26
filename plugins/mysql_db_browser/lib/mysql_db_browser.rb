@@ -92,8 +92,7 @@ module MysqlDbBrowser
   end
 
   def self.enabled?
-    Feature.enabled?(:mysql_db_browser) &&
-      Syrus::PluginRegistry.all_plugins.any? { |manifest| manifest.name == "mysql_db_browser" && manifest.enabled? }
+    Syrus::PluginRegistry.all_plugins.any? { |manifest| manifest.name == "mysql_db_browser" && manifest.enabled? }
   end
 
   # The acting user to attribute an agent-issued query/tool call to, for
