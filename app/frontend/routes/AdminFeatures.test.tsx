@@ -22,11 +22,6 @@ describe("AdminFeatures", () => {
 
     const operations = screen.getByRole("region", { name: "Operations" })
     expect(within(operations).getByText("Fast queue")).toBeInTheDocument()
-
-    const ownership = screen.getByRole("region", { name: "Work unit ownership" })
-    expect(within(ownership).getByText("scheduler")).toBeInTheDocument()
-    expect(within(ownership).getByText("manual_pause")).toBeInTheDocument()
-    expect(within(ownership).getAllByText("WorkUnit")).toHaveLength(2)
   })
 
   it("optimistically toggles a feature and keeps the API result", async () => {
@@ -168,16 +163,6 @@ function featuresPayload(overrides: Partial<{ categories: Array<{ category: stri
             description: null,
             enabled: true
           }
-        ]
-      }
-    ],
-    work_unit_ownership: [
-      {
-        group: "scheduler",
-        enabled: true,
-        paths: [
-          { path: "manual_pause", owner: "work_unit", group: "scheduler" },
-          { path: "resume", owner: "work_unit", group: "scheduler" }
         ]
       }
     ],
