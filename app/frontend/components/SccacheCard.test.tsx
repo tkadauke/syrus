@@ -24,7 +24,7 @@ describe("SccacheCard", () => {
   it("renders hit/miss/hit-rate badges when counts are present", () => {
     render(<SccacheCard sccache={fullSccache} />)
 
-    const badges = screen.getAllByTestId("sccache-badge")
+    const badges = screen.getByTestId("sccache-summary").querySelectorAll("[data-status-pill]")
     expect(badges).toHaveLength(3)
     expect(badges[0]).toHaveTextContent("9")
     expect(badges[1]).toHaveTextContent("3")

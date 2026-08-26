@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { Children, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
-import { StatusPill } from "../../components/StatusPill"
+import { StatusPill, TonePill } from "../../components/StatusPill"
 import { workflowSlug } from "../../lib/slugs"
 import { type DashboardEpicItem, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../../api/dashboard"
 
@@ -137,11 +137,7 @@ export function OwnerBadge({ badge, fallback = null }: { badge: { label: string;
   if (!badge && !fallback) return null
 
   const label = badge?.label || fallback
-  const className = badge?.kind === "claimable"
-    ? "rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800"
-    : "rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
-
-  return <span className={className}>{label}</span>
+  return <TonePill tone={badge?.kind === "claimable" ? "amber" : "gray"}>{label}</TonePill>
 }
 
 const EPIC_PROGRESS_SEGMENTS = [

@@ -1,6 +1,7 @@
 import { Joyride } from "react-joyride"
 import type { EventData, Controls, Step } from "react-joyride"
 import { useT } from "../hooks/useT"
+import { useColorTokens } from "../lib/colorTokens"
 
 type SyrusTourProps = {
   steps: Step[]
@@ -8,11 +9,9 @@ type SyrusTourProps = {
   onEvent?: (data: EventData, controls: Controls) => void
 }
 
-// terracotta-600 is the brand primary accent per tailwind.config.js
-const PRIMARY_COLOR = "#b6492e"
-
 export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
   const { t } = useT("tours")
+  const [primaryColor, backColor, skipColor] = useColorTokens(["--color-brand", "--color-neutral", "--color-text-secondary"])
 
   if (!run) return null
 
@@ -22,7 +21,7 @@ export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
       onEvent={onEvent}
       options={{
         buttons: ["back", "skip", "primary"],
-        primaryColor: PRIMARY_COLOR,
+        primaryColor,
       }}
       locale={{
         back: t("back"),
@@ -43,24 +42,24 @@ export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
           textAlign: "left",
         },
         buttonPrimary: {
-          backgroundColor: PRIMARY_COLOR,
+          backgroundColor: primaryColor,
           borderRadius: "4px",
           color: "#ffffff",
           fontWeight: "500",
         },
         buttonBack: {
-          color: "#374151",
+          color: backColor,
           marginRight: "8px",
         },
         buttonSkip: {
-          color: "#6b7280",
+          color: skipColor,
         },
         beaconInner: {
-          backgroundColor: PRIMARY_COLOR,
+          backgroundColor: primaryColor,
         },
         beaconOuter: {
-          borderColor: PRIMARY_COLOR,
-          backgroundColor: `${PRIMARY_COLOR}33`,
+          borderColor: primaryColor,
+          backgroundColor: `${primaryColor}33`,
         },
       }}
     />
