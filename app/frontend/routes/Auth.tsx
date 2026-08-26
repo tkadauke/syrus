@@ -1,4 +1,3 @@
-import { inputClass } from "../lib/formClasses"
 import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, KeyboardEvent, ReactNode } from "react"
@@ -9,6 +8,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { NoticeToast } from "../components/NoticeToast"
+import { Input } from "../components/Input"
 import { CapsLockHint, EmailValidityHint, PasswordMatchHint, PasswordStrengthMeter } from "../components/PasswordFeedback"
 import {
   authenticateWithPasskey,
@@ -76,10 +76,9 @@ export function SignInRoute() {
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("sign_in.error"))}</PanelMessage> : null}
         <Field label={t("field.email")}>
-          <input
+          <Input
             autoComplete="username"
             autoFocus
-            className={inputClass()}
             onChange={(event) => setEmailAddress(event.target.value)}
             required
             type="email"
@@ -88,9 +87,8 @@ export function SignInRoute() {
           <EmailValidityHint email={emailAddress} />
         </Field>
         <Field label={t("field.password")}>
-          <input
+          <Input
             autoComplete="current-password"
-            className={inputClass()}
             maxLength={72}
             onChange={(event) => setPassword(event.target.value)}
             onKeyDown={trackCapsLock}
@@ -246,10 +244,9 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
       {payload.first_signup ? <PanelMessage>{t("sign_up.first_admin")}</PanelMessage> : null}
       {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("sign_up.error_create"))}</PanelMessage> : null}
       <Field label={t("field.email")}>
-        <input
+        <Input
           autoComplete="username"
           autoFocus
-          className={inputClass()}
           onChange={(event) => setEmailAddress(event.target.value)}
           required
           type="email"
@@ -258,9 +255,8 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
         <EmailValidityHint email={emailAddress} />
       </Field>
       <Field label={t("field.password")}>
-        <input
+        <Input
           autoComplete="new-password"
-          className={inputClass()}
           maxLength={72}
           onChange={(event) => setPassword(event.target.value)}
           required
@@ -270,9 +266,8 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
         <PasswordStrengthMeter password={password} />
       </Field>
       <Field label={t("field.confirm_password")}>
-        <input
+        <Input
           autoComplete="new-password"
-          className={inputClass()}
           maxLength={72}
           onChange={(event) => setPasswordConfirmation(event.target.value)}
           required
@@ -319,10 +314,9 @@ export function PasswordRequestRoute() {
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("password_request.error"))}</PanelMessage> : null}
         <Field label={t("field.email")}>
-          <input
+          <Input
             autoComplete="username"
             autoFocus
-            className={inputClass()}
             onChange={(event) => setEmailAddress(event.target.value)}
             required
             type="email"
@@ -368,10 +362,9 @@ export function PasswordResetRoute() {
       <form className="space-y-5" onSubmit={onSubmit}>
         {submit.isError ? <PanelMessage tone="error">{errorMessage(submit.error, t("password_reset.error"))}</PanelMessage> : null}
         <Field label={t("field.new_password")}>
-          <input
+          <Input
             autoComplete="new-password"
             autoFocus
-            className={inputClass()}
             maxLength={72}
             onChange={(event) => setPassword(event.target.value)}
             required
@@ -381,9 +374,8 @@ export function PasswordResetRoute() {
           <PasswordStrengthMeter password={password} />
         </Field>
         <Field label={t("field.confirm_password")}>
-          <input
+          <Input
             autoComplete="new-password"
-            className={inputClass()}
             maxLength={72}
             onChange={(event) => setPasswordConfirmation(event.target.value)}
             required

@@ -1,5 +1,4 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
 import type { FormEvent, ReactNode } from "react"
@@ -31,6 +30,9 @@ import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { Button } from "../components/Button"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
+import { Checkbox as CheckboxPrimitive } from "../components/Checkbox"
 
 type OwnerOption = {
   login: string
@@ -276,9 +278,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   {ownerOptions.map((owner) => <option key={owner.login} value={owner.login}>{owner.login}</option>)}
                 </SelectWithManual>
               ) : (
-                <input
+                <Input
                   aria-label={t('repository_form.label_working_owner')}
-                  className={`${inputClass()} font-mono`}
+                  className="font-mono"
                   onChange={(event) => {
                     setValues({ ...values, owner: event.target.value, github_owner_id: "", github_repository_id: "" })
                     setRepoMode("manual")
@@ -307,9 +309,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   {repoOptions.map((repo) => <option key={repo.name} value={repo.name}>{repo.name}</option>)}
                 </SelectWithManual>
               ) : (
-                <input
+                <Input
                   aria-label={t('repository_form.label_working_name')}
-                  className={`${inputClass()} font-mono`}
+                  className="font-mono"
                   onChange={(event) => setValues({ ...values, name: event.target.value, github_owner_id: "", github_repository_id: "" })}
                   required
                   type="text"
@@ -321,19 +323,19 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
           <Field label={t('repository_form.label_default_branch')}>
             {branchMode === "select" && branchOptions.length > 0 ? (
-              <select
+              <Select
                 aria-label={t('repository_form.label_default_branch')}
-                className={`${inputClass()} font-mono`}
+                className="font-mono"
                 onChange={(event) => setValues({ ...values, default_branch: event.target.value })}
                 required
                 value={values.default_branch}
               >
                 {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
-              </select>
+              </Select>
             ) : (
-              <input
+              <Input
                 aria-label={t('repository_form.label_default_branch')}
-                className={`${inputClass()} font-mono`}
+                className="font-mono"
                 onChange={(event) => setValues({ ...values, default_branch: event.target.value })}
                 required
                 type="text"
@@ -343,9 +345,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Field>
 
           <Field label={t('repository_form.label_trigger')}>
-            <input
+            <Input
               aria-label={t('repository_form.label_trigger')}
-              className={`${inputClass()} font-mono`}
+              className="font-mono"
               onChange={(event) => setValues({ ...values, trigger_label: event.target.value })}
               required
               type="text"
@@ -368,9 +370,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t('repository_form.label_upstream_owner')}>
-              <input
+              <Input
                 aria-label={t('repository_form.label_upstream_owner')}
-                className={`${inputClass()} font-mono`}
+                className="font-mono"
                 onChange={(event) => updateUpstream("upstream_owner", event.target.value)}
                 type="text"
                 value={values.upstream_owner}
@@ -378,9 +380,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </Field>
 
             <Field label={t('repository_form.label_upstream_name')}>
-              <input
+              <Input
                 aria-label={t('repository_form.label_upstream_name')}
-                className={`${inputClass()} font-mono`}
+                className="font-mono"
                 onChange={(event) => updateUpstream("upstream_name", event.target.value)}
                 type="text"
                 value={values.upstream_name}
@@ -389,9 +391,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </div>
 
           <Field label={t('repository_form.label_upstream_branch')}>
-            <input
+            <Input
               aria-label={t('repository_form.label_upstream_branch')}
-              className={`${inputClass()} font-mono`}
+              className="font-mono"
               onChange={(event) => updateUpstream("upstream_default_branch", event.target.value)}
               type="text"
               value={values.upstream_default_branch}
@@ -404,9 +406,8 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             {t('repository_form.automation_section')}
           </h2>
           <Field label={t('repository_form.label_default_agent')}>
-            <select
+            <Select
               aria-label={t('repository_form.label_default_agent')}
-              className={inputClass()}
               onChange={(event) => setValues({ ...values, agent_provider: event.target.value })}
               value={values.agent_provider}
             >
@@ -416,23 +417,22 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               {payload.configured_agent_providers.map((provider) => (
                 <option key={provider.value} value={provider.value}>{provider.label}</option>
               ))}
-            </select>
+            </Select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('repository_form.agent_hint')}
             </p>
           </Field>
 
           <Field label={t('repository_form.label_auto_approve')}>
-            <select
+            <Select
               aria-label={t('repository_form.label_auto_approve')}
-              className={inputClass()}
               onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })}
               value={values.auto_approve_mode}
             >
               {payload.auto_approve_modes.map((modeOption) => (
                 <option key={modeOption.value} value={modeOption.value}>{modeOption.label}</option>
               ))}
-            </select>
+            </Select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{payload.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)?.preview}</p>
           </Field>
 
@@ -503,15 +503,14 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           <Checkbox label={t('repository_form.check_external_pr_ingestion')} onChange={(checked) => setValues({ ...values, external_pr_ingestion_enabled: checked })} value={values.external_pr_ingestion_enabled} />
 
           <Field label={t('repository_form.label_feedback_policy')}>
-            <select
+            <Select
               aria-label={t('repository_form.label_feedback_policy')}
-              className={inputClass()}
               onChange={(event) => setValues({ ...values, feedback_policy: event.target.value })}
               value={values.feedback_policy}
             >
               <option value="confirm">{t('repository_form.feedback_confirm')}</option>
               <option value="auto">{t('repository_form.feedback_auto')}</option>
-            </select>
+            </Select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('repository_form.feedback_hint')}
             </p>
@@ -614,9 +613,8 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
         {config.enabled ? (
           <div className="space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
             <Field label={t('repository_form.insight_scheduling_min_jobs')}>
-              <input
+              <Input
                 aria-label={t('repository_form.insight_scheduling_min_jobs')}
-                className={inputClass()}
                 min={1}
                 onChange={(e) => { setConfig({ ...config, min_jobs_since_last_run: parseInt(e.target.value, 10) || 1 }); save.reset() }}
                 required
@@ -626,9 +624,8 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
             </Field>
 
             <Field label={t('repository_form.insight_scheduling_max_jobs')}>
-              <input
+              <Input
                 aria-label={t('repository_form.insight_scheduling_max_jobs')}
-                className={inputClass()}
                 min={2}
                 onChange={(e) => { setConfig({ ...config, max_jobs_since_last_run: parseInt(e.target.value, 10) || 2 }); save.reset() }}
                 required
@@ -711,9 +708,9 @@ function SelectWithManual({
   const { t } = useT("settings")
   return (
     <div>
-      <select aria-label={label} className={`${inputClass()} font-mono`} onChange={(event) => onChange(event.target.value)} value={value}>
+      <Select aria-label={label} className="font-mono" onChange={(event) => onChange(event.target.value)} value={value}>
         {children}
-      </select>
+      </Select>
       <button className="mt-1 text-xs text-gray-500 dark:text-gray-400 underline hover:no-underline" onClick={onManual} type="button">
         {t('repository_form.enter_manually')}
       </button>
@@ -721,13 +718,13 @@ function SelectWithManual({
   )
 }
 
+// Thin adapter over the shared Checkbox primitive that keeps this file's
+// existing call-site shape (`value`/`onChange(checked)` instead of the
+// primitive's native `checked`/`onChange(event)`) so none of the ~14 call
+// sites below need to change.
 function Checkbox({ id, label, onChange, value }: { id?: string; label: string; onChange: (checked: boolean) => void; value: boolean }) {
-  const { t } = useT("settings")
   return (
-    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300" id={id}>
-      <input className="rounded border-gray-400" checked={value} onChange={(event) => onChange(event.target.checked)} type="checkbox" />
-      {label}
-    </label>
+    <CheckboxPrimitive checked={value} id={id} label={label} onChange={(event) => onChange(event.target.checked)} />
   )
 }
 
@@ -901,18 +898,18 @@ function InputSourceField({
         ) : teamsError ? (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t("input_sources.team_error")}</p>
         ) : teams.length === 0 ? (
-          <input
+          <Input
             aria-label={field.label}
-            className={`${inputClass()} font-mono`}
+            className="font-mono"
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
             type="text"
             value={value}
           />
         ) : (
-          <select
+          <Select
             aria-label={field.label}
-            className={`${inputClass()} cursor-pointer`}
+            className="cursor-pointer"
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
             value={value}
@@ -921,7 +918,7 @@ function InputSourceField({
             {teams.map((team) => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
-          </select>
+          </Select>
         )}
       </Field>
     )
@@ -929,10 +926,10 @@ function InputSourceField({
 
   return (
     <Field label={field.label}>
-      <input
+      <Input
         aria-label={field.label}
         autoComplete="off"
-        className={field.type === "string" ? `${inputClass()} font-mono` : inputClass()}
+        className={field.type === "string" ? "font-mono" : undefined}
         onChange={(e) => onChange(e.target.value)}
         placeholder={field.type === "password" && currentSource ? t("input_sources.secret_placeholder_set") : undefined}
         required={field.required && !(field.type === "password" && currentSource)}
