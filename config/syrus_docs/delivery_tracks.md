@@ -2,7 +2,7 @@
 
 Delivery tracks let a repository declare its own branching model — a single strict branch, a development/release split, a hotfix track, or an upstream-export posture for forks — in a shared, non-personal `.syrus.yml` block, instead of every workflow special-casing branch names. See `docs/plans/delivery-tracks-and-promotion.md` for the full design and Story-by-Story rationale; this document tracks only what's actually implemented.
 
-This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below); a fifth Job added the `JobPrLink` model (see "`JobPrLink`" below) as the durable foundation the promotion/hotfix-sync/upstream-export Jobs later in this Epic persist their PR links to. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` is still unwired; later Jobs in the Epic cover that.
+This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below); a fifth Job added the `JobPrLink` model (see "`JobPrLink`" below) as the durable foundation the promotion/hotfix-sync/upstream-export Jobs later in this Epic persist their PR links to; a sixth Job added `DeliveryStatus` (see "`DeliveryStatus` (apparent delivery status)" below), the first reader of `JobPrLink`, deriving a Job's UI-facing delivery status from delivery facts instead of a new AASM state. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` is still unwired; later Jobs in the Epic cover that.
 
 ## `.syrus.yml` shape
 
@@ -163,7 +163,7 @@ policy.requires_operator_approval_for_promotion?
 
 `JobPrLink` (`app/models/job_pr_link.rb`) is the forward-looking replacement: a durable `job_pr_links` row per `(job, role)` pair, carrying `source_repository_id`/`source_ref`, `target_repository_id`/`target_ref`, the provider `pr_number`, and a free-form `metadata` JSON column reserved for later PR-classification work. `role` is one of `JobPrLink::ROLES` (`local`, `upstream_export`, `promotion`, `external_ingest`) — the taxonomy grows as later Epic Jobs add promotion/hotfix-sync/upstream-export ref-movement and PR-ingestion classification; nothing beyond `local` is written yet.
 
-**Migration posture — additive only.** Per the Epic's explicit migration posture, this Job does not remove or stop writing any of the four legacy columns above, and nothing reads from `JobPrLink` yet. `Steps::PrOpen` writes a `role: "local"` link, via `JobPrLink.record!`, at both of its existing `pr_number`-setting call sites — `open_pr` (same-repo/non-fork PR) and `open_upstream_pr` (fork → in-instance-upstream direct PR) — immediately alongside the `job.update!(pr_number:, pr_repository_id:, ...)` call already there. `JobPrLink.record!` is an idempotent `find_or_initialize_by(job:, role:)` upsert, so a retried `pr_open` updates the existing `local` link in place instead of raising on the `(job_id, role)` uniqueness constraint. `ForkReviewApprover` and `PollForkReviewPrJob` (the fork-review staging flow, `fork_review_pr_number`) and the external-PR-ingestion path (`external_pr_number`) are intentionally left untouched — those get their own `role` values from later Epic Jobs.
+**Migration posture — additive only.** Per the Epic's explicit migration posture, this Job does not remove or stop writing any of the four legacy columns above. `Steps::PrOpen` writes a `role: "local"` link, via `JobPrLink.record!`, at both of its existing `pr_number`-setting call sites — `open_pr` (same-repo/non-fork PR) and `open_upstream_pr` (fork → in-instance-upstream direct PR) — immediately alongside the `job.update!(pr_number:, pr_repository_id:, ...)` call already there. `JobPrLink.record!` is an idempotent `find_or_initialize_by(job:, role:)` upsert, so a retried `pr_open` updates the existing `local` link in place instead of raising on the `(job_id, role)` uniqueness constraint. `ForkReviewApprover` and `PollForkReviewPrJob` (the fork-review staging flow, `fork_review_pr_number`) and the external-PR-ingestion path (`external_pr_number`) are intentionally left untouched — those get their own `role` values from later Epic Jobs. `DeliveryStatus` (below) is the first and, as of this Job, only reader of `JobPrLink` — everything else in this section still just writes `local` links.
 
 ```ruby
 JobPrLink.record!(
@@ -176,3 +176,30 @@ JobPrLink.record!(
   pr_number: pr_number
 )
 ```
+
+## `DeliveryStatus` (apparent delivery status)
+
+`DeliveryStatus` (`app/services/delivery_status.rb`) derives a Job's apparent delivery status — a UI-facing summary — from concrete delivery facts instead of a new `Job` AASM state, per `docs/plans/delivery-tracks-and-promotion.md`'s "Job Lifecycle And Delivery Status" section. `Job#state` remains the actual state machine; `DeliveryStatus` only answers "where does this Job's delivery currently sit" for the Job detail UI.
+
+```ruby
+DeliveryStatus.for(job: job)
+# => one of:
+#   :waiting_for_local_approval     — not yet approved (or approval facts unresolved)
+#   :approved_for_local_landing     — approved, landing, or already landed locally
+#   :waiting_for_upstream_approval  — a promotion/upstream-export PR link is open
+#   :waiting_for_promotion          — landed locally; promotion is configured but hasn't opened its PR yet
+#   :syncing_hotfix                 — landed on a non-default track while hotfix-sync is configured
+#   :upstream_merged                — the promotion/upstream-export PR link recorded a merge
+#   :upstream_closed_without_merge  — the promotion/upstream-export PR link closed without merging
+#   :delivery_needs_attention       — the Job failed, or closed with an unsuccessful closure_reason
+```
+
+It reads three kinds of facts, in priority order (most specific wins):
+
+1. **The Job's own failure/closure facts** — `job.failed?`, or `job.closed?` with a `closure_reason` outside `Job::SUCCESSFUL_CLOSURE_REASONS` — but only once the promotion/upstream-export link checks below have had a chance to claim a more specific status; an eventual `upstream_pr_merged`-style closure_reason from a later Epic Job should resolve to `:upstream_merged`, not `:delivery_needs_attention`.
+2. **The governing `JobPrLink` row** — `DeliveryPolicy#promotion_enabled?` picks the `promotion`-role link, else `DeliveryPolicy#upstream_export_enabled?` picks the `upstream_export`-role link (promotion wins if a repository somehow configures both). The link's `metadata["pr_state"]` (`"open"`/`"merged"`/`"closed"`, reserved for later PR-classification Jobs to write) decides `:waiting_for_upstream_approval` / `:upstream_merged` / `:upstream_closed_without_merge`.
+3. **`DeliveryPolicy#hotfix_sync_enabled?` and `#promotion_enabled?` against the resolved track/landing facts** — once a Job has landed locally (`job.closed?` with a successful `closure_reason`), a non-default resolved track (`DeliveryPolicy#job_delivery_track`) under hotfix-sync resolves to `:syncing_hotfix`; a default-track landing under promotion with no promotion link yet resolves to `:waiting_for_promotion`.
+
+**Degrades gracefully today.** Promotion, hotfix-sync, and upstream-export ref-movement workflows don't exist yet (later Epic Jobs), so no repository has `promotion`/`hotfix_sync` enabled and no Job ever has a `promotion`/`upstream_export`-role `JobPrLink` row yet. Every Job's derived status today is therefore either `:waiting_for_local_approval`, `:approved_for_local_landing`, or `:delivery_needs_attention` — the same three buckets today's `Job#state`/`closure_reason` already distinguish, just renamed for the delivery-status UI.
+
+`App::JobDetailPayload#job_json` exposes it as `delivery_status` on the Job detail API response (`app/frontend/api/jobs.ts`'s `JobRecord#delivery_status`); no UI reads it yet — that lands with the delivery-status UI Jobs later in this Epic.

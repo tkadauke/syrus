@@ -59,6 +59,16 @@ export type JobRetryState = {
   state_label: string
 }
 
+export type JobDeliveryStatus =
+  | "waiting_for_local_approval"
+  | "approved_for_local_landing"
+  | "waiting_for_upstream_approval"
+  | "waiting_for_promotion"
+  | "syncing_hotfix"
+  | "upstream_merged"
+  | "upstream_closed_without_merge"
+  | "delivery_needs_attention"
+
 export type JobRecord = {
   id: number
   kind: string
@@ -125,6 +135,7 @@ export type JobRecord = {
   updated_at: string | null
   started_at: string | null
   finished_at: string | null
+  delivery_status: JobDeliveryStatus
   needs_attention: boolean
   needs_attention_reason: string | null
   needs_attention_since: string | null

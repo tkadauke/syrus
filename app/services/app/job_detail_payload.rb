@@ -233,6 +233,7 @@ module App
         updated_at: iso8601(@job.updated_at),
         started_at: iso8601(@job.started_at),
         finished_at: iso8601(@job.finished_at),
+        delivery_status: DeliveryStatus.for(job: @job),
         needs_attention: @job.needs_attention?,
         needs_attention_reason: @job.needs_attention_reason,
         needs_attention_since: iso8601(@job.needs_attention_since),
