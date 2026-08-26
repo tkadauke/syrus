@@ -3,6 +3,12 @@ import type { AdminFilteredPayload } from "./adminSmartFolders"
 
 export type ProcessStateFilter = "running" | "finished" | "all"
 
+export type SpawnedProcessOwner = {
+  type: "workflow" | "chat" | "preview"
+  label: string
+  path: string | null
+}
+
 export type SpawnedProcessPayload = {
   id: number
   kind: string
@@ -26,6 +32,7 @@ export type SpawnedProcessPayload = {
   stale: boolean
   kill_requested_at: string | null
   kill_requested_by_user_id: number | null
+  owner: SpawnedProcessOwner | null
   host_metrics?: Record<string, unknown> | null
 }
 

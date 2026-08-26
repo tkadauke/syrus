@@ -121,6 +121,7 @@ class CodexInvocation
       cache_read_input_tokens: nil
     }
     current_run = Thread.current[:syrus_current_run]
+    current_chat_session = Thread.current[:syrus_current_chat_session]
     process_start_requested_at = startup_timing.now
     output_start_requested_at = process_start_requested_at
     mcp_server_names = normalized_mcp_servers(mcp_servers || mcp_server).keys
@@ -137,6 +138,7 @@ class CodexInvocation
       kind: "agent",
       run: current_run,
       workflow: current_run&.workflow,
+      chat_session: current_chat_session,
       stop_requested: stop_requested,
       on_spawned_process: ->(process) {
         startup_timing.record("process_spawn", started_at: process_start_requested_at, pid: process.try(:pid))

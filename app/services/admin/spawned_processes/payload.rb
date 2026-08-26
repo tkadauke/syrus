@@ -16,7 +16,7 @@ module Admin
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }
-          scope = filter.apply(base_scope).includes(:workflow).order(started_at: :desc).limit(@per_page)
+          scope = filter.apply(base_scope).includes(workflow: :job, chat_session: :user).order(started_at: :desc).limit(@per_page)
 
           processes = PerformanceLogging.phase("admin_processes.load_processes") { scope.to_a }
 
@@ -133,10 +133,49 @@ module Admin
           workflow_path: process.workflow ? App::WorkflowNavigation.path(process.workflow) : nil,
           stale: process.stale?,
           kill_requested_at: process.kill_requested_at&.iso8601,
-          kill_requested_by_user_id: process.kill_requested_by_user_id
+          kill_requested_by_user_id: process.kill_requested_by_user_id,
+          owner: owner_payload(process)
         }
         payload[:host_metrics] = process.host_metrics if include_host_metrics
         payload
+      end
+
+      # Best-effort "who does this belong to" summary for the admin UI.
+      # Not exhaustive — falls back to nil when a process kind carries no
+      # attribution we know how to read yet (e.g. a bare git/deploy command
+      # with no run/workflow/chat context).
+      def owner_payload(process)
+        if process.workflow
+          job = process.workflow.job
+          return {
+            type: "workflow",
+            label: "#{App::Presentation.job_slug(job)} · #{job.title}",
+            path: App::WorkflowNavigation.path(process.workflow)
+          }
+        end
+
+        if process.chat_session
+          chat = process.chat_session
+          return {
+            type: "chat",
+            label: chat.title.presence || "Chat ##{chat.id}",
+            path: "/chats/#{chat.id}"
+          }
+        end
+
+        preview_owner_payload(process)
+      end
+
+      def preview_owner_payload(process)
+        return nil unless process.kind == "preview"
+
+        attribution = process.resource_attribution || {}
+        job_id = attribution["job_id"]
+        {
+          type: "preview",
+          label: job_id ? "Preview · #{App::Presentation.job_slug(job_id)}" : "Preview",
+          path: job_id ? "/jobs/#{job_id}" : nil
+        }
       end
     end
   end
