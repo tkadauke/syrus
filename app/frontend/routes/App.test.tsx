@@ -1561,7 +1561,7 @@ describe("App", () => {
     }
   })
 
-  it("uses an anchored v2 mobile brand trigger that floats after scroll", async () => {
+  it("keeps the v2 mobile brand trigger anchored in place after scroll, with no floating duplicate", async () => {
     const restoreMediaQuery = mockMediaQuery(true)
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
@@ -1612,16 +1612,17 @@ describe("App", () => {
       Object.defineProperty(scrollPane, "scrollTop", { configurable: true, value: 24 })
       fireEvent.scroll(scrollPane as HTMLElement)
 
-      const sidebarTriggers = screen.getAllByRole("button", { name: "Open sidebar" })
-      const floatingTrigger = sidebarTriggers.find((button) => button.classList.contains("fixed"))
-      expect(floatingTrigger).toBeDefined()
-      expect(floatingTrigger).toHaveClass("left-3", "top-3")
-      expect(floatingTrigger?.querySelector('img[alt=""][src^="/icon.png?v="]')).not.toBeNull()
-      const floatingNotification = screen.getAllByRole("link", { name: "Notifications" }).find((link) => link.parentElement?.classList.contains("fixed"))
-      expect(floatingNotification).toHaveAttribute("href", "/app-shell/notifications")
-      expect(floatingNotification?.parentElement).toHaveClass("right-3", "top-3")
+      // The scroll-triggered fixed-position duplicate of the brand/bell
+      // buttons was removed (it used to overlap page content once scrolled);
+      // the desktop sidebar (present but CSS-hidden on mobile) and the
+      // anchored mobile top bar are the only remaining copies, and neither
+      // is fixed-positioned.
+      expect(screen.getAllByRole("button", { name: "Open sidebar" })).toHaveLength(1)
+      expect(screen.getByRole("button", { name: "Open sidebar" })).not.toHaveClass("fixed")
+      const notificationLinks = screen.getAllByRole("link", { name: "Notifications" })
+      expect(notificationLinks.some((link) => link.parentElement?.classList.contains("fixed"))).toBe(false)
 
-      fireEvent.click(floatingTrigger as HTMLButtonElement)
+      fireEvent.click(anchoredTrigger)
       const drawerPrimaryNav = screen.getAllByRole("navigation", { name: "Primary" }).at(-1) as HTMLElement | undefined
       if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
       expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
@@ -12010,9 +12011,13 @@ describe("App", () => {
       expect(within(mobileTabs).getByRole("button", { name: "Context" })).toBeInTheDocument()
       expect(within(mobileTabs).queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
       expect(screen.queryByRole("navigation", { name: "Chat workspace tabs" })).not.toBeInTheDocument()
-      expect(screen.getByRole("main", { name: "Chat" })).toHaveClass("[height:calc(var(--chat-visual-viewport-height,100dvh)-4.5rem)]", "lg:[height:100%]")
+      expect(screen.getByRole("main", { name: "Chat" })).toHaveClass("h-full", "lg:[height:100%]")
+      expect(screen.getByRole("main", { name: "Chat" })).not.toHaveClass("[height:calc(var(--chat-visual-viewport-height,100dvh)-4.5rem)]")
+      const chromeMain = screen.getAllByRole("main").find((element) => element !== screen.getByRole("main", { name: "Chat" }))
+      expect(chromeMain).toHaveClass("flex", "flex-col", "overflow-hidden")
+      expect(chromeMain).not.toHaveClass("overflow-auto")
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
-      expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "p-2")
+      expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "overscroll-contain", "p-2")
       expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm")
       expect(screen.getByRole("button", { name: "Add attachment" })).toHaveClass("h-6", "w-6", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
       expect(screen.getByRole("button", { name: "Effort" })).toHaveClass("min-h-11", "sm:min-h-0")
@@ -12032,6 +12037,33 @@ describe("App", () => {
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Chat" }))
       expect(screen.getByTestId("chat-message-stream")).toBeInTheDocument()
       expect(screen.getByPlaceholderText("Ask about this repository...")).toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
+  })
+
+  it("truncates a long preview-panel tab title in the mobile tab strip instead of stretching it", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    const longTitle = "A very long preview panel title that should never be allowed to stretch the tab strip or wrap onto a second line"
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        ...chatPayload(),
+        preview_panels: [{ id: 1, title: longTitle, file_count: 2, url: "http://127.0.0.1:3001", app_close_path: "/api/v1/app/chats/8/preview_panels/1" }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const mobileTabs = await screen.findByRole("navigation", { name: "Chat mobile tabs" })
+      const previewTabButton = within(mobileTabs).getByRole("button", { name: longTitle })
+      expect(previewTabButton).toHaveClass("max-w-[33vw]", "truncate", "shrink-0")
     } finally {
       restoreMedia()
     }

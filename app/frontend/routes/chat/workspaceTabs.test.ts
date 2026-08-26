@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ChatMessageItem, ChatPayload } from "../../api/chats"
-import { availableWorkspaceTabs, mediaTabVisible } from "./workspaceTabs"
+import { availableWorkspaceTabs, mediaTabVisible, workspaceTabClass } from "./workspaceTabs"
 
 function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   return {
@@ -112,6 +112,17 @@ describe("mediaTabVisible", () => {
     const payload = makePayload()
     payload.chat.typed_artifact_count = 1
     expect(mediaTabVisible(payload)).toBe(true)
+  })
+})
+
+describe("workspaceTabClass", () => {
+  it("caps every tab at a third of the viewport width and truncates instead of wrapping or growing", () => {
+    expect(workspaceTabClass(false)).toContain("max-w-[33vw]")
+    expect(workspaceTabClass(false)).toContain("truncate")
+    expect(workspaceTabClass(false)).toContain("shrink-0")
+    expect(workspaceTabClass(true)).toContain("max-w-[33vw]")
+    expect(workspaceTabClass(true)).toContain("truncate")
+    expect(workspaceTabClass(true)).toContain("shrink-0")
   })
 })
 
