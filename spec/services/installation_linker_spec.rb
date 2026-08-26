@@ -49,6 +49,17 @@ RSpec.describe InstallationLinker do
 
       expect(repo.reload.installation).to eq(installation)
     end
+
+    it "does not rewrite repositories already linked to the installation" do
+      installation = Factories.installation(user: user, account_login: "acme")
+      repo = Factories.repository(user: user, owner: "acme", installation: installation)
+      updated_at = 1.hour.ago
+      repo.update_columns(updated_at: updated_at)
+
+      described_class.link_repositories_for(installation)
+
+      expect(repo.reload.updated_at.to_i).to eq(updated_at.to_i)
+    end
   end
 
   describe ".unlink_repositories_for" do
@@ -64,6 +75,17 @@ RSpec.describe InstallationLinker do
       expect(repo1.reload.installation).to be_nil
       expect(repo2.reload.installation).to be_nil
       expect(other_repo.reload.installation).to eq(other_installation)
+    end
+
+    it "does not rewrite repositories already unlinked from the installation" do
+      installation = Factories.installation(user: user, account_login: "acme")
+      repo = Factories.repository(user: user, owner: "acme", installation: nil)
+      updated_at = 1.hour.ago
+      repo.update_columns(installation_id: nil, updated_at: updated_at)
+
+      described_class.unlink_repositories_for(installation)
+
+      expect(repo.reload.updated_at.to_i).to eq(updated_at.to_i)
     end
   end
 end

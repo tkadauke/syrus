@@ -7,6 +7,7 @@ class InstallationLinker
 
   def self.link_repositories_for(installation)
     Repository.where(owner: installation.account_login)
+      .where("installation_id IS NULL OR installation_id <> ?", installation.id)
       .update_all(installation_id: installation.id, updated_at: Time.current)
   end
 
