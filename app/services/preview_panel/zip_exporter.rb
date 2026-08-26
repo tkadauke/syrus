@@ -10,8 +10,7 @@ class PreviewPanel::ZipExporter
   def call
     buffer = Zip::OutputStream.write_buffer do |zip|
       version.files.each do |attachment|
-        relative_path = attachment.blob.metadata["relative_path"].presence || attachment.filename.to_s
-        zip.put_next_entry(relative_path)
+        zip.put_next_entry(attachment.blob.metadata["relative_path"])
         zip.write(attachment.download)
       end
     end
