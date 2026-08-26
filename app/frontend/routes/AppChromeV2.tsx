@@ -1121,7 +1121,7 @@ function ThemePicker() {
           return (
             <button
               aria-pressed={active}
-              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-[11px] font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={option.value}
               onClick={() => setTheme(option.value)}
               type="button"

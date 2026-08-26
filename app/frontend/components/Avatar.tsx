@@ -1,8 +1,8 @@
 export type AvatarSize = "xs" | "sm" | "normal" | "large"
 
 const DIMENSIONS: Record<AvatarSize, string> = {
-  xs: "h-5 w-5 text-[9px]",
-  sm: "h-6 w-6 text-[10px]",
+  xs: "h-5 w-5 text-2xs",
+  sm: "h-6 w-6 text-2xs",
   normal: "h-12 w-12 text-base",
   large: "h-20 w-20 text-2xl"
 }

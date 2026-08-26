@@ -194,7 +194,7 @@ export function SortableColumnHeader({ subject, column, sortState }: { subject: 
       type="button"
     >
       <span>{label}</span>
-      {active ? <span aria-hidden="true" className="text-[11px] leading-none text-gray-700 dark:text-gray-300">{sortState.direction === "asc" ? "↑" : "↓"}</span> : null}
+      {active ? <span aria-hidden="true" className="text-2xs leading-none text-gray-700 dark:text-gray-300">{sortState.direction === "asc" ? "↑" : "↓"}</span> : null}
     </button>
   )
 }

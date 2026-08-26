@@ -83,7 +83,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               type="button"
             >
               {t('configure_agent.tab_codex')}
-              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
+              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
             </button>
             <button
               aria-selected={tab === "gemini"}
@@ -94,7 +94,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               type="button"
             >
               {t('configure_agent.tab_gemini')}
-              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
+              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-2xs font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
             </button>
           </div>
 

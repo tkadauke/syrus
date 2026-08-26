@@ -579,7 +579,7 @@ function WorkerHealthMetricChart({ buckets, hostname, metric, title }: { buckets
         ) : null)}
         {path ? <path d={path} fill="none" stroke={metric.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /> : null}
       </svg>
-      <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+      <div className="mt-1 flex items-center justify-between gap-2 text-2xs text-gray-500 dark:text-gray-400">
         <span>{formatRelativeDate(new Date(buckets[0]?.minute))}</span>
         <span>{missingCount > 0 ? `${missingCount} missing` : `${numericValues.length} samples`}</span>
         <span>{formatRelativeDate(new Date(buckets[buckets.length - 1]?.minute))}</span>
@@ -594,7 +594,7 @@ function ThresholdLine({ label, max, value }: { label: string; max: number; valu
   return (
     <>
       <line className="stroke-amber-500/70" strokeDasharray="4 4" x1="0" x2="320" y1={y} y2={y} vectorEffect="non-scaling-stroke" />
-      <text className="fill-amber-700 text-[10px] dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>{label}</text>
+      <text className="fill-amber-700 text-2xs dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>{label}</text>
     </>
   )
 }
@@ -640,7 +640,7 @@ function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hos
 function HealthStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[11px] font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
+      <div className="text-2xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</div>
       <div className="mt-0.5 font-mono text-gray-900 dark:text-gray-100">{value}</div>
     </div>
   )
