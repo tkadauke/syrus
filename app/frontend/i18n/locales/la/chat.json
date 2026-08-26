@@ -299,6 +299,8 @@
   "preview_version_label": "Versio {{index}}",
   "preview_open_new_tab": "Aperire in nova tabella",
   "preview_open_new_tab_aria": "{{title}} in nova tabella aperire",
+  "preview_export": "Exportare ut zip",
+  "preview_export_aria": "{{title}} exportare ut zip",
   "mark_as_read": "Signa ut lectum",
   "mark_as_unread": "Signa ut non lectum",
   "decline_to_answer": "Recusare respondere",

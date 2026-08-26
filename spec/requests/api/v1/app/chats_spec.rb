@@ -3708,7 +3708,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       "id" => panel.id,
       "title" => "Layout mockup",
       "file_count" => 1,
-      "app_close_path" => "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}"
+      "app_close_path" => "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}",
+      "app_export_path" => "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/export"
     ))
     expect(parse_body["preview_panels"].first["url"]).to include("preview-panel-#{panel.id}.")
 
@@ -3734,6 +3735,54 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(panel_payload["current_version_id"]).to eq(second_version_id)
     expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id, first_version_id ])
     expect(panel_payload["file_count"]).to eq(1)
+  end
+
+  it "exports the current preview panel version as a zip" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(
+      chat_session: chat,
+      title: "Layout mockup",
+      files: { "index.html" => "<p>hi</p>", "css/app.css" => "body{}" }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/export"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Content-Type"]).to eq("application/zip")
+    expect(response.headers["Content-Disposition"]).to include("attachment")
+
+    Zip::File.open_buffer(response.body) do |zip|
+      expect(zip.map(&:name)).to contain_exactly("index.html", "css/app.css")
+      expect(zip.read("index.html")).to eq("<p>hi</p>")
+      expect(zip.read("css/app.css")).to eq("body{}")
+    end
+  end
+
+  it "exports an older preview panel version when a version id is given" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>v1</p>" })
+    first_version_id = panel.current_version.id
+    PreviewPanel::Service.new(panel).update!(files: { "index.html" => "<p>v2</p>" })
+
+    get "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/export", params: { v: first_version_id }
+
+    expect(response).to have_http_status(:ok)
+    Zip::File.open_buffer(response.body) do |zip|
+      expect(zip.read("index.html")).to eq("<p>v1</p>")
+    end
+  end
+
+  it "404s exporting a preview panel version id that does not belong to the panel" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+    other_panel = PreviewPanel::Service.open!(chat_session: chat, title: "Other", files: { "index.html" => "<p>other</p>" })
+
+    get "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/export", params: { v: other_panel.current_version.id }
+
+    expect(response).to have_http_status(:not_found)
   end
 
   it "includes plugin-registered workspace tabs in the chat payload" do

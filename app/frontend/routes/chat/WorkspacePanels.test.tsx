@@ -560,6 +560,7 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "http://preview-panel-7.lvh.me/",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
           current_version_id: null,
           versions: []
         }
@@ -588,6 +589,7 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "https://preview-panel-7.lvh.me/",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
           current_version_id: null,
           versions: []
         }
@@ -608,6 +610,13 @@ describe("ChatWorkspacePanel preview panels", () => {
     expect(link).toHaveAttribute("target", "_blank")
   })
 
+  it("renders an export link pointed at the panel's export path", () => {
+    renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    const link = screen.getByRole("link", { name: "Export Layout mockup as zip" })
+    expect(link).toHaveAttribute("href", "/api/v1/app/chats/1/preview_panels/7/export")
+  })
+
   it("does not render a version selector when the panel has a single version", () => {
     const payload: ChatPayload = {
       ...makePayload(),
@@ -618,6 +627,7 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "http://preview-panel-7.lvh.me/",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
           current_version_id: 100,
           versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z" } ]
         }
@@ -639,6 +649,7 @@ describe("ChatWorkspacePanel preview panels", () => {
           file_count: 2,
           url: "http://preview-panel-7.lvh.me",
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
+          app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
           current_version_id: 102,
           versions: [
             { id: 102, created_at: "2026-08-22T10:00:00Z" },
@@ -667,6 +678,10 @@ describe("ChatWorkspacePanel preview panels", () => {
     expect(screen.getByRole("link", { name: "Open Layout mockup in new tab" })).toHaveAttribute(
       "href",
       "http://preview-panel-7.lvh.me/?v=101"
+    )
+    expect(screen.getByRole("link", { name: "Export Layout mockup as zip" })).toHaveAttribute(
+      "href",
+      "/api/v1/app/chats/1/preview_panels/7/export?v=101"
     )
   })
 

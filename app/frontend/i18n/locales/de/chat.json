@@ -299,6 +299,8 @@
   "preview_version_label": "Version {{index}}",
   "preview_open_new_tab": "In neuem Tab öffnen",
   "preview_open_new_tab_aria": "{{title}} in neuem Tab öffnen",
+  "preview_export": "Als ZIP exportieren",
+  "preview_export_aria": "{{title}} als ZIP exportieren",
   "mark_as_read": "Als gelesen markieren",
   "mark_as_unread": "Als ungelesen markieren",
   "decline_to_answer": "Antwort ablehnen",

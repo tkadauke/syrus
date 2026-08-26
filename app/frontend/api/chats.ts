@@ -495,6 +495,7 @@ export type ChatPreviewPanel = {
   file_count: number
   url: string
   app_close_path: string
+  app_export_path: string
   current_version_id: number | null
   versions: ChatPreviewPanelVersion[]
 }

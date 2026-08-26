@@ -692,6 +692,7 @@ DEPENDENCIES
   rubocop-rails-omakase
   ruby!
   ruby-vips (~> 2.0)
+  rubyzip
   selenium-webdriver
   simplecov
   simplecov-lcov

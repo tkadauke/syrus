@@ -36,6 +36,7 @@ module ChatSerialization
         file_count: current&.files&.size || 0,
         url: panel.preview_url(base_domain, scheme: scheme),
         app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}",
+        app_export_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}/export",
         current_version_id: current&.id,
         versions: versions.map { |version| { id: version.id, created_at: version.created_at.iso8601 } }
       }

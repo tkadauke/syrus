@@ -183,12 +183,30 @@ function ExternalLinkIcon({ className = "" }: { className?: string }) {
   )
 }
 
+function DownloadIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
+      <line strokeLinecap="round" strokeLinejoin="round" x1="12" x2="12" y1="15" y2="3" />
+    </svg>
+  )
+}
+
 function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null) {
   if (!versionId) return panel.url
 
   const url = new URL(panel.url)
   url.searchParams.set("v", String(versionId))
   return url.toString()
+}
+
+function previewExportUrl(panel: ChatPreviewPanel, versionId: number | null) {
+  if (!versionId) return panel.app_export_path
+
+  const url = new URL(panel.app_export_path, window.location.origin)
+  url.searchParams.set("v", String(versionId))
+  return `${url.pathname}${url.search}`
 }
 
 // Toolbar dropdown pattern (button + absolutely positioned listbox), same
@@ -294,21 +312,32 @@ function PreviewPanelFrame({ panel }: { panel: ChatPreviewPanel }) {
   }, [panel.current_version_id])
 
   const versionedUrl = previewVersionUrl(panel, selectedVersionId)
+  const exportUrl = previewExportUrl(panel, selectedVersionId)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-1.5 dark:border-gray-700">
         <PreviewVersionSelector onChange={setSelectedVersionId} panel={panel} selectedVersionId={selectedVersionId} />
-        <a
-          aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
-          className="ml-auto rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-          href={versionedUrl}
-          rel="noopener noreferrer"
-          target="_blank"
-          title={t("preview_open_new_tab")}
-        >
-          <ExternalLinkIcon className="h-3.5 w-3.5" />
-        </a>
+        <div className="ml-auto flex items-center gap-1">
+          <a
+            aria-label={t("preview_export_aria", { title: panel.title })}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            href={exportUrl}
+            title={t("preview_export")}
+          >
+            <DownloadIcon className="h-3.5 w-3.5" />
+          </a>
+          <a
+            aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            href={versionedUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+            title={t("preview_open_new_tab")}
+          >
+            <ExternalLinkIcon className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
       <iframe
         className="h-full w-full min-h-0 flex-1 border-0"
