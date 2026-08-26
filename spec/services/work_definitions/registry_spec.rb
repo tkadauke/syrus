@@ -93,6 +93,7 @@ RSpec.describe WorkDefinitions do
       skill
       deploy
       promotion
+      hotfix_sync
     ]
 
     resume_failed_step_kinds.each do |kind|
@@ -136,6 +137,7 @@ RSpec.describe WorkDefinitions do
       skill
       deploy
       promotion
+      hotfix_sync
     ]
     rebuild_kinds = %w[
       rebase
@@ -294,7 +296,8 @@ RSpec.describe WorkDefinitions do
       "main_branch_repair",
       "landing_validation",
       "merge_train_validation",
-      "promotion"
+      "promotion",
+      "hotfix_sync"
     )
   end
 
@@ -411,7 +414,8 @@ RSpec.describe WorkDefinitions do
       "landing_validation",
       "merge_train_validation",
       "job_bundle_validation",
-      "promotion"
+      "promotion",
+      "hotfix_sync"
     )
   end
 end

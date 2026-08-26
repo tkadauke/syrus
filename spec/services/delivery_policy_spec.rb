@@ -154,6 +154,15 @@ RSpec.describe DeliveryPolicy do
     it "resolves promotion_repair_skill to nil when not configured" do
       expect(policy.promotion_repair_skill).to be_nil
     end
+
+    it "resolves hotfix sync source/target branches as the mirror image of promotion" do
+      expect(policy.hotfix_sync_source_branch).to eq("main")
+      expect(policy.hotfix_sync_target_branch).to eq("develop")
+    end
+
+    it "resolves hotfix_sync_repair_skill to nil when not configured" do
+      expect(policy.hotfix_sync_repair_skill).to be_nil
+    end
   end
 
   describe "#promotion_repair_skill" do
@@ -171,12 +180,36 @@ RSpec.describe DeliveryPolicy do
     end
   end
 
+  describe "#hotfix_sync_repair_skill" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "resolves the configured delivery.hotfix_sync.repair_skill" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          hotfix_sync:
+            enabled: true
+            repair_skill: backport_release_hotfix
+      YAML
+
+      expect(policy.hotfix_sync_repair_skill).to eq("backport_release_hotfix")
+    end
+  end
+
   describe "#promotion_source_branch and #promotion_target_branch against a bare repository" do
     subject(:policy) { described_class.for(repository: repo) }
 
     it "falls back to the repository default branch for both when no delivery: block is configured" do
       expect(policy.promotion_source_branch).to eq("main")
       expect(policy.promotion_target_branch).to eq("main")
+    end
+  end
+
+  describe "#hotfix_sync_source_branch and #hotfix_sync_target_branch against a bare repository" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "falls back to the repository default branch for both when no delivery: block is configured" do
+      expect(policy.hotfix_sync_source_branch).to eq("main")
+      expect(policy.hotfix_sync_target_branch).to eq("main")
     end
   end
 

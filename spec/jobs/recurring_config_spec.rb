@@ -24,6 +24,16 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "polls for hotfix syncs every five minutes" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("poll_hotfix_syncs")).to include(
+      "class" => "PollAllHotfixSyncsJob",
+      "queue" => "polling",
+      "schedule" => "every 5 minutes"
+    )
+  end
+
   it "prunes old notifications daily" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
 

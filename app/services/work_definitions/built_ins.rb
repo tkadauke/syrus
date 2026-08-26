@@ -168,6 +168,17 @@ module WorkDefinitions
     self.scope = "repository"
   end
 
+  class HotfixSync < Base
+    include ManagesOwnJobLifecycle
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+
+    self.kind = "hotfix_sync"
+    self.workflow_trigger_kind = "hotfix_sync"
+    self.runtime_role = "first_class"
+    self.scope = "repository"
+  end
+
   class AutoMerge < Base
     include BlocksCiFailure
     include LandingValidationPrefetchSource

@@ -9,7 +9,13 @@ class LandingGraderPlan
     merge_train_validation
     external_pr_merge
   ].freeze
-  PROMOTION_TRIGGER_KINDS = %w[ promotion ].freeze
+  # hotfix_sync reuses the `promotion` grade phase — there is no separate
+  # built-in `hotfix_sync` entry in `SyrusYml::GRADE_PHASES` yet, and the
+  # plan's own default ("use `promotion` when that phase exists, else
+  # `landing`") already points hotfix-sync graders at the same phase name
+  # promotion uses. A repository opts a grader into both ref-movement
+  # workflows with the same `phases: [promotion]`.
+  PROMOTION_TRIGGER_KINDS = %w[ promotion hotfix_sync ].freeze
 
   def self.effective(plan, trigger_kind:, iteration:)
     new(plan, trigger_kind: trigger_kind, iteration: iteration).effective
