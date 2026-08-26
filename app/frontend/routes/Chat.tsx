@@ -176,7 +176,7 @@ export function ChatRoute() {
   return (
     <main
       aria-label={t("aria_chat")}
-      className="mx-auto flex h-full [height:calc(var(--chat-visual-viewport-height,100dvh)-4.5rem)] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 sm:gap-6 sm:p-6 lg:[height:100%]"
+      className="mx-auto flex h-full max-w-[96rem] flex-col gap-2 overflow-hidden p-2 sm:gap-6 sm:p-6 lg:[height:100%]"
       style={viewportStyle}
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
@@ -602,7 +602,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-2 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (

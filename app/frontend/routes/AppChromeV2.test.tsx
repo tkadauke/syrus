@@ -532,6 +532,65 @@ describe("AppChromeV2", () => {
   })
 })
 
+describe("AppChromeV2 mobile chat scroll containment", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("renders main with overflow-hidden and flex-col on a chat route at mobile widths", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
+
+      const main = screen.getByRole("main")
+      expect(main).toHaveClass("flex", "flex-col", "overflow-hidden")
+      expect(main).not.toHaveClass("overflow-auto")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("leaves main as overflow-auto for a chat route at desktop widths", () => {
+    renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
+
+    const main = screen.getByRole("main")
+    expect(main).toHaveClass("overflow-auto")
+    expect(main).not.toHaveClass("overflow-hidden")
+  })
+
+  it("leaves main as overflow-auto for a non-chat route even at mobile widths", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Dashboard</div>, { initialEntries: ["/repositories"] })
+
+      const main = screen.getByRole("main")
+      expect(main).toHaveClass("overflow-auto")
+      expect(main).not.toHaveClass("overflow-hidden")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("never renders a scroll-triggered duplicate of the mobile brand/bell buttons", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
+
+      const main = screen.getByRole("main")
+      fireEvent.scroll(main, { target: { scrollTop: 100 } })
+
+      expect(screen.getAllByLabelText("Open sidebar")).toHaveLength(1)
+      expect(screen.getAllByLabelText("Open sidebar")[0].className).not.toContain("fixed")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+})
+
 describe("AppChromeV2 primary nav reordering", () => {
   beforeEach(() => {
     window.localStorage.clear()
