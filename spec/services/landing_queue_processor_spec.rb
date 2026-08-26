@@ -644,6 +644,44 @@ RSpec.describe LandingQueueProcessor do
     expect(entry.waiting_for_jobs.map(&:issue_number)).to eq([ 2 ])
   end
 
+  it "fetches an Epic's sibling jobs once per entries() call, not once per sibling-facing check" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    first = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+    second = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+
+    query_count = 0
+    counter = lambda do |*, payload|
+      sql = payload[:sql]
+      query_count += 1 if sql.match?(/\ASELECT "jobs"\.\* FROM "jobs" WHERE "jobs"\."epic_id" = \?/)
+    end
+
+    entries = ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      described_class.entries(Job.where(id: [ first.id, second.id ]))
+    end
+
+    expect(query_count).to eq(1)
+    expect(entries.map(&:blocked_reason)).to all(be_blank)
+  end
+
+  it "does not let land()'s race-guard re-check use a stale Epic-siblings cache from an earlier entries() snapshot on the same instance" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    first = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+    second = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+    processor = described_class.new
+
+    # Mirrors #call: entries() is computed first (with both siblings
+    # approved, so the Epic's sibling set memoizes as "all approved"),
+    # then land() re-validates blockage_for on the same instance later.
+    snapshot = processor.entries(Job.where(id: first.id))
+    expect(snapshot.first.blocked_reason).to be_blank
+
+    # A sibling regresses out of :approved between the snapshot and the
+    # actual land attempt.
+    second.update!(state: "implemented")
+
+    expect { processor.send(:land, first) }.not_to change { first.reload.state }
+  end
+
   it "starts queued epic siblings once their same-epic dependencies are approved" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     first = queue_job(issue_number: 1, approved_at: 3.minutes.ago, epic: epic)
