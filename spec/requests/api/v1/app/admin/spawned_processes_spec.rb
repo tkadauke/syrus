@@ -198,6 +198,62 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     )
   end
 
+  it "attributes a workflow-run process to its Job as the owner" do
+    sign_in_as(admin)
+    job = Factories.job(user: admin)
+    workflow = job.latest_workflow
+    process = fixture(workflow: workflow)
+
+    get "/api/v1/app/admin/processes/#{process.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["owner"]).to eq(
+      "type" => "workflow",
+      "label" => "JOB-#{job.id} · #{job.title}",
+      "path" => "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}"
+    )
+  end
+
+  it "attributes a chat-invocation process to its chat session as the owner" do
+    sign_in_as(admin)
+    chat_session = ChatSession.create!(user: admin, title: "Investigating flaky specs")
+    process = fixture(kind: "chat_prepare", chat_session: chat_session)
+
+    get "/api/v1/app/admin/processes/#{process.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["owner"]).to eq(
+      "type" => "chat",
+      "label" => "Investigating flaky specs",
+      "path" => "/chats/#{chat_session.id}"
+    )
+  end
+
+  it "attributes a preview process to its Job via resource_attribution as the owner" do
+    sign_in_as(admin)
+    job = Factories.job(user: admin)
+    process = fixture(kind: "preview", resource_attribution: { "job_id" => job.id, "port" => 3001 })
+
+    get "/api/v1/app/admin/processes/#{process.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["owner"]).to eq(
+      "type" => "preview",
+      "label" => "Preview · JOB-#{job.id}",
+      "path" => "/jobs/#{job.id}"
+    )
+  end
+
+  it "reports no owner when a process carries no run/workflow/chat attribution" do
+    sign_in_as(admin)
+    process = fixture(kind: "deploy")
+
+    get "/api/v1/app/admin/processes/#{process.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["owner"]).to be_nil
+  end
+
   it "stamps kill_requested_at" do
     sign_in_as(admin)
     process = fixture
