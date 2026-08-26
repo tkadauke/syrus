@@ -533,11 +533,12 @@ class LandingQueueProcessor
       raise ActiveRecord::Rollback if active_landing_workflow_for_job?(job)
       raise ActiveRecord::Rollback unless job.approved?
       # This re-check is the race guard against state that changed since the
-      # queue snapshot was taken (e.g. an urgent Job going active in between)
-      # — it must see fresh data, not whatever entries() cached earlier on
-      # this same instance. Drop the memoized urgent-jobs cache for this
-      # repository before re-validating.
+      # queue snapshot was taken (e.g. an urgent Job going active in between,
+      # or an Epic sibling's state/PR checks changing) — it must see fresh
+      # data, not whatever entries() cached earlier on this same instance.
+      # Drop the memoized per-repository/per-Epic caches before re-validating.
       @active_urgent_jobs_by_repository_id&.delete(job.repository_id)
+      @epic_work_jobs_by_epic_id&.delete(job.epic_id) if job.epic_id
       raise ActiveRecord::Rollback unless blockage_for(job, consume_override: true)[:blocked_reason].blank?
 
       job.landing_failure_reason = nil
@@ -876,18 +877,29 @@ class LandingQueueProcessor
 
   def reset_blockage_caches!
     @active_urgent_jobs_by_repository_id = {}
+    @epic_work_jobs_by_epic_id = {}
+  end
+
+  # Memoized per epic_id for the same reason active_urgent_jobs_for_repository
+  # is: entries() calls blockage_for once per Job, and an Epic's children each
+  # re-query the same sibling set. Without this, a K-child Epic issues this
+  # query K times per entries() pass (once per sibling-facing check, per
+  # child) instead of once total. Cleared at the top of every entries() call
+  # via reset_blockage_caches!, and busted per-epic in land()'s race-guard
+  # re-check for the same reason active_urgent_jobs_by_repository_id is.
+  def epic_sibling_jobs(job)
+    @epic_work_jobs_by_epic_id ||= {}
+    @epic_work_jobs_by_epic_id[job.epic_id] ||= job.epic.work_jobs.order(:id).to_a
   end
 
   def unapproved_epic_siblings(job)
-    job.epic.work_jobs
-       .where.not(id: job.id)
-       .where.not(state: %w[ approved closed ])
-       .order(:id)
-       .to_a
+    epic_sibling_jobs(job)
+      .reject { |sibling| sibling.id == job.id }
+      .reject { |sibling| sibling.state.in?(%w[ approved closed ]) }
   end
 
   def ci_failure_workflow_epic_sibling(job)
-    siblings = job.epic.work_jobs.where.not(id: job.id).order(:id).to_a
+    siblings = epic_sibling_jobs(job).reject { |sibling| sibling.id == job.id }
     return nil if siblings.empty?
 
     active_trigger_kinds_by_job_id = WorkUnits::Ownership.active_trigger_kind_lists_by_job_id(siblings.map(&:id))
@@ -895,12 +907,12 @@ class LandingQueueProcessor
   end
 
   def pr_checks_unclean_epic_sibling(job)
-    base = job.epic.work_jobs.where.not(id: job.id).where.not(state: "closed")
+    siblings = epic_sibling_jobs(job).reject { |sibling| sibling.id == job.id || sibling.closed? }
 
-    failing = base.where(pr_checks_state: "failing").order(:id).first
+    failing = siblings.find { |sibling| sibling.pr_checks_state == "failing" }
     return { sibling: failing, label: "failing" } if failing
 
-    pending_sibling = base.where(pr_checks_state: "pending").order(:id).first
+    pending_sibling = siblings.find { |sibling| sibling.pr_checks_state == "pending" }
     return { sibling: pending_sibling, label: "pending" } if pending_sibling
 
     nil
