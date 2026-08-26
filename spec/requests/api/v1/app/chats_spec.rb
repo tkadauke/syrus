@@ -3785,6 +3785,100 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "defaults a new preview panel to private in the chat payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    panel_payload = parse_body["preview_panels"].first
+    expect(panel_payload["visibility"]).to eq("private")
+    expect(panel_payload["app_visibility_path"]).to eq("/api/v1/app/chats/#{chat.id}/preview_panels/#{panel_payload["id"]}")
+    expect(panel_payload["app_token_path"]).to eq("/api/v1/app/chats/#{chat.id}/preview_panels/#{panel_payload["id"]}/token")
+  end
+
+  it "switches a preview panel's visibility through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+
+    patch "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}", params: { visibility: "public" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Layout mockup is now public.")
+    expect(parse_body["preview_panels"].first["visibility"]).to eq("public")
+    expect(panel.reload.visibility).to eq("public")
+  end
+
+  it "rejects an unknown preview panel visibility value" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+
+    patch "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}", params: { visibility: "unlisted" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(panel.reload.visibility).to eq("private")
+  end
+
+  it "mints a preview panel access token for a private panel" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+
+    post "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/token"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["expires_in"]).to eq(PreviewPanel::AccessToken::TTL.to_i)
+    expect(PreviewPanel::AccessToken.panel_id_for(parse_body["token"])).to eq(panel.id)
+  end
+
+  it "does not mint an access token for a public panel" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+    PreviewPanel::Service.new(panel).update_visibility!("public")
+
+    post "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/token"
+
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "404s minting a preview panel access token for a chat the user cannot access" do
+    other_user = Factories.user
+    other_chat = ChatSession.create!(user: other_user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: other_chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+    sign_in_as(user)
+
+    post "/api/v1/app/chats/#{other_chat.id}/preview_panels/#{panel.id}/token"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "mints an access token via a valid shared-chat token for a chat the user does not otherwise have access to" do
+    other_user = Factories.user
+    other_chat = ChatSession.create!(user: other_user, share_token: SecureRandom.uuid, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: other_chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+    sign_in_as(user)
+
+    post "/api/v1/app/chats/#{other_chat.id}/preview_panels/#{panel.id}/token", params: { share_token: other_chat.share_token }
+
+    expect(response).to have_http_status(:ok)
+    expect(PreviewPanel::AccessToken.panel_id_for(parse_body["token"])).to eq(panel.id)
+  end
+
+  it "404s minting an access token with an incorrect shared-chat token" do
+    other_user = Factories.user
+    other_chat = ChatSession.create!(user: other_user, share_token: SecureRandom.uuid, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: other_chat, title: "Layout mockup", files: { "index.html" => "<p>hi</p>" })
+    sign_in_as(user)
+
+    post "/api/v1/app/chats/#{other_chat.id}/preview_panels/#{panel.id}/token", params: { share_token: "wrong-token" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "includes plugin-registered workspace tabs in the chat payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

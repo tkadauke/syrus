@@ -1,5 +1,6 @@
 class PreviewPanel < ApplicationRecord
   STATES = %w[ open closed ].freeze
+  VISIBILITIES = %w[ private public ].freeze
   DEFAULT_ENTRY_FILENAME = "index.html"
 
   belongs_to :chat_session
@@ -7,9 +8,15 @@ class PreviewPanel < ApplicationRecord
 
   validates :title, presence: true
   validates :state, presence: true, inclusion: { in: STATES }
+  validates :visibility, presence: true, inclusion: { in: VISIBILITIES }
 
   def open? = state == "open"
   def closed? = state == "closed"
+
+  # "public" is the explicit opt-in; anything else (including the "private"
+  # default) requires PreviewProxyMiddleware's token/cookie check.
+  def public? = visibility == "public"
+  def private? = visibility == "private"
 
   # Mirrors PreviewEnvironment#preview_url: derived, not stored, so the
   # base domain can change without touching persisted rows. Uses the
@@ -67,6 +74,7 @@ class PreviewPanel < ApplicationRecord
       "id" => id,
       "title" => title,
       "state" => state,
+      "visibility" => visibility,
       "file_count" => current_version&.files&.size || 0
     }
   end

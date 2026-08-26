@@ -489,15 +489,25 @@ export type ChatPreviewPanelVersion = {
   created_at: string
 }
 
+export type ChatPreviewPanelVisibility = "private" | "public"
+
 export type ChatPreviewPanel = {
   id: number
   title: string
   file_count: number
   url: string
+  visibility: ChatPreviewPanelVisibility
   app_close_path: string
+  app_visibility_path: string
   app_export_path: string
+  app_token_path: string
   current_version_id: number | null
   versions: ChatPreviewPanelVersion[]
+}
+
+export type ChatPreviewPanelAccessToken = {
+  token: string
+  expires_in: number
 }
 
 export type ChatWorkspaceTab = {
@@ -996,6 +1006,14 @@ export function deleteChatAttachment(path: string) {
 
 export function closeChatPreviewPanel(path: string) {
   return deleteJson<ChatPayload>(path)
+}
+
+export function updateChatPreviewPanelVisibility(path: string, visibility: ChatPreviewPanelVisibility) {
+  return patchJson<ChatPayload>(path, { visibility })
+}
+
+export function fetchChatPreviewPanelAccessToken(path: string) {
+  return postJson<ChatPreviewPanelAccessToken>(path)
 }
 
 // `start: true` asks the server to also move a materialized Epic to

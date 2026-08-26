@@ -5,7 +5,7 @@ RSpec.describe PreviewProxyMiddleware do
   let(:middleware) { described_class.new(inner_app) }
   let(:job) { Factories.job }
 
-  def env_for(host:, path: "/", method: "GET", body: nil, query: nil)
+  def env_for(host:, path: "/", method: "GET", body: nil, query: nil, cookie: nil)
     url = "http://#{host}#{path}"
     url += "?#{query}" if query
     opts = { method: method }
@@ -13,6 +13,7 @@ RSpec.describe PreviewProxyMiddleware do
     opts[:input] = body if body
     rack_env = Rack::MockRequest.env_for(url, opts)
     rack_env["HTTP_HOST"] = host
+    rack_env["HTTP_COOKIE"] = cookie if cookie
     rack_env
   end
 
@@ -320,8 +321,12 @@ RSpec.describe PreviewProxyMiddleware do
     let(:repository) { Factories.repository(user: user) }
     let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
+    # Generic streaming/versioning/CSP behavior below isn't exercising the
+    # access-control gate, so default these panels to public rather than
+    # threading a valid token through every one of them. Access control
+    # itself is covered by the dedicated "panel access control" group.
     def create_panel(**attrs)
-      PreviewPanel.create!({ chat_session: chat_session, title: "Widget preview" }.merge(attrs))
+      PreviewPanel.create!({ chat_session: chat_session, title: "Widget preview", visibility: "public" }.merge(attrs))
     end
 
     it "streams the index.html attachment for the panel root path" do
@@ -445,6 +450,105 @@ RSpec.describe PreviewProxyMiddleware do
 
       expect(status).to eq(200)
       expect(body.join).to eq("<h1>custom domain</h1>")
+    end
+  end
+
+  describe "panel access control" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    def create_panel(**attrs)
+      panel = PreviewPanel.create!({ chat_session: chat_session, title: "Widget preview" }.merge(attrs))
+      panel.create_version!("index.html" => "<h1>hi</h1>")
+      panel
+    end
+
+    it "serves a public panel with no token at all" do
+      panel = create_panel(visibility: "public")
+
+      status, _, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>hi</h1>")
+    end
+
+    it "rejects a private panel with no token" do
+      panel = create_panel(visibility: "private")
+
+      status, _, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(401)
+      expect(body.join).to include("private")
+    end
+
+    it "rejects a private panel with a garbage token" do
+      panel = create_panel(visibility: "private")
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "token=garbage"))
+
+      expect(status).to eq(401)
+    end
+
+    it "rejects a token issued for a different panel" do
+      panel = create_panel(visibility: "private")
+      other_panel = create_panel(visibility: "private")
+      token = PreviewPanel::AccessToken.issue(other_panel)
+
+      status, _, _ = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "token=#{token}"))
+
+      expect(status).to eq(401)
+    end
+
+    it "rejects an expired token" do
+      panel = create_panel(visibility: "private")
+      token = nil
+      freeze_time { token = PreviewPanel::AccessToken.issue(panel) }
+
+      status, _, _ = travel(PreviewPanel::AccessToken::TTL + 1.minute) do
+        middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "token=#{token}"))
+      end
+
+      expect(status).to eq(401)
+    end
+
+    it "serves a private panel with a valid query token and sets a follow-up access cookie" do
+      panel = create_panel(visibility: "private")
+      token = PreviewPanel::AccessToken.issue(panel)
+
+      status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "token=#{token}"))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>hi</h1>")
+      set_cookie = Array(headers["set-cookie"] || headers["Set-Cookie"]).join("; ")
+      expect(set_cookie).to include("_syrus_preview_panel_access=#{token}")
+      expect(set_cookie).to include("httponly")
+      expect(set_cookie).to include("samesite=none")
+    end
+
+    it "serves a private panel using only the access cookie, without a query token" do
+      panel = create_panel(visibility: "private")
+      token = PreviewPanel::AccessToken.issue(panel)
+
+      status, _, body = middleware.call(env_for(
+        host: "preview-panel-#{panel.id}.lvh.me",
+        cookie: "_syrus_preview_panel_access=#{token}"
+      ))
+
+      expect(status).to eq(200)
+      expect(body.join).to eq("<h1>hi</h1>")
+    end
+
+    it "marks the access cookie secure when the request is https" do
+      panel = create_panel(visibility: "private")
+      token = PreviewPanel::AccessToken.issue(panel)
+
+      env = env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "token=#{token}")
+      env["HTTPS"] = "on"
+      _, headers, _ = middleware.call(env)
+
+      set_cookie = Array(headers["set-cookie"] || headers["Set-Cookie"]).join("; ")
+      expect(set_cookie).to include("secure")
     end
   end
 end

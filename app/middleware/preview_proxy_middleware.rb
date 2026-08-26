@@ -28,6 +28,8 @@ class PreviewProxyMiddleware
     "OPTIONS" => Net::HTTP::Options
   }.freeze
 
+  PANEL_ACCESS_COOKIE = "_syrus_preview_panel_access"
+
   def initialize(app)
     @app = app
     @base_domain = ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
@@ -175,11 +177,21 @@ class PreviewProxyMiddleware
   # proxying to a spawned process — panels have no running server behind
   # them. Resolves against a specific version via the ?v= query param,
   # defaulting to the panel's current (latest) version when absent.
+  #
+  # Public panels are always servable, matching the pre-visibility behavior.
+  # Private panels (the default) require a valid PreviewPanel::AccessToken,
+  # presented either as the `?token=` query param the chat frontend appends
+  # to the iframe src, or as the follow-up access cookie set below — this is
+  # the only authorization check this middleware performs, since the panel
+  # subdomain never reaches the main app's session-based auth.
   def serve_panel(env, panel_id)
     panel = PreviewPanel.find_by(id: panel_id, state: "open")
     return panel_not_found_response unless panel
 
     request = Rack::Request.new(env)
+    access_token = panel.public? ? nil : panel_access_token(request, panel)
+    return panel_unauthorized_response unless panel.public? || access_token
+
     version = resolve_panel_version(panel, request.params["v"])
     return panel_not_found_response unless version
 
@@ -188,6 +200,7 @@ class PreviewProxyMiddleware
 
     content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
     headers = { "Content-Type" => content_type, "Content-Security-Policy" => PREVIEW_CSP }
+    set_panel_access_cookie!(headers, request, access_token) if access_token
     [200, headers, [attachment.download]]
   end
 
@@ -195,6 +208,28 @@ class PreviewProxyMiddleware
     return panel.current_version if version_param.blank?
 
     panel.preview_panel_versions.find_by(id: version_param)
+  end
+
+  # Checks the access cookie first (set by an earlier authorized request in
+  # this same browsing session) so a multi-file mockup's follow-up same-origin
+  # requests for CSS/JS/images — which never carry the original query-string
+  # token — stay authorized without it being rewritten into every internal
+  # link. Falls back to the query param for the first request.
+  def panel_access_token(request, panel)
+    [ request.cookies[PANEL_ACCESS_COOKIE], request.params["token"] ].find do |candidate|
+      candidate.present? && PreviewPanel::AccessToken.panel_id_for(candidate) == panel.id
+    end
+  end
+
+  def set_panel_access_cookie!(headers, request, access_token)
+    Rack::Utils.set_cookie_header!(headers, PANEL_ACCESS_COOKIE, {
+      value: access_token,
+      path: "/",
+      http_only: true,
+      secure: request.ssl?,
+      same_site: :none,
+      expires: PreviewPanel::AccessToken::TTL.from_now
+    })
   end
 
   def panel_not_found_response
@@ -208,5 +243,18 @@ class PreviewProxyMiddleware
       </html>
     HTML
     [404, { "Content-Type" => "text/html; charset=utf-8" }, [body]]
+  end
+
+  def panel_unauthorized_response
+    body = <<~HTML
+      <!DOCTYPE html>
+      <html>
+        <head><title>Preview Not Available</title></head>
+        <body>
+          <p>This preview is private. Reload the chat to request access.</p>
+        </body>
+      </html>
+    HTML
+    [401, { "Content-Type" => "text/html; charset=utf-8" }, [body]]
   end
 end

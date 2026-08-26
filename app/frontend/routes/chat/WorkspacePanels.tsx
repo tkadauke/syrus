@@ -6,7 +6,7 @@ import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatRenderItem, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVisibility, type ChatRenderItem, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { providerIconSrc } from "../../lib/pluginIcon"
@@ -143,7 +143,7 @@ export function ChatWorkspacePanel({
         </nav>
       )}
       <div className={`min-h-0 flex-1 ${activeTab === "files" || activePreviewPanel || isPluginTab(activeTab) ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
-        {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} panel={activePreviewPanel} /> : null}
+        {activePreviewPanel ? <PreviewPanelFrame key={activePreviewPanel.id} onNotice={onNotice} panel={activePreviewPanel} queryKey={queryKey} /> : null}
         {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
@@ -193,11 +193,31 @@ function DownloadIcon({ className = "" }: { className?: string }) {
   )
 }
 
-function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null) {
-  if (!versionId) return panel.url
+function LockIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect height="10" rx="2" ry="2" width="16" x="4" y="11" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function GlobeIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" />
+      <line x1="3" x2="21" y1="12" y2="12" />
+      <path d="M12 3a14.5 14.5 0 0 1 3.5 9 14.5 14.5 0 0 1-3.5 9 14.5 14.5 0 0 1-3.5-9A14.5 14.5 0 0 1 12 3z" />
+    </svg>
+  )
+}
+
+function previewVersionUrl(panel: ChatPreviewPanel, versionId: number | null, accessToken: string | null) {
+  if (!versionId && !accessToken) return panel.url
 
   const url = new URL(panel.url)
-  url.searchParams.set("v", String(versionId))
+  if (versionId) url.searchParams.set("v", String(versionId))
+  if (accessToken) url.searchParams.set("token", accessToken)
   return url.toString()
 }
 
@@ -293,11 +313,163 @@ function PreviewVersionSelector({
   )
 }
 
+// Toolbar dropdown pattern, same as PreviewVersionSelector — the "share"
+// control occupies the second toolbar position (after the version
+// selector), toggling PreviewPanel#visibility and, once public, surfacing a
+// copyable link that needs no access token to view.
+function PreviewShareControl({
+  panel,
+  queryKey,
+  onNotice
+}: {
+  panel: ChatPreviewPanel
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const isPublic = panel.visibility === "public"
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  const updateVisibility = useMutation({
+    mutationFn: (visibility: ChatPreviewPanelVisibility) => updateChatPreviewPanelVisibility(panel.app_visibility_path, visibility),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+    }
+  })
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(panel.url)
+      onNotice(t("preview_share_link_copied"))
+    } catch {
+      onNotice(t("preview_share_link_copy_error"))
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("preview_share_selector_label", { title: panel.title })}
+        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        type="button"
+      >
+        {isPublic ? <GlobeIcon className="h-3 w-3" /> : <LockIcon className="h-3 w-3" />}
+        <span>{isPublic ? t("preview_share_option_public") : t("preview_share_option_private")}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {dropdownOpen ? (
+        <div
+          className="absolute left-0 top-full z-20 mt-1 min-w-[13rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          ref={dropdownRef}
+          role="listbox"
+        >
+          <button
+            aria-selected={!isPublic}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${!isPublic ? "bg-brand font-medium text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            onClick={() => {
+              updateVisibility.mutate("private")
+              setDropdownOpen(false)
+            }}
+            role="option"
+            type="button"
+          >
+            <LockIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex flex-col items-start">
+              <span>{t("preview_share_option_private")}</span>
+              <span className={`text-xs font-normal ${!isPublic ? "text-white/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_private_hint")}</span>
+            </span>
+          </button>
+          <button
+            aria-selected={isPublic}
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${isPublic ? "bg-brand font-medium text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            onClick={() => {
+              updateVisibility.mutate("public")
+              setDropdownOpen(false)
+            }}
+            role="option"
+            type="button"
+          >
+            <GlobeIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex flex-col items-start">
+              <span>{t("preview_share_option_public")}</span>
+              <span className={`text-xs font-normal ${isPublic ? "text-white/80" : "text-gray-400 dark:text-gray-500"}`}>{t("preview_share_option_public_hint")}</span>
+            </span>
+          </button>
+          {isPublic ? (
+            <button
+              className="w-full border-t border-gray-100 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={() => {
+                void copyLink()
+                setDropdownOpen(false)
+              }}
+              type="button"
+            >
+              {t("preview_share_copy_link")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {updateVisibility.isError ? (
+        <p className="absolute left-0 top-full mt-1 whitespace-nowrap text-xs text-red-600 dark:text-red-400">
+          {errorMessage(updateVisibility.error, t("preview_share_update_error"))}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+// Private panels (the default) need a signed PreviewPanel::AccessToken
+// before the iframe can resolve at all — the panel subdomain never reaches
+// the main app's session-based auth, so this is the only thing that proves
+// "I can already open this chat" across that origin boundary. Fetched once
+// per mount/panel id; no silent background refresh (see preview_panels.md) —
+// on expiry the panel just stops resolving until the chat is reloaded.
+function usePreviewPanelAccessToken(panel: ChatPreviewPanel) {
+  const isPrivate = panel.visibility !== "public"
+  return useQuery({
+    queryKey: ["preview_panel_access_token", panel.id],
+    queryFn: () => fetchChatPreviewPanelAccessToken(panel.app_token_path),
+    enabled: isPrivate,
+    staleTime: Infinity,
+    retry: false
+  })
+}
+
 // Origin isolation (the panel's own preview-panel-<id> subdomain, enforced by
 // PreviewProxyMiddleware) is the real security boundary; sandbox is
 // defense-in-depth on top of it. Never add allow-same-origin — combined with
 // allow-scripts that would let framed content reach for the parent origin.
-function PreviewPanelFrame({ panel }: { panel: ChatPreviewPanel }) {
+function PreviewPanelFrame({
+  panel,
+  queryKey,
+  onNotice
+}: {
+  panel: ChatPreviewPanel
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
   const { t } = useT("chat")
   const [selectedVersionId, setSelectedVersionId] = useState(panel.current_version_id)
   const lastCurrentVersionId = useRef(panel.current_version_id)
@@ -309,13 +481,19 @@ function PreviewPanelFrame({ panel }: { panel: ChatPreviewPanel }) {
     }
   }, [panel.current_version_id])
 
-  const versionedUrl = previewVersionUrl(panel, selectedVersionId)
+  const isPrivate = panel.visibility !== "public"
+  const accessToken = usePreviewPanelAccessToken(panel)
+  const token = isPrivate ? accessToken.data?.token ?? null : null
+  const canRenderFrame = !isPrivate || !!token
+
+  const versionedUrl = previewVersionUrl(panel, selectedVersionId, token)
   const exportUrl = previewExportUrl(panel, selectedVersionId)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-1.5 dark:border-gray-700">
         <PreviewVersionSelector onChange={setSelectedVersionId} panel={panel} selectedVersionId={selectedVersionId} />
+        <PreviewShareControl onNotice={onNotice} panel={panel} queryKey={queryKey} />
         <div className="ml-auto flex items-center gap-1">
           <a
             aria-label={t("preview_export_aria", { title: panel.title })}
@@ -325,25 +503,42 @@ function PreviewPanelFrame({ panel }: { panel: ChatPreviewPanel }) {
           >
             <DownloadIcon className="h-3.5 w-3.5" />
           </a>
-          <a
-            aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-            href={versionedUrl}
-            rel="noopener noreferrer"
-            target="_blank"
-            title={t("preview_open_new_tab")}
-          >
-            <ExternalLinkIcon className="h-3.5 w-3.5" />
-          </a>
+          {canRenderFrame ? (
+            <a
+              aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              href={versionedUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+              title={t("preview_open_new_tab")}
+            >
+              <ExternalLinkIcon className="h-3.5 w-3.5" />
+            </a>
+          ) : (
+            <span
+              aria-disabled="true"
+              aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
+              className="rounded p-1 text-gray-300 dark:text-gray-700"
+              title={t("preview_access_pending")}
+            >
+              <ExternalLinkIcon className="h-3.5 w-3.5" />
+            </span>
+          )}
         </div>
       </div>
-      <iframe
-        className="h-full w-full min-h-0 flex-1 border-0"
-        referrerPolicy="no-referrer"
-        sandbox="allow-scripts"
-        src={versionedUrl}
-        title={panel.title}
-      />
+      {canRenderFrame ? (
+        <iframe
+          className="h-full w-full min-h-0 flex-1 border-0"
+          referrerPolicy="no-referrer"
+          sandbox="allow-scripts"
+          src={versionedUrl}
+          title={panel.title}
+        />
+      ) : accessToken.isError ? (
+        <PanelMessage tone="error">{t("preview_access_denied")}</PanelMessage>
+      ) : (
+        <PanelMessage>{t("preview_access_pending")}</PanelMessage>
+      )}
     </div>
   )
 }

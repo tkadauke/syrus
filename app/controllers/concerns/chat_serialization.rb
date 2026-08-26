@@ -35,8 +35,11 @@ module ChatSerialization
         title: panel.title,
         file_count: current&.files&.size || 0,
         url: panel.preview_url(base_domain, scheme: scheme),
+        visibility: panel.visibility,
         app_close_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}",
+        app_visibility_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}",
         app_export_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}/export",
+        app_token_path: "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}/token",
         current_version_id: current&.id,
         versions: versions.map { |version| { id: version.id, created_at: version.created_at.iso8601 } }
       }
