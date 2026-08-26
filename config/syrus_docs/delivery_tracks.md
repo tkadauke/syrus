@@ -2,7 +2,7 @@
 
 Delivery tracks let a repository declare its own branching model — a single strict branch, a development/release split, a hotfix track, or an upstream-export posture for forks — in a shared, non-personal `.syrus.yml` block, instead of every workflow special-casing branch names. See `docs/plans/delivery-tracks-and-promotion.md` for the full design and Story-by-Story rationale; this document tracks only what's actually implemented.
 
-This is the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy): it adds the `.syrus.yml` parser and the `DeliveryPolicy` object described below. **Nothing in the runtime calls `DeliveryPolicy` yet** — no workflow, landing path, or grader selection reads it. Later Jobs in the Epic wire it into job PR opening, landing, and grading.
+This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below, and a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval). **Nothing in the runtime calls `DeliveryPolicy` yet** — no workflow, landing path, or grader selection reads it. Later Jobs in the Epic wire it into job PR opening, landing, and grading.
 
 ## `.syrus.yml` shape
 
@@ -98,3 +98,37 @@ policy.hotfix_sync_mode
 ```
 
 `Job` has no `delivery_track` column yet — that's a later Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy). Until it lands, `job_delivery_track` and every job-scoped method above always resolve against the config's `default` track regardless of which job is passed.
+
+## `approval:` block (Story 7: owner + peer local approval)
+
+`approval:` is optional and independent of `delivery:` — a repository can configure one, both, or neither. Omitting it entirely means "use current approval behavior" (the repository's existing `review_policy` — `self`/`two_person`/`final_say`, see `ReviewPolicies`), not some new default.
+
+```yaml
+approval:
+  job:
+    required:
+      owner: true       # bool — default true when approval.job is configured but omits this key
+      peer_count: 1      # int — default 0 when omitted
+
+  promotion:
+    required:
+      maintainer_count: 1   # int; only meaningful via DeliveryPolicy#requires_operator_approval_for_promotion?
+```
+
+`SyrusYml::Config#approval` is `nil` when the `approval:` key is absent — unlike `delivery`, there is no always-present normalized shape, because "absent" is itself the fallback signal. When present, `approval.job` and `approval.promotion` are each independently optional and default to `nil` when their own key is missing.
+
+A peer approval only counts toward `peer_count` when that peer has repository access on this Syrus instance — a `RepositoryMembership` row for that user on the repository (any role). An approval from a user who has since lost access doesn't count, mirroring the collaborator-access check `ChatAttachment` already uses.
+
+`DeliveryPolicy` exposes two additional methods built from this config:
+
+```ruby
+policy.job_approval_satisfied?(job)
+# No approval.job block at all -> job.approval_satisfied? (existing ReviewPolicies::REGISTRY lookup by repository.review_policy)
+# approval.job configured        -> owner approval (if required) AND at least peer_count eligible peer approvals
+
+policy.requires_operator_approval_for_promotion?
+# approval.promotion.required.maintainer_count present -> true when > 0
+# approval.promotion absent                             -> falls back to delivery.promotion.approval_required
+```
+
+Neither method is wired into any actual landing/approval gate yet — that happens in a later EPIC-268 Job (`landing-queue-track-approval-gating`).
