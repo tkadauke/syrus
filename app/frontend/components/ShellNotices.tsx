@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { syrusShellBridge, type SyrusBackendUpdate, type SyrusShellBridge, type SyrusShellState } from "../lib/desktopShell"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { CloseIcon } from "./CloseIcon"
+import { DismissButton } from "./DismissButton"
 
 // How long the "Skill installed ✓" confirmation lingers before the notice
 // removes itself.
@@ -185,14 +185,7 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
             </span>
           ) : null}
         </span>
-        <button
-          aria-label={t("shell.skill_dismiss")}
-          className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-          onClick={dismiss}
-          type="button"
-        >
-          <CloseIcon className="h-3.5 w-3.5" />
-        </button>
+        <DismissButton label={t("shell.skill_dismiss")} onClick={dismiss} size="sm" />
       </div>
       {error ? <p className="mt-1 text-2xs text-red-600 dark:text-red-400">{error}</p> : null}
       <div className="mt-1.5">
