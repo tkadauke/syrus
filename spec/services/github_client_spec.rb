@@ -877,6 +877,21 @@ RSpec.describe GithubClient do
         expect(user.gh_rate_limit_observed_at).to eq(first_observed_at)
       end
 
+      it "skips healthy writes from stale client instances when the database row is fresh" do
+        stale_client = described_class.for_user(User.find(user.id))
+        client.send(:persist_rate_limit_headers!, headers_with.call(4221))
+        user.reload
+        first_observed_at = user.gh_rate_limit_observed_at
+
+        travel 1.second do
+          stale_client.send(:persist_rate_limit_headers!, headers_with.call(4200))
+        end
+
+        user.reload
+        expect(user.gh_rate_limit_remaining).to eq(4221)
+        expect(user.gh_rate_limit_observed_at).to eq(first_observed_at)
+      end
+
       it "writes immediately when the remaining count reaches zero" do
         client.send(:persist_rate_limit_headers!, headers_with.call(4221))
 

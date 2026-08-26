@@ -1063,15 +1063,46 @@ class GithubClient
       return
     end
 
-    @user.update_columns(
+    attributes = {
       gh_rate_limit_remaining:  remaining_i,
       gh_rate_limit_limit:      limit_i,
       gh_rate_limit_reset_at:   reset_at,
       gh_rate_limit_resource:   resource,
       gh_rate_limit_observed_at: Time.current
-    )
+    }
+    rate_limit_persist_scope(
+      remaining_i: remaining_i,
+      limit_i: limit_i,
+      reset_at: reset_at,
+      resource: resource
+    ).update_all(attributes) # rubocop:disable Rails/SkipsModelValidations
+    @user.assign_attributes(attributes)
   rescue => e
     Rails.logger.warn("[GithubClient] rate_limit persist failed: #{e.message}")
+  end
+
+  def rate_limit_persist_scope(remaining_i:, limit_i:, reset_at:, resource:)
+    scope = User.where(id: @user.id)
+    return scope if remaining_i.zero?
+
+    scope.where(
+      [
+        "gh_rate_limit_observed_at IS NULL",
+        "gh_rate_limit_observed_at <= :fresh_before",
+        "gh_rate_limit_limit IS NULL",
+        "gh_rate_limit_limit <> :limit",
+        "gh_rate_limit_resource IS NULL",
+        "gh_rate_limit_resource <> :resource",
+        "gh_rate_limit_reset_at IS NULL",
+        "gh_rate_limit_reset_at <> :reset_at",
+        "gh_rate_limit_remaining IS NULL",
+        "gh_rate_limit_remaining <= 0"
+      ].join(" OR "),
+      fresh_before: RATE_LIMIT_PERSIST_COALESCE.ago,
+      limit: limit_i,
+      resource: resource,
+      reset_at: reset_at
+    )
   end
 
   def fresh_matching_rate_limit_snapshot?(remaining_i:, limit_i:, reset_at:, resource:)
