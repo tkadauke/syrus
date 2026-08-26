@@ -6,7 +6,7 @@ export function PinIcon({ className = "h-4 w-4" }: { className?: string }) {
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.8"
+        strokeWidth="2"
       />
     </svg>
   )
