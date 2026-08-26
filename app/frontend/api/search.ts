@@ -32,7 +32,7 @@ export type EpicSearchResult = BaseSearchResult & {
 export type ChatSearchResult = BaseSearchResult & {
   type: "chat"
   state: null
-  repository_slug: null
+  repository_slug: string | null
   grouped_matches?: ChatGroupedMatch[]
   total_match_count?: number
   has_more_matches?: boolean

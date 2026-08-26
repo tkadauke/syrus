@@ -86,7 +86,7 @@ RSpec.describe "App API unified search", type: :request do
       "rank" => 0.0,
       "path" => chat_path(chat_session, message_id: chat_message.id),
       "state" => nil,
-      "repository_slug" => nil
+      "repository_slug" => "acme/widgets"
     )
   end
 
@@ -291,6 +291,22 @@ RSpec.describe "App API unified search", type: :request do
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "epic", "id" => active_epic.id))
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("state", "repository_id", "created_at")
+  end
+
+  it "uses the chat filter schema and narrows chats by repository" do
+    other_repository = Factories.repository(user: user, owner: "acme", name: "other")
+    matching_session = ChatSession.create!(user: user, repository: repository, title: "Deploy chat")
+    matching_message = ChatMessage.create!(chat_session: matching_session, role: "user", content: { "text" => "deploy chat" })
+    other_session = ChatSession.create!(user: user, repository: other_repository, title: "Other deploy chat")
+    other_message = ChatMessage.create!(chat_session: other_session, role: "user", content: { "text" => "deploy chat" })
+    [ matching_message, other_message ].each { |message| ChatMessageSearchIndex.insert(message) }
+    tree = { "and" => [ { "field" => "repository_id", "op" => "is", "value" => repository.id } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "chat", "id" => matching_message.id, "repository_slug" => "acme/widgets"))
+    expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 
   it "applies common created_at filters to supported result types" do
