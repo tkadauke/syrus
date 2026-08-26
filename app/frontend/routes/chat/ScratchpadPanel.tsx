@@ -3,6 +3,7 @@ import type { DragEvent } from "react"
 import { useEffect, useRef, useState } from "react"
 import "@excalidraw/excalidraw/index.css"
 import { createScratchpadItem, deleteScratchpadItem, enqueueChatMessage, reorderScratchpadItems, updateScratchpadItem, type ChatScratchpadItem } from "../../api/chats"
+import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { useT } from "../../hooks/useT"
@@ -185,14 +186,14 @@ export function ScratchpadPanel({
               placeholder={t("scratchpad_add_placeholder")}
               value={addDraft}
             />
-            <button
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-700"
+            <Button
               disabled={create.isPending || addDraft.trim().length === 0}
               onClick={submitAdd}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               {t("scratchpad_add")}
-            </button>
+            </Button>
           </div>
           {create.isError ? (
             <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">
@@ -297,8 +298,8 @@ function ScratchpadItemRow({
           value={draft}
         />
         <div className="mt-2 flex justify-end gap-2">
-          <button className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" disabled={update.isPending} onClick={() => setEditing(false)} type="button">{t("scratchpad_cancel")}</button>
-          <button className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-blue-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700" disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} type="button">{t("scratchpad_save")}</button>
+          <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">{t("scratchpad_cancel")}</Button>
+          <Button disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} size="sm" variant="primary">{t("scratchpad_save")}</Button>
         </div>
       </div>
     )

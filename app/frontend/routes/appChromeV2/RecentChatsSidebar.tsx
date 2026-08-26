@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
+import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -650,8 +651,8 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
               type="text"
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" disabled={rename.isPending} onClick={() => setRenameOpen(false)} type="button">{t("chat:cancel")}</button>
-              <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={rename.isPending} type="submit">{t("chat:save")}</button>
+              <Button disabled={rename.isPending} onClick={() => setRenameOpen(false)} variant="secondary">{t("chat:cancel")}</Button>
+              <Button disabled={rename.isPending} type="submit" variant="primary">{t("chat:save")}</Button>
             </div>
           </form>
         </div>,
@@ -668,18 +669,17 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             </div>
             <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{t("chat:delete_confirm_body")}</p>
             <div className="mt-4 flex justify-end gap-2">
-              <button className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setDeleteConfirmOpen(false)} type="button">{t("chat:cancel")}</button>
-              <button
-                className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-300"
+              <Button onClick={() => setDeleteConfirmOpen(false)} variant="secondary">{t("chat:cancel")}</Button>
+              <Button
                 disabled={deleteDisabled}
                 onClick={() => {
                   setDeleteConfirmOpen(false)
                   onDelete()
                 }}
-                type="button"
+                variant="danger"
               >
                 {t("chat:delete_confirm")}
-              </button>
+              </Button>
             </div>
           </div>
         </div>,

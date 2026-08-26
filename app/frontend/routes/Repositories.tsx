@@ -18,6 +18,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { useConfirm } from "../hooks/useConfirm"
 import { buttonClass } from "./repositoryDetail/shared"
+import { buttonClasses } from "../components/Button"
 
 type RepositoryAction = {
   id: number
@@ -78,7 +79,7 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
         <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
           {t('repositories.heading')}
         </h1>
-        <Link className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
+        <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />

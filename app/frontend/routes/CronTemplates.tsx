@@ -20,6 +20,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
+import { Button, buttonClasses } from "../components/Button"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -50,7 +51,7 @@ export function CronTemplatesIndex() {
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("cron_templates.heading")}</h1>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("cron_templates.description")}</p>
         </div>
-        <Link className="self-start rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={`${basePath}/new`}>{t("cron_templates.new")}</Link>
+        <Link className={buttonClasses("primary", "md", "self-start")} to={`${basePath}/new`}>{t("cron_templates.new")}</Link>
       </header>
 
       {templates.isPending ? <PanelMessage>{t("cron_templates.loading")}</PanelMessage> : null}
@@ -135,7 +136,7 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-8 text-center">
         <p className="text-gray-600 dark:text-gray-400">{t("cron_templates.no_templates_heading")}</p>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("cron_templates.no_templates_description")}</p>
-        <Link className="mt-4 inline-block rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={`${basePath}/new`}>{t("cron_templates.create_first")}</Link>
+        <Link className={buttonClasses("primary", "md", "mt-4")} to={`${basePath}/new`}>{t("cron_templates.create_first")}</Link>
       </section>
     )
   }
@@ -319,9 +320,9 @@ function CronTemplateForm({
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("cron_templates.field_enabled")}</span>
       </label>
       <div className="flex items-center gap-3">
-        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
+        <Button disabled={save.isPending} type="submit" variant="primary">
           {save.isPending ? t("cron_templates.saving") : mode === "new" ? t("cron_templates.create") : t("cron_templates.save")}
-        </button>
+        </Button>
         <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>{t("cron_templates.cancel")}</Link>
       </div>
     </form>

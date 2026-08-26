@@ -4,6 +4,7 @@ import { saveGithubToken, testGithubToken, type CredentialTestResult } from "../
 import { useDebouncedProbe, type ProbeState } from "../../hooks/useDebouncedProbe"
 import { useT } from "../../hooks/useT"
 import { useBackendOutage } from "../../hooks/useBackendUpdate"
+import { Button } from "../Button"
 
 const TOKEN_SETTINGS_URL = "https://github.com/settings/tokens"
 
@@ -117,9 +118,9 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
       ) : null}
 
       <div className="flex items-center justify-end gap-2">
-        <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={!tokenValid || save.isPending} type="submit">
+        <Button disabled={!tokenValid || save.isPending} type="submit" variant="primary">
           {save.isPending ? t('github_token.saving') : saveLabel ?? t('github_token.save_continue')}
-        </button>
+        </Button>
       </div>
     </form>
   )

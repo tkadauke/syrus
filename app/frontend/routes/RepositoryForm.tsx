@@ -30,6 +30,7 @@ import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
+import { Button } from "../components/Button"
 
 type OwnerOption = {
   login: string
@@ -526,9 +527,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </section>
 
         <div className="flex items-center gap-3">
-          <button className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
+          <Button disabled={save.isPending} type="submit" variant="primary">
             {save.isPending ? t('repository_form.saving') : mode === "new" ? t('repository_form.create') : t('repository_form.save')}
-          </button>
+          </Button>
           <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={withRoutePrefix(payload.repositories_path, prefix)}>
             {t('repository_form.cancel')}
           </Link>
@@ -643,13 +644,13 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
         ) : null}
 
         <div className="flex items-center gap-3">
-          <button
-            className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+          <Button
             disabled={save.isPending}
             type="submit"
+            variant="primary"
           >
             {save.isPending ? t('repository_form.insight_scheduling_saving') : t('repository_form.insight_scheduling_save')}
-          </button>
+          </Button>
           <button
             className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
             onClick={handleDiscard}
@@ -858,18 +859,17 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
           value={pollingEnabled}
         />
 
-        <button
-          className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+        <Button
           disabled={save.isPending}
           onClick={() => {
             setMessage(null)
             setErrorMsg(null)
             save.mutate()
           }}
-          type="button"
+          variant="primary"
         >
           {save.isPending ? t("input_sources.saving") : t("input_sources.save", { source: sourceType.label })}
-        </button>
+        </Button>
       </div>
     </section>
   )

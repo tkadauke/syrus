@@ -9,6 +9,7 @@ import {
   type AdminInvitation,
   type AdminInvitationsPayload
 } from "../api/adminInvitations"
+import { Button } from "../components/Button"
 import { CopyIcon } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
@@ -82,13 +83,12 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
             value={emailAddress}
           />
         </label>
-        <button
-          className="rounded bg-blue-600 dark:bg-blue-500 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+        <Button
           disabled={create.isPending}
           type="submit"
         >
           {create.isPending ? t("invitations.generating") : t("invitations.generate")}
-        </button>
+        </Button>
       </form>
       {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("invitations.error_create"))}</p> : null}
     </section>

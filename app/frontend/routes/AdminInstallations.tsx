@@ -10,6 +10,7 @@ import {
   type PatOwnerGroup
 } from "../api/adminInstallations"
 import { ApiError } from "../api/client"
+import { Button } from "../components/Button"
 import { useT } from "../hooks/useT"
 
 export function AdminInstallations() {
@@ -101,14 +102,12 @@ function RefreshButton() {
   })
 
   return (
-    <button
-      className="rounded bg-blue-600 dark:bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+    <Button
       disabled={refresh.isPending}
       onClick={() => refresh.mutate()}
-      type="button"
     >
       {refresh.isPending ? t("installations.refreshing") : t("installations.refresh")}
-    </button>
+    </Button>
   )
 }
 

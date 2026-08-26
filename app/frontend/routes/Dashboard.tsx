@@ -12,6 +12,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
+import { buttonClasses } from "../components/Button"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
@@ -594,7 +595,7 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
-      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{payload.simple_mode ? t("new_feature") : t("new_epic")}</Link>
+      <Link className={buttonClasses()} to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{payload.simple_mode ? t("new_feature") : t("new_epic")}</Link>
       {payload.simple_mode ? null : <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>}
     </div>
   )

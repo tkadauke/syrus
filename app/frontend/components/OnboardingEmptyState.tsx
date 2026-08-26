@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
+import { buttonClasses } from "./Button"
 
 type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
 
@@ -79,11 +80,11 @@ export function OnboardingEmptyState({
           <p className="mt-1 leading-6">{copy?.description || fallbackDescription}</p>
         </div>
         {actionPath && actionText && /^https?:\/\//.test(actionPath) ? (
-          <a className="inline-flex rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500" href={actionPath} rel="noopener" target="_blank">
+          <a className={buttonClasses("primary")} href={actionPath} rel="noopener" target="_blank">
             {actionText}
           </a>
         ) : actionPath && actionText ? (
-          <Link className="inline-flex rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(actionPath, prefix)}>
+          <Link className={buttonClasses("primary")} to={withRoutePrefix(actionPath, prefix)}>
             {actionText}
           </Link>
         ) : null}

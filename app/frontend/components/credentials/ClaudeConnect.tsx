@@ -4,6 +4,7 @@ import { exchangeClaudeOauth, startClaudeOauth, testClaudeCli, type CredentialTe
 import { openInNewTab } from "../../lib/desktopShell"
 import { useT } from "../../hooks/useT"
 import { useBackendOutage } from "../../hooks/useBackendUpdate"
+import { Button } from "../Button"
 
 type Preflight =
   | { status: "checking" }
@@ -169,15 +170,15 @@ export function ClaudeConnect({
           <p className="mt-1 text-gray-600 dark:text-gray-400">
             {t('configure_agent.step1_description')}
           </p>
-          <button
-            className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          <Button
+            className="mt-2"
             onClick={authorize}
             ref={authorizeRef}
-            type="button"
+            variant="primary"
           >
             {authStarted ? t('configure_agent.reopen_auth') : t('configure_agent.authorize_claude')}
             <span aria-hidden="true">↗</span>
-          </button>
+          </Button>
           {popupBlocked ? (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
               {t('configure_agent.popup_blocked')}{" "}
@@ -212,11 +213,10 @@ export function ClaudeConnect({
 
       <div className="flex items-center justify-end gap-2">
         {secondaryAction}
-        <button
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        <Button
           disabled={!authStarted || exchanging || code.trim().length === 0}
           onClick={() => connect()}
-          type="button"
+          variant="primary"
         >
           {exchanging ? (
             <>
@@ -225,7 +225,7 @@ export function ClaudeConnect({
           ) : (
             t('configure_agent.connect')
           )}
-        </button>
+        </Button>
       </div>
     </div>
   )

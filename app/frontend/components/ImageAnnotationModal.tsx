@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { ConfirmDialog } from "./ConfirmDialog"
 
@@ -866,10 +867,10 @@ export function ImageAnnotationModal({
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button className={secondaryButton()} disabled={undoCount === 0} onClick={undo} type="button">{t("image_annotation.undo")}</button>
-            <button className={secondaryButton()} disabled={redoCount === 0} onClick={redo} type="button">{t("image_annotation.redo")}</button>
-            <button className={secondaryButton()} onClick={requestClose} type="button">{t("image_annotation.cancel")}</button>
-            <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={!imageSize} onClick={finishAnnotation} type="button">{t("image_annotation.done")}</button>
+            <Button variant="secondary" disabled={undoCount === 0} onClick={undo}>{t("image_annotation.undo")}</Button>
+            <Button variant="secondary" disabled={redoCount === 0} onClick={redo}>{t("image_annotation.redo")}</Button>
+            <Button variant="secondary" onClick={requestClose}>{t("image_annotation.cancel")}</Button>
+            <Button disabled={!imageSize} onClick={finishAnnotation}>{t("image_annotation.done")}</Button>
             <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={requestClose} type="button">
               <CloseIcon className="h-4 w-4" />
             </button>

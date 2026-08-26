@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { createBugReport } from "../api/bugReports"
 import { useShakeToReport } from "../hooks/useShakeToReport"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
@@ -535,13 +536,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                   />
                 </div>
                 {screenshotChoice !== "none" && captures[screenshotChoice] ? (
-                  <button
-                    className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    onClick={() => setAnnotatingChoice(screenshotChoice)}
-                    type="button"
-                  >
+                  <Button onClick={() => setAnnotatingChoice(screenshotChoice)} size="sm" variant="secondary">
                     {t("bug_report.annotate_screenshot")}
-                  </button>
+                  </Button>
                 ) : null}
               </fieldset>
 
@@ -628,12 +625,12 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               ) : null}
 
               <div className="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
-                <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={closeDialog} type="button">
+                <Button onClick={closeDialog} variant="secondary">
                   {t("bug_report.cancel")}
-                </button>
-                <button className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={bugReport.isPending} type="submit">
+                </Button>
+                <Button disabled={bugReport.isPending} type="submit">
                   {submitLabel}
-                </button>
+                </Button>
               </div>
             </form>
           </section>
