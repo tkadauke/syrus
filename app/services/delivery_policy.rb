@@ -55,6 +55,14 @@ class DeliveryPolicy
     delivery.hotfix_sync.mode
   end
 
+  def upstream_export_enabled?
+    delivery.upstream_export.enabled
+  end
+
+  def upstream_export_mode
+    delivery.upstream_export.mode
+  end
+
   # Story 7 (owner + peer local approval). When the repository's
   # `.syrus.yml` has no `approval:` block at all, falls back to the job's
   # existing `ReviewPolicies::REGISTRY` policy (`self`/`two_person`/

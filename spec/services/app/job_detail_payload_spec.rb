@@ -2811,4 +2811,12 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).fetch(:deploy)).to be_nil
     end
   end
+
+  describe "#delivery_status" do
+    it "exposes the job's derived apparent delivery status" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+
+      expect(payload_for(job).dig(:job, :delivery_status)).to eq(:approved_for_local_landing)
+    end
+  end
 end
