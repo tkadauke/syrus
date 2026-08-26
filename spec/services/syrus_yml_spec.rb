@@ -1671,4 +1671,112 @@ RSpec.describe SyrusYml do
       expect(config.delivery.ref_movement_actions).to eq({})
     end
   end
+
+  describe "approval: key" do
+    it "returns nil when the approval key is absent -- use current approval behavior" do
+      expect(parse("grade: []").approval).to be_nil
+    end
+
+    it "parses approval.job.required.owner" do
+      config = parse(<<~YAML)
+        approval:
+          job:
+            required:
+              owner: true
+      YAML
+
+      expect(config.approval.job.owner_required).to be(true)
+      expect(config.approval.job.peer_count).to be_nil
+      expect(config.approval.promotion).to be_nil
+    end
+
+    it "parses approval.job.required.owner and peer_count together" do
+      config = parse(<<~YAML)
+        approval:
+          job:
+            required:
+              owner: true
+              peer_count: 1
+      YAML
+
+      expect(config.approval.job.owner_required).to be(true)
+      expect(config.approval.job.peer_count).to eq(1)
+    end
+
+    it "parses approval.promotion.required.maintainer_count" do
+      config = parse(<<~YAML)
+        approval:
+          job:
+            required:
+              owner: true
+              peer_count: 1
+          promotion:
+            required:
+              maintainer_count: 1
+      YAML
+
+      expect(config.approval.promotion.maintainer_count).to eq(1)
+    end
+
+    it "leaves owner_required nil when approval.job has no required.owner key" do
+      config = parse(<<~YAML)
+        approval:
+          job:
+            required:
+              peer_count: 2
+      YAML
+
+      expect(config.approval.job.owner_required).to be_nil
+      expect(config.approval.job.peer_count).to eq(2)
+    end
+
+    it "leaves job and promotion nil when approval: is an empty mapping" do
+      config = parse("approval: {}\n")
+
+      expect(config.approval.job).to be_nil
+      expect(config.approval.promotion).to be_nil
+    end
+
+    it "rejects a non-mapping approval value" do
+      expect {
+        parse("approval: true\n")
+      }.to raise_error(SyrusYml::ParseError, /approval: must be a mapping/)
+    end
+
+    it "rejects a non-mapping approval.job value" do
+      expect {
+        parse("approval:\n  job: true\n")
+      }.to raise_error(SyrusYml::ParseError, /approval\.job: must be a mapping/)
+    end
+
+    it "rejects a non-mapping approval.job.required value" do
+      expect {
+        parse("approval:\n  job:\n    required: true\n")
+      }.to raise_error(SyrusYml::ParseError, /approval\.job\.required: must be a mapping/)
+    end
+
+    it "rejects a negative peer_count" do
+      expect {
+        parse("approval:\n  job:\n    required:\n      peer_count: -1\n")
+      }.to raise_error(SyrusYml::ParseError, /approval\.job\.required\.peer_count: must not be negative/)
+    end
+
+    it "rejects a non-integer peer_count" do
+      expect {
+        parse("approval:\n  job:\n    required:\n      peer_count: soon\n")
+      }.to raise_error(SyrusYml::ParseError, /approval\.job\.required\.peer_count: must be an integer/)
+    end
+
+    it "rejects a non-mapping approval.promotion value" do
+      expect {
+        parse("approval:\n  promotion: true\n")
+      }.to raise_error(SyrusYml::ParseError, /approval\.promotion: must be a mapping/)
+    end
+
+    it "rejects a negative maintainer_count" do
+      expect {
+        parse("approval:\n  promotion:\n    required:\n      maintainer_count: -1\n")
+      }.to raise_error(SyrusYml::ParseError, /approval\.promotion\.required\.maintainer_count: must not be negative/)
+    end
+  end
 end

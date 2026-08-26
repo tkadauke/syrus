@@ -160,4 +160,136 @@ RSpec.describe DeliveryPolicy do
       expect(via_call.job_delivery_track(job)).to eq("default")
     end
   end
+
+  describe "#job_approval_satisfied? (Story 7: owner + peer approval)" do
+    let(:owner) { user }
+    let(:peer) { Factories.user }
+    let(:job) { Factories.job(repository: repo, owner_user: owner) }
+
+    def approve!(approver)
+      JobApproval.create!(job: job, user: approver, approved_at: Time.current)
+    end
+
+    context "when no approval: block is configured" do
+      subject(:policy) { described_class.for(repository: repo) }
+
+      before { write_bare_clone(repo) }
+
+      it "falls back to the repository's existing review_policy (self: owner approval only)" do
+        expect(repo.review_policy).to eq("self")
+        expect(policy.job_approval_satisfied?(job)).to be(false)
+
+        approve!(owner)
+
+        expect(policy.job_approval_satisfied?(job)).to be(true)
+      end
+    end
+
+    context "when approval.job.required.owner and peer_count are configured" do
+      subject(:policy) { described_class.for(repository: repo) }
+
+      before do
+        write_bare_clone(repo, syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+                peer_count: 1
+        YAML
+      end
+
+      it "is not satisfied by the owner alone" do
+        approve!(owner)
+
+        expect(policy.job_approval_satisfied?(job)).to be(false)
+      end
+
+      it "does not count a peer approval from someone without repository access" do
+        approve!(owner)
+        approve!(peer)
+
+        expect(policy.job_approval_satisfied?(job)).to be(false)
+      end
+
+      it "is satisfied once a peer with repository access also approves" do
+        approve!(owner)
+        approve!(peer)
+        RepositoryMembership.create!(repository: repo, user: peer, role: "write")
+
+        expect(policy.job_approval_satisfied?(job)).to be(true)
+      end
+
+      it "is not satisfied by a peer approval alone when owner approval is required" do
+        approve!(peer)
+        RepositoryMembership.create!(repository: repo, user: peer, role: "write")
+
+        expect(policy.job_approval_satisfied?(job)).to be(false)
+      end
+    end
+
+    context "when approval.job.required has no peer_count (defaults to 0)" do
+      subject(:policy) { described_class.for(repository: repo) }
+
+      before do
+        write_bare_clone(repo, syrus_yml: <<~YAML)
+          approval:
+            job:
+              required:
+                owner: true
+        YAML
+      end
+
+      it "is satisfied by owner approval alone" do
+        approve!(owner)
+
+        expect(policy.job_approval_satisfied?(job)).to be(true)
+      end
+    end
+  end
+
+  describe "#requires_operator_approval_for_promotion?" do
+    subject(:policy) { described_class.for(repository: repo) }
+
+    it "falls back to delivery.promotion.approval_required when approval.promotion is absent" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          promotion:
+            approval_required: true
+      YAML
+
+      expect(policy.requires_operator_approval_for_promotion?).to be(true)
+    end
+
+    it "defaults to false when neither approval.promotion nor delivery.promotion.approval_required is set" do
+      write_bare_clone(repo)
+
+      expect(policy.requires_operator_approval_for_promotion?).to be(false)
+    end
+
+    it "is true when approval.promotion.required.maintainer_count is positive" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        approval:
+          promotion:
+            required:
+              maintainer_count: 1
+      YAML
+
+      expect(policy.requires_operator_approval_for_promotion?).to be(true)
+    end
+
+    it "is false when approval.promotion.required.maintainer_count is 0, even if delivery.promotion.approval_required is true" do
+      write_bare_clone(repo, syrus_yml: <<~YAML)
+        delivery:
+          promotion:
+            approval_required: true
+
+        approval:
+          promotion:
+            required:
+              maintainer_count: 0
+      YAML
+
+      expect(policy.requires_operator_approval_for_promotion?).to be(false)
+    end
+  end
 end

@@ -52,7 +52,7 @@ class SyrusYml
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
@@ -91,6 +91,19 @@ class SyrusYml
   DeliveryRefEndpoint = Data.define(:kind, :name)
   DeliveryRefMovementAction = Data.define(:name, :enabled, :source, :target, :mode, :grade_phases)
   DeliveryConfig = Data.define(:tracks, :promotion, :hotfix_sync, :upstream_export, :ref_movement_actions)
+  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 7 (owner +
+  # peer local approval, optional promotion maintainer approval). Unlike
+  # `Config#delivery`, `Config#approval` is left nil when the `approval:` key
+  # is absent -- there is no normalized always-present shape here, because
+  # "no `approval:` section" is itself a meaningful signal: it means "use the
+  # repository's existing `review_policy` behavior" (see `DeliveryPolicy`),
+  # not "use some default owner/peer_count combination." `owner_required`
+  # and `peer_count` are individually nilable too, so a config that sets only
+  # one of `approval.job.required.owner` / `.peer_count` doesn't silently
+  # zero out the other.
+  ApprovalConfig = Data.define(:job, :promotion)
+  ApprovalJobConfig = Data.define(:owner_required, :peer_count)
+  ApprovalPromotionConfig = Data.define(:maintainer_count)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
@@ -168,7 +181,8 @@ class SyrusYml
       review_plan: ActiveModel::Type::Boolean.new.cast(raw["review_plan"]) || false,
       deploy: parse_deploy(raw["deploy"]),
       delivery: normalize_delivery(raw_delivery),
-      raw_delivery: raw_delivery
+      raw_delivery: raw_delivery,
+      approval: parse_approval(raw["approval"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -816,6 +830,52 @@ class SyrusYml
       end
 
     phases.map { |phase| phase.to_s.strip }.reject(&:empty?)
+  end
+
+  def parse_approval(raw)
+    return nil if raw.nil?
+    raise ParseError, "approval: must be a mapping" unless raw.is_a?(Hash)
+
+    ApprovalConfig.new(
+      job: parse_approval_job(raw["job"]),
+      promotion: parse_approval_promotion(raw["promotion"])
+    )
+  end
+
+  def parse_approval_job(raw)
+    return nil if raw.nil?
+    raise ParseError, "approval.job: must be a mapping" unless raw.is_a?(Hash)
+
+    required = raw["required"]
+    raise ParseError, "approval.job.required: must be a mapping" unless required.nil? || required.is_a?(Hash)
+    required ||= {}
+
+    ApprovalJobConfig.new(
+      owner_required: required.key?("owner") ? ActiveModel::Type::Boolean.new.cast(required["owner"]) : nil,
+      peer_count: required.key?("peer_count") ? parse_non_negative_integer(required["peer_count"], "approval.job.required.peer_count") : nil
+    )
+  end
+
+  def parse_approval_promotion(raw)
+    return nil if raw.nil?
+    raise ParseError, "approval.promotion: must be a mapping" unless raw.is_a?(Hash)
+
+    required = raw["required"]
+    raise ParseError, "approval.promotion.required: must be a mapping" unless required.nil? || required.is_a?(Hash)
+    required ||= {}
+
+    ApprovalPromotionConfig.new(
+      maintainer_count: required.key?("maintainer_count") ? parse_non_negative_integer(required["maintainer_count"], "approval.promotion.required.maintainer_count") : nil
+    )
+  end
+
+  def parse_non_negative_integer(raw, label)
+    value = Integer(raw)
+    raise ParseError, "#{label}: must not be negative" if value.negative?
+
+    value
+  rescue ArgumentError, TypeError
+    raise ParseError, "#{label}: must be an integer"
   end
 
   def remember_unique_name!(seen, name, label)
