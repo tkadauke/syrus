@@ -724,6 +724,39 @@ module Api
           )
         end
 
+        def update_preview_panel
+          chat_session = find_chat_session
+          panel = chat_session.preview_panels.find(params[:panel_id])
+          visibility = (params.dig(:preview_panel, :visibility).presence || params[:visibility]).to_s
+
+          unless PreviewPanel::VISIBILITIES.include?(visibility)
+            render_error("validation_failed", "Invalid visibility. Must be one of: #{PreviewPanel::VISIBILITIES.join(", ")}.", status: :unprocessable_content)
+            return
+          end
+
+          PreviewPanel::Service.new(panel).update_visibility!(visibility)
+
+          render json: chat_payload(chat_session.reload, message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.")
+        end
+
+        # Mints a short-lived PreviewPanel::AccessToken for the chat frontend
+        # to append to the panel iframe's src. Authorization mirrors whatever
+        # already decides a chat is viewable (see #preview_panel_access_chat_session)
+        # rather than a new membership rule, so future group-chat participation
+        # inherits this automatically.
+        def preview_panel_token
+          chat_session = preview_panel_access_chat_session
+          return if performed?
+
+          panel = chat_session.preview_panels.find(params[:panel_id])
+          if panel.public?
+            render_error("validation_failed", "Public panels don't require an access token.", status: :unprocessable_content)
+            return
+          end
+
+          render json: { token: PreviewPanel::AccessToken.issue(panel), expires_in: PreviewPanel::AccessToken::TTL.to_i }
+        end
+
         def create_bookmark
           chat_session = find_chat_session
           message = params[:message_id].present? ? chat_session.messages.find(params[:message_id]) : chat_session.messages.order(:created_at, :id).last
@@ -1186,6 +1219,26 @@ module Api
         end
 
         private
+
+        # "Private" panel access means "anyone who can already open this
+        # chat" — the ordinary chat-ownership check (find_chat_session), or
+        # the same share_token ChatSession#share_token / SharedChatsController
+        # already treat as proof of chat access. Reusing both here (rather
+        # than a new membership rule) means a shared-chat viewer inherits
+        # panel access automatically.
+        def preview_panel_access_chat_session
+          chat_session = Current.user.accessible_chat_sessions.active.find_by(id: params[:id])
+          return chat_session if chat_session
+
+          share_token = params[:share_token].presence
+          if share_token
+            chat_session = ChatSession.active.where.not(share_token: nil).find_by(id: params[:id], share_token: share_token)
+            return chat_session if chat_session
+          end
+
+          render_error("not_found", "Chat not found.", status: :not_found)
+          nil
+        end
 
         # params[:answers] is index-aligned with the question's sub-questions:
         # each entry is either a string (single-select/free-text) or an array

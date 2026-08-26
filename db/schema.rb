@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_214706) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1550,6 +1550,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_214706) do
     t.string "state", default: "open", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.string "visibility", default: "private", null: false
     t.index ["chat_session_id"], name: "index_preview_panels_on_chat_session_id"
     t.index ["state"], name: "index_preview_panels_on_state"
   end
