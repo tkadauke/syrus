@@ -1,5 +1,6 @@
-import { inputClass } from "../lib/formClasses"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
@@ -288,11 +289,10 @@ function AddTeamGrantForm({ payload, onNotice }: { payload: RepositoryMembership
       <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("repository_memberships.add_team_grant")}</h3>
       {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, "Unable to add team grant.")}</PanelMessage></div> : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("repository_memberships.team_name_label")}
           <div className="mt-1">
-            <input
-              className={inputClass()}
+            <Input
               onChange={(event) => setTeamName(event.target.value)}
               placeholder={t("repository_memberships.team_name_placeholder")}
               required
@@ -318,9 +318,9 @@ function AddTeamGrantForm({ payload, onNotice }: { payload: RepositoryMembership
 function RoleSelect({ value, onChange, disabled }: { value: RepositoryMembershipRole; onChange: (role: RepositoryMembershipRole) => void; disabled: boolean }) {
   const { t } = useT("settings")
   return (
-    <select
-      className={inputClass({ fullWidth: false })}
+    <Select
       disabled={disabled}
+      fullWidth={false}
       onChange={(event) => onChange(event.target.value as RepositoryMembershipRole)}
       value={value}
     >
@@ -329,7 +329,7 @@ function RoleSelect({ value, onChange, disabled }: { value: RepositoryMembership
           {t(`repository_memberships.role_${role}`)}
         </option>
       ))}
-    </select>
+    </Select>
   )
 }
 
@@ -361,11 +361,10 @@ function AddMemberForm({ payload, onNotice }: { payload: RepositoryMembershipsPa
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("repository_memberships.add_member")}</h2>
       {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, "Unable to add member.")}</PanelMessage></div> : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("repository_memberships.email_label")}
           <div className="mt-1">
-            <input
-              className={inputClass()}
+            <Input
               onChange={(event) => setEmail(event.target.value)}
               placeholder={t("repository_memberships.email_placeholder")}
               required
