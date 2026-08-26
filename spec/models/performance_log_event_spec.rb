@@ -42,7 +42,7 @@ RSpec.describe PerformanceLogEvent do
       expect(attrs[:event_name]).to eq("sql.active_record")
       expect(attrs[:sql_fingerprint]).to eq("SELECT 1")
       expect(attrs[:payload]).to be_a(Hash)
-      expect(attrs[:payload]).not_to have_key("sql")
+      expect(attrs[:payload]).to include("sql" => "SELECT * FROM jobs")
       expect(attrs[:payload].dig("top_sql_fingerprints", 0)).to include(
         "fingerprint" => "SELECT * FROM jobs WHERE id IN (?)",
         "sample_sql" => "SELECT * FROM jobs WHERE id IN (1, 2, 3)",

@@ -7,7 +7,10 @@ class RunHeartbeat
     last = run.last_heartbeat_at
     return false if !force && last && (now - last) < interval
 
-    rows = Run.where(id: run.id, finished_at: nil).update_all(last_heartbeat_at: now)
+    scope = Run.where(id: run.id, finished_at: nil)
+    scope = scope.where("last_heartbeat_at IS NULL OR last_heartbeat_at < ?", now - interval) unless force
+
+    rows = scope.update_all(last_heartbeat_at: now)
     run.last_heartbeat_at = now if rows.positive?
     rows.positive?
   end

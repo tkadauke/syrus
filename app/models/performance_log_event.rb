@@ -66,6 +66,7 @@ class PerformanceLogEvent < ApplicationRecord
       "status" => attrs["status"],
       "view_runtime_ms" => attrs["view_runtime_ms"],
       "db_runtime_ms" => attrs["db_runtime_ms"],
+      "sql" => attrs["sql"].to_s.safe_byteslice(0, 600).presence,
       "trigger_reasons" => compact_string_array(attrs["trigger_reasons"]),
       "job_class" => attrs["job_class"].to_s.safe_byteslice(0, 200).presence,
       "active_job_id" => attrs["active_job_id"].to_s.safe_byteslice(0, 100).presence,
