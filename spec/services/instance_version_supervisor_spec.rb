@@ -57,6 +57,27 @@ RSpec.describe InstanceVersionSupervisor do
       expect(sp.reload.last_heartbeat_at).to be_within(0.001).of(before_heartbeat)
     end
 
+    it "skips a redundant write when another process already refreshed the heartbeat" do
+      sp = InstanceVersion.create!(hostname: "syrus-web-abc", role: "web", version: "abc",
+                                    started_at: 1.minute.ago, last_heartbeat_at: 5.seconds.ago)
+      before_heartbeat = sp.last_heartbeat_at
+
+      expect(WorkerHostHealthSampler).not_to receive(:record!)
+
+      described_class.heartbeat(sp, now: Time.current)
+
+      expect(sp.reload.last_heartbeat_at).to be_within(0.001).of(before_heartbeat)
+    end
+
+    it "still writes when the heartbeat is stale enough to refresh" do
+      sp = InstanceVersion.create!(hostname: "syrus-web-abc", role: "web", version: "abc",
+                                    started_at: 1.minute.ago, last_heartbeat_at: 45.seconds.ago)
+
+      described_class.heartbeat(sp)
+
+      expect(sp.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)
+    end
+
     it "keeps the heartbeat alive when historical sampling fails" do
       allow(SyrusVersion).to receive(:role).and_return("worker")
       allow(DataRootDiskUsage).to receive(:read).and_return(nil)

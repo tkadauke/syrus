@@ -45,10 +45,11 @@ class InstanceVersionSupervisor
 
       data_root_snapshot = data_root_usage_snapshot
       attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs(data_root_snapshot))
-      rows = InstanceVersion.where(id: instance.id, finished_at: nil)
-                            .update_all(attrs)
+      rows = heartbeat_scope(instance, now: now).update_all(attrs)
       record_worker_host_health_sample(instance, observed_at: now, data_root_snapshot: data_root_snapshot) if rows == 1
       return if rows == 1
+
+      return if instance_still_fresh?(instance, now: now)
 
       # Reaper finalized us between heartbeats — re-register a fresh
       # row so the table reflects current reality.
@@ -81,6 +82,17 @@ class InstanceVersionSupervisor
         data_root_total_bytes: snapshot.total_bytes,
         data_root_path: snapshot.path
       }
+    end
+
+    def heartbeat_scope(instance, now:)
+      InstanceVersion.where(id: instance.id, finished_at: nil)
+                     .where("last_heartbeat_at IS NULL OR last_heartbeat_at < ?", now - TICK_INTERVAL_SECONDS.seconds)
+    end
+
+    def instance_still_fresh?(instance, now:)
+      InstanceVersion.where(id: instance.id, finished_at: nil)
+                     .where("last_heartbeat_at >= ?", now - InstanceVersion::HEARTBEAT_STALE_THRESHOLD)
+                     .exists?
     end
 
     def data_root_usage_snapshot
