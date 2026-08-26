@@ -55,13 +55,14 @@ record; `WorkUnit` is one runtime attempt at it, holding `WorkUnitLock`s
 subclasses (~28 built-ins — `Initial`, `Rebase`, `AutoMerge`, `MergeTrain`,
 `JobBundle`, etc., auto-registered by kind) centralize the retry/lock/landing
 policy that used to be scattered across `StepDispatcher` and landing-queue
-services. It's gated behind three independent `Feature` flags
-(`work_units_scheduler`, `work_units_landing`, `work_units_reconciler`, all
-off by default) via `WorkUnits::PathOwnership`, which maps each concrete path
-(retry/resume/pause, auto_merge/merge_train/stack_rebase,
-reconciler repairs) to `:work_unit` or `:legacy` ownership. `WorkEngine::Reconciler`
-increasingly targets repairs at `WorkUnit`/`WorkIntent` records. Admin surface:
-`/admin/work_units`, gated further by `AppSetting.show_work_unit_debug?`.
+services. `WorkUnits::PathOwnership` maps each concrete path
+(retry/resume/pause, auto_merge/merge_train/stack_rebase, reconciler repairs)
+to WorkUnit ownership directly. The old shadow-mode and ownership-cutover
+feature flags have been removed; compatibility now lives in
+presentation/diagnostic fallbacks, not in the launch funnel.
+`WorkEngine::Reconciler` targets repairs at `WorkUnit`/`WorkIntent` records
+first. Admin surface: `/admin/work_units`, with normal Job-page WorkUnit
+internals gated by `AppSetting.show_work_unit_debug?`.
 
 ### Trigger kinds
 

@@ -1120,19 +1120,14 @@ rebase, coding handoff, insight, scheduled task, external PR, landing,
 CI repair, PR/chat feedback, merge train, job bundle) has been migrated
 to go through it one at a time.
 
-**Rollout state as of this writing: in progress, not cut over.**
-`WorkUnits::PathOwnership` maps ~21 named paths to one of three `Feature`
-flags (`work_units_scheduler`, `work_units_landing`,
-`work_units_reconciler`) that all default off in `config/features.yml`.
-With those flags off, `WorkUnits::Ownership` unions WorkUnit-derived
-results with a `legacy_active_workflow_*` fallback scan, and the legacy
-scan remains the effective source of truth — WorkUnit/WorkIntent rows
-are populated in parallel today mostly for diagnostics. Only the earlier
-shadow *diagnostics* flag (`work_units_shadow_mode`) has been removed;
-the ownership-cutover flags and the legacy fallback code have not.
-`docs/technical-debt.md` tracks the pending backfill job
-(`WorkUnitsBackfillActiveWorkflowsJob`) and legacy-fallback removal as
-open debt with stated, not-yet-met conditions.
+**Rollout state as of this writing: WorkUnit ownership is the runtime
+funnel for known launch paths.** `WorkUnits::PathOwnership` maps the
+named scheduler, landing, and reconciler paths to WorkUnit ownership
+directly; the old shadow-mode and ownership-cutover feature flags have
+been removed. A migration backfills active legacy Workflow rows into
+WorkIntents/WorkUnits for upgraded installations. `docs/technical-debt.md`
+tracks remaining presentation/diagnostic compatibility cleanup, not a
+separate scheduler flag rollout.
 
 Operator visibility: `GET /api/v1/app/admin/work_units`
 (`Admin::WorkUnitsPayload`) lists WorkIntents with nested WorkUnits,
@@ -1742,11 +1737,11 @@ Several layers, each catching different failure modes:
    `WorkEngine::Reconciler.request`; all mutation is centralized in
    `WorkEngine::ReconcileJob` / `RepairExecutor`, which executes only
    plans marked `auto_executable` after re-checking preconditions. The
-   newer [Work engine](#work-engine) (`WorkUnit`/`WorkIntent`) is a
-   separate, still-rolling-out layer that is meant to eventually replace
-   this ad hoc evidence-scanning with typed ownership records; today the
-   `work_units_reconciler` feature flag is off, so this reconciler
-   remains the effective mechanism.
+   newer [Work engine](#work-engine) (`WorkUnit`/`WorkIntent`) is the
+   typed ownership layer the reconciler now consults first. The reconciler
+   still snapshots legacy Workflow/Step/Run evidence for repair planning
+   and compatibility, but the removed WorkUnit rollout flags no longer
+   select between two schedulers.
 5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips

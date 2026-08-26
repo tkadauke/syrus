@@ -3,6 +3,14 @@
 Captured July 14, 2026 from a production incident where the app felt slow
 while JOB-1711 and JOB-1713 were running.
 
+Status check 2026-08-26: this is still relevant as historical load-analysis
+rationale, but many observability gaps named here have since been addressed.
+Syrus now has request/job/browser/SQL performance traces, operational logs,
+browser/backend exception logs, MySQL live inspection, worker health snapshots,
+and admin performance views. Treat the July incident evidence as a baseline
+for why those systems exist, not as a current statement that production
+performance logging is unavailable.
+
 ## Goal
 
 Make Syrus responsive under real agent load. The target outcome is that

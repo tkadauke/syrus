@@ -11,6 +11,21 @@ Units. It should be implemented before delivery tracks and promotion, but it
 must preserve room for that plan
 (`docs/plans/delivery-tracks-and-promotion.md`).
 
+## Current Status
+
+As of 2026-08-26, the core WorkIntent/WorkUnit migration has moved from plan to
+implementation. `WorkUnits::Launcher` is the production launch funnel for the
+known scheduler, landing, and reconciler paths, and the earlier
+`work_units_scheduler`, `work_units_landing`, `work_units_reconciler`, and
+`work_units_shadow_mode` feature flags have been removed. Upgraded
+installations are backfilled by the `BackfillActiveWorkUnits` migration, not by
+a long-lived runtime backfill job.
+
+This document is still useful as design rationale and as the cleanup checklist
+for replacing remaining workflow-first diagnostics. Treat the flag-based rollout
+sections below as historical migration notes unless they are explicitly marked
+current.
+
 ## Problem
 
 `Job#state` currently carries several different meanings:
@@ -1326,12 +1341,17 @@ WorkUnit(kind: merge_train, scope: epic)
 
 ## Rollout Gates
 
-This migration is deep enough to need feature gates, but not one flag per
-workflow type. Use a small number of subsystem gates, and make each gate an
-ownership handoff: for any migrated path, exactly one implementation is allowed
-to enqueue, repair, pause, cancel, or reconcile that work.
+This migration was deep enough to need feature gates during rollout, but not one
+flag per workflow type. The historical shape used a small number of subsystem
+gates, and made each gate an ownership handoff: for any migrated path, exactly
+one implementation was allowed to enqueue, repair, pause, cancel, or reconcile
+that work.
 
-The proposed gates:
+Current state: those rollout gates have graduated and been removed. The table
+below is retained as a path-by-path migration audit, not as a description of
+active feature flags.
+
+The retired gates were:
 
 1. `work_units_scheduler`
    - enables WorkUnit ownership for lower-risk single-Job runtime paths and
@@ -1353,9 +1373,9 @@ The proposed gates:
    - should be enabled only after the relevant scheduler/landing paths have
      been observed in production.
 
-Do not gate the schema, models, definitions, or observational UI. Do not make
-dual-write optional once it is stable; optional dual-write would create partial
-production data and make debugging worse.
+The schema, models, definitions, and observational UI were deliberately never
+gated. Dual-write is no longer optional; optional dual-write would create
+partial production data and make debugging worse.
 
 Because flags should be reversible, deletion of old behavior must lag behind
 path migration. The migration shape is:
@@ -1371,10 +1391,10 @@ legacy behavior the moment the new code is introduced." Until graduation, direct
 legacy calls should still be removed or isolated so the old and new schedulers
 cannot both act on the same work.
 
-Maintain a migration matrix for every path before enabling behavior:
+Maintain a migration matrix for every path before graduating behavior:
 
 ```text
-path | legacy owner | WorkUnit owner | adapter | gate | forbidden direct calls | graduation checks
+path | legacy owner | WorkUnit owner | adapter | retired rollout gate | forbidden direct calls | graduation checks
 ```
 
 Examples of paths:
@@ -1392,9 +1412,9 @@ Examples of paths:
 - speculative landing validation;
 - main branch repair/main grader.
 
-Current migration matrix:
+Migration matrix:
 
-| Path | Legacy owner | WorkUnit owner | Adapter | Gate | Forbidden direct calls | Graduation checks |
+| Path | Legacy owner | WorkUnit owner | Adapter | Retired rollout gate | Forbidden direct calls | Graduation checks |
 | --- | --- | --- | --- | --- | --- | --- |
 | retry | `RetryWorkflowEnqueuer`, direct retry Workflow rows, retry artifacts | `WorkIntent(kind: retry)` + active job WorkUnit | `WorkUnits::Launcher`, `WorkIntents::Scheduler`, `WorkUnits::Ownership` | `work_units_scheduler` | direct `Workflows::Retry.instantiate`, direct `StepDispatcher.start_workflow`, retry Workflow active scans once gate is on | retry workflows all have WorkUnits; no active retry Workflow without WorkUnit for one operational window; retry UI reads WorkUnit/Intent ownership |
 | auto_retry_backoff | `AutoRetryAttempt` scheduled wakeups only | same-attempt retry WorkUnit blocked with `auto_retry_backoff`; fresh-workflow retries create a new WorkUnit | `WorkUnits::AutoRetryBackoff`, `AutoRetryJob`, `WorkEngine::RepairExecutor` | `work_units_scheduler` | sleeping same-attempt retries without WorkUnit blocked state; holding old WorkUnit locks for fresh retry workflows | same-attempt retry sleeps are visible as blocked WorkUnits and clear when retry fires/skips; retry-workflow attempts do not self-block on the old Unit |
@@ -1743,12 +1763,11 @@ Completed slices:
   WorkUnit ID and typed reason in evidence; expired WorkUnit-only admission
   blocks re-enter the normal dispatcher path, and stale WorkUnit-only
   dependency blocks are cleared before the Workflow is restarted.
-- The WorkUnit scheduler now owns the first runtime start gates behind the
-  `work_units_scheduler` feature: main-branch health, provider availability,
-  manual pause, admission control, and hard resource safety. `StepDispatcher`
-  remains a migration safety net, but launcher-blocked WorkUnits record typed
-  blocked reasons and schedule admission/landing rechecks for non-manual
-  runtime pauses.
+- The WorkUnit scheduler now owns the first runtime start gates for
+  main-branch health, provider availability, manual pause, admission control,
+  and hard resource safety. `StepDispatcher` remains a migration safety net,
+  but launcher-blocked WorkUnits record typed blocked reasons and schedule
+  admission/landing rechecks for non-manual runtime pauses.
 - Provider and admission wakeups now read WorkUnit blocked state before legacy
   Workflow artifact markers. Provider availability, provider-admission/circuit
   recovery, and admission-capacity wakeups can all resume WorkUnit-blocked
@@ -1918,10 +1937,10 @@ Completed slices:
   active shadow locks before adding the unique index so runtime ownership cannot
   silently split across two non-terminal Units.
 - `WorkUnits::Launcher` now returns a typed launch result carrying the Workflow,
-  first Run, WorkIntent, WorkUnit, status, and gate result. When the
-  `work_units_scheduler` gate is enabled, launcher start evaluates WorkUnit
-  gates before creating the first Run and returns a blocked result instead of
-  leaking a queued Run past a typed unit block. Rebase and stack-rebase
+  first Run, WorkIntent, WorkUnit, status, and gate result. Launcher start
+  evaluates WorkUnit gates before creating the first Run and returns a blocked
+  result instead of leaking a queued Run past a typed unit block. Rebase and
+  stack-rebase
   WorkDefinitions use maintenance-scoped locks (`maintenance:rebase:*`) rather
   than the primary `job:*` locks so recovery rebases can coexist with the active
   workflow they are repairing while still preventing duplicate rebase races.
@@ -1937,22 +1956,20 @@ Completed slices:
   repaired at the domain wakeup instead of waiting for the reconciler's
   requested-Intent invariant repair.
 - Mid-workflow Run creation now evaluates WorkUnit runtime gates with the
-  concrete next Step as context when `work_units_scheduler` is enabled. Manual
-  pause, provider availability, main-branch health, and admission/resource
-  blocks can pause a WorkUnit between steps with typed `blocked_reason` and
-  phase-step details instead of only gating the first Run.
+  concrete next Step as context. Manual pause, provider availability,
+  main-branch health, and admission/resource blocks can pause a WorkUnit
+  between steps with typed `blocked_reason` and phase-step details instead of
+  only gating the first Run.
 - Manual unpause now resumes WorkUnit-blocked attempts directly. When an
   operator unpauses a Job, WorkUnit pause requests are cleared, manual-pause
   blocked Units are re-evaluated through `WorkUnits::Scheduler`, and eligible
   workflows are started immediately through `WorkUnits::Launcher` before the
   legacy Workflow artifact resume path runs.
 - Timed provider/admission/resource wakeups now resume through
-  `WorkUnits::DeferredPhaseResume`. With `work_units_scheduler` enabled, the
-  wakeup re-evaluates the active WorkUnit, keeps typed blocked Units blocked
-  when gates still fail, starts first steps through `WorkUnits::Launcher`, and
-  resumes later steps without re-running the same phase gate twice. With the
-  gate disabled, the legacy `StepDispatcher.resume_deferred_phase` path remains
-  the owner.
+  `WorkUnits::DeferredPhaseResume`. The wakeup re-evaluates the active
+  WorkUnit, keeps typed blocked Units blocked when gates still fail, starts
+  first steps through `WorkUnits::Launcher`, and resumes later steps without
+  re-running the same phase gate twice.
 - Reconciler repair execution now uses the same `WorkUnits::DeferredPhaseResume`
   facade for queued-step and deferred-phase repairs, so operator-visible repair
   actions cannot resume provider/admission/resource blocked work through a

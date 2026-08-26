@@ -3,6 +3,13 @@
 _Created 2026-06-02 for epic #813. This is the navigation and content
 contract for the public/product docs experience under `website/`._
 
+_Status check 2026-08-26: the current public site is a compact Next.js static
+export documented in `website/README.md`, with pages under `website/src/app/`
+and shared copy in `website/lib/site.ts`. The Astro/Starlight docs scaffold
+described in older sections was archived under `website/_archive-astro/`. Treat
+the full docs IA below as the target expansion path, not as a description of
+currently served routes._
+
 ## Goals
 
 The public site should answer three questions quickly:
@@ -72,7 +79,7 @@ need them.
 
 ### `/`
 
-Status: stub markdown; should become `index.astro` when Starlight lands.
+Status: implemented as the Next.js home route at `website/src/app/page.tsx`.
 
 Use the home-page structure already defined in `docs/plans/website.md`:
 hero, issue-to-PR visual, 30-second flow, moat cards, product screenshots,
@@ -89,7 +96,9 @@ Source content:
 
 ### `/evaluate`
 
-Status: partially written.
+Status: not currently a standalone Next route; local-evaluation copy should
+land either on the home/download flow or as a new route when the evaluation
+funnel is rebuilt.
 
 This page is a product CTA, not a docs reference. Keep it to exactly the
 three-step local evaluation path plus sample output and a next link to
@@ -104,7 +113,7 @@ Source content:
 
 ### `/about`
 
-Status: mostly written.
+Status: archived markdown exists; not currently served by the compact Next app.
 
 Keep this as the human narrative page: naming story, project origin, and
 maintainer contact. Do not turn it into product docs.
@@ -294,16 +303,16 @@ Source content:
 | `docs/deployment/bot-authored-commits.md` | Future deployment/security docs | Preserve | Use when documenting bot identity or commit-signing expectations |
 | `docs/job-state-audit.md` | `/docs/concepts` or internal maintainer docs | Preserve internal-first | Public docs need the state summary, not the audit trail |
 | `docs/release_notes.md` | Future `/docs/release-notes` or changelog | Preserve for now | Do not add route until launch/update workflow exists |
-| `docs/issues/sluggish-then-unreachable-on-staging.md` | None | Preserve internal | Incident note; not public docs |
 | `docs/plans/complete/*` | None | Preserve internal/archive | Completed implementation plans should not appear in public IA |
 | `docs/plans/*magic-constants*` | `/docs/configuration`, if settings remain user-facing | Selectively merge | Only expose current configurable settings |
 | `docs/plans/gh-stack-integration.md` | Future workflows/recipes | Preserve internal | Not in launch IA unless feature ships |
 | `docs/plans/syrus-as-dev-environment.md` | `/evaluate`, `/docs/deployment/try-it-locally` | Selectively merge | Use only current local-dev behavior |
-| `docs/plans/syrus-native-ci.md` | Future workflows/recipes | Preserve internal | Not launch docs |
-| `docs/plans/lenient-prepare.md` | `/docs/configuration`, `/docs/troubleshooting` | Selectively merge | Use for prepare behavior if current |
+| `config/syrus_docs/workflow_steps.md` | `/docs/workflows`, `/docs/configuration`, `/docs/troubleshooting` | Selectively merge | Current source for prepare, grade-loop, formatter, generated-file, and workflow-step behavior |
+| `config/syrus_docs/video_walkthroughs.md` | Future walkthrough docs | Selectively merge | Current source for walkthrough-video behavior and retention; keep product copy honest about the feature flag and Gemini requirement |
 | `lib/agent_skills/*.md` | Future recipes or extension docs | Preserve | Not part of launch IA |
-| `website/src/pages/*` | Public top-level pages | Preserve and polish | Current files define route contracts |
-| `website/src/content/docs/*` | Public docs | Preserve and polish | Current files are the target IA |
+| `website/src/app/*` | Public top-level pages | Preserve and polish | Current Next.js routes served by the website build |
+| `website/lib/site.ts` | Public copy source | Preserve and polish | Shared copy for home sections, feature pillars, entry points, and release display |
+| `website/src/pages/*`, `website/src/content/docs/*`, `website/src/site-pages/*` | Future docs/content source | Preserve internal/archive | Archived positioning/docs copy; current Next build does not consume these files |
 
 ## Content rules for later jobs
 
@@ -324,10 +333,8 @@ These are the natural implementation jobs after IA approval:
 
 | Target | Work |
 | --- | --- |
-| `/` | Convert `website/src/pages/index.md` to a custom Astro home page with the planned hero, proof visual, screenshots, and CTAs |
-| `/evaluate` | Convert to a polished CTA page with exactly three commands, sample output, and a Docker Compose next step |
-| `/docs/faq` | Write launch FAQ from the target questions above |
-| `/docs/api` | Replace the stub when the public API is finalized |
-| `/docs/deployment/docker-compose` | Update commands once Compose packaging is present |
-| `/docs/deployment/kubernetes` | Update commands once Helm or publishable manifests are present |
-| `website` build | Add Starlight/Astro config, sidebar order matching this IA, package scripts, and GitHub Pages deploy workflow |
+| `/` | Keep `website/src/app/page.tsx` and shared copy in `website/lib/site.ts` current with the product's real user-visible behavior |
+| `/download` | Keep release metadata, download copy, and GitHub latest-release links current |
+| `/evaluate` | Add a polished CTA route only when the current local evaluation flow is ready to advertise |
+| `/docs/*` | Reintroduce public docs deliberately if the compact marketing site grows beyond the current landing/download shape |
+| `website` build | Preserve the static Next.js export and GitHub Pages deploy contract documented in `website/README.md` |

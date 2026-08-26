@@ -4,10 +4,11 @@ _Captured 2026-05-11 from the chat conversation that produced PR
 `website/skeleton-and-plan`. Lives here as the canonical plan;
 implementation is fanned out to individual `syrus`-tagged issues._
 
-_Status check 2026-05-13: partially implemented. The `website/` content
-skeleton exists, but the Astro/Starlight build configuration, package
-scripts, preview workflow, and GitHub Pages deployment plumbing are not
-present._
+_Status check 2026-08-26: this is historical rationale, not the current
+implementation plan. The live site source is `website/`, now a Next.js 15
+static export deployed to GitHub Pages. The earlier Astro/Starlight scaffold is
+preserved under `website/_archive-astro/`; see `website/README.md` for the
+current build, deploy, and content-editing contract._
 
 _IA update 2026-06-02: route-by-route information architecture, content
 inventory, and target pages for follow-up jobs now live in
@@ -70,9 +71,12 @@ awkwardly to native readers.
 
 Not in play: `syrus.dev` (taken), `syrus.ai` ($150k).
 
-## Tech stack
+## Original Tech Stack Proposal
 
 **Starlight (Astro)** as the framework.
+
+This section records the original proposal. The current implementation uses
+Next.js; do not use the Astro/Starlight details below as active guidance.
 
 - Markdown-driven content (contributors write `.md`)
 - Static-site output — served by GitHub Pages with no Node runtime
@@ -270,10 +274,14 @@ Pre-launch criteria for Syrus itself (not the website):
 The website work is independent of all of those. We build it now
 so it's ready when Syrus is.
 
-## Implementation issues to fan out
+## Historical Implementation Issues
 
-After this skeleton PR lands, file the following as
-`syrus`-tagged implementation issues for parallel agents:
+The list below records the original skeleton split. It has been superseded by
+the current Next.js implementation in `website/`; do not file new work from it
+verbatim. Current website work should start from `website/README.md` and update
+`website/src/app/*` or shared copy in `website/lib/site.ts`.
+
+Original fan-out list:
 
 1. **Set up Starlight + GitHub Actions deploy.** Add
    `astro.config.mjs`, `package.json`, `tsconfig.json`. Configure
@@ -281,9 +289,10 @@ After this skeleton PR lands, file the following as
    `.github/workflows/deploy-website.yml` that builds on push to
    main and deploys to GitHub Pages. Verify a build succeeds and
    the site renders locally.
-2. **Home page content + hero visual.** Write the `index.astro`
-   for the home page including the issue → diff hero visual. Use
-   a real Syrus PR as the example.
+2. **Home page content + hero visual.** Original proposal: write an
+   Astro home page including the issue → diff hero visual. Current work
+   should instead update `website/src/app/page.tsx` and shared copy in
+   `website/lib/site.ts`.
 3. **3-step "Try it locally" docs page.** Finish
    `/docs/deployment/try-it-locally` with the three-command flow +
    sample output. Depends on the OCI image existing (separate issue).
@@ -311,14 +320,14 @@ Issues 1, 9, 10 are highest priority — they unblock the rest.
 Issues 2-8 are content work, can run in parallel once Starlight is
 configured (issue 1).
 
-## What this skeleton PR contains
+## What The Original Skeleton PR Contained
 
 - This plan doc (`docs/plans/website.md`).
-- The `website/` directory with stub markdown for every page in the
-  intended sitemap. Each stub has a short content brief explaining
-  what the page should cover.
-- `website/README.md` explaining the layout and pointing at this
-  plan + the implementation issues.
+- The original `website/` directory with stub markdown for every page in the
+  intended sitemap. The current directory has since been rebuilt as a Next.js
+  static site.
+- `website/README.md`, now updated to describe the current Next.js build and
+  deployment path.
 
 What this PR does **not** contain:
 - Starlight / Astro setup (`package.json`, `astro.config.mjs`,
@@ -327,6 +336,5 @@ What this PR does **not** contain:
 - Actual page content. Filed as issues #2–#8.
 - CNAME file. Added when the domain is purchased.
 
-The split keeps this PR a reviewable skeleton — directories and
-intent — while the actual implementation work parallelizes via
-agents.
+The split kept that PR a reviewable skeleton — directories and intent — while
+the actual implementation work parallelized via agents.

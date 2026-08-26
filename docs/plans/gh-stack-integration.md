@@ -2,6 +2,11 @@
 
 _Companion to syrus#504 (branch parenting). Captured 2026-05-16._
 
+_Status check 2026-08-26: GitHub stacked pull requests are now in public
+preview, not private preview. The high-level mapping in this plan is still
+relevant, but implementation should be revalidated against GitHub's current
+Stacked PR docs/API surface before building against it._
+
 ## Context
 
 GitHub announced [gh-stack](https://github.github.com/gh-stack/) — native
@@ -14,7 +19,10 @@ GitHub then layers on:
 - One-click cascading rebase
 - Multi-PR merge that auto-rebases the remaining PRs
 
-Currently **private preview, opt-in per repo via waitlist**.
+As of July 30, 2026 GitHub describes stacked pull requests as **public
+preview**. GitHub's quickstart still says the feature is subject to change, so
+Syrus should treat native integration as an adapter with explicit capability
+detection rather than as a permanently stable API.
 
 PR #495 ("Stacked diffs: auto-merge gates on parent + PR body stack
 footer") implemented this in-house: `JobStackResolver`, `PrStackFooter`,
@@ -45,8 +53,8 @@ ALTER TABLE repositories
   ADD COLUMN gh_stack_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 ```
 
-Default off — only flip when GitHub has granted the repo gh-stack
-preview access.
+Default off — only flip when the repository's GitHub account and desired
+workflow are ready to rely on the public-preview behavior.
 
 ### UI
 
@@ -54,8 +62,8 @@ Add the flag to the repo edit form under "Advanced" with hint text:
 
 ```
 GitHub stacked PRs (gh-stack)   [ ]
-  Enable when GitHub has granted gh-stack preview access for this
-  repo. When on, Syrus relies on GitHub's native stack handling
+  Enable when this repo is ready to rely on GitHub's public-preview
+  stacked PR behavior. When on, Syrus relies on GitHub's native stack handling
   (cascading rebase, multi-PR merge) instead of its in-house
   coordination. Requires branch parenting (syrus#504) to be active —
   no effect on its own.

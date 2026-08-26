@@ -1,7 +1,11 @@
 # Landing merge-train (Fix 4)
 
-Status: **implemented (v1)** — behind `AppSetting.merge_train_enabled`
-(default off). Enable per environment once validated.
+_Status check 2026-08-26: complete as the v1 Epic merge-train
+implementation plan. Current operator-facing behavior lives in
+`config/syrus_docs/merge_train.md`, `config/syrus_docs/landing_queue.md`, and
+`config/syrus_docs/app_settings.md`; this file is retained as design history._
+
+Status: **implemented (v1)** — controlled by `AppSetting.merge_train_enabled`.
 
 ## Implementation status (v1)
 

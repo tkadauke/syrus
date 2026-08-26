@@ -8,11 +8,11 @@ tell when the debt is still necessary and when it can be removed.
 
 - **Introduced for:** `docs/plans/work-units-and-execution-resilience.md`
 - **Owner area:** WorkIntent / WorkUnit migration
-- **Code:** remaining workflow-first UI/controller diagnostics, start-block
-  artifact projections kept for audit/display compatibility, and
-  migration-only adapters that preserve pre-WorkUnit data. Production workflow
-  launch paths are guarded by `spec/architecture/workflow_launch_funnel_spec.rb`
-  and should continue to enter through `WorkUnits::Launcher`.
+- **Code:** remaining workflow-first UI/controller diagnostics and start-block
+  artifact projections kept for audit/display compatibility. Production
+  workflow launch paths are guarded by
+  `spec/architecture/workflow_launch_funnel_spec.rb` and should continue to
+  enter through `WorkUnits::Launcher`.
 - **Why it exists:** WorkUnits are replacing brittle runtime inference
   incrementally. The cleanup passes removed replay/start-block artifact
   ownership fallbacks from scheduling, wakeups, filters, active runtime checks,
@@ -22,8 +22,8 @@ tell when the debt is still necessary and when it can be removed.
 - **Removal condition:** WorkUnit-backed scheduling, wakeups, repair execution,
   and UI projections have been tested in production and have stayed stable for a
   full operational window, with no active production path requiring direct
-  Workflow ownership inference. The one-time active-Workflow migration has run
-  on known installations, and no runtime bridge/backfill job exists.
+  Workflow ownership inference. The one-time active-Workflow migration
+  (`BackfillActiveWorkUnits`) has run on known installations.
 - **Removal work:** Delete the old brittle fallback implementation path by path:
   remove workflow-first diagnostic projections, delete migration-only
   compatibility specs, and keep only tests that prove all runtime work enters

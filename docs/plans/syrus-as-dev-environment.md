@@ -1,19 +1,13 @@
 # Syrus → contained dev environment
 
-_Status check 2026-05-15: partially implemented. M1 and M2 are no
-longer only roadmap text: per-repo chat has shipped as
-`ChatSession` / `ChatTurnJob` / `ChatWorkspace` plus chat MCP tools,
-repo-scoped proposals, cascade filing, and a chat/proposals UI; Job
-dependencies are first-class and block workflow dispatch when
-unresolved. The native CI slice of M3 has also started: local `grade`
-steps, loop iterations, `.syrus.yml` grader config, and iteration UI are
-present. Still future: a fully configurable arbitrary pipeline, browser
-tooling, adversarial review, repo scaffolding, preview environments,
-continuous deploy, team roles, Codex-backed chat, and the larger
-"unified session + issue pipeline" architecture. See
-`complete/per-repo-chat.md` for archived chat context and
-`syrus-native-ci.md` Build order step 4 for the remaining `ci_failure`
-cleanup._
+_Status check 2026-08-26: this is now a historical direction-setting
+plan, not an implementation checklist. Per-repo chat, repository-scoped
+proposals, Job dependencies, local grader loops, adversarial review,
+visual review, preview environments, Coding Mode, Local Mode, plugins,
+skills, WorkIntent/WorkUnit ownership, and configurable `.syrus.yml`
+grade phases have all shipped in some form. Current behavior lives in
+`config/syrus_docs/` and `ARCHITECTURE.md`; use this file only for the
+larger product direction and milestone framing._
 
 The current Syrus is "issue → PR automation harness." The next
 Syrus is "the place where a small team (or a solo operator) builds
@@ -29,10 +23,10 @@ homelab K3s as the substrate, no SaaS multi-tenancy.
 | Repo lifecycle | Operates on existing repos | Create + scaffold via agent |
 | Iteration | Job dependencies are first-class; one Workflow still runs at a time per Job | DAG of Jobs the operator (or agent) plans |
 | Implementer toolkit | Editor, shell, git, local grade output | + Playwright/headless browser |
-| Quality gate | Local `grade` loops for initial/retry/pr_comment; legacy `ci_failure` check-run path still present | Tests, formatters, browser tests, adversarial review (configurable in `.syrus.yml`) |
-| Delivery | Stops at "PR opened" | CI → preview env per PR → CD on merge |
-| Interactivity | Persistent per-repo chat with proposals; Job Runs still use the headless transcript model | Persistent multi-session per-repo agent in the browser |
-| Collaboration | Single-tenant + admin tier | Per-repo roles for a small team |
+| Quality gate | `.syrus.yml` grade phases, formatters, generated-file checks, adversarial review, visual review, local CI-repair workflows | More policy flexibility and cheaper review/landing profiles |
+| Delivery | PR opening, landing queue, merge trains, job bundles, previews | Delivery tracks, promotion, upstream export |
+| Interactivity | Persistent chat, Coding Mode, Local Mode, proposals, pending actions | More unified chat/workflow session model |
+| Collaboration | Multi-user instance roles and ownership scopes | Richer repo/team approval policies |
 
 ## Decisions locked
 
