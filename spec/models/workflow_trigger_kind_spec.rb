@@ -28,6 +28,7 @@ RSpec.describe Workflow::TriggerKind do
       "stack_rebase",
       "promotion",
       "hotfix_sync",
+      "upstream_export",
       "auto_merge",
       "external_pr_merge",
       "merge_train",

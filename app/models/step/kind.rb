@@ -128,6 +128,8 @@ class Step
       Entry.new(kind: "hotfix_sync_repair", handler: "HotfixSyncRepair",   label: "Hotfix sync repair",         style: "bg-fuchsia-200 text-fuchsia-800", agentic: true),
       Entry.new(kind: "hotfix_sync_publish", handler: "HotfixSyncPublish", label: "Publish hotfix sync",        style: "bg-fuchsia-200 text-fuchsia-800", agentic: false,
                 repair_semantics: :publication),
+      Entry.new(kind: "upstream_export_publish", handler: "UpstreamExportPublish", label: "Publish upstream export", style: "bg-fuchsia-300 text-fuchsia-900", agentic: false,
+                repair_semantics: :publication),
       Entry.new(kind: "stack_auto_rebase",  handler: "StackAutoRebase",    label: "Stack auto-rebase",         style: "bg-teal-100 text-teal-700",   agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "stack_agent_rebase", handler: "StackAgentRebase",   label: "Stack agent rebase",        style: "bg-teal-100 text-teal-700",   agentic: true),

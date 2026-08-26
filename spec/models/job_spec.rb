@@ -2981,6 +2981,82 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       job.valid?
       expect(job.target_repository_id).to be_nil
     end
+
+    context "when the fork repository has upstream-export configured (Story 8/9 bypass)" do
+      around do |example|
+        @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+        previous_root = ENV["SYRUS_DATA_ROOT"]
+        ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+        example.run
+        ENV["SYRUS_DATA_ROOT"] = previous_root
+        FileUtils.rm_rf(@data_root)
+      end
+
+      def write_bare_clone_with_upstream_export(repository)
+        work_dir = Dir.mktmpdir("syrus-work")
+        system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+        system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+        system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+        File.write(File.join(work_dir, ".syrus.yml"), <<~YAML)
+          delivery:
+            upstream_export:
+              enabled: true
+        YAML
+        system("git", "-C", work_dir, "add", ".", exception: true)
+        system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+        clone_path = RepositoryBareClone.path_for(repository)
+        FileUtils.mkdir_p(clone_path.dirname)
+        system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+      ensure
+        FileUtils.rm_rf(work_dir) if work_dir
+      end
+
+      it "does not auto-populate target_repository_id, leaving new Jobs on the upstream-export path instead of fork-review mode" do
+        upstream = Factories.repository(user: user)
+        fork = Factories.repository(user: user, upstream_repository: upstream)
+        write_bare_clone_with_upstream_export(fork)
+        epic = Epic.create!(user: user, repository: upstream, title: "Upstream-export epic")
+
+        job = Job.create!(user: user, repository: fork, epic: epic, issue_number: 7)
+
+        expect(job.target_repository_id).to be_nil
+        expect(job.in_fork_review_mode?).to be(false)
+      end
+
+      it "still sets target_repository_id (fork-review mode) for a sibling repository without upstream-export configured — existing fork-review Jobs are unaffected" do
+        upstream = Factories.repository(user: user)
+        fork = Factories.repository(user: user, upstream_repository: upstream)
+        epic = Epic.create!(user: user, repository: upstream, title: "Legacy fork-review epic")
+
+        job = Job.create!(user: user, repository: fork, epic: epic, issue_number: 8)
+
+        expect(job.target_repository_id).to eq(upstream.id)
+        expect(job.in_fork_review_mode?).to be(true)
+      end
+    end
+  end
+
+  describe "#dispatch_upstream_export_after_approval" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "enqueues UpstreamExportDispatchJob when the job transitions into approved" do
+      job = Factories.job(user: user, repository: repository)
+      job.update!(state: "implemented")
+
+      expect {
+        job.approve!(via: "operator", by_user: user)
+      }.to have_enqueued_job(UpstreamExportDispatchJob).with(job.id)
+    end
+
+    it "does not enqueue UpstreamExportDispatchJob for unrelated state transitions" do
+      job = Factories.job(user: user, repository: repository)
+
+      expect {
+        job.update!(state: "implemented")
+      }.not_to have_enqueued_job(UpstreamExportDispatchJob)
+    end
   end
 
   describe "epic_belongs_to_same_user_and_repository validation" do
