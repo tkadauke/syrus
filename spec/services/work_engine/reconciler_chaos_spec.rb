@@ -186,6 +186,19 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       )
     end
 
+    # The ref-movement templates (Promotion/HotfixSync) require pre-resolved
+    # source/target branch artifacts (normally supplied by their
+    # dispatchers) and raise ArgumentError without them; every other
+    # template instantiates fine from a bare Job.
+    def instantiate_artifacts_for(template_class)
+      case template_class.name
+      when "Workflows::Promotion"
+        { "promotion_source_branch" => "develop", "promotion_target_branch" => shared_repository.default_branch }
+      when "Workflows::HotfixSync"
+        { "hotfix_sync_source_branch" => shared_repository.default_branch, "hotfix_sync_target_branch" => "develop" }
+      end
+    end
+
     def random_provider
       random.rand(2).zero? ? "claude" : "codex"
     end
@@ -292,7 +305,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         state: "queued",
         agent_provider: random_provider
       )
-      workflow = entry.template_class.instantiate(job: job, agent_provider: job.agent_provider)
+      workflow = entry.template_class.instantiate(job: job, artifacts: instantiate_artifacts_for(entry.template_class), agent_provider: job.agent_provider)
       workflow.update_columns(state: "running", started_at: random.rand(6..12).minutes.ago)
 
       expand_adversarial_review_loops!(workflow)
@@ -1527,6 +1540,15 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       expect(Workflows.for(trigger_kind: entry.kind)).to eq(entry.template_class)
     end
 
+    # Most templates instantiate from a bare Job; the ref-movement templates
+    # (Promotion/HotfixSync) require pre-resolved source/target branch
+    # artifacts (normally supplied by their dispatchers) and raise
+    # ArgumentError without them.
+    required_artifacts_by_template = {
+      Workflows::Promotion => { "promotion_source_branch" => "develop", "promotion_target_branch" => repository.default_branch },
+      Workflows::HotfixSync => { "hotfix_sync_source_branch" => repository.default_branch, "hotfix_sync_target_branch" => "develop" }
+    }
+
     template_classes.each_with_index do |template, index|
       job = Factories.job_record(
         user: user,
@@ -1534,7 +1556,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         issue_number: 20_000 + index,
         state: "queued"
       )
-      workflow = template.instantiate(job: job)
+      workflow = template.instantiate(job: job, artifacts: required_artifacts_by_template[template])
       expect(workflow.steps).to be_present
       static_step_kinds.merge(serialized_template_step_kinds(workflow.chain_template))
     end

@@ -79,6 +79,33 @@ class DeliveryPolicy
     delivery.hotfix_sync.mode
   end
 
+  # The skill name (`delivery.hotfix_sync.repair_skill`) a hotfix-sync
+  # ref-movement workflow should invoke — same `Skills.for` resolution
+  # `Steps::PromotionRepair`/`Steps::RunSkill` use — when the deterministic
+  # merge attempt conflicts or the hotfix-sync grade phase fails. `nil` when
+  # unconfigured; `Steps::HotfixSyncRepair` fails the step rather than
+  # guessing a skill.
+  def hotfix_sync_repair_skill
+    delivery.hotfix_sync.repair_skill
+  end
+
+  # Source/target resolution for the hotfix-sync ref-movement workflow
+  # (docs/plans/delivery-tracks-and-promotion.md Story 5/5A): the mirror
+  # image of `promotion_source_branch`/`promotion_target_branch`. Hotfix
+  # sync moves the repository's actual GitHub default branch (the release
+  # branch, where direct hotfix commits land) back into the `default`
+  # delivery track's branch (the development branch). Only
+  # `direction: release_to_development` is supported today
+  # (`SyrusYml::DELIVERY_HOTFIX_SYNC_DIRECTIONS`), so these two methods don't
+  # need to branch on `delivery.hotfix_sync.direction` yet.
+  def hotfix_sync_source_branch
+    repository.default_branch
+  end
+
+  def hotfix_sync_target_branch
+    resolved_branch(default_track)
+  end
+
   def upstream_export_enabled?
     delivery.upstream_export.enabled
   end

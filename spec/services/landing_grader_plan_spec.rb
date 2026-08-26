@@ -45,6 +45,10 @@ RSpec.describe LandingGraderPlan do
       expect(described_class.phase_for(trigger_kind: "promotion", iteration: 1)).to eq(:promotion)
     end
 
+    it "maps hotfix_sync to :promotion (there is no separate built-in hotfix_sync grade phase)" do
+      expect(described_class.phase_for(trigger_kind: "hotfix_sync", iteration: 1)).to eq(:promotion)
+    end
+
     it "falls back to :review for everything else" do
       expect(described_class.phase_for(trigger_kind: "initial", iteration: 1)).to eq(:review)
       expect(described_class.phase_for(trigger_kind: "pr_comment", iteration: 1)).to eq(:review)
@@ -57,6 +61,12 @@ RSpec.describe LandingGraderPlan do
 
       expect(effective.graders.map(&:name)).to eq([ "promotion-check" ])
       expect(effective.graders.first.metadata).to include("phase" => "promotion", "configured_phases" => %w[promotion])
+    end
+
+    it "selects the same promotion-phase graders for trigger_kind hotfix_sync" do
+      effective = described_class.effective(plan, trigger_kind: "hotfix_sync", iteration: 1)
+
+      expect(effective.graders.map(&:name)).to eq([ "promotion-check" ])
     end
 
     it "selects only graders whose phases include landing for trigger_kind auto_merge" do
