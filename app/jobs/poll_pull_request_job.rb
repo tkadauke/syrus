@@ -662,6 +662,11 @@ class PollPullRequestJob < ApplicationJob
 
   def enqueue_ci_failure_run(head_sha, failed_checks)
     failed_checks = failed_checks.map { |check| enrich_failed_check(check) }
+    if ci_failure_diagnostics_missing?(failed_checks)
+      record_missing_ci_failure_diagnostics!(head_sha, failed_checks)
+      return
+    end
+
     artifacts = {
       "head_sha"      => head_sha,
       "base_sha"      => pr_base_sha,
@@ -733,5 +738,30 @@ class PollPullRequestJob < ApplicationJob
 
   def enrich_failed_check(check)
     CiRepair::CheckEnricher.call(check)
+  end
+
+  def ci_failure_diagnostics_missing?(failed_checks)
+    failed_checks.any? && failed_checks.all? do |check|
+      context = (check[:error_context] || check["error_context"]).to_h
+      context[:parser].to_s == "empty" || context["parser"].to_s == "empty"
+    end
+  end
+
+  def record_missing_ci_failure_diagnostics!(head_sha, failed_checks)
+    failed = failed_checks.map do |check|
+      context = (check[:error_context] || check["error_context"]).to_h
+      {
+        "name" => check[:name] || check["name"],
+        "conclusion" => check[:conclusion] || check["conclusion"],
+        "html_url" => check[:html_url] || check["html_url"],
+        "error_summary" => context[:error_summary] || context["error_summary"]
+      }.compact
+    end
+    reason = "CI failure diagnostics unavailable for #{head_sha[0, 7]}"
+    @job.update!(landing_failure_reason: reason) unless @job.landing_failure_reason == reason
+    Rails.logger.warn(
+      "[PollPullRequestJob] #{@job.slug}: suppressing ci_failure repair for #{head_sha[0, 7]} " \
+      "because failed checks had no log or summary diagnostics: #{failed.inspect}"
+    )
   end
 end

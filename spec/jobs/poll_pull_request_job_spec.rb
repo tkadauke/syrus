@@ -738,6 +738,57 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(job.reload.last_ci_handled_sha).to eq(sha)
     end
 
+    it "fetches GitHub Actions job logs before parsing CI repair diagnostics" do
+      actions_log = Rails.root.join("spec/fixtures/ci_logs/rspec_failure.log").read
+      stub_check_runs(sha, [
+        { name: "rspec", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/actions/runs/99/job/123",
+          output: { summary: nil, text: nil } }
+      ])
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/123")
+        .with(query: hash_including({}))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            id: 123,
+            name: "rspec",
+            status: "completed",
+            conclusion: "failure",
+            steps: [
+              { name: "Run RSpec", status: "completed", conclusion: "failure" }
+            ]
+          }.to_json
+        )
+      log_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/123/logs")
+        .to_return(status: 200, headers: { "Content-Type" => "text/plain" }, body: actions_log)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "ci_failure").last
+      context = wf.artifact("failed_checks").first["error_context"]
+      expect(context["parser"]).to eq("rspec")
+      expect(context["failing_tests"]).to include("GreetingHelper#greet returns the user's name")
+      expect(log_stub).to have_been_requested
+    end
+
+    it "does not spend an agentic CI repair when failed checks have no log or summary diagnostics" do
+      stub_check_runs(sha, [
+        { name: "rspec", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/runs/100",
+          output: { summary: nil, text: nil } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(job.reload.last_ci_handled_sha).to be_nil
+      expect(job.landing_failure_reason).to eq("CI failure diagnostics unavailable for #{sha[0, 7]}")
+    end
+
     it "dispatches a rebase instead of CI repair when the PR is behind its base" do
       allow_any_instance_of(RepositoryBareClone).to receive(:commits_behind).and_return(3)
       stub_check_runs(sha, [

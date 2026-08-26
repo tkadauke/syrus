@@ -503,6 +503,7 @@ class GithubClient
   FAILED_CONCLUSIONS = %w[failure timed_out action_required stale].freeze
   INCONCLUSIVE_CONCLUSIONS = %w[cancelled].freeze
   MAIN_BRANCH_CI_WORKFLOW_NAMES = [ "CI" ].freeze
+  ACTIONS_JOB_LOG_MAX_BYTES = 1.megabyte
   ACTIONS_INFRA_SETUP_STEP_NAMES = [
     "Set up job",
     "Prepare workflow directory",
@@ -918,6 +919,8 @@ class GithubClient
     if actions_infrastructure_failure?(check_run: check_run, job: job, failed_step_names: failed_step_names)
       metadata[:failure_kind] = "ci_infrastructure"
       metadata[:failure_summary] = "GitHub Actions infrastructure failed before repository tests ran."
+    else
+      metadata[:log] = actions_job_log_for(repo_slug, job_id)
     end
 
     metadata.compact
@@ -932,6 +935,15 @@ class GithubClient
 
   def actions_run_id_from_url(url)
     url.to_s[%r{/actions/runs/(\d+)}, 1]&.to_i
+  end
+
+  def actions_job_log_for(repo_slug, job_id)
+    log = track_rate_limits { @client.get("/repos/#{repo_slug}/actions/jobs/#{job_id}/logs") }
+    text = log.respond_to?(:body) ? log.body.to_s : log.to_s
+    text.presence&.safe_byteslice(0, ACTIONS_JOB_LOG_MAX_BYTES)
+  rescue Octokit::NotFound, Octokit::Forbidden, Octokit::Unauthorized => e
+    Rails.logger.warn("[GithubClient] could not fetch Actions job log #{repo_slug}/#{job_id}: #{e.message}")
+    nil
   end
 
   def actions_infrastructure_failure?(check_run:, job:, failed_step_names:)
