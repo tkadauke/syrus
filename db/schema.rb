@@ -1974,6 +1974,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
   end
 
   create_table "spawned_processes", force: :cascade do |t|
+    t.integer "chat_session_id"
     t.string "command", limit: 4096, null: false
     t.datetime "created_at", null: false
     t.integer "exit_status"
@@ -1994,6 +1995,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_205000) do
     t.integer "wall_timeout_s"
     t.string "workdir", limit: 4096
     t.integer "workflow_id"
+    t.index ["chat_session_id"], name: "index_spawned_processes_on_chat_session_id"
     t.index ["finished_at", "hostname", "pid", "last_chunk_at"], name: "idx_spawned_processes_active_host_pid"
     t.index ["finished_at", "kind"], name: "idx_spawned_processes_active_kind"
     t.index ["finished_at", "last_chunk_at"], name: "idx_spawned_processes_active"

@@ -14,6 +14,7 @@ import {
   fetchAdminProcess,
   fetchAdminProcesses,
   killAdminProcess,
+  type SpawnedProcessOwner,
   type SpawnedProcessPayload
 } from "../api/adminProcesses"
 import { workflowSlug } from "../lib/slugs"
@@ -79,7 +80,7 @@ export function AdminProcessesIndex() {
             <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
               {t("processes.running_summary", { running: processes.data.running_total, shown: processes.data.processes.length })}
             </div>
-            <ProcessesTable basePath={basePath} processes={processes.data.processes} />
+            <ProcessesTable basePath={basePath} prefix={prefix} processes={processes.data.processes} />
           </section>
         </AdminFiltersLayout>
       ) : null}
@@ -118,7 +119,7 @@ export function AdminProcessDetail() {
   )
 }
 
-function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayload[]; basePath: string }) {
+function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedProcessPayload[]; basePath: string; prefix: string }) {
   const { t } = useT("admin")
   if (processes.length === 0) return <PanelMessage>{t("processes.no_match")}</PanelMessage>
 
@@ -129,6 +130,7 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
           <tr>
             <th className="px-3 py-2">{t("processes.col_kind")}</th>
             <th className="px-3 py-2">{t("processes.col_command")}</th>
+            <th className="px-3 py-2">{t("processes.col_owner")}</th>
             <th className="px-3 py-2">{t("processes.col_host_pid")}</th>
             <th className="px-3 py-2">{t("processes.col_started")}</th>
             <th className="px-3 py-2">{t("processes.col_last_chunk")}</th>
@@ -144,6 +146,9 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
                 <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
               </td>
               <td className="max-w-md truncate px-3 py-2 align-top font-mono text-xs text-gray-700 dark:text-gray-200" title={process.command}>{process.command}</td>
+              <td className="max-w-xs px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
+                <OwnerLabel owner={process.owner} prefix={prefix} />
+              </td>
               <td className="px-3 py-2 align-top font-mono text-xs text-gray-600 dark:text-gray-300">
                 {process.hostname || "-"}
                 {process.pid ? <div className="text-gray-500 dark:text-gray-400">pid {process.pid}</div> : null}
@@ -183,6 +188,12 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
       </div>
 
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
+        {process.owner ? (
+          <>
+            <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_owner")}</dt>
+            <dd><OwnerLabel owner={process.owner} prefix={prefix} /></dd>
+          </>
+        ) : null}
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_hostname")}</dt>
         <dd className="font-mono text-gray-900 dark:text-gray-100">{process.hostname || "-"}</dd>
         <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_pid_pgid")}</dt>
@@ -273,6 +284,18 @@ function HostMetrics({ metrics }: { metrics: Record<string, unknown> }) {
         ))}
       </dl>
     </div>
+  )
+}
+
+function OwnerLabel({ owner, prefix }: { owner: SpawnedProcessOwner | null; prefix: string }) {
+  const { t } = useT("admin")
+  if (!owner) return <span className="text-gray-400 dark:text-gray-500">{t("processes.owner_unknown")}</span>
+  if (!owner.path) return <span>{owner.label}</span>
+
+  return (
+    <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(owner.path, prefix)}>
+      {owner.label}
+    </Link>
   )
 }
 

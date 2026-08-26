@@ -98,6 +98,30 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("StandardError: clone failed")
   end
 
+  it "exposes the chat session via a thread-local while the agent invocation runs, and clears it afterward" do
+    observed = nil
+    ChatTurnJob.agent_runner = ->(**_) {
+      observed = Thread.current[:syrus_current_chat_session]
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(observed).to eq(chat)
+    expect(Thread.current[:syrus_current_chat_session]).to be_nil
+  end
+
+  it "clears the chat session thread-local even when the turn raises" do
+    ChatTurnJob.agent_runner = ->(**_) { raise StandardError, "boom" }
+
+    # ChatTurnJob declares `discard_on StandardError`, so ActiveJob swallows
+    # the exception here rather than re-raising it — just confirm the
+    # thread-local cleanup in `ensure` still ran.
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(Thread.current[:syrus_current_chat_session]).to be_nil
+  end
+
   it "updates coding_checkout_uncommitted after the turn when there are uncommitted changes" do
     enable_coding_mode!
     chat.update!(mode: "coding", coding_checkout_branch: "syrus-chat-#{chat.id}")
