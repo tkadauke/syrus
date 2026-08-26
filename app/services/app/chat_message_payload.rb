@@ -186,6 +186,7 @@ module App
         depends_on_epic_ids: proposal.depends_on_epic_ids || [],
         dependencies: visible_dependencies,
         has_dependencies: visible_dependencies.any?,
+        target_epic_id: proposal.target_epic_id,
         target_epic_label: proposal.target_epic&.slug,
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
