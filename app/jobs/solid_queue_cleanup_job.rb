@@ -22,11 +22,14 @@ class SolidQueueCleanupJob < ApplicationJob
   def prune_finished_jobs
     finished_before = SolidQueue.clear_finished_jobs_after.ago
     MAX_BATCHES.times do |index|
-      records_deleted = SolidQueue::Job
-                          .clearable(finished_before: finished_before)
-                          .limit(BATCH_SIZE)
-                          .delete_all
-      break if records_deleted.zero?
+      job_ids = SolidQueue::Job
+                  .clearable(finished_before: finished_before)
+                  .order(:finished_at, :id)
+                  .limit(BATCH_SIZE)
+                  .pluck(:id)
+      break if job_ids.empty?
+
+      SolidQueue::Job.where(id: job_ids).delete_all
 
       sleep(SLEEP_BETWEEN_BATCHES) unless index == MAX_BATCHES - 1
     end

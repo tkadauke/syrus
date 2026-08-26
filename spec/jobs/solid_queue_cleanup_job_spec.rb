@@ -7,10 +7,15 @@ RSpec.describe SolidQueueCleanupJob do
     # assert the cleanup call without hitting the missing table.
     cleanup_class = Class.new do
       class << self
-        attr_accessor :deleted_batches, :limit_values, :finished_before_values
+        attr_accessor :id_batches, :deleted_job_ids, :limit_values, :finished_before_values, :order_values
 
         def clearable(finished_before:)
           finished_before_values << finished_before
+          self
+        end
+
+        def order(*values)
+          order_values << values
           self
         end
 
@@ -19,14 +24,27 @@ RSpec.describe SolidQueueCleanupJob do
           self
         end
 
+        def pluck(column)
+          raise "unexpected column #{column.inspect}" unless column == :id
+
+          id_batches.shift || []
+        end
+
+        def where(id:)
+          deleted_job_ids << id
+          self
+        end
+
         def delete_all
-          deleted_batches.shift || 0
+          true
         end
       end
     end
-    cleanup_class.deleted_batches = [ 100, 100, 0 ]
+    cleanup_class.id_batches = [ (1..100).to_a, (101..200).to_a, [] ]
+    cleanup_class.deleted_job_ids = []
     cleanup_class.limit_values = []
     cleanup_class.finished_before_values = []
+    cleanup_class.order_values = []
     stub_const("SolidQueue::Job", cleanup_class)
     allow_any_instance_of(described_class).to receive(:sleep)
     allow_any_instance_of(described_class).to receive(:prune_obsolete_ready_jobs)
@@ -35,7 +53,9 @@ RSpec.describe SolidQueueCleanupJob do
     described_class.perform_now
 
     expect(SolidQueue::Job.limit_values).to eq([ 100, 100, 100 ])
+    expect(SolidQueue::Job.order_values).to eq([ [ :finished_at, :id ], [ :finished_at, :id ], [ :finished_at, :id ] ])
     expect(SolidQueue::Job.finished_before_values).to all(be_present)
+    expect(SolidQueue::Job.deleted_job_ids).to eq([ (1..100).to_a, (101..200).to_a ])
   end
 
   it "clears stale ready jobs from obsolete queues in bounded batches" do
