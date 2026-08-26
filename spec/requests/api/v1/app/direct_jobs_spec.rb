@@ -157,6 +157,35 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(new_job.target_branch).to be_nil
   end
 
+  it "sets delivery_track when provided" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Ship a hotfix",
+      prompt: "Land this straight on the hotfix track.",
+      delivery_track: "hotfix"
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.delivery_track).to eq("hotfix")
+  end
+
+  it "leaves delivery_track nil when not provided" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Ordinary job",
+      prompt: "Do the normal thing."
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.delivery_track).to be_nil
+  end
+
   it "holds product-owner direct jobs before triage release" do
     user.update!(role: "product_owner")
     sign_in_as(user)

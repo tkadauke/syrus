@@ -125,6 +125,43 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(created.effective_base_branch).to eq("main")
     end
 
+    it "sets delivery_track when provided" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+
+      post "/api/v1/admin/jobs",
+           params: {
+             job: {
+               repository_id: repo.id,
+               prompt: "Ship a hotfix.",
+               delivery_track: "hotfix"
+             }
+           },
+           headers: auth(admin_token)
+
+      expect(response).to have_http_status(:created)
+      created = Job.order(:created_at).last
+      expect(created.delivery_track).to eq("hotfix")
+      body = parse_body
+      expect(body.dig("job", "delivery_track")).to eq("hotfix")
+    end
+
+    it "leaves delivery_track nil when not provided" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+
+      post "/api/v1/admin/jobs",
+           params: {
+             job: {
+               repository_id: repo.id,
+               prompt: "Do the normal thing."
+             }
+           },
+           headers: auth(admin_token)
+
+      expect(response).to have_http_status(:created)
+      created = Job.order(:created_at).last
+      expect(created.delivery_track).to be_nil
+    end
+
     it "can create a direct job under an Epic and let the Epic block execution" do
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
       epic = Factories.epic(user: admin, repository: repo, title: "Marble administration")
