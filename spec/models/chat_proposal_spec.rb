@@ -89,6 +89,38 @@ RSpec.describe ChatProposal do
       expect(proposal).not_to be_valid
       expect(proposal.errors[:media_ids].join).to match(/does not belong to this chat session/)
     end
+
+    it "accepts a preview_panel_version ID that belongs to the session" do
+      panel = PreviewPanel.create!(chat_session: chat_session, title: "Widget preview")
+      version = panel.create_version!("index.html" => "<h1>hi</h1>")
+
+      proposal = described_class.new(
+        chat_session: chat_session,
+        slug: "media-preview-panel",
+        title: "Preview panel media",
+        body: "x",
+        media_ids: ["preview_panel_version:#{version.id}"]
+      )
+
+      expect(proposal).to be_valid
+    end
+
+    it "rejects a preview_panel_version ID that belongs to a different chat session" do
+      other_session = ChatSession.create!(user: user, repository: repository)
+      panel = PreviewPanel.create!(chat_session: other_session, title: "Widget preview")
+      version = panel.create_version!("index.html" => "<h1>hi</h1>")
+
+      proposal = described_class.new(
+        chat_session: chat_session,
+        slug: "media-cross-preview-panel",
+        title: "Cross-session preview panel",
+        body: "x",
+        media_ids: ["preview_panel_version:#{version.id}"]
+      )
+
+      expect(proposal).not_to be_valid
+      expect(proposal.errors[:media_ids].join).to match(/does not belong to this chat session/)
+    end
   end
 
   it "creates a proposed syrus issue proposal by default" do
