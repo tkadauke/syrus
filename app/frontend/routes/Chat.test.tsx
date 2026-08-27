@@ -3412,6 +3412,23 @@ describe("floating composer control order", () => {
     expect(screen.getByRole("button", { name: "Chat model" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Effort" })).toBeInTheDocument()
   })
+
+  // jsdom never loads compiled CSS, so a Tailwind `hidden sm:block` wrapper
+  // can't be asserted via toBeInTheDocument()/toBeVisible() the way a
+  // conditional-render gate (like the agentActive check above) can — assert
+  // the responsive classes are present instead, mirroring how the
+  // "floating composer positioning" suite already asserts `className`
+  // content for CSS-driven behavior jsdom can't compute.
+  it("only ever renders the effort selector at sm: and above, independent of agent state", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const effort = await screen.findByRole("button", { name: "Effort" })
+    const wrapper = effort.parentElement as HTMLElement
+    expect(wrapper.className).toContain("hidden")
+    expect(wrapper.className).toContain("sm:block")
+  })
 })
 
 describe("floating composer positioning", () => {
@@ -3442,6 +3459,43 @@ describe("floating composer positioning", () => {
     const columnAncestor = ancestor as HTMLElement
     expect(columnAncestor.className).toContain("relative")
     expect(columnAncestor.contains(panel)).toBe(false)
+  })
+
+  it("computes a rendered bounding box that stays clear of the workspace panel, not just a non-overlapping DOM subtree", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const panel = await screen.findByRole("complementary", { name: "Chat workspace" })
+    const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+
+    let ancestor = composeForm.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+    const columnAncestor = ancestor as HTMLElement
+
+    // jsdom never runs layout, so simulate the geometry the real CSS
+    // guarantees: `left-0 right-0` (mobile) / `sm:inset-x-0` (desktop)
+    // against `columnAncestor` (the nearest `position: relative` ancestor)
+    // means the pill's rendered box can never be wider than that ancestor's
+    // own padding box, however large `max-w-*` grows — so the widest legal
+    // case is the pill's rect exactly equalling the ancestor's rect. Model
+    // the grid's `minmax(0,1fr) 0.5rem minmax(320px,workspaceWidth)` split
+    // with adjacent, non-overlapping rects and assert that worst case still
+    // can't reach the panel.
+    const columnRect = { top: 0, bottom: 600, left: 256, right: 950, width: 694, height: 600, x: 256, y: 0, toJSON: () => ({}) } as DOMRect
+    const panelRect = { top: 0, bottom: 600, left: 958, right: 1200, width: 242, height: 600, x: 958, y: 0, toJSON: () => ({}) } as DOMRect
+
+    vi.spyOn(columnAncestor, "getBoundingClientRect").mockReturnValue(columnRect)
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue(panelRect)
+    vi.spyOn(composeForm, "getBoundingClientRect").mockReturnValue(columnRect)
+
+    const formRect = composeForm.getBoundingClientRect()
+    const panelBox = panel.getBoundingClientRect()
+
+    expect(formRect.right).toBeLessThanOrEqual(panelBox.left)
+    expect(formRect.left).toBeGreaterThanOrEqual(columnAncestor.getBoundingClientRect().left)
   })
 })
 
