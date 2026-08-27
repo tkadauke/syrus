@@ -10,7 +10,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "border border-transparent bg-brand text-white hover:opacity-90 focus-visible:ring-brand",
+  // text-on-brand (not a hardcoded text-white): some themes' dark-mode
+  // `brand` is light enough that white text fails contrast — see the
+  // `on-brand` token in application.css / db/seeds/themes.rb.
+  primary: "border border-transparent bg-brand text-on-brand hover:opacity-90 focus-visible:ring-brand",
   secondary: "border border-border bg-surface text-text-primary hover:bg-surface-raised focus-visible:ring-brand",
   // --color-danger flips from a dark red (light mode) to a light pink tint
   // (dark mode) — see application.css's token comment. text-white stays
