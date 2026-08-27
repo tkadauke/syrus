@@ -29,19 +29,7 @@ module Mcp::Tools
           return Mcp::Tools.invalid("job belongs to a different repository") unless job.repository_id == repository.id
         end
 
-        policy = DeliveryPolicy.for(repository: repository)
-
-        actions = policy.ref_movement_actions.map do |name, config|
-          available, reason = RefMovementActions::Base.for(name).available?(repository: repository, job: job)
-          {
-            name: name,
-            enabled: config.enabled,
-            mode: config.mode,
-            grade_phases: config.grade_phases,
-            available: config.enabled && available,
-            blocked_reason: config.enabled ? (available ? nil : reason) : "not enabled in delivery.ref_movement_actions"
-          }
-        end
+        actions = RefMovementActionsSummary.for(repository: repository, job: job)
 
         Mcp::Tools.success(repository: repository.slug, job_id: job&.id, ref_movement_actions: actions)
       end
