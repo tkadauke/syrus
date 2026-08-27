@@ -9,8 +9,10 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { buttonClass } from "../lib/buttonClasses"
 import { Button, buttonClasses } from "../components/Button"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { Input } from "../components/Input"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
+import { Select } from "../components/Select"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -206,12 +208,12 @@ function RepositoryPicker({
       }}
     >
       <Field label={t("scheduled_tasks.field_repository")}>
-        <select className={inputClass()} onChange={(event) => setValue(event.target.value)} required value={value}>
+        <Select onChange={(event) => setValue(event.target.value)} required value={value}>
           <option value="">{t("scheduled_tasks.repository_placeholder")}</option>
           {repositories.map((repository) => (
             <option key={repository.id} value={repository.id}>{repository.slug}</option>
           ))}
-        </select>
+        </Select>
       </Field>
       <Button disabled={!value} type="submit" variant="primary">{t("scheduled_tasks.repository_continue")}</Button>
     </form>
@@ -519,33 +521,33 @@ function ScheduledTaskForm({
     <form className="space-y-5" onSubmit={submit}>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("scheduled_tasks.error_save"))}</PanelMessage> : null}
       <Field label={t("scheduled_tasks.name")}>
-        <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
+        <Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
       </Field>
       <Field label={t("scheduled_tasks.field_kind")}>
-        <select className={inputClass()} onChange={(event) => setValues({ ...values, kind: event.target.value })} value={values.kind}>
+        <Select onChange={(event) => setValues({ ...values, kind: event.target.value })} value={values.kind}>
           {options.kinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
-        </select>
+        </Select>
       </Field>
       {values.kind === "one_shot" ? (
         <Field label={t("scheduled_tasks.field_fire_at")}>
-          <input className={inputClass()} onChange={(event) => setValues({ ...values, fire_at: event.target.value })} type="datetime-local" value={values.fire_at} />
+          <Input onChange={(event) => setValues({ ...values, fire_at: event.target.value })} type="datetime-local" value={values.fire_at} />
         </Field>
       ) : (
         <Field label={t("scheduled_tasks.field_schedule")}>
-          <input className={inputClass()} onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
+          <Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
           <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule_help")}</p>
         </Field>
       )}
       <Field label={t("scheduled_tasks.field_pileup")}>
-        <select className={inputClass()} onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
+        <Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
           {options.pr_pileup_policies.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label={t("scheduled_tasks.field_auto_approve")}>
-        <select className={inputClass()} onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
+        <Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
           {options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        </Select>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{autoApproval?.preview}</p>
       </Field>
       <Field label={t("scheduled_tasks.field_task_source")}>

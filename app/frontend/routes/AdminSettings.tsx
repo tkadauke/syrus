@@ -10,7 +10,10 @@ import {
   type ClearableSecret
 } from "../api/adminSettings"
 import { Button } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
 import { NoticeToast } from "../components/NoticeToast"
+import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import * as pageReload from "../lib/pageReload"
@@ -164,28 +167,25 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
 
   return (
     <form className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6" onSubmit={submit}>
-      <div className="flex items-start gap-3">
-        <input
-          id="admin-settings-signups-open"
-          checked={signupsOpen}
-          className="mt-1 rounded border-gray-400"
-          onChange={(event) => setSignupsOpen(event.target.checked)}
-          type="checkbox"
-        />
-        <span>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-signups-open">{t("settings.signups_open_label")}</label>
-          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-            {t("settings.signups_open_help")}
-          </span>
-        </span>
-      </div>
+      <Checkbox
+        checked={signupsOpen}
+        className="mt-1"
+        label={
+          <>
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{t("settings.signups_open_label")}</span>
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.signups_open_help")}</span>
+          </>
+        }
+        onChange={(event) => setSignupsOpen(event.target.checked)}
+      />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-retention">{t("settings.video_retention_label")}</label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.video_retention_help")}</span>
-        <input
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
           id="admin-settings-video-retention"
-          className="mt-1 w-32 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
           min={1}
           onChange={(event) => setVideoRetentionDays(event.target.value)}
           type="number"
@@ -196,9 +196,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-video-budget">{t("settings.video_budget_label")}</label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.video_budget_help")}</span>
-        <input
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
           id="admin-settings-video-budget"
-          className="mt-1 w-32 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
           min={0}
           onChange={(event) => setVideoBudgetMb(event.target.value)}
           type="number"
@@ -209,9 +210,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-max-agent-runs">{t("settings.max_concurrent_agent_runs_label")}</label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.max_concurrent_agent_runs_help")}</span>
-        <input
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
           id="admin-settings-max-agent-runs"
-          className="mt-1 w-32 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
           min={0}
           onChange={(event) => setMaxConcurrentAgentRuns(event.target.value)}
           type="number"
@@ -222,9 +224,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-proactive-rebase-threshold">{t("settings.proactive_rebase_commit_threshold_label")}</label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.proactive_rebase_commit_threshold_help")}</span>
-        <input
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
           id="admin-settings-proactive-rebase-threshold"
-          className="mt-1 w-32 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
           min={1}
           onChange={(event) => setProactiveRebaseThreshold(event.target.value)}
           type="number"
@@ -232,28 +235,25 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         />
       </div>
 
-      <div className="flex items-start gap-3">
-        <input
-          id="admin-settings-show-work-unit-debug"
-          checked={showWorkUnitDebug}
-          className="mt-1 rounded border-gray-400"
-          onChange={(event) => setShowWorkUnitDebug(event.target.checked)}
-          type="checkbox"
-        />
-        <span>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-show-work-unit-debug">{t("settings.show_work_unit_debug_label")}</label>
-          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-            {t("settings.show_work_unit_debug_help")}
-          </span>
-        </span>
-      </div>
+      <Checkbox
+        checked={showWorkUnitDebug}
+        className="mt-1"
+        label={
+          <>
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{t("settings.show_work_unit_debug_label")}</span>
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.show_work_unit_debug_help")}</span>
+          </>
+        }
+        onChange={(event) => setShowWorkUnitDebug(event.target.checked)}
+      />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-rebase-failure-cooldown">{t("settings.rebase_failure_cooldown_label")}</label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.rebase_failure_cooldown_help")}</span>
-        <input
+        <Input
+          className="mt-1 w-32"
+          fullWidth={false}
           id="admin-settings-rebase-failure-cooldown"
-          className="mt-1 w-32 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
           min={0}
           onChange={(event) => setRebaseFailureCooldown(event.target.value)}
           type="number"
@@ -262,55 +262,55 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       </div>
 
       <div className={`rounded border px-3 py-3 ${workflowAdmissionControlEnabled ? "border-gray-200 dark:border-gray-700" : "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30"}`}>
-        <div className="flex items-start gap-3">
-          <input
-            id="admin-settings-workflow-admission-control"
-            checked={workflowAdmissionControlEnabled}
-            className="mt-1 rounded border-gray-400"
-            onChange={(event) => setWorkflowAdmissionControlEnabled(event.target.checked)}
-            type="checkbox"
-          />
-          <span>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-control">{t("settings.workflow_admission_control_label")}</label>
-            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_control_help")}</span>
-            {!workflowAdmissionControlEnabled ? <span className="mt-2 block text-xs font-medium text-amber-800 dark:text-amber-200">{t("settings.workflow_admission_control_warning")}</span> : null}
-            {payload.settings.workflow_admission_control_changed_at ? (
-              <span className="mt-2 block text-xs text-gray-500 dark:text-gray-400">
-                {t("settings.workflow_admission_control_changed", {
-                  at: payload.settings.workflow_admission_control_changed_at,
-                  actor: payload.settings.workflow_admission_control_changed_by?.display_name || payload.settings.workflow_admission_control_changed_by?.email_address || t("settings.workflow_admission_control_unknown_actor")
-                })}
-              </span>
-            ) : null}
-          </span>
-        </div>
+        <Checkbox
+          checked={workflowAdmissionControlEnabled}
+          className="mt-1"
+          label={
+            <>
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">{t("settings.workflow_admission_control_label")}</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_control_help")}</span>
+              {!workflowAdmissionControlEnabled ? <span className="mt-2 block text-xs font-medium text-amber-800 dark:text-amber-200">{t("settings.workflow_admission_control_warning")}</span> : null}
+              {payload.settings.workflow_admission_control_changed_at ? (
+                <span className="mt-2 block text-xs text-gray-500 dark:text-gray-400">
+                  {t("settings.workflow_admission_control_changed", {
+                    at: payload.settings.workflow_admission_control_changed_at,
+                    actor: payload.settings.workflow_admission_control_changed_by?.display_name || payload.settings.workflow_admission_control_changed_by?.email_address || t("settings.workflow_admission_control_unknown_actor")
+                  })}
+                </span>
+              ) : null}
+            </>
+          }
+          onChange={(event) => setWorkflowAdmissionControlEnabled(event.target.checked)}
+        />
         <div className="mt-3">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-workflow-admission-policy">{t("settings.workflow_admission_policy_label")}</label>
           <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.workflow_admission_policy_help")}</span>
-          <select
+          <Select
+            className="mt-2"
+            fullWidth={false}
             id="admin-settings-workflow-admission-policy"
-            className="mt-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
             onChange={(event) => setWorkflowAdmissionPolicy(event.target.value as "whole_workflow" | "phase_aware")}
             value={workflowAdmissionPolicy}
           >
             <option value="whole_workflow">{t("settings.workflow_admission_policy_whole_workflow")}</option>
             <option value="phase_aware">{t("settings.workflow_admission_policy_phase_aware")}</option>
-          </select>
+          </Select>
         </div>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-mode">{t("settings.mode_label")}</label>
         <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.mode_help")}</span>
-        <select
+        <Select
+          className="mt-1"
+          fullWidth={false}
           id="admin-settings-mode"
-          className="mt-1 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
           onChange={(event) => setMode(event.target.value as "advanced" | "simple")}
           value={mode}
         >
           <option value="advanced">{t("settings.mode_advanced")}</option>
           <option value="simple">{t("settings.mode_simple")}</option>
-        </select>
+        </Select>
       </div>
 
       <Button
@@ -366,10 +366,10 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <input
+        <Input
           aria-label={t("settings.telegram_token_label")}
           autoComplete="off"
-          className="flex-1 min-w-48 rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm dark:bg-gray-800 dark:text-gray-100"
+          className="flex-1 min-w-48"
           onChange={(e) => setTokenInput(e.target.value)}
           placeholder={t("settings.telegram_token_placeholder")}
           type="password"
@@ -448,10 +448,10 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <input
+        <Input
           aria-label={t("settings.discord_token_label")}
           autoComplete="off"
-          className="flex-1 min-w-48 rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm dark:bg-gray-800 dark:text-gray-100"
+          className="flex-1 min-w-48"
           onChange={(e) => setTokenInput(e.target.value)}
           placeholder={t("settings.discord_token_placeholder")}
           type="password"

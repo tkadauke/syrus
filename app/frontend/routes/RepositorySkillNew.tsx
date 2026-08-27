@@ -14,6 +14,9 @@ import {
 } from "../api/skills"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 
 export function RepositorySkillNewRoute() {
   const { t } = useT("jobs")
@@ -123,20 +126,20 @@ function SkillLaunchForm({
         <div className="grid gap-4 sm:grid-cols-2">
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("skill_job_agent_label")}>
-              <select className={inputClass()} onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
+              <Select onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
                 <option value="">{t("skill_job_agent_repository_default")} ({payload.repository.default_agent_provider_label})</option>
                 {payload.configured_agent_providers.map((provider) => (
                   <option key={provider.value} value={provider.value}>{provider.label}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
           ) : null}
           <Field label={t("skill_job_priority_label")}>
-            <select className={inputClass()} onChange={(event) => setPriority(event.target.value)} value={priority}>
+            <Select onChange={(event) => setPriority(event.target.value)} value={priority}>
               {payload.priorities.map((value) => (
                 <option key={value} value={value}>{value}</option>
               ))}
-            </select>
+            </Select>
           </Field>
         </div>
         <Button
@@ -207,23 +210,18 @@ export function SkillParameterInput({
 }) {
   if (field.type === "boolean") {
     return (
-      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-        <input
-          checked={Boolean(value)}
-          className="h-4 w-4 rounded border-gray-300 text-terracotta-600 focus:ring-terracotta-500 dark:border-gray-700 dark:bg-gray-950"
-          onChange={(event) => onChange(event.target.checked)}
-          type="checkbox"
-        />
-        {field.label}
-      </label>
+      <Checkbox
+        checked={Boolean(value)}
+        label={field.label}
+        onChange={(event) => onChange(event.target.checked)}
+      />
     )
   }
 
   if (field.type === "select") {
     return (
       <Field label={field.label}>
-        <select
-          className={inputClass()}
+        <Select
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           value={typeof value === "string" ? value : ""}
@@ -232,7 +230,7 @@ export function SkillParameterInput({
           {(field.options || []).map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </select>
+        </Select>
       </Field>
     )
   }
@@ -253,8 +251,7 @@ export function SkillParameterInput({
 
   return (
     <Field label={field.label}>
-      <input
-        className={inputClass()}
+      <Input
         onChange={(event) => onChange(event.target.value)}
         required={field.required}
         type={field.type === "integer" ? "number" : "text"}
