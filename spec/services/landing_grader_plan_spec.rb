@@ -26,7 +26,8 @@ RSpec.describe LandingGraderPlan do
       ],
       source: ".syrus.yml",
       note: nil,
-      max_iterations: 3
+      max_iterations: 3,
+      rerun_only_failed: false
     )
   end
 

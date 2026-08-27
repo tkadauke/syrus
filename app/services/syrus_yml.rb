@@ -132,7 +132,7 @@ class SyrusYml
   # multiple real behaviors.
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
-  GradeConfig = Data.define(:max_iterations, :failures, :steps)
+  GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
   # otherwise selects configured grader entries by `phases`.
@@ -364,14 +364,16 @@ class SyrusYml
       GradeConfig.new(
         max_iterations: AppSetting.grade_max_iterations,
         failures: DEFAULT_GRADE_FAILURE_POLICY,
-        steps: parse_grade_steps(raw)
+        steps: parse_grade_steps(raw),
+        rerun_only_failed: false
       )
     when Hash
       failures = parse_grade_failure_policy(raw.fetch("failures", DEFAULT_GRADE_FAILURE_POLICY), "grade.failures")
       GradeConfig.new(
         max_iterations: parse_max_iterations(raw.fetch("max_iterations", AppSetting.grade_max_iterations)),
         failures: failures,
-        steps: parse_grade_steps(raw["steps"], default_failures: failures)
+        steps: parse_grade_steps(raw["steps"], default_failures: failures),
+        rerun_only_failed: parse_rerun_only_failed(raw.fetch("rerun_only_failed", false))
       )
     else
       raise ParseError, "grade: must be a mapping or an array of steps"
@@ -468,6 +470,12 @@ class SyrusYml
     clamped
   rescue ArgumentError, TypeError
     raise ParseError, "grade.max_iterations: must be an integer"
+  end
+
+  def parse_rerun_only_failed(raw)
+    raise ParseError, "grade.rerun_only_failed: must be a boolean" unless [ true, false ].include?(raw)
+
+    raw
   end
 
   def parse_coverage(raw)

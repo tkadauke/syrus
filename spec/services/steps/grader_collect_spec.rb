@@ -518,4 +518,62 @@ RSpec.describe Steps::GraderCollect do
     )
     expect(metrics).not_to have_key("cap")
   end
+
+  describe "grade.rerun_only_failed carry-forward" do
+    def carried_forward_entry(name: "lint", required: true)
+      {
+        "name" => name,
+        "required" => required,
+        "source_iteration" => 0,
+        "exit_code" => 0,
+        "duration_s" => 1.2,
+        "log_path" => ".syrus/grade-output/iteration-1/#{name}.log",
+        "log_bytes" => 42,
+        "output" => "ok"
+      }
+    end
+
+    it "still counts a carried-forward required grader as passing even though it has no Step this iteration" do
+      workflow.set_artifact!(Steps::GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY, [ carried_forward_entry ])
+
+      expect { handler.call }.not_to raise_error
+
+      iteration = workflow.reload.artifact("iterations").first
+      expect(iteration).to include(
+        include("name" => "tests", "status" => "passed"),
+        include("name" => "lint", "status" => "passed", "carried_forward" => true)
+      )
+    end
+
+    it "records a per-iteration GraderConclusion for the carried-forward grader so history has no gap" do
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "grade-fingerprint")
+      workflow.set_artifact!(Steps::GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY, [ carried_forward_entry ])
+
+      expect { handler.call }.to change(GraderConclusion, :count).by(3)
+
+      carried = GraderConclusion.where(workflow: workflow, grader_name: "lint").sole
+      expect(carried).to have_attributes(
+        repository: job.repository,
+        job: job,
+        commit_sha: "abc123",
+        grader_fingerprint: "grade-fingerprint",
+        required: true,
+        status: "passed"
+      )
+      expect(carried.metadata).to include("carried_forward" => true, "source_iteration" => 0)
+    end
+
+    it "still succeeds when every active grader is carried forward and none has a Step this iteration" do
+      workflow.steps.where(kind: "grader").delete_all
+      workflow.set_artifact!(Steps::GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY, [ carried_forward_entry ])
+
+      expect { handler.call }.not_to raise_error
+
+      iteration = workflow.reload.artifact("iterations").first
+      expect(iteration.size).to eq(1)
+      expect(iteration).to include(
+        include("name" => "lint", "status" => "passed", "carried_forward" => true)
+      )
+    end
+  end
 end
