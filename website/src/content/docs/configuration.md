@@ -19,9 +19,9 @@ For deployment-specific placement, see [Deployment](/docs/deployment).
 
 `.syrus.yml` is read from the root of the target repository during the
 workflow and by local CLI checkout commands. It configures deterministic
-setup commands before the agent runs, optional adversarial review rounds
-for Initial workflows, grader commands, and optional local hooks after an
-operator checks out a Syrus branch.
+setup commands before the agent runs, preview commands, optional review
+rounds, grader commands, and optional local hooks after an operator checks
+out a Syrus branch.
 
 ```yaml
 prepare:
@@ -29,12 +29,41 @@ prepare:
   - npm ci
 
 adversarial_review:
-  rounds: 2
+  rounds: 1
+  criteria:
+    - Check for missing tests and stale docs.
+
+visual_review:
+  enabled: true
+  rounds: 1
+  when_files_changed:
+    - "app/frontend/**/*"
+    - "app/views/**/*"
+
+preview:
+  setup:
+    - bundle install
+    - npm ci
+  start: bin/rails server -p $PORT -b 0.0.0.0 -e development
+  seed: bin/rails db:prepare db:seed
+  health_check: /up
 
 grade:
+  - name: quick-ruby
+    run: bin/rspec-focused
+    phases: [review]
+    junit_output: .syrus/grade-output/rspec-focused-junit.xml
+    failures: allow_inherited
   - name: rspec
-    run: bin/rspec
-    fast: COVERAGE=false bin/rspec
+    run: bin/rspec-fast
+    phases: [landing]
+    junit_output: .syrus/grade-output/rspec-junit.xml
+    failures: allow_inherited
+  - name: rspec-ci
+    run: bin/rspec-ci
+    phases: [ci]
+    junit_output: .syrus/grade-output/rspec-ci-junit.xml
+    failures: allow_inherited
 
 hooks:
   post_checkout:
@@ -48,8 +77,12 @@ Schema:
 | `prepare` | Array of strings | Shell commands to run in order before agent work starts |
 | `prepare` | `[]` | Explicitly run no preparation commands |
 | `prepare` | `false` | Opt out of preparation entirely |
-| `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `fast` |
+| `grade` | Array or mapping | Required grader commands; each step has `name`, `run`, and optional `phases`, `junit_output`, `failures`, `required`, `timeout_minutes`, and `when_files_changed` |
 | `adversarial_review.rounds` | Integer | Number of adversarial review rounds to run before grading; omit or set `0` to disable |
+| `visual_review.enabled` | Boolean | Enable or disable browser-based visual review for this repository |
+| `visual_review.rounds` | Integer | Number of visual review rounds to allow before grading |
+| `visual_review.when_files_changed` | Array of globs | Only run visual review when matching files changed |
+| `preview` | Mapping | Commands and metadata used by the preview action and visual review |
 | `hooks.post_checkout` | Array of strings | Shell commands the CLI runs after `syrus checkout` succeeds |
 
 ### `prepare`
@@ -92,21 +125,70 @@ you want setup to be authoritative (and to fail loudly when it breaks).
 
 ### `adversarial_review`
 
-`adversarial_review.rounds` is optional and applies only to Initial
-workflows. When it is greater than zero, Syrus runs that many
-implementer/reviewer rounds before the normal grade loop, then runs one
-final `implement` step to address the last review before grading.
+`adversarial_review.rounds` is optional and applies to Initial and feedback
+workflows. When it is greater than zero, Syrus runs independent review
+rounds before the normal grade loop. A reviewer verdict of `needs_work`
+feeds another implement/respond iteration; an `approved` verdict exits the
+loop early.
 
 The workflow chain is created before the workspace clone exists, so Syrus
 reads this setting from `.syrus.yml` on the repository's default branch. If
 the file or setting is absent, adversarial review is disabled.
 
+### `visual_review`
+
+`visual_review` controls the browser-based reviewer. When enabled, Syrus
+starts a repository preview, lets a read-only reviewer inspect the changed
+UI, captures screenshots, and records a structured verdict. `skipped` is a
+successful outcome for changes that are not visually testable.
+
+Use `when_files_changed` to keep visual review focused on UI paths:
+
+```yaml
+visual_review:
+  enabled: true
+  rounds: 1
+  when_files_changed:
+    - "app/frontend/**/*"
+    - "app/views/**/*"
+```
+
+### `preview`
+
+`preview` tells Syrus how to boot the repository in development mode for
+manual preview and visual review. Syrus assigns `$PORT` dynamically and
+proxies preview traffic through the Syrus host.
+
+```yaml
+preview:
+  setup:
+    - bundle install
+    - npm ci
+  start: bin/rails server -p $PORT -b 0.0.0.0 -e development
+  seed: bin/rails db:prepare db:seed
+  health_check: /up
+```
+
 ### `grade`
 
-`grade` defines the checks Syrus runs after agent work. `run` is the
-normal command. `fast` is an optional alternate command for pass/fail-only
-contexts such as landing, main graders, repair workflows, and repeat grade
-iterations after the first. If `fast` is absent, Syrus uses `run`.
+`grade` defines checks Syrus runs after agent work. Syrus runs the command
+exactly as configured; put coverage, parallelism, JSON/JUnit output, or
+other formatter behavior in wrapper scripts such as `bin/rspec-fast` or
+`bin/rspec-ci`.
+
+`phases` controls where a grader runs:
+
+| Phase | Used for |
+| --- | --- |
+| `review` | Pre-review checks after implementation or feedback |
+| `landing` | Final landing checks before merge |
+| `ci` | CI-failure repair and main-branch health checks |
+
+If `junit_output` is present, Syrus ingests test cases for the Tests UI and
+for failure comparison. `failures: allow_inherited` lets a grader pass when
+Syrus can attribute the same test failures to the known base instead of the
+current Job branch. Binary graders without test-case output still fail
+strictly unless they are explicitly marked optional.
 
 ### `coverage`
 

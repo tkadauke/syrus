@@ -26,15 +26,6 @@ Use the path that answers the question you have right now.
 | Develop Syrus itself | The project README | Source checkout, Ruby/Node/Go toolchain, `bin/dev`, and fast reloads. |
 | Self-host on shared infrastructure | [Deployment](/docs/deployment) and [Kubernetes](/docs/deployment/kubernetes) | The same app on your own infrastructure, once you have chosen ingress, storage, secrets, backups, and operations. |
 
-:::caution
-Some packaging pieces are still landing. The Docker Compose and
-Kubernetes pages describe the target operating shape and the honest status
-of the published artifacts. If your checkout does not include the Compose
-file or cluster packaging yet, use the deployment path your operator
-provides rather than filling in missing production decisions from this
-guide.
-:::
-
 ## Hosted Setup
 
 A real Syrus instance needs:
@@ -193,12 +184,24 @@ from lockfiles such as `Gemfile`, `yarn.lock`, `pnpm-lock.yaml`,
 `package-lock.json`, or `package.json`. Use `prepare: []` or
 `prepare: false` only when no setup should run.
 
-Graders can define an optional `ci` command variant, used for CI-failure
-repair workflows and main-branch grading, where Syrus needs to run
-expensive CI-only checks to prove the failed CI signal is fixed or main
-is healthy. Put formatter, coverage, and parallel-test behavior in wrapper
-scripts such as `bin/rspec-fast` or `bin/rspec-ci`; Syrus runs the
+Graders can opt into phases. Use fast, focused commands for `review`, final
+merge-safety commands for `landing`, and CI-only commands for `ci` repair
+and main-branch health. Put formatter, coverage, and parallel-test behavior
+in wrapper scripts such as `bin/rspec-fast` or `bin/rspec-ci`; Syrus runs the
 configured command as-is.
+
+```yaml
+grade:
+  - name: focused
+    run: bin/rspec-focused
+    phases: [review]
+  - name: rspec
+    run: bin/rspec-fast
+    phases: [landing]
+  - name: rspec-ci
+    run: bin/rspec-ci
+    phases: [ci]
+```
 
 If the repository root contains a version file (`.tool-versions`,
 `.mise.toml`, `.ruby-version`, `.python-version`, `.node-version`, or
@@ -246,7 +249,10 @@ normally creates an `initial` Workflow with these Steps:
 ```text
 prepare
 implement
+optional review loops
+grade loop
 summarize
+test_plan
 pr_open
 ```
 
@@ -257,8 +263,12 @@ Watch these checkpoints:
   failure.
 - `implement` starts a Run, streams transcript output, and captures the
   agent's commits.
+- Review loops run only when adversarial or visual review is configured.
+- The grade loop runs the configured review-phase graders and can feed a
+  bounded repair iteration.
 - The Run or Workflow shows the captured diff.
 - `summarize` records PR title and body.
+- `test_plan` records reviewer-facing verification notes.
 - `pr_open` pushes the Syrus branch and attaches the GitHub PR number.
 
 If the Job fails, keep the Job page as the starting point. It contains
@@ -274,7 +284,7 @@ If you comment on the PR, Syrus can pick up feedback on a later PR poll
 and create a follow-up Workflow on the same Job. If CI failures are
 enabled for your installation, failing checks can also create repair
 Workflows on Syrus-owned PRs; those repairs run configured graders, using
-`.syrus.yml` `ci` commands when present, before pushing a fix. A Job remains in the landing queue — and
+`.syrus.yml` graders in the `ci` phase, before pushing a fix. A Job remains in the landing queue — and
 does not merge — until every PR check has passed; if checks are still
 running (pending) or any required check has failed, the Job is held with
 a status message explaining the specific reason. Ready Jobs land by priority

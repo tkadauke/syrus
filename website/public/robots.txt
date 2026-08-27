@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://syrus-ai.dev/sitemap.xml

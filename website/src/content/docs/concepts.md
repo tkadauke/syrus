@@ -1,13 +1,14 @@
 ---
 title: Concepts
-description: Job, Workflow, Step, Run — the four moving parts of Syrus and how they fit together.
+description: Job, Workflow, Step, Run, and the scheduler objects that keep work recoverable.
 ---
 
 # Concepts
 
-Syrus has four moving parts: **Job**, **Workflow**, **Step**,
-**Run**. Each maps to a database row; each has its own state
-machine.
+Syrus has four user-facing moving parts: **Job**, **Workflow**, **Step**,
+and **Run**. Each maps to a database row; each has its own state machine.
+Two scheduler-owned objects, **Work Intent** and **Work Unit**, sit behind
+them to make pauses, preemption, and retries more explicit.
 
 This page is the skimmable version. The canonical, maintainer-level
 reference is
@@ -60,6 +61,18 @@ Common trigger kinds are:
 
 Each trigger kind maps to a Workflow template: a sequence of Steps.
 For the template-and-DAG view, continue to [Workflows](/docs/workflows).
+
+## Work Intent and Work Unit
+
+A Work Intent records desired work: "implement this Job", "run CI repair",
+"land this Epic", or "rebase this stack". A Work Unit records one concrete
+attempt to satisfy that intent and owns the Workflow created for the attempt.
+
+Most operators do not need to think about these objects day to day. They
+exist so Syrus can distinguish "this work is still desired" from "this
+particular attempt was paused, preempted, retried, or abandoned". The admin
+UI exposes them when you need to debug scheduling, admission control, and
+reconciler decisions.
 
 ## Step
 
@@ -132,10 +145,13 @@ In AASM terms:
 queued -> running -> succeeded
                   -> failed
                   -> cancelled
+                  -> skipped
 ```
 
 Runs can also fail or cancel directly from `queued` when Syrus detects
-that the work should not start.
+that the work should not start. Steps and Runs can also become `skipped`
+when Syrus intentionally bypasses a benign no-op stage, such as an
+unneeded agent rebase after a clean mechanical rebase.
 
 :::tip
 Job state is intentionally simpler: `open` or `closed`. The Job is the
@@ -156,6 +172,9 @@ signals are:
 | --- | --- |
 | `submit_summary` | Provide PR title, PR body, and a short run summary. |
 | `submit_test_plan` | Provide reviewer-facing test steps and optional notes. |
+| `submit_artifact` | Store structured artifacts for UI rendering. |
+| `submit_adversarial_review` | Store a code-review verdict and critique. |
+| `submit_visual_review` | Store a browser-review verdict, critique, and screenshots. |
 
 `submit_summary` is the core PR-copy path: the PR opener reads the
 structured title and body first, then falls back to generated or
@@ -174,7 +193,10 @@ GitHub issue with label
   -> initial Workflow
   -> prepare Step / Run
   -> implement Step / Run
+  -> optional review loops
+  -> grade loop
   -> summarize Step / Run
+  -> test_plan Step / Run
   -> pr_open Step / Run
   -> GitHub pull request
 ```

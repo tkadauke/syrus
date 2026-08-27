@@ -10,7 +10,7 @@ When something happens, such as a labelled issue, PR feedback, a retry
 click, or an unmergeable branch, Syrus creates a Workflow from the matching
 template and starts its first Step.
 
-In v1, templates are linear happy paths with bounded loops and declared
+Templates are mostly linear happy paths with bounded loops and declared
 typed failure branches:
 
 ```text
@@ -20,16 +20,25 @@ Workflow(trigger_kind) -> Step -> Step -> Step
 Each Step owns one or more Runs. A Run is an attempt to execute that Step.
 Retries create new Runs without erasing the old transcript.
 
+Under the hood, Work Intents and Work Units now sit between a Job and its
+Workflows. A Work Intent records the desired work, such as "land this Job" or
+"repair this CI failure"; a Work Unit records one scheduler-owned attempt to
+do that work. The UI normally stays focused on Jobs and Workflows, while the
+admin UI exposes intents and units for debugging admission control, pauses,
+preemption, and retries.
+
 ## Built-In Templates
 
 ### Initial
 
 Trigger: a GitHub issue with the repository's trigger label, or a new cron
 or direct Job that uses the standard issue-to-PR path. Steps:
-`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> coverage_analyze -> summarize -> test_plan -> pr_open`.
-The agent makes and commits the change during `implement`, graders run from
-the repository's `grade:` configuration, and failed required graders feed
-the next bounded repair iteration. `coverage_analyze` parses coverage
+`prepare -> implement -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> dependency_audit -> summarize -> test_plan -> pr_open`.
+The agent makes and commits the change during the top-level `implement`
+step. Optional adversarial and visual review loops can ask for revisions
+before grading. The grade loop then runs the repository's `grade:`
+configuration for the current phase, and failed required graders feed the
+next bounded repair iteration. `coverage_analyze` parses coverage
 artifacts produced by graders when `coverage:` is configured in
 `.syrus.yml`, evaluates thresholds, and pre-renders a PR comment body when
 `pr_comment: true`. `summarize` collects PR copy via MCP and
@@ -45,20 +54,20 @@ with a PR number attached.
 ### PrFeedback
 
 Trigger: new review feedback or PR comments on an existing Syrus PR. Steps:
-`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
+`prepare -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
 The agent receives the new comments plus PR context, commits follow-up
 changes on the existing branch, and graders can force another bounded
 response iteration before `summarize_amend` rewrites the follow-up commit
 message. A successful workflow pushes to the already-open PR. If the
 remote PR branch advanced before the push, Syrus first tries a mechanical
 rebase; if that conflicts, it expands a recovery branch:
-`push_agent_rebase -> retry_until(grader_fanout -> grader_collect, repair: landing_fix) -> push_after_rebase`.
+`push_agent_rebase -> grade loop repaired by landing_fix -> push_after_rebase`.
 
 ### ChatFeedback
 
 Trigger: operator-confirmed feedback proposed from Syrus Chat on an
 implemented or approved Job. Steps:
-`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
+`prepare -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
 The agent receives the agreed chat feedback as structured workflow input
 and commits follow-up changes on the existing branch. Submitting feedback
 on an approved Job unapproves it so the updated PR returns to review before
@@ -90,7 +99,7 @@ for landing.
 ### Retry
 
 Trigger: an operator retries a failed or completed Job. Steps:
-`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> coverage_analyze -> summarize -> pr_open`.
+`prepare -> [visual review loop] -> grade loop -> coverage_analyze -> summarize -> pr_open`.
 It has the same shape as Initial, but runs on the existing Job and branch.
 `pr_open` is idempotent: if a PR already exists, it pushes the new commits
 instead of opening a second PR.
@@ -98,7 +107,7 @@ instead of opening a second PR.
 ### AutoMerge
 
 Trigger: an approved Job reaches the landing queue. Steps:
-`mergeability_preflight -> prepare -> retry_until(grader_fanout -> grader_collect, repair: landing_fix) -> push -> auto_merge`.
+`mergeability_preflight -> prepare -> landing grade loop repaired by landing_fix -> push -> auto_merge`.
 The final gate first verifies mergeability and then runs graders on the
 exact PR branch Syrus is about to merge, after any last rebase. If required
 graders fail, the agent receives the grader output and gets a bounded
@@ -129,11 +138,9 @@ ordering when building the integration branch.
 
 ### MergeTrain (Epic merge-train)
 
-Trigger: an Epic whose every open child is approved, when the merge-train
-is enabled (`AppSetting.merge_train_enabled`, default off). Steps:
+Trigger: an Epic whose every open child is approved. Steps:
 `merge_train_assemble -> merge_train_build -> merge_train_reconcile -> prepare ->
-retry_until(grader_fanout -> grader_collect, repair: landing_fix) ->
-merge_train_land`.
+landing grade loop repaired by landing_fix -> merge_train_land`.
 
 Instead of landing an Epic's PRs one at a time (each rebased onto the
 previous merge and graded again), the train integrates all of the Epic's
@@ -151,8 +158,8 @@ green, dependency-closed set or not at all — there are never half-merged
 Epics on the base branch. If the grade-and-fix loop can't make the
 integrated tree green (or a child won't integrate), the whole attempt
 fails and nothing lands; the children revert to needing re-approval, and
-re-approving them re-dispatches a fresh train. While the flag is on, Epic
-children land only via the train, never individually.
+re-approving them re-dispatches a fresh train. Epic children land only via
+the train, never individually.
 
 ### Manual
 
@@ -164,11 +171,13 @@ open a PR by themselves.
 ### CiFailure
 
 Trigger: polling sees failed CI checks on an existing Syrus PR. Steps:
-`prepare -> analyze_and_fix -> summarize_amend -> try(push)`. The agent receives
+`prepare -> grade loop repaired by analyze_and_fix -> summarize_amend -> try(push)`. The agent receives
 the failing check payload, diagnoses the failure, commits a fix, and pushes
-the updated branch. If the remote PR branch advanced first, Syrus uses the
-same rebase, grade, and push recovery branch as feedback workflows. A
-rolling cap prevents endless CI-failure loops on the same Job.
+the updated branch. CI repair runs the graders configured for the `ci`
+phase, including CI-only checks. If the remote PR branch advanced first,
+Syrus rebases before blaming the PR branch, and it avoids running many
+CI-failure Workflows with the same failing base at once. A rolling cap
+prevents endless CI-failure loops on the same Job.
 
 ## Step Kinds
 
@@ -176,9 +185,12 @@ rolling cap prevents endless CI-failure loops on the same Job.
 | --- | --- | --- |
 | `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
 | `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
-| `adversarial_review` | Yes | Independently review Initial workflow changes when `.syrus.yml` configures review rounds |
+| `adversarial_review` | Yes | Independently review Initial and feedback workflow changes when `.syrus.yml` configures review rounds |
+| `visual_review` | Yes | Drive a preview in a browser and report visual findings when visual review is enabled |
 | `respond` | Yes | Address PR review feedback on an existing branch |
 | `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
+| `format` | No | Run configured formatting commands inside the grade loop when present |
+| `generate` | No | Run configured generation commands inside the grade loop when present |
 | `landing_fix` | Yes | Make final merge-gate fixes before the landing graders run |
 | `summarize` | Yes | Collect PR title/body/summary through MCP |
 | `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
@@ -189,8 +201,7 @@ rolling cap prevents endless CI-failure loops on the same Job.
 | `push` | No | Push commits to an existing PR branch, update the cost footer, and clean-rebase once if the remote branch advanced |
 | `push_agent_rebase` | Yes | Resolve a conflicting follow-up push rebase onto the current remote PR branch |
 | `push_after_rebase` | No | Push a branch after the agentic follow-up rebase and grade loop |
-| `grader_fanout` | No | Materialize one grader Step per configured repo grader |
-| `grader_collect` | No | Aggregate grader results and decide whether retry_until continues |
+| `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. |
 | `auto_rebase` | No | Try a deterministic rebase before involving an agent |
 | `agent_rebase` | Yes | Resolve rebase conflicts with the agent |
 | `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |
@@ -198,7 +209,9 @@ rolling cap prevents endless CI-failure loops on the same Job.
 | `merge_train_assemble` | No | Validate an Epic train's locked members |
 | `merge_train_build` | Yes | Merge the Epic's members into one integration branch, handing conflicts to the agent |
 | `merge_train_reconcile` | Yes | Reconcile cross-Job inconsistencies on the integration branch before validation |
+| `merge_train_rebase` | No | Rebuild a merge train when the base branch moves during landing |
 | `merge_train_land` | No | Atomically merge the integration branch and close member PRs |
+| `merge_train_land_after_rebase` | No | Land a merge train after base-moved recovery and validation |
 | `manual` | Yes | Run an operator-supplied prompt |
 
 Planned Step kinds include
@@ -221,6 +234,9 @@ Syrus chooses the template from the trigger kind:
 | `auto_merge` | `Workflows::AutoMerge` |
 | `merge_train` | `Workflows::MergeTrain` |
 | `retry` | `Workflows::Retry` |
+| `coding_handoff` | `Workflows::CodingHandoff` |
+| `external_pr_ingest` | `Workflows::ExternalPrIngest` |
+| `skill` | `Workflows::Skill` |
 | `manual` | `Workflows::Manual` |
 
 The template creates a Workflow row, creates each Step row in order, and

@@ -16,7 +16,7 @@ Syrus watches open PRs it created. When GitHub Checks report a completed
 failure on the PR head SHA, Syrus creates a `ci_failure` Workflow:
 
 ```text
-prepare -> analyze_and_fix -> summarize_amend -> try(push)
+prepare -> grade loop repaired by analyze_and_fix -> summarize_amend -> try(push)
 ```
 
 No repo-local trigger config is required. The important setup is:
@@ -74,7 +74,7 @@ comments, and line comments. When it sees new feedback, it creates a
 `pr_comment` Workflow:
 
 ```text
-prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> summarize_amend -> try(push)
+prepare -> review loops -> grade loop -> summarize_amend -> try(push)
 ```
 
 There is no GitHub inbound callback to install and no per-repo GitHub Action.

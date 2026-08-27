@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://syrus-ai.dev/</loc></url>
+  <url><loc>https://syrus-ai.dev/download/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/api/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/architecture/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/cli/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/collaboration/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/concepts/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/configuration/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/deployment/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/deployment/docker-compose/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/deployment/kubernetes/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/desktop/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/faq/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/features/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/getting-started/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/recipes/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/troubleshooting/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/what-is-syrus/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/why-use-syrus/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/workflows/</loc></url>
+</urlset>
