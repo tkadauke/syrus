@@ -36,6 +36,20 @@ RSpec.describe ScheduledTaskFire do
       expect(run.workflow.work_unit).to be_present
     end
 
+    it "stores only the operator's interpolated prompt in issue_body, not the full scaffolded render" do
+      result = described_class.new(task).call
+
+      expect(result.job.issue_body).to eq("Write missing tests.")
+      expect(result.job.issue_body).not_to include("scheduled maintenance task")
+      expect(result.job.issue_body).not_to include("Standing instruction context")
+      expect(result.job.issue_body).not_to include("submit_summary")
+
+      run = result.job.runs.first
+      expect(run.prompt).to include("scheduled maintenance task")
+      expect(run.prompt).to include("Standing instruction context")
+      expect(run.prompt).to include("submit_summary")
+    end
+
     it "keeps Depends-on text in the rendered prompt without parsing dependencies" do
       Job.create!(user: user, repository: repository, issue_number: 42)
       task.update!(prompt: "Write missing tests.\nDepends-on: #42")
