@@ -41,6 +41,22 @@ RSpec.describe PreviewPanel, type: :model do
         expect(panel.errors[:state]).to be_empty
       end
     end
+
+    it "defaults to private visibility" do
+      expect(create_panel.visibility).to eq("private")
+    end
+
+    it "rejects unknown visibilities" do
+      expect(build_panel(visibility: "unlisted")).not_to be_valid
+    end
+
+    it "accepts all defined visibilities" do
+      described_class::VISIBILITIES.each do |visibility|
+        panel = build_panel(visibility: visibility)
+        panel.validate
+        expect(panel.errors[:visibility]).to be_empty
+      end
+    end
   end
 
   describe "#open? / #closed?" do
@@ -54,6 +70,20 @@ RSpec.describe PreviewPanel, type: :model do
       panel = create_panel(state: "closed")
       expect(panel.closed?).to be true
       expect(panel.open?).to be false
+    end
+  end
+
+  describe "#public? / #private?" do
+    it "reflects the private (default) visibility" do
+      panel = create_panel(visibility: "private")
+      expect(panel.private?).to be true
+      expect(panel.public?).to be false
+    end
+
+    it "reflects the public visibility" do
+      panel = create_panel(visibility: "public")
+      expect(panel.public?).to be true
+      expect(panel.private?).to be false
     end
   end
 
@@ -145,7 +175,7 @@ RSpec.describe PreviewPanel, type: :model do
         resource: "chat",
         id: chat_session.id,
         changed: [ "preview_panels" ],
-        payload: { "id" => panel.id, "title" => "Widget preview", "state" => "open", "file_count" => 0 }
+        payload: { "id" => panel.id, "title" => "Widget preview", "state" => "open", "visibility" => "private", "file_count" => 0 }
       )
 
       panel.broadcast_change!

@@ -48,6 +48,9 @@ gem "mcp"
 gem "docx"
 gem "pdf-reader"
 
+# Zip archive streaming for preview panel version export.
+gem "rubyzip", require: "zip"
+
 # Runtime XML parsing for Cobertura coverage reports. Ruby 3.4 no longer
 # guarantees this default gem is available unless it is bundled explicitly.
 gem "rexml"
