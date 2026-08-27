@@ -1,5 +1,5 @@
 import { createRef } from "react"
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { BugReportButton, type BugReportButtonHandle } from "./BugReportButton"
@@ -40,7 +40,6 @@ const sampleMessages: ChatMessageItem[] = [
 ]
 
 function renderButton(props: {
-  position?: "bottom-left" | "bottom-right"
   context?: string
   chatId?: number | null
   bugReportMode?: "direct_job" | "github_issue" | null
@@ -62,12 +61,8 @@ function reportOptions(messages: ChatMessageItem[]) {
   return { optionalAttachments: attachment ? [attachment] : [] }
 }
 
-function getBugButton() {
-  return screen.getByRole("button", { name: "Report a bug" })
-}
-
-async function openDialog() {
-  fireEvent.click(screen.getByRole("button", { name: "Report a bug" }))
+async function openDialog(ref: ReturnType<typeof renderButton>) {
+  ref.current?.open()
   await screen.findByRole("dialog")
 }
 
@@ -75,236 +70,36 @@ describe("BugReportButton", () => {
   beforeEach(() => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } as BugReportPayload)
     mockGetRecentErrors.mockReturnValue([])
-    localStorage.clear()
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
-    // jsdom does not implement pointer capture APIs; define no-ops so drag handlers work.
-    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", { configurable: true, writable: true, value: vi.fn() })
-    Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", { configurable: true, writable: true, value: vi.fn() })
   })
 
   afterEach(() => {
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     vi.clearAllMocks()
-    // Clean up prototype stubs defined above.
-    delete (HTMLElement.prototype as unknown as Record<string, unknown>).setPointerCapture
-    delete (HTMLElement.prototype as unknown as Record<string, unknown>).releasePointerCapture
   })
 
-  it("is always visible — no hidden class", () => {
+  it("renders nothing of its own — headless until opened via the imperative handle", () => {
     renderButton()
-    expect(getBugButton()).toBeInTheDocument()
-    expect(getBugButton().className).not.toContain("hidden")
+    expect(screen.queryByRole("button")).not.toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
-  it("defaults to the bottom-right when no saved position exists", () => {
-    renderButton()
-    const button = getBugButton()
-    const left = parseFloat(button.style.left)
-    const top = parseFloat(button.style.top)
-    // bottom-right: left near right edge, top near bottom
-    expect(left).toBeGreaterThan(window.innerWidth / 2)
-    expect(top).toBeGreaterThan(window.innerHeight / 2)
-  })
-
-  it("defaults to the bottom-left when position='bottom-left' and no saved position", () => {
-    renderButton({ position: "bottom-left" })
-    const button = getBugButton()
-    const left = parseFloat(button.style.left)
-    expect(left).toBeLessThan(window.innerWidth / 2)
-  })
-
-  it("loads a saved position from localStorage", () => {
-    localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 123, top: 456 }))
-    renderButton()
-    const button = getBugButton()
-    expect(button.style.left).toBe("123px")
-    expect(button.style.top).toBe("456px")
-  })
-
-  it("allows a saved mobile position near the top of the viewport", () => {
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 })
-    localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 300, top: 12 }))
-
-    renderButton()
-
-    expect(getBugButton().style.top).toBe("12px")
-  })
-
-  it("ignores malformed localStorage data and falls back to default", () => {
-    localStorage.setItem("bug-report-button-position", "not-json{{{")
-    renderButton()
-    const button = getBugButton()
-    // Should fall back to default (right side, bottom)
-    expect(parseFloat(button.style.left)).toBeGreaterThan(0)
-    expect(parseFloat(button.style.top)).toBeGreaterThan(0)
-  })
-
-  describe("tap vs drag threshold", () => {
-    it("treats displacement below 8px as a tap and opens the dialog", async () => {
-      renderButton()
-      const button = getBugButton()
-
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      // Move only 5px — below the 8px threshold
-      fireEvent.pointerMove(button, { clientX: 204, clientY: 303, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: 204, clientY: 303, pointerId: 1 })
-
-      await screen.findByRole("dialog")
-    })
-
-    it("treats displacement of exactly 0px as a tap and opens the dialog", async () => {
-      renderButton()
-      const button = getBugButton()
-
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: 200, clientY: 300, pointerId: 1 })
-
-      await screen.findByRole("dialog")
-    })
-
-    it("treats displacement >= 8px as a drag and does not open the dialog", () => {
-      renderButton()
-      const button = getBugButton()
-
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      fireEvent.pointerMove(button, { clientX: 210, clientY: 300, pointerId: 1 }) // 10px
-      fireEvent.pointerUp(button, { clientX: 210, clientY: 300, pointerId: 1 })
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    })
-  })
-
-  describe("drag — position persistence", () => {
-    it("saves the new position to localStorage after a drag", () => {
-      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 200, top: 300 }))
-      renderButton()
-      const button = getBugButton()
-
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      fireEvent.pointerMove(button, { clientX: 250, clientY: 320, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: 250, clientY: 320, pointerId: 1 })
-
-      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as {
-        left: number
-        top: number
-      } | null
-      expect(saved).not.toBeNull()
-      expect(saved!.left).toBeCloseTo(250, 0)
-      expect(saved!.top).toBeCloseTo(320, 0)
-    })
-
-    it("clamps the saved position so the button stays within the viewport", () => {
-      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 200, top: 300 }))
-      renderButton()
-      const button = getBugButton()
-
-      // Drag far beyond the right/bottom edge
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      fireEvent.pointerMove(button, { clientX: 9999, clientY: 9999, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: 9999, clientY: 9999, pointerId: 1 })
-
-      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as {
-        left: number
-        top: number
-      } | null
-      expect(saved).not.toBeNull()
-      // 1024 - 48 = 976; 768 - 48 = 720
-      expect(saved!.left).toBeLessThanOrEqual(window.innerWidth - 48)
-      expect(saved!.top).toBeLessThanOrEqual(window.innerHeight - 48)
-    })
-
-    it("clamps position to the top-left corner when dragged off-screen to the left/top", () => {
-      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 200, top: 300 }))
-      renderButton()
-      const button = getBugButton()
-
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      fireEvent.pointerMove(button, { clientX: -9999, clientY: -9999, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: -9999, clientY: -9999, pointerId: 1 })
-
-      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as {
-        left: number
-        top: number
-      } | null
-      expect(saved).not.toBeNull()
-      expect(saved!.left).toBeGreaterThanOrEqual(0)
-      expect(saved!.top).toBeGreaterThanOrEqual(0)
-    })
-
-    it("allows dragging to the top edge on mobile", () => {
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 })
-      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 200, top: 300 }))
-      renderButton()
-      const button = getBugButton()
-
-      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
-      fireEvent.pointerMove(button, { clientX: 40, clientY: 0, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: 40, clientY: 0, pointerId: 1 })
-
-      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as {
-        left: number
-        top: number
-      } | null
-      expect(saved).not.toBeNull()
-      expect(saved!.top).toBe(0)
-    })
-  })
-
-  describe("keyboard access", () => {
-    it("opens the dialog when the button receives a keyboard-triggered click", async () => {
-      renderButton()
-      const button = getBugButton()
-
-      // A keyboard-triggered click is not preceded by pointer events,
-      // so pointerHandledRef stays false and the click handler calls openDialog.
-      fireEvent.click(button)
-
-      await screen.findByRole("dialog")
-    })
-
-    it("does not open the dialog twice when both a pointer tap and the synthetic click fire", async () => {
-      renderButton()
-      const button = getBugButton()
-
-      // Simulate a tap followed by the synthetic click the browser fires after pointerup.
-      fireEvent.pointerDown(button, { clientX: 100, clientY: 100, pointerId: 1 })
-      fireEvent.pointerUp(button, { clientX: 100, clientY: 100, pointerId: 1 })
-      // Synthetic click that follows a real pointer tap:
-      fireEvent.click(button)
-
-      // Dialog should appear exactly once (not re-opened on the synthetic click).
-      const dialogs = await screen.findAllByRole("dialog")
-      expect(dialogs).toHaveLength(1)
-    })
-  })
-
-  it("renders the trigger button", () => {
-    renderButton()
-    expect(screen.getByRole("button", { name: "Report a bug" })).toBeInTheDocument()
-  })
-
-  it("opens the dialog when button is clicked", async () => {
-    renderButton()
-    await openDialog()
+  it("opens the dialog when the imperative handle's open() is called", async () => {
+    const ref = renderButton()
+    await openDialog(ref)
 
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(screen.getByLabelText("Title")).toBeInTheDocument()
   })
 
   it("pre-fills the title with context + ' bug'", async () => {
-    renderButton({ context: "Jobs" })
-    await openDialog()
+    const ref = renderButton({ context: "Jobs" })
+    await openDialog(ref)
 
     expect(screen.getByLabelText("Title")).toHaveValue("Jobs bug")
   })
 
   it("renders the 'What's included' <details> element closed by default", async () => {
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     const summary = screen.getByText("What's included")
     const details = summary.closest("details")
@@ -313,8 +108,8 @@ describe("BugReportButton", () => {
   })
 
   it("opens the 'What's included' section when the summary is clicked", async () => {
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     fireEvent.click(screen.getByText("What's included"))
 
@@ -323,8 +118,8 @@ describe("BugReportButton", () => {
   })
 
   it("contains context fields (URL, Browser, Viewport, Recent JS errors)", async () => {
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     // Content is present in the DOM regardless of details open state
     expect(screen.getByText("URL:")).toBeInTheDocument()
@@ -340,33 +135,33 @@ describe("BugReportButton", () => {
       { message: "TypeError: cannot read x", source: "app.js", at: "2025-01-01T00:00:00.000Z" }
     ])
 
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     expect(screen.getByText("TypeError: cannot read x")).toBeInTheDocument()
     expect(screen.getByText("(app.js)")).toBeInTheDocument()
   })
 
   it("shows the chat session row when chatId is provided", async () => {
-    renderButton({ context: "Chat", chatId: 42 })
-    await openDialog()
+    const ref = renderButton({ context: "Chat", chatId: 42 })
+    await openDialog(ref)
 
     expect(screen.getByText("Chat session:")).toBeInTheDocument()
     expect(screen.getByText("42")).toBeInTheDocument()
   })
 
   it("omits the chat session row when chatId is not provided", async () => {
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     expect(screen.queryByText("Chat session:")).not.toBeInTheDocument()
   })
 
   it("shows feature flags in the preview when featureFlags are provided", async () => {
-    renderButton({
+    const ref = renderButton({
       featureFlags: { coding_mode: true, terminal: false, video_walkthroughs: true }
     })
-    await openDialog()
+    await openDialog(ref)
 
     expect(screen.getByText("Features")).toBeInTheDocument()
     expect(screen.getByText("coding_mode")).toBeInTheDocument()
@@ -375,8 +170,8 @@ describe("BugReportButton", () => {
   })
 
   it("omits the features section when featureFlags are not provided", async () => {
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     expect(screen.queryByText("Features")).not.toBeInTheDocument()
   })
@@ -384,8 +179,8 @@ describe("BugReportButton", () => {
   it("includes enabled_features in the submitted context JSON when featureFlags are provided", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
 
-    renderButton({ featureFlags: { coding_mode: true, terminal: false } })
-    await openDialog()
+    const ref = renderButton({ featureFlags: { coding_mode: true, terminal: false } })
+    await openDialog(ref)
 
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
 
@@ -398,8 +193,8 @@ describe("BugReportButton", () => {
   it("omits enabled_features from context when featureFlags are not provided", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
 
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
 
@@ -415,8 +210,8 @@ describe("BugReportButton", () => {
       { message: "ReferenceError: x is not defined", source: "chunk.js", at: "2025-06-01T12:00:00.000Z" }
     ])
 
-    renderButton({ context: "Admin" })
-    await openDialog()
+    const ref = renderButton({ context: "Admin" })
+    await openDialog(ref)
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Test bug" } })
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
@@ -438,8 +233,8 @@ describe("BugReportButton", () => {
   it("includes chat_session_id in the submitted context JSON when chatId is provided", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
 
-    renderButton({ context: "Chat", chatId: 99 })
-    await openDialog()
+    const ref = renderButton({ context: "Chat", chatId: 99 })
+    await openDialog(ref)
 
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
 
@@ -450,8 +245,8 @@ describe("BugReportButton", () => {
   })
 
   it("closes the dialog on cancel", async () => {
-    renderButton()
-    await openDialog()
+    const ref = renderButton()
+    await openDialog(ref)
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
 
@@ -461,8 +256,8 @@ describe("BugReportButton", () => {
   it("shows a queued notice on successful direct-job submission", async () => {
     mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
 
-    renderButton({ bugReportMode: "direct_job" })
-    await openDialog()
+    const ref = renderButton({ bugReportMode: "direct_job" })
+    await openDialog(ref)
 
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
 
@@ -470,13 +265,11 @@ describe("BugReportButton", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
   })
 
-  describe("when opened via the floating button (no messages)", () => {
+  describe("when opened without messages", () => {
     it("does not show the transcript section", async () => {
-      renderButton()
+      const ref = renderButton()
+      await openDialog(ref)
 
-      fireEvent.click(screen.getByRole("button", { name: /report a bug/i }))
-
-      await screen.findByRole("dialog")
       expect(screen.queryByRole("checkbox", { name: /include chat transcript/i })).not.toBeInTheDocument()
     })
   })
@@ -602,7 +395,7 @@ describe("BugReportButton", () => {
 
   describe("optional attachments", () => {
     it("does not submit an unchecked generated attachment", async () => {
-      renderButton({
+      const ref = renderButton({
         pageAttachments: [{
           id: "diagnostics",
           label: "Diagnostics",
@@ -612,7 +405,7 @@ describe("BugReportButton", () => {
         }]
       })
 
-      await openDialog()
+      await openDialog(ref)
       expect(screen.getByRole("checkbox", { name: /diagnostics/i })).not.toBeChecked()
       fireEvent.click(screen.getByRole("button", { name: /create job/i }))
 
@@ -624,7 +417,7 @@ describe("BugReportButton", () => {
     })
 
     it("submits a checked generated attachment with its filename, type, and content", async () => {
-      renderButton({
+      const ref = renderButton({
         pageAttachments: [{
           id: "diagnostics",
           label: "Diagnostics",
@@ -634,7 +427,7 @@ describe("BugReportButton", () => {
         }]
       })
 
-      await openDialog()
+      await openDialog(ref)
       expect(screen.getByText("diagnostic preview")).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: /create job/i }))
 
@@ -649,7 +442,7 @@ describe("BugReportButton", () => {
     })
 
     it("counts selected generated attachments against the attachment limit", async () => {
-      renderButton({
+      const ref = renderButton({
         pageAttachments: [{
           id: "diagnostics",
           label: "Diagnostics",
@@ -658,7 +451,7 @@ describe("BugReportButton", () => {
         }]
       })
 
-      await openDialog()
+      await openDialog(ref)
       const files = Array.from({ length: 9 }, (_, index) => new File([`file ${index}`], `file-${index}.txt`, { type: "text/plain" }))
       fireEvent.change(screen.getByLabelText(/add files/i), { target: { files } })
       fireEvent.click(screen.getByRole("button", { name: /create job/i }))
@@ -679,68 +472,10 @@ describe("BugReportButton", () => {
     })
   })
 
-  describe("resize clamping", () => {
-    it("clamps the nub position when the window is resized to a smaller viewport", () => {
-      // Start with a position valid for 1024×768 but outside a 400×300 viewport
-      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 800, top: 400 }))
-      renderButton()
-      const button = getBugButton()
-
-      expect(parseFloat(button.style.left)).toBe(800)
-      expect(parseFloat(button.style.top)).toBe(400)
-
-      // Shrink the window and fire resize
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: 400 })
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: 300 })
-      act(() => {
-        fireEvent(window, new Event("resize"))
-      })
-
-      // Button should be clamped: max left = 400 - 48 = 352, max top = 300 - 48 = 252
-      expect(parseFloat(button.style.left)).toBeLessThanOrEqual(400 - 48)
-      expect(parseFloat(button.style.top)).toBeLessThanOrEqual(300 - 48)
-
-      // Clamped position should also be persisted to localStorage
-      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as { left: number; top: number } | null
-      expect(saved).not.toBeNull()
-      expect(saved!.left).toBeLessThanOrEqual(400 - 48)
-      expect(saved!.top).toBeLessThanOrEqual(300 - 48)
-    })
-
-    it("does not update state or localStorage when the position is already within the resized viewport", () => {
-      // Position well within any reasonable viewport
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 })
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 })
-      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 50, top: 50 }))
-      renderButton()
-      const button = getBugButton()
-
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1100 })
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: 700 })
-      act(() => {
-        fireEvent(window, new Event("resize"))
-      })
-
-      // Position unchanged — still within viewport
-      expect(parseFloat(button.style.left)).toBe(50)
-      expect(parseFloat(button.style.top)).toBe(50)
-
-      // localStorage should remain at the original saved value (savePos not called again)
-      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as { left: number; top: number } | null
-      expect(saved!.left).toBe(50)
-      expect(saved!.top).toBe(50)
-    })
-  })
-
   describe("screenshot capture", () => {
-    it("excludes the floating trigger button from html2canvas screenshots", () => {
-      renderButton()
-      expect(screen.getByRole("button", { name: "Report a bug" })).toHaveAttribute("data-html2canvas-ignore")
-    })
-
     it("passes an onclone callback to the viewport capture", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
@@ -749,8 +484,8 @@ describe("BugReportButton", () => {
     })
 
     it("onclone callback converts sticky-positioned elements to relative", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
@@ -770,8 +505,8 @@ describe("BugReportButton", () => {
     })
 
     it("onclone callback hides closed details contents", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
@@ -804,8 +539,8 @@ describe("BugReportButton", () => {
       Object.defineProperty(document.documentElement, "scrollWidth", { configurable: true, get: () => 1200 })
       Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, get: () => 2000 })
 
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       // Reset call count so we can isolate the full-page capture call.
       mockHtml2canvas.mockClear()
@@ -821,11 +556,11 @@ describe("BugReportButton", () => {
     })
 
     it("onclone callback syncs scrollTop from inner scroll containers to their clones", async () => {
-      // Regression: html2canvas resets scrollTop to 0 in the cloned document.
-      // The chat message stream uses overflow-y-auto (not window scroll), so without
-      // this sync the screenshot shows the top of the container, not the current view.
-      renderButton()
-      await openDialog()
+      // Regression: html2canvas resets scrollTop to 0 in the cloned document. The chat
+      // message stream uses overflow-y-auto (not window scroll), so without this sync the
+      // screenshot shows the top of the container, not the current view.
+      const ref = renderButton()
+      await openDialog(ref)
 
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
@@ -845,8 +580,8 @@ describe("BugReportButton", () => {
     })
 
     it("onclone callback syncs scrollLeft from horizontally scrolled containers to their clones", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
@@ -866,8 +601,8 @@ describe("BugReportButton", () => {
     })
 
     it("onclone callback does not set scrollTop when it is 0", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
@@ -937,8 +672,8 @@ describe("BugReportButton", () => {
     }
 
     it("does not show an Annotate button when no screenshot is selected", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       fireEvent.click(screen.getByRole("radio", { name: "No screenshot" }))
 
@@ -946,15 +681,15 @@ describe("BugReportButton", () => {
     })
 
     it("shows an Annotate button for the captured viewport screenshot", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument()
     })
 
     it("opens the annotation editor for the captured screenshot", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await annotate()
 
@@ -962,8 +697,8 @@ describe("BugReportButton", () => {
     })
 
     it("closes the annotation editor without changing the screenshot on cancel", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await annotate()
       const annotationDialog = screen.getByRole("dialog", { name: /Annotate/ })
@@ -973,8 +708,8 @@ describe("BugReportButton", () => {
     })
 
     it("submits the annotated screenshot instead of the raw capture", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await annotate()
       fireEvent.click(screen.getByRole("button", { name: "Done" }))
@@ -992,8 +727,8 @@ describe("BugReportButton", () => {
     })
 
     it("supports annotating the full-page screenshot", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
       await waitFor(() => expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument())
@@ -1012,8 +747,8 @@ describe("BugReportButton", () => {
     })
 
     it("preserves the original screenshot so re-opening the annotator edits from the pristine capture", async () => {
-      renderButton()
-      await openDialog()
+      const ref = renderButton()
+      await openDialog(ref)
 
       await annotate()
       fireEvent.click(screen.getByRole("button", { name: "Done" }))
