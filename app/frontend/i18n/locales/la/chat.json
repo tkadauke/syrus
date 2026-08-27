@@ -244,7 +244,7 @@
   "aria_refresh": "Renovare",
   "aria_chat_provider": "Praebitor colloquii",
   "aria_chat_model": "Exemplar colloquii",
-  "chat_model_default": "Exemplar praedefinitum",
+  "chat_model_default": "Praedefinitum",
   "ph_search_name_id": "Per nomen aut id quaerere...",
   "submit": "Submittere",
   "aria_chat_workspace": "Area colloquii",

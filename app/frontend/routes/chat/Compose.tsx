@@ -46,7 +46,7 @@ import { ScheduleMessageModal } from "./ScheduleMessageModal"
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -98,12 +98,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const queuedMessages = payload.queued_messages || []
-  // Textarea right padding grows with each button visible in the embedded group
-  // (Send → Stash → Stop, left-to-right). Send is leftmost so its left edge moves
-  // furthest from the right edge as more buttons appear: ~40 px (1), ~76 px (2),
-  // ~112 px (3). Each class adds a comfortable buffer above those thresholds.
-  const inlineButtonCount = 1 + (text.trim().length > 0 ? 1 : 0) + (agentActive && !payload.switching_provider ? 1 : 0)
-  const textareaPr = inlineButtonCount >= 3 ? "pr-32" : inlineButtonCount === 2 ? "pr-24" : "pr-12"
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
   // The repository's resolved skill set (built-ins ∪ .syrus/skills/*,
@@ -1364,7 +1358,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         />
       ) : null}
       <form
-        className={`relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+        className={floating
+          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:max-w-xl sm:mx-auto sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`
+          : `relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
         data-tour="chat-compose"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -1561,7 +1557,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
           aria-haspopup="listbox"
-          className={`min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 ${textareaPr} text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800`}
+          className="min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 pr-3 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending || systemAction.isPending}
           onChange={(event) => {
             updateText(event.target.value)
@@ -1582,39 +1578,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           </div>
         ) : null}
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
-        <div className="absolute bottom-1 right-1 flex items-center gap-1 sm:bottom-2 sm:right-2">
-          <button
-            aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-            className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:text-blue-400 dark:hover:bg-gray-800"
-            disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
-            type="submit"
-          >
-            {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
-          </button>
-          {text.trim().length > 0 ? (
-            <button
-              aria-label={t("scratchpad_stash")}
-              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-              disabled={stash.isPending}
-              onClick={() => stash.mutate(undefined)}
-              title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
-              type="button"
-            >
-              <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                <rect height="4" rx="1" width="6" x="9" y="3" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-            </button>
-          ) : null}
-          {agentActive && !payload.switching_provider ? (
-            <StopButton
-              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
-              payload={payload}
-              queryKey={queryKey}
-            />
-          ) : null}
-        </div>
       </div>
       <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <button
@@ -1646,8 +1609,39 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         ) : null}
         <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
         <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-        <div className="sm:ml-auto">
-          <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
+        <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            aria-label={agentActive ? t("enqueue_message") : t("send_message")}
+            className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:text-blue-400 dark:hover:bg-gray-800"
+            disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
+            type="submit"
+          >
+            {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
+          </button>
+          {text.trim().length > 0 ? (
+            <button
+              aria-label={t("scratchpad_stash")}
+              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              disabled={stash.isPending}
+              onClick={() => stash.mutate(undefined)}
+              title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                <rect height="4" rx="1" width="6" x="9" y="3" />
+                <path d="M9 12h6M9 16h4" />
+              </svg>
+            </button>
+          ) : null}
+          {agentActive && !payload.switching_provider ? (
+            <StopButton
+              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+              payload={payload}
+              queryKey={queryKey}
+            />
+          ) : null}
         </div>
         {attachmentPopoverOpen ? (
           <div
@@ -2166,7 +2160,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
     return () => document.removeEventListener("pointerdown", handlePointerDown)
   }, [dropdownOpen])
 
-  if (isSupervisorChat(payload) || modeOptions.length <= 1) return null
+  if (isSupervisorChat(payload) || modeOptions.length <= 1 || isAgentActive(payload)) return null
 
   const currentMode = payload.chat.mode || "planning"
   const currentLabel = modeOptions.find((opt) => opt.value === currentMode)?.label ?? t("mode_planning")
@@ -2252,7 +2246,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
   }, [dropdownOpen])
 
   const models = payload.chat.available_chat_models
-  if (!models || models.length === 0) return null
+  if (!models || models.length === 0 || agentActive) return null
 
   const currentModel = payload.chat.chat_model ?? null
   const currentLabel = models.find((m) => m.value === currentModel)?.label ?? t("chat_model_default")
@@ -2264,7 +2258,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
         className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-        disabled={updateModel.isPending || agentActive}
+        disabled={updateModel.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
         type="button"
@@ -2343,7 +2337,7 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
     return () => document.removeEventListener("pointerdown", handlePointerDown)
   }, [dropdownOpen])
 
-  if (payload.chat.effective_chat_provider !== "claude") return null
+  if (payload.chat.effective_chat_provider !== "claude" || isAgentActive(payload)) return null
 
   const currentEffort = payload.chat.chat_effort ?? null
   const currentLabel = effortOptions.find((opt) => opt.value === currentEffort)?.label ?? t("effort_none")

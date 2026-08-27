@@ -11667,15 +11667,15 @@ describe("App", () => {
     const chip = screen.getByText("acme/widgets")
     const textarea = screen.getByPlaceholderText("Ask about this repository...")
     const composeForm = textarea.closest("form")
-    // The textarea sits inside a relative wrapper; in the new two-row layout the
-    // send button is embedded at the bottom-right of that wrapper, and the attach
-    // button lives in a toolbar row that is the next sibling of the wrapper.
+    // The textarea sits inside its own relative wrapper; the canonical control
+    // row (attachment, dictation, mode/model/effort selectors, then the
+    // send/stash/stop cluster) is that wrapper's next sibling.
     const textareaWrapper = textarea.parentElement
     const toolbar = textareaWrapper?.nextElementSibling
     expect(chip).toBeInTheDocument()
     expect(chip.closest("div")).toHaveClass("w-full")
     expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Send message" }).closest("div")?.parentElement).toBe(textareaWrapper)
+    expect(toolbar?.contains(screen.getByRole("button", { name: "Send message" }))).toBeTruthy()
     expect(toolbar?.contains(screen.getByRole("button", { name: "Add attachment" }))).toBeTruthy()
     expect(composeForm).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
