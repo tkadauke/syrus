@@ -15,6 +15,8 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { Button } from "../components/Button"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopPreview as stopPreviewRequest, submitJobFeedback, submitJobRequestChanges, updateJobPriority, updateJobProviderSetting, type JobApprovalEvidence, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { CoverageCard } from "../components/CoverageCard"
@@ -510,17 +512,18 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
 
   return (
     <span className="inline-flex flex-col gap-1">
-      <select
+      <Select
         aria-label={t("detail_priority")}
-        className="rounded border border-gray-300 bg-white py-0.5 pl-1.5 pr-6 text-xs text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+        className="py-0.5 pl-1.5 pr-6 text-xs"
         disabled={mutation.isPending}
+        fullWidth={false}
         onChange={(e) => handleChange(e.target.value)}
         value={currentPriority}
       >
         {JOB_PRIORITIES.map((p) => (
           <option key={p} value={p}>{labels[p]}</option>
         ))}
-      </select>
+      </Select>
       {error ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</span> : null}
       {showConfirm ? <UrgentConfirmDialog onCancel={handleCancel} onConfirm={handleConfirm} /> : null}
     </span>
@@ -550,11 +553,12 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
 
   return (
     <span className="inline-flex max-w-full flex-col gap-1">
-      <select
+      <Select
         aria-describedby={`job-${payload.job.id}-provider-help`}
         aria-label={t("detail_provider")}
-        className="max-w-full rounded border border-gray-300 bg-white py-0.5 pl-1.5 pr-6 text-xs text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+        className="max-w-full py-0.5 pl-1.5 pr-6 text-xs"
         disabled={mutation.isPending}
+        fullWidth={false}
         onChange={(event) => mutation.mutate(event.target.value)}
         value={currentSetting}
       >
@@ -563,7 +567,7 @@ function JobProviderSelector({ payload, providerPath, queryKey }: { payload: Job
             {option.value === "default" ? t("provider_setting_default") : option.label}
           </option>
         ))}
-      </select>
+      </Select>
       <span className="text-xs text-gray-500 dark:text-gray-400" id={`job-${payload.job.id}-provider-help`}>
         {t("provider_setting_help", { provider: agentProviderLabel(payload.job.agent_provider || "") })}
       </span>
@@ -1029,10 +1033,10 @@ function StackBaseForm({ payload, command }: { payload: JobDetailPayload; comman
       event.preventDefault()
       command.mutate({ method: "patch", path: payload.paths.app_stack_base_path, body: { stack_base: stackBase } })
     }}>
-      <select className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setStackBase(event.target.value)} value={stackBase}>
+      <Select className="px-2 py-1 text-xs" fullWidth={false} onChange={(event) => setStackBase(event.target.value)} value={stackBase}>
         <option value="auto">auto</option>
         <option value="main">main</option>
-      </select>
+      </Select>
       <button className="text-xs text-blue-600 hover:underline" disabled={command.isPending} type="submit">{t("stack_base_update")}</button>
     </form>
   )
@@ -1206,10 +1210,10 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
             <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               {t("dependency_search_label")}
               <div className="relative mt-1">
-                <input
+                <Input
                   aria-autocomplete="list"
                   autoFocus
-                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  className="normal-case"
                   disabled={command.isPending}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={t("dependency_search_placeholder")}
@@ -1242,10 +1246,10 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
             <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
               {t("epic_dependency_search_label")}
               <div className="relative mt-1">
-                <input
+                <Input
                   aria-autocomplete="list"
                   autoFocus
-                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  className="normal-case"
                   disabled={command.isPending}
                   onChange={(event) => setEpicQuery(event.target.value)}
                   placeholder={t("dependency_search_placeholder")}
@@ -1700,11 +1704,11 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("attachment_files_label")}
-            <input className="mt-1 block w-full text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
+            <Input className="mt-1 text-sm" multiple onChange={(event) => setFiles(Array.from(event.target.files || []))} type="file" />
           </label>
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("attachment_google_doc_label")}
-            <input className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder={t("attachment_google_doc_placeholder")} type="url" value={googleDocUrl} />
+            <Input className="mt-1" onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder={t("attachment_google_doc_placeholder")} type="url" value={googleDocUrl} />
           </label>
           <Button disabled={add.isPending || (files.length === 0 && googleDocUrl.trim() === "")} type="submit">{t("attachment_add_button")}</Button>
         </div>
