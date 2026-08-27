@@ -21,6 +21,7 @@
   "check_mergeability": "Mergebarkeit prüfen",
   "retry_pr_ingestion": "PR-Übernahme erneut versuchen",
   "run_visual_review": "Visuelle Prüfung ausführen",
+  "send_upstream": "Upstream senden",
   "retry": "Erneut versuchen",
   "retry_with_feedback": "Mit Feedback erneut versuchen",
   "retry_with_agent": "Mit {{provider}} erneut versuchen",
@@ -604,5 +605,29 @@
   "deploy_failed_status": "Bereitstellung fehlgeschlagen",
   "deploy_cancelled": "Bereitstellung abgebrochen",
   "deploy_view": "Bereitstellung ansehen",
-  "deploy_failed": "Bereitstellung konnte nicht gestartet werden"
+  "deploy_failed": "Bereitstellung konnte nicht gestartet werden",
+  "delivery": {
+    "heading": "Delivery",
+    "track_label": "Track",
+    "target_ref_label": "Ziel-Ref",
+    "status_label": "Status",
+    "pr_links_heading": "Pull Requests",
+    "send_upstream_blocked": "Upstream senden: {{reason}}",
+    "role_local": "Lokal",
+    "role_upstream_export": "Upstream-Export",
+    "role_promotion": "Promotion",
+    "role_hotfix_sync": "Hotfix-Sync",
+    "role_external_ingest": "Externe Übernahme",
+    "status": {
+      "waiting_for_local_approval": "Wartet auf lokale Freigabe",
+      "approved_for_local_landing": "Lokal freigegeben",
+      "waiting_for_upstream_approval": "An Upstream gesendet: PR #{{number}} wartet auf Review",
+      "waiting_for_upstream_approval_no_pr": "Wartet auf Upstream-Freigabe",
+      "waiting_for_promotion": "Wartet auf Promotion",
+      "syncing_hotfix": "Hotfix wird synchronisiert",
+      "upstream_merged": "Upstream gemerged",
+      "upstream_closed_without_merge": "Upstream ohne Merge geschlossen",
+      "delivery_needs_attention": "Delivery benötigt Aufmerksamkeit"
+    }
+  }
 }

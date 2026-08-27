@@ -16497,6 +16497,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
         app_delete_path: "/api/v1/app/jobs/42/attachments/8"
       }
     ],
+    pr_links: [],
     typed_artifacts: [],
     coverage: null,
     summary: {

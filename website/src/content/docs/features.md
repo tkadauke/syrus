@@ -968,6 +968,16 @@ is more specific than the default "waiting for local approval"/"approved for
 local landing", and the Jobs sidebar gains matching **Waiting for upstream**,
 **Promotion pending**, and **Delivery needs attention** smart folders.
 
+A Job's own detail page gains a matching **Delivery** panel: its selected
+delivery track and target ref, the pull requests it has opened so far
+grouped by role (local landing, upstream export, promotion, hotfix sync,
+external ingest), and a fuller version of the delivery-status copy —
+including the actual PR number once one is open, e.g. "Sent upstream: PR
+#123 waiting for review". A fork Job whose repository has configured the
+`send_job_upstream` ref-movement action gets a matching **Send upstream**
+button in the Job header, so a contributor doesn't have to wait for the
+automatic post-approval export trigger.
+
 ## Skills
 
 Skills are named, freeform instruction sets for work that resists being

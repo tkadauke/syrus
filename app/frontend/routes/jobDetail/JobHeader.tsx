@@ -205,6 +205,14 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
     })
   }
   if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: t("check_mergeability"), input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
+  if (actions.can_send_job_upstream) {
+    available.push({
+      key: "send_job_upstream",
+      label: t("send_upstream"),
+      input: { method: "post", path: paths.app_ref_movement_actions_path, body: { action_name: "send_job_upstream" } },
+      tone: "secondary"
+    })
+  }
   if (actions.can_retry_pr_ingestion) available.push({ key: "retry_pr_ingestion", label: t("retry_pr_ingestion"), input: { method: "post", path: paths.app_retry_pr_ingestion_path, confirm: t("confirm_retry_pr_ingestion") }, tone: "primary" })
   if (actions.can_run_visual_review) available.push({ key: "run_visual_review", label: t("run_visual_review"), input: { method: "post", path: paths.app_visual_review_path }, tone: "secondary" })
   if (actions.retry_failed_step_action) available.push({ key: "retry_failed_step", label: actions.retry_failed_step_action.label, input: { method: "post", path: actions.retry_failed_step_action.path }, tone: "primary" })
