@@ -2,6 +2,7 @@ import { Fragment, type ReactNode, useMemo, useState } from "react"
 import { FilterBar, type FilterChip, type FilterSchemaField, type FilterTree } from "./FilterBar"
 import { encodeFilterTree, linkFromSearch } from "./filterBar/helpers"
 import type { FilterLinkUpdates } from "./filterBar/types"
+import { PageHeading } from "./Heading"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -30,7 +31,7 @@ export function AdminEventPageShell({
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{eyebrow}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+          <PageHeading className="mt-1">{title}</PageHeading>
         </div>
         {actions}
       </header>

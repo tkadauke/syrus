@@ -8,6 +8,7 @@ import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { isDesktopShell } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
 import { NotificationsRoute } from "../components/Notifications"
 import { useAppEvents } from "../lib/useAppEvents"
@@ -275,7 +276,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
       <main aria-label={t("aria_first_run")} className="flex min-h-[70vh] items-center justify-center px-6">
         <div className="max-w-md text-center">
           <img alt="" aria-hidden="true" className="mx-auto h-16 w-16 rounded-2xl" src={BRAND_ICON_SRC} />
-          <h1 className="mt-6 text-3xl font-semibold text-gray-950 dark:text-gray-100">{t("welcome")}</h1>
+          <PageHeading className="mt-6">{t("welcome")}</PageHeading>
           <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-400">{cta.description}</p>
           <div className="mt-7">
             <Link className={authPrimaryButtonClass} to={cta.href}>{cta.label}</Link>
@@ -319,7 +320,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
         <aside aria-label={t("aria_run_flow")} className="rounded border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-4">
             <div>
-              <h2 className="text-base font-semibold text-gray-900">{t("live_work_path")}</h2>
+              <SectionHeading>{t("live_work_path")}</SectionHeading>
               <p className="mt-1 text-sm text-gray-600">{t("live_work_sub")}</p>
             </div>
             <span className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">{t("audited")}</span>
@@ -329,7 +330,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
               <li className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3" key={title}>
                 <div className="flex h-9 w-9 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+                  <SectionHeading as="h3">{title}</SectionHeading>
                   <p className="mt-1 text-sm leading-6 text-gray-600">{body}</p>
                 </div>
               </li>
@@ -362,7 +363,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
           {workflowSteps.map(([title, body], index) => (
           <article className="rounded border border-gray-200 bg-white p-4" key={title}>
             <div className="flex h-8 w-8 items-center justify-center rounded bg-gray-900 text-sm font-semibold text-white">{index + 1}</div>
-            <h2 className="mt-4 text-base font-semibold text-gray-900">{title}</h2>
+            <SectionHeading className="mt-4">{title}</SectionHeading>
             <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
           </article>
           ))}
@@ -380,7 +381,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
         <div className="grid gap-4 sm:grid-cols-2">
           {featureCards.map(([title, body]) => (
             <article className="rounded border border-gray-200 bg-white p-4" key={title}>
-              <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+              <SectionHeading as="h3">{title}</SectionHeading>
               <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
             </article>
           ))}
@@ -625,7 +626,7 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
     <main aria-label={t("shell.spa_aria")} className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500">{t("shell.react_shell")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">{t("app_name")}</h1>
+        <PageHeading className="mt-1">{t("app_name")}</PageHeading>
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2">
