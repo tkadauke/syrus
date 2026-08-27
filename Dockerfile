@@ -434,7 +434,7 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
 # MCP server, bundled as a stdio subprocess rather than hand-rolled —
 # SyrusBrowser::McpToolSet spawns it and re-exposes granular tools.
 ARG PLAYWRIGHT_VERSION=1.57.0
-ARG PLAYWRIGHT_MCP_VERSION=0.0.41
+ARG PLAYWRIGHT_MCP_VERSION=0.0.79
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \

@@ -35,11 +35,11 @@ RSpec.describe SyrusBrowser::McpToolSet do
       expect(navigate[:input_schema][:required]).to include("url")
     end
 
-    it "browser_click and browser_fill require element and ref" do
+    it "browser_click and browser_fill require target" do
       click = defs.find { |d| d[:name] == "browser_click" }
       fill = defs.find { |d| d[:name] == "browser_fill" }
-      expect(click[:input_schema][:required]).to include("element", "ref")
-      expect(fill[:input_schema][:required]).to include("element", "ref", "text")
+      expect(click[:input_schema][:required]).to eq([ "target" ])
+      expect(fill[:input_schema][:required]).to eq([ "target", "text" ])
     end
   end
 
@@ -101,21 +101,31 @@ RSpec.describe SyrusBrowser::McpToolSet do
   end
 
   describe "#handle browser_click" do
-    it "forwards element and ref to the upstream browser_click tool" do
+    it "forwards element and target to the upstream browser_click tool" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      tool_set.handle("browser_click", { "element" => "Submit button", "target" => "e3" }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_click", arguments: { "element" => "Submit button", "target" => "e3" }
+      )
+    end
+
+    it "accepts legacy ref as a target alias" do
       allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
 
       tool_set.handle("browser_click", { "element" => "Submit button", "ref" => "e3" }, ctx)
 
       expect(session).to have_received(:call_tool).with(
-        name: "browser_click", arguments: { "element" => "Submit button", "ref" => "e3" }
+        name: "browser_click", arguments: { "element" => "Submit button", "target" => "e3" }
       )
     end
 
-    it "rejects missing snapshot refs before calling the upstream browser" do
+    it "rejects missing snapshot targets before calling the upstream browser" do
       response = tool_set.handle("browser_click", { "element" => "Submit button" }, ctx)
 
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("requires ref")
+      expect(response.content.first[:text]).to include("requires target")
       expect(response.content.first[:text]).to include("browser_snapshot")
       expect(session).not_to have_received(:call_tool)
     end
@@ -125,16 +135,27 @@ RSpec.describe SyrusBrowser::McpToolSet do
     it "maps to the upstream browser_type tool" do
       allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
 
+      tool_set.handle("browser_fill", { "element" => "Email field", "target" => "e1", "text" => "a@b.com" }, ctx)
+
+      expect(session).to have_received(:call_tool).with(
+        name: "browser_type",
+        arguments: { "element" => "Email field", "target" => "e1", "text" => "a@b.com" }
+      )
+    end
+
+    it "accepts legacy ref as a target alias" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
       tool_set.handle("browser_fill", { "element" => "Email field", "ref" => "e1", "text" => "a@b.com" }, ctx)
 
       expect(session).to have_received(:call_tool).with(
         name: "browser_type",
-        arguments: { "element" => "Email field", "ref" => "e1", "text" => "a@b.com" }
+        arguments: { "element" => "Email field", "target" => "e1", "text" => "a@b.com" }
       )
     end
 
     it "rejects blank text before calling the upstream browser" do
-      response = tool_set.handle("browser_fill", { "element" => "Email field", "ref" => "e1", "text" => "" }, ctx)
+      response = tool_set.handle("browser_fill", { "element" => "Email field", "target" => "e1", "text" => "" }, ctx)
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("requires text")
@@ -148,10 +169,10 @@ RSpec.describe SyrusBrowser::McpToolSet do
         { "result" => { "content" => [ { "type" => "image", "data" => "base64data", "mimeType" => "image/png" } ] } }
       )
 
-      response = tool_set.handle("browser_screenshot", { "ref" => "e2" }, ctx)
+      response = tool_set.handle("browser_screenshot", { "target" => "e2" }, ctx)
 
       expect(session).to have_received(:call_tool).with(
-        name: "browser_take_screenshot", arguments: { "ref" => "e2" }
+        name: "browser_take_screenshot", arguments: { "target" => "e2" }
       )
       expect(response.content.first[:type]).to eq("image")
       expect(response.content.first[:data]).to eq("base64data")

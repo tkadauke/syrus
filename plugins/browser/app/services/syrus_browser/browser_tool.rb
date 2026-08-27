@@ -12,14 +12,19 @@ module SyrusBrowser
   # shared ok/error helpers here.
   class BrowserTool < MCP::Tool
     class << self
-      attr_accessor :upstream_tool_name, :argument_key_map
+      attr_accessor :upstream_tool_name, :argument_key_map, :argument_alias_map
 
       def proxies(upstream_tool_name, argument_key_map = {})
         self.upstream_tool_name = upstream_tool_name
         self.argument_key_map = argument_key_map
       end
 
+      def argument_aliases(argument_alias_map = {})
+        self.argument_alias_map = argument_alias_map
+      end
+
       def call(server_context:, **params)
+        params = normalize_argument_aliases(params)
         missing = missing_required_arguments(params)
         return error(missing_arguments_message(missing)) if missing.any?
 
@@ -53,14 +58,35 @@ module SyrusBrowser
 
       def missing_arguments_message(keys)
         "browser tool #{tool_name} requires #{keys.join(", ")}. " \
-          "Call browser_snapshot first, then pass the exact element/ref pair from the snapshot; " \
-          "do not invent refs or pass undefined targets."
+          "Call browser_snapshot first, then pass the exact target/ref from the snapshot; " \
+          "do not invent selectors or pass undefined targets."
       end
 
       def upstream_arguments(params)
         argument_key_map.each_with_object({}) do |(our_key, upstream_key), arguments|
           arguments[upstream_key] = params[our_key] if params.key?(our_key)
         end
+      end
+
+      def normalize_argument_aliases(params)
+        normalized = params.dup
+        argument_alias_map.to_h.each do |canonical_key, aliases|
+          canonical = canonical_key.to_sym
+          next if present_argument?(normalized[canonical])
+
+          Array(aliases).each do |alias_key|
+            value = normalized[alias_key.to_sym]
+            next unless present_argument?(value)
+
+            normalized[canonical] = value
+            break
+          end
+        end
+        normalized
+      end
+
+      def present_argument?(value)
+        !(value.nil? || (value.respond_to?(:blank?) ? value.blank? : value.to_s.empty?))
       end
 
       def translate(response)

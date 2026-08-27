@@ -12,17 +12,17 @@ module SyrusBrowser
   # here as a stdio subprocess rather than hand-rolled Playwright bindings.
   # `--isolated` gives each Run a throwaway browser profile; `--headless` is
   # required since the worker container has no display server. The command
-  # is invoked via `npx` (present alongside Node for the claude-code/codex
-  # CLIs) without a version pin so it resolves the copy already installed
-  # globally in the image, offline. The executable path is explicit because
-  # @playwright/mcp otherwise defaults to the branded Chrome channel in some
-  # environments, while Syrus workers ship Playwright's bundled Chromium.
+  # uses the globally installed `playwright-mcp` binary from the worker image,
+  # rather than `npx @playwright/mcp`, so npm cannot silently resolve a newer
+  # schema at runtime. The executable path is explicit because @playwright/mcp
+  # otherwise defaults to the branded Chrome channel in some environments,
+  # while Syrus workers ship Playwright's bundled Chromium.
   class Session
-    DEFAULT_COMMAND = "npx".freeze
+    DEFAULT_COMMAND = "playwright-mcp".freeze
     DEFAULT_EXECUTABLE_PATH = "/opt/syrus-browser/chromium".freeze
 
     def self.default_args
-      %W[--yes @playwright/mcp --headless --isolated --executable-path #{browser_executable_path}]
+      %W[--headless --isolated --executable-path #{browser_executable_path}]
     end
 
     def self.browser_executable_path

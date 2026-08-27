@@ -22,8 +22,8 @@ RSpec.describe SyrusBrowser::Session do
       described_class.new(1)
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
-        command: "npx",
-        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /opt/syrus-browser/chromium],
+        command: "playwright-mcp",
+        args: %w[--headless --isolated --executable-path /opt/syrus-browser/chromium],
         env: nil
       )
     end
@@ -34,8 +34,8 @@ RSpec.describe SyrusBrowser::Session do
       described_class.new(1)
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
-        command: "npx",
-        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /custom/chromium],
+        command: "playwright-mcp",
+        args: %w[--headless --isolated --executable-path /custom/chromium],
         env: nil
       )
     end
@@ -54,8 +54,8 @@ RSpec.describe SyrusBrowser::Session do
       described_class.spawn(1)
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
-        command: "npx",
-        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /opt/syrus-browser/chromium],
+        command: "playwright-mcp",
+        args: %w[--headless --isolated --executable-path /opt/syrus-browser/chromium],
         env: {
           "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => "/opt/syrus-browser/chromium",
           "PLAYWRIGHT_BROWSERS_PATH" => "/opt/ms-playwright"
@@ -67,8 +67,8 @@ RSpec.describe SyrusBrowser::Session do
       described_class.spawn(1, env: { "FOO" => "bar" })
 
       expect(MCP::Client::Stdio).to have_received(:new).with(
-        command: "npx",
-        args: %w[--yes @playwright/mcp --headless --isolated --executable-path /opt/syrus-browser/chromium],
+        command: "playwright-mcp",
+        args: %w[--headless --isolated --executable-path /opt/syrus-browser/chromium],
         env: {
           "PLAYWRIGHT_MCP_EXECUTABLE_PATH" => "/opt/syrus-browser/chromium",
           "PLAYWRIGHT_BROWSERS_PATH" => "/opt/ms-playwright",
