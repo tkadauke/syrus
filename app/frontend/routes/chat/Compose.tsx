@@ -1359,7 +1359,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       ) : null}
       <form
         className={floating
-          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:max-w-xl sm:mx-auto sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`
+          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-2xl sm:p-3 lg:max-w-4xl xl:max-w-5xl dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`
           : `relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
         data-tour="chat-compose"
         onDragEnter={handleDragEnter}
@@ -1579,7 +1579,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         ) : null}
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
       </div>
-      <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
         <button
           aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
           aria-expanded={attachmentPopoverOpen}
@@ -2171,7 +2171,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[4.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none sm:px-2.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2257,7 +2257,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[4.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none sm:px-2.5 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={updateModel.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2343,7 +2343,7 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
   const currentLabel = effortOptions.find((opt) => opt.value === currentEffort)?.label ?? t("effort_none")
 
   return (
-    <div className="relative">
+    <div className="relative hidden sm:block">
       <button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
