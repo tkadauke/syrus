@@ -310,7 +310,7 @@ function Outcome({ process }: { process: SpawnedProcessPayload }) {
   if (process.kill_requested_at) {
     return <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">{t("processes.outcome_kill_requested")}</span>
   }
-  return <span className="rounded bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 font-medium text-blue-800">{t("processes.outcome_running")}</span>
+  return <span className="rounded bg-info/10 px-2 py-0.5 font-medium text-info">{t("processes.outcome_running")}</span>
 }
 
 function ProcessError({ error }: { error: Error }) {
