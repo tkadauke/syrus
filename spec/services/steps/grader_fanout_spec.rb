@@ -666,4 +666,106 @@ RSpec.describe Steps::GraderFanout do
     expect { handler.call }.to change { workflow.steps.where(kind: "grader").count }.by(1)
     expect(workflow.reload.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY)).to be_nil
   end
+
+  # --- grade.rerun_only_failed ---------------------------------------------
+
+  describe "grade.rerun_only_failed" do
+    def create_prior_grader_step(name:, state:, iteration: 1)
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 50,
+        iteration: iteration,
+        loop_id: loop_id,
+        state: state,
+        details: { "name" => name, "required" => true }
+      )
+    end
+
+    def build_iteration_two_handler
+      collect2 = Step.create!(workflow: workflow, kind: "grader_collect", position: 202, iteration: 2, loop_id: loop_id)
+      fanout2 = Step.create!(workflow: workflow, kind: "grader_fanout", position: 201, iteration: 2, loop_id: loop_id, next_step_id: collect2.id)
+      run2 = fanout2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: fanout2.iteration)
+      handler2 = described_class.new(run2)
+      fake_ws2 = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")
+      allow(handler2).to receive(:workspace).and_return(fake_ws2)
+      handler2
+    end
+
+    it "runs every active grader on the first iteration even when the flag is on" do
+      write_config(<<~YAML)
+        grade:
+          rerun_only_failed: true
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+
+      handler.call
+
+      expect(workflow.steps.where(kind: "grader").map { |s| s.details["name"] }).to match_array(%w[tests lint])
+    end
+
+    it "reruns every active grader on later iterations when the flag is off (default)" do
+      write_config(<<~YAML)
+        grade:
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+      create_prior_grader_step(name: "tests", state: "failed")
+      create_prior_grader_step(name: "lint", state: "succeeded")
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests lint])
+    end
+
+    it "only reruns graders that failed the previous iteration when the flag is on" do
+      write_config(<<~YAML)
+        grade:
+          rerun_only_failed: true
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: lint
+              run: bin/rubocop
+      YAML
+      create_prior_grader_step(name: "tests", state: "failed")
+      create_prior_grader_step(name: "lint", state: "succeeded")
+
+      build_iteration_two_handler.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to eq([ "tests" ])
+      carried_forward = workflow.reload.artifact(described_class::CARRIED_FORWARD_ARTIFACT_KEY)
+      expect(carried_forward).to contain_exactly(include("name" => "lint", "required" => true))
+    end
+
+    it "still runs a grader that newly matches when_files_changed this iteration, even though it wasn't active last iteration" do
+      write_config(<<~YAML)
+        grade:
+          rerun_only_failed: true
+          steps:
+            - name: tests
+              run: bin/rspec
+            - name: docs
+              run: bin/docs-check
+              when_files_changed:
+                - "docs/**"
+      YAML
+      # "docs" never had a Step in iteration 1 (its glob didn't match then) —
+      # rerun_only_failed must not treat "no prior Step" as "already passed".
+      create_prior_grader_step(name: "tests", state: "failed")
+
+      handler2 = build_iteration_two_handler
+      stub_changed_files("docs/readme.md")
+      handler2.call
+
+      expect(workflow.steps.where(kind: "grader", iteration: 2).map { |s| s.details["name"] }).to match_array(%w[tests docs])
+    end
+  end
 end

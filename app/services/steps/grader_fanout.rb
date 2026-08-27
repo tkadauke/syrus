@@ -15,8 +15,14 @@ module Steps
   # is snapshotted onto its Step#details — immutable for that Step,
   # immune to `.syrus.yml` evolution.
   class GraderFanout < Base
+    # Written every fanout call (including early-return paths) so
+    # Steps::GraderCollect always sees a value scoped to *this* iteration,
+    # never a stale entry left over from an earlier one.
+    CARRIED_FORWARD_ARTIFACT_KEY = "grade_carried_forward_graders".freeze
+
     def call
       workspace.setup
+      workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
       plan = effective_plan(RepoGradePlan.for(workspace.path))
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan)
       record_plan_source!(plan, grader_fingerprint)
@@ -37,6 +43,15 @@ module Steps
       matching_files = matching_files_for(files)
       active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, matching_files) }
       skipped_graders.each { |g| log("[grader_fanout] skipped #{g.name} (no matching files changed)") }
+
+      if plan.rerun_only_failed? && step.iteration > 1
+        passed_steps_by_name = previous_iteration_passed_steps_by_name
+        active_graders, carried_forward = active_graders.partition { |g| !passed_steps_by_name.key?(g.name) }
+        if carried_forward.any?
+          carried_forward.each { |g| log("[grader_fanout] skipping #{g.name} (passed iteration #{step.iteration - 1}; rerun_only_failed)") }
+          record_carried_forward_graders!(carried_forward, passed_steps_by_name)
+        end
+      end
 
       if active_graders.empty?
         log("[grader_fanout] all graders skipped — collect Step will pass through")
@@ -124,6 +139,42 @@ module Steps
           []
         end
       end.uniq
+    end
+
+    # Graders that succeeded on the immediately preceding iteration, keyed by
+    # name. `rerun_only_failed` only looks back one iteration (not the full
+    # history) — a grader that was itself carried-forward (and so has no Step
+    # of its own) in iteration N-1 is treated as needing a fresh run in
+    # iteration N. That is a safe, self-correcting fallback (it just reruns
+    # a grader that might still be green) rather than a correctness bug.
+    def previous_iteration_passed_steps_by_name
+      return {} if step.loop_id.blank?
+
+      workflow.steps
+              .where(kind: "grader", loop_id: step.loop_id, iteration: step.iteration - 1, state: "succeeded")
+              .filter_map { |s| [ s.details && s.details["name"], s ] if s.details && s.details["name"] }
+              .to_h
+    end
+
+    # Snapshots enough of the prior passing grader Step's details for
+    # Steps::GraderCollect to both report it in this iteration's results and
+    # record a per-iteration GraderConclusion for it, without re-querying
+    # Steps itself.
+    def record_carried_forward_graders!(carried_forward, passed_steps_by_name)
+      entries = carried_forward.map do |g|
+        prior_details = passed_steps_by_name[g.name]&.details || {}
+        {
+          "name" => g.name,
+          "required" => g.required,
+          "source_iteration" => step.iteration - 1,
+          "exit_code" => prior_details["exit_code"],
+          "duration_s" => prior_details["duration_s"],
+          "log_path" => prior_details["log_path"],
+          "log_bytes" => prior_details["log_bytes"],
+          "output" => prior_details["output"]
+        }.compact
+      end
+      workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, entries)
     end
 
     def record_plan_source!(plan, grader_fingerprint)

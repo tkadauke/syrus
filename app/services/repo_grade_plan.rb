@@ -19,7 +19,11 @@ class RepoGradePlan
   # files may still declare `ci:` beside `run:`; resolve expands that into a
   # separate `<name>-ci` grader whose only phase is `ci`.
   Grader = Data.define(:name, :command, :phases, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :failures, :metadata)
-  Result = Data.define(:graders, :source, :note, :max_iterations)
+  Result = Data.define(:graders, :source, :note, :max_iterations, :rerun_only_failed) do
+    def rerun_only_failed?
+      !!rerun_only_failed
+    end
+  end
 
   def self.for(workspace_path)
     new(workspace_path).resolve
@@ -39,7 +43,7 @@ class RepoGradePlan
 
     graders = expand_graders(grade.steps)
     note = graders.empty? ? "no valid graders configured" : nil
-    Result.new(graders: graders, source: ".syrus.yml", note: note, max_iterations: grade.max_iterations)
+    Result.new(graders: graders, source: ".syrus.yml", note: note, max_iterations: grade.max_iterations, rerun_only_failed: grade.rerun_only_failed)
   rescue SyrusYml::ParseError => e
     empty_result(source: ".syrus.yml", note: e.message)
   end
@@ -89,7 +93,8 @@ class RepoGradePlan
       graders: [],
       source: source,
       note: note,
-      max_iterations: AppSetting.grade_max_iterations
+      max_iterations: AppSetting.grade_max_iterations,
+      rerun_only_failed: false
     )
   end
 end

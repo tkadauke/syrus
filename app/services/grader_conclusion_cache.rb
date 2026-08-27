@@ -65,8 +65,8 @@ class GraderConclusionCache
     )
   end
 
-  def self.record!(workflow:, run:, step:, commit_sha:, grader_steps:, aggregate_status:, grader_fingerprint: nil)
-    return if commit_sha.blank? || grader_steps.empty?
+  def self.record!(workflow:, run:, step:, commit_sha:, grader_steps:, aggregate_status:, grader_fingerprint: nil, carried_forward: [])
+    return if commit_sha.blank? || (grader_steps.empty? && carried_forward.empty?)
 
     fingerprint = grader_fingerprint.presence || fingerprint_for_steps(grader_steps)
     checked_at = Time.current
@@ -95,6 +95,35 @@ class GraderConclusionCache
         )
       end
 
+      # rerun_only_failed skipped these graders this iteration because they
+      # already passed last time — record a per-iteration conclusion reusing
+      # that prior result so grader-history consumers don't see a gap for
+      # them on an iteration where they legitimately didn't run.
+      carried_forward.each do |entry|
+        GraderConclusion.create!(
+          repository: workflow.job.repository,
+          job: workflow.job,
+          workflow: workflow,
+          step: step,
+          run: run,
+          commit_sha: commit_sha,
+          grader_fingerprint: fingerprint,
+          grader_name: entry["name"].presence || "grader-carried-forward",
+          required: entry.key?("required") ? !!entry["required"] : nil,
+          status: "passed",
+          exit_code: entry["exit_code"],
+          duration_s: entry["duration_s"],
+          timed_out: false,
+          log_path: entry["log_path"],
+          log_bytes: entry["log_bytes"],
+          checked_at: checked_at,
+          metadata: metadata_for(workflow: workflow, step: step).merge(
+            "carried_forward" => true,
+            "source_iteration" => entry["source_iteration"]
+          ).compact
+        )
+      end
+
       GraderConclusion.create!(
         repository: workflow.job.repository,
         job: workflow.job,
@@ -112,7 +141,7 @@ class GraderConclusionCache
           "trigger_kind" => workflow.trigger_kind,
           "iteration" => run.iteration,
           "loop_id" => step.loop_id,
-          "grader_count" => grader_steps.size
+          "grader_count" => grader_steps.size + carried_forward.size
         }.compact
       )
     end
