@@ -1,6 +1,7 @@
 import { getJson } from "./client"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { SetupStatusPayload } from "./setup"
+import type { ColorTheme } from "./themes"
 
 export type BootstrapPayload = {
   current_user: {
@@ -19,6 +20,8 @@ export type BootstrapPayload = {
     agent_max_turns: number
     gemini_configured: boolean
     theme: "light" | "dark" | "system"
+    color_theme_id?: number | null
+    color_theme?: ColorTheme | null
     locale: "en" | "de" | "la"
     notification_unread_count?: number
     seen_tours?: string[]

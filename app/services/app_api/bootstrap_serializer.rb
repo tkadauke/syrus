@@ -46,6 +46,8 @@ module AppApi
         scheduling_paused: user.scheduling_paused,
         landing_paused: user.landing_paused,
         theme: user.theme,
+        color_theme_id: user.color_theme_id,
+        color_theme: user.color_theme&.public_payload,
         locale: user.locale,
         agent_provider: user.agent_provider,
         chat_provider: user.chat_provider,

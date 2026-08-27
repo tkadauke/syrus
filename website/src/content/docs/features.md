@@ -1013,6 +1013,7 @@ Each user owns their own profile, credentials, defaults, and preferences:
 - **Preferences** stores account-level toggles such as scheduling pause.
 - **Connected Platforms** links the Syrus account to external messaging platforms (see below).
 - **Theme** — light, dark, or system (matches the OS color-scheme preference and updates live if it changes) is picked from the account area. The choice applies before the page finishes loading, so there's no flash of the wrong theme, and it's respected by the desktop tray app too.
+- **Color theme** — a color palette (Terracotta, Ocean, Forest, plus any custom themes the user owns) is picked from the same account area, independently of light/dark mode. Each palette works in both light and dark mode. The choice applies before the page finishes loading, the same as light/dark mode, so there's no flash of the wrong color palette either.
 - **Language** — operators can select their preferred display language from the profile settings page. Supported locales are English (`en`), German (`de`), and Latin (`la`). The preference is stored per-user and applied to all app chrome and shared UI text.
 
 ## Connected Platforms
