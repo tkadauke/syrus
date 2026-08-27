@@ -2,7 +2,7 @@
 
 Delivery tracks let a repository declare its own branching model — a single strict branch, a development/release split, a hotfix track, or an upstream-export posture for forks — in a shared, non-personal `.syrus.yml` block, instead of every workflow special-casing branch names. See `docs/plans/delivery-tracks-and-promotion.md` for the full design and Story-by-Story rationale; this document tracks only what's actually implemented.
 
-This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below); a fifth Job added the `JobPrLink` model (see "`JobPrLink`" below) as the durable foundation the promotion/hotfix-sync/upstream-export Jobs later in this Epic persist their PR links to; a sixth Job added `DeliveryStatus` (see "`DeliveryStatus` (apparent delivery status)" below), the first reader of `JobPrLink`, deriving a Job's UI-facing delivery status from delivery facts instead of a new AASM state; a seventh Job added `Workflows::Promotion` (see "Promotion workflow" below), the first ref-movement workflow and the first consumer of the `promotion` grade phase; an eighth Job added `Workflows::HotfixSync` and its detection poller (see "Hotfix sync workflow" below), the reverse `main -> develop` ref-movement workflow; a ninth Job added `Workflows::UpstreamExport` (see "Upstream export workflow" below), Story 8/9's per-job `b/foo -> a/foo` ref-movement workflow, and stopped routing new Jobs into fork-review mode wherever a repository has opted into it; a tenth Job added Story 10's PR-provenance classification (see "PR ingestion classification" below), the first reader of `JobPrLink`'s `external_ingest` role and the first writer of `PrProvenanceMarker` PR-body markers; an eleventh Job added Story 11's `RefMovementAction` audit model and `send_job_upstream`/`submit_branch_upstream` ref-movement actions (see "Ref-movement action dispatcher" below), plus the chat/skill-facing `list_delivery_tracks`/`resolve_delivery_policy`/`select_job_delivery_track`/`list_ref_movement_actions`/`dispatch_ref_movement_action`/`read_ref_movement_status`/`classify_pull_request`/`ingest_pull_request` MCP tools. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` (per-track, not promotion's/hotfix-sync's) is still unwired; later Jobs in the Epic cover that.
+This started as the first Job in EPIC-268 (Delivery Tracks, Promotion, and Branch Policy), adding the `.syrus.yml` parser and the `DeliveryPolicy` object described below; a follow-up Job added the `approval:` block (Story 7: owner + peer local approval, optional promotion maintainer approval); a third Job added the `Job#delivery_track` column and wired `DeliveryPolicy#job_landing_branch` into PR base-branch resolution (see "`Job#delivery_track`" below); a fourth Job (`landing-queue-track-approval-gating`) generalized the landing queue's per-slot lock and in-progress checks to key off `job_landing_branch` instead of bare `repository_id`, and wired `job_approval_satisfied?` into the landing approval gate (see "Landing queue integration" below); a fifth Job added the `JobPrLink` model (see "`JobPrLink`" below) as the durable foundation the promotion/hotfix-sync/upstream-export Jobs later in this Epic persist their PR links to; a sixth Job added `DeliveryStatus` (see "`DeliveryStatus` (apparent delivery status)" below), the first reader of `JobPrLink`, deriving a Job's UI-facing delivery status from delivery facts instead of a new AASM state; a seventh Job added `Workflows::Promotion` (see "Promotion workflow" below), the first ref-movement workflow and the first consumer of the `promotion` grade phase; an eighth Job added `Workflows::HotfixSync` and its detection poller (see "Hotfix sync workflow" below), the reverse `main -> develop` ref-movement workflow; a ninth Job added `Workflows::UpstreamExport` (see "Upstream export workflow" below), Story 8/9's per-job `b/foo -> a/foo` ref-movement workflow, and stopped routing new Jobs into fork-review mode wherever a repository has opted into it; a tenth Job added Story 10's PR-provenance classification (see "PR ingestion classification" below), the first reader of `JobPrLink`'s `external_ingest` role and the first writer of `PrProvenanceMarker` PR-body markers; an eleventh Job added Story 11's `RefMovementAction` audit model and `send_job_upstream`/`submit_branch_upstream` ref-movement actions (see "Ref-movement action dispatcher" below), plus the chat/skill-facing `list_delivery_tracks`/`resolve_delivery_policy`/`select_job_delivery_track`/`list_ref_movement_actions`/`dispatch_ref_movement_action`/`read_ref_movement_status`/`classify_pull_request`/`ingest_pull_request` MCP tools; a twelfth and final Job added the repository-page and dashboard delivery UI (see "Repository and dashboard delivery UI" below) — a UI-only Job with no new delivery business logic, just serializers over everything the prior eleven Jobs already compute. Grader/landing-phase selection based on `review_grade_phase`/`landing_grade_phase` (per-track, not promotion's/hotfix-sync's) is still unwired; later Jobs in the Epic cover that.
 
 ## `.syrus.yml` shape
 
@@ -378,3 +378,81 @@ Chat- and skill-facing (available in chat sessions, and to a `run_skill` step's 
 - `read_ref_movement_status(ref_movement_action_id:)` — inspects one dispatched action's current Workflow state and any `JobPrLink` (role: `upstream_export`) it opened.
 - `classify_pull_request(pr_number:)` — runs `PrProvenanceClassifier` against an open PR and returns the classification plus supporting evidence (head/base refs, fork status, provenance marker, whether classification is even enabled).
 - `ingest_pull_request(pr_number:, classification:)` — manually ingests a PR through `ExternalPrIngestions::Base.for(classification)`, the same dispatch `PollExternalOpenPrsJob` uses. An already-ingested PR (an existing Job with that `external_pr_number`) always returns the existing Job — Syrus's ingestion classes are not idempotent against re-classifying an already-created Job, so a `classification:` override only changes which classification is used the *first* time a PR is ingested (when automatic heuristics would misclassify it), not a way to retroactively reclassify one.
+
+## Repository and dashboard delivery UI
+
+The final Job of EPIC-268 exposes everything above to operators — no new
+delivery business logic, just serializers and read-mostly UI over data
+prior Jobs already compute.
+
+**Repository page.** `App::RepositoryDeliveryPayload.call(repository:)`
+(`app/services/app/repository_delivery_payload.rb`) is merged into the
+existing repository detail payload as `delivery:` (`RepositoriesController
+#repository_detail_payload`), and rendered by `DeliverySection`
+(`app/frontend/routes/repositoryDetail/Delivery.tsx`) on the Overview tab,
+below `MainBranchHealthSection`:
+
+- **Tracks table** — one row per `DeliveryPolicy#tracks` entry: name,
+  resolved branch, review/landing/branch-health grade phases, health (the
+  repository's `main_health` for whichever track's branch equals
+  `Repository#default_branch`; `"not_monitored"` for any other track — health
+  checks aren't per-track yet), current landing-queue length
+  (`Job.landing_queue` scoped by `delivery_track`), and the most recent
+  promotion/hotfix-sync completion timestamp (repository-wide today, so only
+  ever attached to the `default` track's row). A track's queue count links to
+  a pre-filtered `/dashboard/jobs?q=<encoded filter>` view (repository +
+  track + `landing_queue` attention, via `Filters::QueryParam.encode`) only
+  once the repository has more than one track — a single-track repository's
+  queue is already the plain "Landing queue" smart folder.
+- **Ref-movement actions** — every `delivery.ref_movement_actions` entry
+  with its live availability and `blocked_reason`, computed the same way the
+  `list_ref_movement_actions` MCP tool does
+  (`RefMovementActions::Base.for(name).available?`). `submit_branch_upstream`
+  can be dispatched right from this list (optional source/target branch
+  overrides) via `POST .../dispatch_ref_movement_action`
+  (`RepositoriesController#dispatch_ref_movement_action`, `params
+  [:ref_movement_action_name]` — not `params[:action]`, which Rails already
+  reserves for the controller action name); `send_job_upstream` needs a
+  `job_id` this repository-level view doesn't have a picker for, so it always
+  renders blocked with its own reason (dispatch that one from the Job's own
+  page/chat instead).
+- **Recent ref-movement actions** — the last 10 `RefMovementAction` audit
+  rows for the repository (dispatched or blocked), each linking to its Job
+  and Workflow.
+- **Recent ref-movement workflows** — the last 10 `promotion`/`hotfix_sync`/
+  `upstream_export` Workflows for the repository, with source/target refs
+  resolved from the anchor Job's matching-role `JobPrLink`.
+- **Recent PR ingestion classifications** — the last 10 `external_pr` Jobs,
+  reading `provenance`/`ingest_mode`/`source_repo_slug` back off their
+  `external_ingest`-role `JobPrLink#metadata` (defaults to `external_unknown`
+  when no such link exists — the classifier was never enabled, or classified
+  it as ordinary external work).
+
+**Dashboard smart folders and filter chips.** Two new job filter chips
+(`app/services/filters/chips/jobs/`), registered in `Filters::Registry`:
+
+- `delivery_track` — a plain `EnumColumn` chip on `Job#delivery_track`.
+- `delivery_status` — filters by `DeliveryStatus.for(job:)`. Unlike most
+  chips this can't compile to one SQL predicate (the status depends on
+  per-repository `.syrus.yml` config, not just DB columns), so it evaluates
+  in Ruby over the already-scoped candidate set, memoizing one
+  `DeliveryPolicy` per repository so a page spanning many Jobs across few
+  repositories only reads `.syrus.yml` once per repository.
+
+Four new `SmartFolder::JOB_BUILTINS` (all `:on_demand` — most repositories
+have no promotion/hotfix_sync/upstream_export configured, so these are
+usually empty, but stay reachable from the attention dropdown when
+populated):
+
+- **Waiting for local approval** — `delivery_status: waiting_for_local_approval`.
+- **Waiting for upstream** — `delivery_status: waiting_for_upstream_approval`.
+- **Promotion pending/running** — `delivery_status` in
+  `[waiting_for_promotion, syncing_hotfix]`, OR the Job's latest Workflow is
+  an in-flight `promotion`/`hotfix_sync`/`upstream_export` run (covers both
+  "not started yet" and "actively running").
+- **Delivery needs attention** — `delivery_status: delivery_needs_attention`.
+
+Track-specific landing queues (for a repository with more than one landing
+target) are reached via the repository page's per-track queue link above,
+not a separate fixed smart folder — a `delivery_track` value is repository-
+configured, not a fixed enum a global smart folder list could enumerate.

@@ -386,6 +386,38 @@ module Api
           render json: repository_command_payload(repository, message: "Insight analysis started for #{repository.slug}.")
         end
 
+        def dispatch_ref_movement_action
+          repository = find_repository
+          action_name = params[:ref_movement_action_name].to_s
+
+          source =
+            if action_name == "send_job_upstream"
+              job_id = params[:job_id].presence
+              if job_id.blank?
+                render_error("validation_failed", "Choose a Job to export upstream.", status: :unprocessable_content)
+                return
+              end
+              repository.jobs.find(job_id)
+            else
+              params[:source_branch].to_s.strip.presence
+            end
+
+          ref_movement_action = RefMovementAction.dispatch!(
+            repository: repository,
+            actor: Current.user,
+            action: action_name,
+            source: source,
+            target: params[:target_branch].to_s.strip.presence
+          )
+
+          message = ref_movement_action.dispatched? ? "Dispatched #{action_name}." : "Blocked: #{ref_movement_action.blocked_reason}"
+          render json: repository_detail_payload(repository.reload, page: detail_page, message: message)
+        rescue ActiveRecord::RecordNotFound
+          render_error("not_found", "Job not found.", status: :not_found)
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
         def coverage_trend
           repository = find_repository
           days = [ params.fetch(:days, 30).to_i, 1 ].max
@@ -471,6 +503,7 @@ module Api
               needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
               credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
               health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
+              delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) { ::App::RepositoryDeliveryPayload.call(repository: repository) },
               jobs: PerformanceLogging.phase("repository_detail.jobs_json", repository_id: repository.id, job_count: jobs.size) { jobs.map { |job| job_json(job) } },
               pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
               preview: PerformanceLogging.phase("repository_detail.preview", repository_id: repository.id) { repository_preview_json(repository) },

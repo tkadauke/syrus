@@ -35,6 +35,8 @@ module Filters
   # finished_at                   column-named-after-job
   # last_seen_comment_at          column-named-after-job
   # owner_user_id                 job
+  # delivery_track                job
+  # delivery_status               job
   # pinned_by_me                  job
   # has_unread_feedback           job
   # has_landing_failure           job
@@ -95,6 +97,10 @@ module Filters
 
       # Owner
       "owner_user_id"                 => "Filters::Chips::Jobs::OwnerUserId",
+
+      # Delivery (EPIC-268)
+      "delivery_track"                => "Filters::Chips::Jobs::DeliveryTrack",
+      "delivery_status"               => "Filters::Chips::Jobs::DeliveryStatus",
 
       # Booleans (predicates)
       "pinned_by_me"                  => "Filters::Chips::Jobs::PinnedByMe",

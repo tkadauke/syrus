@@ -512,6 +512,20 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "app_check_ci_now_repository_path" => "/api/v1/app/repositories/#{repository.id}/check_ci_now"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
+    expect(body["delivery"]).to include(
+      "tracks" => include(
+        include("name" => "default", "default" => true, "branch" => repository.default_branch)
+      ),
+      "promotion" => include("enabled" => false),
+      "hotfix_sync" => include("enabled" => false),
+      "upstream_export" => include("enabled" => false),
+      "ref_movement_actions" => [],
+      "recent_ref_movement_actions" => [],
+      "recent_workflows" => [],
+      "recent_pr_ingestions" => []
+    )
+    expect(body.dig("delivery", "paths", "app_dispatch_ref_movement_action_repository_path"))
+      .to eq("/api/v1/app/repositories/#{repository.id}/dispatch_ref_movement_action")
   end
 
   it "uses WorkUnit-owned active work when serializing repository detail retry state" do
@@ -1762,6 +1776,47 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(repository.reload.external_pr_ingestion_enabled).to be(true)
+    end
+  end
+
+  describe "POST dispatch_ref_movement_action" do
+    it "creates a blocked RefMovementAction when the action isn't configured, and returns the repository detail payload" do
+      sign_in_as(user)
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+      expect {
+        post "/api/v1/app/repositories/#{repository.id}/dispatch_ref_movement_action",
+          params: { ref_movement_action_name: "submit_branch_upstream" }
+      }.to change(RefMovementAction, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      record = RefMovementAction.last
+      expect(record.state).to eq("blocked")
+      expect(record.blocked_reason).to eq("not configured in delivery.ref_movement_actions")
+      body = parse_body
+      expect(body.dig("delivery", "recent_ref_movement_actions")).to include(
+        include("action_name" => "submit_branch_upstream", "state" => "blocked")
+      )
+    end
+
+    it "422s send_job_upstream without a job_id" do
+      sign_in_as(user)
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+      post "/api/v1/app/repositories/#{repository.id}/dispatch_ref_movement_action",
+        params: { ref_movement_action_name: "send_job_upstream" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(RefMovementAction.count).to eq(0)
+    end
+
+    it "returns 401 when not signed in" do
+      repository = Factories.repository(user: user)
+
+      post "/api/v1/app/repositories/#{repository.id}/dispatch_ref_movement_action",
+        params: { ref_movement_action_name: "submit_branch_upstream" }
+
+      expect(response).to have_http_status(:unauthorized)
     end
   end
 end

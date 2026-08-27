@@ -35,6 +35,44 @@ class SmartFolder < ApplicationRecord
     }
   end
 
+  # Like user_job_attention_preset_filter, but filters on `delivery_status`
+  # (see app/services/delivery_status.rb) instead of the `attention` preset
+  # macro — one or more DeliveryStatus::STATUSES values.
+  def self.user_job_delivery_status_filter(*statuses)
+    {
+      "and" => [
+        { "field" => "delivery_status", "op" => "is_one_of", "value" => statuses },
+        { "field" => "job_type", "op" => "is", "value" => "user" },
+        { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+      ]
+    }
+  end
+
+  # "Promotion pending/running" per JOB-3690's scope: a Job whose delivery
+  # has landed locally and is waiting on promotion/hotfix-sync to pick it up
+  # (delivery_status), OR whose latest workflow is an in-flight
+  # promotion/hotfix_sync/upstream_export ref-movement run — covers both the
+  # "not started yet" and "actively running" halves of the same story.
+  def self.user_job_promotion_pending_filter
+    {
+      "and" => [
+        { "field" => "job_type", "op" => "is", "value" => "user" },
+        { "field" => "owner_user_id", "op" => "is", "value" => "me" },
+        {
+          "or" => [
+            { "field" => "delivery_status", "op" => "is_one_of", "value" => %w[ waiting_for_promotion syncing_hotfix ] },
+            {
+              "and" => [
+                { "field" => "latest_workflow_trigger_kind", "op" => "is_one_of", "value" => %w[ promotion hotfix_sync upstream_export ] },
+                { "field" => "latest_workflow_state", "op" => "is", "value" => "running" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  end
+
   def self.epic_attention(preset)
     attention_preset_filter(preset)
   end
@@ -69,7 +107,17 @@ class SmartFolder < ApplicationRecord
 
     # Tier 3: historical lookups, tucked into "More" disclosure.
     { key: "stale",            name: "Stale",                  visibility: :on_demand,    filter: user_job_attention_preset_filter("stale") },
-    { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: user_job_attention_preset_filter("merged_this_week") }
+    { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: user_job_attention_preset_filter("merged_this_week") },
+
+    # Delivery (EPIC-268): apparent delivery status beyond local landing —
+    # see app/services/delivery_status.rb. :on_demand because most
+    # repositories have no promotion/hotfix_sync/upstream_export configured,
+    # so these are usually empty; still directly reachable and shown in the
+    # attention dropdown when populated.
+    { key: "delivery_waiting_local_approval", name: "Waiting for local approval", visibility: :on_demand, filter: user_job_delivery_status_filter("waiting_for_local_approval") },
+    { key: "delivery_waiting_upstream",       name: "Waiting for upstream",       visibility: :on_demand, filter: user_job_delivery_status_filter("waiting_for_upstream_approval") },
+    { key: "delivery_promotion_pending",      name: "Promotion pending/running",  visibility: :on_demand, filter: user_job_promotion_pending_filter },
+    { key: "delivery_needs_attention",        name: "Delivery needs attention",   visibility: :on_demand, filter: user_job_delivery_status_filter("delivery_needs_attention") }
   ].freeze
   BUILTIN_DEFINITIONS = JOB_BUILTINS
 

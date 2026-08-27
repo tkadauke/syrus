@@ -287,6 +287,7 @@ Rails.application.routes.draw do
             post :repair_main_branch
             post :sync_fork
             post :check_ci_now
+            post :dispatch_ref_movement_action
             get :coverage_trend
             get :throughput_metrics
             post :run_insight_analysis

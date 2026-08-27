@@ -185,6 +185,7 @@ export type RepositoryDetailPayload = {
     failed_7d: number
   }
   health_history?: RepositoryHealthHistory
+  delivery?: RepositoryDeliveryPayload
   retry_failed_jobs: {
     count: number
     agent_provider: string
@@ -338,6 +339,105 @@ export type RepositoryMainBranchRepairStatus = {
     title: string
     job_path: string
   }>
+}
+
+export type RepositoryDeliveryTrack = {
+  name: string
+  default: boolean
+  branch: string
+  review_grade_phase: string
+  landing_grade_phase: string
+  branch_health_grade_phase: string
+  health: string
+  landing_queue_count: number
+  queue_path: string | null
+  last_promotion_or_sync_at: string | null
+}
+
+export type RepositoryDeliveryRefMovementActionConfig = {
+  name: string
+  enabled: boolean
+  mode: string | null
+  grade_phases: string[]
+  available: boolean
+  blocked_reason: string | null
+}
+
+export type RepositoryDeliveryJobRef = {
+  id: number
+  slug: string
+  job_path: string
+}
+
+export type RepositoryDeliveryRecentRefMovementAction = {
+  id: number
+  action_name: string
+  state: string
+  blocked_reason: string | null
+  requested_by: string
+  source_kind: string | null
+  source_ref: string | null
+  target_kind: string | null
+  target_ref: string | null
+  target_repository_slug: string | null
+  target_inferred: boolean
+  job: RepositoryDeliveryJobRef | null
+  workflow_path: string | null
+  created_at: string
+}
+
+export type RepositoryDeliveryRecentWorkflow = {
+  id: number
+  trigger_kind: string
+  trigger_kind_label: string
+  state: string
+  job: RepositoryDeliveryJobRef
+  source_ref: string | null
+  target_ref: string | null
+  target_repository_slug: string | null
+  created_at: string
+  finished_at: string | null
+}
+
+export type RepositoryDeliveryPrIngestion = {
+  job: RepositoryDeliveryJobRef
+  pr_number: number | null
+  external_pr_url: string | null
+  external_pr_author: string | null
+  provenance: string
+  ingest_mode: string | null
+  source_repo_slug: string | null
+  created_at: string
+}
+
+export type RepositoryDeliveryPayload = {
+  tracks: RepositoryDeliveryTrack[]
+  promotion: {
+    enabled: boolean
+    mode: string
+    source_branch: string
+    target_branch: string
+    requires_operator_approval: boolean
+  }
+  hotfix_sync: {
+    enabled: boolean
+    mode: string
+    source_branch: string
+    target_branch: string
+  }
+  upstream_export: {
+    enabled: boolean
+    mode: string
+    after_local_approval: boolean
+    target_branch: string | null
+  }
+  ref_movement_actions: RepositoryDeliveryRefMovementActionConfig[]
+  recent_ref_movement_actions: RepositoryDeliveryRecentRefMovementAction[]
+  recent_workflows: RepositoryDeliveryRecentWorkflow[]
+  recent_pr_ingestions: RepositoryDeliveryPrIngestion[]
+  paths: {
+    app_dispatch_ref_movement_action_repository_path: string
+  }
 }
 
 export type RepositoryOwnerUser = {
@@ -662,6 +762,19 @@ export function repairMainBranch(path: string, page: number) {
 
 export function checkCiNow(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+}
+
+export function dispatchRefMovementAction(
+  path: string,
+  values: { refMovementActionName: string; sourceBranch?: string; targetBranch?: string },
+  page: number
+) {
+  return postJson<RepositoryDetailPayload>(path, {
+    ref_movement_action_name: values.refMovementActionName,
+    source_branch: values.sourceBranch,
+    target_branch: values.targetBranch,
+    page
+  })
 }
 
 export function archiveRepositoryFromPath(path: string) {
