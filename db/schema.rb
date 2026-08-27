@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_27_201430) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -2218,6 +2218,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
     t.index ["run_id"], name: "index_test_runs_on_run_id"
   end
 
+  create_table "themes", force: :cascade do |t|
+    t.boolean "built_in", default: false, null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.integer "owner_user_id"
+    t.text "prompt"
+    t.string "slug", null: false
+    t.json "tokens"
+    t.datetime "updated_at", null: false
+    t.index ["owner_user_id"], name: "index_themes_on_owner_user_id"
+    t.index ["slug"], name: "index_themes_on_slug", unique: true
+  end
+
   create_table "users", force: :cascade do |t|
     t.integer "agent_max_turns", default: 200, null: false
     t.string "agent_provider", default: "claude", null: false
@@ -2232,6 +2245,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
     t.datetime "codex_usage_observed_at"
     t.json "codex_usage_snapshot"
     t.string "codex_usage_status"
+    t.integer "color_theme_id"
     t.datetime "created_at", null: false
     t.json "dashboard_preferences"
     t.string "email_address", null: false
@@ -2267,6 +2281,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
     t.datetime "updated_at", null: false
     t.string "webauthn_id", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
+    t.index ["color_theme_id"], name: "index_users_on_color_theme_id"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
     t.index ["landing_paused"], name: "index_users_on_landing_paused"
     t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true
@@ -2611,4 +2626,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "themes", "users", column: "owner_user_id"
+  add_foreign_key "users", "themes", column: "color_theme_id"
 end

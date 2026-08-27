@@ -3335,7 +3335,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toHaveAttribute("href", "/app-shell/profiles/2")
     expect(screen.getByRole("link", { name: "kanban" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=kanban")
     expect(screen.getByRole("link", { name: "New Epic" })).toHaveAttribute("href", "/app-shell/epics/new")
-    expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-brand", "text-white")
+    expect(screen.getByRole("link", { name: "New Epic" })).toHaveClass("bg-brand", "text-on-brand")
     expect(screen.getByRole("link", { name: "New Job" })).toHaveAttribute("href", "/app-shell/jobs/new")
     expect(screen.getByRole("link", { name: "New Job" })).toHaveClass("bg-success", "text-white")
     expect(screen.queryByText("0 selected")).not.toBeInTheDocument()
