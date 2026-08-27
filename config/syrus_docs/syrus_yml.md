@@ -198,6 +198,26 @@ If a registered `:affected_test_analyzer` plugin (see [`plugins.md`](plugins.md#
 
 How many repair→check cycles Syrus attempts before failing the workflow. Range: 1–10. Defaults to `AppSetting.grade_max_iterations` (instance-wide default: 5).
 
+### grade.rerun_only_failed
+
+```yaml
+grade:
+  rerun_only_failed: true
+  steps:
+    - name: rspec
+      run: bin/rspec-fast
+    - name: typecheck
+      run: npm run typecheck
+```
+
+Opt-in boolean, defaults to `false`. Only available in the mapping form of `grade:` (the bare array shorthand always behaves as if this is `false`).
+
+When `true`, the **first** grading iteration always runs every active grader (the same as today), but from the **second** iteration onward a repair loop only re-runs graders that failed or timed out on the *immediately preceding* iteration — graders that already passed are skipped, and their prior pass carries forward into this iteration's result. A grader whose `when_files_changed` glob starts matching only on a later iteration is still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
+
+The lookback is exactly one iteration: a grader that is itself carried forward (skipped, no Step of its own) on iteration N gets treated as needing a fresh run again on iteration N+1 rather than staying carried forward indefinitely. This is a self-correcting fallback, not a bug — it just means a long grade loop occasionally reruns a still-green grader instead of skipping it every single time.
+
+Useful for repos with slow or expensive graders (e.g. a full website build) where re-running an already-green check on every repair iteration wastes time the agent could spend on the graders that are actually still failing.
+
 ## formatters
 
 Configures the `format` step: a deterministic pass that runs after the agentic step (`implement`/`respond`) and before graders check, on every grader-retry iteration, so a style-only failure a formatter could fix for free doesn't cost the agent a turn.

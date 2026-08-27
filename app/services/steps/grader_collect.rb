@@ -16,17 +16,22 @@ module Steps
   class GraderCollect < Base
     def call
       grader_steps = current_iteration_graders
-      append_iteration_results!(grader_steps)
+      carried_forward = carried_forward_grader_entries
+      append_iteration_results!(grader_steps, carried_forward)
 
+      # Carried-forward graders (rerun_only_failed) never appear here — they
+      # are, by construction, graders that already passed and so were never
+      # candidates for `failed_required` in the first place. Nothing else to
+      # merge in for the pass/fail decision.
       failed_required = grader_steps.select do |g|
         g.details && g.details["required"] && g.state == "failed"
       end
       record_grader_loop_metrics!(grader_steps, failed_required: failed_required)
       aggregate_status = GraderConclusionCache.aggregate_status_for(failed_required)
-      record_grader_conclusions!(grader_steps, aggregate_status)
+      record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
 
       grader_fingerprint = workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
-      if current_head_sha.present? && grader_steps.any?
+      if current_head_sha.present? && (grader_steps.any? || carried_forward.any?)
         log("[grader_collect] grader conclusion cached for #{current_head_sha.first(7)} (fingerprint: #{grader_fingerprint&.first(8)})")
       else
         log("[grader_collect] grader conclusion NOT cached — sha=#{current_head_sha.inspect} steps=#{grader_steps.size}")
@@ -80,12 +85,22 @@ module Steps
       end
     end
 
+    # Graders `Steps::GraderFanout` skipped this iteration because
+    # `grade.rerun_only_failed` is on and they already passed last
+    # iteration. They have no grader Step of their own this iteration, so
+    # their prior PASSED status has to be merged back in here — otherwise a
+    # still-passing required grader would silently vanish from this
+    # iteration's results instead of continuing to count as passing.
+    def carried_forward_grader_entries
+      Array(workflow.artifact(GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY))
+    end
+
     # Convenience rollup onto workflow.artifacts["iterations"] for
     # later UI / prompt consumers. Mirrors the structure that
     # Steps::Grade wrote per iteration so existing
     # Prompts::GradeFailureFeedback rendering still works during the
     # transitional period.
-    def append_iteration_results!(grader_steps)
+    def append_iteration_results!(grader_steps, carried_forward)
       iterations = Array(workflow.artifact("iterations"))
       index = run.iteration - 1
       iterations[index] = if grader_steps.empty? && (cache_hit = workflow.artifact(GraderConclusionCache::ARTIFACT_CACHE_HIT_KEY))
@@ -113,6 +128,18 @@ module Steps
             "log_bytes" => details["log_bytes"],
             "output" => details["output"]
           }
+        end + carried_forward.map do |entry|
+          {
+            "name" => entry["name"],
+            "required" => entry["required"],
+            "status" => "passed",
+            "carried_forward" => true,
+            "exit_code" => entry["exit_code"],
+            "duration_s" => entry["duration_s"],
+            "log_path" => entry["log_path"],
+            "log_bytes" => entry["log_bytes"],
+            "output" => entry["output"]
+          }.compact
         end
       end
       workflow.set_artifact!("iterations", iterations)
@@ -155,8 +182,8 @@ module Steps
       log("[grader_collect] grader wall-clock #{wall_clock_s.round(1)}s vs summed duration #{summed_duration_s.round(1)}s")
     end
 
-    def record_grader_conclusions!(grader_steps, aggregate_status)
-      return if grader_steps.empty?
+    def record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
+      return if grader_steps.empty? && carried_forward.empty?
 
       GraderConclusionCache.record!(
         workflow: workflow,
@@ -165,7 +192,8 @@ module Steps
         commit_sha: current_head_sha,
         grader_steps: grader_steps,
         aggregate_status: aggregate_status,
-        grader_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
+        grader_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY),
+        carried_forward: carried_forward
       )
     end
 

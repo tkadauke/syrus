@@ -82,6 +82,25 @@ HEAD to an immutable handoff branch after confirmation, and
 `coding_handoff` Workflow clones fresh from GitHub and runs safely on any
 compute pod.
 
+## Git History relay pinning
+
+`RepositoryBareClone#sync!` only ever runs from `PollMergeStateJob` /
+`PollPullRequestJob` / `LandingQueueRecheck`, all of which are processed on the
+`polling` queue — i.e. today, always the home worker. `GitHistory::RelayServer`
+(the internal-only HTTP server that answers the Git History tab's bare-clone
+reads for `Api::V1::App::GitHistoryController`, since web pods don't mount
+`$SYRUS_DATA_ROOT`) starts on every worker process at boot and reads whichever
+bare clones happen to exist on *its own* local disk — same shape as the `chat`
+pinning above, but nothing enforces it the way `chat_sessions` records no
+routing key either: there is no equivalent of `ChatSession#coding_relay_address`
+recording which pod actually holds a given repository's synced clone. As long
+as `polling` (and therefore bare-clone syncing) stays on a single home worker,
+the relay serving that same worker process is correct by construction. If
+`polling` is ever split across more than one pod, `GitHistory::RelayServer`
+must run on — and `GitHistoryController` must be able to reach — every pod
+that might hold a given repository's synced clone, or Git History reads can
+silently serve stale or inconsistent history depending on which pod answers.
+
 `SOLID_QUEUE_CONFIG` is a path relative to the Rails root; if it points at a
 missing file SolidQueue silently falls back to its *own* built-in default (not
 `config/queue.yml`), so set it exactly. **Single-host and docker-compose

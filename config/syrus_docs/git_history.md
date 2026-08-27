@@ -1,0 +1,76 @@
+# Git History
+
+The Git History tab (`plugins/git_history`) shows a repository's full commit
+history, newest first, with each commit attributed back to the Syrus
+Job/Epic/chat/issue/cron task that landed it (or marked as an external PR or
+raw push when Syrus didn't author it). It's an always-on plugin
+(`default_enabled: true`); operators can disable it per-instance like any
+other plugin.
+
+## Data source
+
+Commit data comes from `RepositoryBareClone`, the per-repository bare clone
+Syrus already maintains at `$SYRUS_DATA_ROOT/clones/<repo_id>.git` for other
+purposes (rebase preflight, stack rebases). `RepositoryBareClone#sync!` only
+ever runs from `PollMergeStateJob` / `PollPullRequestJob` /
+`LandingQueueRecheck` — all processed on the `polling` queue, i.e. **worker**
+pods, which are the only pods with the `$SYRUS_DATA_ROOT` PVC mounted. Git
+History never triggers a sync itself; a repository with no landed/reviewed
+PRs yet simply reports `available: false` until the normal background pollers
+populate the clone.
+
+## Cross-pod relay
+
+`Api::V1::App::GitHistoryController` is served by **web** pods, which do not
+mount `$SYRUS_DATA_ROOT` and can't read the bare clone off local disk. Reads
+are proxied to a worker pod instead, mirroring the `PreviewControlServer` /
+`PreviewLogClient` pattern (not `ChatWorkspaceRelay`/`TerminalRelay` — this is
+a stateless, `repository_id`-keyed read with no session to pin to):
+
+- `GitHistory::RelayServer` — an internal-only HTTP server (Puma, JSON) that
+  every worker process starts at boot (`GitHistory::Engine`, gated on
+  `SyrusVersion.role == "worker"`). It answers `available?` and paginated
+  `git log` reads against whichever bare clones exist on *that worker's* own
+  disk. Bound on a fixed port, `SYRUS_GIT_HISTORY_RELAY_PORT` (default
+  `4571`), on the internal network only — never exposed through public
+  ingress.
+- `GitHistory::RelayClient` — called by `GitHistory::Commits` from the web
+  pod instead of touching `RepositoryBareClone` directly. Talks to a fixed
+  internal address, `SYRUS_GIT_HISTORY_INTERNAL_HOST` (default `127.0.0.1`,
+  matching the `SYRUS_PREVIEW_INTERNAL_HOST` convention), at the relay's
+  fixed port. No per-request credential — `GitHistoryController` already
+  authorizes the request (`Repository.accessible_to(Current.user)`) before
+  proxying.
+
+A relay that's unreachable, times out, or errors degrades to
+`available: false` — the same graceful "not available yet" the tab already
+shows for a repository whose bare clone hasn't synced. It is never surfaced
+as a hard error to the operator.
+
+**Single-writer-pod assumption.** See `config/syrus_docs/multi_worker.md`'s
+"Git History relay pinning" section: today exactly one worker pod ever syncs
+bare clones (`polling` is conventionally bundled onto the single home worker),
+so the relay running on every worker process is correct by construction. If
+`polling` is ever split across more than one pod, this relay design needs
+revisiting — nothing currently records which pod holds a given repository's
+synced clone the way `ChatSession#coding_relay_address` does for coding
+checkouts.
+
+## Attribution
+
+`GitHistory::CommitAttributor` classifies each commit and stays on the web
+pod (it needs `Current.user`/DB access the relay doesn't have):
+
+- `syrus_landed` — sha matches a non-`external_pr` Job's `landed_sha`.
+  Attributed to the creating user, Epic (if any), and origin (chat / GitHub
+  issue / cron).
+- `external_pr` — sha matches an `external_pr`-kind Job's `landed_sha`
+  (`PollExternalPrJob` tracked someone else's PR that merged). Attributed to
+  the raw GitHub author/committer, not a Syrus user.
+- `external_push` — no matching Job at all, a raw commit pushed straight to
+  the default branch. Attributed to the raw GitHub author/committer.
+
+Chat origin attribution redacts the chat session id/title unless the
+requesting user can actually access that chat
+(`User#accessible_chat_sessions`) — the commit is still marked chat-originated
+either way, but the reference itself never leaks.

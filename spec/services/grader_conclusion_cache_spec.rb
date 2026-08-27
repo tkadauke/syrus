@@ -21,7 +21,8 @@ RSpec.describe GraderConclusionCache do
       graders: [ grader(name: "site", when_files_changed: [ "website/**" ]) ],
       source: ".syrus.yml",
       note: nil,
-      max_iterations: 1
+      max_iterations: 1,
+      rerun_only_failed: false
     )
     second = first.with(
       graders: [ grader(name: "site", when_files_changed: [ "docs/**" ]) ]
@@ -35,7 +36,8 @@ RSpec.describe GraderConclusionCache do
       graders: [ grader(name: "site", when_files_changed: [ "website/**", "docs/**" ]) ],
       source: ".syrus.yml",
       note: nil,
-      max_iterations: 1
+      max_iterations: 1,
+      rerun_only_failed: false
     )
     second = first.with(
       graders: [ grader(name: "site", when_files_changed: [ "docs/**", "website/**" ]) ]

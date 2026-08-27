@@ -182,6 +182,28 @@ RSpec.describe "SPA shell", type: :request do
     end
   end
 
+  it "serves every registered repo_page_tab provider's tab paths through the SPA shell on hard reload" do
+    owner = Factories.user
+    repository = Factories.repository(user: owner)
+    sign_in_as(owner)
+
+    tabs = Syrus::PluginRegistry.providers_for(:repo_page_tab).flat_map do |provider|
+      Array(provider.repo_page_tabs(repository: repository, user: owner))
+    end
+
+    expect(tabs).not_to be_empty
+
+    tabs.each do |tab|
+      tab = tab.to_h.symbolize_keys
+      path = tab.fetch(:path)
+
+      get path
+
+      expect(response).to have_http_status(:ok), "expected repo_page_tab #{tab[:id]} path #{path} to route to the SPA shell, not a 404"
+      expect(response.body).to include('id="syrus-spa-root"')
+    end
+  end
+
   it "serves the admin performance route through the SPA shell" do
     user = Factories.user(admin: true)
     sign_in_as(user)

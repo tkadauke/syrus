@@ -93,7 +93,7 @@ module Steps
         repository_ids: [ job.repository_id ],
         injected_context: collect_injected_context
       ).to_s
-      append_grade_failure_feedback(prompt)
+      append_grade_failure_feedback(append_review_feedback(prompt))
     end
 
     # Computes commits and diff on the default branch since the Job was

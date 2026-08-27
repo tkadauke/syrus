@@ -51,6 +51,51 @@ RSpec.describe SyrusYml do
     ])
   end
 
+  it "defaults grade.rerun_only_failed to false in the full form" do
+    config = parse(<<~YAML)
+      grade:
+        steps:
+          - name: tests
+            run: bin/rspec
+    YAML
+
+    expect(config.grade.rerun_only_failed).to eq(false)
+  end
+
+  it "defaults grade.rerun_only_failed to false in the bare array form" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    expect(config.grade.rerun_only_failed).to eq(false)
+  end
+
+  it "parses grade.rerun_only_failed: true" do
+    config = parse(<<~YAML)
+      grade:
+        rerun_only_failed: true
+        steps:
+          - name: tests
+            run: bin/rspec
+    YAML
+
+    expect(config.grade.rerun_only_failed).to eq(true)
+  end
+
+  it "rejects a non-boolean grade.rerun_only_failed" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          rerun_only_failed: yes-please
+          steps:
+            - name: tests
+              run: bin/rspec
+      YAML
+    }.to raise_error(described_class::ParseError, /grade\.rerun_only_failed: must be a boolean/)
+  end
+
   it "preserves prepare while parsing grade" do
     config = parse(<<~YAML)
       prepare:

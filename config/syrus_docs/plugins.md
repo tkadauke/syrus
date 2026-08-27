@@ -1238,12 +1238,29 @@ Repo-page-tab plugins should declare:
   `app/frontend/repo_tabs/` (a distinct glob convention from admin pages'
   `app/frontend/routes/` to avoid key collisions).
 - install-time `frontend.i18n` metadata listing plugin locale files.
-- install-time `routes` metadata for API routes (served the same way as
-  admin-page plugin API routes) and, if the tab needs a hard-reload-safe SPA
-  route, a `spa#show` entry whose `path` can include `:repository_id` —the
-  host's `repositories/:repository_id/plugin/*path` route accepts any
-  plugin-declared `spa#show` path shape via `PluginRouteResolver.spa_route_declared?`,
-  not just exact literal paths like the admin `admin/*path` route.
+- install-time `routes` metadata for its API route(s) only (served the same
+  way as admin-page plugin API routes).
+
+Unlike `admin_page`, a `repo_page_tab` plugin does **not** need to also
+hand-declare a `spa#show` manifest route for hard-reload/direct-navigation
+support — that used to be required (mirroring the admin convention) and was
+easy to forget: the first `repo_page_tab` plugin built against this extension
+point (`git_history`) shipped without one, so hard-reloading
+`/repositories/:id/plugin/git_history` 404'd from Rails instead of serving
+the SPA shell. The host's `repositories/:repository_id/plugin/*path` route
+now also accepts any path returned by a registered `repo_page_tab` provider's
+own `repo_page_tabs(repository:, user:)` — via
+`PluginRouteResolver.repo_page_tab_route?`, which resolves the repository
+from the URL's `:repository_id` and calls the provider with a user known to
+have access to it (the owner, or else any member) purely to read off the
+tab's `path`/`paths`, not to authorize the actual requesting viewer (like
+every other SPA-shell route, real per-viewer authorization happens in the
+authenticated API calls the SPA makes after mounting, not at the routing
+layer). `PluginRouteResolver.spa_route_declared?` (the manual-declaration
+path) still works too, for plugins that want it — a `repo_page_tab`'s
+`routes:` array only needs a manual `spa#show` entry for extra SPA paths
+outside its own declared tabs (e.g. a tab sub-page not itself returned by
+`repo_page_tabs`).
 
 Repo-page viewing itself (the repository detail page and its five sibling tab
 endpoints) is available to both the repository owner and any

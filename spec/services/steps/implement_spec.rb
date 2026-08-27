@@ -142,6 +142,41 @@ RSpec.describe Steps::Implement do
       expect(run.reload.prompt).to include("expected greeting helper to exist")
     end
 
+    it "appends needs_work adversarial_review findings to the prompt" do
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "verdict" => "needs_work", "critique" => "The rescue clause swallows a real error." },
+        { "iteration" => 2, "verdict" => "approved", "critique" => "Looks fine now." }
+      ])
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt).to include("Add greeting helper")
+      expect(prompt).to include("An independent adversarial-review agent examined the previous iteration")
+      expect(prompt).to include("Iteration 1:\nThe rescue clause swallows a real error.")
+      expect(prompt).not_to include("Looks fine now.")
+    end
+
+    it "appends needs_work visual_review findings to the prompt" do
+      workflow.set_artifact!("visual_review_iterations", [
+        { "iteration" => 1, "verdict" => "needs_work", "critique" => "The button overlaps the header on mobile." }
+      ])
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt).to include("An independent visual-QA agent drove a browser")
+      expect(prompt).to include("The button overlaps the header on mobile.")
+    end
+
+    it "does not mention review feedback when no needs_work iterations are recorded" do
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt).not_to include("adversarial-review agent")
+      expect(prompt).not_to include("visual-QA agent")
+    end
+
     it "skips prompt rebuild when run.prompt is already set" do
       run.update!(prompt: "pre-set prompt content")
       expect(Prompts::Implement).not_to receive(:new)

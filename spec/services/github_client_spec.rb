@@ -258,6 +258,69 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#check_runs_detail_for fetching Actions job logs" do
+    let(:check_runs_body) do
+      {
+        check_runs: [
+          {
+            name: "rspec",
+            status: "completed",
+            conclusion: "failure",
+            html_url: "https://github.com/acme/widgets/actions/runs/111/job/222",
+            output: { summary: nil, text: nil }
+          }
+        ]
+      }.to_json
+    end
+
+    let(:job_body) do
+      {
+        steps: [
+          { name: "Set up job", conclusion: "success" },
+          { name: "Run rspec", conclusion: "failure" }
+        ]
+      }.to_json
+    end
+
+    before do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc123/check-runs")
+        .with(query: hash_including({}))
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: check_runs_body)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222")
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: job_body)
+    end
+
+    it "follows the redirect to blob storage without leaking an Authorization header" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(
+          status: 302,
+          headers: { "Location" => "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc" }
+        )
+      blob_stub = stub_request(:get, "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc")
+        .with { |request| !request.headers.key?("Authorization") }
+        .to_return(status: 200, body: "rspec failed: 1 example, 1 failure")
+
+      client = described_class.new(user)
+      detail = client.check_runs_detail_for("acme/widgets", "abc123")
+
+      expect(blob_stub).to have_been_requested
+      expect(detail[:failed_checks].first[:log]).to eq("rspec failed: 1 example, 1 failure")
+    end
+
+    it "returns no log but does not blow up when the redirect target 400s" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .to_return(status: 302, headers: { "Location" => "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc" })
+      stub_request(:get, "https://productionresultssa3.blob.core.windows.net/actions-results/logs.txt?sig=abc")
+        .to_return(status: 400, body: "Bad Request")
+
+      client = described_class.new(user)
+      detail = client.check_runs_detail_for("acme/widgets", "abc123")
+
+      expect(detail[:failed_checks].first[:log]).to be_nil
+    end
+  end
+
   describe "installation-auth API fallback" do
     before do
       AppSetting.current.update!(github_app_id: 123, github_app_private_key_pem: "stub-pem")
@@ -368,6 +431,47 @@ RSpec.describe GithubClient do
         refresh_attempted: true,
         refresh_succeeded: false
       )
+    end
+
+    it "refreshes a stale installation token when fetching an Actions job log, then succeeds" do
+      installation = Factories.installation(
+        user: user,
+        github_installation_id: 987,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      repository.update!(installation: installation)
+
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc123/check-runs")
+        .with(query: hash_including({}), headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          check_runs: [
+            {
+              name: "rspec", status: "completed", conclusion: "failure",
+              html_url: "https://github.com/acme/widgets/actions/runs/111/job/222",
+              output: { summary: nil, text: nil }
+            }
+          ]
+        }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          steps: [ { name: "Run rspec", conclusion: "failure" } ]
+        }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 401, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Bad credentials" }.to_json)
+      stub_installation_token(token: "fresh-token")
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .with(headers: { "Authorization" => "token fresh-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "text/plain" }, body: "rspec failed")
+
+      client = GithubClient.for(repository: repository, user: user)
+      detail = client.check_runs_detail_for("acme/widgets", "abc123")
+
+      expect(detail[:failed_checks].first[:log]).to eq("rspec failed")
+      expect(installation.reload.cached_token).to eq("fresh-token")
     end
   end
 
