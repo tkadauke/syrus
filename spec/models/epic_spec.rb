@@ -554,7 +554,7 @@ RSpec.describe Epic do
     expect(job.workflows.first.trigger_kind).to eq("initial")
   end
 
-  it "releases blocked child Jobs when the dependency Epic becomes fully approved (all jobs approved)" do
+  it "does not release blocked child Jobs when the dependency Epic is merely fully approved but not yet merged" do
     prerequisite = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
     epic = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
     EpicDependency.create!(epic: epic, depends_on_epic: prerequisite, derived: false)
@@ -570,12 +570,37 @@ RSpec.describe Epic do
     expect(downstream_job.workflows).to be_empty
     expect(epic.reload).not_to be_releases_jobs_for_execution
 
+    upstream_job.approve!(via: "operator")
+    upstream_job.save!
+
+    expect(downstream_job.reload).to be_blocked_by_epic
+    expect(downstream_job.workflows).to be_empty
+    expect(prerequisite.reload).to be_in_progress
+    expect(epic.reload).to be_in_progress
+  end
+
+  it "releases blocked child Jobs once the dependency Epic actually completes (all jobs merged)" do
+    prerequisite = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+    epic = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+    EpicDependency.create!(epic: epic, depends_on_epic: prerequisite, derived: false)
+    upstream_job = Factories.job_record(
+      user: user, repository: repository, epic: prerequisite, issue_number: 1, state: "approved"
+    )
+    downstream_job = Factories.job_record(
+      user: user, repository: repository, epic: epic, kind: "direct",
+      issue_number: nil, issue_title: "Downstream work", issue_body: "Do it",
+      state: "blocked_by_epic"
+    )
+
+    expect(downstream_job.workflows).to be_empty
+
     expect {
-      upstream_job.approve!(via: "operator")
-      upstream_job.save!
+      upstream_job.update!(closure_reason: "pr_merged")
+      upstream_job.close!
     }.to change { downstream_job.reload.state }.from("blocked_by_epic").to("queued")
       .and change { downstream_job.workflows.count }.by(1)
 
+    expect(prerequisite.reload).to be_done
     expect(epic.reload).to be_in_progress
   end
 
