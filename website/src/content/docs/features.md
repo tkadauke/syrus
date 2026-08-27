@@ -955,6 +955,19 @@ track. A GitHub issue can select a track the same way with a
 `syrus-track-<name>` label (e.g. `syrus-track-hotfix`). See
 `config/syrus_docs/delivery_tracks.md` for the full `.syrus.yml` shape.
 
+Once a repository configures delivery tracks, its overview page gains a
+**Delivery** section: a table of tracks with branch, grade phases, health,
+landing-queue length, and the last promotion/hotfix-sync into that track;
+the repository's configured ref-movement actions and whether each is
+currently available to dispatch; recent promotion/hotfix-sync/upstream-export
+Workflows with their source and target refs; and recent PR ingestions with
+their Syrus-provenance classification. The Dashboard's Jobs table shows a
+small delivery-status badge (waiting for upstream approval, waiting for
+promotion, syncing hotfix, and so on) next to any Job whose delivery status
+is more specific than the default "waiting for local approval"/"approved for
+local landing", and the Jobs sidebar gains matching **Waiting for upstream**,
+**Promotion pending**, and **Delivery needs attention** smart folders.
+
 ## Skills
 
 Skills are named, freeform instruction sets for work that resists being

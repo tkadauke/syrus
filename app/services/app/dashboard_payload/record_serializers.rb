@@ -26,6 +26,7 @@ module App
         repository = PerformanceLogging.phase("dashboard_job.repository", job_id: job.id) { repository_json(job.repository) }
         source_chat = PerformanceLogging.phase("dashboard_job.source_chat", job_id: job.id) { App::JobSourceChat.for(job) }
         tags = PerformanceLogging.phase("dashboard_job.tags", job_id: job.id, tag_count: job.tags.size) { job.tags.map { |tag| tag_json(tag) } }
+        delivery_status = PerformanceLogging.phase("dashboard_job.delivery_status", job_id: job.id) { delivery_status_for(job) }
 
         payload = {
           type: "job",
@@ -95,6 +96,7 @@ module App
           source_chat: source_chat,
           needs_attention: job.needs_attention?,
           needs_attention_reason: job.needs_attention_reason,
+          delivery_status: delivery_status,
           can_approve: job.can_add_job_approval?(user) && !simple_epic_child?(job),
           can_start_preview: PerformanceLogging.phase("dashboard_job.can_start_preview", job_id: job.id) { can_start_preview_for?(job) },
           paths: {
@@ -116,6 +118,15 @@ module App
         end
 
         payload
+      end
+
+      # Memoized per repository within one payload build so N dashboard rows
+      # from the same repository share one DeliveryPolicy (and thus one
+      # `.syrus.yml` bare-clone read) instead of re-reading it per row.
+      def delivery_status_for(job)
+        @delivery_policies_by_repository_id ||= {}
+        policy = (@delivery_policies_by_repository_id[job.repository_id] ||= DeliveryPolicy.for(repository: job.repository))
+        DeliveryStatus.for(job: job, policy: policy)
       end
 
       def workflows_count_for(job)

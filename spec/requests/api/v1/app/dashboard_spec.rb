@@ -233,6 +233,22 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(items.fetch(external_pr_job.id)).to include("pr_number" => 88, "pr_is_external" => true)
     end
 
+    it "includes each job's EPIC-268 delivery_status" do
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(
+        instance_double(DeliveryPolicy, promotion_enabled?: false, hotfix_sync_enabled?: false, upstream_export_enabled?: true)
+      )
+      landed_job = Factories.job_record(repository: repo, issue_number: 1, state: "closed", closure_reason: "pr_merged", owner_user: user)
+      JobPrLink.create!(job: landed_job, role: JobPrLink::ROLE_UPSTREAM_EXPORT, pr_number: 5, metadata: { "pr_state" => "closed" })
+      unstarted_job = Factories.job_record(repository: repo, issue_number: 2, state: "implemented", owner_user: user)
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      items = parse_body.fetch("items").index_by { |item| item.fetch("id") }
+      expect(items.fetch(landed_job.id)).to include("delivery_status" => "upstream_closed_without_merge")
+      expect(items.fetch(unstarted_job.id)).to include("delivery_status" => "waiting_for_local_approval")
+    end
+
     it "forces the dashboard to job rows in simple mode" do
       AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
       epic = Factories.epic(user: user, repository: repo, title: "Checkout polish")

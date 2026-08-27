@@ -551,6 +551,52 @@ RSpec.describe "Filters::Chips" do
 
       expect(run(field: "attention", op: "is", value: "merged_this_week")).to contain_exactly(merged)
     end
+
+    it "waiting_for_upstream: returns jobs with an open upstream-export or promotion PR link" do
+      pending_export = Factories.job_record(repository: repo, issue_number: 60)
+      JobPrLink.record!(job: pending_export, role: JobPrLink::ROLE_UPSTREAM_EXPORT, source_ref: "syrus/direct-60", target_ref: "main", metadata: { "pr_state" => "open" })
+      merged_export = Factories.job_record(repository: repo, issue_number: 61)
+      JobPrLink.record!(job: merged_export, role: JobPrLink::ROLE_UPSTREAM_EXPORT, source_ref: "syrus/direct-61", target_ref: "main", metadata: { "pr_state" => "merged" })
+      Factories.job_record(repository: repo, issue_number: 62)
+
+      expect(run(field: "attention", op: "is", value: "waiting_for_upstream")).to contain_exactly(pending_export)
+    end
+
+    it "delivery_needs_attention: returns jobs whose upstream/promotion PR closed without merging" do
+      closed_without_merge = Factories.job_record(repository: repo, issue_number: 63)
+      JobPrLink.record!(job: closed_without_merge, role: JobPrLink::ROLE_PROMOTION, source_ref: "develop", target_ref: "main", metadata: { "pr_state" => "closed" })
+      open_promotion = Factories.job_record(repository: repo, issue_number: 64)
+      JobPrLink.record!(job: open_promotion, role: JobPrLink::ROLE_PROMOTION, source_ref: "develop", target_ref: "main", metadata: { "pr_state" => "open" })
+
+      expect(run(field: "attention", op: "is", value: "delivery_needs_attention")).to contain_exactly(closed_without_merge)
+    end
+
+    it "promotion_pending: returns locally-landed jobs a promotion-enabled repository hasn't promoted yet" do
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(
+        instance_double(DeliveryPolicy, promotion_enabled?: true, hotfix_sync_enabled?: false)
+      )
+      landed_unpromoted = Factories.job_record(repository: repo, issue_number: 65, state: "closed", closure_reason: "pr_merged")
+      landed_promoted = Factories.job_record(repository: repo, issue_number: 66, state: "closed", closure_reason: "pr_merged")
+      JobPrLink.record!(job: landed_promoted, role: JobPrLink::ROLE_PROMOTION, source_ref: "develop", target_ref: "main", metadata: { "pr_state" => "open" })
+      Factories.job_record(repository: repo, issue_number: 67, state: "approved")
+
+      expect(run(field: "attention", op: "is", value: "promotion_pending")).to contain_exactly(landed_unpromoted)
+    end
+
+    it "promotion_pending: returns locally-landed jobs on a non-default track under hotfix-sync" do
+      allow(DeliveryPolicy).to receive(:for).with(repository: repo).and_return(
+        instance_double(DeliveryPolicy, promotion_enabled?: false, hotfix_sync_enabled?: true, job_delivery_track: "hotfix")
+      )
+      landed_hotfix = Factories.job_record(repository: repo, issue_number: 68, state: "closed", closure_reason: "pr_merged", delivery_track: "hotfix")
+
+      expect(run(field: "attention", op: "is", value: "promotion_pending")).to contain_exactly(landed_hotfix)
+    end
+
+    it "promotion_pending: returns nothing for repositories with no promotion/hotfix_sync configured" do
+      Factories.job_record(repository: repo, issue_number: 69, state: "closed", closure_reason: "pr_merged")
+
+      expect(run(field: "attention", op: "is", value: "promotion_pending")).to be_empty
+    end
   end
 
   describe "job_type" do

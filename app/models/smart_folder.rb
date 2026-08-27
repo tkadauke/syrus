@@ -67,6 +67,13 @@ class SmartFolder < ApplicationRecord
     { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: user_job_attention_preset_filter("just_failed") },
     { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: user_job_attention_preset_filter("blocked") },
 
+    # Tier 2.5: EPIC-268 delivery-track surfaces. Only ever populated for
+    # repositories that have opted into `delivery.promotion`/`hotfix_sync`/
+    # `upstream_export` — invisible (:when_present) on every other repository.
+    { key: "waiting_for_upstream",     name: "Waiting for upstream",     visibility: :when_present, filter: user_job_attention_preset_filter("waiting_for_upstream") },
+    { key: "promotion_pending",        name: "Promotion pending",        visibility: :when_present, filter: user_job_attention_preset_filter("promotion_pending") },
+    { key: "delivery_needs_attention", name: "Delivery needs attention", visibility: :when_present, filter: user_job_attention_preset_filter("delivery_needs_attention") },
+
     # Tier 3: historical lookups, tucked into "More" disclosure.
     { key: "stale",            name: "Stale",                  visibility: :on_demand,    filter: user_job_attention_preset_filter("stale") },
     { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: user_job_attention_preset_filter("merged_this_week") }
