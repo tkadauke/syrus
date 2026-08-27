@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { fetchInvitableUsers, type InvitableUser } from "../../api/chats"
 import { Avatar } from "../../components/Avatar"
+import { Checkbox } from "../../components/Checkbox"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { primaryButton, secondaryButton } from "./utils"
 
@@ -79,8 +81,7 @@ export function ParticipantPickerModal({
           </button>
         </header>
         <div className="border-b border-gray-100 p-2 dark:border-gray-800">
-          <input
-            className="w-full rounded border border-gray-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+          <Input
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("group_picker_search_placeholder")}
             ref={inputRef}
@@ -106,7 +107,7 @@ export function ParticipantPickerModal({
                     role="option"
                     type="button"
                   >
-                    <input checked={selected} className="pointer-events-none h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-600" readOnly type="checkbox" />
+                    <Checkbox checked={selected} className="pointer-events-none" readOnly />
                     <Avatar avatarUrl={user.avatar_url} name={user.name} size="sm" />
                     <span className="min-w-0 truncate text-gray-900 dark:text-gray-100">{user.name}</span>
                   </button>

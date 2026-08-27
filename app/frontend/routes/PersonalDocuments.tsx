@@ -1,4 +1,4 @@
-import { inputClass } from "../lib/formClasses"
+import { Input } from "../components/Input"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
@@ -146,15 +146,14 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         {upload.isError ? <PanelMessage tone="error">{errorMessage(upload.error, "Unable to add document.")}</PanelMessage> : null}
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
         <Field label={t('personal_documents.upload_files')}>
-          <input
-            className="block w-full text-sm text-gray-700 dark:text-gray-300"
+          <Input
             multiple
             onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))}
             type="file"
           />
         </Field>
         <Field label={t('personal_documents.google_doc_url')}>
-          <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
+          <Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
         </Field>
         <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">
           {upload.isPending ? (

@@ -25,6 +25,7 @@ import {
 import { CloseIcon } from "../components/CloseIcon"
 import { FilterBar } from "../components/FilterBar"
 import { NoticeToast } from "../components/NoticeToast"
+import { Select } from "../components/Select"
 import { Markdown } from "../lib/Markdown"
 import { useConfirm } from "../hooks/useConfirm"
 import { Button } from "../components/Button"
@@ -470,32 +471,32 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass()} htmlFor="memory-kind">
               {t('memories.modal_kind')}
-              <select id="memory-kind" className={fieldClass()} onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
+              <Select className="mt-1" id="memory-kind" onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
                 {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option, t)}</option>)}
-              </select>
+              </Select>
             </label>
             <label className={labelClass()} htmlFor="memory-scope">
               {t('memories.modal_scope')}
-              <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
+              <Select className="mt-1" id="memory-scope" onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
                 {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? t('memories.scope_global') : t('memories.scope_repository')}</option>)}
-              </select>
+              </Select>
             </label>
           </div>
 
           {scope === "repository" ? (
             <label className={labelClass()} htmlFor="memory-repository">
               {t('memories.modal_repository')}
-              <select
+              <Select
+                className="mt-1"
                 disabled={payload.repositories.length === 0}
                 id="memory-repository"
-                className={fieldClass()}
                 onChange={(event) => setScopeId(event.target.value)}
                 required
                 value={scopeId}
               >
                 {payload.repositories.length === 0 ? <option value="">{t('memories.no_repositories')}</option> : null}
                 {payload.repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.name}</option>)}
-              </select>
+              </Select>
             </label>
           ) : null}
 

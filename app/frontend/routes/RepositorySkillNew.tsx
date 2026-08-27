@@ -166,7 +166,7 @@ export function SkillOption({ skill, selected, onSelect }: { skill: SkillSummary
       }`}
     >
       <div className="flex items-start gap-2">
-        <input checked={selected} className="mt-1" name="skill_name" onChange={onSelect} type="radio" value={skill.name} />
+        <Input checked={selected} className="mt-1" name="skill_name" onChange={onSelect} type="radio" value={skill.name} />
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{skill.name}</span>

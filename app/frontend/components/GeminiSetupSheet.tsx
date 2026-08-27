@@ -5,6 +5,7 @@ import { testGeminiKey, updateCredentials } from "../api/credentials"
 import { openInNewTab } from "../lib/desktopShell"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
+import { Input } from "./Input"
 import { Modal } from "./Modal"
 import { ValidationStages, type StageStatus, type ValidationStage as GenericValidationStage } from "./credentials/ValidationStages"
 
@@ -167,10 +168,10 @@ export function GeminiSetupSheet({
           void validateAndSave()
         }}
       >
-        <input
+        <Input
           aria-label={labels.keyPlaceholder}
           autoComplete="off"
-          className="w-full rounded border border-gray-300 px-3 py-2 font-mono text-sm focus:border-terracotta-500 focus:ring-terracotta-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          className="font-mono"
           disabled={busy || saved}
           onChange={(event) => setKey(event.target.value)}
           // Paste-to-validate, mirroring the Claude OAuth connector: pasting

@@ -7,6 +7,7 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
 import { Button } from "../../components/Button"
+import { Input } from "../../components/Input"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
@@ -213,7 +214,7 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
       {canManageTags ? (
         addingTag ? (
           <form className="flex items-center gap-2" onSubmit={submit}>
-            <input className="w-40 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder={t("tags_placeholder")} required value={tagName} />
+            <Input className="w-40" fullWidth={false} list="job-tag-options" onChange={(event) => setTagName(event.target.value)} placeholder={t("tags_placeholder")} required value={tagName} />
             <datalist id="job-tag-options">
               {payload.tag_options.map((tag) => <option key={tag.id} value={tag.name} />)}
             </datalist>

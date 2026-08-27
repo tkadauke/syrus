@@ -5,7 +5,9 @@ import { createBugReport } from "../api/bugReports"
 import { useShakeToReport } from "../hooks/useShakeToReport"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
+import { Checkbox } from "./Checkbox"
 import { CloseIcon } from "./CloseIcon"
+import { Input } from "./Input"
 import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
@@ -489,8 +491,8 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {t("bug_report.field_title")}
-                <input
-                  className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <Input
+                  className="mt-1"
                   onChange={(event) => setTitle(event.target.value)}
                   required
                   type="text"
@@ -558,7 +560,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.attachments")}</span>
                   <label className={`cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 ${attachments.length >= MAX_EXTRA_ATTACHMENTS ? "opacity-50 cursor-not-allowed" : ""}`}>
                     {t("bug_report.attachments_add")}
-                    <input
+                    <Input
                       accept={ACCEPTED_ATTACHMENT_TYPES}
                       className="sr-only"
                       disabled={attachments.length >= MAX_EXTRA_ATTACHMENTS}
@@ -595,11 +597,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                       const checked = selectedOptionalAttachmentIds.has(attachment.id)
                       return (
                         <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300" key={attachment.id}>
-                          <input
+                          <Checkbox
                             checked={checked}
-                            className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                            className="mt-0.5"
                             onChange={(e) => toggleOptionalAttachment(attachment.id, e.target.checked)}
-                            type="checkbox"
                           />
                           <span className="min-w-0 flex-1">
                             <span className="block font-medium text-gray-800 dark:text-gray-200">{attachment.label}</span>
@@ -758,7 +759,7 @@ function ScreenshotOption({
 
   return (
     <label className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass}`}>
-      <input
+      <Input
         aria-label={label}
         checked={selected}
         className="sr-only"

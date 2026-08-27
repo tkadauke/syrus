@@ -5,6 +5,7 @@ import { openInNewTab } from "../../lib/desktopShell"
 import { useT } from "../../hooks/useT"
 import { useBackendOutage } from "../../hooks/useBackendUpdate"
 import { Button } from "../Button"
+import { Input } from "../Input"
 
 type Preflight =
   | { status: "checking" }
@@ -194,9 +195,9 @@ export function ClaudeConnect({
           <p className="mt-1 text-gray-600 dark:text-gray-400">{t('configure_agent.step2_description')}</p>
           <label className="mt-2 block">
             <span className="sr-only">{t('configure_agent.input_label')}</span>
-            <input
+            <Input
               autoComplete="off"
-              className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-3 py-2 font-mono text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="font-mono"
               disabled={!authStarted}
               onChange={(event) => setCode(event.target.value)}
               onPaste={pasteAndConnect}

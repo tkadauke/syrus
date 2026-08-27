@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { useState } from "react"
 import { answerAgentQuestion, type ChatAgentQuestion, type ChatAgentQuestionAnswer, type ChatAgentSubQuestion } from "../../api/chats"
+import { Checkbox } from "../../components/Checkbox"
+import { Input } from "../../components/Input"
 import { Stepper } from "../../components/Stepper"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
@@ -162,12 +164,11 @@ function AgentQuestionStepField({ subQuestion, draft, disabled, onCommit }: { su
         <div className="flex flex-col gap-2">
           {options.map((option) => (
             <label className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 dark:border-gray-700" key={option}>
-              <input
+              <Checkbox
                 aria-label={t("aria_multi_select_option", { option })}
                 checked={selected.includes(option)}
                 disabled={disabled}
                 onChange={() => toggleOption(option)}
-                type="checkbox"
               />
               {option}
             </label>
@@ -186,9 +187,9 @@ function AgentQuestionStepField({ subQuestion, draft, disabled, onCommit }: { su
             </div>
           ) : null}
           <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitText}>
-            <input
+            <Input
               aria-label={t("aria_custom_answer")}
-              className="min-h-9 flex-1 rounded border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-blue-500 sm:text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+              className="min-h-9 flex-1"
               disabled={disabled}
               onChange={(event) => setText(event.target.value)}
               placeholder={t("ph_custom_response")}

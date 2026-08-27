@@ -8,6 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
 import { CopyableSlug } from "../../components/CopyableSlug"
@@ -121,8 +122,8 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
             {save.isError ? <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{errorMessage(save.error, "Proposal update failed.")}</div> : null}
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Title
-              <input
-                className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              <Input
+                className="mt-1"
                 onChange={(event) => setTitle(event.target.value)}
                 required
                 type="text"
@@ -233,8 +234,8 @@ function DependencyPicker({ label, placeholder, query, results, selected, setQue
     <div>
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
         {label}
-        <input
-          className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        <Input
+          className="mt-1"
           onChange={(event) => setQuery(event.target.value)}
           placeholder={placeholder}
           type="text"

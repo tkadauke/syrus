@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
+import { Checkbox } from "../../components/Checkbox"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
@@ -87,7 +88,7 @@ export function EpicsTable({ items, columns, prefix, sortState }: { items: Dashb
               <tr>
                 {columns.map((column) => (
                   <th aria-sort={columnAriaSort("epic", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column}>
-                    {column === "checkbox" ? <input aria-label={t("select_all_epics")} checked={allSelected} onChange={toggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
+                    {column === "checkbox" ? <Checkbox aria-label={t("select_all_epics")} checked={allSelected} onChange={toggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="epic" />}
                   </th>
                 ))}
               </tr>
@@ -160,7 +161,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
   const showProgress = epicProgressVisible(epic)
   return (
     <article aria-label={`${epic.display_number} ${epic.title}`} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 overflow-hidden px-4 pt-3 text-gray-700 dark:text-gray-200 ${showProgress ? "" : "pb-3"}`}>
-      <input aria-label={t("select_item", { title: epic.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
+      <Checkbox aria-label={t("select_item", { title: epic.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} />
       <div className="min-w-0 pb-3">
         <div className="mb-1 flex flex-wrap gap-1">
           <NeutralStatePill state={epic.state} />
@@ -191,7 +192,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
 function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <td className="px-4 py-3 align-top"><input aria-label={t("select_item", { title: epic.title })} checked={selected} onChange={() => onToggleOne(epic.id)} type="checkbox" /></td>
+    return <td className="px-4 py-3 align-top"><Checkbox aria-label={t("select_item", { title: epic.title })} checked={selected} onChange={() => onToggleOne(epic.id)} /></td>
   }
   if (column === "epic") {
     return (

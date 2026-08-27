@@ -14,6 +14,7 @@ import { attachChatRepository, branchChat, clearChatHistory, createChat, createC
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Input } from "../../components/Input"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
@@ -1539,7 +1540,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           ))}
         </div>
       ) : null}
-      <input
+      <Input
         accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
         aria-label={t("chat_attachments")}
         className="hidden"

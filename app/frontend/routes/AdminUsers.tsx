@@ -8,6 +8,7 @@ import { ApiError } from "../api/client"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
+import { Select } from "../components/Select"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import {
   fetchAdminUser,
@@ -204,16 +205,16 @@ function RoleOverride({ user }: { user: AdminUserDetail }) {
   })
 
   return (
-    <select
+    <Select
       aria-label={t("users.aria_role")}
-      className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm text-gray-900 dark:text-gray-100"
       disabled={mutation.isPending}
+      fullWidth={false}
       onChange={(event) => mutation.mutate(event.target.value)}
       value={mutation.data?.role || user.role}
     >
       <option value="developer">{roleLabel("developer")}</option>
       <option value="product_owner">{roleLabel("product_owner")}</option>
-    </select>
+    </Select>
   )
 }
 

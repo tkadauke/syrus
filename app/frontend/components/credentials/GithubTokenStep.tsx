@@ -5,6 +5,7 @@ import { useDebouncedProbe, type ProbeState } from "../../hooks/useDebouncedProb
 import { useT } from "../../hooks/useT"
 import { useBackendOutage } from "../../hooks/useBackendUpdate"
 import { Button } from "../Button"
+import { Input } from "../Input"
 
 const TOKEN_SETTINGS_URL = "https://github.com/settings/tokens"
 
@@ -95,9 +96,9 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
           <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step3_heading')}</p>
           <label className="mt-2 block">
             <span className="sr-only">{t('github_token.input_label')}</span>
-            <input
+            <Input
               autoComplete="off"
-              className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-3 py-2 font-mono text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="font-mono"
               name="github_token"
               onChange={(event) => setToken(event.target.value)}
               placeholder="ghp_…"

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Checkbox } from "../components/Checkbox"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
 import {
@@ -116,13 +117,11 @@ function NotificationPreferenceToggles({
         {notificationPreferenceKinds.map(({ kind, labelKey }) => (
           <label className="flex items-center justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
             <span className="font-medium text-gray-700 dark:text-gray-300">{t(labelKey)}</span>
-            <input
+            <Checkbox
               aria-label={t(labelKey)}
               checked={payload.notification_preferences[kind]}
-              className="h-4 w-4 rounded border-gray-400"
               disabled={disabled}
               onChange={(event) => onChange(kind, event.target.checked)}
-              type="checkbox"
             />
           </label>
         ))}
@@ -136,13 +135,12 @@ function NotificationPreferenceToggles({
               <span className="block font-medium text-gray-700 dark:text-gray-300">{t(labelKey)}</span>
               <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t(descKey)}</span>
             </span>
-            <input
+            <Checkbox
               aria-label={t(labelKey)}
               checked={payload.notification_preferences[kind]}
-              className="mt-1 h-4 w-4 rounded border-gray-400"
+              className="mt-1"
               disabled={disabled}
               onChange={(event) => onChange(kind, event.target.checked)}
-              type="checkbox"
             />
           </label>
         ))}

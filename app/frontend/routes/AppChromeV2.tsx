@@ -18,6 +18,7 @@ import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
+import { Input } from "../components/Input"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { BuildBadge } from "../components/BuildBadge"
@@ -919,8 +920,8 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
     <form className="relative" onSubmit={submitSearch} role="search">
       <label className="sr-only" htmlFor="sidebar-global-search">{t("nav:search_label")}</label>
       <SearchIcon />
-      <input
-        className="block h-9 w-full rounded border border-gray-200 bg-gray-50 py-1.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-blue-400 dark:focus:bg-gray-950 dark:focus:ring-blue-400"
+      <Input
+        className="h-9 pl-9"
         id="sidebar-global-search"
         onChange={(event) => {
           userEditedRef.current = true
@@ -1067,8 +1068,8 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
-            {csrfToken ? <input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
-            <input name="_method" type="hidden" value="delete" />
+            {csrfToken ? <Input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
+            <Input name="_method" type="hidden" value="delete" />
             <button className={popupButtonClass()} type="submit">{t("nav:sign_out")}</button>
           </form>
         </div>

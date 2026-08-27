@@ -6,6 +6,7 @@ import { createScratchpadItem, deleteScratchpadItem, enqueueChatMessage, reorder
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
+import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
@@ -169,10 +170,10 @@ export function ScratchpadPanel({
           )}
 
           <div className="mt-2 flex gap-2">
-            <input
+            <Input
               ref={addInputRef}
               aria-label={t("scratchpad_add_placeholder")}
-              className="min-h-8 flex-1 rounded border border-gray-200 px-2 py-1.5 text-xs placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-600 dark:disabled:bg-gray-800"
+              className="min-h-8 flex-1"
               disabled={create.isPending}
               onBlur={() => setAddFocused(false)}
               onChange={(e) => setAddDraft(e.target.value)}

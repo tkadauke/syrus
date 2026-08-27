@@ -6,6 +6,7 @@ import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { BANNER_TONE_CLASSES } from "../../components/StatusPill"
@@ -371,7 +372,7 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
         <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
             Label
-            <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
+            <Input className="mt-1" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
           </label>
           {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
           <div className="flex justify-end gap-2">

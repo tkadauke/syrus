@@ -1,4 +1,6 @@
 import { inputClass } from "../../lib/formClasses"
+import { Input } from "../Input"
+import { Select } from "../Select"
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react"
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { createConsumer } from "@rails/actioncable"
@@ -392,10 +394,9 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
                 .
               </p>
               <div className="flex gap-2">
-                <input
+                <Input
                   aria-label={t('credential_cards.claude_manual_label')}
                   autoComplete="off"
-                  className={inputClass()}
                   onChange={(event) => setManualToken(event.target.value)}
                   spellCheck={false}
                   type="password"
@@ -471,15 +472,15 @@ export function CodexCredentialCard({ payload, onNotice }: CardProps) {
     >
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
         {t('credential_cards.codex_auth_mode')}
-        <select
-          className={`mt-2 ${inputClass()}`}
+        <Select
+          className="mt-2"
           disabled={saveMode.isPending}
           onChange={(event) => saveMode.mutate(event.target.value)}
           value={mode}
         >
           <option value="api_key">{t('account_settings.codex_api_key')}</option>
           <option value="chatgpt_login">{t('account_settings.codex_chatgpt_login')}</option>
-        </select>
+        </Select>
       </label>
 
       <div className="mt-4">
@@ -528,13 +529,12 @@ function CodexApiKeySection({
     return (
       <div className="space-y-2">
         <div className="flex gap-2">
-          <input
+          <Input
             aria-label={t('credential_cards.codex_api_key_label')}
             autoComplete="off"
             // Only focus when the editor was opened via Replace, not when it
             // renders because no key is saved yet (page load).
             autoFocus={editing}
-            className={inputClass()}
             onChange={(event) => setApiKey(event.target.value)}
             placeholder="sk-…"
             spellCheck={false}
@@ -749,10 +749,9 @@ function CodexChatGptSection({
       ) : null}
       {flow.autoConnecting ? <p className="text-xs text-gray-500 dark:text-gray-400">{t('account_settings.connecting')}</p> : null}
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-        <input
+        <Input
           aria-label={t('credential_cards.codex_code_label')}
           autoComplete="off"
-          className={inputClass()}
           onChange={(event) => flow.setAuthCode(event.target.value)}
           placeholder={flow.authStarted ? t('credential_cards.codex_code_placeholder') : t('credential_cards.codex_code_placeholder_disabled')}
           type="text"

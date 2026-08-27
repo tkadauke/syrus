@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
 import { Button } from "../../components/Button"
+import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
@@ -253,9 +254,8 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
           ))}
         </div>
         <div className="px-2 pb-2">
-          <input
+          <Input
             autoFocus
-            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
             data-autofocus
             name="attachment_query"
             onChange={(event) => {
