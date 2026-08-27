@@ -423,6 +423,7 @@ class PollPullRequestJob < ApplicationJob
     return if @job.last_ci_handled_sha == head_sha   # already reacted to this commit
     return if landing_workflow_active?
     return if ci_repair_deferred_until_approval?
+    return if ci_repair_deferred_to_epic_merge_train?
     return if ci_failure_cap_reached?
     return if pending_ci_failure_run?
     return if provider_circuit_open?("ci_failure")
@@ -547,6 +548,16 @@ class PollPullRequestJob < ApplicationJob
     return false if @job.approved?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure deferred until job is approved")
+    true
+  end
+
+  def ci_repair_deferred_to_epic_merge_train?
+    return false if @manual
+    return false if @job.main_branch_repair?
+    return false unless AppSetting.merge_train_enabled?
+    return false unless @job.approved? && @job.epic_id.present?
+
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure deferred to Epic merge train")
     true
   end
 

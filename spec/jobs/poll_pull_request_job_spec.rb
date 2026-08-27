@@ -875,6 +875,22 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
     end
 
+    it "defers autonomous CI repair for approved Epic children to the merge train" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      job.update!(epic: epic)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(job.reload.last_ci_handled_sha).to be_nil
+    end
+
     it "suppresses duplicate CI repairs from WorkIntent payload artifacts when Workflow artifacts are missing" do
       other = Factories.job_record(repository: repository, issue_number: 43, state: "approved")
       workflow = Workflow.create!(job: other, trigger_kind: "ci_failure", state: "running", artifacts: {})
