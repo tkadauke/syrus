@@ -1038,7 +1038,9 @@ describe("App", () => {
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
       expect(within(primaryNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/profiles")
-      expect(screen.getByRole("button", { name: "Report a bug" })).toHaveClass("fixed")
+      screen.getAllByRole("button", { name: "Report a bug" }).forEach((button) => {
+        expect(button).not.toHaveClass("fixed")
+      })
 
       fireEvent.click(screen.getByRole("button", { name: "operator@example.com" }))
       expect(screen.getByRole("button", { name: "Dark" })).toBeInTheDocument()
@@ -2398,7 +2400,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      fireEvent.click((await screen.findAllByRole("button", { name: "Report a bug" }))[0])
       const dialog = await screen.findByRole("dialog", { name: "Report a bug" })
       expect(dialog).toBeInTheDocument()
       expect(dialog.parentElement).toHaveAttribute("data-html2canvas-ignore")
@@ -2464,7 +2466,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
-      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      fireEvent.click((await screen.findAllByRole("button", { name: "Report a bug" }))[0])
       expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
 
       expect(html2canvasMock).toHaveBeenCalledTimes(1)
@@ -2508,7 +2510,7 @@ describe("App", () => {
       )
 
       expect(await screen.findByRole("main", { name: "Chat" })).toBeInTheDocument()
-      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      fireEvent.click((await screen.findAllByRole("button", { name: "Report a bug" }))[0])
       expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
 
       Object.defineProperty(document.body, "scrollWidth", { configurable: true, value: 4000 })
@@ -2564,7 +2566,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      fireEvent.click((await screen.findAllByRole("button", { name: "Report a bug" }))[0])
       await screen.findByRole("dialog", { name: "Report a bug" })
       fireEvent.click(screen.getByRole("radio", { name: "No screenshot" }))
       fireEvent.click(screen.getByRole("button", { name: "Create Job" }))
@@ -2606,7 +2608,7 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      fireEvent.click(await screen.findByRole("button", { name: "Report a bug" }))
+      fireEvent.click((await screen.findAllByRole("button", { name: "Report a bug" }))[0])
       await screen.findByRole("dialog", { name: "Report a bug" })
       fireEvent.change(screen.getByLabelText("Description"), { target: { value: "The toga modal has fallen." } })
       fireEvent.keyDown(screen.getByLabelText("Description"), { key: "Enter", metaKey: true })

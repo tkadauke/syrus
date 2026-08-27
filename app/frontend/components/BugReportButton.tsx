@@ -47,62 +47,6 @@ const ACCEPTED_ATTACHMENT_TYPES = [
   ".txt", ".md", ".markdown", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"
 ].join(",")
 
-const BUTTON_SIZE = 48 // h-12 = 3rem = 48px
-const BUTTON_MARGIN = 16 // 1rem
-const DRAG_THRESHOLD = 8 // px — below this displacement a pointer interaction is a tap, not a drag
-const STORAGE_KEY = "bug-report-button-position"
-
-type ButtonPos = { left: number; top: number }
-
-function loadPos(): ButtonPos | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as unknown
-    if (
-      typeof parsed === "object" && parsed !== null &&
-      typeof (parsed as ButtonPos).left === "number" &&
-      typeof (parsed as ButtonPos).top === "number"
-    ) {
-      return { left: (parsed as ButtonPos).left, top: (parsed as ButtonPos).top }
-    }
-  } catch { /* ignore */ }
-  return null
-}
-
-function savePos(pos: ButtonPos) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
-  } catch { /* ignore */ }
-}
-
-function safeAreaBottom(): number {
-  if (typeof document === "undefined") return 0
-  const el = document.createElement("div")
-  el.style.cssText = "padding-bottom:env(safe-area-inset-bottom);pointer-events:none;visibility:hidden;position:fixed"
-  document.body.appendChild(el)
-  const value = parseInt(getComputedStyle(el).paddingBottom) || 0
-  document.body.removeChild(el)
-  return value
-}
-
-function clampPos(pos: ButtonPos): ButtonPos {
-  return {
-    left: Math.max(0, Math.min(pos.left, window.innerWidth - BUTTON_SIZE)),
-    top: Math.max(0, Math.min(pos.top, window.innerHeight - BUTTON_SIZE))
-  }
-}
-
-function defaultPos(hint: "bottom-left" | "bottom-right"): ButtonPos {
-  const safeBottom = safeAreaBottom()
-  const bottomMargin = Math.max(BUTTON_MARGIN, safeBottom + BUTTON_MARGIN)
-  const left = hint === "bottom-left" ? BUTTON_MARGIN : window.innerWidth - BUTTON_SIZE - BUTTON_MARGIN
-  const top = window.innerHeight - BUTTON_SIZE - bottomMargin
-  return clampPos({ left, top })
-}
-
-
-
 function collectContext(chatId?: number | null, featureFlags?: Record<string, boolean>): BugReportContext {
   return {
     url: window.location.href,
@@ -125,9 +69,8 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   context: string
   featureFlags?: Record<string, boolean>
   pageAttachments?: BugReportOptionalAttachment[]
-  position?: "bottom-left" | "bottom-right"
   reportIssueRepoSlug?: string | null
-}>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, pageAttachments = [], position = "bottom-right", reportIssueRepoSlug }, ref) {
+}>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, pageAttachments = [], reportIssueRepoSlug }, ref) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -143,18 +86,6 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const [optionalAttachments, setOptionalAttachments] = useState<BugReportOptionalAttachment[]>([])
   const [selectedOptionalAttachmentIds, setSelectedOptionalAttachmentIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<ReactNode>(null)
-  const [pos, setPos] = useState<ButtonPos>(() => clampPos(loadPos() ?? defaultPos(position)))
-
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const dragRef = useRef<{
-    startX: number
-    startY: number
-    startLeft: number
-    startTop: number
-    moved: boolean
-  } | null>(null)
-  // Set to true by pointer handlers so the subsequent synthetic click event is suppressed.
-  const pointerHandledRef = useRef(false)
 
   const [bugContext, setBugContext] = useState<BugReportContext | null>(null)
 
@@ -214,21 +145,6 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   useEffect(() => { capturesRef.current = captures }, [captures])
   useEffect(() => () => revokeCaptures(capturesRef.current), [])
 
-  useEffect(() => {
-    function handleResize() {
-      setPos(prev => {
-        const clamped = clampPos(prev)
-        if (clamped.left !== prev.left || clamped.top !== prev.top) {
-          savePos(clamped)
-          return clamped
-        }
-        return prev
-      })
-    }
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
-
   useShakeToReport(() => { if (!capturing && !open) void openDialog() })
 
   // Keep the ref up to date so the imperative handle always calls the latest openDialog.
@@ -241,6 +157,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   }), [])
 
   async function openDialog(options: BugReportOpenOptions = {}) {
+    if (capturing) return
     const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
     bugReport.reset()
     setTitle(`${context} bug`)
@@ -379,66 +296,6 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     event.currentTarget.requestSubmit()
   }
 
-  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
-    if (event.pointerType === "mouse" && event.button !== 0) return
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      startLeft: pos.left,
-      startTop: pos.top,
-      moved: false
-    }
-  }
-
-  function handlePointerMove(event: React.PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current
-    if (!drag) return
-    const dx = event.clientX - drag.startX
-    const dy = event.clientY - drag.startY
-    if (!drag.moved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return
-    drag.moved = true
-    const newPos = clampPos({ left: drag.startLeft + dx, top: drag.startTop + dy })
-    const button = buttonRef.current
-    if (button) {
-      button.style.left = `${newPos.left}px`
-      button.style.top = `${newPos.top}px`
-    }
-  }
-
-  function handlePointerUp(event: React.PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current
-    if (!drag) return
-    dragRef.current = null
-    pointerHandledRef.current = true
-
-    if (!drag.moved) {
-      void openDialog()
-      return
-    }
-
-    const newPos = clampPos({
-      left: drag.startLeft + (event.clientX - drag.startX),
-      top: drag.startTop + (event.clientY - drag.startY)
-    })
-    setPos(newPos)
-    savePos(newPos)
-  }
-
-  function handlePointerCancel() {
-    dragRef.current = null
-  }
-
-  function handleClick() {
-    // Pointer interactions (tap or drag) are handled by pointer event handlers above.
-    // This click handler only fires for keyboard users (Space / Enter on the button).
-    if (pointerHandledRef.current) {
-      pointerHandledRef.current = false
-      return
-    }
-    void openDialog()
-  }
-
   const isGitHubIssueMode = bugReportMode === "github_issue"
   const submitLabel = bugReport.isPending
     ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
@@ -447,23 +304,6 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      <button
-        ref={buttonRef}
-        aria-label={t("bug_report.title")}
-        className="fixed z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60 touch-none select-none cursor-grab active:cursor-grabbing"
-        data-html2canvas-ignore
-        disabled={capturing}
-        onClick={handleClick}
-        onPointerCancel={handlePointerCancel}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        style={{ left: pos.left, top: pos.top }}
-        title={t("bug_report.title")}
-        type="button"
-      >
-        <BugIcon />
-      </button>
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-html2canvas-ignore>
           <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl" role="dialog">
@@ -778,9 +618,9 @@ function ScreenshotOption({
   )
 }
 
-function BugIcon() {
+export function BugIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="h-7 w-7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.25" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.25" viewBox="0 0 24 24">
       <path d="M9 9.5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z" />
       <path d="M9 10h6" />
       <path d="M9 14h6" />
