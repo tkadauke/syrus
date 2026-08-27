@@ -28,11 +28,11 @@ export function SimpleFeaturesTable({ items, prefix }: { items: DashboardEpicIte
           <li key={epic.id}>
             <Link
               aria-label={`${epic.title} ${simpleStatusLabel(epic.simple_status, t)}`}
-              className="grid gap-2 px-4 py-4 text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:bg-gray-800 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-4"
+              className="grid gap-2 px-4 py-4 text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-200 dark:hover:bg-gray-800 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-4"
               to={withRoutePrefix(epic.paths.epic_path, prefix)}
             >
               <span className="min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{epic.title}</span>
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{simpleStatusLabel(epic.simple_status, t)}</span>
+              <span className="text-sm font-medium text-brand">{simpleStatusLabel(epic.simple_status, t)}</span>
               {epic.updated_at ? <span className="text-sm text-gray-500 dark:text-gray-400">{formatRelativeDate(new Date(epic.updated_at))}</span> : null}
             </Link>
           </li>
@@ -172,7 +172,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
           <SlugHoverCard id={epic.id} kind="epic">
             <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{epic.display_number}</span>
           </SlugHoverCard>
-          <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
+          <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
         </div>
         {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{compactText(epic.description)}</p> : null}
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -197,7 +197,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
   if (column === "epic") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
         <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={epic.id} kind="epic">{epic.display_number}</SlugHoverCard>
         </div>
@@ -223,7 +223,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
   }
   if (column === "owner") return <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300"><OwnerBadge badge={epic.owner_badge} /></td>
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={epic.repository} /></td>
+    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={epic.repository} /></td>
   }
   if (column === "updated") return <TimestampCell value={epic.updated_at} />
 
@@ -276,14 +276,14 @@ function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: Das
   const slug = workflowLabel(workflow)
 
   return (
-    <Link aria-label={`${slug} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white" to={withRoutePrefix(workflow.path, prefix)}>
+    <Link aria-label={`${slug} ${workflow.job.title}`} className="grid grid-cols-[7.25rem_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white" to={withRoutePrefix(workflow.path, prefix)}>
       <div className="pt-1">
         <StatusPill state={workflow.state} />
       </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{slug}</span>
-          <span className="text-sm font-semibold leading-snug text-blue-600 underline dark:text-blue-300">{workflow.job.title}</span>
+          <span className="text-sm font-semibold leading-snug text-brand underline">{workflow.job.title}</span>
         </div>
         <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{workflow.job.repository.slug}</div>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -302,7 +302,7 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "workflow" || column === "title") {
     return (
       <td className="px-4 py-3 font-medium">
-        <Link className="text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(workflow.path, prefix)}>{workflowLabel(workflow)}</Link>
+        <Link className="text-brand hover:underline" to={withRoutePrefix(workflow.path, prefix)}>{workflowLabel(workflow)}</Link>
       </td>
     )
   }
@@ -310,7 +310,7 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "job") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(workflow.job.path, prefix)}>{workflow.job.title}</Link>
         <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={workflow.job.repository} />
           <OwnerBadge badge={workflow.job.owner_badge} />

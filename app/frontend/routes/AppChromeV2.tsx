@@ -269,7 +269,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           aria-valuemax={SIDEBAR_MAX_WIDTH}
           aria-valuemin={SIDEBAR_MIN_WIDTH}
           aria-valuenow={sidebarWidth}
-          className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-blue-500/30 focus-visible:bg-blue-500/40"
+          className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
           onKeyDown={resizeSidebarWithKeyboard}
           onMouseDown={startSidebarResize}
           role="separator"
@@ -303,7 +303,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           <div className="flex min-w-0 items-center gap-2">
             <button
               aria-label={t("nav:open_sidebar")}
-              className="inline-flex min-h-[44px] min-w-0 items-center text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-300"
+              className="inline-flex min-h-[44px] min-w-0 items-center text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
               onClick={() => setDrawerOpen(true)}
               type="button"
             >
@@ -413,7 +413,7 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
   const tone = {
     alarm: "border-red-200 bg-red-50 text-red-900",
     warn: "border-amber-200 bg-amber-50 text-amber-900",
-    info: "border-blue-200 bg-blue-50 text-blue-900"
+    info: "border-info/30 bg-info/10 text-info"
   }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
 
   return (
@@ -612,7 +612,7 @@ function AdminNavAccordion({
           <div className="border-t border-gray-100 dark:border-gray-800" key={group.id}>
             <button
               aria-expanded={isExpanded}
-              className={`flex w-full items-center justify-between px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-900 ${hasActive ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}
+              className={`flex w-full items-center justify-between px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-900 ${hasActive ? "text-brand" : "text-gray-700 dark:text-gray-300"}`}
               onClick={() => setExpandedId(isExpanded ? null : group.id)}
               type="button"
             >
@@ -766,7 +766,7 @@ function SidebarContent({
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 lg:hidden"
               onClick={onCloseDrawer}
               type="button"
             >
@@ -1023,7 +1023,7 @@ function SidebarDashboardSubjects({ onCloseDrawer, payload, prefix }: { onCloseD
     <nav aria-label={t("nav:dashboard_sections_aria")} className="inline-flex max-w-full flex-wrap overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
       {subjects.map((subject) => (
         <Link
-          className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${activeSubject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`whitespace-nowrap px-1.5 py-1.5 text-center font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           onClick={onCloseDrawer}
           to={withRoutePrefix(subject.path, prefix)}
@@ -1051,7 +1051,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
       <button
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex w-full min-w-0 items-center gap-2 rounded px-2 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+        className="flex w-full min-w-0 items-center gap-2 rounded px-2 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-200 dark:hover:bg-gray-800"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
@@ -1065,7 +1065,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
-          {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
+          {user.admin ? <Link className="block px-4 py-2 font-medium text-brand hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">
             {csrfToken ? <Input name="authenticity_token" type="hidden" value={csrfToken} /> : null}
@@ -1098,7 +1098,7 @@ function ThemePicker() {
           return (
             <button
               aria-pressed={active}
-              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={option.value}
               onClick={() => setTheme(option.value)}
               type="button"

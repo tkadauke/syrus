@@ -331,13 +331,13 @@ describe("AppChromeV2", () => {
 
     const jobsTab = await screen.findByRole("link", { name: "Jobs" })
     const epicsTab = screen.getByRole("link", { name: "Epics" })
-    await waitFor(() => expect(jobsTab.className).toMatch(/bg-blue-50/))
-    expect(epicsTab.className).not.toMatch(/bg-blue-50/)
+    await waitFor(() => expect(jobsTab.className).toMatch(/bg-brand\/10/))
+    expect(epicsTab.className).not.toMatch(/bg-brand\/10/)
 
     fireEvent.click(epicsTab)
 
-    await waitFor(() => expect(epicsTab.className).toMatch(/bg-blue-50/))
-    expect(jobsTab.className).not.toMatch(/bg-blue-50/)
+    await waitFor(() => expect(epicsTab.className).toMatch(/bg-brand\/10/))
+    expect(jobsTab.className).not.toMatch(/bg-brand\/10/)
 
     resolveEpicsFetch(jsonResponse(dashboardChromePayload({ subject: "epic" })))
   })

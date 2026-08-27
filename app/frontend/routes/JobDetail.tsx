@@ -241,12 +241,12 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
             {payload.job.source_chat ? (
               <span>
-                · <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
+                · <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
               </span>
             ) : null}
             {payload.origin_chat ? (
               <span>
-                · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
+                · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
                   <ChatBubbleIcon />
                   <span>{t("view_in_chat")}</span>
                 </Link>
@@ -324,7 +324,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, hasT
     <div className="flex overflow-x-auto border-b border-gray-200 dark:border-gray-700">
       {tabs.map((tab) => (
         <button
-          className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${active === tab.id ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
+          className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium ${active === tab.id ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"}`}
           key={tab.id}
           onClick={() => onSelect(tab.id)}
           type="button"
@@ -357,7 +357,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               {payload.landing_queue_entry.blocked_reason.key === "auto_merge_not_enabled" ? (
                 <>
                   {" — "}
-                  <Link className="font-medium text-blue-700 underline hover:no-underline" to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}>
+                  <Link className="font-medium text-brand underline hover:no-underline" to={withRoutePrefix(`${payload.repository.edit_repository_path}#auto-merge`, prefix)}>
                     {t("landing_queue_enable_auto_merge")}
                   </Link>
                 </>
@@ -371,7 +371,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               {t("landing_queue_waiting_for")} {payload.landing_queue_entry.waiting_for_jobs.map((job, index) => (
                 <span key={job.id}>
                   {index > 0 ? ", " : null}
-                  <Link className="font-medium text-blue-700 underline hover:no-underline" to={`${prefix}${job.job_path}`}>
+                  <Link className="font-medium text-brand underline hover:no-underline" to={`${prefix}${job.job_path}`}>
                     {job.label} {job.title}
                   </Link>
                 </span>
@@ -722,7 +722,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
               <div className="mt-3 space-y-2">
                 <textarea
                   aria-label={t("replacement_feedback_aria")}
-                  className="block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-blue-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                  className="block w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-brand dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                   onChange={(e) => setReplaceBody(e.target.value)}
                   placeholder={t("replacement_feedback_placeholder")}
                   rows={3}
@@ -805,7 +805,7 @@ export function FeedbackHistoryPanel({ entries, prefix }: { entries: JobDetailPa
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <span><RelativeTimestamp value={entry.created_at} /></span>
                   {entry.workflow_path ? (
-                    <Link className="text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(entry.workflow_path, prefix)}>
+                    <Link className="text-brand hover:underline" to={withRoutePrefix(entry.workflow_path, prefix)}>
                       {entry.workflow_slug || (entry.workflow_id ? workflowSlug(entry.workflow_id) : t("workflow"))}
                     </Link>
                   ) : null}
@@ -887,7 +887,7 @@ function PrChecksBanner({ payload }: { payload: JobDetailPayload }) {
       {checks.checks_url ? (
         <>
           {" "}
-          <a className="font-medium text-blue-700 underline hover:no-underline dark:text-blue-300" href={checks.checks_url} rel="noopener" target="_blank">
+          <a className="font-medium text-brand underline hover:no-underline" href={checks.checks_url} rel="noopener" target="_blank">
             {t("pr_checks_view_github")}
           </a>
         </>
@@ -969,7 +969,7 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
     <span className="inline-flex flex-wrap items-center gap-2">
       {owner ? (
         <>
-          <Link className="font-medium text-blue-700 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+          <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
             {payload.job.claimed_by_current_user ? t("owner_you") : owner.display_name}
           </Link>
           {payload.job.claimed_at ? <span className="text-xs text-gray-400 dark:text-gray-500"><RelativeTimestamp value={payload.job.claimed_at} /></span> : null}
@@ -978,7 +978,7 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
         <span className="text-gray-400 dark:text-gray-500">{t("owner_unclaimed")}</span>
       )}
       {payload.actions.can_claim ? (
-        <button className="text-xs font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })} type="button">{t("owner_claim")}</button>
+        <button className="text-xs font-medium text-brand hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => command.mutate({ method: "post", path: payload.paths.app_claim_path })} type="button">{t("owner_claim")}</button>
       ) : null}
       {payload.actions.can_unclaim ? (
         <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: payload.paths.app_claim_path })} type="button">{t("owner_release")}</button>
@@ -1030,7 +1030,7 @@ function StackBaseForm({ payload, command }: { payload: JobDetailPayload; comman
         <option value="auto">auto</option>
         <option value="main">main</option>
       </Select>
-      <button className="text-xs text-blue-600 hover:underline" disabled={command.isPending} type="submit">{t("stack_base_update")}</button>
+      <button className="text-xs text-brand hover:underline" disabled={command.isPending} type="submit">{t("stack_base_update")}</button>
     </form>
   )
 }
@@ -1041,7 +1041,7 @@ function PullRequestSummary({ payload }: { payload: JobDetailPayload }) {
 
   return (
     <div className="space-y-1">
-      {payload.job.pr_number ? <a className="text-blue-600 hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">{t("pr_syrus", { number: payload.job.pr_number })}</a> : null}
+      {payload.job.pr_number ? <a className="text-brand hover:underline" href={payload.job.pr_url || "#"} rel="noopener" target="_blank">{t("pr_syrus", { number: payload.job.pr_number })}</a> : null}
       {payload.job.external_pr_number ? <a className="block text-violet-700 hover:underline" href={payload.job.external_pr_url || "#"} rel="noopener" target="_blank">{t("pr_external", { number: payload.job.external_pr_number })}</a> : null}
       <div><MergeablePill value={payload.job.pr_mergeable} /> {payload.job.pr_mergeable_checked_at ? <span className="text-xs text-gray-400 dark:text-gray-500">{t("pr_checked")} <RelativeTimestamp value={payload.job.pr_mergeable_checked_at} /></span> : null}</div>
     </div>
@@ -1053,7 +1053,7 @@ function InvalidationEvidenceList({ urls }: { urls: string[] }) {
     <ul className="space-y-0.5">
       {urls.map((url) => (
         <li key={url}>
-          <a className="block truncate text-blue-600 hover:underline" href={url} rel="noopener" target="_blank">{url}</a>
+          <a className="block truncate text-brand hover:underline" href={url} rel="noopener" target="_blank">{url}</a>
         </li>
       ))}
     </ul>
@@ -1272,9 +1272,9 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
           </div>
         ) : (
           <div className="mt-3 flex flex-wrap gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingDependency(true)} type="button">{t("add_dependency")}</button>
+            <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingDependency(true)} type="button">{t("add_dependency")}</button>
             {epicDependencyOptions.length > 0 || !dependencyOptions.isSuccess ? (
-              <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingEpicDependency(true)} type="button">{t("add_epic_dependency")}</button>
+              <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingEpicDependency(true)} type="button">{t("add_epic_dependency")}</button>
             ) : null}
           </div>
         )}
@@ -1368,7 +1368,7 @@ function TestCaseRow({ testCase }: { testCase: JobTestCase }) {
         {hasDetail ? (
           <button
             aria-expanded={expanded}
-            className="shrink-0 text-xs text-blue-600 hover:underline dark:text-blue-400"
+            className="shrink-0 text-xs text-brand hover:underline"
             onClick={() => setExpanded((v) => !v)}
             type="button"
           >

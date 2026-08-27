@@ -52,7 +52,7 @@ export function TeamProfileRoute() {
   return (
     <main aria-label={t("profiles.aria_profile")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/profiles`}>{t('profiles.team_directory')}</Link>
+        <Link className="text-sm text-brand underline hover:no-underline" to={`${prefix}/profiles`}>{t('profiles.team_directory')}</Link>
       </header>
 
       {profile.isPending ? <PanelMessage>{t('profiles.loading_profile')}</PanelMessage> : null}
@@ -69,7 +69,7 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
       <div className="flex items-start gap-3">
         <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} />
         <div className="min-w-0 flex-1">
-          <Link className="text-base font-semibold text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
+          <Link className="text-base font-semibold text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
             <span>{profile.role_label}</span>
             {profile.github_handle ? <span>@{profile.github_handle}</span> : null}
@@ -91,9 +91,9 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
           <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} size="large" />
           <div className="min-w-0 flex-1">
             <PageHeading>
-              <Link className="text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
+              <Link className="text-brand hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
             </PageHeading>
-            {profile.github_handle ? <a className="mt-1 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline" href={`https://github.com/${profile.github_handle}`} rel="noopener noreferrer" target="_blank">@{profile.github_handle}</a> : null}
+            {profile.github_handle ? <a className="mt-1 inline-block text-sm text-brand hover:underline" href={`https://github.com/${profile.github_handle}`} rel="noopener noreferrer" target="_blank">@{profile.github_handle}</a> : null}
             {profile.profile_bio ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{profile.profile_bio}</p> : null}
             <Counts counts={profile.counts} />
           </div>
@@ -151,7 +151,7 @@ function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <Link className="font-medium text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(epic.path, prefix)}>{epic.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.path, prefix)}>{epic.title}</Link>
         <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{epic.display_number} · {epic.repository.slug}</div>
       </div>
       <StatusPill state={epic.state} />
@@ -164,7 +164,7 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <Link className="font-medium text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.owner ? <OwnerProfileLink owner={job.owner} prefix={prefix} /> : null}
           <span>{job.repository.slug} · updated <RelativeTimestamp fallback="not started" value={job.updated_at} /></span>
@@ -178,7 +178,7 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
 function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
   const { t } = useT("settings")
   return (
-    <Link className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+    <Link className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-brand hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
       {owner.display_name}
     </Link>
   )
@@ -186,7 +186,7 @@ function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob
 
 function RepositoryRow({ repository, prefix }: { repository: TeamProfileRepository; prefix: string }) {
   const { t } = useT("settings")
-  return <Link className="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(repository.path, prefix)}>{repository.slug}</Link>
+  return <Link className="font-mono text-sm text-brand hover:underline" to={withRoutePrefix(repository.path, prefix)}>{repository.slug}</Link>
 }
 
 function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; prefix: string }) {
@@ -194,7 +194,7 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <Link className="font-medium text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(activity.path, prefix)}>{activity.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(activity.path, prefix)}>{activity.title}</Link>
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{activity.type} · {activity.repository_slug} · <RelativeTimestamp fallback="not started" value={activity.occurred_at} /></div>
       </div>
       <StatusPill state={activity.state} />
