@@ -374,5 +374,8 @@
   "pinned_panel_error": "Angeheftete Nachrichten konnten nicht geladen werden.",
   "pinned_panel_empty": "Noch keine angehefteten Nachrichten.",
   "pinned_role_user": "Du",
-  "pinned_role_assistant": "Assistent"
+  "pinned_role_assistant": "Assistent",
+  "theme_preview_title": "Themenvorschau",
+  "theme_preview_open_in_new_tab": "In neuem Tab öffnen",
+  "theme_preview_close": "Schließen"
 }
