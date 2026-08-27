@@ -12,6 +12,7 @@ import {
 } from "../api/notifications"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useT } from "../hooks/useT"
+import { Button } from "./Button"
 
 const notificationsQueryKey = ["notifications"] as const
 
@@ -83,14 +84,10 @@ export function NotificationsRoute() {
   return (
     <main aria-label={t("notifications.title")} className="min-h-full bg-gray-50 p-4 dark:bg-gray-900 sm:p-6">
       <div className="mx-auto max-w-3xl">
-        <button
-          className="mb-4 inline-flex items-center gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900"
-          onClick={() => navigate(-1)}
-          type="button"
-        >
+        <Button className="mb-4" onClick={() => navigate(-1)} variant="secondary">
           <BackIcon />
           <span>{t("notifications.back")}</span>
-        </button>
+        </Button>
         <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
           <NotificationsPanel
             loading={notifications.isPending}

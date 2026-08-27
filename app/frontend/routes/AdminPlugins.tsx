@@ -12,6 +12,7 @@ import {
   type AdminPluginsPayload
 } from "../api/adminPlugins"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
+import { Button } from "../components/Button"
 import { FilterBar, filterTreeFromPayload, topFilterChildren } from "../components/FilterBar"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -133,14 +134,13 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         </div>
         <div className="flex shrink-0 flex-col items-start gap-3 sm:items-end">
           <span title={disableTooltip}>
-            <button
-              className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
+            <Button
               disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
               onClick={() => toggle.mutate(undefined)}
-              type="button"
+              variant="secondary"
             >
               {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
-            </button>
+            </Button>
           </span>
           <PluginMetadata plugin={plugin} />
         </div>
@@ -154,22 +154,20 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {pendingCascade.dependents.map((name) => <li key={name}>{name}</li>)}
           </ul>
           <div className="mt-3 flex gap-2">
-            <button
-              className="inline-flex items-center justify-center rounded border border-red-300 bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            <Button
               disabled={toggle.isPending}
               onClick={() => toggle.mutate(true)}
-              type="button"
+              variant="danger"
             >
               {toggle.isPending ? t("plugins.saving") : t("plugins.cascade_confirm_cta")}
-            </button>
-            <button
-              className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            </Button>
+            <Button
               disabled={toggle.isPending}
               onClick={() => setPendingCascade(null)}
-              type="button"
+              variant="secondary"
             >
               {t("plugins.cascade_cancel")}
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

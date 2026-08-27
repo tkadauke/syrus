@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
 import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { Button } from "../components/Button"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -29,14 +30,14 @@ export function AdminBrowserErrors() {
   return (
     <AdminEventPageShell
       actions={
-        <button
-          className="inline-flex w-fit items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
+        <Button
+          className="w-fit"
           disabled={errors.isFetching}
           onClick={() => void errors.refetch()}
-          type="button"
+          variant="secondary"
         >
           {errors.isFetching ? t("browser_errors.refreshing") : t("browser_errors.refresh")}
-        </button>
+        </Button>
       }
       ariaLabel={t("browser_errors.aria")}
       eyebrow={t("section_label")}

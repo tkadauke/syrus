@@ -1,4 +1,5 @@
 import { inputClass } from "../lib/formClasses"
+import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -205,18 +206,18 @@ function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
           <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("teams.heading")}</h2>
           <RenameTeamForm disabled={rename.isPending} initialName={payload.team.name} onSubmit={(name) => rename.mutate(name)} />
           <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
-            <button
-              className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-300"
+            <Button
+              className="disabled:bg-red-300"
               disabled={destroy.isPending}
               onClick={async () => {
                 if (await confirm({ message: t("teams.confirm_delete", { name: payload.team.name }), destructive: true })) {
                   destroy.mutate()
                 }
               }}
-              type="button"
+              variant="danger"
             >
               {destroy.isPending ? t("teams.deleting") : t("teams.delete")}
-            </button>
+            </Button>
           </div>
         </section>
       ) : null}

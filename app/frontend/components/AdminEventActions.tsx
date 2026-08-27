@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { fileEventJob, type EventAction } from "../api/eventActions"
 import { errorMessage } from "../lib/errorMessage"
+import { Button } from "./Button"
 
 type Props = {
   actions?: EventAction[] | null
@@ -34,9 +35,9 @@ export function AdminEventActions({ actions, eventId, eventType, onToggleDetails
 
   return (
     <div className="flex flex-col items-start gap-2">
-      <button className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onToggleDetails} type="button">
+      <Button onClick={onToggleDetails} size="sm" variant="secondary">
         {showDetailsLabel}
-      </button>
+      </Button>
       {(actions || []).map((action) => (
         <button
           className="rounded border border-terracotta-300 px-2.5 py-1 text-xs font-medium text-terracotta-700 hover:bg-terracotta-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-terracotta-700 dark:text-terracotta-200 dark:hover:bg-terracotta-950"

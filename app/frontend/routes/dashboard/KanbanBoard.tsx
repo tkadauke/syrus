@@ -12,6 +12,7 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
 import { NoticeToast } from "../../components/NoticeToast"
+import { Button } from "../../components/Button"
 import { fetchDashboardRows, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
 
@@ -205,15 +206,15 @@ function KanbanLane({
         ))}
         {serverLoadError ? <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{serverLoadError}</div> : null}
         {canLoadMore ? (
-          <button
+          <Button
             aria-label={t("load_more_lane", { lane: lane.title })}
-            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="w-full"
             disabled={serverLoadPending}
             onClick={loadMore}
-            type="button"
+            variant="secondary"
           >
             {t("load_more")}
-          </button>
+          </Button>
         ) : null}
       </div>
     </section>
