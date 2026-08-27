@@ -849,15 +849,15 @@ export function ImageAnnotationModal({
       <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
         <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
           {TOOLS.map((item) => (
-            <button
+            <Button
               aria-pressed={tool === item.id}
-              className={`rounded px-2.5 py-1 text-sm font-medium ${tool === item.id ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
               key={item.id}
               onClick={() => setTool(item.id)}
-              type="button"
+              size="sm"
+              variant={tool === item.id ? "primary" : "secondary"}
             >
               {t(`image_annotation.tool_${item.id}`)}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.colors")}>

@@ -11,17 +11,35 @@ const FORBIDDEN_TAGS = new Set(["button", "a"])
 // combined with text-white, hand-rolled instead of <Button>. Lookaheads so
 // order/position of the two fragments within the className string doesn't
 // matter.
-const DUPLICATED_BUTTON_PATTERN = /(?=.*\bbg-(?:blue|terracotta)-(?:500|600|700)\b)(?=.*\btext-white\b)/
+const PRIMARY_BUTTON_PATTERN = /(?=.*\bbg-(?:blue|terracotta)-(?:500|600|700)\b)(?=.*\btext-white\b)/
+
+// Danger-button look (Button's variant="danger"): a red/rose fill combined
+// with text-white, same shape as the primary pattern above but on the
+// destructive palette.
+const DANGER_BUTTON_PATTERN = /(?=.*\bbg-(?:red|rose)-\d{2,3}\b)(?=.*\btext-white\b)/
+
+// Secondary-button look (Button's variant="secondary"): a bordered,
+// white/light-gray fill with gray-700 text -- the hand-rolled shape found
+// repeated across the codebase (e.g. the pre-migration ImageAnnotationModal.tsx
+// zoom controls) that the original bg-*/text-white-only pattern couldn't see
+// because it has no colored fill.
+const SECONDARY_BUTTON_PATTERN = /(?=.*\bborder\b)(?=.*\bbg-(?:white|gray-50|gray-100)\b)(?=.*\btext-gray-700\b)/
+
+const BUTTON_PATTERNS = [
+  { variant: "primary", pattern: PRIMARY_BUTTON_PATTERN },
+  { variant: "danger", pattern: DANGER_BUTTON_PATTERN },
+  { variant: "secondary", pattern: SECONDARY_BUTTON_PATTERN }
+]
 
 module.exports = {
   meta: {
     type: "problem",
     docs: {
-      description: "Forbid the duplicated primary-button class pattern on raw <button>/<a> elements outside Button.tsx."
+      description: "Forbid the duplicated primary/secondary/danger-button class patterns on raw <button>/<a> elements outside Button.tsx."
     },
     schema: [],
     messages: {
-      forbidden: "Use the <Button> primitive from app/frontend/components/Button.tsx instead of hand-rolling this primary-button className on <{{tag}}>."
+      forbidden: "Use the <Button variant=\"{{variant}}\"> primitive from app/frontend/components/Button.tsx instead of hand-rolling this {{variant}}-button className on <{{tag}}>."
     }
   },
   create(context) {
@@ -36,13 +54,14 @@ module.exports = {
         const tag = node.name.type === "JSXIdentifier" ? node.name.name : null
         if (!tag || !FORBIDDEN_TAGS.has(tag)) return
         const candidates = classNameCandidates(node)
-        if (candidates.some(candidate => DUPLICATED_BUTTON_PATTERN.test(candidate))) {
-          matches.push({ node, tag })
+        const matched = BUTTON_PATTERNS.find(({ pattern }) => candidates.some(candidate => pattern.test(candidate)))
+        if (matched) {
+          matches.push({ node, tag, variant: matched.variant })
         }
       },
       "Program:exit"() {
-        for (const { node, tag } of matches.slice(allowed)) {
-          context.report({ node, messageId: "forbidden", data: { tag } })
+        for (const { node, tag, variant } of matches.slice(allowed)) {
+          context.report({ node, messageId: "forbidden", data: { tag, variant } })
         }
       }
     }

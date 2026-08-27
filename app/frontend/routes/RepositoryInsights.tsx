@@ -121,17 +121,17 @@ function InsightSuggestionsList({
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("suggestions_heading")}</h2>
         <nav aria-label={t("filter_aria")} className="flex gap-1">
           {filterTabs.map((tab) => (
-            <button
-              className={`rounded px-3 py-1 text-sm font-medium transition-colors ${stateFilter === tab.key ? "bg-terracotta-600 text-white" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+            <Button
               key={tab.key}
               onClick={() => onFilterChange(tab.key)}
-              type="button"
+              size="sm"
+              variant={stateFilter === tab.key ? "primary" : "secondary"}
             >
               {tab.label}
               <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                 {tab.count}
               </span>
-            </button>
+            </Button>
           ))}
         </nav>
       </div>
