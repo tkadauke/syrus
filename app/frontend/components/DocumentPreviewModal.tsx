@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { useT } from "../hooks/useT"
 import { Markdown } from "../lib/Markdown"
+import { buttonClasses } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { Modal } from "./Modal"
 
@@ -66,7 +67,7 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile;
             <button className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("source")} type="button">{t("document_preview.source")}</button>
           </div>
         ) : null}
-        <a className="rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900" href={file.rawUrl} rel="noreferrer" target="_blank">{t("document_preview.open_raw")}</a>
+        <a className={buttonClasses("secondary", "sm")} href={file.rawUrl} rel="noreferrer" target="_blank">{t("document_preview.open_raw")}</a>
         <button aria-label={t("document_preview.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
           <CloseIcon className="h-4 w-4" />
         </button>

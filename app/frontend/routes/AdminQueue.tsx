@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -104,14 +105,14 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
           <PageHeading className="mt-1">{t("queue.heading")}</PageHeading>
         </div>
-        <button
-          className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
+        <Button
+          className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500"
           disabled={reaper.isPending}
           onClick={() => reaper.mutate()}
-          type="button"
+          variant="secondary"
         >
           {reaper.isPending ? t("queue.reaper_running") : t("queue.run_reaper")}
-        </button>
+        </Button>
       </header>
 
       <nav aria-label={t("aria_queue_tabs")} className="flex flex-wrap gap-2">
@@ -382,16 +383,22 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
           }}
         >
           <div className="flex flex-wrap gap-1" role="group" aria-label="Worker health quick ranges">
-            {workerHealthQuickRanges.map((range) => (
-              <button
-                className={`rounded border px-2 py-1 font-medium ${Math.abs(activeMinutes - range.minutes) <= 1 ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"}`}
-                key={range.label}
-                onClick={() => applyQuickRange(range.minutes)}
-                type="button"
-              >
-                {range.label}
-              </button>
-            ))}
+            {workerHealthQuickRanges.map((range) =>
+              Math.abs(activeMinutes - range.minutes) <= 1 ? (
+                <button
+                  className="rounded border border-gray-900 bg-gray-900 px-2 py-1 font-medium text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900"
+                  key={range.label}
+                  onClick={() => applyQuickRange(range.minutes)}
+                  type="button"
+                >
+                  {range.label}
+                </button>
+              ) : (
+                <Button key={range.label} onClick={() => applyQuickRange(range.minutes)} size="sm" variant="secondary">
+                  {range.label}
+                </Button>
+              )
+            )}
           </div>
           <label className="grid gap-1 text-gray-600 dark:text-gray-300">
             <span>{t("queue.worker_health_start")}</span>

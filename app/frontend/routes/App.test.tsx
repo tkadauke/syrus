@@ -11456,7 +11456,7 @@ describe("App", () => {
     expect(screen.getByText("Launch notes")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Attachments" })).toHaveClass("dark:text-gray-100")
     expect(screen.getByRole("button", { name: "acme/widgets" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("dark:bg-gray-800", "dark:text-gray-300")
+    expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("bg-surface", "text-text-primary")
     expect(screen.queryByRole("heading", { name: "Add attachment" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Type")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()

@@ -9,6 +9,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
+import { Button } from "../components/Button"
 import { FilterBar } from "../components/FilterBar"
 import { adminSmartFolderFilterLinkBuilder } from "../lib/adminSmartFolderLinks"
 import {
@@ -260,14 +261,14 @@ function KillButton({ process }: { process: SpawnedProcessPayload }) {
   if (process.finished_at || process.kill_requested_at) return null
 
   return (
-    <button
-      className="inline-flex items-center rounded bg-red-600 dark:bg-red-500 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-700 dark:hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300 dark:disabled:bg-red-900"
+    <Button
       disabled={kill.isPending}
       onClick={() => kill.mutate()}
-      type="button"
+      size="sm"
+      variant="danger"
     >
       {kill.isPending ? t("processes.killing") : t("processes.kill")}
-    </button>
+    </Button>
   )
 }
 

@@ -1580,19 +1580,20 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
       </div>
       <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <button
+        <Button
           aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
           aria-expanded={attachmentPopoverOpen}
           aria-label={t("add_attachment")}
           aria-haspopup="dialog"
-          className="flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-lg leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 sm:text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+          className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
           disabled={send.isPending || systemAction.isPending}
           onClick={() => setAttachmentPopoverOpen((open) => !open)}
           ref={addAttachmentButtonRef}
-          type="button"
+          size="sm"
+          variant="secondary"
         >
           +
-        </button>
+        </Button>
         {dictation.available ? (
           <DictationButton
             disabled={send.isPending || systemAction.isPending}
@@ -2043,18 +2044,19 @@ function DictationButton({
           : labels.idle
 
   return (
-    <button
+    <Button
       aria-label={label}
       aria-pressed={phase === "recording"}
-      className={`flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border sm:min-h-0 sm:min-w-0 ${
+      className={`h-6 min-h-11 w-6 min-w-11 shrink-0 sm:min-h-0 sm:min-w-0 ${
         active
-          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-      } disabled:text-gray-300 dark:disabled:text-gray-600`}
+          ? "!border-red-300 !bg-red-50 !text-red-700 hover:!bg-red-100 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300"
+          : ""
+      }`}
       disabled={disabled || phase === "requesting" || phase === "transcribing"}
       onClick={onClick}
+      size="sm"
       title={label}
-      type="button"
+      variant="secondary"
     >
       <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
         <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
@@ -2062,7 +2064,7 @@ function DictationButton({
         <path d="M12 19v3" />
         <path d="M8 22h8" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
@@ -2167,21 +2169,22 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
 
   return (
     <div className="relative">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="min-h-11 max-w-[6.5rem] !gap-1 sm:min-h-0 sm:max-w-none"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
@@ -2253,21 +2256,22 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
 
   return (
     <div className="relative">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="min-h-11 max-w-[6.5rem] !gap-1 sm:min-h-0 sm:max-w-none"
         disabled={updateModel.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"

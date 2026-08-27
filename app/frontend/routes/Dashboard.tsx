@@ -12,7 +12,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
-import { buttonClasses } from "../components/Button"
+import { Button, buttonClasses } from "../components/Button"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
@@ -667,17 +667,18 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
       <div className="flex flex-wrap items-center justify-end gap-3">
         {showConfiguration && payload.view === "list" ? (
           <div className="relative" ref={columnsMenuRef}>
-            <button
+            <Button
               aria-label={t("columns")}
               aria-controls="dashboard-columns-menu"
               aria-expanded={columnsOpen}
               aria-haspopup="menu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="h-9 w-9"
               onClick={() => setColumnsOpen((open) => !open)}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               <ColumnsIcon />
-            </button>
+            </Button>
             {columnsOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-columns-menu" role="menu">
                 <fieldset className="space-y-2">
@@ -700,17 +701,18 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
         ) : null}
         {showConfiguration && payload.view === "kanban" ? (
           <div className="relative" ref={lanesMenuRef}>
-            <button
+            <Button
               aria-label={t("kanban_lanes")}
               aria-controls="dashboard-kanban-lanes-menu"
               aria-expanded={lanesOpen}
               aria-haspopup="menu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="h-9 w-9"
               onClick={() => setLanesOpen((open) => !open)}
-              type="button"
+              size="sm"
+              variant="secondary"
             >
               <ColumnsIcon />
-            </button>
+            </Button>
             {lanesOpen ? (
               <div className="absolute right-0 z-20 mt-2 w-64 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" id="dashboard-kanban-lanes-menu" role="menu">
                 <fieldset className="space-y-2">

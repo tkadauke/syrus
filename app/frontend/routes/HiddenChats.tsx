@@ -8,6 +8,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 import { PageHeading } from "../components/Heading"
+import { Button } from "../components/Button"
 
 export function HiddenChatsRoute() {
   const [notice, setNotice] = useState<string | null>(null)
@@ -72,14 +73,14 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
                       <span>{t('hidden.hidden_at', { date: chat.hidden_at ? formatRelativeDate(new Date(chat.hidden_at)) : "-" })}</span>
                     </div>
                   </div>
-                  <button
-                    className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+                  <Button
+                    className="disabled:text-gray-300 dark:disabled:text-gray-600"
                     disabled={unhide.isPending && unhide.variables?.id === chat.id}
                     onClick={() => unhide.mutate(chat)}
-                    type="button"
+                    variant="secondary"
                   >
                     {unhide.isPending && unhide.variables?.id === chat.id ? t('hidden.restoring') : t('hidden.unhide')}
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>

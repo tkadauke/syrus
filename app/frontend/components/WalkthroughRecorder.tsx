@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { MAX_WALKTHROUGH_DURATION_SECONDS } from "../api/videoWalkthroughs"
+import { Button } from "./Button"
 import {
   annotationBridge,
   recorderHudBridge,
@@ -591,13 +592,9 @@ export function WalkthroughRecorderHUD({
             {labels.windowHint}
           </span>
         ) : null}
-        <button
-          className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
-          onClick={onStop}
-          type="button"
-        >
+        <Button className="!rounded-full px-3 !py-1 font-semibold" onClick={onStop} size="sm" variant="danger">
           {labels.stop}
-        </button>
+        </Button>
         <button
           className="rounded-full px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
           onClick={onDiscard}
