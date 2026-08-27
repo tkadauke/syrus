@@ -61,9 +61,9 @@ describe("AdminFeatures", () => {
 
     renderRoute(<AdminFeatures />)
 
-    const toggle = await screen.findByRole("checkbox", { name: "Disabled" })
+    const toggle = await screen.findByRole("switch", { name: "Disabled" })
     fireEvent.click(toggle)
-    await waitFor(() => expect(toggle).toBeChecked())
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"))
 
     resolvePatch(jsonResponse({
       feature: {
@@ -81,7 +81,7 @@ describe("AdminFeatures", () => {
         body: JSON.stringify({ feature: { enabled: true } })
       }))
     })
-    expect(await screen.findByRole("checkbox", { name: "Enabled" })).toBeChecked()
+    expect(await screen.findByRole("switch", { name: "Enabled" })).toHaveAttribute("aria-checked", "true")
   })
 
   it("rolls back optimistic changes when a toggle fails", async () => {
@@ -100,13 +100,13 @@ describe("AdminFeatures", () => {
 
     renderRoute(<AdminFeatures />)
 
-    const toggle = await screen.findByRole("checkbox", { name: "Disabled" })
+    const toggle = await screen.findByRole("switch", { name: "Disabled" })
     fireEvent.click(toggle)
 
-    await waitFor(() => expect(toggle).toBeChecked())
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"))
     resolvePatch(jsonResponse({ error: { message: "Feature could not be updated." } }, 422))
     expect(await screen.findByRole("alert")).toHaveTextContent("Feature could not be updated.")
-    expect(await screen.findByRole("checkbox", { name: "Disabled" })).not.toBeChecked()
+    expect(await screen.findByRole("switch", { name: "Disabled" })).toHaveAttribute("aria-checked", "false")
   })
 
   it("shows an empty state and omits the nav item when no features are declared", async () => {
