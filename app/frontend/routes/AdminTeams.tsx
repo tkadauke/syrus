@@ -138,9 +138,9 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
             />
           </div>
         </label>
-        <button className={primaryButton()} disabled={pending} type="submit">
+        <Button disabled={pending} type="submit">
           {pending ? t("teams.creating") : t("teams.create")}
-        </button>
+        </Button>
       </form>
     </section>
   )
@@ -247,9 +247,9 @@ function RenameTeamForm({ initialName, onSubmit, disabled }: { initialName: stri
           <Input disabled={disabled} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
         </div>
       </label>
-      <button className={primaryButton()} disabled={disabled} type="submit">
+      <Button disabled={disabled} type="submit">
         {disabled ? t("teams.renaming") : t("teams.rename")}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -390,9 +390,9 @@ function AddMemberForm({ teamId }: { teamId: number }) {
             <TeamRoleSelect disabled={create.isPending} onChange={setRole} value={role} />
           </div>
         </label>
-        <button className={primaryButton()} disabled={create.isPending} type="submit">
+        <Button disabled={create.isPending} type="submit">
           {create.isPending ? t("teams.adding") : t("teams.add")}
-        </button>
+        </Button>
       </form>
     </div>
   )
@@ -429,8 +429,4 @@ function TeamsError({ error }: { error: Error }) {
   const message = error instanceof ApiError ? error.message : t("teams.error_load")
 
   return <PanelMessage tone="error">{message}</PanelMessage>
-}
-
-function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
 }

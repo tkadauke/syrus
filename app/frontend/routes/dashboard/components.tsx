@@ -69,13 +69,13 @@ export function MetadataLine({ children, className }: { children: ReactNode; cla
   )
 }
 
-export function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300", href }: { children: ReactNode; className?: string; href: string | null }) {
+export function ExternalMetadataLink({ children, className = "text-gray-500 hover:text-brand hover:underline dark:text-gray-400", href }: { children: ReactNode; className?: string; href: string | null }) {
   if (!href) return <span className={className}>{children}</span>
 
   return <a className={className} href={href} rel="noopener noreferrer" target="_blank">{children}</a>
 }
 
-export function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300", prefix, repository }: { className?: string; prefix: string; repository: DashboardRepository }) {
+export function RepositorySlugLink({ className = "font-mono text-xs text-gray-500 hover:text-brand hover:underline dark:text-gray-400", prefix, repository }: { className?: string; prefix: string; repository: DashboardRepository }) {
   return <Link className={className} to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
 }
 
