@@ -1,4 +1,4 @@
-import type { ElementType, ReactNode } from "react"
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react"
 
 /*
  * Shared heading scale (design-system convention).
@@ -18,18 +18,22 @@ import type { ElementType, ReactNode } from "react"
 const PAGE_HEADING_CLASS = "text-2xl font-semibold text-gray-900 dark:text-gray-100"
 const SECTION_HEADING_CLASS = "text-base font-semibold text-gray-900 dark:text-gray-100"
 
-export function PageHeading({ children, className = "", mono = false }: { children: ReactNode; className?: string; mono?: boolean }) {
+type PageHeadingProps = { children: ReactNode; className?: string; mono?: boolean } & Omit<ComponentPropsWithoutRef<"h1">, "className" | "children">
+
+export function PageHeading({ children, className = "", mono = false, ...rest }: PageHeadingProps) {
   return (
-    <h1 className={[PAGE_HEADING_CLASS, mono ? "break-words font-mono" : "", className].filter(Boolean).join(" ")}>
+    <h1 className={[PAGE_HEADING_CLASS, mono ? "break-words font-mono" : "", className].filter(Boolean).join(" ")} {...rest}>
       {children}
     </h1>
   )
 }
 
-export function SectionHeading({ children, className = "", as = "h2" }: { children: ReactNode; className?: string; as?: ElementType }) {
+type SectionHeadingProps = { children: ReactNode; className?: string; as?: ElementType } & Omit<ComponentPropsWithoutRef<"h2">, "className" | "children">
+
+export function SectionHeading({ children, className = "", as = "h2", ...rest }: SectionHeadingProps) {
   const Tag = as
   return (
-    <Tag className={[SECTION_HEADING_CLASS, className].filter(Boolean).join(" ")}>
+    <Tag className={[SECTION_HEADING_CLASS, className].filter(Boolean).join(" ")} {...rest}>
       {children}
     </Tag>
   )

@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useState } from "react"
@@ -30,7 +31,7 @@ export function AdminConsole() {
     <main aria-label={t("aria_console")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("console.heading")}</h1>
+        <PageHeading className="mt-1">{t("console.heading")}</PageHeading>
       </header>
 
       {consoleQuery.isPending ? <PanelMessage>{t("console.loading")}</PanelMessage> : null}

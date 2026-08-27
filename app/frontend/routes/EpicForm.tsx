@@ -1,4 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { PageHeading } from "../components/Heading"
 import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, MouseEvent, ReactNode } from "react"
@@ -75,7 +76,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
   return (
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? t("new_epic") : t("edit_epic")}</h1>
+        <PageHeading>{mode === "new" ? t("new_epic") : t("edit_epic")}</PageHeading>
         {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>{t("back_to_epic")}</Link> : null}
       </header>
 

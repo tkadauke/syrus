@@ -1,4 +1,5 @@
 import { inputClass } from "../lib/formClasses"
+import { PageHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -48,7 +49,7 @@ export function CronTemplatesIndex() {
     <main aria-label={t("aria_cron_templates")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("cron_templates.heading")}</h1>
+          <PageHeading>{t("cron_templates.heading")}</PageHeading>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("cron_templates.description")}</p>
         </div>
         <Link className={buttonClasses("primary", "md", "self-start")} to={`${basePath}/new`}>{t("cron_templates.new")}</Link>
@@ -107,7 +108,7 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
   return (
     <main aria-label={mode === "new" ? "New cron template" : "Edit cron template"} className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? t("cron_templates.new_heading") : t("cron_templates.edit_heading")}</h1>
+        <PageHeading>{mode === "new" ? t("cron_templates.new_heading") : t("cron_templates.edit_heading")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           {mode === "new" ? t("cron_templates.new_description") : t("cron_templates.edit_description")}
         </p>
@@ -192,7 +193,7 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.template.name}</h1>
+            <PageHeading>{payload.template.name}</PageHeading>
             <StatusPill enabled={payload.template.enabled} />
           </div>
           {payload.template.description ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{payload.template.description}</p> : null}

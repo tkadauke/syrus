@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
 import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -215,7 +216,7 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
-        <h1 className="break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.chat.title || t("shared_chat_fallback_title")}</h1>
+        <PageHeading className="break-words">{payload.chat.title || t("shared_chat_fallback_title")}</PageHeading>
         <span className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
@@ -913,7 +914,7 @@ function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
       <section aria-labelledby="bookmark-picker-title" aria-modal="true" className="w-full max-w-md rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} role="dialog">
         <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="bookmark-picker-title">{t("bookmarks")}</h2>
+          <SectionHeading id="bookmark-picker-title">{t("bookmarks")}</SectionHeading>
           <button
             aria-label={t("close_bookmarks")}
             className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"

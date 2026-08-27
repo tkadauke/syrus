@@ -1,4 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { PageHeading } from "../components/Heading"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent, type ReactNode } from "react"
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
@@ -50,9 +51,9 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
           <div className="text-xs uppercase text-gray-500 dark:text-gray-400">
             <Link className="underline hover:no-underline" to={withRoutePrefix(`/jobs/${payload.job_id}`, prefix)}>back to {payload.job_slug || `JOB-${payload.job_id}`}</Link>
           </div>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          <PageHeading className="mt-1">
             Run #{payload.run_id} · transcript
-          </h1>
+          </PageHeading>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Session <span className="font-mono">{payload.session_id}</span>
             {payload.summary.model ? <> · {payload.summary.model}</> : null}

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import type { ReactNode } from "react"
 import {
   fetchAdminFeatures,
@@ -24,7 +25,7 @@ export function AdminFeatures() {
     <main aria-label={t("aria_features")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("features.heading")}</h1>
+        <PageHeading className="mt-1">{t("features.heading")}</PageHeading>
       </header>
 
       {features.isPending ? <PanelMessage>{t("features.loading")}</PanelMessage> : null}
@@ -43,7 +44,7 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
   if (payload.categories.length === 0) {
     return (
       <section className="rounded border border-dashed border-gray-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("features.no_features_heading")}</h2>
+        <SectionHeading>{t("features.no_features_heading")}</SectionHeading>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("features.no_features_body")}</p>
       </section>
     )
@@ -55,7 +56,7 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
         const categoryLabel = t(categoryI18nKey(category.category), { defaultValue: category.category })
         return (
           <section aria-label={categoryLabel} className="space-y-3" key={category.category}>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{categoryLabel}</h2>
+            <SectionHeading>{categoryLabel}</SectionHeading>
             <div className="grid gap-3 md:grid-cols-2">
               {category.features.map((feature) => <FeatureCard feature={feature} key={feature.slug} />)}
             </div>
@@ -97,7 +98,7 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{featureName}</h3>
+          <SectionHeading as="h3">{featureName}</SectionHeading>
           <p className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{feature.slug}</p>
         </div>
         <label className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">

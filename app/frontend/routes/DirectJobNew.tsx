@@ -1,4 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { DragEvent, FormEvent, ReactNode } from "react"
@@ -43,7 +44,7 @@ export function DirectJobNewRoute() {
   return (
     <main aria-label={t("aria_new_direct_job")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("direct_job_title")}</h1>
+        <PageHeading>{t("direct_job_title")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("direct_job_description")}</p>
       </header>
 
@@ -147,7 +148,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("direct_job_create_error"))}</PanelMessage> : null}
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_target")}</h2>
+        <SectionHeading>{t("form_section_target")}</SectionHeading>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("form_repository_label")}>
             <Select
@@ -187,7 +188,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
       {payload.prompt_templates.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_templates")}</h2>
+          <SectionHeading>{t("form_section_templates")}</SectionHeading>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {payload.prompt_templates.map((template) => (
               <button
@@ -205,7 +206,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       ) : null}
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_prompt")}</h2>
+        <SectionHeading>{t("form_section_prompt")}</SectionHeading>
         <Field label={t("form_title_label")}>
           <Input
             name="title"
@@ -244,7 +245,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_attachments")}</h2>
+          <SectionHeading>{t("section_attachments")}</SectionHeading>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("form_attachments_description")}</p>
         </div>
 

@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
@@ -41,7 +42,7 @@ export function AdminProcessesIndex() {
     <main aria-label={t("processes.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("processes.heading")}</h1>
+        <PageHeading className="mt-1">{t("processes.heading")}</PageHeading>
       </header>
 
       {processes.isPending ? <PanelMessage>{t("processes.loading")}</PanelMessage> : null}
@@ -107,7 +108,7 @@ export function AdminProcessDetail() {
     <main aria-label={t("processes.aria_detail")} className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</h1>
+        <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -179,7 +180,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">#{process.id}</h2>
+            <SectionHeading>#{process.id}</SectionHeading>
             <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs font-medium text-gray-700 dark:text-gray-200">{process.kind}</span>
           </div>
           <p className="mt-2 break-all font-mono text-xs text-gray-600 dark:text-gray-300">{process.command}</p>
@@ -274,7 +275,7 @@ function HostMetrics({ metrics }: { metrics: Record<string, unknown> }) {
   const { t } = useT("admin")
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t("processes.host_metrics")}</h3>
+      <SectionHeading as="h3">{t("processes.host_metrics")}</SectionHeading>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {Object.entries(metrics).map(([key, value]) => (
           <div key={key}>

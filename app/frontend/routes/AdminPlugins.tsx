@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { type ReactNode, useState } from "react"
 import { useLocation } from "react-router-dom"
 import {
@@ -34,7 +35,7 @@ export function AdminPlugins() {
     <main aria-label={t("plugins.aria_plugins")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("plugins.heading")}</h1>
+        <PageHeading className="mt-1">{t("plugins.heading")}</PageHeading>
       </header>
 
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
@@ -62,9 +63,9 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
   if (plugins.length === 0) {
     return (
       <section className="rounded border border-dashed border-gray-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           {isFiltered ? t("plugins.no_results_heading") : t("plugins.no_plugins_heading")}
-        </h2>
+        </SectionHeading>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
           {isFiltered ? t("plugins.no_results_body") : t("plugins.no_plugins_body")}
         </p>
@@ -114,7 +115,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {plugin.icon_url ? <img alt="" aria-hidden="true" className="h-5 w-5 shrink-0" src={plugin.icon_url} /> : null}
-            <h2 className="break-words text-base font-semibold text-gray-900 dark:text-gray-100">{plugin.display_name || plugin.name}</h2>
+            <SectionHeading className="break-words">{plugin.display_name || plugin.name}</SectionHeading>
             {plugin.display_name && plugin.display_name !== plugin.name ? <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{plugin.name}</span> : null}
             <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{plugin.version}</span>
             <StatusBadge status={plugin.enabled ? "enabled" : "disabled"} label={plugin.enabled ? t("plugins.enabled") : t("plugins.disabled")} />

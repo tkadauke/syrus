@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading } from "../components/Heading"
 import { inputClass } from "../lib/formClasses"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -65,7 +66,7 @@ export function ScheduledTasksIndex() {
     <main aria-label={t("scheduled_tasks.aria_index")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h1>
+          <PageHeading>{t("scheduled_tasks.heading")}</PageHeading>
           <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
         </div>
         <Link className={buttonClasses("primary")} to={`${tasksBase(location.pathname)}/new`}>{t("scheduled_tasks.new_task")}</Link>
@@ -147,7 +148,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   return (
     <main aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} className="mx-auto max-w-3xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")}</h1>
+        <PageHeading>{mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")}</PageHeading>
         {repository ? (
           <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">{repository.slug}</p>
         ) : null}
@@ -298,7 +299,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.task.name}</h1>
+            <PageHeading>{payload.task.name}</PageHeading>
             <StatePill state={payload.task.state} />
           </div>
           <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">
