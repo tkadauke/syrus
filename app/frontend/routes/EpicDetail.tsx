@@ -12,6 +12,7 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
 import { ChevronIcon } from "../components/ChevronIcon"
+import { Input } from "../components/Input"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -578,9 +579,9 @@ function EpicDependencyTypeahead({
   return (
     <label className="relative min-w-0 flex-1 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
       {t("add_dependency")}
-      <input
+      <Input
         aria-autocomplete="list"
-        className="mt-1 w-full min-w-64 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+        className="mt-1 min-w-64 normal-case"
         onChange={(event) => updateQuery(event.target.value)}
         placeholder={t("search_placeholder")}
         type="search"

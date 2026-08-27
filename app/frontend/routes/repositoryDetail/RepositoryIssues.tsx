@@ -6,6 +6,7 @@ import type { FormEvent } from "react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
+import { Checkbox } from "../../components/Checkbox"
 import { NoticeToast } from "../../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
 import { RepositoryTabs } from "../../components/RepositoryTabs"
@@ -225,7 +226,7 @@ function RepositoryIssueRow({
   return (
     <tr>
       <td className="px-4 py-3 align-top">
-        <input aria-label={`Select issue #${issue.number}`} checked={selected} className="rounded border-gray-300 dark:border-gray-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500" onChange={onToggle} type="checkbox" />
+        <Checkbox aria-label={`Select issue #${issue.number}`} checked={selected} onChange={onToggle} />
       </td>
       <td className="px-4 py-3 align-top">
         <div className="flex flex-wrap items-baseline gap-2">

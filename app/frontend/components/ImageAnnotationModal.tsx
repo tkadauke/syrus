@@ -3,6 +3,7 @@ import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 import { CloseIcon } from "./CloseIcon"
 import { ConfirmDialog } from "./ConfirmDialog"
+import { Input } from "./Input"
 import { Modal } from "./Modal"
 
 // --- Shape model ---
@@ -904,10 +905,10 @@ export function ImageAnnotationModal({
                 style={overlayCursor ? { cursor: overlayCursor } : undefined}
               />
               {textPlacement ? (
-                <input
+                <Input
                   aria-label={t("image_annotation.text_input")}
                   autoFocus
-                  className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
+                  className="absolute min-w-32 -translate-y-1/2 text-xl font-bold shadow"
                   onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
                   onKeyDown={handleTextKeyDown}
                   placeholder={t("image_annotation.text_placeholder")}
@@ -930,9 +931,10 @@ export function ImageAnnotationModal({
           >
             +
           </button>
-          <input
+          <Input
             aria-label={t("image_annotation.zoom_label")}
-            className="h-24"
+            className="h-24 !rounded-none !border-0 !bg-transparent !p-0 focus:!ring-0"
+            fullWidth={false}
             max={ZOOM_MAX}
             min={ZOOM_MIN}
             onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}

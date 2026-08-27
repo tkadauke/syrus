@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
+import { Toggle } from "../components/Toggle"
 import type { ReactNode } from "react"
 import {
   fetchAdminFeatures,
@@ -101,17 +102,13 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
           <SectionHeading as="h3">{featureName}</SectionHeading>
           <p className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{feature.slug}</p>
         </div>
-        <label className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span>{feature.enabled ? t("features.enabled") : t("features.disabled")}</span>
-          <input
-            checked={feature.enabled}
-            className="sr-only peer"
-            disabled={toggleFeature.isPending}
-            onChange={(event) => toggleFeature.mutate(event.target.checked)}
-            type="checkbox"
-          />
-          <span className="h-6 w-11 rounded-full bg-gray-300 after:mt-0.5 after:ml-0.5 after:block after:h-5 after:w-5 after:rounded-full after:bg-white after:transition peer-checked:bg-blue-600 peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-blue-600 peer-disabled:opacity-60 dark:bg-gray-700 dark:peer-checked:bg-blue-500" />
-        </label>
+        <Toggle
+          checked={feature.enabled}
+          className="shrink-0"
+          disabled={toggleFeature.isPending}
+          label={feature.enabled ? t("features.enabled") : t("features.disabled")}
+          onChange={(checked) => toggleFeature.mutate(checked)}
+        />
       </div>
       {featureDescription ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{featureDescription}</p> : null}
       {toggleFeature.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(toggleFeature.error, t("features.error_update"))}</p> : null}

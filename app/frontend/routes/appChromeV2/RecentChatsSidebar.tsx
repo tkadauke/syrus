@@ -9,6 +9,7 @@ import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChats
 import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Input } from "../../components/Input"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
@@ -639,9 +640,9 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
               </button>
             </div>
             <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor={`rename-chat-${chat.id}`}>{t("chat:rename_chat_label")}</label>
-            <input
+            <Input
               autoFocus
-              className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              className="mt-1"
               defaultValue={chat.title || ""}
               disabled={rename.isPending}
               id={`rename-chat-${chat.id}`}

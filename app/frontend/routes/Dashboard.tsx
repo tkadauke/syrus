@@ -13,6 +13,7 @@ import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
 import { Button, buttonClasses } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
@@ -685,11 +686,10 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
                   <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("visible_columns")}</legend>
                   {payload.controls.columns.optional.map((column) => (
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={column.key}>
-                      <input
+                      <Checkbox
                         checked={payload.preferences.visible_columns.includes(column.key)}
                         disabled={updatePreferences.isPending}
                         onChange={(event) => updateColumn(column.key, event.target.checked)}
-                        type="checkbox"
                       />
                       <span>{column.title}</span>
                     </label>
@@ -719,11 +719,10 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
                   <legend className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("kanban_lanes")}</legend>
                   {payload.controls.kanban_lanes.map((lane) => (
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200" key={lane.key}>
-                      <input
+                      <Checkbox
                         checked={payload.preferences.kanban_lanes.includes(lane.key)}
                         disabled={updatePreferences.isPending}
                         onChange={(event) => updateLane(lane.key, event.target.checked)}
-                        type="checkbox"
                       />
                       <span>{lane.title}</span>
                     </label>

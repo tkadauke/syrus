@@ -1,4 +1,7 @@
 import { inputClass } from "../lib/formClasses"
+import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { PageHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -298,28 +301,25 @@ function CronTemplateForm({
     <form className="space-y-5" onSubmit={submit}>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("cron_templates.error_save"))}</PanelMessage> : null}
       <Field label={t("cron_templates.field_name")}>
-        <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
+        <Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
       </Field>
       <Field label={t("cron_templates.field_description")}>
-        <input className={inputClass()} onChange={(event) => setValues({ ...values, description: event.target.value })} type="text" value={values.description} />
+        <Input onChange={(event) => setValues({ ...values, description: event.target.value })} type="text" value={values.description} />
       </Field>
       <Field label={t("cron_templates.field_schedule")}>
-        <input className={inputClass()} onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
+        <Input onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
         <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.schedule_help")}</p>
       </Field>
       <Field label={t("cron_templates.field_pileup")}>
-        <select className={inputClass()} onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
+        <Select onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
           {policies.map((policy) => <option key={policy} value={policy}>{policy}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label={t("cron_templates.field_prompt")}>
         <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
       </Field>
-      <label className="flex items-center gap-2">
-        <input checked={values.enabled} className="rounded border-gray-400" onChange={(event) => setValues({ ...values, enabled: event.target.checked })} type="checkbox" />
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("cron_templates.field_enabled")}</span>
-      </label>
+      <Checkbox checked={values.enabled} label={t("cron_templates.field_enabled")} onChange={(event) => setValues({ ...values, enabled: event.target.checked })} />
       <div className="flex items-center gap-3">
         <Button disabled={save.isPending} type="submit" variant="primary">
           {save.isPending ? t("cron_templates.saving") : mode === "new" ? t("cron_templates.create") : t("cron_templates.save")}

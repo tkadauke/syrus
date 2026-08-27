@@ -586,8 +586,8 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
               )
             })
           ) : null}
-          <input
-            className="min-w-32 flex-1 border-0 bg-transparent p-0 text-sm text-gray-900 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
+          <Input
+            className="min-w-32 flex-1 !rounded-none !border-0 !bg-transparent !p-0 focus:!ring-0"
             id={`filter-value-${meta.field}-search`}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("filter_bar.search_by_name")}
@@ -660,8 +660,8 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
             <span className="text-gray-400 dark:text-gray-500">{t("filter_bar.nothing_selected")}</span>
           )}
         </div>
-        <input
-          className="block w-full border-t border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
+        <Input
+          className="!rounded-none !border-0 !border-t !px-2 focus:!ring-0"
           id={`filter-value-${meta.field}-search`}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("filter_bar.search_value_placeholder")}

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { fetchPickerEpics, type PickerEpicRecord } from "../../api/epics"
 import { fetchPickerJobs, type PickerJobRecord } from "../../api/jobs"
+import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 
 type PickerItem = {
@@ -122,11 +123,10 @@ export function JobEpicPickerPopup({
       role="dialog"
     >
       <div className="border-b border-gray-100 p-2 dark:border-gray-800">
-        <input
+        <Input
           aria-autocomplete="list"
           aria-controls="chat-job-epic-picker-list"
           aria-expanded="true"
-          className="w-full rounded border border-gray-200 bg-white px-2.5 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={searchPlaceholder}

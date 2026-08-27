@@ -8,6 +8,7 @@ import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { createSmartFolder, deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
+import { Input } from "./Input"
 import { filterTreeFromPayload, filterTreesEqual, topFilterChildren } from "./FilterBar"
 
 export function AdminSmartFolderNav({
@@ -189,8 +190,8 @@ export function AdminSmartFolderNav({
             <form className="space-y-2" onSubmit={saveFolder}>
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${subjectType}-smart-folder-name`}>
                 {t("smart_folder.folder_name")}
-                <input
-                  className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                <Input
+                  className="mt-1"
                   disabled={createFolder.isPending}
                   id={`${subjectType}-smart-folder-name`}
                   maxLength={120}
@@ -331,10 +332,10 @@ function SmartFolderLink({
   if (editing) {
     return (
       <div className={folderClass(folder.active)}>
-        <input
+        <Input
           aria-label={`Rename ${folder.name}`}
           autoFocus
-          className="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          className="min-w-0 flex-1"
           disabled={rename.isPending}
           maxLength={120}
           onChange={(event) => setName(event.target.value)}

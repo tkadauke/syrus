@@ -1,4 +1,5 @@
-import { inputClass } from "../lib/formClasses"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
@@ -128,8 +129,7 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("teams.name_label")}
           <div className="mt-1">
-            <input
-              className={inputClass()}
+            <Input
               onChange={(event) => setName(event.target.value)}
               placeholder={t("teams.name_placeholder")}
               required
@@ -244,7 +244,7 @@ function RenameTeamForm({ initialName, onSubmit, disabled }: { initialName: stri
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
         {t("teams.name_label")}
         <div className="mt-1">
-          <input className={inputClass()} disabled={disabled} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
+          <Input disabled={disabled} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
         </div>
       </label>
       <button className={primaryButton()} disabled={disabled} type="submit">
@@ -331,9 +331,9 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
 function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRole; onChange: (role: TeamMembershipRole) => void; disabled: boolean }) {
   const { t } = useT("admin")
   return (
-    <select
-      className={inputClass({ fullWidth: false })}
+    <Select
       disabled={disabled}
+      fullWidth={false}
       onChange={(event) => onChange(event.target.value as TeamMembershipRole)}
       value={value}
     >
@@ -342,7 +342,7 @@ function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRo
           {t(`teams.role_${role}`)}
         </option>
       ))}
-    </select>
+    </Select>
   )
 }
 
@@ -375,8 +375,7 @@ function AddMemberForm({ teamId }: { teamId: number }) {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("teams.email_label")}
           <div className="mt-1">
-            <input
-              className={inputClass()}
+            <Input
               onChange={(event) => setEmail(event.target.value)}
               placeholder={t("teams.email_placeholder")}
               required

@@ -17,6 +17,7 @@ import { requestRestart, type RestartComponent } from "../api/adminRestart"
 import { ApiError } from "../api/client"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { NoticeToast } from "../components/NoticeToast"
+import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { Button } from "../components/Button"
 
@@ -176,8 +177,8 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
       <h2 className="font-medium text-gray-900 dark:text-gray-100">{t("console.github_cache_heading")}</h2>
       <p className="mt-1 max-w-prose text-xs text-gray-600 dark:text-gray-300">{t("console.github_cache_description")}</p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <select
-          className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-200"
+        <Select
+          fullWidth={false}
           onChange={(event) => setUserId(event.target.value)}
           value={userId}
         >
@@ -185,7 +186,7 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
           {payload.users.map((user) => (
             <option key={user.id} value={user.id}>{user.email_address}</option>
           ))}
-        </select>
+        </Select>
         <Button disabled={mutation.isPending} onClick={() => mutation.mutate()} variant="primary">
           {mutation.isPending ? t("console.clearing") : t("console.clear_cache")}
         </Button>

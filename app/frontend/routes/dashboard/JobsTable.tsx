@@ -11,6 +11,7 @@ import { useT } from "../../hooks/useT"
 import { Button, buttonClasses } from "../../components/Button"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
+import { Checkbox } from "../../components/Checkbox"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
@@ -385,7 +386,7 @@ function JobsTable({
           <tr>
             {columns.map((column) => (
               <th aria-sort={columnAriaSort("job", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column} title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}>
-                {column === "checkbox" ? <input aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
+                {column === "checkbox" ? <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
               </th>
             ))}
           </tr>
@@ -756,7 +757,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
       topSeparator && "border-t-4 border-gray-300 dark:border-gray-600",
       job.priority === "urgent" && "bg-red-50 dark:bg-red-950/40"
     ].filter(Boolean).join(" ")}>
-      <input aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
+      <Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
@@ -800,7 +801,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
 function JobCell({ job, column, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <td className="px-4 py-3 align-top"><input aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} type="checkbox" /></td>
+    return <td className="px-4 py-3 align-top"><Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} /></td>
   }
   if (column === "issue" || column === "title") {
     return (

@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { Dispatch, ReactNode, SetStateAction } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../../components/Button"
+import { Select } from "../../components/Select"
 import { useT } from "../../hooks/useT"
 import { highlightCode } from "../../lib/syntaxHighlight"
 import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
@@ -127,9 +128,9 @@ function SourceBrowser({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="text-sm text-gray-600 dark:text-gray-300">
           {t("source_viewing_label")}
-          <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectRef(event.target.value)} value={payload.selected_ref}>
+          <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectRef(event.target.value)} value={payload.selected_ref}>
             {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+          </Select>
         </label>
         {payload.tree_truncated ? <span className="text-xs text-amber-700">{t("source_tree_truncated")}</span> : null}
       </div>
@@ -283,15 +284,15 @@ function SourceDiffBrowser({
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-gray-600 dark:text-gray-300">
             {t("source_from_label")}
-            <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectBaseRef(event.target.value)} value={payload.base_ref || ""}>
+            <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectBaseRef(event.target.value)} value={payload.base_ref || ""}>
               {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="text-sm text-gray-600 dark:text-gray-300">
             {t("source_to_label")}
-            <select className="ml-2 rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" onChange={(event) => onSelectHeadRef(event.target.value)} value={payload.head_ref || ""}>
+            <Select className="ml-2" fullWidth={false} onChange={(event) => onSelectHeadRef(event.target.value)} value={payload.head_ref || ""}>
               {refOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
           </label>
         </div>
         {payload.truncated ? <span className="text-xs text-amber-700">{t("source_diff_truncated")}</span> : null}

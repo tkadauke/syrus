@@ -1,5 +1,6 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Button } from "../components/Button"
+import { Input } from "../components/Input"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -402,11 +403,11 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
           </div>
           <label className="grid gap-1 text-gray-600 dark:text-gray-300">
             <span>{t("queue.worker_health_start")}</span>
-            <input className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" defaultValue={startValue} name="since" type="datetime-local" />
+            <Input defaultValue={startValue} fullWidth={false} name="since" type="datetime-local" />
           </label>
           <label className="grid gap-1 text-gray-600 dark:text-gray-300">
             <span>{t("queue.worker_health_end")}</span>
-            <input className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" defaultValue={endValue} name="until" type="datetime-local" />
+            <Input defaultValue={endValue} fullWidth={false} name="until" type="datetime-local" />
           </label>
           <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1.5 font-medium text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" type="submit">{t("queue.worker_health_apply")}</button>
         </form>
