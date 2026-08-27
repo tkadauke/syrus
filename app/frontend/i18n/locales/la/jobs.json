@@ -21,6 +21,7 @@
   "check_mergeability": "Coniungibilitatem inspice",
   "retry_pr_ingestion": "Susceptionem PR itera",
   "run_visual_review": "Recognitionem visualem fac",
+  "send_upstream": "Mitte ad fontem",
   "retry": "Itera",
   "retry_with_feedback": "Cum responso itera",
   "retrying": "Iteratur...",
@@ -600,5 +601,29 @@
   "deploy_failed_status": "Explicatio defecit",
   "deploy_cancelled": "Explicatio abrupta",
   "deploy_view": "Vide explicationem",
-  "deploy_failed": "Explicatio incipi non potuit"
+  "deploy_failed": "Explicatio incipi non potuit",
+  "delivery": {
+    "heading": "Traditio",
+    "track_label": "Semita",
+    "target_ref_label": "Ramus Destinatus",
+    "status_label": "Status",
+    "pr_links_heading": "Petitiones Coniunctionis",
+    "send_upstream_blocked": "Mitte ad fontem: {{reason}}",
+    "role_local": "Localis",
+    "role_upstream_export": "Exportatio ad Fontem",
+    "role_promotion": "Promotio",
+    "role_hotfix_sync": "Coniunctio Emendationis",
+    "role_external_ingest": "Susceptio Externa",
+    "status": {
+      "waiting_for_local_approval": "Probationem localem exspectat",
+      "approved_for_local_landing": "Localiter probata",
+      "waiting_for_upstream_approval": "Ad fontem missa: PR #{{number}} recognitionem exspectat",
+      "waiting_for_upstream_approval_no_pr": "Probationem upstream exspectat",
+      "waiting_for_promotion": "Promotionem exspectat",
+      "syncing_hotfix": "Emendatio celeris coniungitur",
+      "upstream_merged": "Upstream coniuncta est",
+      "upstream_closed_without_merge": "Upstream sine coniunctione clausa",
+      "delivery_needs_attention": "Traditio attentionem requirit"
+    }
+  }
 }
