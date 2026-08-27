@@ -159,6 +159,16 @@
   "untagged_issues_repo_count_other": "in {{count}} Repositories",
   "untagged_issues_dismiss": "Ausblenden",
   "needs_attention_aria": "Benötigt Aufmerksamkeit",
+  "delivery_status": {
+    "waiting_for_local_approval": "Wartet auf lokale Freigabe",
+    "approved_for_local_landing": "Freigegeben zum lokalen Landen",
+    "waiting_for_upstream_approval": "Wartet auf Upstream-Freigabe",
+    "waiting_for_promotion": "Wartet auf Promotion",
+    "syncing_hotfix": "Hotfix wird synchronisiert",
+    "upstream_merged": "Upstream gemerged",
+    "upstream_closed_without_merge": "Upstream ohne Merge geschlossen",
+    "delivery_needs_attention": "Delivery benötigt Aufmerksamkeit"
+  },
   "epic_commits_behind_one": "{{count}} Commit zurück",
   "epic_commits_behind_other": "{{count}} Commits zurück",
   "simple_status": {
