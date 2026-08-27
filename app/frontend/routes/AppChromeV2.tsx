@@ -125,23 +125,25 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     icon: item.icon,
     ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
   })), [mergedSidebarNavItems, normalizedPath, prefix, terminalSessionCount])
-  const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = user ? [
-    ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
-    ...(tabsHidden ? [] : (() => {
-      const items = [...primaryNavItems]
-      if (legacyEpicsVisible) {
-        const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
-        items.splice(dashboardIndex + 1, 0, {
-          id: "legacy_epics",
-          label: t("nav:epics"),
-          to: `${prefix}/dashboard/epics`,
-          active: normalizedPath.startsWith("/dashboard/epics"),
-          icon: <EpicIcon />
-        })
-      }
-      return items
-    })())
-  ] : []
+  const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = useMemo(() => (
+    user ? [
+      ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
+      ...(tabsHidden ? [] : (() => {
+        const items = [...primaryNavItems]
+        if (legacyEpicsVisible) {
+          const dashboardIndex = items.findIndex((item) => item.id === "dashboard")
+          items.splice(dashboardIndex + 1, 0, {
+            id: "legacy_epics",
+            label: t("nav:epics"),
+            to: `${prefix}/dashboard/epics`,
+            active: normalizedPath.startsWith("/dashboard/epics"),
+            icon: <EpicIcon />
+          })
+        }
+        return items
+      })())
+    ] : []
+  ), [user, inOnboarding, tabsHidden, primaryNavItems, legacyEpicsVisible, prefix, normalizedPath, t])
 
   async function startChat() {
     if (normalizedPath === "/chats/new") return
@@ -685,6 +687,10 @@ function SidebarContent({
   }, [dashboardActive])
 
   useEffect(() => {
+    // Skip while a drag is in progress: resyncing here would snap the live
+    // reorder back to the server order out from under the user's gesture,
+    // and leave navDragIndexRef pointing at a now-stale index.
+    if (navDragIndexRef.current != null) return
     setOrderedNavItems(reorderableNavItems)
     orderedNavItemsRef.current = reorderableNavItems
   }, [reorderableNavItems])
