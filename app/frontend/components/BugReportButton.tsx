@@ -447,10 +447,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      <button
+      <Button
         ref={buttonRef}
         aria-label={t("bug_report.title")}
-        className="fixed z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60 touch-none select-none cursor-grab active:cursor-grabbing"
+        className="fixed z-40 h-12 w-12 !rounded-full text-xl font-semibold shadow-lg shadow-rose-900/20 disabled:cursor-wait touch-none select-none cursor-grab active:cursor-grabbing"
         data-html2canvas-ignore
         disabled={capturing}
         onClick={handleClick}
@@ -460,10 +460,10 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
         onPointerUp={handlePointerUp}
         style={{ left: pos.left, top: pos.top }}
         title={t("bug_report.title")}
-        type="button"
+        variant="danger"
       >
         <BugIcon />
-      </button>
+      </Button>
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-html2canvas-ignore>
           <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl" role="dialog">

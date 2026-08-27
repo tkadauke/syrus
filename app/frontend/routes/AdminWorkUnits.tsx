@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, adminEventLinkClass, disabledPaginationClass, paginationLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
+import { Button } from "../components/Button"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { fetchAdminWorkUnits, type AdminWorkUnitsPayload, type LinkedJob, type WorkIntentSummary, type WorkUnitSummary } from "../api/adminWorkUnits"
 import { updateAdminSettings } from "../api/adminSettings"
@@ -42,12 +43,18 @@ export function AdminWorkUnits() {
     <AdminEventPageShell
       actions={
         <div className="flex flex-wrap gap-2">
-          <button className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500" disabled={workUnits.isFetching} onClick={() => void workUnits.refetch()} type="button">
+          <Button className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500" disabled={workUnits.isFetching} onClick={() => void workUnits.refetch()} variant="secondary">
             {workUnits.isFetching ? t("work_units.refreshing") : t("work_units.refresh")}
-          </button>
-          <button className={`inline-flex shrink-0 items-center justify-center rounded border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 ${debugVisible ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"}`} disabled={toggleDebug.isPending || workUnits.isPending} onClick={() => toggleDebug.mutate(!debugVisible)} type="button">
-            {debugVisible ? t("work_units.hide_user_debug") : t("work_units.show_user_debug")}
-          </button>
+          </Button>
+          {debugVisible ? (
+            <button className="inline-flex shrink-0 items-center justify-center rounded border border-green-300 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300" disabled={toggleDebug.isPending || workUnits.isPending} onClick={() => toggleDebug.mutate(!debugVisible)} type="button">
+              {t("work_units.hide_user_debug")}
+            </button>
+          ) : (
+            <Button className="shrink-0" disabled={toggleDebug.isPending || workUnits.isPending} onClick={() => toggleDebug.mutate(!debugVisible)} variant="secondary">
+              {t("work_units.show_user_debug")}
+            </Button>
+          )}
         </div>
       }
       ariaLabel={t("work_units.aria")}

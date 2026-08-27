@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
+import { Button } from "../../components/Button"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -267,20 +268,21 @@ function PreviewVersionSelector({
 
   return (
     <div className="relative">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("preview_version_selector_label")}
-        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="!gap-1"
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute left-0 top-full z-20 mt-1 min-w-[10rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
@@ -364,21 +366,22 @@ function PreviewShareControl({
 
   return (
     <div className="relative">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("preview_share_selector_label", { title: panel.title })}
-        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="!gap-1"
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         {isPublic ? <GlobeIcon className="h-3 w-3" /> : <LockIcon className="h-3 w-3" />}
         <span>{isPublic ? t("preview_share_option_public") : t("preview_share_option_private")}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute left-0 top-full z-20 mt-1 min-w-[13rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
@@ -418,16 +421,16 @@ function PreviewShareControl({
             </span>
           </button>
           {isPublic ? (
-            <button
-              className="w-full border-t border-gray-100 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
+            <Button
+              className="w-full justify-start border-t border-gray-100 dark:border-gray-800"
               onClick={() => {
                 void copyLink()
                 setDropdownOpen(false)
               }}
-              type="button"
+              variant="secondary"
             >
               {t("preview_share_copy_link")}
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : null}

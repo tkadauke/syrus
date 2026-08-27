@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { syrusShellBridge, type SyrusBackendUpdate, type SyrusShellBridge, type SyrusShellState } from "../lib/desktopShell"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { Button } from "./Button"
 import { DismissButton } from "./DismissButton"
 
 // How long the "Skill installed ✓" confirmation lingers before the notice
@@ -189,14 +190,9 @@ function SkillOfferNotice({ bridge, state }: { bridge: SyrusShellBridge; state: 
       </div>
       {error ? <p className="mt-1 text-2xs text-red-600 dark:text-red-400">{error}</p> : null}
       <div className="mt-1.5">
-        <button
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-2xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
-          disabled={phase === "installing"}
-          onClick={install}
-          type="button"
-        >
+        <Button className="!text-2xs" disabled={phase === "installing"} onClick={install} size="sm" variant="secondary">
           {phase === "installing" ? t("shell.skill_installing") : t("shell.skill_install")}
-        </button>
+        </Button>
       </div>
     </div>
   )

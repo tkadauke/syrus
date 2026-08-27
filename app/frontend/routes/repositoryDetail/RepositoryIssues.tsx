@@ -9,6 +9,7 @@ import { useT } from "../../hooks/useT"
 import { NoticeToast } from "../../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
 import { RepositoryTabs } from "../../components/RepositoryTabs"
+import { Button } from "../../components/Button"
 import { bulkRepositoryIssues, closeRepositoryIssue, commentRepositoryIssue, delegateRepositoryIssue, type RepositoryIssue, type RepositoryIssuesPayload } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
 
@@ -100,14 +101,14 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
             <Link className={stateFilterClass(payload.state === "open")} to={withRoutePrefix(payload.state_paths.open, prefix)}>{t('repository.state_open')}</Link>
             <Link className={stateFilterClass(payload.state === "closed")} to={withRoutePrefix(payload.state_paths.closed, prefix)}>{t('repository.state_closed')}</Link>
           </div>
-          <button
-            className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
+          <Button
+            className="disabled:text-gray-400 dark:disabled:text-gray-500"
             disabled={isRefreshing}
             onClick={onRefresh}
-            type="button"
+            variant="secondary"
           >
             {isRefreshing ? t('repository.refreshing') : t('repository.refresh')}
-          </button>
+          </Button>
         </div>
         {payload.issues.length > 0 ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -191,7 +192,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
               value={commentBody}
             />
             <div className="flex justify-end gap-2">
-              <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => setCommentingOn(null)} type="button">{t('repository.cancel')}</button>
+              <Button onClick={() => setCommentingOn(null)} variant="secondary">{t('repository.cancel')}</Button>
               <button className={buttonClass("blue")} disabled={command.isPending} type="submit">{t('repository.post_comment')}</button>
             </div>
           </form>
