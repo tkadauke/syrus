@@ -48,13 +48,22 @@ RSpec.describe EpicDependency do
     expect(dependency.reload).to be_dependency_succeeded
   end
 
-  it "reports success for an Epic target when the dependency is fully approved but not yet merged" do
+  it "does not report success for an Epic target when the dependency is fully approved but not yet merged" do
     upstream = Factories.epic(user: user)
     Factories.job_record(user: user, repository: upstream.repository, epic: upstream, issue_number: 5, state: "approved")
     epic = Factories.epic(user: user, repository: upstream.repository)
     dependency = described_class.create!(epic: epic, depends_on_epic: upstream)
 
-    expect(dependency).to be_dependency_succeeded
+    expect(dependency).not_to be_dependency_succeeded
+  end
+
+  it "does not report success for an Epic target when the dependency is landing but not yet merged" do
+    upstream = Factories.epic(user: user)
+    Factories.job_record(user: user, repository: upstream.repository, epic: upstream, issue_number: 5, state: "landing")
+    epic = Factories.epic(user: user, repository: upstream.repository)
+    dependency = described_class.create!(epic: epic, depends_on_epic: upstream)
+
+    expect(dependency).not_to be_dependency_succeeded
   end
 
   it "does not report success for an Epic target when some jobs are still pre-approval" do
