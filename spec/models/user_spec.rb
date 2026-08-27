@@ -932,6 +932,33 @@ RSpec.describe User do
     end
   end
 
+  describe "color_theme" do
+    it "defaults new users to the seeded Terracotta theme" do
+      terracotta = theme(slug: "terracotta", built_in: true)
+      user = User.create!(attrs)
+      expect(user.color_theme_id).to eq(terracotta.id)
+    end
+
+    it "leaves color_theme_id nil when no Terracotta theme is seeded" do
+      user = User.create!(attrs)
+      expect(user.color_theme_id).to be_nil
+    end
+
+    it "does not override an explicitly assigned color_theme" do
+      theme(slug: "terracotta", built_in: true)
+      custom = theme
+      user = User.create!(attrs.merge(color_theme: custom))
+      expect(user.color_theme_id).to eq(custom.id)
+    end
+
+    it "keeps the independent light/dark/system theme column untouched" do
+      terracotta = theme(slug: "terracotta", built_in: true)
+      user = User.create!(attrs.merge(theme: "dark"))
+      expect(user.color_theme_id).to eq(terracotta.id)
+      expect(user.theme).to eq("dark")
+    end
+  end
+
   describe "tours (ui_preferences)" do
     let(:user) { User.create!(attrs) }
 

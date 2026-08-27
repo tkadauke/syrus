@@ -24,6 +24,13 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Save" }).className).toContain("bg-brand")
   })
 
+  it("sources primary variant text color from the on-brand token, not a hardcoded white", () => {
+    render(<Button>Save</Button>)
+    const className = screen.getByRole("button", { name: "Save" }).className
+    expect(className).toContain("text-on-brand")
+    expect(className).not.toMatch(/\btext-white\b/)
+  })
+
   it("applies the secondary variant's token classes", () => {
     render(<Button variant="secondary">Cancel</Button>)
     const button = screen.getByRole("button", { name: "Cancel" })

@@ -161,6 +161,20 @@ module Factories
     }.merge(attrs))
   end
 
+  def theme_tokens
+    mode_tokens = Theme::TOKEN_KEYS.index_with { |_key| "#111827" }
+    { "light" => mode_tokens, "dark" => mode_tokens }
+  end
+
+  def theme(**attrs)
+    Theme.create!({
+      name: "Test Theme",
+      slug: "test-theme-#{SecureRandom.hex(4)}",
+      built_in: false,
+      tokens: theme_tokens
+    }.merge(attrs))
+  end
+
   # Returns the auto-created initial Run on a fresh Job, or builds an
   # extra Run on an existing Job (use `job:` and pass a different
   # trigger_kind, e.g. trigger_kind: "pr_comment").
