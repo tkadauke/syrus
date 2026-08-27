@@ -31,6 +31,7 @@ import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX
 import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
+import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -58,7 +59,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return ""
     }
   })
-  const [attachments, setAttachments] = useState<ChatComposeAttachment[]>([])
+  const [attachments, setAttachments] = useState<ChatComposeAttachment[]>(() => getDraftAttachments(chatId))
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -157,6 +158,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       // Local storage can be unavailable in hardened browser modes.
     }
   }, [chatId, text])
+
+  // Mirrors the text-draft effect above, but through the in-memory
+  // attachmentDraftStore rather than localStorage — see that module for why.
+  useEffect(() => {
+    setDraftAttachments(chatId, attachments)
+  }, [chatId, attachments])
 
   const send = useMutation({
     mutationFn: (messageText: string) => agentActive

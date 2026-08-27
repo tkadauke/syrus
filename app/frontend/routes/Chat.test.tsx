@@ -3,7 +3,7 @@ import tailwindConfigSource from "../../../config/tailwind.config.js?raw"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
@@ -12,6 +12,7 @@ import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
+import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 
 const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
 
@@ -32,6 +33,7 @@ vi.mock("@rails/actioncable", () => ({
 afterEach(() => {
   actionCableSubscriptions.length = 0
   vi.unstubAllGlobals()
+  __resetDraftAttachmentsForTests()
 })
 
 describe("storedWorkspaceCollapsed", () => {
@@ -2392,6 +2394,54 @@ describe("chat compose image attachments", () => {
   })
 })
 
+describe("chat compose attachment persistence across remounts", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("keeps an in-progress attachment after navigating away from the chat and back", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch()
+    renderRouteWithAwayLink()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "kept.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove kept.png" })
+
+    fireEvent.click(screen.getByText("Go away"))
+    await screen.findByText("Away page")
+
+    fireEvent.click(screen.getByText("Go back"))
+    await screen.findByPlaceholderText("Ask about this repository...")
+
+    expect(await screen.findByRole("button", { name: "Remove kept.png" })).toBeInTheDocument()
+  })
+
+  it("keeps an in-progress attachment when crossing the mobile/desktop breakpoint mid-session", async () => {
+    mockChatRouteFetch()
+    const viewport = mockDynamicViewport(true)
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "kept.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove kept.png" })
+
+    // ChatWorkspace renders an entirely different JSX branch per isDesktop,
+    // so flipping it remounts the ChatColumn/Compose subtree — the exact
+    // mechanism the bug report described for the breakpoint-crossing trigger.
+    act(() => {
+      viewport.setDesktop(false)
+    })
+    await screen.findByPlaceholderText("Ask about this repository...")
+
+    expect(await screen.findByRole("button", { name: "Remove kept.png" })).toBeInTheDocument()
+  })
+})
+
 describe("chat composer paste-to-attach", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -4360,6 +4410,74 @@ function renderRoute() {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function renderRouteWithAwayLink() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+        <Routes>
+          <Route element={<ChatRouteWithAwayLink />} path="/app-shell/chats/:id" />
+          <Route element={<AwayPage />} path="/app-shell/away" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function ChatRouteWithAwayLink() {
+  return (
+    <>
+      <Link to="/app-shell/away">Go away</Link>
+      <ChatRoute />
+    </>
+  )
+}
+
+function AwayPage() {
+  return (
+    <>
+      <div>Away page</div>
+      <Link to="/app-shell/chats/8">Go back</Link>
+    </>
+  )
+}
+
+// Unlike mockDesktopViewport/mockMobileViewport (a fixed snapshot), this
+// keeps the registered matchMedia change listener so a test can flip the
+// breakpoint mid-session the way a real window resize would.
+function mockDynamicViewport(initialDesktop: boolean) {
+  let matches = initialDesktop
+  const listeners = new Set<(event: { matches: boolean }) => void>()
+  const mediaQueryList = {
+    get matches() {
+      return matches
+    },
+    media: "(min-width: 1024px)",
+    onchange: null,
+    addEventListener: (_event: string, listener: (event: { matches: boolean }) => void) => {
+      listeners.add(listener)
+    },
+    removeEventListener: (_event: string, listener: (event: { matches: boolean }) => void) => {
+      listeners.delete(listener)
+    },
+    addListener: (listener: (event: { matches: boolean }) => void) => listeners.add(listener),
+    removeListener: (listener: (event: { matches: boolean }) => void) => listeners.delete(listener),
+    dispatchEvent: vi.fn()
+  }
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn(() => mediaQueryList)
+  })
+
+  return {
+    setDesktop(next: boolean) {
+      matches = next
+      listeners.forEach((listener) => listener({ matches: next }))
+    }
+  }
 }
 
 function renderRouteWithLocation() {
