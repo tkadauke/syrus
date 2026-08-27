@@ -1,4 +1,5 @@
 import { inputClass } from "../lib/formClasses"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
@@ -31,9 +32,9 @@ export function PersonalDocumentsRoute() {
   return (
     <main aria-label={t("aria_personal_documents")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading>
           {t('personal_documents.heading')}
-        </h1>
+        </PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           {t('personal_documents.description')}
         </p>
@@ -107,9 +108,9 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          <SectionHeading>
             {t('personal_documents.section_heading')}
-          </h2>
+          </SectionHeading>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {t('personal_documents.attach_description')}
           </p>

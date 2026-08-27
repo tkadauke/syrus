@@ -1,4 +1,5 @@
 import { createConsumer } from "@rails/actioncable"
+import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
@@ -25,7 +26,7 @@ export function ConnectedPlatformsRoute() {
   return (
     <main aria-label={t("connected_platforms.aria")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("connected_platforms.heading")}</h1>
+        <PageHeading>{t("connected_platforms.heading")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("connected_platforms.description")}</p>
       </header>
 

@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query"
@@ -142,7 +143,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             {t("back_to_dashboard")}
           </Link>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{payload.epic.title}</h1>
+            <PageHeading className="break-words">{payload.epic.title}</PageHeading>
             <SimpleEpicStatusPill status={payload.epic.simple_status} />
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -193,7 +194,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {reviewCommand.isError ? <PanelMessage tone="error">{errorMessage(reviewCommand.error, t("review_command_error"))}</PanelMessage> : null}
         <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("summary")}</h2>
+          <SectionHeading>{t("summary")}</SectionHeading>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">
             {payload.summary.review_summary || payload.epic.description || t("summary_pending")}
           </p>
@@ -206,11 +207,11 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
     <>
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
+          <PageHeading className="break-words">
             <CopyableSlug slug={payload.epic.display_number} />
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             {payload.epic.title}
-          </h1>
+          </PageHeading>
           <StatePill state={payload.epic.state} />
           <EpicStuckBadge stuck={payload.epic.stuck} />
         </div>
@@ -333,7 +334,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
         <div className="min-w-0 space-y-6">
           {payload.epic.description.trim() ? (
             <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("description")}</h2>
+              <SectionHeading>{t("description")}</SectionHeading>
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
@@ -414,7 +415,7 @@ function DependenciesSection({
   return (
     <section className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("dependencies")}</h2>
+        <SectionHeading>{t("dependencies")}</SectionHeading>
         <h3 className="mt-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("depends_on")}</h3>
         {dependencies.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
@@ -452,7 +453,7 @@ function DependenciesSection({
         {command.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(command.error, t("dependency_error"))}</p> : null}
       </div>
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("depended_on_by")}</h2>
+        <SectionHeading>{t("depended_on_by")}</SectionHeading>
         {dependents.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {dependents.map((dependent) => (
@@ -485,7 +486,7 @@ function EpicReviewFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
   return (
     <section className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
       <form className="space-y-3" onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("review_feedback_title")}</h2>
+        <SectionHeading>{t("review_feedback_title")}</SectionHeading>
         <textarea
           className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
@@ -687,7 +688,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("jobs_section")}</h2>
+        <SectionHeading>{t("jobs_section")}</SectionHeading>
         <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>{t("add_job")}</Link>
       </div>
       {jobs.length > 0 ? (
@@ -820,7 +821,7 @@ function DetailsPanel({ deploymentStages, epic, jobs, prefix }: { deploymentStag
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("details")}</h2>
+      <SectionHeading>{t("details")}</SectionHeading>
       {deploymentStages?.length ? <EpicDeploymentStagePipeline stages={deploymentStages} /> : null}
       <dl className="mt-3 space-y-3">
         <div>

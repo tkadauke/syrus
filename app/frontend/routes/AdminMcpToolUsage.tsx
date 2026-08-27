@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { SectionHeading } from "../components/Heading"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import {
   fetchAdminMcpToolUsage,
@@ -205,7 +206,7 @@ function ToolRowsPanel({ heading, rows }: { heading: string; rows: McpToolUsageT
   const { t } = useT("admin")
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">{heading}</h2>
+      <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
       {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
           <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
@@ -239,7 +240,7 @@ function UnusedToolsPanel({ tools }: { tools: string[] }) {
   const { t } = useT("admin")
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("mcp_tool_usage.unused_tools_heading")}</h2>
+      <SectionHeading>{t("mcp_tool_usage.unused_tools_heading")}</SectionHeading>
       {tools.length === 0 ? (
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("mcp_tool_usage.unused_tools_empty")}</p>
       ) : (
@@ -257,7 +258,7 @@ function BreakdownPanel({ heading, labelKey, rows }: { heading: string; labelKey
   const { t } = useT("admin")
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">{heading}</h2>
+      <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{heading}</SectionHeading>
       {rows.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.empty")}</AdminEventPanelMessage> : (
         <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
           <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
@@ -336,7 +337,7 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
 
   return (
     <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">{t("mcp_tool_usage.recent_calls_heading")}</h2>
+      <SectionHeading className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">{t("mcp_tool_usage.recent_calls_heading")}</SectionHeading>
       {calls.length === 0 ? <AdminEventPanelMessage>{t("mcp_tool_usage.recent_calls_empty")}</AdminEventPanelMessage> : (
         <AdminEventLogTable columns={columns} getRowKey={(row) => row.id} rows={calls} />
       )}

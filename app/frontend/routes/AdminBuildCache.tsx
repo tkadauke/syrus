@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../api/client"
 import {
@@ -28,7 +29,7 @@ export function AdminBuildCache() {
     <main aria-label={t("build_cache.aria_main")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("build_cache.heading")}</h1>
+        <PageHeading className="mt-1">{t("build_cache.heading")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{t("build_cache.description")}</p>
       </header>
 
@@ -69,7 +70,7 @@ function StatsCard({ payload }: { payload: AdminBuildCachePayload }) {
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" data-testid="build-cache-stats">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("build_cache.stats_heading")}</h2>
+      <SectionHeading>{t("build_cache.stats_heading")}</SectionHeading>
 
       {payload.stats_error ? (
         <p className="mt-2 text-sm text-red-600 dark:text-red-300">{payload.stats_error}</p>
@@ -134,7 +135,7 @@ function ClearRequestForm() {
 
   return (
     <form className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submit} data-testid="build-cache-clear-form">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("build_cache.request_heading")}</h2>
+      <SectionHeading>{t("build_cache.request_heading")}</SectionHeading>
 
       <fieldset className="space-y-2">
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">

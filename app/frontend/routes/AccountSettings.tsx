@@ -1,4 +1,5 @@
 import { inputClass } from "../lib/formClasses"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { routePrefix } from "../lib/routing"
 import { Button } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
@@ -69,7 +70,7 @@ function AccountSettingsPage({ description, label, section }: { description: str
   return (
     <main aria-label={label} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{label}</h1>
+        <PageHeading>{label}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{description}</p>
       </header>
 
@@ -152,7 +153,7 @@ function ChatProviderPanel({ payload, onNotice }: { payload: CredentialsPayload;
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('credential_cards.chat_provider_heading')}</h2>
+      <SectionHeading>{t('credential_cards.chat_provider_heading')}</SectionHeading>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.chat_provider_desc')}</p>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
       <Select
@@ -408,7 +409,7 @@ function PasskeysPanel() {
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("account_settings.passkeys_heading")}</h2>
+      <SectionHeading>{t("account_settings.passkeys_heading")}</SectionHeading>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.passkeys_desc")}</p>
 
       {passkeys.isError ? <PanelMessage tone="error">{errorMessage(passkeys.error, t("account_settings.passkeys_load_error"))}</PanelMessage> : null}
@@ -507,7 +508,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('account_settings.api_token_heading')}</h2>
+      <SectionHeading>{t('account_settings.api_token_heading')}</SectionHeading>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.api_token_desc')}</p>
 
       {newToken ? (

@@ -1,4 +1,5 @@
 import { withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { Avatar } from "../components/Avatar"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
@@ -22,7 +23,7 @@ export function TeamDirectoryRoute() {
   return (
     <main aria-label={t("profiles.aria_directory")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('profiles.team_directory')}</h1>
+        <PageHeading>{t('profiles.team_directory')}</PageHeading>
       </header>
 
       {profiles.isPending ? <PanelMessage>{t('profiles.loading')}</PanelMessage> : null}
@@ -89,9 +90,9 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} size="large" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            <PageHeading>
               <Link className="text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
-            </h1>
+            </PageHeading>
             {profile.github_handle ? <a className="mt-1 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline" href={`https://github.com/${profile.github_handle}`} rel="noopener noreferrer" target="_blank">@{profile.github_handle}</a> : null}
             {profile.profile_bio ? <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">{profile.profile_bio}</p> : null}
             <Counts counts={profile.counts} />
@@ -135,7 +136,7 @@ function SummaryList<T>({ title, empty, items, renderItem }: { title: string; em
   const { t } = useT("settings")
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <h2 className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+      <SectionHeading className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">{title}</SectionHeading>
       {items.length === 0 ? <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{empty}</p> : (
         <div className="divide-y divide-gray-100 dark:divide-gray-800">
           {items.map((item, index) => <div className="px-4 py-3" key={index}>{renderItem(item)}</div>)}

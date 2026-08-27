@@ -1,4 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
 import type { FormEvent, ReactNode } from "react"
@@ -243,7 +244,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
   return (
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+        <PageHeading className="break-words">{title}</PageHeading>
         {mode === "edit" && payload.repository.repository_path ? <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
           {t('repository_form.back')}
         </Link> : null}
@@ -256,9 +257,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
       <form className="space-y-5" onSubmit={submit}>
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <SectionHeading>
               {t('repository_form.working_section')}
-            </h2>
+            </SectionHeading>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('repository_form.working_description')}
             </p>
@@ -361,9 +362,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <SectionHeading>
               {t('repository_form.upstream_section')}
-            </h2>
+            </SectionHeading>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('repository_form.upstream_description')}
             </p>
@@ -402,9 +403,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </section>
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <SectionHeading>
             {t('repository_form.automation_section')}
-          </h2>
+          </SectionHeading>
           <Field label={t('repository_form.label_default_agent')}>
             <Select
               aria-label={t('repository_form.label_default_agent')}
@@ -519,9 +520,9 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <SectionHeading>
             {t('repository_form.credential_section')}
-          </h2>
+          </SectionHeading>
           <CredentialModeComparison />
         </section>
 
@@ -591,9 +592,9 @@ function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryI
   return (
     <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           {t('repository_form.insight_scheduling_section')}
-        </h2>
+        </SectionHeading>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {t('repository_form.insight_scheduling_description')}
         </p>
@@ -816,9 +817,9 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
   return (
     <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           {sourceType.label}
-        </h2>
+        </SectionHeading>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {t("input_sources.section_description")}
         </p>
