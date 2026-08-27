@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { Dispatch, ReactNode, SetStateAction } from "react"
 import { useEffect, useMemo, useState } from "react"
+import { Button } from "../../components/Button"
 import { useT } from "../../hooks/useT"
 import { highlightCode } from "../../lib/syntaxHighlight"
 import { fetchJobSource, fetchJobSourceDiff, fetchWorkflowCoverageHitMap, type CoverageArtifact, type JobSourceDiffPayload, type JobSourcePayload } from "../../api/jobs"
@@ -232,14 +233,14 @@ function SourceShell({
       {showDiffToggle ? (
         <div className="inline-flex rounded border border-gray-300 bg-white p-0.5 text-sm dark:border-gray-700 dark:bg-gray-950">
           {(["browse", "diff"] as const).map((option) => (
-            <button
-              className={`rounded px-3 py-1 ${mode === option ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-900"}`}
+            <Button
               key={option}
               onClick={() => onModeChange(option)}
-              type="button"
+              size="sm"
+              variant={mode === option ? "primary" : "secondary"}
             >
               {option === "browse" ? t("source_browse") : t("source_diff")}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
