@@ -937,13 +937,54 @@ class GithubClient
     url.to_s[%r{/actions/runs/(\d+)}, 1]&.to_i
   end
 
+  # GitHub's Actions job-logs endpoint 302s to a short-lived, pre-signed
+  # Azure Blob Storage URL. Octokit's default FollowRedirects middleware
+  # auto-follows that redirect but, as a cross-host anti-leak measure,
+  # overwrites the Authorization header with the literal string "dummy"
+  # instead of removing it (see octokit/middleware/follow_redirects.rb).
+  # Azure rejects any Authorization header alongside a SAS-signed query
+  # string with 400 Bad Request, so every fetch through @client.get failed
+  # (100% of PollPullRequestJob CI-failure-log fetches, per production logs).
+  # Fetch the redirect ourselves with a connection that has no
+  # redirect-following middleware, then hit the blob URL with no auth
+  # headers at all.
   def actions_job_log_for(repo_slug, job_id)
-    log = track_rate_limits { @client.get("/repos/#{repo_slug}/actions/jobs/#{job_id}/logs") }
-    text = log.respond_to?(:body) ? log.body.to_s : log.to_s
-    text.presence&.safe_byteslice(0, ACTIONS_JOB_LOG_MAX_BYTES)
-  rescue Octokit::NotFound, Octokit::Forbidden, Octokit::Unauthorized => e
+    response = actions_job_logs_connection.get("/repos/#{repo_slug}/actions/jobs/#{job_id}/logs")
+    persist_rate_limit_headers!(response.headers)
+
+    case response.status
+    when 200
+      response.body.to_s.presence&.safe_byteslice(0, ACTIONS_JOB_LOG_MAX_BYTES)
+    when 301, 302, 307
+      fetch_actions_job_log_blob(response.headers["location"])
+    else
+      Rails.logger.warn("[GithubClient] could not fetch Actions job log #{repo_slug}/#{job_id}: HTTP #{response.status}")
+      nil
+    end
+  rescue Faraday::Error => e
     Rails.logger.warn("[GithubClient] could not fetch Actions job log #{repo_slug}/#{job_id}: #{e.message}")
     nil
+  end
+
+  def fetch_actions_job_log_blob(url)
+    return nil if url.blank?
+
+    response = Faraday.new(request: self.class.connection_options[:request]) { |conn| conn.adapter Faraday.default_adapter }.get(url)
+    return nil unless response.success?
+
+    response.body.to_s.presence&.safe_byteslice(0, ACTIONS_JOB_LOG_MAX_BYTES)
+  rescue Faraday::Error => e
+    Rails.logger.warn("[GithubClient] could not fetch Actions job log blob: #{e.message}")
+    nil
+  end
+
+  def actions_job_logs_connection
+    @actions_job_logs_connection ||= Faraday.new(url: @client.api_endpoint, request: self.class.connection_options[:request]) do |conn|
+      conn.headers["Authorization"] = "token #{access_token}"
+      conn.headers["Accept"] = "application/vnd.github+json"
+      conn.headers["User-Agent"] = USER_AGENT
+      conn.adapter Faraday.default_adapter
+    end
   end
 
   def actions_infrastructure_failure?(check_run:, job:, failed_step_names:)
@@ -1022,6 +1063,7 @@ class GithubClient
     @access_token = installation.fresh_token
     @client = build_octokit_client
     @uncached_client = nil
+    @actions_job_logs_connection = nil
   end
 
   def fallback_to_pat_after_installation_failure!(installation, error, refresh_attempted:, refresh_succeeded:)
@@ -1042,6 +1084,7 @@ class GithubClient
     @access_token = fallback_user.github_token
     @client = build_octokit_client
     @uncached_client = nil
+    @actions_job_logs_connection = nil
   end
 
   def cache_namespace
