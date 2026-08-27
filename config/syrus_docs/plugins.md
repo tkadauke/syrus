@@ -1401,9 +1401,10 @@ Bundled plugins:
   destination, regardless of what a prompt or a compromised target repo asks
   it to do. Also provides `:artifact_renderer` (`SyrusBrowser::ImageDiffRenderer`,
   type `visual_review_screenshot` → `:image_diff`) — `browser_screenshot`
-  itself only returns image content to the agent's own context, so an agent
-  that wants a screenshot to survive as a durable, operator-visible artifact
-  calls the core `submit_visual_artifact` MCP tool (see
+  itself only returns image content to the agent's own context and writes a
+  screenshot file, so an agent that wants a screenshot to survive as a
+  durable, operator-visible artifact calls the core `submit_visual_artifact`
+  MCP tool with the returned `image_path` (see
   `config/syrus_docs/typed_artifacts.md`) to persist it.
 - `preview_tools` — default-enabled. Provides `:chat_mcp_tool_set`
   (`PreviewTools::ChatToolSet`): `write_preview_file`/`edit_preview_file`

@@ -1,5 +1,6 @@
 require "rails_helper"
 require "base64"
+require "fileutils"
 
 RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
   let(:run) { Factories.job.initial_run }
@@ -10,10 +11,18 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     type: "visual_review_screenshot",
     title: "Homepage after fix",
     image_base64: png_base64,
+    image_path: nil,
     content_type: nil,
     server_context: { run: run }
   )
-    described_class.call(type: type, title: title, image_base64: image_base64, content_type: content_type, server_context: server_context)
+    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, content_type: content_type, server_context: server_context)
+  end
+
+  def write_workspace_file(relative_path, bytes = png_bytes)
+    path = WorkflowWorkspace.path_for(run.workflow).join(relative_path)
+    FileUtils.mkdir_p(path.dirname)
+    path.binwrite(bytes)
+    path
   end
 
   it "accepts a run_id-only sidecar context" do
@@ -39,6 +48,37 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(attachment).to be_present
     expect(attachment.download).to eq(png_bytes)
     expect(attachment.content_type).to eq("image/png")
+  end
+
+  it "attaches image bytes directly from a workflow-local file path" do
+    write_workspace_file(".playwright-mcp/page.png")
+
+    described_class.call(
+      type: "visual_review_screenshot",
+      title: "Browser screenshot",
+      image_path: ".playwright-mcp/page.png",
+      server_context: { run: run }
+    )
+
+    stored_type = run.workflow.reload.artifact("typed_artifacts").first["type"]
+    attachment = run.workflow.visual_artifact_for(stored_type)
+    expect(attachment).to be_present
+    expect(attachment.download).to eq(png_bytes)
+    expect(attachment.content_type).to eq("image/png")
+  end
+
+  it "infers jpeg content type from a workflow-local file path" do
+    write_workspace_file("screenshots/page.jpg")
+
+    described_class.call(
+      type: "visual_review_screenshot",
+      title: "Browser screenshot",
+      image_path: "screenshots/page.jpg",
+      server_context: { run: run }
+    )
+
+    stored_type = run.workflow.reload.artifact("typed_artifacts").first["type"]
+    expect(run.workflow.visual_artifact_for(stored_type).content_type).to eq("image/jpeg")
   end
 
   it "writes a typed_artifacts entry pointing at the stored image" do
@@ -143,7 +183,28 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     response = call(image_base64: "")
 
     expect(response).to be_error
-    expect(response.content.first[:text]).to include("image_base64 is empty")
+    expect(response.content.first[:text]).to include("image_path or image_base64 is required")
+  end
+
+  it "rejects calls that provide both image_base64 and image_path" do
+    write_workspace_file(".playwright-mcp/page.png")
+
+    response = call(image_path: ".playwright-mcp/page.png")
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("provide exactly one")
+  end
+
+  it "rejects image paths outside the workflow workspace" do
+    response = described_class.call(
+      type: "visual_review_screenshot",
+      title: "Outside",
+      image_path: "/etc/hosts",
+      server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("inside the workflow workspace")
   end
 
   it "rejects an image exceeding the maximum size" do
@@ -172,6 +233,6 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
   it "exposes the expected tool name and required schema fields" do
     expect(described_class.tool_name).to eq("submit_visual_artifact")
-    expect(described_class.input_schema_value.to_h[:required]).to contain_exactly("type", "title", "image_base64")
+    expect(described_class.input_schema_value.to_h[:required]).to contain_exactly("type", "title")
   end
 end

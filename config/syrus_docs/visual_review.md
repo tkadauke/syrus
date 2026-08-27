@@ -150,11 +150,14 @@ allowed.
 ## Screenshot artifacts
 
 The reviewer captures "after" screenshots with `submit_visual_artifact`, an
-image-capable sibling of `submit_artifact`: it accepts base64-encoded image
-bytes (PNG/JPEG/WebP, up to 10 MB), persists them as an ActiveStorage blob
-on the current Workflow, and records a `typed_artifacts` entry that the job
-detail UI's Artifacts tab renders through the `:image_diff` renderer so
-operators can see what the reviewer actually tested.
+image-capable sibling of `submit_artifact`: it accepts either `image_path`
+pointing at a screenshot file inside the workflow workspace (preferred for
+the file path returned by `browser_screenshot`) or `image_base64` when image
+bytes are already in memory. It accepts PNG/JPEG/WebP up to 10 MB, persists
+the image as an ActiveStorage blob on the current Workflow, and records a
+`typed_artifacts` entry that the job detail UI's Artifacts tab renders
+through the `:image_diff` renderer so operators can see what the reviewer
+actually tested.
 
 ## Manual "Run visual review" trigger
 
