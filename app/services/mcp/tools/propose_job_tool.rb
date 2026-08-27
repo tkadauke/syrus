@@ -37,6 +37,10 @@ module Mcp::Tools
       the mockup in the Job description as reference material describing the
       intended look and behavior for the implementing agent to adapt to the
       target repo's own conventions -- not boilerplate to copy verbatim.
+      Format description as normal Markdown with real newline characters
+      between paragraphs, lists, and code fences. Do not write literal
+      backslash-n sequences (`\\n`) into the description; those are plain
+      text and will render as one long unreadable line.
     DESC
 
     input_schema(
@@ -44,7 +48,7 @@ module Mcp::Tools
         epic_id: { type: "integer", description: "Optional target Epic id." },
         repo: { type: "string", description: "Repository id, name, or owner/name slug." },
         title: { type: "string", description: "Job title." },
-        description: { type: "string", description: "Markdown Job description." },
+        description: { type: "string", description: "Markdown Job description. Use real newline characters for paragraphs, lists, and code fences; do not include literal backslash-n sequences (`\\n`)." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Job depends on. Required to include one of the target Epic's existing Jobs when epic_id targets a non-empty Epic — this is how a new Job chains onto that Epic's stack instead of becoming a disconnected parallel branch." },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." },

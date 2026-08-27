@@ -23,6 +23,7 @@ export type AdminPlugin = {
   category: string | null
   category_label: string | null
   description: string | null
+  long_description?: string | null
   homepage: string | null
   icon_url: string | null
   author: string | null

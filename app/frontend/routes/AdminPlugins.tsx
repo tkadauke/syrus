@@ -122,6 +122,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             {!plugin.disableable ? <StatusBadge status="required" label={t("plugins.required")} /> : null}
           </div>
           {plugin.description ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.description}</p> : null}
+          {plugin.long_description ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-gray-300">{plugin.long_description}</p> : null}
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category_label || plugin.category}</span></span> : null}
             <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>

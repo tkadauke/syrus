@@ -49,7 +49,28 @@ class ChatAgentQuestion < ApplicationRecord
     with_lock do
       return false unless active?
 
-      update!(expired_at: Time.current)
+      self.expired_at = Time.current
+      save!(validate: false)
+    end
+  end
+
+  def questions_payload
+    return [] unless questions.is_a?(Array)
+
+    questions.filter_map do |sub_question|
+      next unless sub_question.is_a?(Hash)
+
+      question_text = sub_question["question"].to_s.strip
+      next if question_text.blank?
+
+      options = normalized_options(sub_question["options"])
+      multiple = ActiveModel::Type::Boolean.new.cast(sub_question["multiple"]) && options.present?
+
+      {
+        question: question_text,
+        options: options,
+        multiple: multiple
+      }
     end
   end
 
@@ -59,6 +80,7 @@ class ChatAgentQuestion < ApplicationRecord
   # string for single-select/free-text, or a non-empty array of non-blank
   # strings for multi-select. Returns nil (invalid) or the normalized array.
   def normalize_answers(answers)
+    return nil unless questions.is_a?(Array)
     return nil unless answers.is_a?(Array) && answers.length == questions.length
 
     normalized = questions.each_with_index.map do |sub_question, index|
@@ -111,6 +133,13 @@ class ChatAgentQuestion < ApplicationRecord
         errors.add(:questions, "multiple-select questions require options")
       end
     end
+  end
+
+  def normalized_options(options)
+    return nil unless options.is_a?(Array)
+
+    normalized = options.map { |option| option.to_s.strip }.reject(&:blank?)
+    normalized.presence
   end
 
   def broadcast_app_event

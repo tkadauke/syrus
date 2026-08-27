@@ -7,9 +7,8 @@ This is a **Next.js 15** app (App Router + Tailwind v4 + Motion) that builds to
 a fully static site (`output: "export"`). No server runs in production — Pages
 just serves the static files.
 
-> **Note:** this replaced an earlier Astro/Starlight content scaffold, which is
-> preserved under [`_archive-astro/`](./_archive-astro/) (its markdown docs were
-> not migrated). See the PR that introduced this directory for the rationale.
+Public docs live in [`src/content/docs/`](./src/content/docs/) and are rendered
+by the active Next.js site at `/docs`.
 
 ## Develop
 
@@ -50,9 +49,8 @@ release (`release.yml` → `publish-website`).
 
 Copy lives in `lib/site.ts` (hero, workflow steps, feature pillars, entry
 points). Pages are under `src/app/` (Next.js App Router, `src/` directory
-layout). The markdown under `src/pages/`, `src/content/docs/`, and
-`src/site-pages/` is archived positioning/docs copy that the Next.js build
-does not consume; `_archive-astro/` remains the frozen pre-migration snapshot.
+layout). Public documentation lives in `src/content/docs/` and is statically
+rendered at `/docs`.
 
 ## Information Architecture
 
@@ -62,6 +60,7 @@ The current static site is intentionally small:
 | --- | --- | --- |
 | Home | `src/app/page.tsx` | Marketing landing page assembled from hero, workflow, feature, entry-point, and demo sections |
 | Download | `src/app/download/page.tsx` | Desktop and CLI release downloads |
+| Docs | `src/app/docs/**`, `src/content/docs/**` | Public documentation rendered from canonical markdown files |
 | Request a demo | `components/demo.tsx` | Demo/contact form with mailto fallback |
 | Product copy | `lib/site.ts` | Source of truth for hero copy, workflow steps, feature pillars, and entry points |
 

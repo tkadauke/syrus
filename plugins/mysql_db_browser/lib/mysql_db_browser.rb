@@ -13,7 +13,9 @@ module MysqlDbBrowser
       disableable:     true,
       category:        "observability",
       description:     "Register and manage connections to external MySQL databases with encrypted credential storage.",
+      long_description: "MySQL DB Browser lets admins register external MySQL connections, inspect schemas, browse table contents, and run controlled queries from the Syrus admin UI. Credentials are stored encrypted and connections are explicit per database target.\n\nThis plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect.",
       homepage:        "https://github.com/tkadauke/syrus",
+      icon_url:        "/plugin-icons/mysql_db_browser.svg",
       author:          "Thomas Kadauke",
       frontend: {
         routes: {

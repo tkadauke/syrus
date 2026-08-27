@@ -4,8 +4,9 @@
   "private": true,
   "description": "Marketing site for Syrus — the issue-to-PR automation harness.",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "sync-plugin-icons": "node scripts/sync-plugin-icons.mjs",
+    "dev": "npm run sync-plugin-icons && next dev",
+    "build": "npm run sync-plugin-icons && next build",
     "start": "next start",
     "sync-release": "node scripts/sync-release.mjs"
   },

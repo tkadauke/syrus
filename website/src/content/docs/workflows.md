@@ -1,0 +1,286 @@
+---
+title: Workflows
+description: Templates that define what an agent does for each trigger kind.
+---
+
+# Workflows
+
+A Workflow template is a named sequence of Steps tied to a trigger kind.
+When something happens, such as a labelled issue, PR feedback, a retry
+click, or an unmergeable branch, Syrus creates a Workflow from the matching
+template and starts its first Step.
+
+Templates are mostly linear happy paths with bounded loops and declared
+typed failure branches:
+
+```text
+Workflow(trigger_kind) -> Step -> Step -> Step
+```
+
+Each Step owns one or more Runs. A Run is an attempt to execute that Step.
+Retries create new Runs without erasing the old transcript.
+
+Under the hood, Work Intents and Work Units now sit between a Job and its
+Workflows. A Work Intent records the desired work, such as "land this Job" or
+"repair this CI failure"; a Work Unit records one scheduler-owned attempt to
+do that work. The UI normally stays focused on Jobs and Workflows, while the
+admin UI exposes intents and units for debugging admission control, pauses,
+preemption, and retries.
+
+## Built-In Templates
+
+### Initial
+
+Trigger: a GitHub issue with the repository's trigger label, or a new cron
+or direct Job that uses the standard issue-to-PR path. Steps:
+`prepare -> implement -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> dependency_audit -> summarize -> test_plan -> pr_open`.
+The agent makes and commits the change during the top-level `implement`
+step. Optional adversarial and visual review loops can ask for revisions
+before grading. The grade loop then runs the repository's `grade:`
+configuration for the current phase, and failed required graders feed the
+next bounded repair iteration. `coverage_analyze` parses coverage
+artifacts produced by graders when `coverage:` is configured in
+`.syrus.yml`, evaluates thresholds, and pre-renders a PR comment body when
+`pr_comment: true`. `summarize` collects PR copy via MCP and
+amends the commit message. `test_plan` stores reviewer-facing checks, which
+`pr_open` appends as a `Test Plan` section before pushing the branch and
+opening the pull request. When a coverage PR comment body was pre-rendered,
+`pr_open` posts it as a GitHub comment on the newly created PR. For GitHub issue Jobs, the implement prompt includes the
+original issue title and body plus subsequent issue comments in
+chronological order, so clarifications added before the Run starts are part
+of the agent context. A successful Initial workflow leaves the Job open
+with a PR number attached.
+
+### PrFeedback
+
+Trigger: new review feedback or PR comments on an existing Syrus PR. Steps:
+`prepare -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
+The agent receives the new comments plus PR context, commits follow-up
+changes on the existing branch, and graders can force another bounded
+response iteration before `summarize_amend` rewrites the follow-up commit
+message. A successful workflow pushes to the already-open PR. If the
+remote PR branch advanced before the push, Syrus first tries a mechanical
+rebase; if that conflicts, it expands a recovery branch:
+`push_agent_rebase -> grade loop repaired by landing_fix -> push_after_rebase`.
+
+### ChatFeedback
+
+Trigger: operator-confirmed feedback proposed from Syrus Chat on an
+implemented or approved Job. Steps:
+`prepare -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
+The agent receives the agreed chat feedback as structured workflow input
+and commits follow-up changes on the existing branch. Submitting feedback
+on an approved Job unapproves it so the updated PR returns to review before
+landing. Feedback proposed while the Job is queued or running is held as a
+queued pending action and becomes confirmable once the Job is implemented.
+The app API can also create this Workflow directly for implemented or failed
+Jobs when an operator submits feedback outside the chat flow. Push recovery
+uses the same remote-advanced branch as PR feedback.
+
+### Rebase
+
+Trigger: polling finds a PR branch we control that GitHub reports as
+unmergeable. Steps: `auto_rebase -> agent_rebase -> force_push`. Syrus first
+tries a deterministic `git rebase`. If that succeeds, it cancels
+`agent_rebase` and proceeds to `force_push`; if conflicts remain, the agent
+resolves them. A successful workflow force-pushes the rebased branch and
+does not open or rewrite PR copy. The push uses an explicit
+`git push --force-with-lease=<branch>:<observed_sha>` lease so Syrus does
+not overwrite an unexpected remote update.
+
+When the unmergeable PR has stack children, Syrus uses `StackRebase` instead
+of opening one rebase workflow per Job. Steps:
+`stack_auto_rebase -> stack_agent_rebase -> stack_force_push`. The workflow
+walks the stack root-first, tries deterministic rebases for each branch, and
+falls back to one agent run for the first conflicted branch and everything
+below it. After pushing, Syrus refreshes PR bases and re-checks approved Jobs
+for landing.
+
+### Retry
+
+Trigger: an operator retries a failed or completed Job. Steps:
+`prepare -> [visual review loop] -> grade loop -> coverage_analyze -> summarize -> pr_open`.
+It has the same shape as Initial, but runs on the existing Job and branch.
+`pr_open` is idempotent: if a PR already exists, it pushes the new commits
+instead of opening a second PR.
+
+### AutoMerge
+
+Trigger: an approved Job reaches the landing queue. Steps:
+`mergeability_preflight -> prepare -> landing grade loop repaired by landing_fix -> push -> auto_merge`.
+The final gate first verifies mergeability and then runs graders on the
+exact PR branch Syrus is about to merge, after any last rebase. If required
+graders fail, the agent receives the grader output and gets a bounded
+`landing_fix` repair iteration before the graders run again. `push`
+publishes any final fix commits, and `auto_merge` re-checks GitHub approval,
+mergeability, branch state, and repository policy immediately before
+calling the merge API. Because GitHub recomputes mergeability
+asynchronously after a push, `auto_merge` briefly polls for a transient
+`unknown` state to settle before deferring, so a completed green grade is
+not thrown away just because GitHub had not finished recomputing yet.
+
+Landing attempts reuse a prior green grading result when the exact same
+head SHA has already passed required graders, or when a different commit
+has the same Git tree SHA, base ref, base SHA, and required-grader
+fingerprint. Repositories can also opt into **Trust clean rebases**
+(`trust_clean_rebase_grade`) to carry a green result across a
+conflict-free rebase, trading a small logical-conflict risk for landing
+throughput. Landing logs name the reuse path (`exact_head`,
+`same_tree`, or `clean_rebase_carry_forward`) or explain why graders ran
+again.
+
+In the dashboard, the landing queue treats each Epic as one contiguous
+landing unit. The Epic's child Jobs stay grouped together, with their
+internal order still following parent and dependency relationships, so the
+displayed queue positions match the order Syrus uses when landing the
+individual Jobs. Epic merge-trains use the same dependency-aware child
+ordering when building the integration branch.
+
+### MergeTrain (Epic merge-train)
+
+Trigger: an Epic whose every open child is approved. Steps:
+`merge_train_assemble -> merge_train_build -> merge_train_reconcile -> prepare ->
+landing grade loop repaired by landing_fix -> merge_train_land`.
+
+Instead of landing an Epic's PRs one at a time (each rebased onto the
+previous merge and graded again), the train integrates all of the Epic's
+children — topologically sorted by dependency — into a single integration
+branch, runs the graders **once** on the combined tree, lets the agent
+commit reconciliation fixes if needed, and then lands the whole branch in
+a **single atomic merge**. The child PRs are closed with a back-link to
+the integration merge and their Jobs marked merged. If a retry rebuilds
+the same integration SHA or the same integration tree that already passed
+required graders for the same base and grader configuration, Syrus reuses
+that signal and proceeds directly to landing.
+
+The guarantee is **Epic consistency**: an Epic advances as a whole,
+green, dependency-closed set or not at all — there are never half-merged
+Epics on the base branch. If the grade-and-fix loop can't make the
+integrated tree green (or a child won't integrate), the whole attempt
+fails and nothing lands; the children revert to needing re-approval, and
+re-approving them re-dispatches a fresh train. Epic children land only via
+the train, never individually.
+
+### Manual
+
+Trigger: an operator starts a free-form run. Steps: `manual`. The operator's
+prompt is passed directly to the configured agent provider. Manual
+workflows capture transcript and diff information, but they do not push or
+open a PR by themselves.
+
+### CiFailure
+
+Trigger: polling sees failed CI checks on an existing Syrus PR. Steps:
+`prepare -> grade loop repaired by analyze_and_fix -> summarize_amend -> try(push)`. The agent receives
+the failing check payload, diagnoses the failure, commits a fix, and pushes
+the updated branch. CI repair runs the graders configured for the `ci`
+phase, including CI-only checks. If the remote PR branch advanced first,
+Syrus rebases before blaming the PR branch, and it avoids running many
+CI-failure Workflows with the same failing base at once. A rolling cap
+prevents endless CI-failure loops on the same Job.
+
+## Step Kinds
+
+| Step | Agentic | Purpose |
+| --- | --- | --- |
+| `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
+| `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
+| `adversarial_review` | Yes | Independently review Initial and feedback workflow changes when `.syrus.yml` configures review rounds |
+| `visual_review` | Yes | Drive a preview in a browser and report visual findings when visual review is enabled |
+| `respond` | Yes | Address PR review feedback on an existing branch |
+| `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |
+| `format` | No | Run configured formatting commands inside the grade loop when present |
+| `generate` | No | Run configured generation commands inside the grade loop when present |
+| `landing_fix` | Yes | Make final merge-gate fixes before the landing graders run |
+| `summarize` | Yes | Collect PR title/body/summary through MCP |
+| `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
+| `test_plan` | Yes | Collect reviewer-facing test steps for Initial PR bodies |
+| `coverage_analyze` | No | Parse coverage artifacts, compute diff annotations, evaluate thresholds, and pre-render a PR comment body when `coverage.pr_comment: true` |
+| `coverage_pr_comment` | No | Post or update the coverage report comment on an existing PR (subsequent workflows); always a no-op when no coverage comment body was produced |
+| `pr_open` | No | Push the branch and open the pull request. For cross-fork Jobs (target repository differs from the working repository), opens a **fork review PR** (feature branch → fork default branch) as a staging artifact instead of the upstream PR directly. The upstream PR is created after the fork review PR is approved or merged. |
+| `push` | No | Push commits to an existing PR branch, update the cost footer, and clean-rebase once if the remote branch advanced |
+| `push_agent_rebase` | Yes | Resolve a conflicting follow-up push rebase onto the current remote PR branch |
+| `push_after_rebase` | No | Push a branch after the agentic follow-up rebase and grade loop |
+| `grader` | No | Run one configured repo grader. The UI groups grader setup, fanout, and aggregation under a single Grade row. |
+| `auto_rebase` | No | Try a deterministic rebase before involving an agent |
+| `agent_rebase` | Yes | Resolve rebase conflicts with the agent |
+| `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |
+| `auto_merge` | No | Re-check GitHub merge gates and merge the approved PR |
+| `merge_train_assemble` | No | Validate an Epic train's locked members |
+| `merge_train_build` | Yes | Merge the Epic's members into one integration branch, handing conflicts to the agent |
+| `merge_train_reconcile` | Yes | Reconcile cross-Job inconsistencies on the integration branch before validation |
+| `merge_train_rebase` | No | Rebuild a merge train when the base branch moves during landing |
+| `merge_train_land` | No | Atomically merge the integration branch and close member PRs |
+| `merge_train_land_after_rebase` | No | Land a merge train after base-moved recovery and validation |
+| `manual` | Yes | Run an operator-supplied prompt |
+
+Planned Step kinds include
+[`triage`](https://github.com/tkadauke/syrus/issues/176) for a short
+readiness check before an expensive implementation run. That is a roadmap
+item, not a current template step.
+
+## Template Selection
+
+Syrus chooses the template from the trigger kind:
+
+| Trigger kind | Template |
+| --- | --- |
+| `initial` | `Workflows::Initial` |
+| `pr_comment` | `Workflows::PrFeedback` |
+| `chat_feedback` | `Workflows::ChatFeedback` |
+| `ci_failure` | `Workflows::CiFailure` |
+| `rebase` | `Workflows::Rebase` |
+| `stack_rebase` | `Workflows::StackRebase` |
+| `auto_merge` | `Workflows::AutoMerge` |
+| `merge_train` | `Workflows::MergeTrain` |
+| `retry` | `Workflows::Retry` |
+| `coding_handoff` | `Workflows::CodingHandoff` |
+| `external_pr_ingest` | `Workflows::ExternalPrIngest` |
+| `skill` | `Workflows::Skill` |
+| `manual` | `Workflows::Manual` |
+
+The template creates a Workflow row, creates each Step row in order, and
+wires `next_step_id` from each Step to its successor. The dispatcher starts
+the first Run, then advances the chain as Steps succeed.
+
+## Fork Review Flow
+
+When a Job's `target_repository` differs from its working `repository` (cross-fork
+mode), the `pr_open` step creates a **fork review PR** on the fork rather than
+opening the upstream PR directly. This PR — feature branch against the fork's
+default branch — acts as a staging review artifact that the operator or
+a repository member must approve before the change reaches the upstream.
+
+**Approval signals** (polling only — no webhooks):
+
+| Signal | How detected |
+| --- | --- |
+| GitHub review approval on the fork PR | `PollForkReviewPrJob` reads `/reviews` and finds an `APPROVED` state |
+| GitHub merge of the fork PR | `PollForkReviewPrJob` finds `merged: true` (accidental merge, treated as implicit approval) |
+
+All signals are equivalent. On detection, `ForkReviewApprover`:
+
+1. Closes the fork review PR (skipped when already merged).
+2. Opens the upstream PR from the feature branch against `target_repository`'s default branch.
+3. Updates the Job's `pr_number` and `pr_repository_id` so normal PR polling takes over.
+4. Records approval based on the repository's review policy:
+   - **`self`** — records a GitHub review approval immediately; the Job becomes eligible for auto-merge.
+   - **`two_person` / `final_say`** — creates a `JobApproval` for the fork PR approver (matched by GitHub handle to a Syrus user; falls back to job owner). Additional approvals on the upstream PR are also polled — `PollPullRequestJob` reads `/reviews` on the upstream PR and creates a `JobApproval` for each `APPROVED` reviewer it can match to a Syrus user. When `approval_satisfied?` becomes true, the Job is auto-approved for landing.
+
+**Feature branch lifetime** — the feature branch is never deleted while the upstream PR is open. When the upstream PR is later closed or merged, `PollPullRequestJob` handles cleanup:
+
+- **Merged** — closes the Job as `pr_merged`; the fork branch is deleted.
+- **Closed without merge** — closes the Job as `pr_closed` or `no_changes`; the fork branch is deleted and an `upstream_pr_closed` notification is sent to the job owner so they know the upstream PR was rejected.
+
+**PR feedback iteration history** — each round of review feedback (a `pr_comment` or `chat_feedback` workflow) is stamped with a sequential iteration number in workflow artifacts (`pr_feedback_iteration`, `pr_feedback_auto`, `pr_feedback_source_handle`). The Job timeline (`Jobs::Timeline`) surfaces these as labeled "Feedback iteration N" events, showing whether each iteration was triggered automatically or confirmed by an operator, and who sent the triggering comment.
+
+## Next: DAG Workflows
+
+Today's linear chain is the v1 implementation of a broader DAG model. The
+roadmap keeps v2/v3 focused on explicit parallel branches and
+agent-authored edges via MCP, where the template becomes the minimum graph
+and the agent can append test plans, graders, or review steps as it learns
+what the change needs.
+
+Read the canonical roadmap entry:
+[Job as execution DAG](https://github.com/tkadauke/syrus/blob/main/ROADMAP.md#job-as-execution-dag-phased-agent-execution).

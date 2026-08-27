@@ -5,8 +5,12 @@ description: Product feature reference for Jobs, Epics, schedules, chats, creden
 
 # Features
 
-This page is the product-level reference. Use [Concepts](/docs/concepts)
-for the data model and [Workflows](/docs/workflows) for execution chains.
+This page is the broad product-level reference. Use [Concepts](/docs/concepts)
+for the data model, [Workflows](/docs/workflows) for execution chains,
+[Landing Code](/docs/landing) for merge behavior, [Tests and
+Graders](/docs/tests-and-graders) for validation, [Previews and Visual
+Review](/docs/previews) for browser review, and [Observability](/docs/observability)
+for debugging production behavior.
 
 ## Jobs
 

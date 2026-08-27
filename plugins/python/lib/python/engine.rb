@@ -19,6 +19,7 @@ module Python
         description:      "Python-generic intelligence: uv/poetry/pip prepare detection, " \
                            "pytest JSON-report grader detail, venv/uv prompt reminder, " \
                            "ruff format/black autofix, pip-audit dependency scanning, default type-hint review criterion",
+        long_description: "Python provides language-level support for Python repositories. It detects common dependency managers, prepares environments with uv, Poetry, or pip, augments pytest grader output, contributes formatter and dependency-audit commands, and reminds agents about virtual environment conventions.\n\nUse it for Python applications, scripts, libraries, and mixed-language repositories with Python components. Framework-specific plugins such as Django can depend on it for shared Python behavior.",
         homepage:         "https://github.com/tkadauke/syrus",
         author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/python.svg",

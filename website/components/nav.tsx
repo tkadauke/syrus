@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { Logo } from "./logo";
 import { ButtonLink } from "./button";
 import { DownloadButton } from "./download-cta";
+import { site } from "../lib/site";
 
 const links = [
   { href: "/#how", label: "How it works" },
   { href: "/#features", label: "Why Syrus" },
   { href: "/#entry-points", label: "Entry points" },
+  { href: "/plugins", label: "Plugins" },
+  { href: "/docs", label: "Docs" },
 ];
 
 export function Nav() {
@@ -48,6 +51,14 @@ export function Nav() {
           </div>
 
           <div className="flex items-center gap-2">
+            <a
+              href={site.repositoryUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden rounded-full px-3.5 py-2 text-sm font-medium text-cream-dim transition-colors hover:bg-[color-mix(in_oklab,var(--color-cream)_6%,transparent)] hover:text-cream sm:inline-flex"
+            >
+              GitHub
+            </a>
             <span className="hidden sm:inline-flex">
               <ButtonLink href="/#demo" variant="ghost" size="md">
                 Request a demo

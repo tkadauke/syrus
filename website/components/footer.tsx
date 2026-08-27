@@ -10,12 +10,15 @@ const cols: { title: string; links: FooterLink[] }[] = [
       { label: "How it works", href: "/#how" },
       { label: "Why Syrus", href: "/#features" },
       { label: "Entry points", href: "/#entry-points" },
+      { label: "Plugins", href: "/plugins" },
     ],
   },
   {
     title: "Get started",
     links: [
       { label: "Download", href: "/download" },
+      { label: "Docs", href: "/docs" },
+      { label: "GitHub repository", href: site.repositoryUrl, external: true },
       { label: "Request a demo", href: "/#demo" },
     ],
   },

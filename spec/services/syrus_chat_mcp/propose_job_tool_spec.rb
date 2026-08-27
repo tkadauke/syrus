@@ -22,6 +22,17 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
+  it "tells agents to use real newlines in Markdown descriptions" do
+    schema = described_class.input_schema_value.to_h
+
+    expect(described_class.description_value).to include("real newline characters")
+    expect(described_class.description_value).to include("literal")
+    expect(described_class.description_value).to include("`\\n`")
+    expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("real newline characters")
+    expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("literal")
+    expect(schema.fetch(:properties).fetch(:description).fetch(:description)).to include("`\\n`")
+  end
+
   it "creates a Job proposal targeting an existing Epic" do
     epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
 
