@@ -116,6 +116,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/theming_tools
+  specs:
+    theming_tools (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/whiteboard_tools
   specs:
     whiteboard_tools (0.1.0)
@@ -706,6 +712,7 @@ DEPENDENCIES
   syrus_rails!
   tailscale!
   tailwindcss-rails
+  theming_tools!
   thruster
   tzinfo-data
   vcr
@@ -923,6 +930,7 @@ CHECKSUMS
   tailwindcss-ruby (4.3.3-x86_64-darwin) sha256=483011e5d3792cf5ef4afdfb04c1d95daccf42c30cdb6fe53b77520954e7b922
   tailwindcss-ruby (4.3.3-x86_64-linux-gnu) sha256=2337017ff8b02698480eae1e9637cf01faa0e4824db89d067a13c5a5ee38c9b2
   tailwindcss-ruby (4.3.3-x86_64-linux-musl) sha256=27d478c417bcf73828e5b544744c5bdfd5b5cb54f1a266fc4f185281c32efe6c
+  theming_tools (0.1.0)
   thor (1.5.0) sha256=e3a9e55fe857e44859ce104a84675ab6e8cd59c650a49106a05f55f136425e73
   thruster (0.1.25) sha256=d97d704e91fa37d5858bc238dea6186f7310b633abfeea9f2ba814f252203716
   thruster (0.1.25-aarch64-linux) sha256=495265b11fc3c3596ae0d70ed902b60db82dafb2a5b47a2c527d3176ee3cf311
