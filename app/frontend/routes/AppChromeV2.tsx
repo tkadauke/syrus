@@ -18,7 +18,8 @@ import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { fetchTerminalSessions } from "../api/terminal"
 import { fetchThemes } from "../api/themes"
-import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
+import { useT } from "../hooks/useT"
+import { BugIcon, BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { Input } from "../components/Input"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
@@ -255,6 +256,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
           onNotice={setNotice}
+          onOpenBugReport={openBugReport}
           onReorderNavItems={reorderSidebarNav.mutate}
           onStartChat={startChat}
           onStartGroupChat={startGroupChat}
@@ -287,6 +289,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             navItems={navItems}
             onCloseDrawer={() => setDrawerOpen(false)}
             onNotice={setNotice}
+            onOpenBugReport={openBugReport}
             onReorderNavItems={reorderSidebarNav.mutate}
             onStartChat={startChat}
             onStartGroupChat={startGroupChat}
@@ -300,7 +303,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       ) : null}
 
       <main className={`min-w-0 flex-1 ${isMobileChatPage ? "flex flex-col overflow-hidden" : "overflow-auto"}`}>
-        <div className="flex w-full shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+        <div className="sticky top-0 z-20 flex w-full shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 lg:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <button
               aria-label={t("nav:open_sidebar")}
@@ -312,7 +315,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             </button>
             <TestChannelBadge />
           </div>
-          {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+          <div className="flex items-center gap-1">
+            <BugReportTriggerButton onClick={() => openBugReport()} />
+            {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+          </div>
         </div>
         <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
         <FlashBanner flash={data?.flash} />
@@ -330,7 +336,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatId} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
+      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatId} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
       {groupChatPickerOpen ? (
         <ParticipantPickerModal
@@ -345,6 +351,21 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     </div>
     </BugReportContext.Provider>
     </ThemeProvider>
+  )
+}
+
+function BugReportTriggerButton({ onClick }: { onClick: () => void }) {
+  const { t } = useT("common")
+  return (
+    <button
+      aria-label={t("bug_report.title")}
+      className="inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+      onClick={onClick}
+      title={t("bug_report.title")}
+      type="button"
+    >
+      <BugIcon />
+    </button>
   )
 }
 
@@ -648,6 +669,7 @@ function SidebarContent({
   navItems,
   onCloseDrawer,
   onNotice,
+  onOpenBugReport,
   onReorderNavItems,
   onStartChat,
   onStartGroupChat,
@@ -663,6 +685,7 @@ function SidebarContent({
   navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
   onCloseDrawer: () => void
   onNotice: (message: string | null) => void
+  onOpenBugReport: () => void
   onReorderNavItems: (order: string[]) => void
   onStartChat: () => void
   onStartGroupChat: () => void
@@ -764,6 +787,7 @@ function SidebarContent({
             <TestChannelBadge />
           </div>
           <div className="flex items-center gap-1">
+            {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}

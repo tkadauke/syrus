@@ -11,6 +11,16 @@ import { AppChromeV2 } from "./AppChromeV2"
 import { chatSectionsFromPayload } from "./appChromeV2/helpers"
 import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
+const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
+  toBlob(callback: (blob: Blob | null) => void) {
+    callback(new Blob(["screenshot"], { type: "image/png" }))
+  }
+})))
+
+vi.mock("html2canvas-pro", () => ({
+  default: html2canvasMock
+}))
+
 describe("AppChromeV2", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -637,6 +647,107 @@ describe("AppChromeV2 mobile chat scroll containment", () => {
     } finally {
       restoreMatchMedia()
     }
+  })
+})
+
+describe("AppChromeV2 mobile header pinning", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("pins the mobile top bar with sticky classes on a non-chat route", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+      const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
+      expect(topBar).not.toBeNull()
+      expect(topBar).toHaveClass("sticky", "top-0")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("pins the mobile top bar with sticky classes on a chat route too (a harmless no-op alongside chat's own overflow-hidden pinning)", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div data-testid="chat-body">Chat body</div>, { initialEntries: ["/chats/5"] })
+
+      const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
+      expect(topBar).not.toBeNull()
+      expect(topBar).toHaveClass("sticky", "top-0")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("keeps the mobile top bar mounted (not scrolled away) after scrolling a non-chat page", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+      const main = screen.getByRole("main")
+      fireEvent.scroll(main, { target: { scrollTop: 800 } })
+
+      const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden")
+      expect(topBar).toHaveClass("sticky", "top-0")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+})
+
+describe("AppChromeV2 bug report trigger placement", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+    html2canvasMock.mockClear()
+  })
+
+  it("renders a static, non-floating bug-report trigger next to the mobile top-bar notification bell and opens the report flow", async () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+      const topBar = screen.getByLabelText("Open sidebar").closest("div.lg\\:hidden") as HTMLElement
+      const trigger = within(topBar).getByRole("button", { name: "Report a bug" })
+      expect(trigger.className).not.toContain("fixed")
+      expect(trigger).not.toHaveAttribute("draggable")
+
+      fireEvent.click(trigger)
+
+      expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("renders a static, non-floating bug-report trigger next to the desktop sidebar's notification bell and opens the report flow", async () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    const desktopSidebar = document.querySelector("aside.lg\\:flex") as HTMLElement
+    expect(desktopSidebar).not.toBeNull()
+    const trigger = within(desktopSidebar).getByRole("button", { name: "Report a bug" })
+    expect(trigger.className).not.toContain("fixed")
+    expect(trigger).not.toHaveAttribute("draggable")
+
+    fireEvent.click(trigger)
+
+    expect(await screen.findByRole("dialog", { name: "Report a bug" })).toBeInTheDocument()
+  })
+
+  it("never renders a fixed/draggable floating bug-report button", () => {
+    renderAppChrome(<div>Jobs list</div>, { initialEntries: ["/dashboard/jobs"] })
+
+    screen.getAllByRole("button", { name: "Report a bug" }).forEach((button) => {
+      expect(button.className).not.toContain("fixed")
+      expect(button.className).not.toContain("cursor-grab")
+    })
   })
 })
 
