@@ -754,6 +754,44 @@ RSpec.describe ChatPendingAction do
     expect(action.errors[:repository]).to be_present
   end
 
+  describe ".repair_tool_call_anchors_for!" do
+    def tool_use_message(tool_use_id: "toolu_123")
+      chat_session.messages.create!(
+        role: "tool_use",
+        tool_name: "propose_cancel_job",
+        tool_use_id: tool_use_id,
+        content: { "type" => "tool_use", "id" => tool_use_id, "name" => "propose_cancel_job", "input" => {} }
+      )
+    end
+
+    it "anchors a queued action with a tool_use_id but no chat_message_id" do
+      message = tool_use_message
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {}, tool_use_id: message.tool_use_id)
+
+      described_class.repair_tool_call_anchors_for!(chat_session)
+
+      expect(action.reload.chat_message_id).to eq(message.id)
+    end
+
+    it "still anchors an action that failed before its originating tool call result could anchor it" do
+      # Mirrors the stdio-mode ChatTurnJob path: the propose call's own
+      # tool_result was flagged is_error, so anchor_pending_action_to_tool_call!
+      # is skipped at creation time, leaving chat_message_id nil. The action
+      # is later confirmed and fails -- it must still be findable by this
+      # repair, not just while it sits in queued/pending.
+      message = tool_use_message
+      action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {}, tool_use_id: message.tool_use_id)
+      action.update!(state: "confirming")
+      action.fail_confirmation!(StandardError.new("boom"))
+      expect(action.reload).to be_failed
+      expect(action.chat_message_id).to be_nil
+
+      described_class.repair_tool_call_anchors_for!(chat_session)
+
+      expect(action.reload.chat_message_id).to eq(message.id)
+    end
+  end
+
   describe "PendingActions registry" do
     it "raises UnknownAction for an unrecognized action key" do
       expect {

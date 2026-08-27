@@ -281,8 +281,16 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def self.repair_tool_call_anchors_for!(chat_session)
+    # Match visible_in_chat_payload?'s state set (minus confirmed, which is
+    # only visible for a fleeting second and not worth repairing for): a
+    # pending action can transition from pending to confirming to failed
+    # before this repair ever runs, and if it was never anchored to its
+    # originating tool call it must not fall out of scope just because it
+    # is no longer queued/pending -- that's what left failed actions
+    # permanently stuck at the bottom of the chat instead of anchored to
+    # the tool call that created them.
     unanchored_actions = chat_session.pending_actions
-      .where(state: %w[queued pending], chat_message_id: nil)
+      .where(state: %w[queued pending confirming failed], chat_message_id: nil)
       .select(:id, :chat_session_id, :tool_use_id, :created_at)
       .to_a
     return if unanchored_actions.blank?
