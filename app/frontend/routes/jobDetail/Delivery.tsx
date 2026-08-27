@@ -88,8 +88,9 @@ function PrLinksList({ prLinks }: { prLinks: JobPrLink[] }) {
   )
 }
 
-function deliveryStatusTone(status: JobDetailPayload["job"]["delivery_status"]): "amber" | "blue" | "green" | "gray" {
-  if (status === "delivery_needs_attention" || status === "upstream_closed_without_merge") return "amber"
+function deliveryStatusTone(status: JobDetailPayload["job"]["delivery_status"]): "amber" | "blue" | "green" | "gray" | "red" {
+  if (status === "delivery_needs_attention") return "red"
+  if (status === "upstream_closed_without_merge") return "amber"
   if (status === "upstream_merged") return "green"
   if (status === "waiting_for_local_approval") return "gray"
   return "blue"

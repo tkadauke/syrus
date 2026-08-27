@@ -2610,8 +2610,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_232016) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
-  add_foreign_key "job_pr_links", "jobs"
-  add_foreign_key "job_pr_links", "repositories", column: "source_repository_id"
-  add_foreign_key "job_pr_links", "repositories", column: "target_repository_id"
 end

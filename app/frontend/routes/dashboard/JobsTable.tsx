@@ -1073,7 +1073,7 @@ function isNotableDeliveryStatus(status: DashboardJobItem["delivery_status"]): s
 
 function DeliveryStatusBadge({ status }: { status: NonNullable<DashboardJobItem["delivery_status"]> }) {
   const { t } = useT("dashboard")
-  const tone = status === "delivery_needs_attention" || status === "upstream_closed_without_merge" ? "amber" : "blue"
+  const tone = status === "delivery_needs_attention" ? "red" : status === "upstream_closed_without_merge" ? "amber" : "blue"
   return <TonePill tone={tone}>{t(`delivery_status.${status}`)}</TonePill>
 }
 

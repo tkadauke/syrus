@@ -3,7 +3,7 @@
 # Job's overloaded single-purpose PR columns (`pr_number`,
 # `external_pr_number`, `fork_review_pr_number`, `pr_repository_id`) — see
 # config/syrus_docs/delivery_tracks.md. Written additively alongside those
-# legacy columns; nothing reads from this model yet.
+# legacy columns.
 class JobPrLink < ApplicationRecord
   ROLE_LOCAL = "local".freeze
   ROLE_UPSTREAM_EXPORT = "upstream_export".freeze
