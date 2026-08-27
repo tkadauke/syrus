@@ -245,27 +245,40 @@ declarative-metadata-plus-glob-discovery design rationale.
 
 `propose_job`, `propose_epic_with_jobs`, and `submit_chat_feedback` all accept
 an optional `media` array of refs in the form `snapshot:ID` (a whiteboard
-snapshot saved via `save_canvas`) or `chat_image:ID` (a pasted/attached chat
-image). `list_chat_media` lists the refs currently available in the session.
-The `ChatMediaRef` format is shared across proposal and feedback validation so
-a malformed or out-of-session ref is rejected consistently.
+snapshot saved via `save_canvas`), `chat_image:ID` (a pasted/attached chat
+image), or `preview_panel_version:ID` (a preview panel mockup's published
+source files, see `preview_panels.md`; `show_preview`'s response includes
+`version_id`). `list_chat_media` lists the refs currently available in the
+session. The `ChatMediaRef` format is shared across proposal and feedback
+validation so a malformed or out-of-session ref is rejected consistently.
 
 Resolution and attachment (`ChatMediaAttacher`) is shared too: a `snapshot:ID`
 ref resolves against `chat_session.whiteboard_snapshots` and becomes a
 `pending_snapshot` `Document`; a `chat_image:ID` ref resolves against
 `chat_session.attached_repository_documents` and becomes a `file` `Document`
-re-associated with the same uploaded blob. Both attach to `job.job_attachments`.
-A ref that no longer resolves (the snapshot or image was deleted after the
-proposal/feedback was created) is skipped rather than failing the whole
-request.
+re-associated with the same uploaded blob; a `preview_panel_version:ID` ref
+resolves against `PreviewPanelVersion`s owned by one of the chat session's own
+`preview_panels` and becomes one `file` `Document` per file attached to that
+version, each re-associated with the version's existing blob — no new zip,
+screenshot, or byte-copy path. All share blobs directly rather than
+duplicating storage. A ref that no longer resolves (the snapshot, image, or
+preview panel version was deleted, or belongs to a different chat session) is
+skipped rather than failing the whole request.
 
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the
-skip is logged; the request itself still succeeds. Once attached, no further
-plumbing is needed to reach the agent — `JobAttachmentContext` re-reads
-`job.job_attachments` on every agentic step (including the `respond` step
-`chat_feedback` workflows run) and downloads/lists them in the prompt.
+skip is logged; the request itself still succeeds. A `preview_panel_version`
+ref that has more files than the remaining capacity is a partial case of the
+same rule: Syrus attaches as many files as fit and appends a note to the
+Job's `issue_body` listing which files were omitted, rather than failing the
+whole attach or bumping the cap. Once attached, no further plumbing is needed
+to reach the agent — `JobAttachmentContext` re-reads `job.job_attachments` on
+every agentic step (including the `respond` step `chat_feedback` workflows
+run) and downloads/lists them in the prompt; files sourced from a preview
+panel version get an added prompt note framing them as reference material for
+the implementing agent to adapt to the target repo's own conventions, not
+boilerplate to copy verbatim.
 
 ## Proposal dependencies
 
@@ -293,3 +306,10 @@ The chat MCP `add_job_dependency` tool accepts `satisfaction_mode`. The default
 `success` mode is for implementation ordering and waits for a successful close.
 Use `closed` only for cleanup or teardown gates where the dependent Job should
 start once the target Job is terminal even if it was cancelled.
+
+A `propose_job` card with `epic_id` set targets an existing Epic — confirming
+it adds the Job as that Epic's child instead of creating an epicless direct
+Job. The proposal edit modal shows the target Epic as a removable pill; an
+operator can clear it before confirming so the Job materializes without an
+Epic. There is no UI to assign or change the target Epic to a different one
+from the edit modal — only remove it.

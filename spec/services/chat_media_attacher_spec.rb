@@ -24,6 +24,11 @@ RSpec.describe ChatMediaAttacher do
     doc
   end
 
+  def preview_panel_version(files: { "index.html" => "<h1>hi</h1>" }, session: chat_session)
+    panel = PreviewPanel.create!(chat_session: session, title: "Widget preview")
+    panel.create_version!(files)
+  end
+
   describe "#attach!" do
     it "attaches a pending_snapshot Document for a snapshot:ID ref" do
       snapshot = whiteboard_snapshot
@@ -88,6 +93,54 @@ RSpec.describe ChatMediaAttacher do
       expect(result.attached.size).to eq(2)
       expect(result.any_skipped?).to be(true)
       expect(job.job_attachments.count).to eq(2)
+    end
+
+    it "attaches one Document per file for a preview_panel_version:ID ref by sharing each blob" do
+      version = preview_panel_version(files: { "index.html" => "<h1>hi</h1>", "css/app.css" => "body {}" })
+
+      result = described_class.new(chat_session: chat_session, job: job).attach!([ "preview_panel_version:#{version.id}" ])
+
+      expect(result.attached.size).to eq(2)
+      expect(result.skipped).to be_empty
+      expect(job.job_attachments.count).to eq(2)
+      job.job_attachments.each do |attachment|
+        expect(attachment).to have_attributes(kind: "file")
+        blob = version.files.find { |file| file.blob.filename.to_s == attachment.filename }.blob
+        expect(attachment.file.blob).to eq(blob)
+      end
+    end
+
+    it "caps at Document::MAX_ATTACHMENTS_PER_JOB and notes omitted files on the Job instead of failing" do
+      stub_const("Document::MAX_ATTACHMENTS_PER_JOB", 1)
+      version = preview_panel_version(files: { "index.html" => "<h1>hi</h1>", "css/app.css" => "body {}" })
+
+      result = described_class.new(chat_session: chat_session, job: job).attach!([ "preview_panel_version:#{version.id}" ])
+
+      expect(result.attached.size).to eq(1)
+      expect(result.skipped).to be_empty
+      expect(job.job_attachments.count).to eq(1)
+      job.reload
+      expect(job.issue_body).to include("1 preview panel mockup file(s) were not attached")
+      expect(job.issue_body).to include("css-app.css")
+    end
+
+    it "skips a preview_panel_version ref that does not resolve" do
+      result = described_class.new(chat_session: chat_session, job: job).attach!([ "preview_panel_version:999999" ])
+
+      expect(result.attached).to be_empty
+      expect(result.skipped.first).to include(ref: "preview_panel_version:999999")
+      expect(job.job_attachments).to be_empty
+    end
+
+    it "skips a preview_panel_version ref that belongs to a different chat session" do
+      other_session = ChatSession.create!(user: user, repository: repository)
+      version = preview_panel_version(session: other_session)
+
+      result = described_class.new(chat_session: chat_session, job: job).attach!([ "preview_panel_version:#{version.id}" ])
+
+      expect(result.attached).to be_empty
+      expect(result.skipped.first).to include(ref: "preview_panel_version:#{version.id}")
+      expect(job.job_attachments).to be_empty
     end
   end
 end

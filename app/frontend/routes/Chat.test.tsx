@@ -1895,6 +1895,43 @@ describe("chat proposal cards", () => {
     expect(await screen.findByText("Survey north aqueduct")).toBeInTheDocument()
   })
 
+  it("removes the target epic from a job proposal in the edit modal", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/proposals/1" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(chatPayload({
+          messages: [messageWithProposal(9, proposal({ target_epic_id: null, target_epic_label: null }))]
+        })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal({ target_epic_id: 42, target_epic_label: "EPIC-42" }))]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit proposal" })
+    expect(within(dialog).getByText("EPIC-42")).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove target epic" }))
+    expect(within(dialog).queryByText("EPIC-42")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/proposals/1", expect.objectContaining({ method: "PATCH" }))
+    })
+    const patchCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/app/chats/8/proposals/1" && (call[1] as RequestInit | undefined)?.method === "PATCH")
+    expect(JSON.parse(String((patchCall?.[1] as RequestInit).body))).toMatchObject({
+      proposal: { target_epic_id: null }
+    })
+  })
+
   it("closes the edit modal on Escape when the proposal is unchanged", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -4622,6 +4659,7 @@ function proposal(overrides: Record<string, unknown> = {}) {
     dependency_slugs: [],
     dependencies: [],
     has_dependencies: false,
+    target_epic_id: null,
     target_epic_label: null,
     app_update_path: "/api/v1/app/chats/8/proposals/1",
     app_confirm_path: "/api/v1/app/chats/8/proposals/1/confirm",
@@ -5172,6 +5210,7 @@ describe("renderChatMessages tool_result content key", () => {
       depends_on_epic_ids: [],
       dependencies: [],
       has_dependencies: false,
+      target_epic_id: null,
       target_epic_label: null,
       app_update_path: "/api/v1/app/chats/122/proposals/88",
       app_confirm_path: "/api/v1/app/chats/122/proposals/88/confirm",

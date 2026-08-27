@@ -250,6 +250,7 @@ module Filters
       name: :chat_message,
       model: ChatMessage,
       chips: {
+        "repository_id" => "Filters::Chips::ChatMessages::RepositoryId",
         "created_at" => "Filters::Chips::CreatedAt",
         "updated_at" => "Filters::Chips::UpdatedAt"
       }

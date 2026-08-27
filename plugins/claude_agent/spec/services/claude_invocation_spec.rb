@@ -712,6 +712,31 @@ RSpec.describe ClaudeInvocation do
       expect(captured[:command]).not_to include("A HUGE PROMPT BODY")
     end
 
+    it "attributes the spawned process to the current chat session so admin Processes can show the owner" do
+      chat_session = ChatSession.create!(user: Factories.user)
+      captured = {}
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        captured[:chat_session] = kwargs[:chat_session]
+        fake = double("ProcessRunner")
+        allow(fake).to receive(:run).and_return(
+          ProcessRunner::Result.new(
+            exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+            operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+          )
+        )
+        fake
+      end
+
+      begin
+        Thread.current[:syrus_current_chat_session] = chat_session
+        described_class.new("/tmp", prompt: "P", oauth_token: "x").run
+      ensure
+        Thread.current[:syrus_current_chat_session] = nil
+      end
+
+      expect(captured[:chat_session]).to eq(chat_session)
+    end
+
     it "passes --resume <id> when resume_session_id is set" do
       invocation = described_class.new("/tmp", prompt: "P", oauth_token: "x",
                                        resume_session_id: "abc-123")

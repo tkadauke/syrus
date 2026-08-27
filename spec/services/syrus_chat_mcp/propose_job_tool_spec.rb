@@ -78,6 +78,43 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(proposal.depends_on_job_ids).to eq([ existing_job.id ])
   end
 
+  it "rejects a fork: chaining onto an Epic Job that already has a downstream child" do
+    epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
+    root_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 9)
+    tail_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 10)
+    JobDependency.create!(job: tail_job, depends_on_job: root_job, source: "manual", created_by_user: user)
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Second label carver",
+      description: "Also chains onto the root, forking the stack.",
+      depends_on_job_ids: [ root_job.id ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("single chain")
+    expect(chat_session.proposals.find_by(title: "Second label carver")).to be_nil
+  end
+
+  it "rejects a merge: chaining onto more than one existing Epic Job at once" do
+    epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
+    first_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 9)
+    second_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 10)
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Joint dedication",
+      description: "Depends on both unrelated existing Jobs at once.",
+      depends_on_job_ids: [ first_job.id, second_job.id ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("single chain")
+    expect(chat_session.proposals.find_by(title: "Joint dedication")).to be_nil
+  end
+
   it "creates an epicless Job proposal with dependency edges" do
     root = chat_session.proposals.create!(
       repository: repository,

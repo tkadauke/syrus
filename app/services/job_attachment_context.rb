@@ -1,7 +1,16 @@
 class JobAttachmentContext
   ATTACHMENTS_DIR = Pathname("tmp/attachments").freeze
+  PREVIEW_PANEL_MOCKUP_REF_PREFIX = "preview_panel_version:"
 
-  Entry = Data.define(:name, :type, :path, :url)
+  PREVIEW_PANEL_MOCKUP_NOTE = <<~TEXT.strip
+    Some of the files above are static HTML/CSS/JS source from a preview
+    panel mockup a planning chat agent built. Treat them as reference
+    material describing the intended look and behavior -- adapt the ideas to
+    this repo's own conventions (framework, component structure, styling
+    system) rather than copying the markup or files verbatim.
+  TEXT
+
+  Entry = Data.define(:name, :type, :path, :url, :reference_only)
 
   def initialize(job:, workspace_path:)
     @job = job
@@ -17,7 +26,8 @@ class JobAttachmentContext
           name: "Google Doc",
           type: "google_doc_link",
           path: nil,
-          url: attachment.google_doc_url
+          url: attachment.google_doc_url,
+          reference_only: false
         )
       end
     end
@@ -50,8 +60,13 @@ class JobAttachmentContext
       name: attachment.file.filename.to_s,
       type: attachment.file.blob.content_type.to_s,
       path: ATTACHMENTS_DIR.join(filename).to_s,
-      url: nil
+      url: nil,
+      reference_only: preview_panel_mockup?(attachment)
     )
+  end
+
+  def preview_panel_mockup?(attachment)
+    attachment.source_url.to_s.start_with?(PREVIEW_PANEL_MOCKUP_REF_PREFIX)
   end
 
   def unique_filename(dir, filename)
@@ -77,12 +92,14 @@ class JobAttachmentContext
       end
     end
 
+    mockup_note = entries.any?(&:reference_only) ? "\n\n#{PREVIEW_PANEL_MOCKUP_NOTE}" : ""
+
     <<~PROMPT.strip
       # Job Attachments
 
       The operator attached supporting context for this Job. Uploaded files have been downloaded into the workspace; inspect them directly when relevant.
 
-      #{lines.join("\n")}
+      #{lines.join("\n")}#{mockup_note}
     PROMPT
   end
 end

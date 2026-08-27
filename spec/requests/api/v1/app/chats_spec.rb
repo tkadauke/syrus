@@ -3248,6 +3248,58 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("message")).to eq("Proposal updated.")
   end
 
+  it "removes the target epic from a proposed job proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, title: "Existing Epic")
+    proposal = chat.proposals.create!(
+      slug: "auth-map",
+      title: "Map auth",
+      body: "Map it.",
+      repository: repository,
+      kind: "job",
+      target_epic: epic
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: {
+        title: "Map auth",
+        body: "Map it.",
+        dependency_slugs: [],
+        target_epic_id: ""
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.target_epic_id).to be_nil
+    expect(parse_body.dig("proposal", "target_epic_id")).to be_nil
+    expect(parse_body.dig("proposal", "target_epic_label")).to be_nil
+  end
+
+  it "leaves the target epic unchanged when target_epic_id is omitted" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, title: "Existing Epic")
+    proposal = chat.proposals.create!(
+      slug: "auth-map",
+      title: "Map auth",
+      body: "Map it.",
+      repository: repository,
+      kind: "job",
+      target_epic: epic
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: { title: "Map auth", body: "Map it.", dependency_slugs: [] }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.target_epic_id).to eq(epic.id)
+    expect(parse_body.dig("proposal", "target_epic_id")).to eq(epic.id)
+  end
+
   it "rejects updates to confirmed proposals" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -3718,6 +3770,22 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to eq("Layout mockup closed.")
     expect(parse_body["preview_panels"]).to eq([])
     expect(panel.reload.state).to eq("closed")
+  end
+
+  it "lists preview panel versions newest-first with the current version id" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>v1</p>" })
+    first_version_id = panel.current_version.id
+    PreviewPanel::Service.new(panel).update!(files: { "index.html" => "<p>v2</p>" })
+    second_version_id = panel.reload.current_version.id
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    panel_payload = parse_body["preview_panels"].first
+    expect(panel_payload["current_version_id"]).to eq(second_version_id)
+    expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id, first_version_id ])
+    expect(panel_payload["file_count"]).to eq(1)
   end
 
   it "includes plugin-registered workspace tabs in the chat payload" do

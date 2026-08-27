@@ -12,22 +12,33 @@ other workspace tabs.
 
 ## Model and mutation path
 
-`PreviewPanel` (`belongs_to :chat_session`, `has_many_attached :files`) has an
-`open`/`closed` state and a derived URL,
-`preview_url(base_domain, scheme: "http") = "<scheme>://preview-panel-<id>.<base_domain>"`.
-The chat payload serializer (`ChatSerialization#preview_panels_json`) passes
-`scheme: request.ssl? ? "https" : "http"` so the returned URL always matches
-the scheme of the page embedding it — an `http://` URL inside an `<iframe
-src>` on an https page is blocked by browsers as mixed active content, even
-though the same URL loads fine via direct top-level navigation.
-`PreviewEnvironment#preview_url` has the identical hardcoded-`http://`
-shape but is only ever opened via direct top-level navigation (never
-embedded), so it doesn't need the same fix. `PreviewPanel::Service` is the
-sole sanctioned mutation path:
+`PreviewPanel` (`belongs_to :chat_session`) has an `open`/`closed` state and a
+derived URL, `preview_url(base_domain, scheme: "http") =
+"<scheme>://preview-panel-<id>.<base_domain>"`. The chat payload serializer
+(`ChatSerialization#preview_panels_json`) passes `scheme: request.ssl? ?
+"https" : "http"` so the returned URL always matches the scheme of the page
+embedding it — an `http://` URL inside an `<iframe src>` on an https page is
+blocked by browsers as mixed active content, even though the same URL loads
+fine via direct top-level navigation. `PreviewEnvironment#preview_url` has the
+identical hardcoded-`http://` shape but is only ever opened via direct
+top-level navigation (never embedded), so it doesn't need the same fix.
 
-- `open!(chat_session:, title:, files: {})` — creates an open panel.
-- `#update!(files:)` — replaces the full attached file set (purge + reattach,
-  not append, so a file removed from a later revision stops being served).
+File attachments live one level down, on `PreviewPanelVersion` (`belongs_to
+:preview_panel`, `has_many_attached :files`, ordered newest-first by
+default) — one row per published revision, following the same append-only
+pattern as `WhiteboardSnapshot`. `PreviewPanel#current_version` is the first
+(newest) row; `PreviewPanel#file_for(relative_path, version: nil)` resolves a
+file within a version, defaulting to the current one. Retention is
+indefinite — same cost/retention posture as ordinary attachments; there is no
+pruning job. `PreviewPanel::Service` is the sole sanctioned mutation path:
+
+- `open!(chat_session:, title:, files: {})` — creates an open panel and its
+  first version.
+- `#update!(files:)` — publishes a new `PreviewPanelVersion` snapshot from the
+  given files via `PreviewPanel#create_version!`. Prior versions and their
+  attachments are left intact and stay servable by id — this is what makes
+  version history possible, unlike the model's old purge-and-reattach
+  `replace_files!` behavior.
 - `#close!` — transitions the panel to `closed`.
 
 Every mutation broadcasts an `AppUserChannel` app event
@@ -39,27 +50,37 @@ updates live.
 `PreviewProxyMiddleware` gets a `preview-panel-<id>.<base_domain>`
 host-matching branch alongside its existing `preview-<job_id>` (running
 process) branch. For a panel request it looks up the open `PreviewPanel` by
-id, resolves the request path against the panel's attached files by their
-stored `relative_path` blob metadata (ActiveStorage sanitizes `/` out of
-plain filenames, so lookup can't use `blob.filename`), defaulting a blank or
-root path to `index.html`, and streams the matching blob with an inferred
-content type. It reuses the same `PREVIEW_CSP` header the process-proxy
-branch sets. Origin isolation (a distinct subdomain per panel, not
-same-origin-with-sandbox) is required because a sandboxed iframe's
-restrictions only protect framed content, not a browser tab navigated
-directly to a copied preview URL.
+id, resolves which `PreviewPanelVersion` to serve from an optional `?v=
+<version_id>` query param (defaulting to `panel.current_version`, the latest,
+when absent or when the id doesn't belong to the panel), resolves the request
+path against that version's attached files by their stored `relative_path`
+blob metadata (ActiveStorage sanitizes `/` out of plain filenames, so lookup
+can't use `blob.filename`), defaulting a blank or root path to `index.html`,
+and streams the matching blob with an inferred content type. It reuses the
+same `PREVIEW_CSP` header the process-proxy branch sets. Origin isolation (a
+distinct subdomain per panel, not same-origin-with-sandbox) is required
+because a sandboxed iframe's restrictions only protect framed content, not a
+browser tab navigated directly to a copied preview URL.
 
 ## Chat sidebar UI
 
 `workspaceTabs.ts` has a `PreviewTab` variant (`preview:<id>`) alongside the
 sidebar's other, singleton, static tab kinds. `WorkspacePanels.tsx` renders
-one tab strip entry per open panel and displays the active panel's content in
-a sandboxed iframe (`allow-scripts`, deliberately no `allow-same-origin`)
-pointed at the panel's per-instance subdomain. Chat payload serialization
-includes `preview_panels` (`id`, `title`, `file_count`, `url`,
-`app_close_path`) so opening or closing a panel shows up live through the
-existing app-events refresh path. Closing a tab calls
-`DELETE /api/v1/app/chats/:id/preview_panels/:panel_id`, which drives
+one tab strip entry per open panel and, for the active panel, a small toolbar
+strip above the iframe: a version selector dropdown (hidden when the panel
+only has one version) and an "open in new tab" button, followed by a
+sandboxed iframe (`allow-scripts`, deliberately no `allow-same-origin`)
+pointed at the panel's per-instance subdomain. The version selector lists
+`panel.versions` newest-first (each labeled "Latest" / "Version N" with a
+relative timestamp); switching versions updates both the iframe `src`'s `?v=`
+param (triggering a reload) and the open-in-new-tab link, so the link always
+carries whichever version is currently selected rather than hardcoding the
+latest. Chat payload serialization includes `preview_panels` (`id`, `title`,
+`file_count`, `url`, `app_close_path`, `current_version_id`, `versions` — each
+`{ id, created_at }`, newest-first) so opening or closing a panel, or
+publishing a new version, shows up live through the existing app-events
+refresh path. Closing a tab calls `DELETE
+/api/v1/app/chats/:id/preview_panels/:panel_id`, which drives
 `PreviewPanel::Service#close!` — the panel actually stops resolving
 server-side rather than just hiding client-side.
 
@@ -88,10 +109,12 @@ scoped only to a preview panel's own scratch directory:
   files into that panel's scratch directory, then call `show_preview` again
   with the same `panel_id` to publish them. With `panel_id`, walks the
   panel's current scratch directory and calls `PreviewPanel::Service#update!`
-  with it, replacing the previously published file set — call repeatedly to
-  iterate in place. Requires `entry_file` (default `index.html`) to already
-  exist among the scratch files before publishing, since the panel always
-  serves `index.html` for its root URL regardless of `entry_file`.
+  with it, publishing a new `PreviewPanelVersion` snapshot — call repeatedly
+  to iterate in place; each call adds to the panel's version history rather
+  than overwriting it, so earlier iterations stay servable by version id.
+  Requires `entry_file` (default `index.html`) to already exist among the
+  scratch files before publishing, since the panel always serves
+  `index.html` for its root URL regardless of `entry_file`.
 - `close_preview(panel_id)` — calls `PreviewPanel::Service#close!`.
 
 Both "quick interactive widget page" and "freeform layout mockup" go through
@@ -115,3 +138,17 @@ scratch alternative.
 Reuses `SYRUS_PREVIEW_BASE_DOMAIN` (see [Preview
 Environments](preview_environments.md#configuration)) — no separate
 environment variable.
+
+## Handing a mockup to an implementation Job
+
+`show_preview`'s response includes `version_id` (the just-published
+`PreviewPanelVersion`'s id). A planning agent that built a mockup can pass
+`"preview_panel_version:<version_id>"` in `propose_job`'s `media` array (see
+[Chat](chat.md#media-attachments)) to give the implementing agent direct
+access to that version's HTML/CSS/JS source, reusing the same
+`ChatMediaAttacher` blob-sharing pipeline snapshots and chat images already
+go through — one `Document` per attached file, sharing the existing blob
+rather than copying it. No zip/unzip, screenshot, or browser-automation step
+is involved. `JobAttachmentContext` frames these files to the implementing
+agent as reference material to adapt to the target repo's own conventions,
+not boilerplate to copy verbatim.

@@ -15,7 +15,7 @@ class PreviewPanel::Service
   attr_reader :panel
 
   def update!(files:)
-    panel.replace_files!(files)
+    panel.create_version!(files)
     panel.broadcast_change!
     panel
   end
