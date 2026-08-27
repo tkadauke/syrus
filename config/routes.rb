@@ -536,7 +536,8 @@ Rails.application.routes.draw do
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
   get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
   get "repositories/:repository_id/plugin/*path", to: "spa#show", as: :repository_plugin_spa, constraints: lambda { |request|
-    PluginRouteResolver.spa_route_declared?(request.path)
+    PluginRouteResolver.spa_route_declared?(request.path) ||
+      PluginRouteResolver.repo_page_tab_route?(request.path)
   }
 
   get "chats/search", to: "spa#show", as: :search_chats

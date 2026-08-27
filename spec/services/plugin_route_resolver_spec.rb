@@ -73,4 +73,54 @@ RSpec.describe PluginRouteResolver do
       expect(described_class.spa_route_declared?("/repositories/42/plugin/git_history")).to be false
     end
   end
+
+  describe ".repo_page_tab_route?" do
+    def register_repo_page_tab(name, &block)
+      provider = Class.new do
+        include Syrus::Plugin::RepoPageTab
+      end
+      provider.define_singleton_method(:repo_page_tabs, &block)
+      Syrus::PluginRegistry.register(name: name, version: "0.1.0", provides: { repo_page_tab: provider })
+    end
+
+    it "derives a valid SPA path from a repo_page_tab provider's own tab metadata, with no manual route declaration" do
+      owner = Factories.user
+      repository = Factories.repository(user: owner)
+      register_repo_page_tab("widgets") do |repository:, user:|
+        [ { id: "widgets.widgets", label: "Widgets", path: "/repositories/#{repository.id}/plugin/widgets" } ]
+      end
+
+      expect(described_class.repo_page_tab_route?("/repositories/#{repository.id}/plugin/widgets")).to be true
+      expect(described_class.repo_page_tab_route?("/repositories/#{repository.id}/plugin/other")).to be false
+    end
+
+    it "resolves the tab for a repository member even when the probe uses the owner" do
+      owner = Factories.user(email_address: "owner@example.com")
+      repository = Factories.repository(user: owner)
+      register_repo_page_tab("widgets") do |repository:, user:|
+        [ { id: "widgets.widgets", label: "Widgets", path: "/repositories/#{repository.id}/plugin/widgets" } ]
+      end
+
+      expect(described_class.repo_page_tab_route?("/repositories/#{repository.id}/plugin/widgets")).to be true
+    end
+
+    it "returns false for a nonexistent repository" do
+      register_repo_page_tab("widgets") do |repository:, user:|
+        [ { id: "widgets.widgets", label: "Widgets", path: "/repositories/#{repository.id}/plugin/widgets" } ]
+      end
+
+      expect(described_class.repo_page_tab_route?("/repositories/999999999/plugin/widgets")).to be false
+    end
+
+    it "returns false when no repo_page_tab provider declares a matching path" do
+      owner = Factories.user
+      repository = Factories.repository(user: owner)
+
+      expect(described_class.repo_page_tab_route?("/repositories/#{repository.id}/plugin/nonexistent")).to be false
+    end
+
+    it "returns false for paths outside the repositories/*/plugin/ shape" do
+      expect(described_class.repo_page_tab_route?("/admin/mysql")).to be false
+    end
+  end
 end
