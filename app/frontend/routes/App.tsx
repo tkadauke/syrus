@@ -40,6 +40,7 @@ import { ChatRoute, SharedChatRoute } from "./Chat"
 import { CredentialsRoute } from "./Credentials"
 import { CronTemplateDetailRoute, CronTemplateFormRoute, CronTemplatesIndex } from "./CronTemplates"
 import { DashboardRoute } from "./Dashboard"
+import { DesignSystemRoute } from "./DesignSystem"
 import { DirectJobNewRoute } from "./DirectJobNew"
 import { AdminFeatures } from "./AdminFeatures"
 import { EpicDetailRoute } from "./EpicDetail"
@@ -136,6 +137,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/memories", element: <SettingsSectionRoute><MemoriesRoute /></SettingsSectionRoute> },
   { path: "/profiles/:id", element: <ProfileRoute /> },
   { path: "/tags", element: <SettingsSectionRoute><Tags /></SettingsSectionRoute> },
+  { path: "/design_system", element: <SettingsSectionRoute><DesignSystemRoute /></SettingsSectionRoute> },
   { path: "/cron_templates", element: <SettingsSectionRoute><CronTemplatesIndex /></SettingsSectionRoute> },
   { path: "/cron_templates/new", element: <SettingsSectionRoute><CronTemplateFormRoute mode="new" /></SettingsSectionRoute> },
   { path: "/cron_templates/:id", element: <SettingsSectionRoute><CronTemplateDetailRoute /></SettingsSectionRoute> },
@@ -588,6 +590,7 @@ function settingsNavigationItems(t: (key: string) => string, simpleMode = false)
     { key: "memories", label: t("nav.memories"), path: "/memories", active: (path) => path === "/memories" },
     { key: "templates", label: t("nav.templates"), path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" },
+    { key: "design_system", label: t("nav.design_system"), path: "/design_system", active: (path) => path === "/design_system" },
     { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
   ]
 
