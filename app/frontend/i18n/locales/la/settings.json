@@ -11,7 +11,8 @@
     "memories": "Memoriae",
     "templates": "Formulae",
     "tags": "Pittacia",
-    "connected_platforms": "Suggestus Coniuncti"
+    "connected_platforms": "Suggestus Coniuncti",
+    "design_system": "Systema Formarum"
   },
   "backend_updating": "Fundamentum Syri nunc renovatur — status testimoniorum in praesenti inspici non potest. Testimonia tua servata salva manent; intra unum alterumve minutum perficitur.",
   "profile": {
@@ -212,6 +213,64 @@
     "count_epics": "Epica",
     "count_jobs": "Opera",
     "count_open": "Aperta"
+  },
+  "design_system": {
+    "heading": "Systema Formarum",
+    "description": "Pinacotheca vivens elementorum communium formae Syri, ex ipsis primitivis systematis formae reddita et ex ordine tesserarum coloris activo formata.",
+    "preview_banner": "Thema \"{{name}}\" prospicitur — tantum in hac pagina. Reliqua applicatio thema tuum activum servat.",
+    "preview_not_found": "Illud thema onerari non potuit — fortasse non exstat, aut alterius usoris est.",
+    "tokens": {
+      "heading": "Tesserae coloris",
+      "description": "Proprietates coloris significantes quibus omne elementum infra formatur."
+    },
+    "buttons": {
+      "heading": "Pulsatoria",
+      "description": "Genera et magnitudines pulsatorii.",
+      "primary": "Primarium",
+      "secondary": "Secundarium",
+      "danger": "Periculum",
+      "success": "Successus",
+      "disabled": "Inactivum"
+    },
+    "form": {
+      "heading": "Elementa formae",
+      "description": "Primitiva Input, Select, Checkbox, et Toggle.",
+      "input_label": "Campus textus",
+      "input_placeholder": "Aliquid scribe…",
+      "input_invalid_label": "Campus invalidus",
+      "input_invalid_value": "Aliquid non recte se habet",
+      "select_label": "Electio",
+      "checkbox_label": "Notificationes activare",
+      "toggle_label": "Auto-fusio"
+    },
+    "cards": {
+      "heading": "Chartae",
+      "description": "Genera chartae basica et prospectiva.",
+      "base_title": "Charta basica",
+      "base_body": "Area simplex marginata partibus paginae adhibita.",
+      "preview_title": "Charta prospectiva"
+    },
+    "modal": {
+      "heading": "Fenestra modalis",
+      "description": "Primitivum dialogi cum captura foci et clausura per Escape.",
+      "open": "Exemplum fenestrae modalis aperire",
+      "title": "Exemplum fenestrae modalis",
+      "body": "Hoc est exemplum dialogi modalis ex primitivo communi Modal redditum.",
+      "close": "Claudere"
+    },
+    "status": {
+      "heading": "Pittacia status",
+      "description": "Palette colorum et exempla statuum StatusPill.",
+      "tones_heading": "Colores",
+      "states_heading": "Exempla statuum"
+    },
+    "headings": {
+      "heading": "Tituli",
+      "description": "Ordo PageHeading et SectionHeading.",
+      "page_example": "Exemplum tituli paginae",
+      "section_example": "Exemplum tituli sectionis",
+      "subsection_example": "Exemplum tituli subsectionis"
+    }
   },
   "personal_documents": {
     "heading": "Documenta Personalia",
@@ -980,6 +1039,7 @@
   "aria_repo_memberships": "Membra repositorii",
   "aria_repositories": "Repositoria",
   "aria_personal_documents": "Documenta personalia",
+  "aria_design_system": "Systema Formarum",
   "aria_notification_settings": "Optiones nuntiorum",
   "page_title_schedules": "Agenda",
   "page_title_repo_schedules": "Agenda — {{slug}}"

@@ -11,7 +11,8 @@
     "memories": "Erinnerungen",
     "templates": "Vorlagen",
     "tags": "Tags",
-    "connected_platforms": "Verbundene Plattformen"
+    "connected_platforms": "Verbundene Plattformen",
+    "design_system": "Design-System"
   },
   "backend_updating": "Das Syrus-Backend wird gerade aktualisiert — der Status der Zugangsdaten kann im Moment nicht geprüft werden. Ihre gespeicherten Zugangsdaten sind davon nicht betroffen; in ein bis zwei Minuten ist es geschafft.",
   "profile": {
@@ -212,6 +213,64 @@
     "count_epics": "Epics",
     "count_jobs": "Jobs",
     "count_open": "Offen"
+  },
+  "design_system": {
+    "heading": "Design-System",
+    "description": "Eine lebendige Galerie der gemeinsam genutzten UI-Komponenten von Syrus, gerendert aus den echten Design-System-Primitiven und mit der aktiven Farb-Token-Ebene gestaltet.",
+    "preview_banner": "Vorschau von „{{name}}“ — nur auf dieser Seite sichtbar. Der Rest der App behält dein aktives Theme.",
+    "preview_not_found": "Dieses Theme konnte nicht geladen werden — es existiert möglicherweise nicht oder gehört einem anderen Benutzer.",
+    "tokens": {
+      "heading": "Farb-Tokens",
+      "description": "Semantische Farb-Custom-Properties, aus denen jede Komponente unten gestaltet ist."
+    },
+    "buttons": {
+      "heading": "Buttons",
+      "description": "Button-Varianten und -Größen.",
+      "primary": "Primär",
+      "secondary": "Sekundär",
+      "danger": "Gefahr",
+      "success": "Erfolg",
+      "disabled": "Deaktiviert"
+    },
+    "form": {
+      "heading": "Formularelemente",
+      "description": "Input-, Select-, Checkbox- und Toggle-Primitive.",
+      "input_label": "Texteingabe",
+      "input_placeholder": "Etwas eingeben…",
+      "input_invalid_label": "Ungültige Eingabe",
+      "input_invalid_value": "Etwas stimmt nicht",
+      "select_label": "Auswahl",
+      "checkbox_label": "Benachrichtigungen aktivieren",
+      "toggle_label": "Auto-Merge"
+    },
+    "cards": {
+      "heading": "Karten",
+      "description": "Basis- und Vorschau-Kartenstile.",
+      "base_title": "Basiskarte",
+      "base_body": "Einfache umrandete Fläche für Seitenabschnitte.",
+      "preview_title": "Vorschaukarte"
+    },
+    "modal": {
+      "heading": "Modal",
+      "description": "Dialog-Primitiv mit Fokusfalle und Escape-zum-Schließen.",
+      "open": "Beispiel-Modal öffnen",
+      "title": "Beispiel-Modal",
+      "body": "Dies ist ein Beispiel-Modaldialog, gerendert mit dem gemeinsamen Modal-Primitiv.",
+      "close": "Schließen"
+    },
+    "status": {
+      "heading": "Status-Pills",
+      "description": "Farbtonpalette und repräsentative StatusPill-Zustände.",
+      "tones_heading": "Farbtöne",
+      "states_heading": "Beispielzustände"
+    },
+    "headings": {
+      "heading": "Überschriften",
+      "description": "PageHeading- und SectionHeading-Skala.",
+      "page_example": "Beispiel-Seitenüberschrift",
+      "section_example": "Beispiel-Abschnittsüberschrift",
+      "subsection_example": "Beispiel-Unterabschnittsüberschrift"
+    }
   },
   "personal_documents": {
     "heading": "Persönliche Dokumente",
@@ -980,6 +1039,7 @@
   "aria_repo_memberships": "Repository-Mitglieder",
   "aria_repositories": "Repositories",
   "aria_personal_documents": "Persönliche Dokumente",
+  "aria_design_system": "Design-System",
   "aria_notification_settings": "Benachrichtigungseinstellungen",
   "page_title_schedules": "Zeitpläne",
   "page_title_repo_schedules": "Zeitpläne — {{slug}}"
