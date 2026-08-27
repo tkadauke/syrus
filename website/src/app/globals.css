@@ -214,3 +214,144 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ── Documentation pages ───────────────────────────────────────────────── */
+@layer components {
+  .doc-prose {
+    max-width: 48rem;
+    color: var(--color-cream-dim);
+    font-size: 1rem;
+    line-height: 1.75;
+  }
+
+  .doc-prose :where(h1, h2, h3, h4, h5, h6) {
+    color: var(--color-cream);
+    font-weight: 650;
+    line-height: 1.18;
+    text-wrap: balance;
+  }
+
+  .doc-prose h1 {
+    display: none;
+  }
+
+  .doc-prose h2 {
+    margin-top: 2.75rem;
+    border-top: 1px solid color-mix(in oklab, var(--color-cream) 8%, transparent);
+    padding-top: 2rem;
+    font-size: 1.65rem;
+  }
+
+  .doc-prose h3 {
+    margin-top: 2rem;
+    font-size: 1.2rem;
+  }
+
+  .doc-prose h4 {
+    margin-top: 1.5rem;
+    font-size: 1rem;
+  }
+
+  .doc-prose p,
+  .doc-prose ul,
+  .doc-prose ol,
+  .doc-prose blockquote,
+  .doc-prose pre,
+  .doc-prose .doc-table-wrap {
+    margin-top: 1rem;
+  }
+
+  .doc-prose a {
+    color: var(--color-clay-bright);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in oklab, var(--color-clay-bright) 42%, transparent);
+    text-underline-offset: 0.18em;
+  }
+
+  .doc-prose a:hover {
+    color: var(--color-cream);
+  }
+
+  .doc-prose :where(ul, ol) {
+    padding-left: 1.35rem;
+  }
+
+  .doc-prose ul {
+    list-style: disc;
+  }
+
+  .doc-prose ol {
+    list-style: decimal;
+  }
+
+  .doc-prose li + li {
+    margin-top: 0.4rem;
+  }
+
+  .doc-prose code {
+    border-radius: 0.35rem;
+    background: color-mix(in oklab, var(--color-cream) 8%, transparent);
+    padding: 0.13rem 0.32rem;
+    color: var(--color-cream);
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+  }
+
+  .doc-prose pre {
+    overflow-x: auto;
+    border: 1px solid color-mix(in oklab, var(--color-cream) 10%, transparent);
+    border-radius: 0.85rem;
+    background: color-mix(in oklab, #050403 72%, var(--color-ink));
+    padding: 1rem;
+  }
+
+  .doc-prose pre code {
+    display: block;
+    min-width: max-content;
+    background: transparent;
+    padding: 0;
+    font-size: 0.86rem;
+    line-height: 1.65;
+  }
+
+  .doc-prose blockquote {
+    border-left: 3px solid var(--color-clay);
+    border-radius: 0.65rem;
+    background: color-mix(in oklab, var(--color-clay) 11%, transparent);
+    padding: 0.85rem 1rem;
+    color: var(--color-cream);
+  }
+
+  .doc-table-wrap {
+    overflow-x: auto;
+    border: 1px solid color-mix(in oklab, var(--color-cream) 9%, transparent);
+    border-radius: 0.85rem;
+  }
+
+  .doc-prose table {
+    width: 100%;
+    min-width: 38rem;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+
+  .doc-prose th,
+  .doc-prose td {
+    border-bottom: 1px solid color-mix(in oklab, var(--color-cream) 8%, transparent);
+    padding: 0.75rem 0.9rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .doc-prose th {
+    background: color-mix(in oklab, var(--color-cream) 5%, transparent);
+    color: var(--color-cream);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .doc-prose tr:last-child td {
+    border-bottom: 0;
+  }
+}

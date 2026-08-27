@@ -5,6 +5,7 @@
 export const site = {
   name: "Syrus",
   domain: "syrus-ai.dev",
+  repositoryUrl: "https://github.com/tkadauke/syrus",
 
   tagline: "Bis dat qui cito dat.",
   taglineTranslation: "“He gives twice who gives quickly.”",
