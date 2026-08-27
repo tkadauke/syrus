@@ -52,6 +52,24 @@ class McpToolPolicy
     ].freeze
   }.freeze
 
+  # Story 11 (docs/plans/delivery-tracks-and-promotion.md) delivery-track/
+  # ref-movement tools are chat- *and* skill-facing — a `run_skill` step
+  # agent (e.g. a "promote release" skill) can inspect/dispatch ref
+  # movement the same way a chat session can. Scoped to `run_skill`
+  # specifically (not every WORKFLOW_IMPLEMENT run) so an ordinary
+  # `implement` step working on an unrelated Job doesn't gain unrelated
+  # dispatch tools.
+  REF_MOVEMENT_TOOLS = [
+    Mcp::Tools::ListDeliveryTracksTool,
+    Mcp::Tools::ResolveDeliveryPolicyTool,
+    Mcp::Tools::SelectJobDeliveryTrackTool,
+    Mcp::Tools::ListRefMovementActionsTool,
+    Mcp::Tools::DispatchRefMovementActionTool,
+    Mcp::Tools::ReadRefMovementStatusTool,
+    Mcp::Tools::ClassifyPullRequestTool,
+    Mcp::Tools::IngestPullRequestTool
+  ].freeze
+
   SUPERVISOR_EXCLUDED_TOOLS = [
     Mcp::Tools::AttachRepositoryTool,
     Mcp::Tools::ProposeEpicTool,
@@ -134,6 +152,7 @@ class McpToolPolicy
     else
       tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReviewPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::SubmitVisualArtifactTool ]
       tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
+      tools += REF_MOVEMENT_TOOLS if @context.run&.step&.kind == "run_skill"
       tools
     end
   end

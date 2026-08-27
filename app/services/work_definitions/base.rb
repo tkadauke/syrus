@@ -131,7 +131,7 @@ module WorkDefinitions
       keys = member_jobs.map { |member_job| "job:#{member_job.id}" }
       keys << "epic:#{job.epic_id}" if scope == "epic" && job.epic_id.present?
       keys << "repository:#{job.repository_id}" if scope == "repository" && job.repository_id.present?
-      keys << "landing:repository:#{job.repository_id}" if landing_lock? && !child?
+      keys << WorkDefinitions.landing_lock_key_for(job) if landing_lock? && !child?
       keys.uniq
     end
 

@@ -4,6 +4,7 @@ import { formatRelativeDate } from "../lib/relativeTime"
 import { RepositoryIssues } from "./repositoryDetail/RepositoryIssues"
 import { RepositoryTestsRoute } from "./repositoryDetail/RepositoryTests"
 import { MainBranchHealthSection } from "./repositoryDetail/MainBranchHealth"
+import { DeliveryTracksSection } from "./repositoryDetail/DeliveryTracks"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
@@ -101,6 +102,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
+          {payload.delivery ? <DeliveryTracksSection delivery={payload.delivery} prefix={prefix} /> : null}
           {payload.simple_mode ? null : <RepositoryThroughputPanel repositoryId={payload.repository.id} />}
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </div>

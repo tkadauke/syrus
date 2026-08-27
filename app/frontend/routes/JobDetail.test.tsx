@@ -2184,6 +2184,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     dependency_target_options: [],
     epic_dependency_target_options: [],
     attachments: [],
+    pr_links: [],
     typed_artifacts: [],
     coverage: null,
     sccache: null,
@@ -2232,6 +2233,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_deploy: false,
       can_run_visual_review: false,
       can_request_changes: false,
+      can_send_job_upstream: false,
       linked_chat_id: null,
       feedback_agent_options: [],
       rebase_agent_options: [],
@@ -2275,6 +2277,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_deploy_path: "/api/v1/app/jobs/1/deploy",
       app_visual_review_path: "/api/v1/app/jobs/1/visual_review",
       app_request_changes_path: "/api/v1/app/jobs/1/request_changes",
+      app_ref_movement_actions_path: "/api/v1/app/jobs/1/ref_movement_actions",
       admin_resource_admission_path: "/admin/resource_admission"
     },
     ...overrides
@@ -2338,6 +2341,9 @@ function baseJob(): JobDetailPayload["job"] {
     any_active_run: false,
     prepare_skipped: false,
     prepare_skip_reason: null,
+    delivery_status: "waiting_for_local_approval",
+    delivery_track: "default",
+    delivery_target_ref: "main",
     needs_attention: false,
     needs_attention_reason: null,
     needs_attention_since: null,

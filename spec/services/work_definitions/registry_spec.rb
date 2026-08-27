@@ -92,6 +92,9 @@ RSpec.describe WorkDefinitions do
       external_pr_feedback
       skill
       deploy
+      promotion
+      hotfix_sync
+      upstream_export
     ]
 
     resume_failed_step_kinds.each do |kind|
@@ -134,6 +137,8 @@ RSpec.describe WorkDefinitions do
       external_pr_feedback
       skill
       deploy
+      promotion
+      hotfix_sync
     ]
     rebuild_kinds = %w[
       rebase
@@ -291,7 +296,9 @@ RSpec.describe WorkDefinitions do
       "agent_insight",
       "main_branch_repair",
       "landing_validation",
-      "merge_train_validation"
+      "merge_train_validation",
+      "promotion",
+      "hotfix_sync"
     )
   end
 
@@ -407,7 +414,9 @@ RSpec.describe WorkDefinitions do
       "main_branch_repair",
       "landing_validation",
       "merge_train_validation",
-      "job_bundle_validation"
+      "job_bundle_validation",
+      "promotion",
+      "hotfix_sync"
     )
   end
 end

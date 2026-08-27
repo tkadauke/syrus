@@ -1,6 +1,6 @@
 import { getJson, getJsonWithMeta, patchJson, postJson } from "./client"
 import type { JsonResponseMeta } from "./client"
-import type { JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
+import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { StartBlockedDetails } from "../types/startBlocked"
@@ -188,6 +188,7 @@ export type DashboardJobItem = {
   source_chat: JobSourceChat | null
   needs_attention: boolean
   needs_attention_reason: string | null
+  delivery_status?: JobDeliveryStatus
   start_blocked_reason: string | null
   start_blocked_at: string | null
   start_blocked_next_check_at: string | null

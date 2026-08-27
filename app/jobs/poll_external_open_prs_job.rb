@@ -20,7 +20,13 @@ class PollExternalOpenPrsJob < ApplicationJob
                           .pluck(:external_pr_number).to_set
 
     open_prs.each do |pr|
-      next if pr.head.ref.start_with?(SYRUS_BRANCH_PREFIX)
+      # A same-repo `syrus/`-prefixed branch is already tracked elsewhere
+      # (the normal initial/retry workflow's own PR, or a promotion/hotfix-sync
+      # ref-movement PR) via `Job#pr_number`/its own anchor Job — skip it here.
+      # A *fork's* `syrus/`-prefixed branch is a different Syrus instance's
+      # per-job or branch export (Story 8/9/10/11) and must reach
+      # classification below, not be silently dropped.
+      next if we_control_head?(pr) && pr.head.ref.start_with?(SYRUS_BRANCH_PREFIX)
       next if existing_numbers.include?(pr.number)
 
       ingest_pr!(pr)
@@ -31,23 +37,11 @@ class PollExternalOpenPrsJob < ApplicationJob
 
   def ingest_pr!(pr)
     fork_pr = !we_control_head?(pr)
-    head_branch = pr.head&.ref.to_s
+    classification = PrProvenanceClassifier.classify(repository: @repository, pr: pr)
 
     Job.transaction do
-      job = Job.create!(
-        user: @repository.user,
-        repository: @repository,
-        kind: "external_pr",
-        state: "implemented",
-        external_pr_number: pr.number,
-        external_pr_author: pr.user&.login,
-        external_pr_fork: fork_pr,
-        branch_name: head_branch.presence,
-        issue_title: pr.title
-      )
-
-      WorkUnits::Launcher.create_and_start!(kind: "external_pr_ingest", job: job)
-      Rails.logger.info("[PollExternalOpenPrsJob] ingested external PR ##{pr.number} for #{@slug} (fork=#{fork_pr})")
+      job = ExternalPrIngestions::Base.for(classification).ingest!(repository: @repository, pr: pr, fork_pr: fork_pr)
+      Rails.logger.info("[PollExternalOpenPrsJob] ingested external PR ##{pr.number} for #{@slug} (fork=#{fork_pr}, provenance=#{classification}#{job ? ", job=#{job.slug}" : ""})")
     end
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
     Rails.logger.warn("[PollExternalOpenPrsJob] skipped PR ##{pr.number} for #{@slug}: #{e.message}")

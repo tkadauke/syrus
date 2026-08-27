@@ -17,7 +17,14 @@ module Filters
         PRESETS = %w[
           pinned in_progress paused queued inbox awaiting_approval just_failed
           stale blocked merged_this_week awaiting_epic needs_review landing_queue
+          waiting_for_upstream promotion_pending delivery_needs_attention
         ].freeze
+
+        # How far back to look for EPIC-268 delivery-track candidates
+        # (`promotion_pending`) — `waiting_for_upstream`/`delivery_needs_attention`
+        # key off already-persisted `JobPrLink` rows instead (a small, naturally
+        # bounded table) and don't need this window.
+        DELIVERY_LOOKBACK = 30.days
 
         values(*PRESETS)
 
@@ -219,6 +226,32 @@ module Filters
           scope.landing_queue.without_requested_changes_attention
         end
 
+        # A Job with an open promotion or upstream-export PR (JobPrLink role
+        # promotion/upstream_export, DeliveryStatus's :waiting_for_upstream_approval
+        # equivalent). Reads only `job_pr_links` — a small table written
+        # exclusively by the ref-movement publish steps — so this never scans
+        # the full jobs table.
+        def apply_waiting_for_upstream
+          scope.where(id: pending_upstream_link_job_ids)
+        end
+
+        # A Job whose delivery track has landed locally but the repository's
+        # promotion/hotfix-sync configuration says there's still outbound ref
+        # movement pending: promoted-but-not-yet-promoted (no promotion
+        # JobPrLink yet) or landed on a non-default track under hotfix-sync.
+        # Bounded to recently-closed successful Jobs (DELIVERY_LOOKBACK) in
+        # repositories that have actually opted into promotion/hotfix_sync —
+        # everything else short-circuits before touching DeliveryPolicy.
+        def apply_promotion_pending
+          scope.where(id: promotion_pending_job_ids)
+        end
+
+        # A Job whose upstream/promotion PR closed without merging —
+        # DeliveryStatus's :upstream_closed_without_merge.
+        def apply_delivery_needs_attention
+          scope.where(id: upstream_closed_without_merge_job_ids)
+        end
+
         def latest_failed_run_ids
           Run.where(state: "failed")
              .where(<<~SQL.squish)
@@ -336,6 +369,62 @@ module Filters
           base.where(id: unread_feedback_ids(base))
               .where.not(state: %w[ triaging queued running landing ])
               .select(:id)
+        end
+
+        def outbound_delivery_pr_links
+          @outbound_delivery_pr_links ||= JobPrLink
+            .where(role: [ JobPrLink::ROLE_UPSTREAM_EXPORT, JobPrLink::ROLE_PROMOTION ])
+            .pluck(:job_id, :metadata)
+        end
+
+        def pending_upstream_link_job_ids
+          outbound_delivery_pr_links
+            .reject { |_job_id, metadata| %w[merged closed].include?(metadata.to_h["pr_state"]) }
+            .map(&:first)
+        end
+
+        def upstream_closed_without_merge_job_ids
+          outbound_delivery_pr_links
+            .select { |_job_id, metadata| metadata.to_h["pr_state"] == "closed" }
+            .map(&:first)
+        end
+
+        def promotion_pending_job_ids
+          successful_closed = Job.closed_threads
+            .where(closure_reason: Job::SUCCESSFUL_CLOSURE_REASONS)
+            .where(updated_at: DELIVERY_LOOKBACK.ago..)
+          repository_ids = successful_closed.distinct.pluck(:repository_id)
+          return [] if repository_ids.empty?
+
+          capable_policies = delivery_capable_policies_by_repository_id(repository_ids)
+          return [] if capable_policies.empty?
+
+          already_promoted_job_ids = JobPrLink.where(role: JobPrLink::ROLE_PROMOTION).distinct.pluck(:job_id).to_set
+
+          successful_closed
+            .where(repository_id: capable_policies.keys)
+            .select(:id, :repository_id, :delivery_track)
+            .filter_map { |job| promotion_pending_job_id_for(job, capable_policies.fetch(job.repository_id), already_promoted_job_ids) }
+        end
+
+        def promotion_pending_job_id_for(job, policy, already_promoted_job_ids)
+          if policy.promotion_enabled?
+            return job.id unless already_promoted_job_ids.include?(job.id)
+          elsif policy.hotfix_sync_enabled? && policy.job_delivery_track(job) != SyrusYml::DEFAULT_DELIVERY_TRACK_NAME
+            return job.id
+          end
+
+          nil
+        end
+
+        # Only worth a `DeliveryPolicy` (a `.syrus.yml` bare-clone read) for
+        # repositories that actually have a recently-closed successful Job —
+        # most repositories in a `promotion_pending` candidate set never do.
+        def delivery_capable_policies_by_repository_id(repository_ids)
+          Repository.where(id: repository_ids).index_by(&:id).filter_map do |id, repository|
+            policy = DeliveryPolicy.for(repository: repository)
+            [ id, policy ] if policy.promotion_enabled? || policy.hotfix_sync_enabled?
+          end.to_h
         end
 
         def blocked_dependency_ids

@@ -162,6 +162,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_preview_controller.rb
+  - app/controllers/api/v1/app/job_ref_movement_actions_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
   - app/controllers/api/v1/app/job_test_results_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
@@ -343,6 +344,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Daemon tunnel sessions are created, read, and destroyed through `Current.user.chat_sessions`; auth tokens belong to the current user. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
+| `app/controllers/api/v1/app/job_ref_movement_actions_controller.rb` | per-user/private and repository-write affordance | `send_job_upstream` resolves the target job through `policy_scope(Job)` and `authorize_job_mutation!` (`JobPolicy#write?`), then dispatches via `RefMovementAction.dispatch!` with `Current.user` as actor and broadcasts the change back to that user. |
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Team profile payloads expose public profile/work summaries through the current user's app session. |
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission are scoped through `JobPolicy` (`policy_scope(Job)`, exactly `Current.user.jobs` — see [Policy layer](#policy-layer-repositoryjobepic)); timeline is separately admin-only because it exposes run history. |

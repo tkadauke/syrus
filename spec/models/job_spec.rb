@@ -1,4 +1,6 @@
 require "rails_helper"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe Job do
   include ActiveJob::TestHelper
@@ -2844,6 +2846,72 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       expect(job.effective_base_branch).to eq("main")
     end
+
+    context "with a repository-configured delivery track" do
+      around do |example|
+        @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+        previous_root = ENV["SYRUS_DATA_ROOT"]
+        ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+        example.run
+        ENV["SYRUS_DATA_ROOT"] = previous_root
+        FileUtils.rm_rf(@data_root)
+      end
+
+      before do
+        work_dir = Dir.mktmpdir("syrus-work")
+        system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+        system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+        system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+        File.write(File.join(work_dir, ".syrus.yml"), <<~YAML)
+          delivery:
+            tracks:
+              default:
+                branch: develop
+              hotfix:
+                branch: release
+        YAML
+        system("git", "-C", work_dir, "add", ".", exception: true)
+        system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+        clone_path = RepositoryBareClone.path_for(repository)
+        FileUtils.mkdir_p(clone_path.dirname)
+        system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+        FileUtils.rm_rf(work_dir)
+      end
+
+      it "resolves to the delivery track's configured branch when no override or open stack/dependency applies" do
+        job = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued", delivery_track: "hotfix")
+
+        expect(job.effective_base_branch).to eq("release")
+      end
+
+      it "resolves to the default track's configured branch when delivery_track is unset" do
+        job = Factories.job_record(user: user, repository: repository, issue_number: 44, state: "queued")
+
+        expect(job.effective_base_branch).to eq("develop")
+      end
+
+      it "still lets an explicit target_branch short-circuit delivery-track resolution" do
+        job = Factories.job_record(user: user, repository: repository, issue_number: 45, state: "queued", delivery_track: "hotfix", target_branch: "release/4.2")
+
+        expect(job.effective_base_branch).to eq("release/4.2")
+      end
+
+      it "still prefers an open dependency's PR branch over delivery-track resolution" do
+        parent = Factories.job_record(
+          user: user,
+          repository: repository,
+          issue_number: 46,
+          state: "queued",
+          branch_name: "syrus/issue-46",
+          pr_number: 46
+        )
+        child = Factories.job_record(user: user, repository: repository, issue_number: 47, state: "queued", delivery_track: "hotfix")
+        JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+        expect(child.effective_base_branch).to eq("syrus/issue-46")
+      end
+    end
   end
 
   describe "#effective_target_repository" do
@@ -2912,6 +2980,82 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       job = Job.new(user: user, repository: fork, epic: epic, issue_number: 4)
       job.valid?
       expect(job.target_repository_id).to be_nil
+    end
+
+    context "when the fork repository has upstream-export configured (Story 8/9 bypass)" do
+      around do |example|
+        @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+        previous_root = ENV["SYRUS_DATA_ROOT"]
+        ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+        example.run
+        ENV["SYRUS_DATA_ROOT"] = previous_root
+        FileUtils.rm_rf(@data_root)
+      end
+
+      def write_bare_clone_with_upstream_export(repository)
+        work_dir = Dir.mktmpdir("syrus-work")
+        system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+        system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+        system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+        File.write(File.join(work_dir, ".syrus.yml"), <<~YAML)
+          delivery:
+            upstream_export:
+              enabled: true
+        YAML
+        system("git", "-C", work_dir, "add", ".", exception: true)
+        system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+        clone_path = RepositoryBareClone.path_for(repository)
+        FileUtils.mkdir_p(clone_path.dirname)
+        system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+      ensure
+        FileUtils.rm_rf(work_dir) if work_dir
+      end
+
+      it "does not auto-populate target_repository_id, leaving new Jobs on the upstream-export path instead of fork-review mode" do
+        upstream = Factories.repository(user: user)
+        fork = Factories.repository(user: user, upstream_repository: upstream)
+        write_bare_clone_with_upstream_export(fork)
+        epic = Epic.create!(user: user, repository: upstream, title: "Upstream-export epic")
+
+        job = Job.create!(user: user, repository: fork, epic: epic, issue_number: 7)
+
+        expect(job.target_repository_id).to be_nil
+        expect(job.in_fork_review_mode?).to be(false)
+      end
+
+      it "still sets target_repository_id (fork-review mode) for a sibling repository without upstream-export configured — existing fork-review Jobs are unaffected" do
+        upstream = Factories.repository(user: user)
+        fork = Factories.repository(user: user, upstream_repository: upstream)
+        epic = Epic.create!(user: user, repository: upstream, title: "Legacy fork-review epic")
+
+        job = Job.create!(user: user, repository: fork, epic: epic, issue_number: 8)
+
+        expect(job.target_repository_id).to eq(upstream.id)
+        expect(job.in_fork_review_mode?).to be(true)
+      end
+    end
+  end
+
+  describe "#dispatch_upstream_export_after_approval" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    it "enqueues UpstreamExportDispatchJob when the job transitions into approved" do
+      job = Factories.job(user: user, repository: repository)
+      job.update!(state: "implemented")
+
+      expect {
+        job.approve!(via: "operator", by_user: user)
+      }.to have_enqueued_job(UpstreamExportDispatchJob).with(job.id)
+    end
+
+    it "does not enqueue UpstreamExportDispatchJob for unrelated state transitions" do
+      job = Factories.job(user: user, repository: repository)
+
+      expect {
+        job.update!(state: "implemented")
+      }.not_to have_enqueued_job(UpstreamExportDispatchJob)
     end
   end
 

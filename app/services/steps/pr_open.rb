@@ -106,6 +106,7 @@ module Steps
         pr_repository_id: upstream.id,
         branch_name: workspace.branch_name
       )
+      record_local_pr_link!(pr_number: pr_number, target_repository: upstream)
       transition_job_to_implemented!
       refresh_stack_footer
     end
@@ -160,8 +161,28 @@ module Steps
         pr_repository_id: target_repo.id,
         branch_name: workspace.branch_name
       )
+      record_local_pr_link!(pr_number: pr_number, target_repository: target_repo)
       transition_job_to_implemented!
       refresh_stack_footer
+    end
+
+    # Additive write alongside the legacy pr_number/pr_repository_id columns
+    # above — see config/syrus_docs/delivery_tracks.md's JobPrLink section.
+    # Both existing pr_number call sites (in-repo PR, fork -> upstream PR)
+    # resolve to role: "local": each is the one PR that actually lands this
+    # Job's work, as opposed to a fork staging review PR (fork_review_pr_number,
+    # left untouched here — see ForkReviewApprover) or a future promotion/
+    # upstream-export/external-ingest link.
+    def record_local_pr_link!(pr_number:, target_repository:)
+      JobPrLink.record!(
+        job: job,
+        role: JobPrLink::ROLE_LOCAL,
+        source_repository_id: repository.id,
+        source_ref: workspace.branch_name,
+        target_repository_id: target_repository.id,
+        target_ref: pr_base_branch,
+        pr_number: pr_number
+      )
     end
 
     def fork_review_pr_title(base_title)

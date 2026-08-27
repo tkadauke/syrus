@@ -185,6 +185,7 @@ export type RepositoryDetailPayload = {
     failed_7d: number
   }
   health_history?: RepositoryHealthHistory
+  delivery?: RepositoryDeliveryPayload | null
   retry_failed_jobs: {
     count: number
     agent_provider: string
@@ -282,6 +283,70 @@ export type RepositoryDetailRecord = {
   main_branch_repair_auto_approve: boolean
   treat_grader_timeouts_as_failures: boolean
   last_health_checked_sha: string | null
+}
+
+export type RepositoryDeliveryTrack = {
+  name: string
+  branch: string
+  is_default: boolean
+  review_grade_phase: string
+  landing_grade_phase: string
+  branch_health_grade_phase: string
+  health: string | null
+  queue_length: number
+  last_promotion: RepositoryDeliveryRefMovementSummary | null
+  last_hotfix_sync: RepositoryDeliveryRefMovementSummary | null
+}
+
+export type RepositoryDeliveryRefMovementSummary = {
+  workflow_id: number
+  finished_at: string | null
+  source_ref: string | null
+  target_ref: string | null
+}
+
+export type RepositoryDeliveryRefMovementAction = {
+  name: string
+  enabled: boolean
+  mode: string | null
+  grade_phases: string[]
+  available: boolean
+  blocked_reason: string | null
+}
+
+export type RepositoryDeliveryRefMovementWorkflow = {
+  id: number
+  trigger_kind: "promotion" | "hotfix_sync" | "upstream_export"
+  state: string
+  job_id: number
+  job_slug: string
+  source_ref: string | null
+  target_ref: string | null
+  target_repository_slug: string | null
+  pr_number: number | null
+  pr_state: string | null
+  created_at: string | null
+  finished_at: string | null
+  job_path: string
+  workflow_path: string
+}
+
+export type RepositoryDeliveryPrIngestion = {
+  job_id: number
+  job_slug: string
+  job_path: string
+  pr_number: number | null
+  classification: string
+  ingest_mode: string | null
+  source_repo_slug: string | null
+  created_at: string | null
+}
+
+export type RepositoryDeliveryPayload = {
+  tracks: RepositoryDeliveryTrack[]
+  ref_movement_actions: RepositoryDeliveryRefMovementAction[]
+  recent_ref_movement_workflows: RepositoryDeliveryRefMovementWorkflow[]
+  recent_pr_ingestions: RepositoryDeliveryPrIngestion[]
 }
 
 export type RepositoryHealthCheckRecord = {

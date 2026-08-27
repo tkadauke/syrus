@@ -157,6 +157,37 @@ module WorkDefinitions
     end
   end
 
+  class Promotion < Base
+    include ManagesOwnJobLifecycle
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+
+    self.kind = "promotion"
+    self.workflow_trigger_kind = "promotion"
+    self.runtime_role = "first_class"
+    self.scope = "repository"
+  end
+
+  class HotfixSync < Base
+    include ManagesOwnJobLifecycle
+    include ResumesFailedSteps
+    include CheckpointPreemptable
+
+    self.kind = "hotfix_sync"
+    self.workflow_trigger_kind = "hotfix_sync"
+    self.runtime_role = "first_class"
+    self.scope = "repository"
+  end
+
+  class UpstreamExport < Base
+    include ResumesFailedSteps
+
+    self.kind = "upstream_export"
+    self.workflow_trigger_kind = "upstream_export"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class AutoMerge < Base
     include BlocksCiFailure
     include LandingValidationPrefetchSource

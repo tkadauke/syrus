@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_26_232016) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1028,6 +1028,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.index ["user_id"], name: "index_job_pins_on_user_id"
   end
 
+  create_table "job_pr_links", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.json "metadata"
+    t.integer "pr_number"
+    t.string "role", limit: 32, null: false
+    t.string "source_ref"
+    t.bigint "source_repository_id"
+    t.string "target_ref"
+    t.bigint "target_repository_id"
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "role"], name: "index_job_pr_links_on_job_id_and_role", unique: true
+    t.index ["job_id"], name: "index_job_pr_links_on_job_id"
+    t.index ["source_repository_id"], name: "index_job_pr_links_on_source_repository_id"
+    t.index ["target_repository_id"], name: "index_job_pr_links_on_target_repository_id"
+  end
+
   create_table "job_tags", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "job_id", null: false
@@ -1053,6 +1070,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.integer "commits_behind_base"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
+    t.string "delivery_track"
     t.datetime "dependencies_overridden_at"
     t.integer "dependencies_overridden_by_user_id"
     t.integer "epic_id"
@@ -1604,6 +1622,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
     t.index ["session_id"], name: "index_provider_sessions_on_session_id"
+  end
+
+  create_table "ref_movement_actions", force: :cascade do |t|
+    t.string "action_name", limit: 64, null: false
+    t.string "blocked_reason"
+    t.datetime "created_at", null: false
+    t.json "grade_phases"
+    t.bigint "job_id"
+    t.string "mode", limit: 32
+    t.bigint "repository_id", null: false
+    t.bigint "requested_by_user_id", null: false
+    t.string "source_kind", limit: 32
+    t.string "source_ref"
+    t.string "state", limit: 32, default: "blocked", null: false
+    t.boolean "target_inferred", default: false, null: false
+    t.string "target_kind", limit: 32
+    t.string "target_ref"
+    t.bigint "target_repository_id"
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id"
+    t.index ["action_name"], name: "index_ref_movement_actions_on_action_name"
+    t.index ["job_id"], name: "index_ref_movement_actions_on_job_id"
+    t.index ["repository_id"], name: "index_ref_movement_actions_on_repository_id"
+    t.index ["requested_by_user_id"], name: "index_ref_movement_actions_on_requested_by_user_id"
+    t.index ["target_repository_id"], name: "index_ref_movement_actions_on_target_repository_id"
+    t.index ["workflow_id"], name: "index_ref_movement_actions_on_workflow_id"
   end
 
   create_table "repositories", force: :cascade do |t|
@@ -2566,5 +2610,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_225435) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
 end

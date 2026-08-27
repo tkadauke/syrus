@@ -2811,4 +2811,121 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).fetch(:deploy)).to be_nil
     end
   end
+
+  describe "#delivery_status" do
+    it "exposes the job's derived apparent delivery status" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+
+      expect(payload_for(job).dig(:job, :delivery_status)).to eq(:approved_for_local_landing)
+    end
+  end
+
+  describe "delivery track, PR links, and send_job_upstream" do
+    around do |example|
+      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+      previous_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+      example.run
+      ENV["SYRUS_DATA_ROOT"] = previous_root
+      FileUtils.rm_rf(@data_root)
+    end
+
+    def write_bare_clone(repository, syrus_yml: nil)
+      work_dir = Dir.mktmpdir("syrus-work")
+      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+      File.write(File.join(work_dir, "README.md"), "hi") unless syrus_yml
+      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml) if syrus_yml
+      system("git", "-C", work_dir, "add", ".", exception: true)
+      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+      clone_path = @data_root.join("clones", "#{repository.id}.git")
+      FileUtils.mkdir_p(clone_path.dirname)
+      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    ensure
+      FileUtils.rm_rf(work_dir) if work_dir
+    end
+
+    def upstream_export_syrus_yml
+      <<~YAML
+        delivery:
+          upstream_export:
+            enabled: true
+          ref_movement_actions:
+            send_job_upstream:
+              enabled: true
+              source: { kind: job_branch }
+              target: { kind: upstream_intake }
+              mode: manual_pr
+      YAML
+    end
+
+    it "defaults delivery_track and delivery_target_ref for a repository with no delivery config" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+
+      payload = payload_for(job).fetch(:job)
+
+      expect(payload[:delivery_track]).to eq("default")
+      expect(payload[:delivery_target_ref]).to eq(repo.default_branch)
+    end
+
+    it "exposes pr_links for the job, one entry per role" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      JobPrLink.record!(
+        job: job,
+        role: JobPrLink::ROLE_LOCAL,
+        source_repository_id: repo.id,
+        source_ref: "syrus/issue-1",
+        target_repository_id: repo.id,
+        target_ref: "main",
+        pr_number: 42
+      )
+
+      pr_links = payload_for(job).fetch(:pr_links)
+
+      expect(pr_links).to contain_exactly(
+        include(
+          role: "local",
+          source_ref: "syrus/issue-1",
+          target_ref: "main",
+          pr_number: 42,
+          pr_url: "https://github.com/#{repo.owner}/#{repo.name}/pull/42"
+        )
+      )
+    end
+
+    it "reports can_send_job_upstream as false with no blocked reason when the repository hasn't configured the action" do
+      job = Factories.job_record(user: user, repository: repo, state: "approved")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_send_job_upstream]).to be(false)
+      expect(actions[:send_job_upstream_blocked_reason]).to be_nil
+    end
+
+    it "reports can_send_job_upstream as true once send_job_upstream is configured and the job is eligible" do
+      canonical = Factories.repository(user: user, default_branch: "main")
+      fork_repo = Factories.repository(user: user, default_branch: "main", upstream_repository: canonical)
+      write_bare_clone(fork_repo, syrus_yml: upstream_export_syrus_yml)
+      job = Factories.job_record(user: user, repository: fork_repo, state: "approved", branch_name: "syrus/issue-9")
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_send_job_upstream]).to be(true)
+      expect(actions[:send_job_upstream_blocked_reason]).to be_nil
+    end
+
+    it "surfaces the blocked reason when send_job_upstream is configured but the job isn't eligible" do
+      canonical = Factories.repository(user: user, default_branch: "main")
+      fork_repo = Factories.repository(user: user, default_branch: "main", upstream_repository: canonical)
+      write_bare_clone(fork_repo, syrus_yml: upstream_export_syrus_yml)
+      job = Factories.job_record(user: user, repository: fork_repo, state: "approved", branch_name: nil)
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_send_job_upstream]).to be(false)
+      expect(actions[:send_job_upstream_blocked_reason]).to include("no branch")
+    end
+  end
 end

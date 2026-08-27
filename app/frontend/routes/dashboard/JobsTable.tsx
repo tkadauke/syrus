@@ -813,6 +813,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
           {job.issue_number ? <IssueMetadata job={job} /> : null}
+          {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
           {job.manual_paused ? <ManualPauseInline job={job} /> : null}
           {job.pr_number ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
@@ -1051,6 +1052,29 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
       {unpauseMutation.isError ? <span className="text-red-700 dark:text-red-300" role="alert">{errorMessage(unpauseMutation.error, t("manual_pause_error"))}</span> : null}
     </span>
   )
+}
+
+// Only the delivery statuses an EPIC-268 track/promotion/upstream-export
+// flow actually produces are worth a badge here — the two default states
+// (waiting_for_local_approval, approved_for_local_landing) match virtually
+// every job on a repository with no delivery config and would just be noise.
+const NOTABLE_DELIVERY_STATUSES = new Set([
+  "waiting_for_upstream_approval",
+  "waiting_for_promotion",
+  "syncing_hotfix",
+  "upstream_merged",
+  "upstream_closed_without_merge",
+  "delivery_needs_attention"
+])
+
+function isNotableDeliveryStatus(status: DashboardJobItem["delivery_status"]): status is NonNullable<DashboardJobItem["delivery_status"]> {
+  return Boolean(status) && NOTABLE_DELIVERY_STATUSES.has(status as string)
+}
+
+function DeliveryStatusBadge({ status }: { status: NonNullable<DashboardJobItem["delivery_status"]> }) {
+  const { t } = useT("dashboard")
+  const tone = status === "delivery_needs_attention" ? "red" : status === "upstream_closed_without_merge" ? "amber" : "blue"
+  return <TonePill tone={tone}>{t(`delivery_status.${status}`)}</TonePill>
 }
 
 function IssueMetadata({ job }: { job: DashboardJobItem }) {

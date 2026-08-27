@@ -20,8 +20,15 @@ class SyrusYml
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
   GRADE_FAILURE_POLICIES = %w[strict allow_inherited].freeze
   DEFAULT_GRADE_FAILURE_POLICY = "strict".freeze
-  GRADE_PHASES = %w[review landing ci].freeze
-  DEFAULT_GRADE_PHASES = GRADE_PHASES.freeze
+  GRADE_PHASES = %w[review landing ci promotion].freeze
+  # A grader with no explicit `phases:` opts into review/landing/ci by
+  # default (unchanged, backward-compatible behavior) but never into
+  # promotion — that phase only runs graders that explicitly ask for it
+  # (`phases: [promotion]`), the same "safe default, explicit opt-in"
+  # posture `formatters:`/`generated:`/`deploy:` already use elsewhere in
+  # this file. Otherwise every existing grader in a repository with no
+  # promotion config would silently start running during promotions too.
+  DEFAULT_GRADE_PHASES = %w[review landing ci].freeze
 
   COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
   COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
@@ -31,13 +38,33 @@ class SyrusYml
   DEPLOY_MODES = %w[manual continuous].freeze
   DEFAULT_DEPLOY_MODE = "manual".freeze
 
+  DELIVERY_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
+  DEFAULT_DELIVERY_TRACK_NAME = "default".freeze
+  DEFAULT_DELIVERY_REVIEW_PHASE = "review".freeze
+  DEFAULT_DELIVERY_LANDING_PHASE = "landing".freeze
+  DEFAULT_DELIVERY_CI_FAILURE_PHASE = "ci".freeze
+  DEFAULT_DELIVERY_BRANCH_HEALTH_PHASE = "ci".freeze
+  DELIVERY_PROMOTION_MODES = %w[direct auto_pr manual_pr].freeze
+  DEFAULT_DELIVERY_PROMOTION_MODE = "auto_pr".freeze
+  DELIVERY_HOTFIX_SYNC_MODES = %w[auto auto_pr manual_pr].freeze
+  DEFAULT_DELIVERY_HOTFIX_SYNC_MODE = "auto".freeze
+  DELIVERY_HOTFIX_SYNC_DIRECTIONS = %w[release_to_development].freeze
+  DEFAULT_DELIVERY_HOTFIX_SYNC_DIRECTION = "release_to_development".freeze
+  DELIVERY_UPSTREAM_EXPORT_MODES = %w[per_job_pr branch_pr].freeze
+  DEFAULT_DELIVERY_UPSTREAM_EXPORT_MODE = "per_job_pr".freeze
+  DELIVERY_REF_MOVEMENT_MODES = %w[direct auto_pr manual_pr].freeze
+
+  EXTERNAL_PR_PROVENANCE_KINDS = %w[external_unknown syrus_job_export syrus_branch_export].freeze
+  DEFAULT_EXTERNAL_PR_UNKNOWN_ACTION = "review_and_grade".freeze
+  DEFAULT_EXTERNAL_PR_JOB_EXPORT_ACTION = "attach_or_create_job".freeze
+  DEFAULT_EXTERNAL_PR_BRANCH_EXPORT_ACTION = "create_epic".freeze
 
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   # `run` is a required shell command — a `deploy:` block with no `run` is a
   # parse error, not a silent no-op, since (unlike `prepare`) there is no
@@ -49,6 +76,62 @@ class SyrusYml
   # duration string, matching `timeout_minutes`/`hitmap_ttl_days` elsewhere
   # in this file.
   DeployConfig = Data.define(:mode, :run, :allow_unapproved, :min_interval_minutes)
+  # Modeled on docs/plans/delivery-tracks-and-promotion.md. `delivery:` is
+  # optional the same way `deploy:`/`formatters:`/`generated:` are: absence
+  # means "current behavior," never a parse error.
+  #
+  # `Config#raw_delivery` is exactly what `.syrus.yml` declared (nil when the
+  # `delivery:` key is absent entirely) — kept for display/debugging so an
+  # operator can see the repository's literal config. `Config#delivery` is
+  # always present and normalized per the plan's "Backward Compatibility And
+  # Defaults" section, so runtime code never has to branch on "missing
+  # delivery block." One thing normalization can NOT do here: resolve a
+  # track's blank `branch` to the repository's default branch, because
+  # `SyrusYml` only ever sees file content, never a `Repository`. A blank
+  # `DeliveryTrack#branch` means "use `Repository#default_branch`" and is
+  # resolved by `DeliveryPolicy`, which does have repository context.
+  DeliveryTrack = Data.define(:name, :branch, :review_grade_phase, :landing_grade_phase, :ci_failure_grade_phase, :branch_health_grade_phase, :after_landing_sync_to)
+  DeliveryPromotionConfig = Data.define(:enabled, :mode, :approval_required, :grade_phases, :repair_skill)
+  DeliveryHotfixSyncConfig = Data.define(:enabled, :direction, :mode, :grade_phases, :repair_skill)
+  DeliveryUpstreamExportConfig = Data.define(:enabled, :mode, :after_local_approval, :target)
+  # `kind` names what `source`/`target` resolve to (`job_branch`, `track`,
+  # `branch`, `upstream_intake`, ...); `name` is the track/branch name when
+  # `kind` needs one (e.g. `{ kind: track, name: default }`) and is nil
+  # otherwise. Not enum-checked: the plan's own "Later Additions" section
+  # expects new kinds (versioned release branches, patch-queue transports)
+  # without a parser change.
+  DeliveryRefEndpoint = Data.define(:kind, :name)
+  DeliveryRefMovementAction = Data.define(:name, :enabled, :source, :target, :mode, :grade_phases)
+  DeliveryConfig = Data.define(:tracks, :promotion, :hotfix_sync, :upstream_export, :ref_movement_actions)
+  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 7 (owner +
+  # peer local approval, optional promotion maintainer approval). Unlike
+  # `Config#delivery`, `Config#approval` is left nil when the `approval:` key
+  # is absent -- there is no normalized always-present shape here, because
+  # "no `approval:` section" is itself a meaningful signal: it means "use the
+  # repository's existing `review_policy` behavior" (see `DeliveryPolicy`),
+  # not "use some default owner/peer_count combination." `owner_required`
+  # and `peer_count` are individually nilable too, so a config that sets only
+  # one of `approval.job.required.owner` / `.peer_count` doesn't silently
+  # zero out the other.
+  ApprovalConfig = Data.define(:job, :promotion)
+  ApprovalJobConfig = Data.define(:owner_required, :peer_count)
+  ApprovalPromotionConfig = Data.define(:maintainer_count)
+  # Modeled on docs/plans/delivery-tracks-and-promotion.md Story 10 (PR
+  # ingestion classification). Like `Config#approval`, `Config#external_prs`
+  # is left nil when the `external_prs:` key is absent — absence means
+  # "classify nothing; every ingested PR stays `external_unknown`," the exact
+  # behavior `Workflows::ExternalPrIngest` already had before this
+  # classification existed. `ingest.enabled` is the actual behavior switch
+  # (`PrProvenanceClassifier` short-circuits to `external_unknown` unless
+  # it's true); `unknown`/`syrus_job_export`/`syrus_branch_export` are
+  # free-form action-name strings, parsed and defaulted from the plan's
+  # Story 10 example but not branched on yet — today there is exactly one
+  # implemented ingestion behavior per classification
+  # (`ExternalPrIngestions::Base.for`), so these exist for
+  # documentation/audit parity with the plan rather than to select between
+  # multiple real behaviors.
+  ExternalPrsConfig = Data.define(:ingest)
+  ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
   # `ci` is accepted for compatibility: RepoGradePlan expands legacy `ci:`
   # into a synthetic `*-ci` grader in the `ci` phase. Runtime grading
@@ -109,6 +192,8 @@ class SyrusYml
     raw = YAML.safe_load(@contents, aliases: true) || {}
     raise ParseError, ".syrus.yml must be a mapping" unless raw.is_a?(Hash)
 
+    raw_delivery = parse_delivery(raw["delivery"])
+
     Config.new(
       prepare: raw["prepare"],
       grade: parse_grade(raw["grade"]),
@@ -122,7 +207,11 @@ class SyrusYml
       preview: parse_preview(raw["preview"]),
       visual_review: parse_visual_review(raw["visual_review"]),
       review_plan: ActiveModel::Type::Boolean.new.cast(raw["review_plan"]) || false,
-      deploy: parse_deploy(raw["deploy"])
+      deploy: parse_deploy(raw["deploy"]),
+      delivery: normalize_delivery(raw_delivery),
+      raw_delivery: raw_delivery,
+      approval: parse_approval(raw["approval"]),
+      external_prs: parse_external_prs(raw["external_prs"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -571,6 +660,270 @@ class SyrusYml
     minutes
   rescue ArgumentError, TypeError
     raise ParseError, "deploy.min_interval_minutes: must be a positive integer"
+  end
+
+  def parse_delivery(raw)
+    return nil if raw.nil?
+    raise ParseError, "delivery: must be a mapping" unless raw.is_a?(Hash)
+
+    DeliveryConfig.new(
+      tracks: raw.key?("tracks") ? parse_delivery_tracks(raw["tracks"]) : nil,
+      promotion: parse_delivery_promotion(raw["promotion"]),
+      hotfix_sync: parse_delivery_hotfix_sync(raw["hotfix_sync"]),
+      upstream_export: parse_delivery_upstream_export(raw["upstream_export"]),
+      ref_movement_actions: raw.key?("ref_movement_actions") ? parse_delivery_ref_movement_actions(raw["ref_movement_actions"]) : nil
+    )
+  end
+
+  # Fills in the plan's "Backward Compatibility And Defaults" shape so
+  # `Config#delivery` is always usable without a nil check, whether
+  # `delivery:` was absent entirely or present but missing some sub-blocks.
+  def normalize_delivery(raw_delivery)
+    DeliveryConfig.new(
+      tracks: raw_delivery&.tracks || default_delivery_tracks,
+      promotion: raw_delivery&.promotion || default_delivery_promotion,
+      hotfix_sync: raw_delivery&.hotfix_sync || default_delivery_hotfix_sync,
+      upstream_export: raw_delivery&.upstream_export || default_delivery_upstream_export,
+      ref_movement_actions: raw_delivery&.ref_movement_actions || {}
+    )
+  end
+
+  def default_delivery_tracks
+    {
+      DEFAULT_DELIVERY_TRACK_NAME => DeliveryTrack.new(
+        name: DEFAULT_DELIVERY_TRACK_NAME,
+        branch: nil,
+        review_grade_phase: DEFAULT_DELIVERY_REVIEW_PHASE,
+        landing_grade_phase: DEFAULT_DELIVERY_LANDING_PHASE,
+        ci_failure_grade_phase: DEFAULT_DELIVERY_CI_FAILURE_PHASE,
+        branch_health_grade_phase: DEFAULT_DELIVERY_BRANCH_HEALTH_PHASE,
+        after_landing_sync_to: nil
+      )
+    }
+  end
+
+  def default_delivery_promotion
+    DeliveryPromotionConfig.new(enabled: false, mode: DEFAULT_DELIVERY_PROMOTION_MODE, approval_required: false, grade_phases: [], repair_skill: nil)
+  end
+
+  def default_delivery_hotfix_sync
+    DeliveryHotfixSyncConfig.new(enabled: false, direction: DEFAULT_DELIVERY_HOTFIX_SYNC_DIRECTION, mode: DEFAULT_DELIVERY_HOTFIX_SYNC_MODE, grade_phases: [], repair_skill: nil)
+  end
+
+  def default_delivery_upstream_export
+    DeliveryUpstreamExportConfig.new(enabled: false, mode: DEFAULT_DELIVERY_UPSTREAM_EXPORT_MODE, after_local_approval: true, target: nil)
+  end
+
+  def parse_delivery_tracks(raw)
+    raise ParseError, "delivery.tracks: must be a mapping" unless raw.is_a?(Hash)
+    unless raw.key?(DEFAULT_DELIVERY_TRACK_NAME)
+      raise ParseError, "delivery.tracks: must include a #{DEFAULT_DELIVERY_TRACK_NAME.inspect} track"
+    end
+
+    raw.each_with_object({}) do |(name, track_raw), tracks|
+      label = "delivery.tracks.#{name}"
+      key = name.to_s.strip
+      raise ParseError, "#{label}: name must not be blank" if key.empty?
+      raise ParseError, "#{label}: name must match #{DELIVERY_NAME_PATTERN.inspect}" unless key.match?(DELIVERY_NAME_PATTERN)
+
+      tracks[key] = parse_delivery_track(key, track_raw, label)
+    end
+  end
+
+  def parse_delivery_track(name, raw, label)
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    grade_phases = raw["grade_phases"]
+    raise ParseError, "#{label}.grade_phases: must be a mapping" unless grade_phases.nil? || grade_phases.is_a?(Hash)
+    grade_phases ||= {}
+
+    after_landing = raw["after_landing"]
+    raise ParseError, "#{label}.after_landing: must be a mapping" unless after_landing.nil? || after_landing.is_a?(Hash)
+
+    DeliveryTrack.new(
+      name: name,
+      branch: raw["branch"].to_s.strip.presence,
+      review_grade_phase: grade_phases["review"].to_s.strip.presence || DEFAULT_DELIVERY_REVIEW_PHASE,
+      landing_grade_phase: grade_phases["landing"].to_s.strip.presence || DEFAULT_DELIVERY_LANDING_PHASE,
+      ci_failure_grade_phase: grade_phases["ci_failure"].to_s.strip.presence || DEFAULT_DELIVERY_CI_FAILURE_PHASE,
+      branch_health_grade_phase: grade_phases["branch_health"].to_s.strip.presence || DEFAULT_DELIVERY_BRANCH_HEALTH_PHASE,
+      after_landing_sync_to: after_landing && after_landing["sync_to"].to_s.strip.presence
+    )
+  end
+
+  def parse_delivery_promotion(raw)
+    return nil if raw.nil?
+    raise ParseError, "delivery.promotion: must be a mapping" unless raw.is_a?(Hash)
+
+    mode = raw.key?("mode") ? raw["mode"].to_s.strip : DEFAULT_DELIVERY_PROMOTION_MODE
+    unless DELIVERY_PROMOTION_MODES.include?(mode)
+      raise ParseError, "delivery.promotion.mode: must be one of #{DELIVERY_PROMOTION_MODES.join(', ')}"
+    end
+
+    DeliveryPromotionConfig.new(
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      mode: mode,
+      approval_required: ActiveModel::Type::Boolean.new.cast(raw["approval_required"]) || false,
+      grade_phases: parse_delivery_phase_list(raw["grade_phases"], "delivery.promotion.grade_phases"),
+      repair_skill: raw["repair_skill"].to_s.strip.presence
+    )
+  end
+
+  def parse_delivery_hotfix_sync(raw)
+    return nil if raw.nil?
+    raise ParseError, "delivery.hotfix_sync: must be a mapping" unless raw.is_a?(Hash)
+
+    direction = raw.key?("direction") ? raw["direction"].to_s.strip : DEFAULT_DELIVERY_HOTFIX_SYNC_DIRECTION
+    unless DELIVERY_HOTFIX_SYNC_DIRECTIONS.include?(direction)
+      raise ParseError, "delivery.hotfix_sync.direction: must be one of #{DELIVERY_HOTFIX_SYNC_DIRECTIONS.join(', ')}"
+    end
+
+    mode = raw.key?("mode") ? raw["mode"].to_s.strip : DEFAULT_DELIVERY_HOTFIX_SYNC_MODE
+    unless DELIVERY_HOTFIX_SYNC_MODES.include?(mode)
+      raise ParseError, "delivery.hotfix_sync.mode: must be one of #{DELIVERY_HOTFIX_SYNC_MODES.join(', ')}"
+    end
+
+    DeliveryHotfixSyncConfig.new(
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      direction: direction,
+      mode: mode,
+      grade_phases: parse_delivery_phase_list(raw["grade_phases"], "delivery.hotfix_sync.grade_phases"),
+      repair_skill: raw["repair_skill"].to_s.strip.presence
+    )
+  end
+
+  def parse_delivery_upstream_export(raw)
+    return nil if raw.nil?
+    raise ParseError, "delivery.upstream_export: must be a mapping" unless raw.is_a?(Hash)
+
+    mode = raw.key?("mode") ? raw["mode"].to_s.strip : DEFAULT_DELIVERY_UPSTREAM_EXPORT_MODE
+    unless DELIVERY_UPSTREAM_EXPORT_MODES.include?(mode)
+      raise ParseError, "delivery.upstream_export.mode: must be one of #{DELIVERY_UPSTREAM_EXPORT_MODES.join(', ')}"
+    end
+
+    DeliveryUpstreamExportConfig.new(
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      mode: mode,
+      after_local_approval: raw.key?("after_local_approval") ? ActiveModel::Type::Boolean.new.cast(raw["after_local_approval"]) : true,
+      target: raw["target"].to_s.strip.presence
+    )
+  end
+
+  def parse_delivery_ref_movement_actions(raw)
+    raise ParseError, "delivery.ref_movement_actions: must be a mapping" unless raw.is_a?(Hash)
+
+    raw.each_with_object({}) do |(name, action_raw), actions|
+      label = "delivery.ref_movement_actions.#{name}"
+      key = name.to_s.strip
+      raise ParseError, "#{label}: name must not be blank" if key.empty?
+      raise ParseError, "#{label}: name must match #{DELIVERY_NAME_PATTERN.inspect}" unless key.match?(DELIVERY_NAME_PATTERN)
+
+      actions[key] = parse_delivery_ref_movement_action(key, action_raw, label)
+    end
+  end
+
+  def parse_delivery_ref_movement_action(name, raw, label)
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    mode = raw["mode"].to_s.strip
+    raise ParseError, "#{label}.mode: is required" if mode.empty?
+    raise ParseError, "#{label}.mode: must be one of #{DELIVERY_REF_MOVEMENT_MODES.join(', ')}" unless DELIVERY_REF_MOVEMENT_MODES.include?(mode)
+
+    DeliveryRefMovementAction.new(
+      name: name,
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      source: parse_delivery_ref_endpoint(raw["source"], "#{label}.source"),
+      target: parse_delivery_ref_endpoint(raw["target"], "#{label}.target"),
+      mode: mode,
+      grade_phases: parse_delivery_phase_list(raw["grade_phases"], "#{label}.grade_phases")
+    )
+  end
+
+  def parse_delivery_ref_endpoint(raw, label)
+    raise ParseError, "#{label}: is required" if raw.nil?
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    kind = raw["kind"].to_s.strip
+    raise ParseError, "#{label}.kind: is required" if kind.empty?
+
+    DeliveryRefEndpoint.new(kind: kind, name: raw["name"].to_s.strip.presence)
+  end
+
+  def parse_delivery_phase_list(raw, label)
+    phases =
+      case raw
+      when nil then []
+      when String then [ raw ]
+      when Array then raw
+      else raise ParseError, "#{label}: must be a phase name string or an array of phase name strings"
+      end
+
+    phases.map { |phase| phase.to_s.strip }.reject(&:empty?)
+  end
+
+  def parse_approval(raw)
+    return nil if raw.nil?
+    raise ParseError, "approval: must be a mapping" unless raw.is_a?(Hash)
+
+    ApprovalConfig.new(
+      job: parse_approval_job(raw["job"]),
+      promotion: parse_approval_promotion(raw["promotion"])
+    )
+  end
+
+  def parse_approval_job(raw)
+    return nil if raw.nil?
+    raise ParseError, "approval.job: must be a mapping" unless raw.is_a?(Hash)
+
+    required = raw["required"]
+    raise ParseError, "approval.job.required: must be a mapping" unless required.nil? || required.is_a?(Hash)
+    required ||= {}
+
+    ApprovalJobConfig.new(
+      owner_required: required.key?("owner") ? ActiveModel::Type::Boolean.new.cast(required["owner"]) : nil,
+      peer_count: required.key?("peer_count") ? parse_non_negative_integer(required["peer_count"], "approval.job.required.peer_count") : nil
+    )
+  end
+
+  def parse_approval_promotion(raw)
+    return nil if raw.nil?
+    raise ParseError, "approval.promotion: must be a mapping" unless raw.is_a?(Hash)
+
+    required = raw["required"]
+    raise ParseError, "approval.promotion.required: must be a mapping" unless required.nil? || required.is_a?(Hash)
+    required ||= {}
+
+    ApprovalPromotionConfig.new(
+      maintainer_count: required.key?("maintainer_count") ? parse_non_negative_integer(required["maintainer_count"], "approval.promotion.required.maintainer_count") : nil
+    )
+  end
+
+  def parse_external_prs(raw)
+    return nil if raw.nil?
+    raise ParseError, "external_prs: must be a mapping" unless raw.is_a?(Hash)
+
+    ExternalPrsConfig.new(ingest: parse_external_prs_ingest(raw["ingest"]))
+  end
+
+  def parse_external_prs_ingest(raw)
+    raw ||= {}
+    raise ParseError, "external_prs.ingest: must be a mapping" unless raw.is_a?(Hash)
+
+    ExternalPrsIngestConfig.new(
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      unknown: raw.fetch("unknown", DEFAULT_EXTERNAL_PR_UNKNOWN_ACTION).to_s.strip.presence,
+      syrus_job_export: raw.fetch("syrus_job_export", DEFAULT_EXTERNAL_PR_JOB_EXPORT_ACTION).to_s.strip.presence,
+      syrus_branch_export: raw.fetch("syrus_branch_export", DEFAULT_EXTERNAL_PR_BRANCH_EXPORT_ACTION).to_s.strip.presence
+    )
+  end
+
+  def parse_non_negative_integer(raw, label)
+    value = Integer(raw)
+    raise ParseError, "#{label}: must not be negative" if value.negative?
+
+    value
+  rescue ArgumentError, TypeError
+    raise ParseError, "#{label}: must be an integer"
   end
 
   def remember_unique_name!(seen, name, label)

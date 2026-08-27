@@ -265,7 +265,15 @@ class McpToolRegistry
         chat(Mcp::Tools::AnalyzeWalkthroughSegmentTool, tier: :deferred, feature_flag: :video_walkthroughs),
         chat(Mcp::Tools::ReadWalkthroughFrameTool, tier: :deferred, feature_flag: :video_walkthroughs),
         chat(Mcp::Tools::ListInsightsTool, tier: :deferred, feature_flag: :agent_insights),
-        chat(Mcp::Tools::ReadInsightTool, tier: :deferred, feature_flag: :agent_insights)
+        chat(Mcp::Tools::ReadInsightTool, tier: :deferred, feature_flag: :agent_insights),
+        chat(Mcp::Tools::ListDeliveryTracksTool, tier: :deferred),
+        chat(Mcp::Tools::ResolveDeliveryPolicyTool, tier: :deferred),
+        chat(Mcp::Tools::SelectJobDeliveryTrackTool, tier: :deferred, mutation: true),
+        chat(Mcp::Tools::ListRefMovementActionsTool, tier: :deferred),
+        chat(Mcp::Tools::DispatchRefMovementActionTool, tier: :deferred, mutation: true),
+        chat(Mcp::Tools::ReadRefMovementStatusTool, tier: :deferred),
+        chat(Mcp::Tools::ClassifyPullRequestTool, tier: :deferred),
+        chat(Mcp::Tools::IngestPullRequestTool, tier: :deferred, mutation: true)
       ]
     end
 

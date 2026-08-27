@@ -949,6 +949,39 @@ Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.
 
+Repositories that configure a branching model in `.syrus.yml`'s `delivery:`
+block (a development/release split, a hotfix track, and so on) can select a
+delivery track per Job instead of always landing on the repository's default
+branch. The direct job API and admin job creation both accept an optional
+track selection (e.g. `hotfix`, when the repository defines a `hotfix`
+track); leaving it unset lands the Job on the repository's normal default
+track. A GitHub issue can select a track the same way with a
+`syrus-track-<name>` label (e.g. `syrus-track-hotfix`). See
+`config/syrus_docs/delivery_tracks.md` for the full `.syrus.yml` shape.
+
+Once a repository configures delivery tracks, its overview page gains a
+**Delivery** section: a table of tracks with branch, grade phases, health,
+landing-queue length, and the last promotion/hotfix-sync into that track;
+the repository's configured ref-movement actions and whether each is
+currently available to dispatch; recent promotion/hotfix-sync/upstream-export
+Workflows with their source and target refs; and recent PR ingestions with
+their Syrus-provenance classification. The Dashboard's Jobs table shows a
+small delivery-status badge (waiting for upstream approval, waiting for
+promotion, syncing hotfix, and so on) next to any Job whose delivery status
+is more specific than the default "waiting for local approval"/"approved for
+local landing", and the Jobs sidebar gains matching **Waiting for upstream**,
+**Promotion pending**, and **Delivery needs attention** smart folders.
+
+A Job's own detail page gains a matching **Delivery** panel: its selected
+delivery track and target ref, the pull requests it has opened so far
+grouped by role (local landing, upstream export, promotion, hotfix sync,
+external ingest), and a fuller version of the delivery-status copy —
+including the actual PR number once one is open, e.g. "Sent upstream: PR
+#123 waiting for review". A fork Job whose repository has configured the
+`send_job_upstream` ref-movement action gets a matching **Send upstream**
+button in the Job header, so a contributor doesn't have to wait for the
+automatic post-approval export trigger.
+
 ## Skills
 
 Skills are named, freeform instruction sets for work that resists being
