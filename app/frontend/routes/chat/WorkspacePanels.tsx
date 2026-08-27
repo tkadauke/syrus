@@ -272,7 +272,7 @@ function PreviewVersionSelector({
               aria-selected={selectedVersionId === version.id}
               className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm ${
                 selectedVersionId === version.id
-                  ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200"
+                  ? "bg-brand/10 font-medium text-brand"
                   : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               }`}
               key={version.id}

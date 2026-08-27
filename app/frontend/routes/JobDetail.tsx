@@ -1555,7 +1555,7 @@ function ErdDiagramRenderer({ payload }: { payload: Record<string, unknown> }) {
             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {(table.columns ?? []).map((col) => (
                 <li className="flex items-center gap-2 px-3 py-1 text-xs" key={col.name}>
-                  {col.primary_key ? <span className="shrink-0 font-bold text-terracotta-600 dark:text-terracotta-400">{t("artifact_erd_primary_key")}</span> : null}
+                  {col.primary_key ? <span className="shrink-0 font-bold text-brand">{t("artifact_erd_primary_key")}</span> : null}
                   <span className="font-mono text-gray-900 dark:text-gray-100">{col.name}</span>
                   <span className="ml-auto shrink-0 text-gray-400 dark:text-gray-500">{col.type}</span>
                 </li>
