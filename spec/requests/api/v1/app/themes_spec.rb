@@ -37,6 +37,7 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+
   describe "GET /api/v1/app/themes/:id" do
     it "returns a built-in theme" do
       ocean = theme(slug: "ocean", built_in: true, name: "Ocean")
