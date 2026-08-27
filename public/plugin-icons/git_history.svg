@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="Git History">
+  <rect width="24" height="24" rx="5" fill="#7c2d12"/>
+  <path d="M8 6v9a3 3 0 0 0 3 3h5" fill="none" stroke="#ffedd5" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M8 10h5a3 3 0 0 1 3 3v5" fill="none" stroke="#fed7aa" stroke-width="1.7" stroke-linecap="round"/>
+  <circle cx="8" cy="6" r="2" fill="#fdba74"/>
+  <circle cx="16" cy="18" r="2" fill="#fdba74"/>
+  <circle cx="8" cy="15" r="2" fill="#fdba74"/>
+</svg>

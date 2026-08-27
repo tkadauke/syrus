@@ -2,6 +2,27 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://syrus-ai.dev/</loc></url>
   <url><loc>https://syrus-ai.dev/download/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/admin_mysql/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/browser/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/claude_agent/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/codex_agent/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/discord/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/django/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/git_history/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/github_source/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/go/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/javascript/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/linear_source/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/mysql_db_browser/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/preview_tools/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/python/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/rails/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/ruby/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/spending_insights/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/syrus_dev/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/tailscale/</loc></url>
+  <url><loc>https://syrus-ai.dev/plugins/whiteboard_tools/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/api/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/architecture/</loc></url>

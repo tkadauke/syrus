@@ -14,7 +14,8 @@ module SyrusRails
       Syrus::PluginRegistry.register(
         name:        "syrus-rails",
         version:     SyrusRails::VERSION,
-        description: "Ruby on Rails intelligence",
+        description: "Ruby on Rails framework intelligence.",
+        long_description: "Syrus Rails layers Rails-specific behavior on top of the generic Ruby plugin. It understands Rails migrations, eager loading, schema checks, preview boot, routes, models, and framework-specific review criteria so agents can work with Rails apps safely.\n\nUse it for Rails repositories where plain Ruby support is not enough. It depends on the Ruby plugin and contributes the Rails-specific graders, MCP helpers, artifact renderers, and preview integration used by Syrus itself.",
         homepage:    "https://github.com/tkadauke/syrus",
         author:      "Thomas Kadauke",
         icon_url:    "/plugin-icons/syrus-rails.svg",

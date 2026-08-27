@@ -83,6 +83,7 @@ module Admin
           category: manifest.category,
           category_label: Syrus::Plugin::Category.label_for(manifest.category),
           description: manifest.description.presence || spec&.summary || metadata[:description],
+          long_description: manifest.long_description.presence || metadata[:long_description],
           homepage: manifest.homepage.presence || spec&.homepage || metadata[:homepage],
           icon_url: manifest.icon_url.presence || metadata[:icon_url].presence || FALLBACK_ICON_URL,
           author: author_for(spec, metadata),

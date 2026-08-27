@@ -146,6 +146,18 @@ body {
     border: 1px solid color-mix(in oklab, var(--color-cream) 9%, transparent);
     border-radius: 1rem;
   }
+
+  .plugin-icon-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem;
+    background: linear-gradient(145deg, #f7efe4, #d9cbbb);
+    border: 1px solid color-mix(in oklab, var(--color-cream) 30%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 10px 24px rgba(0, 0, 0, 0.22);
+  }
 }
 
 /* Subtle grain to warm up flat dark areas (very low opacity). */

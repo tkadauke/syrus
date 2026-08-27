@@ -22,6 +22,7 @@ module Ruby
                            "RSpec output parsing, SimpleCov analysis, Gemfile prepare detection, " \
                            "RuboCop autofix, bundler-audit dependency scanning, default N+1 review criterion, " \
                            "require_relative-graph affected-test analysis",
+        long_description: "Ruby provides language-level support for Ruby repositories independent of Rails. It detects Gemfile-based projects, prepares Bundler dependencies, augments RSpec and RuboCop output, parses RSpec JSON/JUnit results, analyzes SimpleCov coverage, and supplies common Ruby autofix and dependency-audit commands.\n\nUse it for gems, scripts, services, Sinatra apps, and any mixed repository with Ruby code. Rails-specific capabilities live in the Syrus Rails plugin so core Ruby support stays broadly applicable.",
         homepage:         "https://github.com/tkadauke/syrus",
         author:           "Thomas Kadauke",
         icon_url:         "/plugin-icons/ruby.svg",
