@@ -12,6 +12,7 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
 import { NoticeToast } from "../../components/NoticeToast"
+import { Button } from "../../components/Button"
 import { fetchDashboardRows, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
 
@@ -184,7 +185,7 @@ function KanbanLane({
   return (
     <section
       aria-label={t("lane_label", { title: lane.title })}
-      className={`min-h-64 rounded border bg-gray-50 dark:bg-gray-950 ${draggingOver ? "border-blue-400 ring-2 ring-blue-100 dark:border-blue-500 dark:ring-blue-900" : "border-gray-200 dark:border-gray-700"}`}
+      className={`min-h-64 rounded border bg-gray-50 dark:bg-gray-950 ${draggingOver ? "border-brand ring-2 ring-brand/20" : "border-gray-200 dark:border-gray-700"}`}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
@@ -205,15 +206,15 @@ function KanbanLane({
         ))}
         {serverLoadError ? <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{serverLoadError}</div> : null}
         {canLoadMore ? (
-          <button
+          <Button
             aria-label={t("load_more_lane", { lane: lane.title })}
-            className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="w-full"
             disabled={serverLoadPending}
             onClick={loadMore}
-            type="button"
+            variant="secondary"
           >
             {t("load_more")}
-          </button>
+          </Button>
         ) : null}
       </div>
     </section>
@@ -226,7 +227,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     return (
       <article className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
         <div className="flex items-start justify-between gap-1">
-          <Link className="line-clamp-2 text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
+          <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
           {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -234,11 +235,11 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           {item.state === "queued" && item.start_blocked_reason ? (
             <StartBlockedReasonPill count={item.start_blocked_count} details={item.start_blocked_details} nextCheckAt={item.start_blocked_next_check_at} reason={item.start_blocked_reason} startBlockedAt={item.start_blocked_at} />
           ) : null}
-          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
+          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
           <OwnerBadge badge={item.owner_badge} />
           {item.pr_number ? (
             <PrHoverCard jobId={item.id} prNumber={item.pr_number} prUrl={item.pr_url ?? ""}>
-              <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
+              <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
             </PrHoverCard>
           ) : null}
           <ExternalPrBadge external={item.pr_is_external} />
@@ -251,8 +252,8 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     const slug = workflowLabel(item)
     return (
       <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
-        <Link className="mt-1 line-clamp-2 block text-sm text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.job.path, prefix)}><PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} /></Link>
+        <Link className="text-sm font-medium text-brand hover:underline" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
+        <Link className="mt-1 line-clamp-2 block text-sm text-brand hover:underline" to={withRoutePrefix(item.job.path, prefix)}><PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} /></Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.state} triggerAriaPrefix="Workflow trigger" triggerKind={item.trigger_kind} />
           <OwnerBadge badge={item.job.owner_badge} />
@@ -274,13 +275,13 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           <SlugHoverCard id={item.id} kind="epic">
             <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
           </SlugHoverCard>
-          <Link className="line-clamp-2 text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+          <Link className="line-clamp-2 text-sm font-medium text-brand hover:underline" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <NeutralStatePill state={item.state} />
           <EpicStuckBadge stuck={item.stuck} />
           <OwnerBadge badge={item.owner_badge} />
-          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
+          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
         </div>
       </div>
       <EpicProgressBar epic={item} fullWidth />

@@ -1,4 +1,6 @@
-import { inputClass } from "../lib/formClasses"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
+import { Button } from "../components/Button"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -127,8 +129,7 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("teams.name_label")}
           <div className="mt-1">
-            <input
-              className={inputClass()}
+            <Input
               onChange={(event) => setName(event.target.value)}
               placeholder={t("teams.name_placeholder")}
               required
@@ -137,9 +138,9 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
             />
           </div>
         </label>
-        <button className={primaryButton()} disabled={pending} type="submit">
+        <Button disabled={pending} type="submit">
           {pending ? t("teams.creating") : t("teams.create")}
-        </button>
+        </Button>
       </form>
     </section>
   )
@@ -205,18 +206,18 @@ function TeamDetail({ payload }: { payload: AdminTeamDetailPayload }) {
           <h2 className="text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("teams.heading")}</h2>
           <RenameTeamForm disabled={rename.isPending} initialName={payload.team.name} onSubmit={(name) => rename.mutate(name)} />
           <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
-            <button
-              className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-300"
+            <Button
+              className="disabled:bg-red-300"
               disabled={destroy.isPending}
               onClick={async () => {
                 if (await confirm({ message: t("teams.confirm_delete", { name: payload.team.name }), destructive: true })) {
                   destroy.mutate()
                 }
               }}
-              type="button"
+              variant="danger"
             >
               {destroy.isPending ? t("teams.deleting") : t("teams.delete")}
-            </button>
+            </Button>
           </div>
         </section>
       ) : null}
@@ -243,12 +244,12 @@ function RenameTeamForm({ initialName, onSubmit, disabled }: { initialName: stri
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
         {t("teams.name_label")}
         <div className="mt-1">
-          <input className={inputClass()} disabled={disabled} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
+          <Input disabled={disabled} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
         </div>
       </label>
-      <button className={primaryButton()} disabled={disabled} type="submit">
+      <Button disabled={disabled} type="submit">
         {disabled ? t("teams.renaming") : t("teams.rename")}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -330,9 +331,9 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
 function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRole; onChange: (role: TeamMembershipRole) => void; disabled: boolean }) {
   const { t } = useT("admin")
   return (
-    <select
-      className={inputClass({ fullWidth: false })}
+    <Select
       disabled={disabled}
+      fullWidth={false}
       onChange={(event) => onChange(event.target.value as TeamMembershipRole)}
       value={value}
     >
@@ -341,7 +342,7 @@ function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRo
           {t(`teams.role_${role}`)}
         </option>
       ))}
-    </select>
+    </Select>
   )
 }
 
@@ -374,8 +375,7 @@ function AddMemberForm({ teamId }: { teamId: number }) {
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {t("teams.email_label")}
           <div className="mt-1">
-            <input
-              className={inputClass()}
+            <Input
               onChange={(event) => setEmail(event.target.value)}
               placeholder={t("teams.email_placeholder")}
               required
@@ -390,9 +390,9 @@ function AddMemberForm({ teamId }: { teamId: number }) {
             <TeamRoleSelect disabled={create.isPending} onChange={setRole} value={role} />
           </div>
         </label>
-        <button className={primaryButton()} disabled={create.isPending} type="submit">
+        <Button disabled={create.isPending} type="submit">
           {create.isPending ? t("teams.adding") : t("teams.add")}
-        </button>
+        </Button>
       </form>
     </div>
   )
@@ -429,8 +429,4 @@ function TeamsError({ error }: { error: Error }) {
   const message = error instanceof ApiError ? error.message : t("teams.error_load")
 
   return <PanelMessage tone="error">{message}</PanelMessage>
-}
-
-function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
 }

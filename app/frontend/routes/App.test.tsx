@@ -1814,7 +1814,7 @@ describe("App", () => {
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
       expect(settingsNav.closest("aside")).toHaveClass("lg:w-56", "lg:border-r")
       expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
-      expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-brand/10", "text-brand")
       expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
       expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/app-shell/settings/agent")
       expect(within(settingsNav).getByRole("link", { name: "Preferences" })).toHaveAttribute("href", "/app-shell/settings/preferences")
@@ -1879,7 +1879,7 @@ describe("App", () => {
 
       expect(await screen.findByRole("main", { name: "Hidden chats" })).toBeInTheDocument()
       const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-      expect(within(settingsNav).getByRole("link", { name: "Hidden chats" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(settingsNav).getByRole("link", { name: "Hidden chats" })).toHaveClass("bg-brand/10", "text-brand")
       expect(await screen.findByText("Archived planning")).toBeInTheDocument()
       expect(screen.getByText("acme/widgets")).toBeInTheDocument()
 
@@ -4828,7 +4828,7 @@ describe("App", () => {
       expect(dashboardSections).toHaveClass("inline-flex", "max-w-full", "flex-wrap", "overflow-hidden", "rounded", "border", "border-gray-300", "bg-white", "dark:border-gray-700", "dark:bg-gray-900")
       expect(within(dashboardSections).getByRole("link", { name: "Epics" })).toHaveAttribute("href", "/app-shell/dashboard/epics")
       expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
-      expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveClass("bg-blue-50", "text-blue-700", "ring-blue-600", "dark:bg-blue-950", "dark:text-blue-200")
+      expect(within(dashboardSections).getByRole("link", { name: "Jobs" })).toHaveClass("bg-brand/10", "text-brand", "ring-brand")
       expect(within(dashboardSections).getByRole("link", { name: "Workflows" })).toHaveAttribute("href", "/app-shell/dashboard/workflows")
       expect(primaryNav).toContainElement(foldersPanel)
       const dashboardNavItem = dashboardLink.closest("[draggable]")!.parentElement
@@ -7683,7 +7683,7 @@ describe("App", () => {
     expect(await screen.findByText("triage")).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
-    expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveClass("bg-blue-50")
+    expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveClass("bg-brand/10")
     expect(screen.getByText("3")).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "epic:attachments" } })
@@ -7746,7 +7746,7 @@ describe("App", () => {
 
     expect(screen.getByRole("main", { name: "Cron templates" })).toBeInTheDocument()
     expect(await screen.findByText("Weekly dependency bump")).toBeInTheDocument()
-    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Templates" })).toHaveClass("bg-blue-50")
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Templates" })).toHaveClass("bg-brand/10")
     expect(screen.getByRole("link", { name: "Weekly dependency bump" })).toHaveAttribute("href", "/app-shell/cron_templates/5")
     expect(screen.getByText("2 repos")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -8113,7 +8113,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Credentials" })).toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Settings tabs" })).not.toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveClass("bg-blue-50")
+    expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveClass("bg-brand/10")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).not.toHaveClass("bg-blue-50")
 
@@ -8194,7 +8194,7 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials", expect.anything())
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/app-shell/credentials")
-    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-blue-50")
+    expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveClass("bg-brand/10")
     expect(screen.getByRole("group", { name: "Desktop Notifications" })).toBeInTheDocument()
     const jobFailedToggle = await screen.findByLabelText("Notify me when a job fails")
     expect(jobFailedToggle).toBeChecked()
@@ -8426,7 +8426,7 @@ describe("App", () => {
     expect(await screen.findByRole("main", { name: "Profile" })).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
     expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profile")
-    expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-blue-50")
+    expect(within(settingsNav).getByRole("link", { name: "Profile" })).toHaveClass("bg-brand/10")
     expect(await screen.findByLabelText("Display name")).toBeInTheDocument()
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     expect(within(settingsNav).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications/settings")
@@ -8462,7 +8462,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("main", { name: "Agent Settings" })).toBeInTheDocument()
     const settingsNav = screen.getByRole("navigation", { name: "Settings navigation" })
-    expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveClass("bg-blue-50")
+    expect(within(settingsNav).getByRole("link", { name: "Agent Settings" })).toHaveClass("bg-brand/10")
     expect(screen.queryByLabelText("GitHub personal access token")).not.toBeInTheDocument()
     fireEvent.change(await screen.findByLabelText("Agent provider"), { target: { value: "codex" } })
     fireEvent.change(screen.getByLabelText("Max turns"), { target: { value: "42" } })
@@ -8503,7 +8503,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Preferences" })).toBeInTheDocument()
-    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-blue-50")
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Preferences" })).toHaveClass("bg-brand/10")
     expect(screen.queryByLabelText("Agent provider")).not.toBeInTheDocument()
     const pauseScheduling = await screen.findByLabelText("Pause scheduling")
     expect(screen.queryByRole("group", { name: "Desktop Notifications" })).not.toBeInTheDocument()
@@ -8644,7 +8644,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Personal documents" })).toBeInTheDocument()
-    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Documents" })).toHaveClass("bg-blue-50")
+    expect(within(screen.getByRole("navigation", { name: "Settings navigation" })).getByRole("link", { name: "Documents" })).toHaveClass("bg-brand/10")
     fireEvent.change(await screen.findByLabelText("Google Doc URL"), { target: { value: "https://docs.google.com/document/d/user/edit" } })
     fireEvent.click(screen.getByRole("button", { name: "Add document" }))
 
@@ -11456,7 +11456,7 @@ describe("App", () => {
     expect(screen.getByText("Launch notes")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Attachments" })).toHaveClass("dark:text-gray-100")
     expect(screen.getByRole("button", { name: "acme/widgets" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("dark:bg-gray-800", "dark:text-gray-300")
+    expect(screen.getByRole("button", { name: "acme/widgets" })).toHaveClass("bg-surface", "text-text-primary")
     expect(screen.queryByRole("heading", { name: "Add attachment" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Type")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()

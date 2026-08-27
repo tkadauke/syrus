@@ -12,6 +12,7 @@ import {
 } from "../api/adminInvitations"
 import { Button } from "../components/Button"
 import { CopyIcon } from "../components/CopyableSlug"
+import { Input } from "../components/Input"
 import { NoticeToast } from "../components/NoticeToast"
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard"
 import { useT } from "../hooks/useT"
@@ -75,9 +76,9 @@ function CreateInvitationForm({ onNotice }: { onNotice: (message: string | null)
       <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={submit}>
         <label className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">
           {t("invitations.email_label")}
-          <input
+          <Input
             autoComplete="off"
-            className="mt-1 block w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm shadow-sm focus:outline-blue-600"
+            className="mt-1"
             onChange={(event) => setEmailAddress(event.target.value)}
             required
             type="email"

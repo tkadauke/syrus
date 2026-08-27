@@ -1,4 +1,4 @@
-import { inputClass } from "../lib/formClasses"
+import { Input } from "../components/Input"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -191,10 +191,10 @@ function DocumentForms({
           {t('repository_documents.upload_file')}
         </SectionHeading>
         <Field label="File title">
-          <input className={inputClass()} onChange={(event) => setFileTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional_filename")} type="text" value={fileTitle} />
+          <Input onChange={(event) => setFileTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional_filename")} type="text" value={fileTitle} />
         </Field>
         <Field label="File">
-          <input accept={acceptedTypes.join(",")} className="block w-full text-sm text-gray-700 dark:text-gray-300" onChange={(event) => setFile(event.currentTarget.files?.[0] || null)} required type="file" />
+          <Input accept={acceptedTypes.join(",")} onChange={(event) => setFile(event.currentTarget.files?.[0] || null)} required type="file" />
         </Field>
         <button className={primaryButton()} disabled={save.isPending} type="submit">
           {save.isPending ? (
@@ -214,10 +214,10 @@ function DocumentForms({
           {t('repository_documents.link_google_doc')}
         </SectionHeading>
         <Field label="URL">
-          <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
+          <Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
         </Field>
         <Field label="Document title">
-          <input className={inputClass()} onChange={(event) => setDocTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional")} type="text" value={docTitle} />
+          <Input onChange={(event) => setDocTitle(event.target.value)} placeholder={t("repository_documents.placeholder_optional")} type="text" value={docTitle} />
         </Field>
         <button className={primaryButton()} disabled={save.isPending} type="submit">
           {save.isPending ? (

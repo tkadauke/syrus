@@ -19,7 +19,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
-import { buttonClasses } from "../components/Button"
+import { Button, buttonClasses } from "../components/Button"
 
 export function RepositoryScheduledTasksRoute() {
   const { t } = useT("settings")
@@ -117,14 +117,13 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
-                      <button
-                        className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-300 dark:disabled:text-gray-600"
+                      <Button
                         disabled={toggle.isPending}
                         onClick={() => toggle.mutate({ task, enabled: !task.active })}
-                        type="button"
+                        variant="secondary"
                       >
                         {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
-                      </button>
+                      </Button>
                       <button
                         className="rounded border border-red-200 dark:border-red-800 px-3 py-1 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
                         disabled={destroy.isPending}

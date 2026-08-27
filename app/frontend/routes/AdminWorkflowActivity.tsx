@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { Button } from "../components/Button"
 import { fetchAdminWorkflowActivity, type AdminWorkflowActivityPayload, type WorkflowActivityEvent } from "../api/adminWorkflowActivity"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
@@ -30,9 +31,9 @@ export function AdminWorkflowActivity() {
   return (
     <AdminEventPageShell
       actions={
-        <button className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500" disabled={activity.isFetching} onClick={() => void activity.refetch()} type="button">
+        <Button className="shrink-0 disabled:text-gray-400 dark:disabled:text-gray-500" disabled={activity.isFetching} onClick={() => void activity.refetch()} variant="secondary">
           {activity.isFetching ? t("activity.refreshing") : t("activity.refresh")}
-        </button>
+        </Button>
       }
       ariaLabel={t("activity.aria")}
       eyebrow={t("section_label")}

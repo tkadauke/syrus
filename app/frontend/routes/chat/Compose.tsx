@@ -14,6 +14,7 @@ import { attachChatRepository, branchChat, clearChatHistory, createChat, createC
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
+import { Input } from "../../components/Input"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
@@ -1359,8 +1360,8 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       ) : null}
       <form
         className={floating
-          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:max-w-xl sm:mx-auto sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`
-          : `relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:max-w-xl sm:mx-auto sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+          : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
         data-tour="chat-compose"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -1435,7 +1436,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
               <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
                 {attachment.mimeType.startsWith("image/") ? (
                   <>
-                    <button aria-label={`Annotate ${attachment.name}`} className="group relative rounded focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={() => setAnnotatingIndex(index)} type="button">
+                    <button aria-label={`Annotate ${attachment.name}`} className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand" onClick={() => setAnnotatingIndex(index)} type="button">
                       <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
                       <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                         <PencilIcon className="h-4 w-4" />
@@ -1482,13 +1483,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
               {t("walkthrough_uploading", { percent: walkthrough.percent })}
               <span className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                <span className="block h-full rounded-full bg-terracotta-600 transition-all" style={{ width: `${walkthrough.percent}%` }} />
+                <span className="block h-full rounded-full bg-brand transition-all" style={{ width: `${walkthrough.percent}%` }} />
               </span>
             </span>
           ) : null}
           {walkthrough.status === "analyzing" ? (
             <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-terracotta-500 border-t-transparent" />
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
               <AnalyzingHint messages={walkthroughAnalyzingHints} />
             </span>
           ) : null}
@@ -1523,11 +1524,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       {showAttachedRepositories && attachedRepositories.length > 0 ? (
         <div className="mb-3 flex w-full flex-wrap gap-2">
           {attachedRepositories.map((repository) => (
-            <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
+            <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-sm text-brand" key={repository.id}>
               <span className="truncate" title={repository.label}>{repository.label}</span>
               <button
                 aria-label={`Detach repository ${repository.label}`}
-                className="rounded-full p-2 text-blue-600 hover:bg-blue-100 hover:text-blue-900 disabled:text-blue-300 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-100 dark:disabled:text-blue-700"
+                className="rounded-full p-2 text-brand hover:bg-brand/20 hover:text-brand-emphasis disabled:text-brand/40"
                 disabled={detachRepository.isPending}
                 onClick={() => detachRepository.mutate(repository.app_detach_path)}
                 title={`Detach repository ${repository.label}`}
@@ -1539,7 +1540,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           ))}
         </div>
       ) : null}
-      <input
+      <Input
         accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
         aria-label={t("chat_attachments")}
         className="hidden"
@@ -1557,7 +1558,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
           aria-haspopup="listbox"
-          className="min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 pr-3 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+          className="min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 pr-3 text-base leading-6 focus:border-brand focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending || systemAction.isPending}
           onChange={(event) => {
             updateText(event.target.value)
@@ -1580,19 +1581,20 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
       </div>
       <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <button
+        <Button
           aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
           aria-expanded={attachmentPopoverOpen}
           aria-label={t("add_attachment")}
           aria-haspopup="dialog"
-          className="flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-lg leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 sm:text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+          className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
           disabled={send.isPending || systemAction.isPending}
           onClick={() => setAttachmentPopoverOpen((open) => !open)}
           ref={addAttachmentButtonRef}
-          type="button"
+          size="sm"
+          variant="secondary"
         >
           +
-        </button>
+        </Button>
         {dictation.available ? (
           <DictationButton
             disabled={send.isPending || systemAction.isPending}
@@ -1613,7 +1615,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         <div className="ml-auto flex items-center gap-1">
           <button
             aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-            className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:text-blue-400 dark:hover:bg-gray-800"
+            className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
             disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
             type="submit"
           >
@@ -2043,18 +2045,19 @@ function DictationButton({
           : labels.idle
 
   return (
-    <button
+    <Button
       aria-label={label}
       aria-pressed={phase === "recording"}
-      className={`flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border sm:min-h-0 sm:min-w-0 ${
+      className={`h-6 min-h-11 w-6 min-w-11 shrink-0 sm:min-h-0 sm:min-w-0 ${
         active
-          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
-          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-      } disabled:text-gray-300 dark:disabled:text-gray-600`}
+          ? "!border-red-300 !bg-red-50 !text-red-700 hover:!bg-red-100 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300"
+          : ""
+      }`}
       disabled={disabled || phase === "requesting" || phase === "transcribing"}
       onClick={onClick}
+      size="sm"
       title={label}
-      type="button"
+      variant="secondary"
     >
       <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
         <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
@@ -2062,7 +2065,7 @@ function DictationButton({
         <path d="M12 19v3" />
         <path d="M8 22h8" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
@@ -2167,21 +2170,22 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
 
   return (
     <div className="relative">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="min-h-11 max-w-[6.5rem] !gap-1 sm:min-h-0 sm:max-w-none"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
@@ -2193,7 +2197,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
               aria-selected={currentMode === value}
               className={`flex w-full items-center px-3 py-2 text-left text-sm ${
                 currentMode === value
-                  ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200"
+                  ? "bg-brand/10 font-medium text-brand"
                   : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               }`}
               key={value}
@@ -2253,21 +2257,22 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
 
   return (
     <div className="relative">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="min-h-11 max-w-[6.5rem] !gap-1 sm:min-h-0 sm:max-w-none"
         disabled={updateModel.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
@@ -2276,7 +2281,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         >
           <button
             aria-selected={currentModel === null}
-            className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === null ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === null ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
             onClick={() => { updateModel.mutate(null); setDropdownOpen(false) }}
             role="option"
             type="button"
@@ -2286,7 +2291,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
           {models.map((model) => (
             <button
               aria-selected={currentModel === model.value}
-              className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === model.value ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === model.value ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={model.value}
               onClick={() => { updateModel.mutate(model.value); setDropdownOpen(false) }}
               role="option"
@@ -2368,7 +2373,7 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
           {effortOptions.map(({ value, label }) => (
             <button
               aria-selected={currentEffort === value}
-              className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentEffort === value ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentEffort === value ? "bg-brand/10 font-medium text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
               key={value ?? "none"}
               onClick={() => { updateEffort.mutate(value); setDropdownOpen(false) }}
               role="option"
@@ -2463,7 +2468,7 @@ function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }
         return (
           <button
             aria-selected={active}
-            className={`flex w-full items-start gap-3 px-3 py-2 text-left text-sm ${active ? "bg-blue-50 dark:bg-blue-950" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
+            className={`flex w-full items-start gap-3 px-3 py-2 text-left text-sm ${active ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
             key={command.name}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onSelect(command)}
@@ -2545,11 +2550,11 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
 
   if (editing) {
     return (
-      <div className="rounded border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-950">
+      <div className="rounded border border-brand/30 bg-brand/10 p-2">
         {update.isError ? <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Queued message could not be updated.")}</div> : null}
         <textarea
           aria-label={`Edit queued message ${position}`}
-          className="min-h-16 w-full resize-y rounded border border-blue-200 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-blue-500 dark:border-blue-800 dark:bg-gray-950 dark:text-gray-100"
+          className="min-h-16 w-full resize-y rounded border border-brand/30 bg-white px-2 py-1.5 text-sm focus:border-brand focus:ring-brand dark:bg-gray-950 dark:text-gray-100"
           onChange={(event) => setDraft(event.target.value)}
           value={draft}
         />
@@ -2565,12 +2570,12 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
     <div>
       <div className="flex items-start gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800">
         <span className="mt-0.5 shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{position}</span>
-        <button className="min-w-0 flex-1 text-left text-sm text-gray-700 hover:text-blue-700 dark:text-gray-200 dark:hover:text-blue-300" onClick={() => setEditing(true)} type="button">
+        <button className="min-w-0 flex-1 text-left text-sm text-gray-700 hover:text-brand dark:text-gray-200" onClick={() => setEditing(true)} type="button">
           <span className="line-clamp-2 whitespace-pre-wrap break-words">{message.text}</span>
         </button>
         <button
           aria-label={t("scratchpad_stash")}
-          className="rounded p-2 text-gray-400 hover:bg-white hover:text-blue-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-blue-300 dark:disabled:text-gray-700"
+          className="rounded p-2 text-gray-400 hover:bg-white hover:text-brand disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:disabled:text-gray-700"
           disabled={stash.isPending || remove.isPending}
           onClick={() => stash.mutate()}
           title={t("scratchpad_stash")}

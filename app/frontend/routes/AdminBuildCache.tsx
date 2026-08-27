@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react"
+import { Input } from "../components/Input"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../api/client"
@@ -139,15 +140,16 @@ function ClearRequestForm() {
 
       <fieldset className="space-y-2">
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-          <input checked={scope === "full"} name="scope" onChange={() => setScope("full")} type="radio" value="full" />
+          <Input checked={scope === "full"} name="scope" onChange={() => setScope("full")} type="radio" value="full" />
           {t("build_cache.scope_full")}
         </label>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-          <input checked={scope === "partial"} name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
+          <Input checked={scope === "partial"} name="scope" onChange={() => setScope("partial")} type="radio" value="partial" />
           {t("build_cache.scope_partial")}
-          <input
-            className="w-20 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
+          <Input
+            className="w-20"
             disabled={scope !== "partial"}
+            fullWidth={false}
             min={1}
             onChange={(event) => setOlderThanDays(event.target.value)}
             type="number"

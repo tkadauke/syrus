@@ -275,13 +275,9 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           type="file"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-          >
+          <Button onClick={() => fileInputRef.current?.click()} variant="secondary">
             {t("form_choose_files")}
-          </button>
+          </Button>
           {files.length > 0 ? <span className="text-sm text-gray-600 dark:text-gray-400">{files.map((file) => file.name).join(", ")}</span> : null}
         </div>
 

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { addChatAttachment, deleteChatAttachment, fetchChatContext, type ChatAttachmentResult, type ChatAttachmentRow, type ChatContextPayload, type ChatPayload } from "../../api/chats"
 import { Button } from "../../components/Button"
+import { Input } from "../../components/Input"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
@@ -123,8 +124,8 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
             const pending = pendingDetachId === rowId
             return (
               <div className="flex items-center gap-2" key={row.id}>
-                <button
-                  className={`block w-full rounded border px-2 py-1.5 text-left text-xs disabled:text-gray-300 dark:disabled:text-gray-600 ${pending ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300" : "border-gray-200 bg-gray-50 text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-red-800 dark:hover:bg-red-950 dark:hover:text-red-300"}`}
+                <Button
+                  className={`block w-full text-left disabled:text-gray-300 dark:disabled:text-gray-600 ${pending ? "!border-red-200 !bg-red-50 !text-red-700 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300" : "hover:!border-red-200 hover:!bg-red-50 hover:!text-red-700 dark:hover:!border-red-800 dark:hover:!bg-red-950 dark:hover:!text-red-300"}`}
                   disabled={detach.isPending}
                   onClick={() => {
                     if (pending) {
@@ -134,11 +135,12 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
                       setPendingDetachId(rowId)
                     }
                   }}
+                  size="sm"
                   title={`Detach ${row.label}`}
-                  type="button"
+                  variant="secondary"
                 >
                   {pending ? `Detach ${row.label}?` : row.label}
-                </button>
+                </Button>
                 {pending ? (
                   <Button
                     disabled={detach.isPending}
@@ -252,9 +254,8 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
           ))}
         </div>
         <div className="px-2 pb-2">
-          <input
+          <Input
             autoFocus
-            className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
             data-autofocus
             name="attachment_query"
             onChange={(event) => {

@@ -1,5 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { RepositoryTabs } from "../../components/RepositoryTabs"
+import { Button } from "../../components/Button"
+import { Input } from "../../components/Input"
 import { withRoutePrefix } from "../../lib/routing"
 import { fetchRepositoryTestDetail, fetchRepositoryTests, type RepositoryTestDetailPayload, type RepositoryTestDurationPoint, type RepositoryTestHistoryItem, type RepositoryTestHistoryPagination, type RepositoryTestIdentity, type RepositoryTestsPayload } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
@@ -56,21 +58,20 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
         <div className="flex flex-wrap items-end gap-3">
           <label className="block min-w-[18rem] flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
             Search tests
-            <input
-              className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            <Input
+              className="mt-1"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="name, suite, or file"
               value={query}
             />
           </label>
           {selectedTestId ? (
-            <button
-              className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            <Button
               onClick={() => navigate(withRoutePrefix(`/repositories/${repositoryId}?tab=tests`, prefix))}
-              type="button"
+              variant="secondary"
             >
               Back to tests
-            </button>
+            </Button>
           ) : null}
         </div>
 

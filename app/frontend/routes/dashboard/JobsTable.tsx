@@ -11,6 +11,7 @@ import { useT } from "../../hooks/useT"
 import { Button, buttonClasses } from "../../components/Button"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
+import { Checkbox } from "../../components/Checkbox"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
@@ -385,7 +386,7 @@ function JobsTable({
           <tr>
             {columns.map((column) => (
               <th aria-sort={columnAriaSort("job", column, sortState)} className={column === "checkbox" ? "w-10 px-4 py-2" : "px-4 py-2"} key={column} title={column === "commits_behind_base" ? t("column_label.commits_behind_base_tooltip") : undefined}>
-                {column === "checkbox" ? <input aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} type="checkbox" /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
+                {column === "checkbox" ? <Checkbox aria-label={t("select_all_jobs")} checked={allSelected} onChange={onToggleAll} /> : <SortableColumnHeader column={column} sortState={sortState} subject="job" />}
               </th>
             ))}
           </tr>
@@ -474,7 +475,7 @@ function LandingQueueJobGroup({
           <td className="bg-gray-50 px-4 py-2 dark:bg-gray-950/40" colSpan={columns.length}>
             <button
               aria-expanded={expanded}
-              className="inline-flex items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-300 dark:hover:text-gray-100"
+              className="inline-flex items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-300 dark:hover:text-gray-100"
               onClick={() => onToggleBlockers(group.key)}
               type="button"
             >
@@ -513,7 +514,7 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
-        <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
+        <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={job.id} kind="job">
             <CopyableSlug slug={`JOB-${job.id}`} />
@@ -537,7 +538,7 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
     )
   }
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} /></td>
+    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></td>
   }
   if (column === "latest") {
     if (job.latest_workflow_id == null) return <td className="px-4 py-3" />
@@ -698,7 +699,7 @@ function MobileLandingQueueJobGroup({ expanded, group, onToggleBlockers, onToggl
         <div className="bg-gray-50 px-4 py-2 dark:bg-gray-950/40">
           <button
             aria-expanded={expanded}
-            className="inline-flex min-h-8 items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-300 dark:hover:text-gray-100"
+            className="inline-flex min-h-8 items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:text-gray-300 dark:hover:text-gray-100"
             onClick={() => onToggleBlockers(group.key)}
             type="button"
           >
@@ -723,10 +724,10 @@ function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attributio
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <NeutralStatePill state={job.state} />
-          <RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} />
+          <RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} />
         </div>
         <div className="mt-1">
-          <Link className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
+          <Link className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={job.id} kind="job">
@@ -756,7 +757,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
       topSeparator && "border-t-4 border-gray-300 dark:border-gray-600",
       job.priority === "urgent" && "bg-red-50 dark:bg-red-950/40"
     ].filter(Boolean).join(" ")}>
-      <input aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
+      <Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
@@ -766,7 +767,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           <OwnerBadge badge={job.owner_badge} />
         </div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+          <Link aria-label={job.title} className="rounded-sm text-sm font-semibold leading-snug text-brand underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           {job.kind !== "issue" ? <span>{humanizeOption(job.kind)}</span> : null}
@@ -800,14 +801,14 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
 function JobCell({ job, column, selected, onToggleOne, prefix }: { job: DashboardJobItem; column: string; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   const { t } = useT("dashboard")
   if (column === "checkbox") {
-    return <td className="px-4 py-3 align-top"><input aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} type="checkbox" /></td>
+    return <td className="px-4 py-3 align-top"><Checkbox aria-label={t("select_item", { title: job.title })} checked={selected} onChange={() => onToggleOne(job.id)} /></td>
   }
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
         <div className="flex items-center gap-1.5">
           <ProviderAvailabilityWarning availability={job.provider_availability} />
-          <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
+          <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
           {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -859,7 +860,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? translateBlockedReason(job.blocked_reason, t) : "-"}</td>
   }
   if (column === "repository") {
-    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} /></td>
+    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-brand hover:underline dark:text-gray-300" prefix={prefix} repository={job.repository} /></td>
   }
   if (column === "owner") return <td className="px-4 py-3"><DashboardOwnerLabel job={job} prefix={prefix} /></td>
   if (column === "latest") return <LatestWorkflowCell job={job} />
@@ -948,7 +949,7 @@ function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: s
 
   return (
     <td className="px-4 py-3">
-      <Link className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-emerald-900/70 ${PILL_TONE_CLASSES.green}`} title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
+      <Link className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-emerald-900/70 ${PILL_TONE_CLASSES.green}`} title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
         {stage.label || stage.name}
       </Link>
     </td>
@@ -962,7 +963,7 @@ function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJob
   if (job.claimed_by_current_user) return quiet ? null : <span className="sr-only">{t("claimed_by_you")}</span>
 
   return (
-    <Link className="text-xs font-medium text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" to={withRoutePrefix(owner.profile_path, prefix)}>
+    <Link className="text-xs font-medium text-gray-600 hover:text-brand hover:underline dark:text-gray-300" to={withRoutePrefix(owner.profile_path, prefix)}>
       {owner.display_name}
     </Link>
   )
@@ -992,7 +993,7 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
     return (
       <span className="inline-flex items-center">
         <SlugHoverCard id={job.epic.id} kind="epic">
-          <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+          <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
         </SlugHoverCard>
         <span>/</span>
         <SlugHoverCard id={job.id} kind="job">
@@ -1090,7 +1091,7 @@ function JobSourceChatLink({ job, prefix }: { job: DashboardJobItem; prefix: str
   if (!job.source_chat) return null
 
   return (
-    <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.source_chat.path, prefix)}>
+    <Link className="text-gray-500 hover:text-brand hover:underline dark:text-gray-400" to={withRoutePrefix(job.source_chat.path, prefix)}>
       {t("chat_link")}
     </Link>
   )

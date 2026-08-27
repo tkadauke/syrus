@@ -13,9 +13,11 @@ import {
   type AdminEventLogTableColumn,
   AdminEventPageShell,
   AdminEventPanelMessage,
-  compactInputClass,
   formatEventDate
 } from "../components/AdminEventLogPanel"
+import { Button } from "../components/Button"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -49,14 +51,14 @@ export function AdminMcpToolUsage() {
   return (
     <AdminEventPageShell
       actions={
-        <button
-          className="inline-flex w-fit items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
+        <Button
+          className="w-fit"
           disabled={usage.isFetching}
           onClick={() => void usage.refetch()}
-          type="button"
+          variant="secondary"
         >
           {usage.isFetching ? t("mcp_tool_usage.refreshing") : t("mcp_tool_usage.refresh")}
-        </button>
+        </Button>
       }
       ariaLabel={t("mcp_tool_usage.aria")}
       eyebrow={t("section_label")}
@@ -118,24 +120,23 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
     <section className="flex flex-wrap items-end gap-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <label className="space-y-1">
         <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.window_label")}</span>
-        <select className={compactInputClass()} value={activeWindow} onChange={(event) => setWindow(event.target.value)}>
+        <Select value={activeWindow} onChange={(event) => setWindow(event.target.value)}>
           {WINDOW_PRESETS.map((preset) => (
             <option key={preset.value} value={preset.value}>{t(`mcp_tool_usage.window_${preset.value}`)}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="space-y-1">
         <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.surface_label")}</span>
-        <select className={compactInputClass()} value={activeSurface} onChange={(event) => setSurface(event.target.value)}>
+        <Select value={activeSurface} onChange={(event) => setSurface(event.target.value)}>
           {SURFACES.map((value) => (
             <option key={value} value={value}>{t(`mcp_tool_usage.surface_${value}`)}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="space-y-1">
         <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.tool_label")}</span>
-        <input
-          className={compactInputClass()}
+        <Input
           onBlur={(event) => setTextFilter("tool_name", event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") setTextFilter("tool_name", event.currentTarget.value)
@@ -147,8 +148,7 @@ function McpToolUsageFilters({ onNavigate, search }: { onNavigate: (params: URLS
       </label>
       <label className="space-y-1">
         <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mcp_tool_usage.server_label")}</span>
-        <input
-          className={compactInputClass()}
+        <Input
           onBlur={(event) => setTextFilter("server_name", event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") setTextFilter("server_name", event.currentTarget.value)

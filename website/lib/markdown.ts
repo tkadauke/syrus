@@ -189,14 +189,23 @@ export function renderMarkdown(markdown: string): string {
     while (cursor < lines.length) {
       const current = lines[cursor];
       const currentTrimmed = current.trim();
+      // Only treat a line as ending the paragraph once we've consumed at least
+      // one line into it. The outer dispatcher already decided this loop's
+      // first line isn't a real block start (its heading/blockquote checks are
+      // stricter than the startsWith() checks below -- e.g. a wrapped "PR
+      // #123" continuation line starts with "#" but isn't a heading). Without
+      // this guard, such a line makes nextIsBlock true on the very first
+      // check, cursor never advances, and the outer while loop spins forever
+      // pushing empty paragraphs.
       const nextIsBlock =
-        !currentTrimmed ||
-        currentTrimmed.startsWith("```") ||
-        currentTrimmed.startsWith("#") ||
-        currentTrimmed.startsWith(">") ||
-        /^\s*[-*]\s+/.test(current) ||
-        /^\s*\d+\.\s+/.test(current) ||
-        (cursor + 1 < lines.length && current.includes("|") && isTableSeparator(lines[cursor + 1]));
+        paragraph.length > 0 &&
+        (!currentTrimmed ||
+          currentTrimmed.startsWith("```") ||
+          currentTrimmed.startsWith("#") ||
+          currentTrimmed.startsWith(">") ||
+          /^\s*[-*]\s+/.test(current) ||
+          /^\s*\d+\.\s+/.test(current) ||
+          (cursor + 1 < lines.length && current.includes("|") && isTableSeparator(lines[cursor + 1])));
 
       if (nextIsBlock) break;
       paragraph.push(currentTrimmed);

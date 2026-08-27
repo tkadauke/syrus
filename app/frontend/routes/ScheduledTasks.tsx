@@ -554,11 +554,11 @@ function ScheduledTaskForm({
       <Field label={t("scheduled_tasks.field_task_source")}>
         <div className="flex gap-4 text-sm text-gray-700 dark:text-gray-300">
           <label className="flex items-center gap-2">
-            <input checked={taskSource === "prompt"} onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
+            <Input checked={taskSource === "prompt"} onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
             {t("scheduled_tasks.task_source_prompt")}
           </label>
           <label className="flex items-center gap-2">
-            <input checked={taskSource === "skill"} onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
+            <Input checked={taskSource === "skill"} onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
             {t("scheduled_tasks.task_source_skill")}
           </label>
         </div>
