@@ -1,4 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
@@ -33,7 +34,7 @@ export function RepositorySkillNewRoute() {
   return (
     <main aria-label={t("aria_new_skill_job")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_title")}</h1>
+        <PageHeading>{t("skill_job_title")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("skill_job_description")}</p>
       </header>
 
@@ -90,7 +91,7 @@ function SkillLaunchForm({
       {create.isError ? <PanelMessage tone="error">{errorMessage(create.error, t("skill_job_create_error"))}</PanelMessage> : null}
 
       <section className="space-y-3 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_section_pick")}</h2>
+        <SectionHeading>{t("skill_job_section_pick")}</SectionHeading>
         <div className="space-y-2">
           {payload.skills.map((skill) => (
             <SkillOption
@@ -105,7 +106,7 @@ function SkillLaunchForm({
 
       {selectedSkill ? (
         <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_section_parameters")}</h2>
+          <SectionHeading>{t("skill_job_section_parameters")}</SectionHeading>
           {selectedSkill.parameters.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">{t("skill_job_no_parameters")}</p>
           ) : (
@@ -122,7 +123,7 @@ function SkillLaunchForm({
       ) : null}
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_section_launch")}</h2>
+        <SectionHeading>{t("skill_job_section_launch")}</SectionHeading>
         <div className="grid gap-4 sm:grid-cols-2">
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("skill_job_agent_label")}>

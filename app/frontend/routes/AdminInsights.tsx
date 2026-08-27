@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { Button } from "../components/Button"
@@ -85,14 +86,14 @@ function AdminInsightsList({
     <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("admin_eyebrow")}</p>
-        <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("admin_title")}</h1>
+        <PageHeading className="mt-1">{t("admin_title")}</PageHeading>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("admin_subtitle")}</p>
       </header>
 
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           {t("suggestions_heading")}
-        </h2>
+        </SectionHeading>
         <nav aria-label={t("filter_aria")} className="flex gap-1">
           {filterTabs.map((tab) => (
             <Button

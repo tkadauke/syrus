@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading } from "../components/Heading"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import type { ReactNode } from "react"
@@ -140,7 +141,7 @@ function PageHeader({ title, description }: { title: string; description: string
   return (
     <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
       <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-      <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+      <PageHeading className="mt-1">{title}</PageHeading>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{description}</p>
     </header>
   )

@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { routePrefix } from "../lib/routing"
@@ -78,9 +79,9 @@ function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembers
   return (
     <>
       <header>
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading mono>
           <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </h1>
+        </PageHeading>
       </header>
 
       <RepositoryTabs active="members" prefix={prefix} tabs={payload.tabs} />
@@ -92,7 +93,7 @@ function RepositoryMembersView({ payload, prefix }: { payload: RepositoryMembers
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("repository_memberships.members")}</h2>
+          <SectionHeading>{t("repository_memberships.members")}</SectionHeading>
         </div>
 
         {payload.memberships.length === 0 ? (
@@ -212,7 +213,7 @@ function TeamGrants({ payload, onNotice }: { payload: RepositoryMembershipsPaylo
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("repository_memberships.team_grants")}</h2>
+        <SectionHeading>{t("repository_memberships.team_grants")}</SectionHeading>
       </div>
       <p className="px-4 pt-3 text-sm text-gray-600 dark:text-gray-400">{t("repository_memberships.team_grants_description")}</p>
 
@@ -286,7 +287,7 @@ function AddTeamGrantForm({ payload, onNotice }: { payload: RepositoryMembership
 
   return (
     <section className="border-t border-gray-100 dark:border-gray-800 p-4">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("repository_memberships.add_team_grant")}</h3>
+      <SectionHeading as="h3">{t("repository_memberships.add_team_grant")}</SectionHeading>
       {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, "Unable to add team grant.")}</PanelMessage></div> : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -358,7 +359,7 @@ function AddMemberForm({ payload, onNotice }: { payload: RepositoryMembershipsPa
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("repository_memberships.add_member")}</h2>
+      <SectionHeading>{t("repository_memberships.add_member")}</SectionHeading>
       {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, "Unable to add member.")}</PanelMessage></div> : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block w-64 text-sm font-medium text-gray-700 dark:text-gray-300">

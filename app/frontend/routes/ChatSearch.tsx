@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useMemo, useState, type FormEvent } from "react"
@@ -36,7 +37,7 @@ export function ChatSearchRoute() {
   return (
     <main aria-label={t("aria_chat_search")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('search.heading')}</h1>
+        <PageHeading>{t('search.heading')}</PageHeading>
       </header>
 
       <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
@@ -97,9 +98,9 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
   return (
     <article className="py-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading>
           <Link className="hover:text-blue-700 dark:hover:text-blue-300" to={`/chats/${result.chat_session_id}`}>{result.chat_title}</Link>
-        </h2>
+        </SectionHeading>
         <span className="text-sm text-gray-500 dark:text-gray-400"><RelativeTimestamp value={result.top_matches[0]?.created_at} /></span>
       </div>
       <div className="mt-3 flex items-start gap-2">

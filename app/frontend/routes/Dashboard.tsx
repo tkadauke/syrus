@@ -16,6 +16,7 @@ import { buttonClasses } from "../components/Button"
 import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
+import { PageHeading } from "../components/Heading"
 import { TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
 import { SyrusTour } from "../components/SyrusTour"
@@ -177,7 +178,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   return (
     <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
       <header className="flex flex-wrap items-center gap-3 px-4 sm:px-0">
-        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</h1>
+        <PageHeading className="flex-1">{isLegacyEpicsView ? t("legacy_epics_title") : payload.simple_mode ? t("simple_title") : t("title")}</PageHeading>
         {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>

@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading } from "../components/Heading"
 import { routePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
@@ -38,7 +39,7 @@ export function AdminUsersIndex() {
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("users.heading")}</h1>
+          <PageHeading className="mt-1">{t("users.heading")}</PageHeading>
         </div>
       </header>
 
@@ -102,7 +103,7 @@ export function AdminUserDetailRoute() {
     <main aria-label={t("users.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{user.data?.display_name || `User #${id}`}</h1>
+        <PageHeading className="mt-2">{user.data?.display_name || `User #${id}`}</PageHeading>
       </header>
 
       {user.isPending ? <PanelMessage>{t("users.loading_user")}</PanelMessage> : null}

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeading } from "../components/Heading"
 import { useState } from "react"
 import {
   fetchNotificationPreferences,
@@ -47,7 +48,7 @@ export function NotificationsSettingsRoute() {
   return (
     <main aria-label={t("aria_notification_settings")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('notifications.heading')}</h1>
+        <PageHeading>{t('notifications.heading')}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('notifications.description')}</p>
       </header>
 

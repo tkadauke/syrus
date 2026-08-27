@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
@@ -207,11 +208,11 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
       <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
       <header className="space-y-3">
         <div className="min-w-0">
-          <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
+          <PageHeading className="break-words">
             <CopyableSlug slug={jobSlug(payload.job.id)} />
             <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
             <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
-          </h1>
+          </PageHeading>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <div className="shrink-0"><JobStateBadge state={payload.job.summary_state} /></div>
             <HeaderActions
@@ -388,11 +389,11 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
         <div className="min-w-0 space-y-4">
           <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_issue")}</h2>
+            <SectionHeading>{t("section_issue")}</SectionHeading>
             {payload.job.issue_body ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.job.issue_body} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_issue_body")}</p>}
           </section>
           <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_agent_summary")}</h2>
+            <SectionHeading>{t("section_agent_summary")}</SectionHeading>
             {payload.summary ? <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.summary.text} /> : <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">{t("no_summary")}</p>}
           </section>
 
@@ -428,7 +429,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
           />
 
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_details")}</h2>
+            <SectionHeading>{t("section_details")}</SectionHeading>
             {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
               <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
@@ -606,9 +607,9 @@ function UrgentConfirmDialog({ onConfirm, onCancel }: { onConfirm: () => void; o
         onClick={(e) => e.stopPropagation()}
       >
         <div className="space-y-4 p-5">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="urgent-confirm-title">
+          <SectionHeading id="urgent-confirm-title">
             {t("priority_urgent_confirm_title")}
-          </h2>
+          </SectionHeading>
           <p className="text-sm text-gray-700 dark:text-gray-300">{t("priority_urgent_confirm_body_1")}</p>
           <p className="text-sm text-gray-700 dark:text-gray-300">{t("priority_urgent_confirm_body_2")}</p>
           <div className="flex justify-end gap-3">
@@ -639,7 +640,7 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_test_plan")}</h2>
+      <SectionHeading>{t("section_test_plan")}</SectionHeading>
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
         {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
       </ol>
@@ -798,7 +799,7 @@ export function FeedbackHistoryPanel({ entries, prefix }: { entries: JobDetailPa
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_feedback_history")}</h2>
+      <SectionHeading>{t("section_feedback_history")}</SectionHeading>
       <div className="mt-3">
         {feedbackEntries.map((entry, index) => {
           const chatFeedback = entry.body
@@ -1083,7 +1084,7 @@ function ApprovalStatusPanel({ payload, prefix }: { payload: JobDetailPayload; p
 
   return (
     <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_approval")}</h2>
+      <SectionHeading>{t("section_approval")}</SectionHeading>
       <div className="mt-2 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-gray-500 dark:text-gray-400">{t("approval_policy")}</span>
@@ -1185,7 +1186,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
   return (
     <div className="space-y-4">
       <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_dependencies")}</h2>
+        <SectionHeading>{t("section_dependencies")}</SectionHeading>
         {payload.dependencies.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependencies.map((dependency) => {
@@ -1288,7 +1289,7 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
       </div>
       {payload.dependents.length > 0 ? (
         <div className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("dependents_title", { count: payload.dependents.length })}</h2>
+          <SectionHeading>{t("dependents_title", { count: payload.dependents.length })}</SectionHeading>
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependents.map((dependent) => (
               <li className="flex flex-wrap items-center gap-2 py-2" key={dependent.id}>
@@ -1463,7 +1464,7 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{testRun.grader_name}</h2>
+        <SectionHeading>{testRun.grader_name}</SectionHeading>
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <span className="text-emerald-600 dark:text-emerald-400">{testRun.passed_count} passed</span>
           {testRun.failed_count > 0 ? <span className="font-medium text-red-600 dark:text-red-400">{testRun.failed_count} failed</span> : null}
@@ -1514,7 +1515,7 @@ export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
     <section className="space-y-4">
       {artifacts.map((artifact) => (
         <div className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{artifact.title}</h2>
+          <SectionHeading>{artifact.title}</SectionHeading>
           <div className="mt-3">
             <ArtifactRenderer artifact={artifact} />
           </div>
@@ -1700,7 +1701,7 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
   return (
     <section className="space-y-4">
       <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("attachment_add_title")}</h2>
+        <SectionHeading>{t("attachment_add_title")}</SectionHeading>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("attachment_files_label")}

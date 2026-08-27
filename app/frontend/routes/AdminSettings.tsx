@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import {
@@ -33,7 +34,7 @@ export function AdminSettings() {
     <main aria-label={t("aria_settings")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("settings.heading")}</h1>
+        <PageHeading className="mt-1">{t("settings.heading")}</PageHeading>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -359,7 +360,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("settings.telegram_heading")}</h2>
+      <SectionHeading>{t("settings.telegram_heading")}</SectionHeading>
 
       <div className="text-xs text-gray-500 dark:text-gray-400">
         {tokenSet ? t("settings.currently_set") : t("settings.not_set")}
@@ -441,7 +442,7 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("settings.discord_heading")}</h2>
+      <SectionHeading>{t("settings.discord_heading")}</SectionHeading>
 
       <div className="text-xs text-gray-500 dark:text-gray-400">
         {tokenSet ? t("settings.currently_set") : t("settings.not_set")}

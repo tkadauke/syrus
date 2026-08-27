@@ -1,4 +1,5 @@
 import { withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
@@ -63,7 +64,7 @@ export function SearchRoute() {
     <main aria-label={t("search_aria")} className="mx-auto max-w-[72rem] space-y-6 p-6">
       <header className="space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('search.heading')}</h1>
+          <PageHeading>{t('search.heading')}</PageHeading>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</p>
         </div>
         <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
@@ -127,11 +128,11 @@ function SearchResultRow({ result }: { result: SearchResult }) {
             {result.repository_slug ? <span className="text-xs text-gray-500 dark:text-gray-400">{result.repository_slug}</span> : null}
             {result.state ? <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{result.state.replace(/_/g, " ")}</span> : null}
           </div>
-          <h2 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">
+          <SectionHeading className="mt-2">
             <Link className="break-words hover:text-blue-700 hover:underline dark:hover:text-blue-300" to={withRoutePrefix(result.path, prefix)}>
               {result.title || "Untitled"}
             </Link>
-          </h2>
+          </SectionHeading>
           <Snippet html={result.snippet || ""} />
           {result.type === "test_case" ? <TestCaseDetails result={result} /> : null}
           {hasGroupedMatches ? <GroupedChatMatches result={result} routePrefix={prefix} /> : null}
