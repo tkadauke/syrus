@@ -1,4 +1,5 @@
 require "rails_helper"
+require "rack/mock"
 require "tmpdir"
 require "fileutils"
 
@@ -12,9 +13,30 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
 
   def parse_body = JSON.parse(response.body)
 
+  # GitHistoryController proxies reads through GitHistory::RelayClient to a
+  # worker-pod-only GitHistory::RelayServer (see plugins/git_history) instead
+  # of touching RepositoryBareClone off local disk directly. There's no
+  # worker pod in a request spec, so this stubs the relay's fixed internal
+  # address and forwards each request into a real RelayServer#call — the
+  # same object a worker process would run — exercising the full proxied
+  # path (routing, JSON contract, CommitLog reads) without a real socket.
+  def stub_relay_reachable!
+    stub_request(:get, %r{\Ahttp://127\.0\.0\.1:#{GitHistory::RelayServer::PORT}/repositories/}).to_return do |request|
+      uri = request.uri
+      path = uri.query.present? ? "#{uri.path}?#{uri.query}" : uri.path
+      status, headers, body = GitHistory::RelayServer.new.call(Rack::MockRequest.env_for(path))
+      { status: status, headers: headers, body: body.reduce(:+) }
+    end
+  end
+
+  def stub_relay_unreachable!
+    stub_request(:get, %r{\Ahttp://127\.0\.0\.1:#{GitHistory::RelayServer::PORT}/repositories/}).to_raise(Errno::ECONNREFUSED)
+  end
+
   before do
     ENV["SYRUS_DATA_ROOT"] = syrus_data_root.to_s
     repository.repository_memberships.create!(user: collaborator, role: "read")
+    stub_relay_reachable!
   end
 
   after do
@@ -64,9 +86,22 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
     expect(response).to have_http_status(:ok)
   end
 
-  it "reports available: false when the bare clone has not been synced yet" do
+  it "reports available: false when the bare clone has not been synced yet (relay reachable, stale clone)" do
     sign_in_as(owner)
 
+    get "/api/v1/app/repositories/#{repository.id}/git_history/commits"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["available"]).to eq(false)
+    expect(parse_body["commits"]).to eq([])
+  end
+
+  it "reports available: false, not an error, when the relay is unreachable" do
+    commit!("initial")
+    bare_clone!
+    stub_relay_unreachable!
+
+    sign_in_as(owner)
     get "/api/v1/app/repositories/#{repository.id}/git_history/commits"
 
     expect(response).to have_http_status(:ok)

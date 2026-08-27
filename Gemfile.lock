@@ -39,6 +39,7 @@ PATH
   remote: plugins/git_history
   specs:
     git_history (0.1.0)
+      puma (>= 5.0)
       rails (>= 8.1)
 
 PATH

@@ -10,4 +10,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = [ "lib" ]
 
   spec.add_dependency "rails", ">= 8.1"
+  spec.add_dependency "puma", ">= 5.0"
 end
