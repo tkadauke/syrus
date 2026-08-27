@@ -32,9 +32,10 @@ If the agent does not call the required `submit_adversarial_review` tool, the st
 
 ## Findings carry-forward
 
-All findings from prior rounds are passed to the `implement` agent on subsequent iterations via `prior_findings` in the prompt. This means each implement iteration has visibility into what the reviewer found wrong in the previous attempt.
+Findings accumulate in `workflow.artifacts["adversarial_review_iterations"]` as an array and appear in the workflow detail UI. Two separate consumers read that array:
 
-Findings are accumulated in `workflow.artifacts["adversarial_review_iterations"]` as an array. They appear in the workflow detail UI.
+- The **reviewer** itself gets every prior iteration's findings (regardless of verdict) via `prior_findings` in `Prompts::AdversarialReview`, so a later review round has context on what earlier rounds already flagged.
+- The **repair `implement` agent** gets only the `needs_work` iterations, rendered by `Prompts::ReviewFeedback` and appended to its prompt (`Steps::Base#append_review_feedback`). This is what actually tells the implementing agent what to fix — without it, a repair iteration would just re-receive the original task prompt with no idea what the reviewer objected to.
 
 ## Configuration
 

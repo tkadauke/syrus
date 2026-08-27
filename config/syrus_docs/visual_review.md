@@ -74,9 +74,13 @@ verdicts:
 If the agent does not call `submit_visual_review`, the step fails with
 "agent didn't call submit_visual_review".
 
-Findings accumulate in `workflow.artifacts["visual_review_iterations"]` and
-are passed to the implementing agent on later iterations via
-`prior_findings`, the same carry-forward pattern `adversarial_review` uses.
+Findings accumulate in `workflow.artifacts["visual_review_iterations"]`. The
+reviewer itself sees every prior iteration via `prior_findings` in
+`Prompts::VisualReview`; the `needs_work` iterations are separately rendered
+by `Prompts::ReviewFeedback` and appended to the next `implement`/`respond`
+prompt (`Steps::Base#append_review_feedback`) — the same mechanism
+`adversarial_review` uses to feed its findings back to the implementing
+agent.
 
 ## Configuration (`.syrus.yml`)
 
