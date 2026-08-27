@@ -374,5 +374,8 @@
   "pinned_panel_error": "Nuntii adfixi onerari non potuerunt.",
   "pinned_panel_empty": "Nulli nuntii adhuc adfixi.",
   "pinned_role_user": "Tu",
-  "pinned_role_assistant": "Adiutor"
+  "pinned_role_assistant": "Adiutor",
+  "theme_preview_title": "Praevisio thematis",
+  "theme_preview_open_in_new_tab": "In nova tabella aperi",
+  "theme_preview_close": "Claude"
 }

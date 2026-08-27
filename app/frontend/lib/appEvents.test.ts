@@ -772,6 +772,26 @@ describe("applyAppEvent", () => {
     expect(dispatched[0].detail).toEqual({ job_id: 77, chat_session_id: 9 })
     expect(invalidate).not.toHaveBeenCalled()
   })
+
+  it("dispatches a syrus:theme-preview DOM event for open_theme_preview payloads", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:theme-preview", (e) => dispatched.push(e as CustomEvent))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "open_theme_preview",
+        theme_id: 42,
+        path: "/design_system?theme_id=42"
+      }
+    })
+
+    expect(dispatched).toHaveLength(1)
+    expect(dispatched[0].detail).toEqual({ chat_session_id: 9, theme_id: 42, path: "/design_system?theme_id=42" })
+    expect(invalidate).not.toHaveBeenCalled()
+  })
 })
 
 function event(resource: string, id: number | string | null) {

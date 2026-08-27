@@ -374,5 +374,8 @@
   "pinned_panel_error": "Unable to load pinned messages.",
   "pinned_panel_empty": "No pinned messages yet.",
   "pinned_role_user": "You",
-  "pinned_role_assistant": "Assistant"
+  "pinned_role_assistant": "Assistant",
+  "theme_preview_title": "Theme preview",
+  "theme_preview_open_in_new_tab": "Open in new tab",
+  "theme_preview_close": "Close"
 }
