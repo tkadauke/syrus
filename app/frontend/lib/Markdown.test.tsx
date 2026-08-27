@@ -141,14 +141,13 @@ describe("Markdown", () => {
     expect(pre?.querySelector("code")?.textContent).toBe("const x = 1")
   })
 
-  it("falls back to safe plain rendering for pathological single-line markdown", () => {
-    const { container } = render(<Markdown text={`\`\`\`json\n${"a".repeat(45_000)}\n\`\`\``} />)
+  it("truncates pathological lines without disabling markdown rendering", () => {
+    const { container } = render(<Markdown text={`# Notes\n\n${"a".repeat(45_000)}\n\n- Review`} />)
 
-    const pre = container.querySelector("pre")
-    expect(pre).toBeInTheDocument()
-    expect(pre?.querySelector("code")).toBeNull()
-    expect(pre?.textContent).toContain("Markdown preview truncated")
-    expect(pre?.textContent?.split("\n")[1].length).toBeLessThanOrEqual(2_000)
+    expect(screen.getByRole("heading", { name: "Notes" })).toBeInTheDocument()
+    expect(screen.getByText("Review")).toBeInTheDocument()
+    expect(screen.getByText(/One or more lines were truncated/)).toBeInTheDocument()
+    expect(container.querySelector("p")?.textContent?.length).toBeLessThanOrEqual(2_100)
   })
 
   it("renders plain text without applying markdown semantics", () => {

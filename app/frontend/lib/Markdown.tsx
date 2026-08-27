@@ -10,16 +10,9 @@ type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownL
 const MARKDOWN_SAFE_LINE_CHARS = 2_000
 
 export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
-  if (hasPathologicalLine(text)) {
-    const preview = safeLongLinePreview(text)
-    return (
-      <div className={["chat-prose", className].filter(Boolean).join(" ")}>
-        <pre className="whitespace-pre-wrap break-words">{preview}</pre>
-      </div>
-    )
-  }
+  const preview = safeMarkdownPreview(text)
 
-  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(text, { onLinkClick })}</div>
+  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(preview, { onLinkClick })}</div>
 }
 
 export function PlainText({ className, text }: { className?: string; text: string }) {
@@ -106,11 +99,7 @@ function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNod
   return blocks
 }
 
-function hasPathologicalLine(text: string) {
-  return text.split(/\r?\n/).some((line) => line.length > MARKDOWN_SAFE_LINE_CHARS)
-}
-
-function safeLongLinePreview(text: string) {
+function safeMarkdownPreview(text: string) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n")
   let truncated = false
   const preview = lines.map((line) => {
@@ -120,7 +109,7 @@ function safeLongLinePreview(text: string) {
     return line.slice(0, MARKDOWN_SAFE_LINE_CHARS)
   }).join("\n")
 
-  return truncated ? `${preview}\n\n[Markdown preview truncated because one or more lines are too long to render safely.]` : preview
+  return truncated ? `${preview}\n\n_One or more lines were truncated because they are too long to render safely._` : preview
 }
 
 function renderList(lines: string[], index: number, key: number, options: RenderInlineOptions = {}) {
