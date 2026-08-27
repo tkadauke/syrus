@@ -185,6 +185,17 @@ RSpec.describe Steps::Respond do
     expect(run.prompt).to include("review fix did not satisfy the grader")
   end
 
+  it "appends needs_work adversarial_review findings to the prompt" do
+    workflow.set_artifact!("adversarial_review_iterations", [
+      { "iteration" => 1, "verdict" => "needs_work", "critique" => "The feedback fix left a stale comment." }
+    ])
+
+    handler.call
+
+    expect(run.reload.prompt).to include("An independent adversarial-review agent examined the previous iteration")
+    expect(run.prompt).to include("The feedback fix left a stale comment.")
+  end
+
   it "skips prompt rebuild when run.prompt is already set" do
     run.update!(prompt: "pre-set prompt content")
 

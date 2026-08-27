@@ -22,7 +22,7 @@ module Steps
     def compose_prompt
       prompt = workflow.trigger_kind == "chat_feedback" ? compose_chat_feedback_prompt : compose_pr_feedback_prompt
 
-      append_grade_failure_feedback(prompt)
+      append_grade_failure_feedback(append_review_feedback(prompt))
     end
 
     def compose_pr_feedback_prompt

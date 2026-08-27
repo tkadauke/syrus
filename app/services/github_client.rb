@@ -949,7 +949,7 @@ class GithubClient
   # redirect-following middleware, then hit the blob URL with no auth
   # headers at all.
   def actions_job_log_for(repo_slug, job_id)
-    response = actions_job_logs_connection.get("/repos/#{repo_slug}/actions/jobs/#{job_id}/logs")
+    response = actions_job_logs_response(repo_slug, job_id)
     persist_rate_limit_headers!(response.headers)
 
     case response.status
@@ -964,6 +964,22 @@ class GithubClient
   rescue Faraday::Error => e
     Rails.logger.warn("[GithubClient] could not fetch Actions job log #{repo_slug}/#{job_id}: #{e.message}")
     nil
+  end
+
+  # This bypasses track_rate_limits (see actions_job_logs_connection), so it
+  # has to redo that helper's 401-triggers-a-token-refresh behavior itself —
+  # otherwise a stale installation token would permanently 401 every log
+  # fetch for the rest of this GithubClient's lifetime instead of just this
+  # one call.
+  def actions_job_logs_response(repo_slug, job_id)
+    path = "/repos/#{repo_slug}/actions/jobs/#{job_id}/logs"
+    response = actions_job_logs_connection.get(path)
+    return response unless response.status == 401 && installation_auth?
+
+    @installation.invalidate_cached_token!
+    @access_token = @installation.fresh_token
+    @actions_job_logs_connection = nil
+    actions_job_logs_connection.get(path)
   end
 
   def fetch_actions_job_log_blob(url)
