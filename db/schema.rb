@@ -2026,7 +2026,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_26_232016) do
   end
 
   create_table "spawned_processes", force: :cascade do |t|
-    t.integer "chat_session_id"
+    t.bigint "chat_session_id"
     t.string "command", limit: 4096, null: false
     t.datetime "created_at", null: false
     t.integer "exit_status"
