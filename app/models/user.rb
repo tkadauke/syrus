@@ -31,6 +31,7 @@ class User < ApplicationRecord
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
   has_many :passkeys, dependent: :destroy
   has_many :platform_identities, dependent: :destroy
+  belongs_to :color_theme, class_name: "Theme", optional: true
 
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
@@ -196,6 +197,7 @@ class User < ApplicationRecord
   after_initialize :seed_locale
   before_create :promote_first_user_to_admin
   before_create :generate_webauthn_id
+  before_create :seed_default_color_theme
   after_create :seed_default_cron_templates
 
   def admin?
@@ -712,6 +714,13 @@ class User < ApplicationRecord
 
   def seed_locale
     self.locale = "en" if has_attribute?(:locale) && locale.blank?
+  end
+
+  # New users default to the seeded Terracotta theme (independent of the
+  # light/dark/system `theme` mode column). Falls back to no-op when Themes
+  # haven't been seeded yet (e.g. test environments that don't run db/seeds).
+  def seed_default_color_theme
+    self.color_theme_id ||= Theme.terracotta&.id if has_attribute?(:color_theme_id)
   end
 
   def normalized_notification_preferences(value)

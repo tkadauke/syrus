@@ -1,0 +1,100 @@
+/* GENERATED FILE. Do not edit by hand.
+ * Source: built-in Theme rows, seeded from db/seeds/themes.rb
+ * Regenerate with: bin/generate-theme-css
+ */
+:root[data-theme="forest"] {
+  --color-brand: #2f7d46;
+  --color-brand-emphasis: #1f5c33;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f6f9f6;
+  --color-border: #dde8de;
+  --color-text-primary: #16241b;
+  --color-text-secondary: #5b6b5e;
+  --color-success: #047857;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #1d4ed8;
+  --color-neutral: #41504a;
+  --color-on-brand: #ffffff;
+}
+
+:root[data-theme="forest"].dark {
+  --color-brand: #5fbf7d;
+  --color-brand-emphasis: #a6e0b5;
+  --color-surface: #0d1811;
+  --color-surface-raised: #16261c;
+  --color-border: #2c3f31;
+  --color-text-primary: #eef5ef;
+  --color-text-secondary: #a3b5a8;
+  --color-success: #a7f3d0;
+  --color-warning: #fde68a;
+  --color-danger: #fecaca;
+  --color-info: #bfdbfe;
+  --color-neutral: #cdd9d1;
+  --color-on-brand: #0d1811;
+}
+
+:root[data-theme="ocean"] {
+  --color-brand: #1d6fa5;
+  --color-brand-emphasis: #155a87;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f4f9fb;
+  --color-border: #dbe6ec;
+  --color-text-primary: #0f1b24;
+  --color-text-secondary: #5b7280;
+  --color-success: #047857;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #0e7490;
+  --color-neutral: #3f4b54;
+  --color-on-brand: #ffffff;
+}
+
+:root[data-theme="ocean"].dark {
+  --color-brand: #4db3e8;
+  --color-brand-emphasis: #8ed6f2;
+  --color-surface: #0b1620;
+  --color-surface-raised: #142430;
+  --color-border: #24404d;
+  --color-text-primary: #eaf3f8;
+  --color-text-secondary: #9db2bd;
+  --color-success: #a7f3d0;
+  --color-warning: #fde68a;
+  --color-danger: #fecaca;
+  --color-info: #67e8f9;
+  --color-neutral: #cbd5df;
+  --color-on-brand: #0b1620;
+}
+
+:root[data-theme="terracotta"] {
+  --color-brand: #b6492e;
+  --color-brand-emphasis: #973b25;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-success: #047857;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #1d4ed8;
+  --color-neutral: #374151;
+  --color-on-brand: #ffffff;
+}
+
+:root[data-theme="terracotta"].dark {
+  --color-brand: #b6492e;
+  --color-brand-emphasis: #dba28b;
+  --color-surface: #111827;
+  --color-surface-raised: #1f2937;
+  --color-border: #374151;
+  --color-text-primary: #f3f4f6;
+  --color-text-secondary: #9ca3af;
+  --color-success: #a7f3d0;
+  --color-warning: #fde68a;
+  --color-danger: #fecaca;
+  --color-info: #bfdbfe;
+  --color-neutral: #e5e7eb;
+  --color-on-brand: #ffffff;
+}
+

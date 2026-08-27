@@ -14,6 +14,17 @@ Feature.find_or_create_by!(slug: "terminal") do |feature|
   feature.enabled = false
 end
 
+require_relative "seeds/themes"
+Seeds::Themes.seed!
+
+# Default any user still on no color theme (fresh migration, pre-EPIC-273
+# accounts) to the built-in Terracotta theme. New users get this via
+# User#seed_default_color_theme; this backfills existing rows once Themes
+# exist.
+if (terracotta = Theme.terracotta)
+  User.where(color_theme_id: nil).update_all(color_theme_id: terracotta.id)
+end
+
 # Development/preview sample data. Keep this intentionally small: enough to make
 # a fresh preview useful for navigation, dashboard states, and chat rendering,
 # but not a comprehensive fixture factory. Future agents may add one or two
