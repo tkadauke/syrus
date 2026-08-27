@@ -59,6 +59,19 @@ RSpec.describe Prompts::VisualReview do
     expect(prompt).to include("pass an undefined target")
   end
 
+  it "tells the reviewer not to run builds or tests as fallback verification" do
+    expect(prompt).to include("Do not run builds, test suites, graders, typecheckers, linters")
+    expect(prompt).to include("Those belong to Syrus grader steps")
+    expect(prompt).to include("Do not fall back to builds, tests, lint")
+  end
+
+  it "tells the reviewer to skip when browser automation is broken" do
+    expect(prompt).to include("browser automation itself appears unavailable or broken")
+    expect(prompt).to match(/at\s+most two focused retries/)
+    expect(prompt).to include('verdict "skipped"')
+    expect(prompt).to include("tooling blocker")
+  end
+
   it "does not include a test-plan hint section by default" do
     expect(prompt).not_to include("recommended running visual review")
     expect(prompt).not_to include("did NOT recommend")

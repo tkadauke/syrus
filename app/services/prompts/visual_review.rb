@@ -51,6 +51,10 @@ module Prompts
         console errors, incorrect rendering, broken interactions — that only show up when the app is
         actually running, not just from reading the diff.
         Do not make code changes; any edits you make are ephemeral and will not be committed.
+        Do not run builds, test suites, graders, typecheckers, linters, or other deterministic
+        verification commands. Those belong to Syrus grader steps. Use shell only for lightweight,
+        review-specific setup such as reading files, inspecting logs, or applying documented seed
+        commands needed to reach a preview state.
       TEXT
     end
 
@@ -130,6 +134,11 @@ module Prompts
            refs, pass an undefined target, or call click/fill when the element is absent. If the element
            cannot be located, record that as a visual finding instead of repeatedly calling browser tools
            with missing arguments.
+           If browser automation itself appears unavailable or broken (for example click/fill/navigate
+           repeatedly return tool errors despite valid snapshot refs, or the browser crashes), make at
+           most two focused retries, read preview logs if useful, then call `submit_visual_review` with
+           verdict "skipped" and explain the tooling blocker. Do not fall back to builds, tests, lint,
+           typecheck, or direct code-only review as a substitute for visual inspection.
         4. Capture "after" screenshots of what you tested with the image-artifact submit tool so an
            operator can see the result.
         5. Call `submit_visual_review` with your verdict and critique.
