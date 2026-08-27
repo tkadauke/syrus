@@ -55,7 +55,8 @@ class ScheduledTaskFire
   # pre-rendered prompt rides through to the first Run; Steps::Implement
   # skips its GitHub round-trip when run.prompt is already set.
   def fire_freeform_job!
-    rendered_prompt = Prompts::ScheduledTask.new(scheduled_task: @task, fired_at: @now).to_s
+    prompt_renderer = Prompts::ScheduledTask.new(scheduled_task: @task, fired_at: @now)
+    rendered_prompt = prompt_renderer.to_s
 
     job = Job.create!(
       user: @task.user,
@@ -63,7 +64,7 @@ class ScheduledTaskFire
       kind: "cron",
       scheduled_task: @task,
       issue_title: "Scheduled task: #{@task.name}",
-      issue_body: rendered_prompt,
+      issue_body: prompt_renderer.interpolated_user_prompt,
       issue_number: nil
     )
     job.advance_after_triage! if job.may_advance_after_triage?
