@@ -238,21 +238,17 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
       <div>
         <div className="flex gap-1 p-2">
           {attachmentTypes.map((nextType) => (
-            <button
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                type === nextType
-                  ? "bg-blue-600 text-white dark:bg-blue-500"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-              }`}
+            <Button
               key={nextType}
               onClick={() => {
                 setType(nextType)
                 submitWithType(nextType)
               }}
-              type="button"
+              size="sm"
+              variant={type === nextType ? "primary" : "secondary"}
             >
               {nextType === "Repository" ? "Repo" : nextType === "Document" ? "Doc" : nextType}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="px-2 pb-2">
