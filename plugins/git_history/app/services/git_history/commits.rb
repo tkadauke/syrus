@@ -1,6 +1,8 @@
 module GitHistory
-  # Top-level facade the controller calls: pages through CommitLog and
-  # attributes each entry via CommitAttributor.
+  # Top-level facade the controller calls: pages through the web pod's
+  # RelayClient (proxying to a worker pod's RelayServer/CommitLog) and
+  # attributes each entry via CommitAttributor, which stays local since it
+  # needs DB/Current.user access the relay doesn't have.
   class Commits
     DEFAULT_LIMIT = 30
     MAX_LIMIT = 100
@@ -16,7 +18,7 @@ module GitHistory
       @user = user
       @cursor = cursor.presence
       @limit = limit.to_i.clamp(1, MAX_LIMIT)
-      @commit_log = commit_log || CommitLog.new(repository: repository)
+      @commit_log = commit_log || RelayClient.new(repository: repository)
       @attributor = attributor || CommitAttributor.new(repository: repository, user: user)
     end
 
