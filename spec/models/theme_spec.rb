@@ -78,4 +78,31 @@ RSpec.describe Theme do
       expect(owner.reload.color_theme_id).to be_nil
     end
   end
+
+  describe ".selectable_by" do
+    it "includes built-in themes and the given user's own themes, excluding other users' themes" do
+      owner = user
+      other = user
+      built_in = theme(built_in: true)
+      mine = theme(built_in: false, owner_user: owner)
+      theirs = theme(built_in: false, owner_user: other)
+
+      expect(Theme.selectable_by(owner)).to contain_exactly(built_in, mine)
+      expect(Theme.selectable_by(owner)).not_to include(theirs)
+    end
+  end
+
+  describe "#public_payload" do
+    it "returns id, slug, name, built_in, and tokens" do
+      t = theme(built_in: true)
+
+      expect(t.public_payload).to eq(
+        id: t.id,
+        slug: t.slug,
+        name: t.name,
+        built_in: true,
+        tokens: t.tokens
+      )
+    end
+  end
 end

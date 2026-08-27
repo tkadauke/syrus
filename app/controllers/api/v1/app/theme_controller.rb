@@ -3,12 +3,44 @@ module Api
     module App
       class ThemeController < BaseController
         def update
-          if Current.user.update(theme: params.require(:theme))
-            render json: { theme: Current.user.theme }
+          unless color_theme_param_selectable?
+            render_error("validation_failed", "color theme is not available", status: :unprocessable_content)
+            return
+          end
+
+          if Current.user.update(update_attributes)
+            render json: theme_payload
           else
             render_error("validation_failed", Current.user.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
           end
+        end
+
+        private
+
+        def update_attributes
+          attrs = {}
+          attrs[:theme] = params[:theme] if params.key?(:theme)
+          attrs[:color_theme_id] = params[:color_theme_id].presence if params.key?(:color_theme_id)
+          attrs
+        end
+
+        def color_theme_param_selectable?
+          return true unless params.key?(:color_theme_id)
+
+          id = params[:color_theme_id].presence
+          return true if id.nil?
+
+          Theme.selectable_by(Current.user).exists?(id: id)
+        end
+
+        def theme_payload
+          Current.user.reload
+          {
+            theme: Current.user.theme,
+            color_theme_id: Current.user.color_theme_id,
+            color_theme: Current.user.color_theme&.public_payload
+          }
         end
       end
     end

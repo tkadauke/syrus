@@ -1,5 +1,6 @@
 import { type BootstrapPayload } from "../../api/bootstrap"
 import { type ChatGroupRecord, type ChatNavRecord } from "../../api/chats"
+import { type ColorTheme } from "../../api/themes"
 
 
 // Pure app-chrome helpers extracted from AppChromeV2.tsx: path/route classifiers,
@@ -19,6 +20,19 @@ export function updateBootstrapTheme(payload: BootstrapPayload | undefined, them
     current_user: {
       ...payload.current_user,
       theme
+    }
+  }
+}
+
+export function updateBootstrapColorTheme(payload: BootstrapPayload | undefined, colorTheme: ColorTheme | null) {
+  if (!payload?.current_user) return payload
+
+  return {
+    ...payload,
+    current_user: {
+      ...payload.current_user,
+      color_theme_id: colorTheme?.id ?? null,
+      color_theme: colorTheme
     }
   }
 }

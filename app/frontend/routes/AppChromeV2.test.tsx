@@ -152,6 +152,55 @@ describe("AppChromeV2", () => {
     }
   })
 
+  it("lists built-in and custom color themes as swatches and highlights the selected one", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(undefined, {
+      bootstrap: bootstrapPayload({
+        current_user: { ...bootstrapPayload().current_user!, color_theme: oceanColorTheme(), color_theme_id: oceanColorTheme().id }
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+
+    await screen.findByRole("button", { name: "Ocean" })
+    expect(screen.getByRole("button", { name: "Ocean" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Forest" })).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("switches color theme from the settings popup picker and applies the data-theme attribute", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
+      if (path === "/api/v1/app/theme") return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(undefined, {
+      bootstrap: bootstrapPayload({
+        current_user: { ...bootstrapPayload().current_user!, color_theme: oceanColorTheme(), color_theme_id: oceanColorTheme().id }
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    await screen.findByRole("button", { name: "Forest" })
+    fireEvent.click(screen.getByRole("button", { name: "Forest" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/theme", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ color_theme_id: forestColorTheme().id })
+      }))
+    })
+    expect(document.documentElement.getAttribute("data-theme")).toBe("forest")
+  })
+
   it("hides scheduled tasks and dashboard subject links in simple mode", () => {
     renderAppChrome(<div>Dashboard</div>, {
       initialEntries: ["/dashboard"],
@@ -1735,6 +1784,32 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     feature_flags: {},
     ...overrides
   } as unknown as BootstrapPayload
+}
+
+function oceanColorTheme() {
+  return {
+    id: 2,
+    slug: "ocean",
+    name: "Ocean",
+    built_in: true,
+    tokens: {
+      light: { brand: "#1d6fa5" },
+      dark: { brand: "#4db3e8" }
+    }
+  }
+}
+
+function forestColorTheme() {
+  return {
+    id: 3,
+    slug: "forest",
+    name: "Forest",
+    built_in: true,
+    tokens: {
+      light: { brand: "#2f7d46" },
+      dark: { brand: "#5fbf7d" }
+    }
+  }
 }
 
 function mockMatchMedia(coarsePointer: boolean) {

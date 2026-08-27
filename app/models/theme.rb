@@ -20,8 +20,14 @@ class Theme < ApplicationRecord
   validates :owner_user_id, absence: { message: "must be blank for built-in themes" }, if: :built_in?
   validate :tokens_has_required_shape
 
+  scope :selectable_by, ->(user) { where(built_in: true).or(where(owner_user_id: user)) }
+
   def self.terracotta
     find_by(slug: TERRACOTTA_SLUG)
+  end
+
+  def public_payload
+    { id: id, slug: slug, name: name, built_in: built_in, tokens: tokens }
   end
 
   private
