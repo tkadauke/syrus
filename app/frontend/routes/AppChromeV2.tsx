@@ -17,6 +17,7 @@ import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { fetchTerminalSessions } from "../api/terminal"
+import { fetchThemes } from "../api/themes"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { Input } from "../components/Input"
 import { BugReportContext } from "../lib/bugReportContext"
@@ -243,7 +244,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   return (
-    <ThemeProvider theme={user?.theme ?? "system"}>
+    <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
     <BugReportContext.Provider value={bugReportContextValue}>
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
@@ -1062,6 +1063,7 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
       {open ? (
         <div className="absolute bottom-full left-0 z-30 mb-2 w-60 rounded border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-950">
           <ThemePicker />
+          <ColorThemePicker />
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
@@ -1105,6 +1107,38 @@ function ThemePicker() {
             >
               <Icon />
               {t(option.labelKey)}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ColorThemePicker() {
+  const { t } = useTranslation("nav")
+  const { colorTheme, setColorTheme } = useTheme()
+  const themesQuery = useQuery({ queryKey: ["themes"], queryFn: fetchThemes })
+  const themes = themesQuery.data?.themes ?? []
+
+  if (themes.length === 0) return null
+
+  return (
+    <div className="px-4 py-2" role="group" aria-label={t("nav:color_theme")}>
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t("nav:color_theme")}</p>
+      <div className="grid grid-cols-3 gap-1 rounded border border-gray-200 p-1 dark:border-gray-700">
+        {themes.map((option) => {
+          const active = colorTheme?.id === option.id
+          return (
+            <button
+              aria-pressed={active}
+              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              key={option.id}
+              onClick={() => setColorTheme(option)}
+              type="button"
+            >
+              <span aria-hidden="true" className="h-4 w-4 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: option.tokens.light.brand }} />
+              <span className="w-full truncate text-center">{option.name}</span>
             </button>
           )
         })}
