@@ -43,6 +43,18 @@ module Prompts
       [ preamble, interpolated_user_prompt, footer, memory_context, GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].compact_blank.join("\n\n")
     end
 
+    # The operator's own instruction, interpolated with template
+    # variables but stripped of the Syrus-authored scaffolding
+    # (#to_s's preamble/footer/memory/git-safety/submit-summary
+    # blocks). This is what belongs in a Job's issue_body / UI
+    # description; #to_s remains the full agent-facing prompt.
+    def interpolated_user_prompt
+      @task.prompt.gsub(/\{\{\s*([a-z_]+)\s*\}\}/) do |match|
+        var = Regexp.last_match(1).to_sym
+        SUPPORTED_VARIABLES.include?(var) ? value_for(var) : match
+      end
+    end
+
     private
 
     def preamble
@@ -78,13 +90,6 @@ module Prompts
 
     def memory_context
       Prompts::MemoryContext.new(user: @task.user, repository_ids: [ @task.repository_id ]).to_s.presence
-    end
-
-    def interpolated_user_prompt
-      @task.prompt.gsub(/\{\{\s*([a-z_]+)\s*\}\}/) do |match|
-        var = Regexp.last_match(1).to_sym
-        SUPPORTED_VARIABLES.include?(var) ? value_for(var) : match
-      end
     end
 
     def value_for(var)

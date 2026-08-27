@@ -132,6 +132,23 @@ RSpec.describe Prompts::ScheduledTask do
     end
   end
 
+  describe "#interpolated_user_prompt" do
+    it "returns only the interpolated operator prompt, without the scaffolding blocks" do
+      prompt = described_class.new(scheduled_task: task, fired_at: fired_at)
+      output = prompt.interpolated_user_prompt
+
+      expect(output).to eq("Look for dead code in `acme/widgets` and remove anything orphaned. Today is 2026-05-04.")
+      expect(output).not_to include("scheduled maintenance task")
+      expect(output).not_to include("Standing instruction context")
+      expect(output).not_to include("submit_summary")
+    end
+
+    it "is a strict prefix-free subset of #to_s (the full render still contains it)" do
+      prompt = described_class.new(scheduled_task: task, fired_at: fired_at)
+      expect(prompt.to_s).to include(prompt.interpolated_user_prompt)
+    end
+  end
+
   describe "{{last_pr_state}} template variable" do
     it "renders 'none' when there are no PR jobs" do
       task.update!(prompt: "State: {{last_pr_state}}.")
