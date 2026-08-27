@@ -137,6 +137,8 @@ export type JobRecord = {
   started_at: string | null
   finished_at: string | null
   delivery_status: JobDeliveryStatus
+  delivery_track: string
+  delivery_target_ref: string
   needs_attention: boolean
   needs_attention_reason: string | null
   needs_attention_since: string | null
@@ -707,6 +709,8 @@ export type JobActions = {
   can_deploy: boolean
   can_run_visual_review: boolean
   can_request_changes: boolean
+  can_send_job_upstream: boolean
+  send_job_upstream_blocked_reason?: string | null
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]
@@ -767,6 +771,22 @@ export type JobTestResultsPayload = {
   test_runs: JobTestRun[]
 }
 
+export type JobPrLinkRole = "local" | "upstream_export" | "promotion" | "hotfix_sync" | "external_ingest"
+
+export type JobPrLink = {
+  id: number
+  role: JobPrLinkRole
+  source_repository_slug: string | null
+  source_ref: string | null
+  target_repository_slug: string | null
+  target_ref: string | null
+  pr_number: number | null
+  pr_url: string | null
+  pr_state: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
 export type JobPaths = {
   job_path: string
   source_path: string
@@ -807,6 +827,7 @@ export type JobPaths = {
   app_deploy_path: string
   app_visual_review_path: string
   app_request_changes_path: string
+  app_ref_movement_actions_path: string
   admin_resource_admission_path: string
 }
 
@@ -874,6 +895,7 @@ export type JobDetailPayload = {
   dependency_target_options: JobOption[]
   epic_dependency_target_options: Array<{ label: string; value: number }>
   attachments: JobAttachment[]
+  pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
   sccache: JobSccacheInfo | null

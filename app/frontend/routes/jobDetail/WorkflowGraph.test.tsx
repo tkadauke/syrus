@@ -19,6 +19,7 @@ function payload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
     dependency_target_options: [],
     epic_dependency_target_options: [],
     attachments: [],
+    pr_links: [],
     typed_artifacts: [],
     coverage: null,
     sccache: null,

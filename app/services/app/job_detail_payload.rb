@@ -48,6 +48,7 @@ module App
           dependency_target_options: [],
           epic_dependency_target_options: [],
           attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
+          pr_links: PerformanceLogging.phase("job_detail.pr_links", job_id: @job.id) { pr_links_json },
           typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
           coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
           sccache: PerformanceLogging.phase("job_detail.sccache", job_id: @job.id) { latest_sccache_json },
@@ -234,7 +235,9 @@ module App
         updated_at: iso8601(@job.updated_at),
         started_at: iso8601(@job.started_at),
         finished_at: iso8601(@job.finished_at),
-        delivery_status: DeliveryStatus.for(job: @job),
+        delivery_status: DeliveryStatus.for(job: @job, policy: delivery_policy),
+        delivery_track: delivery_policy.job_delivery_track(@job),
+        delivery_target_ref: delivery_policy.job_landing_branch(@job),
         needs_attention: @job.needs_attention?,
         needs_attention_reason: @job.needs_attention_reason,
         needs_attention_since: iso8601(@job.needs_attention_since),
@@ -439,6 +442,46 @@ module App
         created_at: iso8601(attachment.created_at),
         app_delete_path: "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}"
       }
+    end
+
+    def delivery_policy
+      @delivery_policy ||= DeliveryPolicy.for(repository: @job.repository, job: @job)
+    end
+
+    def pr_links_json
+      @job.pr_links.includes(:source_repository, :target_repository).order(:role).map { |link| pr_link_json(link) }
+    end
+
+    def pr_link_json(link)
+      {
+        id: link.id,
+        role: link.role,
+        source_repository_slug: link.source_repository&.slug,
+        source_ref: link.source_ref,
+        target_repository_slug: link.target_repository&.slug,
+        target_ref: link.target_ref,
+        pr_number: link.pr_number,
+        pr_url: pr_link_url(link),
+        pr_state: link.metadata.to_h["pr_state"],
+        created_at: iso8601(link.created_at),
+        updated_at: iso8601(link.updated_at)
+      }
+    end
+
+    def pr_link_url(link)
+      return nil if link.pr_number.blank? || link.target_repository.blank?
+
+      "https://github.com/#{link.target_repository.owner}/#{link.target_repository.name}/pull/#{link.pr_number}"
+    end
+
+    # `send_job_upstream` is the only job-scoped ref-movement action
+    # (`submit_branch_upstream` operates on a repository's track branch, not
+    # a single Job, and is surfaced on the repository Delivery section
+    # instead — see App::DeliveryTracksPayload). Returns nil when the
+    # repository hasn't configured `delivery.ref_movement_actions.send_job_upstream`
+    # at all, matching RefMovementActionsSummary's own omission behavior.
+    def send_job_upstream_action_json
+      RefMovementActionsSummary.for(repository: @job.repository, job: @job).find { |action| action[:name] == "send_job_upstream" }
     end
 
     def typed_artifacts_json
@@ -673,6 +716,7 @@ module App
 
     def actions_json
       retry_actions = ::App::JobRetryActions.for(@job)
+      send_job_upstream_action = send_job_upstream_action_json
       {
         can_start: @job.direct? && @job.open? && !@job.runs.exists? && !@job.active_runtime_work?,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
@@ -711,6 +755,8 @@ module App
         can_deploy: deploy_configured? && @job.deployable?,
         can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
         can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
+        can_send_job_upstream: send_job_upstream_action&.fetch(:available) || false,
+        send_job_upstream_blocked_reason: send_job_upstream_action&.fetch(:blocked_reason),
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
@@ -771,6 +817,7 @@ module App
         app_deploy_path: "/api/v1/app/jobs/#{@job.id}/deploy",
         app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
         app_request_changes_path: "/api/v1/app/jobs/#{@job.id}/request_changes",
+        app_ref_movement_actions_path: "/api/v1/app/jobs/#{@job.id}/ref_movement_actions",
         admin_resource_admission_path: admin_resource_admission_path
       }
     end
