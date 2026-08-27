@@ -1,14 +1,17 @@
 require "mcp"
 
 module ThemingTools
-  # Chat MCP tool set for theming: currently just preview_theme (see its
-  # class for the design). Mirrors WhiteboardTools::ChatToolSet /
-  # MysqlDbBrowser::ChatToolSet's aggregate-and-dispatch-by-name shape so a
-  # future install_theme / CRUD tools job can drop new tool classes into
-  # TOOL_CLASSES without touching this dispatch logic.
+  # Chat MCP tool set for theming: preview_theme (draft + live preview) plus
+  # install_theme and CRUD (list/update/delete) for a user's own custom
+  # themes. Mirrors WhiteboardTools::ChatToolSet / MysqlDbBrowser::ChatToolSet's
+  # aggregate-and-dispatch-by-name shape.
   class ChatToolSet
     TOOL_CLASSES = [
-      PreviewThemeTool
+      PreviewThemeTool,
+      InstallThemeTool,
+      ListUserThemesTool,
+      UpdateUserThemeTool,
+      DeleteUserThemeTool
     ].freeze
 
     def self.available_for?(_chat_session, tier:)

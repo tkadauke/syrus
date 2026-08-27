@@ -10,9 +10,11 @@ module ThemingTools
         name:            "theming_tools",
         display_name:    "Theming Tools",
         version:         ThemingTools::VERSION,
-        description:     "Gives the Syrus Chat agent a preview_theme tool to draft a candidate color theme " \
-                          "and show it to the user against the real Style Guide page. Experimental and off " \
-                          "by default -- install_theme and full theme CRUD land in a follow-up plugin update.",
+        description:     "Gives the Syrus Chat agent tools to draft, preview, install, and manage custom color " \
+                          "themes: preview_theme shows a candidate theme against the real Style Guide page, " \
+                          "install_theme persists one as the user's active theme (with a WCAG AA contrast " \
+                          "check), and list_user_themes/update_user_theme/delete_user_theme manage the user's " \
+                          "own custom themes. Experimental and off by default.",
         homepage:        "https://github.com/tkadauke/syrus",
         author:          "Thomas Kadauke",
         default_enabled: false,

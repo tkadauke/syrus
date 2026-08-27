@@ -105,4 +105,56 @@ RSpec.describe Theme do
       )
     end
   end
+
+  describe "#contrast_issues" do
+    def legible_tokens
+      {
+        "light" => {
+          "brand" => "#b6492e", "brand-emphasis" => "#973b25", "surface" => "#ffffff",
+          "surface-raised" => "#f9fafb", "border" => "#e5e7eb", "text-primary" => "#111827",
+          "text-secondary" => "#6b7280", "success" => "#047857", "warning" => "#b45309",
+          "danger" => "#b91c1c", "info" => "#1d4ed8", "neutral" => "#374151", "on-brand" => "#ffffff"
+        },
+        "dark" => {
+          "brand" => "#b6492e", "brand-emphasis" => "#dba28b", "surface" => "#111827",
+          "surface-raised" => "#1f2937", "border" => "#374151", "text-primary" => "#f3f4f6",
+          "text-secondary" => "#9ca3af", "success" => "#a7f3d0", "warning" => "#fde68a",
+          "danger" => "#fecaca", "info" => "#bfdbfe", "neutral" => "#e5e7eb", "on-brand" => "#ffffff"
+        }
+      }
+    end
+
+    it "returns no issues for a legible palette (the real Terracotta values)" do
+      expect(new_theme(tokens: legible_tokens).contrast_issues).to eq([])
+    end
+
+    it "flags a text token that fails WCAG AA against a surface" do
+      tokens = legible_tokens
+      tokens["light"]["text-secondary"] = "#f0f0f0"
+
+      issues = new_theme(tokens: tokens).contrast_issues
+      issue = issues.find { |i| i[:mode] == "light" && i[:foreground] == "text-secondary" && i[:background] == "surface" }
+
+      expect(issue).to be_present
+      expect(issue[:ratio]).to be < 4.5
+      expect(issue[:required_ratio]).to eq(4.5)
+      expect(issue[:message]).to include("text-secondary").and include("surface").and include("4.5")
+    end
+
+    it "flags a status tone that fails WCAG AA against its tinted background" do
+      tokens = legible_tokens
+      tokens["dark"]["warning"] = "#12130f"
+
+      issues = new_theme(tokens: tokens).contrast_issues
+      issue = issues.find { |i| i[:mode] == "dark" && i[:foreground] == "warning" }
+
+      expect(issue).to be_present
+      expect(issue[:ratio]).to be < 4.5
+    end
+
+    it "returns no issues when tokens aren't shaped correctly yet (validation, not contrast, owns that)" do
+      expect(new_theme(tokens: nil).contrast_issues).to eq([])
+      expect(new_theme(tokens: { "light" => legible_tokens["light"] }).contrast_issues).to eq([])
+    end
+  end
 end
