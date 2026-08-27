@@ -1,4 +1,5 @@
 import { withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useParams } from "react-router-dom"
@@ -38,7 +39,7 @@ export function ProfileRoute() {
       <header className="border-b border-gray-200 dark:border-gray-700 pb-5">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{user.role_label}</p>
-          <h1 className="mt-1 break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{user.display_name}</h1>
+          <PageHeading className="mt-1 break-words">{user.display_name}</PageHeading>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
             {user.github_handle ? <span>@{user.github_handle}</span> : <span>{t("profile.no_github_handle")}</span>}
           </div>
@@ -61,7 +62,7 @@ export function ProfileRoute() {
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("profile.recent_work")}</h2>
+          <SectionHeading>{t("profile.recent_work")}</SectionHeading>
         </div>
         {user.jobs.length > 0 ? (
           <div className="divide-y divide-gray-100 dark:divide-gray-800">

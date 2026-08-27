@@ -1,4 +1,5 @@
 import { routePrefix } from "../lib/routing"
+import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, KeyboardEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
@@ -403,7 +404,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle?: st
     <main aria-label={title} className="flex min-h-[70vh] flex-col items-center justify-center p-6">
       <div className="w-full max-w-xl space-y-6">
         <header>
-          <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+          <PageHeading>{title}</PageHeading>
           {subtitle ? <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">{subtitle}</p> : null}
         </header>
         <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">

@@ -1,5 +1,6 @@
 import { type RepositoryDetailQueryKey, appendSearch, buttonClass, PanelMessage, StatusPill } from "./repositoryDetail/shared"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { RepositoryIssues } from "./repositoryDetail/RepositoryIssues"
 import { RepositoryTestsRoute } from "./repositoryDetail/RepositoryTests"
@@ -89,9 +90,9 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
   return (
     <>
       <header>
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading mono>
           <a className="hover:underline" href={payload.repository.github_url} rel="noopener" target="_blank">{payload.repository.slug}</a>
-        </h1>
+        </PageHeading>
       </header>
 
       <RepositoryTabs active={activeTab} prefix={prefix} tabs={payload.tabs} />
@@ -144,7 +145,7 @@ function RepositoryThroughputPanel({ repositoryId }: { repositoryId: number }) {
   if (metrics.isPending) {
     return (
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Throughput</h2>
+        <SectionHeading className="mb-3">Throughput</SectionHeading>
         <PanelMessage>Loading throughput metrics...</PanelMessage>
       </section>
     )
@@ -153,7 +154,7 @@ function RepositoryThroughputPanel({ repositoryId }: { repositoryId: number }) {
   if (metrics.isError) {
     return (
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Throughput</h2>
+        <SectionHeading className="mb-3">Throughput</SectionHeading>
         <PanelMessage tone="error">{errorMessage(metrics.error, "Unable to load throughput metrics.")}</PanelMessage>
       </section>
     )
@@ -171,7 +172,7 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
     <section aria-label="Repository throughput">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Throughput</h2>
+          <SectionHeading>Throughput</SectionHeading>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {formatWindowRange(window)}
           </p>
@@ -228,7 +229,7 @@ function ThroughputFunnel({ window }: { window: RepositoryThroughputWindow }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Approval funnel</h3>
+      <SectionHeading as="h3">Approval funnel</SectionHeading>
       <dl className="mt-3 space-y-2 text-sm">
         <MetricRow label="PRs opened" value={funnel.pr_opened_count} />
         <MetricRow label="Feedback jobs" value={`${funnel.jobs_with_pr_feedback}${feedbackRate == null ? "" : ` (${formatPercent(feedbackRate)})`}`} />
@@ -246,7 +247,7 @@ function ThroughputBottlenecks({ window }: { window: RepositoryThroughputWindow 
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Bottlenecks</h3>
+      <SectionHeading as="h3">Bottlenecks</SectionHeading>
       <dl className="mt-3 space-y-2 text-sm">
         <MetricRow label="Landing occupied" value={formatDurationSeconds(landing.landing_start_to_closed_latency_seconds.average)} detail={sampleLabel(landing.landing_start_to_closed_latency_seconds)} />
         <MetricRow label="Failed landing waste" value={formatDurationSeconds(waste.failed_or_cancelled_landing_workflow_seconds)} detail={`${waste.failed_or_cancelled_landing_workflow_count} workflows`} />
@@ -264,7 +265,7 @@ function ThroughputLatency({ window }: { window: RepositoryThroughputWindow }) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Latency and capacity</h3>
+      <SectionHeading as="h3">Latency and capacity</SectionHeading>
       <dl className="mt-3 space-y-2 text-sm">
         <MetricRow label="Approval latency" value={formatDurationSeconds(funnel.approval_latency_seconds.average)} detail={sampleLabel(funnel.approval_latency_seconds)} />
         <MetricRow label="Feedback addressed" value={formatDurationSeconds(funnel.feedback_to_addressed_seconds.average)} detail={sampleLabel(funnel.feedback_to_addressed_seconds)} />
@@ -368,9 +369,9 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+      <SectionHeading>
         {t('repository.details')}
-      </h2>
+      </SectionHeading>
       <dl className="mt-3 space-y-3">
         <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
@@ -602,9 +603,9 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <SectionHeading className="mb-3">
         {t('repository.needs_triage')}
-      </h2>
+      </SectionHeading>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {payload.needs_triage_jobs.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -661,9 +662,9 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
     return (
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <SectionHeading className="mb-3">
           {t('repository.recent_jobs')}
-        </h2>
+        </SectionHeading>
         <OnboardingEmptyState
           fallbackActionPath={payload.paths.new_job_path}
           fallbackActionText="Create direct job"
@@ -678,9 +679,9 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+      <SectionHeading className="mb-3">
         {t('repository.recent_jobs')}
-      </h2>
+      </SectionHeading>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">

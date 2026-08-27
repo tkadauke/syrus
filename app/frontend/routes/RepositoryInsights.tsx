@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { useState, type MouseEvent } from "react"
 import { Link, useParams, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -63,11 +64,11 @@ export function RepositoryInsightsRoute() {
   return (
     <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <h1 className="break-words font-mono text-3xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading mono>
           <Link className="hover:underline" to={withRoutePrefix(repository.repository_path, prefix)}>
             {repository.slug}
           </Link>
-        </h1>
+        </PageHeading>
       </header>
 
       <RepositoryTabs active="insights" prefix={prefix} tabs={tabs} />
@@ -118,20 +119,20 @@ function InsightSuggestionsList({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("suggestions_heading")}</h2>
+        <SectionHeading>{t("suggestions_heading")}</SectionHeading>
         <nav aria-label={t("filter_aria")} className="flex gap-1">
           {filterTabs.map((tab) => (
-            <button
-              className={`rounded px-3 py-1 text-sm font-medium transition-colors ${stateFilter === tab.key ? "bg-terracotta-600 text-white" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+            <Button
               key={tab.key}
               onClick={() => onFilterChange(tab.key)}
-              type="button"
+              size="sm"
+              variant={stateFilter === tab.key ? "primary" : "secondary"}
             >
               {tab.label}
               <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                 {tab.count}
               </span>
-            </button>
+            </Button>
           ))}
         </nav>
       </div>
@@ -304,9 +305,9 @@ function SuggestionCard({
                 </Link>
               )}
             </div>
-            <h3 className="mt-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <SectionHeading as="h3" className="mt-1.5">
               {suggestion.title}
-            </h3>
+            </SectionHeading>
           </div>
           <button
             className="shrink-0 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"

@@ -4,6 +4,7 @@ import type { ChatProposal } from "../api/chats"
 import { fetchBootstrap } from "../api/bootstrap"
 import { startEpic } from "../api/epics"
 import { ApiError } from "../api/client"
+import { Button } from "./Button"
 import { useT } from "../hooks/useT"
 
 // "Start" next to a confirmed Epic proposal — moves the Epic to In Progress so
@@ -34,14 +35,14 @@ export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal
 
   return (
     <>
-      <button
-        className="inline-flex items-center rounded-full bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+      <Button
+        className="rounded-full"
         disabled={start.isPending}
         onClick={() => start.mutate()}
-        type="button"
+        size="sm"
       >
         {start.isPending ? t("epic_start.starting") : t("epic_start.start")}
-      </button>
+      </Button>
       {start.isError ? (
         <span className="text-xs text-red-700 dark:text-red-300">
           {start.error instanceof ApiError ? start.error.message : t("epic_start.error")}

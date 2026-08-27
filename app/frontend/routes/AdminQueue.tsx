@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { formatRelativeDate } from "../lib/relativeTime"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useColorTokens } from "../lib/colorTokens"
@@ -101,7 +102,7 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
       <header className="flex items-end justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("queue.heading")}</h1>
+          <PageHeading className="mt-1">{t("queue.heading")}</PageHeading>
         </div>
         <button
           className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-500"
@@ -366,7 +367,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("queue.worker_health")}</h2>
+          <SectionHeading>{t("queue.worker_health")}</SectionHeading>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</p>
         </div>
         <form

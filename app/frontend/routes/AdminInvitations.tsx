@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
@@ -30,7 +31,7 @@ export function AdminInvitations() {
     <main aria-label={t("aria_invitations")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("invitations.heading")}</h1>
+        <PageHeading className="mt-1">{t("invitations.heading")}</PageHeading>
         <p className="mt-2 max-w-prose text-sm text-gray-600 dark:text-gray-300">
           {t("invitations.description")}
         </p>

@@ -1,4 +1,5 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { inputClass } from "../lib/formClasses"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
@@ -14,6 +15,9 @@ import {
 } from "../api/skills"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 
 export function RepositorySkillNewRoute() {
   const { t } = useT("jobs")
@@ -30,7 +34,7 @@ export function RepositorySkillNewRoute() {
   return (
     <main aria-label={t("aria_new_skill_job")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_title")}</h1>
+        <PageHeading>{t("skill_job_title")}</PageHeading>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("skill_job_description")}</p>
       </header>
 
@@ -87,7 +91,7 @@ function SkillLaunchForm({
       {create.isError ? <PanelMessage tone="error">{errorMessage(create.error, t("skill_job_create_error"))}</PanelMessage> : null}
 
       <section className="space-y-3 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_section_pick")}</h2>
+        <SectionHeading>{t("skill_job_section_pick")}</SectionHeading>
         <div className="space-y-2">
           {payload.skills.map((skill) => (
             <SkillOption
@@ -102,7 +106,7 @@ function SkillLaunchForm({
 
       {selectedSkill ? (
         <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_section_parameters")}</h2>
+          <SectionHeading>{t("skill_job_section_parameters")}</SectionHeading>
           {selectedSkill.parameters.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">{t("skill_job_no_parameters")}</p>
           ) : (
@@ -119,24 +123,24 @@ function SkillLaunchForm({
       ) : null}
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("skill_job_section_launch")}</h2>
+        <SectionHeading>{t("skill_job_section_launch")}</SectionHeading>
         <div className="grid gap-4 sm:grid-cols-2">
           {payload.configured_agent_providers.length > 1 ? (
             <Field label={t("skill_job_agent_label")}>
-              <select className={inputClass()} onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
+              <Select onChange={(event) => setAgentProvider(event.target.value)} value={agentProvider}>
                 <option value="">{t("skill_job_agent_repository_default")} ({payload.repository.default_agent_provider_label})</option>
                 {payload.configured_agent_providers.map((provider) => (
                   <option key={provider.value} value={provider.value}>{provider.label}</option>
                 ))}
-              </select>
+              </Select>
             </Field>
           ) : null}
           <Field label={t("skill_job_priority_label")}>
-            <select className={inputClass()} onChange={(event) => setPriority(event.target.value)} value={priority}>
+            <Select onChange={(event) => setPriority(event.target.value)} value={priority}>
               {payload.priorities.map((value) => (
                 <option key={value} value={value}>{value}</option>
               ))}
-            </select>
+            </Select>
           </Field>
         </div>
         <Button
@@ -207,23 +211,18 @@ export function SkillParameterInput({
 }) {
   if (field.type === "boolean") {
     return (
-      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-        <input
-          checked={Boolean(value)}
-          className="h-4 w-4 rounded border-gray-300 text-terracotta-600 focus:ring-terracotta-500 dark:border-gray-700 dark:bg-gray-950"
-          onChange={(event) => onChange(event.target.checked)}
-          type="checkbox"
-        />
-        {field.label}
-      </label>
+      <Checkbox
+        checked={Boolean(value)}
+        label={field.label}
+        onChange={(event) => onChange(event.target.checked)}
+      />
     )
   }
 
   if (field.type === "select") {
     return (
       <Field label={field.label}>
-        <select
-          className={inputClass()}
+        <Select
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
           value={typeof value === "string" ? value : ""}
@@ -232,7 +231,7 @@ export function SkillParameterInput({
           {(field.options || []).map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </select>
+        </Select>
       </Field>
     )
   }
@@ -253,8 +252,7 @@ export function SkillParameterInput({
 
   return (
     <Field label={field.label}>
-      <input
-        className={inputClass()}
+      <Input
         onChange={(event) => onChange(event.target.value)}
         required={field.required}
         type={field.type === "integer" ? "number" : "text"}

@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { PageHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
@@ -76,9 +77,9 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
   return (
     <>
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
+        <PageHeading>
           {t('repositories.heading')}
-        </h1>
+        </PageHeading>
         <Link className={buttonClasses("primary")} to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
       </header>
 

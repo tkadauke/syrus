@@ -1,4 +1,5 @@
 import { withRoutePrefix } from "../lib/routing"
+import { PageHeading } from "../components/Heading"
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
@@ -82,7 +83,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     <main aria-label={t("onboarding_aria")} className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-5">
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t('onboarding.setup_label')}</p>
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('onboarding.heading')}</h1>
+        <PageHeading className="mt-2">{t('onboarding.heading')}</PageHeading>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">

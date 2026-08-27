@@ -1,4 +1,5 @@
 import { inputClass } from "../lib/formClasses"
+import { PageHeading, SectionHeading } from "../components/Heading"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent } from "react"
@@ -51,7 +52,7 @@ export function AdminTeamsIndex() {
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("teams.heading")}</h1>
+          <PageHeading className="mt-1">{t("teams.heading")}</PageHeading>
         </div>
       </header>
 
@@ -120,7 +121,7 @@ function CreateTeamForm({ onSubmit, pending, error }: { onSubmit: (name: string)
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("teams.create_team")}</h2>
+      <SectionHeading>{t("teams.create_team")}</SectionHeading>
       {error ? <div className="mt-2"><PanelMessage tone="error">{error}</PanelMessage></div> : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -158,7 +159,7 @@ export function AdminTeamDetailRoute() {
     <main aria-label={t("teams.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{team.data?.team.name || `Team #${id}`}</h1>
+        <PageHeading className="mt-2">{team.data?.team.name || `Team #${id}`}</PageHeading>
       </header>
 
       {team.isPending ? <PanelMessage>{t("teams.loading_team")}</PanelMessage> : null}
@@ -271,7 +272,7 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("teams.members")}</h2>
+        <SectionHeading>{t("teams.members")}</SectionHeading>
       </div>
 
       {updateRole.isError ? <div className="m-4"><PanelMessage tone="error">{errorMessage(updateRole.error, t("teams.error_update_role"))}</PanelMessage></div> : null}
@@ -367,7 +368,7 @@ function AddMemberForm({ teamId }: { teamId: number }) {
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 p-4">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("teams.add_member")}</h3>
+      <SectionHeading as="h3">{t("teams.add_member")}</SectionHeading>
       {create.isError ? <div className="mt-2"><PanelMessage tone="error">{errorMessage(create.error, t("teams.error_add_member"))}</PanelMessage></div> : null}
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -402,7 +403,7 @@ function TeamRepositoryGrants({ payload }: { payload: AdminTeamDetailPayload }) 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("teams.repository_grants")}</h2>
+        <SectionHeading>{t("teams.repository_grants")}</SectionHeading>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("teams.repository_grants_description")}</p>
       </div>
       {payload.repository_grants.length === 0 ? (
