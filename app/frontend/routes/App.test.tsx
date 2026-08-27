@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { App } from "./App"
+import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
 import * as videoWalkthroughs from "../api/videoWalkthroughs"
@@ -99,6 +100,7 @@ describe("App", () => {
     html2canvasMock.mockClear()
     actionCable.createSubscription.mockClear()
     document.documentElement.classList.remove("dark")
+    __resetDraftAttachmentsForTests()
   })
 
   afterEach(() => {
