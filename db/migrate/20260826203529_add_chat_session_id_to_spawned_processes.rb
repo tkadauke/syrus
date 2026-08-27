@@ -1,6 +1,6 @@
 class AddChatSessionIdToSpawnedProcesses < ActiveRecord::Migration[8.1]
   def up
-    add_column :spawned_processes, :chat_session_id, :integer unless column_exists?(:spawned_processes, :chat_session_id)
+    add_column :spawned_processes, :chat_session_id, :bigint unless column_exists?(:spawned_processes, :chat_session_id)
     add_index :spawned_processes, :chat_session_id unless index_exists?(:spawned_processes, :chat_session_id)
   end
 
