@@ -567,11 +567,11 @@ function PinnedPanel({ payload, queryKey, onSelectMessage }: { payload: ChatPayl
       {sortedPins.map((pin) => (
         <li key={pin.id}>
           <button
-            className="flex w-full min-w-0 items-start gap-2 rounded border border-gray-200 bg-white p-2 text-left text-sm hover:border-blue-200 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-blue-800 dark:hover:bg-blue-950"
+            className="flex w-full min-w-0 items-start gap-2 rounded border border-gray-200 bg-white p-2 text-left text-sm hover:border-brand/30 hover:bg-brand/10 dark:border-gray-700 dark:bg-gray-950"
             onClick={() => onSelectMessage(pin.chat_message_id)}
             type="button"
           >
-            <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
+            <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-gray-800 dark:text-gray-100">{pin.text || t("pinned_message_empty")}</span>
               <span className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -888,7 +888,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
                   <div className="relative aspect-square overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
                     <button
                       aria-label={`Open ${name}`}
-                      className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                      className="h-full w-full p-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand"
                       onClick={() => setLightboxImage(attachment)}
                       title={name}
                       type="button"
@@ -897,7 +897,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
                     </button>
                     <a
                       aria-label={`Download ${name}`}
-                      className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500 group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+                      className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
                       download={attachment.name || "image"}
                       href={src}
                     >
@@ -995,9 +995,9 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
               {modeOptions.map(({ value, label }) => (
                 <button
                   className={[
-                    "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-terracotta-500",
+                    "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand",
                     (payload.chat.mode || "planning") === value
-                      ? "bg-terracotta-600 font-medium text-white"
+                      ? "bg-brand font-medium text-white"
                       : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
                     mode.isPending ? "cursor-not-allowed opacity-50" : ""
                   ].join(" ")}
@@ -1014,11 +1014,11 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
           </label>
           {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {payload.chat.repository?.repository_path ? (
-            <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
+            <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
               {t("chat_settings_repo")}
             </Link>
           ) : null}
-          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
+          <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
             {t("chat_settings_credentials")}
           </Link>
         </div>
@@ -1095,7 +1095,7 @@ function FileTreeEntry({
   const selected = selectedFile === node.path
   return (
     <button
-      className={`flex w-full items-center gap-1 px-2 py-0.5 text-left text-xs ${selected ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+      className={`flex w-full items-center gap-1 px-2 py-0.5 text-left text-xs ${selected ? "bg-brand/10 text-brand" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
       onClick={() => onSelectFile(node.path)}
       style={{ paddingLeft: `${indent + 8}px` }}
       title={node.path}
@@ -1180,14 +1180,14 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
         <button
-          className={`rounded px-2 py-1 text-xs font-medium ${view === "files" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+          className={`rounded px-2 py-1 text-xs font-medium ${view === "files" ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
           onClick={() => setView("files")}
           type="button"
         >
           {t("view_files")}
         </button>
         <button
-          className={`rounded px-2 py-1 text-xs font-medium ${view === "diff" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+          className={`rounded px-2 py-1 text-xs font-medium ${view === "diff" ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
           onClick={() => setView("diff")}
           type="button"
         >
@@ -1285,7 +1285,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
               <div className="overflow-y-auto border-b border-gray-200 bg-gray-50 py-1 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
                 {diffFiles.map((file) => (
                   <button
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 ${selectedDiff?.path === file.path ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"}`}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedDiff?.path === file.path ? "bg-brand/10 text-brand" : "text-gray-700 dark:text-gray-300"}`}
                     key={file.path}
                     onClick={() => setSelectedDiffFile(file.path)}
                     title={`${file.path} (+${file.additions} -${file.deletions})`}
@@ -1377,7 +1377,7 @@ function CodingDiffStatusBadge({ status }: { status: CodingDiffFile["status"] })
     added: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
     modified: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
     removed: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-200",
-    renamed: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200"
+    renamed: "bg-info/10 text-info"
   }
   const labels: Record<CodingDiffFile["status"], string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
 

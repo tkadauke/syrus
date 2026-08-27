@@ -124,13 +124,13 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
   }
 
   return (
-    <div className="mt-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/40 dark:text-blue-200">
+    <div className="mt-2 rounded border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
       <span className="font-semibold">{t("run_running", { id: run.id })}{elapsed ? ` · ${elapsed}` : ""}</span>
       <span> {t("run_running_suffix", { date: run.started_at ? formatRelativeDate(new Date(run.started_at)) : "-" })}</span>
       {activeProcess ? (
-        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-blue-700 dark:text-blue-300">
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-info">
           <span>{t("run_active_process", { kind: humanize(activeProcess.kind) })}</span>
-          <code className="max-w-full truncate rounded bg-white/75 px-1.5 py-0.5 font-mono text-2xs text-blue-950 dark:bg-blue-900/40 dark:text-blue-100">
+          <code className="max-w-full truncate rounded bg-white/75 px-1.5 py-0.5 font-mono text-2xs text-info">
             {activeProcess.command || t("run_active_process_unknown_command")}
           </code>
           {budgetParts.length > 0 ? <span>{t("run_active_process_budget", { budget: budgetParts.join(" · ") })}</span> : null}
@@ -222,7 +222,7 @@ export function TagsPanel({ payload, command, embedded = false, canManageTags }:
             <button className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={() => setAddingTag(false)} type="button">{t("tags_cancel")}</button>
           </form>
         ) : (
-          <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingTag(true)} type="button">{t("tags_add_tag")}</button>
+          <button className="text-xs font-medium text-brand hover:underline" onClick={() => setAddingTag(true)} type="button">{t("tags_add_tag")}</button>
         )
       ) : null}
     </div>
@@ -308,7 +308,7 @@ export function FeedbackSourceBadge({ source }: { source: unknown }) {
 
 export function EpicSummaryLink({ epic, prefix }: { epic: NonNullable<JobDetailPayload["epic"]>; prefix: string }) {
   return (
-    <Link className="text-blue-600 hover:underline" to={withRoutePrefix(epic.epic_path, prefix)}>
+    <Link className="text-brand hover:underline" to={withRoutePrefix(epic.epic_path, prefix)}>
       {epic.display_number} {epic.title}
     </Link>
   )
@@ -348,7 +348,7 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
                 <li className="border-l border-gray-200 pl-3 text-sm dark:border-gray-700" key={`${event.at}-${event.title}-${index}`}>
                   <div className="font-medium text-gray-900 dark:text-gray-100">
                     {event.workflow_path ? (
-                      <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
+                      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.title}</Link>
                     ) : event.title}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -357,7 +357,7 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
                       <>
                         {" · "}
                         {event.workflow_path ? (
-                          <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
+                          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(event.workflow_path, prefix)}>{event.ref_label}</Link>
                         ) : event.ref_label}
                       </>
                     ) : null}
@@ -411,7 +411,7 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
         )}
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {attachment.google_doc_url ? <a className="text-blue-600 hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
+        {attachment.google_doc_url ? <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </div>
       {previewOpen && previewable ? (
@@ -443,7 +443,7 @@ export function JobStateBadge({ state }: { state: string }) {
     : isSuccess
       ? "text-emerald-700 dark:text-emerald-300"
       : isActive
-        ? "text-blue-700 dark:text-blue-300"
+        ? "text-info"
         : "text-gray-600 dark:text-gray-300"
 
   const dotColors = isFail
@@ -451,7 +451,7 @@ export function JobStateBadge({ state }: { state: string }) {
     : isSuccess
       ? "bg-emerald-500 dark:bg-emerald-400"
       : isActive
-        ? "bg-blue-500 dark:bg-blue-400"
+        ? "bg-info"
         : "bg-gray-400 dark:bg-gray-500"
 
   return (
@@ -510,7 +510,7 @@ export function DependencyLink({ dependency }: { dependency: JobDependency }) {
 
   if (epicTarget) {
     return (
-      <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>{label}</Link>
+      <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>{label}</Link>
     )
   }
 

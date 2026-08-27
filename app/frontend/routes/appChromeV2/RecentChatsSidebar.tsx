@@ -249,7 +249,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
               <h2>
                 <button
                   aria-expanded={!collapsed}
-                  className="flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left text-2xs font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                  className="flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left text-2xs font-semibold uppercase tracking-normal text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
                   onClick={() => toggleCollapsedSection(section.key)}
                   type="button"
                 >
@@ -295,7 +295,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                           </span>
                         ) : null}
                         {chat.pinned ? (
-                          <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
+                          <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" />
                         ) : null}
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
@@ -330,7 +330,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                 <div className="ml-6 flex flex-wrap gap-1">
                   {canShowMore ? (
                     <button
-                      className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                      className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand disabled:cursor-not-allowed disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800"
                       disabled={loading}
                       onClick={() => showMore(section)}
                       type="button"
@@ -340,7 +340,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                   ) : null}
                   {canShowLess ? (
                     <button
-                      className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+                      className="rounded px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-brand dark:text-gray-400 dark:hover:bg-gray-800"
                       onClick={() => showLess(section.key)}
                       type="button"
                     >
@@ -366,7 +366,7 @@ function SupervisorChatLink({ activeChatId, chat, onCloseDrawer, prefix }: { act
     ? "bg-red-600 text-white dark:bg-red-500"
     : severity === "warning"
       ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-gray-950"
-      : "bg-blue-600 text-white dark:bg-blue-400 dark:text-gray-950"
+      : "bg-info text-white dark:text-gray-950"
 
   return (
     <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-800">
@@ -400,7 +400,7 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
         {[0, 1, 2].map((index) => (
           <span
             aria-hidden="true"
-            className="h-1 w-1 animate-bounce rounded-full bg-blue-600 dark:bg-blue-300"
+            className="h-1 w-1 animate-bounce rounded-full bg-brand"
             key={index}
             style={{ animationDelay: `${index * 140}ms` }}
           />
@@ -409,7 +409,7 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
     )
   }
 
-  return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+  return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-brand" : "bg-transparent"}`} />
 }
 
 function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingModeEnabled: boolean; localModeEnabled: boolean; mode?: ChatMode | null }) {
@@ -525,7 +525,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
       <button
         aria-expanded={open}
         aria-label={`Chat actions for ${sidebarChatTitle(chat, t("chat:new_title"))}`}
-        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-blue-100 hover:text-blue-700 focus:opacity-100 dark:text-gray-400 dark:hover:bg-blue-900 dark:hover:text-blue-200 group-hover:opacity-100"
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 opacity-0 hover:bg-brand/10 hover:text-brand focus:opacity-100 dark:text-gray-400 group-hover:opacity-100"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
@@ -544,7 +544,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
 
                   return (
                     <a
-                      className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+                      className="block truncate px-3 py-2 text-gray-700 hover:bg-brand/10 hover:text-brand dark:text-gray-300"
                       href={active ? `#message-${anchorMessageId}` : withRoutePrefix(`${chat.chat_path}#message-${anchorMessageId}`, prefix)}
                       key={bookmark.id}
                       onClick={() => setOpen(false)}

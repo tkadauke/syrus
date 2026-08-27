@@ -303,7 +303,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
     <main aria-label={t("aria_public")} className="mx-auto max-w-[96rem] px-6 py-8 sm:py-12">
       <section className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_32rem] lg:items-center">
         <div className="max-w-3xl">
-          <p className="text-sm font-medium uppercase text-blue-700">{t("eyebrow_hero")}</p>
+          <p className="text-sm font-medium uppercase text-brand">{t("eyebrow_hero")}</p>
           <h1 className="mt-4 max-w-2xl text-4xl font-semibold leading-tight text-gray-950 sm:text-5xl">
             {t("hero_title")}
           </h1>
@@ -337,9 +337,9 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
             ))}
           </ol>
           <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-gray-100 pt-4 text-center text-xs">
-            <div className="rounded bg-blue-50 p-2">
-              <dt className="text-blue-800">{t("workspace")}</dt>
-              <dd className="mt-1 font-semibold text-blue-950">{t("cloned")}</dd>
+            <div className="rounded bg-brand/10 p-2">
+              <dt className="text-brand">{t("workspace")}</dt>
+              <dd className="mt-1 font-semibold text-brand">{t("cloned")}</dd>
             </div>
             <div className="rounded bg-amber-50 p-2">
               <dt className="text-amber-800">{t("diff")}</dt>
@@ -355,7 +355,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
 
       <section className="mt-12" aria-label={t("aria_workflow")}>
         <div className="max-w-3xl">
-          <p className="text-sm font-medium text-blue-700">{t("eyebrow_workflow")}</p>
+          <p className="text-sm font-medium text-brand">{t("eyebrow_workflow")}</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-950">{t("workflow_title")}</h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">{t("workflow_body")}</p>
         </div>
@@ -372,7 +372,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
 
       <section className="mt-12 grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-start" aria-label={t("aria_why")}>
         <div>
-          <p className="text-sm font-medium text-blue-700">{t("eyebrow_why")}</p>
+          <p className="text-sm font-medium text-brand">{t("eyebrow_why")}</p>
           <h2 className="mt-2 text-2xl font-semibold text-gray-950">{t("why_title")}</h2>
           <p className="mt-3 text-sm leading-6 text-gray-600">
             {t("why_body")}
@@ -391,7 +391,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
       <section className="mt-12 rounded border border-gray-200 bg-white p-5" aria-label={t("aria_instance_access")}>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
           <div>
-            <p className="text-sm font-medium text-blue-700">{t("eyebrow_instance")}</p>
+            <p className="text-sm font-medium text-brand">{t("eyebrow_instance")}</p>
             <h2 className="mt-2 text-2xl font-semibold text-gray-950">{cta.label}</h2>
             <p className="mt-3 text-sm leading-6 text-gray-600">
               {cta.kind === "invite" ? t("invite_token_hint") : cta.description}
@@ -424,13 +424,13 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
       </section>
 
       <section className="mt-10 flex flex-col gap-3 border-t border-gray-200 pt-6 text-sm text-gray-700 sm:flex-row sm:items-center">
-        <a className="font-medium text-blue-700 underline hover:no-underline" href={payload.public.docs_url}>{t("read_docs")}</a>
+        <a className="font-medium text-brand underline hover:no-underline" href={payload.public.docs_url}>{t("read_docs")}</a>
         <span className="hidden text-gray-300 sm:inline">/</span>
-        <a className="font-medium text-blue-700 underline hover:no-underline" href={payload.public.evaluation_url}>{t("run_locally")}</a>
+        <a className="font-medium text-brand underline hover:no-underline" href={payload.public.evaluation_url}>{t("run_locally")}</a>
         {payload.public.signups_open || invitationToken ? (
           <>
             <span className="hidden text-gray-300 sm:inline">/</span>
-            <Link className="font-medium text-blue-700 underline hover:no-underline" to={signupPath}>{t("create_account")}</Link>
+            <Link className="font-medium text-brand underline hover:no-underline" to={signupPath}>{t("create_account")}</Link>
           </>
         ) : null}
       </section>
@@ -640,7 +640,7 @@ function BootstrapShell({ initialBootstrap }: { initialBootstrap: BootstrapPaylo
           <h2 className="text-sm font-medium text-gray-900">{t("shell.revision")}</h2>
           <p className="mt-2 font-mono text-sm text-gray-700">{app.revision}</p>
           {app.revision_url ? (
-            <a className="text-xs text-blue-600 underline hover:no-underline" href={app.revision_url}>
+            <a className="text-xs text-brand underline hover:no-underline" href={app.revision_url}>
               {t("shell.view_commit")}
             </a>
           ) : null}
@@ -655,5 +655,5 @@ function landingSecondaryButtonClass() {
 }
 
 function settingsSideNavLinkClass(active: boolean) {
-  return `whitespace-nowrap rounded px-3 py-2 font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
+  return `whitespace-nowrap rounded px-3 py-2 font-medium ${active ? "bg-brand/10 text-brand" : "text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800"}`
 }

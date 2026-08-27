@@ -217,7 +217,7 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
         <PageHeading className="break-words">{payload.chat.title || t("shared_chat_fallback_title")}</PageHeading>
-        <span className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">{t("view_only")}</span>
+        <span className="rounded border border-brand/30 bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <ReadOnlyMessageStream payload={payload} />
@@ -848,7 +848,7 @@ function ChatWorkspace({
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
-          className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-blue-100 focus:bg-blue-100 focus:outline-none lg:block dark:hover:bg-blue-950 dark:focus:bg-blue-950"
+          className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-brand/10 focus:bg-brand/10 focus:outline-none lg:block"
           onMouseDown={beginResize}
           type="button"
         />
@@ -917,7 +917,7 @@ function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload
           <SectionHeading id="bookmark-picker-title">{t("bookmarks")}</SectionHeading>
           <button
             aria-label={t("close_bookmarks")}
-            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             onClick={onClose}
             type="button"
           >
@@ -933,7 +933,7 @@ function BookmarkPickerModal({ payload, queryKey, onClose, onSelect }: { payload
             <div className="space-y-1">
               {bookmarks.map((bookmark) => (
                 <button
-                  className="flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-100 dark:hover:bg-gray-800"
+                  className="flex w-full items-center gap-3 rounded px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-100 dark:hover:bg-gray-800"
                   key={bookmark.id}
                   onClick={() => selectBookmark(bookmark)}
                   type="button"
@@ -1072,13 +1072,13 @@ function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { 
           onClick={() => onSelectMessage(pin.chat_message_id)}
           type="button"
         >
-          <PinIcon className="h-3 w-3 shrink-0 text-blue-600 dark:text-blue-300" />
+          <PinIcon className="h-3 w-3 shrink-0 text-brand" />
           <span className="min-w-0 flex-1 truncate">{pin.text || t("pinned_message_empty")}</span>
         </button>
       ))}
       {remaining > 0 ? (
         <button
-          className="rounded px-1.5 py-0.5 text-left text-xs font-medium text-blue-700 hover:underline dark:text-blue-300"
+          className="rounded px-1.5 py-0.5 text-left text-xs font-medium text-brand hover:underline"
           onClick={onViewAll}
           type="button"
         >

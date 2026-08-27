@@ -151,7 +151,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             {t("updated_relative", { time: formatRelativeDate(new Date(payload.epic.updated_at)) })}
           </p>
 
-          <div className="rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200" role="status">
+          <div className="rounded border border-info/30 bg-info/10 px-4 py-3 text-sm text-info" role="status">
             {t("legacy_epic_banner")}
           </div>
 
@@ -222,7 +222,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <span> · {epicOwnerLabel(payload.epic, t)}</span>
           <span> · {t("updated_relative", { time: formatRelativeDate(new Date(payload.epic.updated_at)) })}</span>
           {payload.origin_chat ? (
-            <span> · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
+            <span> · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
               <ChatBubbleIcon />
               <span>{t("view_in_chat")}</span>
             </Link></span>
@@ -382,7 +382,7 @@ function mergeTrainDetail(status: MergeTrainStatus, t: ReturnType<typeof useT>["
 function SimpleEpicStatusPill({ status }: { status?: string }) {
   const { t } = useT("epics")
   return (
-    <span className="rounded bg-blue-50 px-2.5 py-1 text-sm font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
+    <span className="rounded bg-brand/10 px-2.5 py-1 text-sm font-medium text-brand">
       {t(`simple_status.${status || "working_on_it"}`, { defaultValue: status || "Working on it" })}
     </span>
   )
@@ -423,7 +423,7 @@ function DependenciesSection({
             {dependencies.map((dependency) => (
               <li className="flex min-h-10 items-center justify-between gap-3 py-2" key={dependency.epic_id}>
                 <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <Link className="min-w-0 break-words text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(dependency.url, prefix)}>{dependency.title}</Link>
+                  <Link className="min-w-0 break-words text-brand hover:underline" to={withRoutePrefix(dependency.url, prefix)}>{dependency.title}</Link>
                   <StatePill state={dependency.state} />
                 </span>
                 <button
@@ -459,7 +459,7 @@ function DependenciesSection({
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {dependents.map((dependent) => (
               <li className="flex min-h-10 flex-wrap items-center gap-2 py-2" key={dependent.epic_id}>
-                <Link className="break-words text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(dependent.url, prefix)}>{dependent.title}</Link>
+                <Link className="break-words text-brand hover:underline" to={withRoutePrefix(dependent.url, prefix)}>{dependent.title}</Link>
                 <StatePill state={dependent.state} />
               </li>
             ))}
@@ -485,11 +485,11 @@ function EpicReviewFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
   }
 
   return (
-    <section className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+    <section className="rounded border border-brand/30 bg-brand/10 p-4">
       <form className="space-y-3" onSubmit={submit}>
         <SectionHeading>{t("review_feedback_title")}</SectionHeading>
         <textarea
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
           onChange={(event) => setFeedback(event.target.value)}
           placeholder={t("review_feedback_placeholder")}
@@ -690,7 +690,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <SectionHeading>{t("jobs_section")}</SectionHeading>
-        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>{t("add_job")}</Link>
+        <Link className="text-xs text-brand hover:underline" to={withRoutePrefix(newJobPath, prefix)}>{t("add_job")}</Link>
       </div>
       {jobs.length > 0 ? (
         <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
@@ -719,12 +719,12 @@ function JobIdentity({ epicRepositorySlug, job, prefix }: { epicRepositorySlug?:
         {job.title ? (
           <Link className="break-words text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
         ) : (
-          <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.slug}</Link>
+          <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.slug}</Link>
         )}
         {job.pr_number && job.pr_url ? (
           <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url}>
             <a
-              className="font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"
+              className="font-mono text-xs text-brand hover:underline"
               href={job.pr_url}
               rel="noreferrer"
               target="_blank"
@@ -842,7 +842,7 @@ function DetailsPanel({ deploymentStages, epic, jobs, prefix }: { deploymentStag
         <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("repository")}</dt>
           <dd className="mt-0.5">
-            <Link className="font-mono text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.repository.repository_path, prefix)}>
+            <Link className="font-mono text-brand hover:underline" to={withRoutePrefix(epic.repository.repository_path, prefix)}>
               {epic.repository.slug}
             </Link>
           </dd>
@@ -872,11 +872,11 @@ function StatePill({ state }: { state: string }) {
   const styles: Record<string, string> = {
     backlog: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
     ready: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-200",
-    in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
+    in_progress: "bg-info/10 text-info",
     done: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200",
     archived: "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100",
     queued: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
-    running: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
+    running: "bg-info/10 text-info",
     succeeded: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200",
     failed: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-200",
     cancelled: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200",

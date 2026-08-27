@@ -133,7 +133,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
             <div>
               <div className="mb-2 flex gap-2 sm:hidden">
                 {(["edit", "preview"] as const).map((tab) => (
-                  <button className={`rounded border px-3 py-1 text-sm ${activeTab === tab ? "border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-950 dark:text-blue-200" : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`} key={tab} onClick={() => setActiveTab(tab)} type="button">
+                  <button className={`rounded border px-3 py-1 text-sm ${activeTab === tab ? "border-brand/30 bg-brand/10 text-brand" : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`} key={tab} onClick={() => setActiveTab(tab)} type="button">
                     {tab === "edit" ? "Edit" : "Preview"}
                   </button>
                 ))}
@@ -142,7 +142,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 <label className={`${activeTab === "preview" ? "hidden sm:block" : "block"} text-sm font-medium text-gray-700 dark:text-gray-200`}>
                   Body
                   <textarea
-                    className="mt-1 h-72 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                    className="mt-1 h-72 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 font-mono text-sm text-gray-900 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                     onChange={(event) => setBody(event.target.value)}
                     value={body}
                   />
@@ -246,7 +246,7 @@ function DependencyPicker({ label, placeholder, query, results, selected, setQue
         <div className="mt-1 max-h-36 overflow-y-auto rounded border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
           {availableResults.map((result) => (
             <button
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-950"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-brand/10"
               key={result.key}
               onClick={() => {
                 setSelected([...selected, result])
@@ -304,7 +304,7 @@ type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?:
 function proposalActionButton(tone: "primary" | "secondary") {
   const shared = "flex h-11 min-w-0 flex-1 items-center justify-center rounded px-2 text-xs font-medium whitespace-nowrap disabled:opacity-60 sm:flex-none sm:px-3 sm:text-sm"
   if (tone === "primary") {
-    return `${shared} bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400`
+    return `${shared} bg-brand text-white hover:opacity-90`
   }
 
   return `${shared} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600`
@@ -340,7 +340,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
-                <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
+                <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
                 {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
               </div>
               {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
@@ -437,7 +437,7 @@ function appendMissingMessages(messages: ChatMessageItem[], additions: ChatMessa
 
 function ProposalEditButton({ label, onClick }: { label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
   return (
-    <button className="shrink-0 rounded border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClick} type="button" aria-label={label}>
+    <button className="shrink-0 rounded border border-gray-200 p-1.5 text-gray-500 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:text-gray-400" onClick={onClick} type="button" aria-label={label}>
       <PencilIcon className="h-4 w-4" />
     </button>
   )
@@ -485,7 +485,7 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         <>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{pendingActionBadgeLabel(pendingAction)}</span>
-            <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+            <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-info/10 text-info" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
               {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
               {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
             </span>
@@ -493,7 +493,7 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
           {chatMessageId && onSelectMessage ? (
             <h3 className="mt-2 text-base font-semibold">
               <a
-                className="break-words text-blue-700 hover:underline dark:text-blue-300"
+                className="break-words text-brand hover:underline"
                 href={`#message-${chatMessageId}`}
                 onClick={(event) => {
                   event.preventDefault()
@@ -512,7 +512,7 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
         resourceTitle || pendingAction.detail || (pendingAction.execution_step && !isConfirming) || pendingAction.execution_error ? (
           <>
             {resourceTitle && resourceUrl ? (
-              <a className="inline-block break-words text-sm font-medium text-blue-700 hover:underline dark:text-blue-300" href={resourceUrl}>{resourceTitle}</a>
+              <a className="inline-block break-words text-sm font-medium text-brand hover:underline" href={resourceUrl}>{resourceTitle}</a>
             ) : resourceTitle ? (
               <p className="break-words text-sm font-medium text-gray-700 dark:text-gray-300">{resourceTitle}</p>
             ) : null}
@@ -585,7 +585,7 @@ function ProposalDependencyStrip({ dependencies, hasDependencies, prefix }: { de
 function ProposalDependencyLink({ dependency, prefix }: { dependency: ChatProposalDependency; prefix: string }) {
   const title = dependency.display_label || dependency.materialized_label || dependency.title
   const label = dependency.display_label ? title : `${title} ${dependency.confirmed ? "✓" : "⏳"}`
-  const className = "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+  const className = "inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 hover:border-brand/30 hover:bg-brand/10 hover:text-brand dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
 
   if (dependency.anchor_message_id) {
     return <a className={className} href={`#message-${dependency.anchor_message_id}`}>{label}</a>
@@ -678,7 +678,7 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
 function ProposalResultLink({ path, prefix, children }: { path: string | null; prefix: string; children: ReactNode }) {
   if (!path) return <>{children}</>
 
-  return <Link className="font-medium text-blue-700 hover:underline dark:text-blue-300" to={withRoutePrefix(path, prefix)}>{children}</Link>
+  return <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(path, prefix)}>{children}</Link>
 }
 
 function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
@@ -704,7 +704,7 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
           <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
-            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
+            <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-info/10 text-info" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
             {child.proposed && parentProposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
           </summary>
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
