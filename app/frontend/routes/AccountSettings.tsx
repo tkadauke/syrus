@@ -1,6 +1,9 @@
 import { inputClass } from "../lib/formClasses"
 import { routePrefix } from "../lib/routing"
 import { Button } from "../components/Button"
+import { Checkbox } from "../components/Checkbox"
+import { Input } from "../components/Input"
+import { Select } from "../components/Select"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
@@ -152,16 +155,16 @@ function ChatProviderPanel({ payload, onNotice }: { payload: CredentialsPayload;
       <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('credential_cards.chat_provider_heading')}</h2>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('credential_cards.chat_provider_desc')}</p>
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to save credentials.")}</PanelMessage> : null}
-      <select
+      <Select
         aria-label={t('credential_cards.chat_provider_heading')}
-        className={`mt-3 ${inputClass()}`}
+        className="mt-3"
         disabled={save.isPending}
         onChange={(event) => save.mutate(event.target.value)}
         value={payload.options.chat_providers.includes(chatProvider) ? chatProvider : ""}
       >
         <option disabled value="">{t('account_settings.select_provider')}</option>
         {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
-      </select>
+      </Select>
     </section>
   )
 }
@@ -217,44 +220,44 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         {section === "profile" ? (
           <>
             <Field label={t('account_settings.display_name')}>
-              <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
+              <Input onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t('account_settings.first_name')}>
-                <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, first_name: event.target.value })} type="text" value={values.first_name} />
+                <Input maxLength={80} onChange={(event) => setValues({ ...values, first_name: event.target.value })} type="text" value={values.first_name} />
               </Field>
 
               <Field label={t('account_settings.last_name')}>
-                <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
+                <Input maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
               </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t('account_settings.company')}>
-                <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
+                <Input onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
               </Field>
 
               <Field label={t('account_settings.location')}>
-                <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_location: event.target.value })} type="text" value={values.profile_location} />
+                <Input onChange={(event) => setValues({ ...values, profile_location: event.target.value })} type="text" value={values.profile_location} />
               </Field>
             </div>
 
             <Field label={t('account_settings.website')}>
-              <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_website: event.target.value })} type="url" value={values.profile_website} />
+              <Input onChange={(event) => setValues({ ...values, profile_website: event.target.value })} type="url" value={values.profile_website} />
             </Field>
 
             <Field label={t('account_settings.github_handle')}>
-              <input className={inputClass()} maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
+              <Input maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
             </Field>
 
             <Field label={t('account_settings.role')}>
-              <select className={inputClass()} onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
+              <Select onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
                 {roleOptions.map((role) => <option key={role} value={role}>{titleize(role)}</option>)}
-              </select>
+              </Select>
             </Field>
 
             <Field label={t('account_settings.avatar_url')}>
-              <input className={inputClass()} maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
+              <Input maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
             </Field>
 
             <Field label={t('account_settings.profile_bio')}>
@@ -265,16 +268,15 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
         {section === "agent" ? (
           <Field label={t('account_settings.agent_provider')}>
-            <select className={inputClass()} onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
+            <Select onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
               {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
-            </select>
+            </Select>
           </Field>
         ) : null}
 
         {section === "agent" ? (
           <Field label={t('account_settings.max_turns')}>
-            <input
-              className={inputClass()}
+            <Input
               max={payload.options.agent_max_turns.max}
               min={payload.options.agent_max_turns.min}
               onChange={(event) => setValues({ ...values, agent_max_turns: Number(event.target.value) })}
@@ -295,8 +297,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
         {section === "preferences" ? (
           <Field label={t('account_settings.language')}>
-            <select
-              className={inputClass()}
+            <Select
               onChange={(event) => {
                 const locale = event.target.value
                 setValues({ ...values, locale })
@@ -307,24 +308,23 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               <option value="en">{t('account_settings.lang_english')}</option>
               <option value="de">{t('account_settings.lang_deutsch')}</option>
               <option value="la">{t('account_settings.lang_latina')}</option>
-            </select>
+            </Select>
           </Field>
         ) : null}
 
         {section === "preferences" ? (
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              aria-label={t('account_settings.aria_pause_scheduling')}
-              checked={values.scheduling_paused}
-              className="mt-1 rounded border-gray-400"
-              onChange={(event) => setValues({ ...values, scheduling_paused: event.target.checked })}
-              type="checkbox"
-            />
-            <span>
-              <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.pause_scheduling')}</span>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.pause_scheduling_desc')}</span>
-            </span>
-          </label>
+          <Checkbox
+            aria-label={t('account_settings.aria_pause_scheduling')}
+            checked={values.scheduling_paused}
+            className="mt-1"
+            label={
+              <>
+                <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.pause_scheduling')}</span>
+                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.pause_scheduling_desc')}</span>
+              </>
+            }
+            onChange={(event) => setValues({ ...values, scheduling_paused: event.target.checked })}
+          />
         ) : null}
 
         {section === "preferences" ? (
@@ -343,9 +343,9 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
         {section === "agent" ? (
           <Field label={t('account_settings.auto_approval_fallback')}>
-            <select className={inputClass()} onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
+            <Select onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
               {payload.options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
+            </Select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{selectedAutoApprove?.preview}</p>
           </Field>
         ) : null}
@@ -446,9 +446,8 @@ function PasskeysPanel() {
 
       {adding ? (
         <div className="mt-3 flex items-center gap-2">
-          <input
+          <Input
             aria-label={t("account_settings.passkeys_nickname_label")}
-            className={inputClass()}
             disabled={addPending}
             maxLength={100}
             onChange={(event) => setNickname(event.target.value)}
@@ -646,8 +645,8 @@ function ProviderAvailabilitySettings({
             <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {t("account_settings.provider_availability_threshold", { provider: titleize(provider) })}
-                <input
-                  className={`${inputClass()} mt-2 max-w-32`}
+                <Input
+                  className="mt-2 max-w-32"
                   max={100}
                   min={0}
                   onChange={(event) => setValues({

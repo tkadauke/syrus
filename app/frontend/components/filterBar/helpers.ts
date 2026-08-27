@@ -264,10 +264,6 @@ export function filterLabelClass() {
   return "block text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
 }
 
-export function filterInputClass(extraClasses: string) {
-  return `${extraClasses} border border-gray-300 bg-white text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100`
-}
-
 export function filterPlaceholder(meta: FilterSchemaField) {
   return typeof meta.expansions?.placeholder === "string" ? meta.expansions.placeholder : undefined
 }
