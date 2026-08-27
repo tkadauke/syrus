@@ -3289,7 +3289,7 @@ describe("composer stop button", () => {
     mockDesktopViewport()
   })
 
-  it("shows the stop button inside the textarea wrapper when agent is active", async () => {
+  it("shows the stop button in the control row when agent is active", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
@@ -3324,33 +3324,137 @@ describe("composer stop button", () => {
   })
 })
 
+describe("floating composer control order", () => {
+  function fullControlsPayload(chatOverrides: Record<string, unknown> = {}, rootOverrides: Record<string, unknown> = {}) {
+    const base = chatPayload(
+      {
+        chat: {
+          available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }],
+          effective_chat_provider: "claude",
+          ...chatOverrides
+        }
+      },
+      { coding_mode_enabled: true, speech_to_text: speechCapability({ streaming: true }), ...rootOverrides }
+    )
+    return { ...base, paths: { ...base.paths, ...speechPaths() } }
+  }
+
+  function expectDocumentOrder(...elements: HTMLElement[]) {
+    for (let index = 0; index < elements.length - 1; index += 1) {
+      const [a, b] = [elements[index], elements[index + 1]]
+      expect(Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    }
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("renders controls in the canonical order on a desktop viewport", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const attachment = await screen.findByRole("button", { name: "Add attachment" })
+    const dictation = screen.getByRole("button", { name: "Start dictation" })
+    const mode = screen.getByRole("button", { name: "Change mode" })
+    const model = screen.getByRole("button", { name: "Chat model" })
+    const effort = screen.getByRole("button", { name: "Effort" })
+    const send = screen.getByRole("button", { name: "Send message" })
+
+    expectDocumentOrder(attachment, dictation, mode, model, effort, send)
+  })
+
+  it("renders controls in the canonical order on a mobile viewport", async () => {
+    mockMobileViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const attachment = await screen.findByRole("button", { name: "Add attachment" })
+    const dictation = screen.getByRole("button", { name: "Start dictation" })
+    const mode = screen.getByRole("button", { name: "Change mode" })
+    const model = screen.getByRole("button", { name: "Chat model" })
+    const effort = screen.getByRole("button", { name: "Effort" })
+    const send = screen.getByRole("button", { name: "Send message" })
+
+    expectDocumentOrder(attachment, dictation, mode, model, effort, send)
+  })
+
+  it("hides (not merely disables) the mode, model, and effort selectors while a turn is in flight", async () => {
+    mockDesktopViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...fullControlsPayload(), agent_busy: true }))
+    })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Queue a follow-up message...")
+
+    expect(screen.queryByRole("button", { name: "Change mode" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Chat model" })).not.toBeInTheDocument()
+    // Regression guard: ChatEffortSelector previously had no agentActive gate at
+    // all and stayed fully interactive mid-turn.
+    expect(screen.queryByRole("button", { name: "Effort" })).not.toBeInTheDocument()
+
+    expect(screen.getByRole("button", { name: "Enqueue message" })).toBeInTheDocument()
+  })
+
+  it("shows the mode, model, and effort selectors again once the agent goes idle", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+
+    expect(screen.getByRole("button", { name: "Change mode" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Chat model" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Effort" })).toBeInTheDocument()
+  })
+})
+
+describe("floating composer positioning", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    mockDesktopViewport()
+  })
+
+  it("floats over the message list without sharing a containing block with the workspace panel", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const panel = await screen.findByRole("complementary", { name: "Chat workspace" })
+    const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement | null
+    expect(composeForm).not.toBeNull()
+    const form = composeForm as HTMLElement
+
+    expect(form.className).toContain("absolute")
+
+    let ancestor = form.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+
+    expect(ancestor).not.toBeNull()
+    const columnAncestor = ancestor as HTMLElement
+    expect(columnAncestor.className).toContain("relative")
+    expect(columnAncestor.contains(panel)).toBe(false)
+  })
+})
+
 describe("composer textarea right padding", () => {
   beforeEach(() => {
     window.localStorage.clear()
     mockDesktopViewport()
   })
 
-  it("uses pr-12 when agent is idle and textarea is empty", async () => {
-    mockChatRouteFetch(chatPayload())
-    renderRoute()
-
-    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
-    expect(textarea).toHaveClass("pr-12")
-    expect(textarea).not.toHaveClass("pr-24")
-    expect(textarea).not.toHaveClass("pr-32")
-  })
-
-  it("uses pr-24 when text is typed (stash button appears)", async () => {
-    mockChatRouteFetch(chatPayload())
-    renderRoute()
-
-    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.change(textarea, { target: { value: "some text" } })
-    expect(textarea).toHaveClass("pr-24")
-    expect(textarea).not.toHaveClass("pr-12")
-  })
-
-  it("uses pr-24 when agent is active and textarea is empty (stop button appears)", async () => {
+  // The send/stash/stop cluster moved out of the textarea's corner and into the
+  // bottom control row (canonical control order), so the textarea no longer
+  // reserves growing right padding for an embedded button group.
+  it("keeps a fixed right padding regardless of agent state or typed text", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
@@ -3360,24 +3464,9 @@ describe("composer textarea right padding", () => {
     renderRoute()
 
     const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
-    expect(textarea).toHaveClass("pr-24")
-    expect(textarea).not.toHaveClass("pr-12")
-  })
-
-  it("uses pr-32 when agent is active and text is typed (send + stash + stop buttons)", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
-      }
-      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
-    })
-    renderRoute()
-
-    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    expect(textarea).toHaveClass("pr-3")
     fireEvent.change(textarea, { target: { value: "some text" } })
-    expect(textarea).toHaveClass("pr-32")
-    expect(textarea).not.toHaveClass("pr-12")
-    expect(textarea).not.toHaveClass("pr-24")
+    expect(textarea).toHaveClass("pr-3")
   })
 })
 
@@ -4999,12 +5088,12 @@ describe("chat model selector in toolbar", () => {
     expect(screen.getByRole("button", { name: "Chat model" })).toBeInTheDocument()
   })
 
-  it("shows Default model label when no model is selected", async () => {
+  it("shows Default label when no model is selected", async () => {
     mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }], chat_model: null } }))
     renderRoute()
 
     const button = await screen.findByRole("button", { name: "Chat model" })
-    expect(button).toHaveTextContent("Default model")
+    expect(button).toHaveTextContent("Default")
   })
 
   it("shows the current model label when a model is selected", async () => {
@@ -5023,7 +5112,7 @@ describe("chat model selector in toolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chat model" }))
 
     const listbox = screen.getByRole("listbox")
-    expect(within(listbox).getByRole("option", { name: "Default model" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "Default" })).toBeInTheDocument()
     expect(within(listbox).getByRole("option", { name: "Opus 4.7" })).toBeInTheDocument()
   })
 
