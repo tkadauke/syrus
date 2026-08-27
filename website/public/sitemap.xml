@@ -16,7 +16,13 @@
   <url><loc>https://syrus-ai.dev/docs/faq/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/features/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/getting-started/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/landing/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/observability/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/plugins/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/previews/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/recipes/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/scheduling-and-recovery/</loc></url>
+  <url><loc>https://syrus-ai.dev/docs/tests-and-graders/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/troubleshooting/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/what-is-syrus/</loc></url>
   <url><loc>https://syrus-ai.dev/docs/why-use-syrus/</loc></url>

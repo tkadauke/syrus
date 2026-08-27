@@ -24,24 +24,33 @@ recipes needed to run Syrus without reading the Rails source.
 | Get to a first successful PR | [Getting Started](/docs/getting-started) |
 | Choose a deployment path | [Deployment](/docs/deployment) |
 
-## Product Manual
+## Use Syrus
 
 - [Concepts](/docs/concepts): Epics, Jobs, Workflows, Steps, Runs,
   trigger kinds, and state machines.
-- [Features](/docs/features): Jobs, Epics, schedules, chats, direct Jobs,
-  credentials, GitHub App/PAT behavior, and multi-user operation.
-- [Collaboration](/docs/collaboration): solo, shared-repository team, fork-based
-  team, and open source contributor modes; review policies; feedback policies.
 - [Workflows](/docs/workflows): the built-in pipelines for issues, PR
   feedback, CI failures, retries, rebases, direct Jobs, and landing.
+- [Landing Code](/docs/landing): approved Jobs, Epic merge trains, bundles,
+  final graders, branch repair, and queue blockers.
+- [Tests and Graders](/docs/tests-and-graders): review/landing/CI phases,
+  JUnit output, inherited failures, test insights, coverage, and wrapper
+  scripts.
+- [Previews and Visual Review](/docs/previews): preview boot commands, seed
+  data, logs, visual review verdicts, and reliable development-mode previews.
+- [Collaboration](/docs/collaboration): solo, shared-repository team,
+  fork-based team, and open source contributor modes; review policies;
+  feedback policies.
+- [Features](/docs/features): broad feature reference for Jobs, Epics,
+  schedules, chats, direct Jobs, credentials, and automation surfaces.
+
+## Configure Syrus
+
 - [Configuration](/docs/configuration): `.syrus.yml`, user settings,
   repository settings, credentials, and worker environment.
+- [Plugins](/docs/plugins): installed vs enabled plugins, UI contributions,
+  MCP tools, plugin data, dependencies, and authoring guidelines.
 - [Syrus CLI](/docs/cli): terminal chat, inbox review, checkout,
   test-plan, Job, Epic, repository, and schedule commands.
-- [Recipes](/docs/recipes): common how-tos for CI failures, PR feedback,
-  scheduled tasks, custom workflows, direct Jobs, and stopping work.
-- [Troubleshooting](/docs/troubleshooting): failure modes and concrete
-  debug paths.
 
 ## Operating Syrus
 
@@ -58,3 +67,14 @@ multi-worker deployments, Syrus records a durable storage identity for each
 data root and routes failed-step resumes back to a worker that advertises the
 matching queue, so pod or container names can change across deploys without
 breaking workspace-affinity retries.
+
+- [Scheduling and Recovery](/docs/scheduling-and-recovery): Work Intents,
+  Work Units, admission control, pauses, preemption, retries, and the
+  reconciler.
+- [Observability](/docs/observability): performance traces, SQL explains,
+  operational logs, browser errors, backend exceptions, activity logs, and
+  live MySQL diagnostics.
+- [Recipes](/docs/recipes): common how-tos for CI failures, PR feedback,
+  scheduled tasks, custom workflows, direct Jobs, and stopping work.
+- [Troubleshooting](/docs/troubleshooting): failure modes and concrete
+  debug paths.
