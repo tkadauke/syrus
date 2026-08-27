@@ -33,7 +33,41 @@ class PluginRouteResolver
       end
     end
 
+    # Structural companion to #spa_route_declared? for the
+    # "repositories/:repository_id/plugin/*path" host route. A repo_page_tab
+    # provider's own repo_page_tabs(repository:, user:) already returns the
+    # canonical "/repositories/#{repository.id}/plugin/<tab_key>" path for
+    # each tab it exposes, so this derives valid SPA paths straight from that
+    # metadata instead of requiring every repo_page_tab plugin to hand-declare
+    # a redundant spa#show manifest route (the bug class behind the git_history
+    # Git History tab 404ing on hard reload — the very first plugin built
+    # against this extension point forgot the manual declaration).
+    #
+    # Repository access is intentionally NOT viewer-scoped here: like every
+    # other SPA-shell route, this only decides whether Rails should serve the
+    # SPA shell at all versus a bare 404 — real per-viewer authorization is
+    # enforced by the authenticated API calls the SPA makes after it mounts
+    # (see SpaController, which has no repository-level gating either). So the
+    # tab list is computed using any user known to have access to the
+    # repository (its owner, or else any member), not the requesting user.
+    def repo_page_tab_route?(path)
+      match = REPO_PAGE_TAB_PATH.match(path)
+      return false unless match
+
+      repository = Repository.find_by(id: match[:repository_id])
+      return false unless repository
+
+      probe_user = repository.user || repository.repository_memberships.first&.user
+      return false unless probe_user
+
+      Repositories::PluginRepoTabsPayload.tabs_for(repository: repository, user: probe_user).any? do |tab|
+        Array(tab[:paths]).include?(path)
+      end
+    end
+
     private
+
+    REPO_PAGE_TAB_PATH = %r{\A/repositories/(?<repository_id>\d+)/plugin/}
 
     def plugin_routes
       Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
