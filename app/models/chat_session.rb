@@ -362,16 +362,13 @@ class ChatSession < ApplicationRecord
   end
 
   def agent_questions_payload
-    agent_questions.active.map do |question|
+    agent_questions.active.filter_map do |question|
+      questions_payload = question.questions_payload
+      next if questions_payload.empty?
+
       {
         id: question.id,
-        questions: question.questions.map do |sub_question|
-          {
-            question: sub_question["question"],
-            options: sub_question["options"],
-            multiple: sub_question["multiple"]
-          }
-        end,
+        questions: questions_payload,
         asked_at: question.asked_at&.iso8601,
         app_answer_path: "/api/v1/app/chats/#{id}/agent_questions/#{question.id}/answer"
       }

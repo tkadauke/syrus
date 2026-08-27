@@ -1679,6 +1679,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.dig("whiteboard", "files", "file-1", "dataURL")).to eq("data:image/png;base64,abc")
   end
 
+  it "skips malformed persisted agent questions when loading a chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Malformed question chat", last_message_at: Time.current)
+    question = chat.agent_questions.build(questions: nil, asked_at: Time.current)
+    question.save!(validate: false)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["agent_questions"]).to eq([])
+  end
+
   it "loads chat context data on demand" do
     sign_in_as(user)
     document = repository.repository_documents.create!(
@@ -2639,6 +2651,19 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "yes" ] }
 
     expect(response).to have_http_status(:unprocessable_content)
+    expect(question.reload.answers).to be_nil
+  end
+
+  it "rejects answers for malformed persisted agent questions without raising" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    question = chat.agent_questions.build(questions: nil, asked_at: Time.current)
+    question.save!(validate: false)
+
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answers: [ "yes" ] }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Question is no longer active or answers are invalid.")
     expect(question.reload.answers).to be_nil
   end
 

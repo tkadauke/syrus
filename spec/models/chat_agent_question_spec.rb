@@ -55,6 +55,22 @@ RSpec.describe ChatAgentQuestion do
     expect(question.reload.answered_at).to be_nil
   end
 
+  it "rejects answers for malformed persisted questions without raising" do
+    question = chat_session.agent_questions.build(questions: nil, asked_at: Time.current)
+    question.save!(validate: false)
+
+    expect(question.answer_and_record!([ "Yes" ])).to eq(false)
+    expect(question.reload.answers).to be_nil
+    expect(question.reload.answered_at).to be_nil
+  end
+
+  it "returns an empty payload for malformed persisted questions" do
+    question = chat_session.agent_questions.build(questions: nil, asked_at: Time.current)
+    question.save!(validate: false)
+
+    expect(question.questions_payload).to eq([])
+  end
+
   it "rejects a blank answer for a single-select/free-text question" do
     question = build_question(chat_session, [ { "question" => "Deploy now?", "options" => nil, "multiple" => false } ])
 
@@ -97,6 +113,14 @@ RSpec.describe ChatAgentQuestion do
     expect(question.expire!).to eq(true)
     expect(question.reload.expired_at).to be_present
     expect(question.answer_and_record!([ "Fallback" ])).to eq(false)
+  end
+
+  it "expires malformed persisted questions without revalidating their payload" do
+    question = chat_session.agent_questions.build(questions: nil, asked_at: Time.current)
+    question.save!(validate: false)
+
+    expect(question.expire!).to eq(true)
+    expect(question.reload.expired_at).to be_present
   end
 
   it "validates 1 to 4 questions" do
