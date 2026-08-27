@@ -108,6 +108,26 @@ RSpec.describe TestIdentity do
       expect(identities.first.last_passed_at).to be_present
     end
 
+    it "uses a MySQL-safe window-function alias when selecting latest test cases" do
+      identity = create_identity!("case")
+      create_test_case!(identity, status: "passed", created_at: 1.minute.ago)
+
+      sql_statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        sql_statements << sql if sql.include?("ROW_NUMBER() OVER")
+      end
+
+      described_class.refresh_many!([ identity.id ])
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+
+      latest_case_sql = sql_statements.join("\n")
+      expect(latest_case_sql).to include("syrus_test_case_row_number")
+      expect(latest_case_sql).not_to match(/\bAS\s+row_number\b/i)
+      expect(latest_case_sql).not_to match(/\bWHERE\s+row_number\b/i)
+    end
+
     it "updates identity summaries in bulk" do
       identities = 4.times.map { |index| create_identity!("case #{index}") }
       identities.each do |identity|

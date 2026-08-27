@@ -115,11 +115,11 @@ class TestIdentity < ApplicationRecord
             ROW_NUMBER() OVER (
               PARTITION BY test_cases.test_identity_id
               ORDER BY test_cases.created_at DESC, test_cases.id DESC
-            ) AS row_number
+            ) AS syrus_test_case_row_number
           FROM test_cases
           WHERE test_cases.test_identity_id IN (?)
         ) latest_test_cases
-        WHERE row_number = 1
+        WHERE syrus_test_case_row_number = 1
       SQL
       ids
     ])
