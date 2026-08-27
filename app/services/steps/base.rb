@@ -364,6 +364,36 @@ module Steps
       ].join("\n\n")
     end
 
+    # adversarial_review / visual_review verdicts of "needs_work" advance
+    # the loop to another implement/respond iteration, but that iteration's
+    # own prompt (issue text, PR comments, etc.) has no way to describe what
+    # the reviewer actually flagged. Append it explicitly so the repair
+    # iteration knows what to fix instead of just re-attempting the
+    # original task blind. Only needs_work entries are actionable — an
+    # approved/skipped verdict from an earlier, now-passed loop has nothing
+    # left to address.
+    def append_review_feedback(prompt)
+      sections = [
+        needs_work_review_section(
+          "adversarial_review_iterations",
+          "An independent adversarial-review agent examined the previous iteration and flagged issues that still need to be addressed:"
+        ),
+        needs_work_review_section(
+          "visual_review_iterations",
+          "An independent visual-QA agent drove a browser against the previous iteration and flagged issues that still need to be addressed:"
+        )
+      ].compact
+
+      return prompt if sections.empty?
+
+      ([ prompt ] + sections).join("\n\n")
+    end
+
+    def needs_work_review_section(artifact_key, intro)
+      iterations = Array(workflow.artifact(artifact_key)).select { |entry| (entry["verdict"] || entry[:verdict]) == "needs_work" }
+      Prompts::ReviewFeedback.new(intro: intro, iterations: iterations).to_s
+    end
+
     def collect_injected_context
       Syrus::PluginRegistry.providers_for(:prompt_injector)
         .filter_map { |provider| provider.call(repository: repository, job: job) }

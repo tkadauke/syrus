@@ -432,6 +432,47 @@ RSpec.describe GithubClient do
         refresh_succeeded: false
       )
     end
+
+    it "refreshes a stale installation token when fetching an Actions job log, then succeeds" do
+      installation = Factories.installation(
+        user: user,
+        github_installation_id: 987,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      repository.update!(installation: installation)
+
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/abc123/check-runs")
+        .with(query: hash_including({}), headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          check_runs: [
+            {
+              name: "rspec", status: "completed", conclusion: "failure",
+              html_url: "https://github.com/acme/widgets/actions/runs/111/job/222",
+              output: { summary: nil, text: nil }
+            }
+          ]
+        }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          steps: [ { name: "Run rspec", conclusion: "failure" } ]
+        }.to_json)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 401, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Bad credentials" }.to_json)
+      stub_installation_token(token: "fresh-token")
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/actions/jobs/222/logs")
+        .with(headers: { "Authorization" => "token fresh-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "text/plain" }, body: "rspec failed")
+
+      client = GithubClient.for(repository: repository, user: user)
+      detail = client.check_runs_detail_for("acme/widgets", "abc123")
+
+      expect(detail[:failed_checks].first[:log]).to eq("rspec failed")
+      expect(installation.reload.cached_token).to eq("fresh-token")
+    end
   end
 
   describe "#issues_with_label", :vcr do
