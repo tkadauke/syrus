@@ -16,6 +16,7 @@ export type WorkerTimelineSpan = {
   finished_at: string | null
   status: string
   label: string
+  job_title: string | null
   blocked: WorkerTimelineBlockedInfo
 }
 
@@ -23,6 +24,7 @@ export type WorkerTimelinePendingEntry = {
   workflow_id: number
   job_id: number
   label: string
+  job_title: string | null
   created_at: string | null
   blocked: WorkerTimelineBlockedInfo
 }

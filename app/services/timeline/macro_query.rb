@@ -82,6 +82,7 @@ module Timeline
         finished_at: workflow.finished_at&.iso8601,
         status: workflow.state,
         label: label_for(workflow),
+        job_title: job_title_for(workflow),
         blocked: blocked_payload(workflow)
       }
     end
@@ -92,6 +93,7 @@ module Timeline
           workflow_id: workflow.id,
           job_id: workflow.job_id,
           label: label_for(workflow),
+          job_title: job_title_for(workflow),
           created_at: workflow.created_at&.iso8601,
           blocked: blocked_payload(workflow)
         }
@@ -143,6 +145,14 @@ module Timeline
     def label_for(workflow)
       job = workflow.job
       "#{job&.slug || "JOB-#{workflow.job_id}"} · #{workflow.trigger_kind}"
+    end
+
+    # The issue/PR title behind `label`'s bare slug -- consumers that want a
+    # human-readable name (e.g. a hover tooltip) shouldn't have to re-derive
+    # it themselves. `Job#title` already falls back to the slug when there's
+    # no `issue_title` (cron/direct Jobs), so this is never blank.
+    def job_title_for(workflow)
+      workflow.job&.title
     end
 
     def attribution_for(workflow)

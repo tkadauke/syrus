@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Timeline::MacroQuery do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
-  let(:job) { Factories.job_record(user: user, repository: repository, state: "running") }
+  let(:job) { Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Fix the aqueducts") }
 
   def record_event(event_type:, workflow:, hostname:, pid:, occurred_at:)
     WorkflowActivity.synchronously do
@@ -32,7 +32,7 @@ RSpec.describe Timeline::MacroQuery do
     expect(lane).to be_present
     expect(lane[:pid]).to eq(4242)
     expect(lane[:spans]).to contain_exactly(
-      include(workflow_id: workflow.id, job_id: job.id, status: "running")
+      include(workflow_id: workflow.id, job_id: job.id, status: "running", job_title: "Fix the aqueducts")
     )
   end
 

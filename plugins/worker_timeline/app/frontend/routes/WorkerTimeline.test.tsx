@@ -32,6 +32,7 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
             finished_at: "2026-01-01T00:20:00Z",
             status: "succeeded",
             label: "JOB-42 · initial",
+            job_title: "Fix the aqueducts",
             blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: true }
           }
         ]
@@ -48,6 +49,7 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
             finished_at: null,
             status: "running",
             label: "JOB-43 · pr_comment",
+            job_title: "Investigate flaky CI",
             blocked: { blocked_reason: "provider_availability", blocked_since: "2026-01-01T00:14:00Z", blocked_details: { provider: "codex" }, next_check_at: "2026-01-01T00:16:00Z", available: true, historical: false }
           }
         ]
@@ -161,9 +163,21 @@ describe("WorkerTimeline macro view", () => {
 
     const tooltip = await screen.findByRole("tooltip")
     expect(tooltip).toHaveTextContent("JOB-43 · pr_comment")
+    expect(tooltip).toHaveTextContent("Investigate flaky CI")
     expect(tooltip).toHaveTextContent("Workflow #502")
     expect(tooltip).toHaveTextContent("+ (running)")
     expect(tooltip).toHaveTextContent("Blocked: provider_availability")
+  })
+
+  it("activates a span with the keyboard, not just a mouse click", async () => {
+    setupFetchMock()
+    renderTimeline()
+
+    const span = await screen.findByRole("button", { name: "JOB-42 · initial" })
+    span.focus()
+    fireEvent.keyDown(span, { key: "Enter" })
+
+    expect(await screen.findByText("Workflow #501 waterfall view is coming soon.")).toBeInTheDocument()
   })
 
   it("plainly says when no historical blocker data is available for a finished span", async () => {
@@ -174,6 +188,7 @@ describe("WorkerTimeline macro view", () => {
     fireEvent.mouseEnter(span)
 
     const tooltip = await screen.findByRole("tooltip")
+    expect(tooltip).toHaveTextContent("Fix the aqueducts")
     expect(tooltip).toHaveTextContent("10m 0s")
     expect(tooltip).toHaveTextContent("No historical blocker data is available for this span.")
   })
@@ -187,5 +202,27 @@ describe("WorkerTimeline macro view", () => {
 
     expect(await screen.findByText("Workflow #501 waterfall view is coming soon.")).toBeInTheDocument()
     expect(screen.getByText("← Back to Worker Timeline")).toBeInTheDocument()
+  })
+
+  it("virtualizes lanes so only the scrolled-into-view rows render, not every lane up front", async () => {
+    const lanes = Array.from({ length: 20 }, (_, index) => ({
+      hostname: `worker-${index}`,
+      pid: 100 + index,
+      instance: null,
+      spans: []
+    }))
+    setupFetchMock({ lanes })
+    renderTimeline()
+
+    expect(await screen.findByText("worker-0:100")).toBeInTheDocument()
+    expect(screen.getByText("worker-13:113")).toBeInTheDocument()
+    expect(screen.queryByText("worker-19:119")).not.toBeInTheDocument()
+
+    fireEvent.scroll(screen.getByLabelText("Worker lanes"), { target: { scrollTop: 900 } })
+
+    await waitFor(() => {
+      expect(screen.getByText("worker-19:119")).toBeInTheDocument()
+    })
+    expect(screen.queryByText("worker-0:100")).not.toBeInTheDocument()
   })
 })
