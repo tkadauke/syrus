@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useState } from "react"
 import { subscribeToAppEvents } from "./actionCable"
+import { setNativeNotificationCableSubscribed } from "./nativeNotifications"
 
 export function useAppEvents() {
   const queryClient = useQueryClient()
@@ -17,8 +18,11 @@ export function useAppEvents() {
   }, [])
 
   useEffect(() => {
-    const subscription = subscribeToAppEvents(queryClient, undefined, onConnectionChange)
-    return () => subscription.unsubscribe()
+    const subscription = subscribeToAppEvents(queryClient, undefined, onConnectionChange, setNativeNotificationCableSubscribed)
+    return () => {
+      subscription.unsubscribe()
+      setNativeNotificationCableSubscribed(false)
+    }
   }, [queryClient, onConnectionChange])
 
   return { isDisconnected, justReconnected, reconnectAt, clearReconnected: () => setJustReconnected(false) }

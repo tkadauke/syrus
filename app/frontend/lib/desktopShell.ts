@@ -114,6 +114,16 @@ export type SyrusDictationBridge = {
   prewarmMicrophone(): Promise<{ granted: boolean }>
 }
 
+// Lets the web app tell the desktop shell's Electron main process whether
+// IT is currently subscribed to AppUserChannel and dispatching native
+// notifications itself (nativeNotifications.ts), so main's own independent
+// dispatch path can skip firing a duplicate for the same event. Fire-and-
+// forget — no response, no error surface; main treats an unreachable bridge
+// the same as "not live" and keeps dispatching.
+export type SyrusNotificationsBridge = {
+  reportLive(live: boolean): void
+}
+
 export type SyrusShellBridge = {
   getState(): Promise<SyrusShellState>
   onStateChanged(callback: (state: SyrusShellState) => void): () => void
@@ -127,6 +137,9 @@ export type SyrusShellBridge = {
   // Absent on older shells and in plain browsers — always feature-detect via
   // recorderHudBridge().
   recorderHud?: SyrusRecorderHudBridge
+  // Absent on older shells and in plain browsers — always feature-detect via
+  // notificationsBridge().
+  notifications?: SyrusNotificationsBridge
 }
 
 // The floating recording HUD — a separate always-on-top, DRAGGABLE window
@@ -180,6 +193,12 @@ export function annotationBridge(): SyrusAnnotationBridge | null {
 export function recorderHudBridge(): SyrusRecorderHudBridge | null {
   const recorderHud = syrusShellBridge()?.recorderHud
   return recorderHud?.available ? recorderHud : null
+}
+
+// The notifications-liveness reporting surface, or null in a plain browser /
+// older shell — those have no main-process dispatch to coordinate with.
+export function notificationsBridge(): SyrusNotificationsBridge | null {
+  return syrusShellBridge()?.notifications ?? null
 }
 
 // Opens a URL in a new tab (or, in the desktop shell, wherever the shell

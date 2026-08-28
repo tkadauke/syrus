@@ -3,6 +3,7 @@ import {
   annotationBridge,
   desktopBuiltAt,
   isDesktopShell,
+  notificationsBridge,
   openInNewTab,
   syrusShellBridge,
   type SyrusAnnotationBridge,
@@ -73,6 +74,27 @@ describe("annotationBridge", () => {
     window.syrusShell = { annotation } as unknown as SyrusShellBridge
 
     await expect(annotationBridge()?.enable()).resolves.toBe(false)
+  })
+})
+
+describe("notificationsBridge", () => {
+  afterEach(() => {
+    delete window.syrusShell
+  })
+
+  it("is null in a plain browser (no shell bridge at all)", () => {
+    expect(notificationsBridge()).toBeNull()
+  })
+
+  it("is null when the shell has no notifications surface (older shell)", () => {
+    window.syrusShell = {} as SyrusShellBridge
+    expect(notificationsBridge()).toBeNull()
+  })
+
+  it("returns the surface when the shell exposes it", () => {
+    const notifications = { reportLive: vi.fn() }
+    window.syrusShell = { notifications } as unknown as SyrusShellBridge
+    expect(notificationsBridge()).toBe(notifications)
   })
 })
 
