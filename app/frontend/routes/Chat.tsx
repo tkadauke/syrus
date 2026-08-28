@@ -178,7 +178,7 @@ export function ChatRoute() {
   return (
     <main
       aria-label={t("aria_chat")}
-      className="relative mx-auto flex h-full max-w-[96rem] flex-col gap-2 overflow-hidden p-2 sm:gap-6 sm:p-6 lg:[height:100%]"
+      className="relative mx-auto flex h-full w-full max-w-[96rem] flex-col gap-2 overflow-hidden p-2 sm:gap-6 sm:p-6 lg:[height:100%]"
       style={viewportStyle}
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
