@@ -18,40 +18,15 @@ RSpec.describe Mcp::Tools::ProposeEpicTool do
     JSON.parse(raw, symbolize_names: true)
   end
 
-  def response_payload(response)
-    JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
-  end
-
-  it "creates an Epic-only proposal card" do
+  it "always rejects, directing the caller to propose_epic_with_jobs" do
     response = call_tool(title: "Codify the marble agenda", description: "Give the backlog a Senate chamber.")
 
-    proposal = chat_session.proposals.find_by!(title: "Codify the marble agenda")
-    expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to include(id: proposal.id, kind: "epic", repository: repository.slug)
-    expect(proposal).to have_attributes(
-      kind: "epic",
-      repository: repository,
-      body: "Give the backlog a Senate chamber."
-    )
-    expect(proposal.job).to be_nil
-    expect(proposal.epic).to be_nil
-    expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("propose_epic_with_jobs")
+    expect(chat_session.proposals).to be_empty
   end
 
-  it "uses the first attached repo token when provided" do
-    other_repo = Factories.repository(user: user, owner: "acme", name: "scrolls")
-
-    response = call_tool(
-      title: "Inventory the scrolls",
-      description: "Find the scroll shelf.",
-      attached_repos: [ other_repo.slug ]
-    )
-
-    expect(response[:result][:isError]).to be_falsey
-    expect(chat_session.proposals.last.repository).to eq(other_repo)
-  end
-
-  it "persists existing Job dependencies" do
+  it "does not create a proposal even with dependency fields provided" do
     prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
 
     response = call_tool(
@@ -60,81 +35,7 @@ RSpec.describe Mcp::Tools::ProposeEpicTool do
       depends_on_job_ids: [ prerequisite.id ]
     )
 
-    proposal = chat_session.proposals.find_by!(title: "Blocked Epic")
-    expect(response[:result][:isError]).to be_falsey
-    expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
-  end
-
-  it "rejects existing Job dependencies that are already closed unsuccessfully" do
-    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
-    prerequisite.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
-
-    response = call_tool(
-      title: "Blocked Epic",
-      description: "This dependency cannot become satisfied.",
-      depends_on_job_ids: [ prerequisite.id ]
-    )
-
     expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to include(
-      "Cannot depend on #{prerequisite.slug} because it is closed as cancelled and will not satisfy dependencies."
-    )
-    expect(chat_session.proposals.find_by(title: "Blocked Epic")).to be_nil
-  end
-
-  it "persists Epic proposal slug dependencies" do
-    prerequisite = chat_session.proposals.create!(
-      repository: repository,
-      slug: "foundation-epic",
-      title: "Foundation Epic",
-      body: "Do this first.",
-      kind: "epic"
-    )
-
-    response = call_tool(
-      title: "Blocked Epic",
-      description: "Wait for another proposed Epic.",
-      depends_on_proposal_slugs: [ prerequisite.slug ]
-    )
-
-    proposal = chat_session.proposals.find_by!(title: "Blocked Epic")
-    expect(response[:result][:isError]).to be_falsey
-    expect(proposal.dependencies).to contain_exactly(prerequisite)
-    expect(proposal.epic_dependency_tokens).to eq([ prerequisite.slug ])
-    expect(response_payload(response)).to include(depends_on_proposal_slugs: [ prerequisite.slug ])
-  end
-
-  it "rejects unknown Job dependency IDs" do
-    other_user = Factories.user
-    other_repo = Factories.repository(user: other_user)
-    foreign_job = Factories.job_record(user: other_user, repository: other_repo)
-
-    response = call_tool(title: "Invalid", description: "Body.", depends_on_job_ids: [ foreign_job.id ])
-
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to include("unknown depends_on_job_ids")
-  end
-
-  it "returns a tool error for unknown dependency slugs" do
-    response = call_tool(title: "Leaf", description: "Body.", depends_on: %w[missing])
-
-    expect(response[:result][:isError]).to be(true)
-    expect(response[:result][:content].first[:text]).to match(/unknown depends_on_proposal_slugs/)
-  end
-
-  it "broadcasts an update_proposal event after creating the proposal" do
-    allow(AppEvents).to receive(:broadcast)
-
-    call_tool(title: "Broadcast test", description: "Check broadcast.")
-
-    proposal = chat_session.proposals.find_by!(title: "Broadcast test")
-    expect(AppEvents).to have_received(:broadcast).with(
-      user: user,
-      type: "updated",
-      resource: "chat",
-      id: chat_session.id,
-      changed: [ "proposal" ],
-      payload: { action: "update_proposal", proposal_id: proposal.id }
-    )
+    expect(chat_session.proposals).to be_empty
   end
 end

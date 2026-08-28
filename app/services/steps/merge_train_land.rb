@@ -121,13 +121,16 @@ module Steps
     end
 
     # The integration merge commit represents the whole train landing, not
-    # any single member — recorded against the Epic, never a member Job.
+    # any single member — recorded against the Epic (Epic-backed) or the
+    # MergeTrain itself (bundle-backed), never a member Job.
     # Additive bookkeeping; any failure here must not fail the landing.
     def record_integration_merge_commit!(train, integration_sha)
-      return unless train.epic_backed?
       return if integration_sha.blank?
 
-      LandedCommit.create!(landable: train.epic, sha: integration_sha, kind: "integration_merge", position: 0)
+      landable = landed_commit_landable(train)
+      return unless landable
+
+      LandedCommit.create!(landable: landable, sha: integration_sha, kind: "integration_merge", position: 0)
     rescue StandardError => e
       log("merge_train: could not record integration merge commit: #{e.class}: #{e.message}", kind: "system")
     end

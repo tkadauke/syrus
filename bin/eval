@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Manual eval harness for agent-prompt/skill compliance -- see
+# evals/README.md. Invokes a real agent (real API calls, real cost,
+# 3-30+ minutes per scenario) against scripted pressure scenarios and
+# records pass/fail history. Never wired into CI; run this by hand.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+exec ruby evals/run.rb "$@"

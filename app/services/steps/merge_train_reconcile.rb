@@ -44,10 +44,12 @@ module Steps
 
     # Additive bookkeeping; any failure here must not fail the reconcile step.
     def record_reconcile_commit!(train, sha)
-      return unless train.epic_backed?
       return if sha.blank?
 
-      LandedCommit.create!(landable: train.epic, sha: sha, kind: "reconcile", position: 0)
+      landable = landed_commit_landable(train)
+      return unless landable
+
+      LandedCommit.create!(landable: landable, sha: sha, kind: "reconcile", position: 0)
     rescue StandardError => e
       log("merge_train_reconcile: could not record reconcile commit: #{e.class}: #{e.message}", kind: "system")
     end

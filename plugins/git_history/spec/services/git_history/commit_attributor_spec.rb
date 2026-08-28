@@ -96,6 +96,40 @@ RSpec.describe GitHistory::CommitAttributor do
       expect(result).not_to have_key(:jobs)
     end
 
+    it "classifies a commit with a LandedCommit(landable: MergeTrain, kind: integration_merge) row as bundle_landed, returning ALL member jobs" do
+      sha = "9" + "e" * 39
+      job_one = Factories.job_record(repository: repository, user: viewer, kind: "issue", epic: nil, landed_sha: sha)
+      job_two = Factories.job_record(repository: repository, user: viewer, kind: "issue", epic: nil, landed_sha: sha)
+      train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium",
+                                  integration_branch: "syrus/job-bundle-1")
+      MergeTrainMember.create!(merge_train: train, job: job_one, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: job_two, position: 1)
+      LandedCommit.create!(landable: train, sha: sha, kind: "integration_merge", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("bundle_landed")
+      expect(result[:bundle]).to eq(id: train.id)
+      expect(result[:jobs]).to contain_exactly(
+        hash_including(id: job_one.id, slug: job_one.slug),
+        hash_including(id: job_two.id, slug: job_two.slug)
+      )
+    end
+
+    it "classifies a commit with a LandedCommit(landable: MergeTrain, kind: reconcile) row as bundle_reconciliation, with no single Job" do
+      sha = "0" + "f" * 39
+      train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium",
+                                  integration_branch: "syrus/job-bundle-2")
+      LandedCommit.create!(landable: train, sha: sha, kind: "reconcile", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("bundle_reconciliation")
+      expect(result[:bundle]).to eq(id: train.id)
+      expect(result).not_to have_key(:job)
+      expect(result).not_to have_key(:jobs)
+    end
+
     it "falls back to legacy Job#landed_sha matching when no LandedCommit row exists for the sha" do
       sha = "8" + "d" * 39
       job = Factories.job_record(repository: repository, user: viewer, kind: "issue", landed_sha: sha)

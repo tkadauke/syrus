@@ -382,11 +382,15 @@ those commits are validated on the integration branch before landing. If
 reconciliation fails, operators retry or inspect the merge-train workflow
 rather than filing a separate reconciliation Job.
 
-Chats can propose Epics or propose an Epic with child Jobs, including
-Epic-level dependencies on existing Epics or other chat Epic proposals. Chat
-Epic proposals can reference each other by proposal slug, so operators can
-review the full plan first; Syrus wires the real Epic dependency once both
-proposal cards are confirmed.
+Chats propose a new Epic together with its child Jobs in one card, including
+Epic-level dependencies on existing Epics or other chat Epic proposals. A
+confirmed Epic with zero child Jobs would implement nothing, so an Epic
+proposal must include at least one child Job up front; a single child Job is
+fine. Chat Epic proposals can reference each other by proposal slug, so
+operators can review the full plan first; Syrus wires the real Epic
+dependency once both proposal cards are confirmed. Confirming an Epic
+proposal targeting an existing Epic that is itself still empty is also
+rejected, for the same reason.
 
 When a developer opens chat on a backlog Epic with no child Jobs, Syrus treats
 it as product-owner-authored planning input. The chat agent surfaces the
@@ -610,9 +614,10 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
-When a product owner confirms proposals, Syrus accepts standalone backlog
-Epics and non-Epic Jobs, but rejects proposals that would create Jobs inside
-an Epic until a developer claims and elaborates that Epic.
+When a product owner confirms proposals, Syrus accepts a new Epic proposed
+together with its own required initial child Job(s) and accepts non-Epic
+Jobs, but rejects any proposal that would add further Jobs to an
+already-existing Epic until a developer claims and elaborates that Epic.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics, Epics blocked on existing Jobs, and proposed Jobs
 blocked on specific Job proposals in other cards from the same chat session.

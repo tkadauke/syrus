@@ -4430,6 +4430,26 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal.reload).to be_proposed
   end
 
+  it "returns an actionable validation error when confirming a zero-child Epic proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.not_to change(Epic, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("at least one child Job")
+    expect(proposal.reload).to be_proposed
+  end
+
   it "rejects proposed child proposals when rejecting an Epic proposal" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -4500,7 +4520,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal.reload).to be_proposed
   end
 
-  it "rejects product-owner confirmation of Epic bundles with child Jobs" do
+  it "allows product-owner confirmation of a brand-new Epic bundle with its required child Job" do
     user.update!(role: "product_owner")
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -4521,6 +4541,36 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.to change(Job, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload).to be_confirmed
+    expect(proposal.epic).to be_present
+  end
+
+  it "rejects product-owner confirmation of Epic bundles that add child Jobs to an existing Epic" do
+    user.update!(role: "product_owner")
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, state: "backlog")
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository,
+      target_epic: epic
+    )
+    proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
     }.not_to change(Job, :count)
 
     expect(response).to have_http_status(:forbidden)
@@ -4528,7 +4578,6 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       "Product owners cannot add Jobs to Epics directly — claim the Epic as a developer to elaborate it."
     )
     expect(proposal.reload).to be_proposed
-    expect(proposal.epic).to be_nil
   end
 
   it "defers proposal outcome notice when an agent turn is active" do

@@ -13,6 +13,8 @@
     "syrus_landed": "Syrus",
     "epic_landed": "Epicum",
     "epic_reconciliation": "Conciliatio epici",
+    "bundle_landed": "Fasciculus operum",
+    "bundle_reconciliation": "Conciliatio fasciculi operum",
     "external_pr": "PR externum",
     "external_push": "Impulsus directus"
   },
@@ -21,7 +23,8 @@
     "pr": "PR #{{number}}",
     "opened_by": "apertum ab {{name}}",
     "pushed_by": "impulsum ab {{name}}",
-    "unknown_author": "ignotus"
+    "unknown_author": "ignotus",
+    "bundle": "Fasciculus operum #{{id}}"
   },
   "origin": {
     "chat": "per colloquium",

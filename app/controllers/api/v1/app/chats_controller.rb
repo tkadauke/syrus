@@ -1424,6 +1424,14 @@ module Api
           return false unless Current.user.product_owner?
 
           if proposal.epic_bundle?
+            # A brand-new Epic (no target_epic) must include at least one child
+            # Job to be confirmable at all -- ChatEpicProposalMaterializer
+            # rejects zero-child Epics outright. Product owners are still
+            # blocked from elaborating an EXISTING Epic with more Jobs (that's
+            # the developer's job once they claim it); they are not blocked
+            # from proposing an Epic's own required initial child Job(s).
+            return false unless proposal.target_epic.present?
+
             return proposal.child_proposals.where(state: "proposed").exists?
           end
 
