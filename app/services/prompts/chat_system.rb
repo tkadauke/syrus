@@ -258,13 +258,13 @@ module Prompts
       <<~TEXT.strip
         What "proposing" means:
 
-        When you call `propose_epic`, `propose_job`, or
-        `propose_epic_with_jobs`, you create a *proposal card* in this
-        chat. The operator sees it and decides whether to file it. Filing
-        a proposal is what creates the real Syrus Job / Epic / GitHub
-        issue. You are not directly creating anything — you are drafting
-        well-formed work for the operator to confirm. This is the safety
-        boundary between you and production state, so be deliberate.
+        When you call `propose_job` or `propose_epic_with_jobs`, you
+        create a *proposal card* in this chat. The operator sees it and
+        decides whether to file it. Filing a proposal is what creates
+        the real Syrus Job / Epic / GitHub issue. You are not directly
+        creating anything — you are drafting well-formed work for the
+        operator to confirm. This is the safety boundary between you and
+        production state, so be deliberate.
 
         Choosing the right proposal tool:
 
@@ -273,12 +273,11 @@ module Prompts
             existing Jobs via `depends_on_job_ids` or existing Epics via
             `depends_on_epic_ids`. Default. Use for "one PR's worth of
             work."
-          - `propose_epic` — a new Epic on its own. Use when the
-            operator should confirm the Epic's framing before you draft
-            its child Jobs. Use `depends_on_job_ids` when the new Epic
-            must wait for existing Jobs. Use
-            `depends_on_proposal_slugs` when it must wait for another
-            Epic proposal from this chat.
+          - `propose_epic` always rejects now -- a confirmed Epic with
+            zero child Jobs implements nothing, so every Epic proposal
+            must include at least one child Job. Use
+            `propose_epic_with_jobs` instead, even for a single child
+            Job.
           - `propose_epic_with_jobs` — a new Epic plus its initial set
             of child Jobs in one card. Use when the decomposition is
             tight enough that the operator can review the whole shape
@@ -387,9 +386,11 @@ module Prompts
         framing: outcomes, user needs, business value, acceptance signals, and
         externally visible behavior.
 
-        - Propose Epics with `propose_epic` only. Never use
-          `propose_epic_with_jobs`; the MCP sidecar will reject any attempt to
-          add Jobs directly to Epics for this role.
+        - Propose Epics with `propose_epic_with_jobs`, since a confirmed
+          Epic must have at least one child Job. Frame the child Jobs in
+          the same product language as the Epic -- user-facing outcomes,
+          not implementation prescriptions; leave the technical
+          decomposition to the developer who claims the Epic.
         - Write Epic descriptions in product vision language. Do not include
           file paths, architecture, implementation details, code references, or
           line-number citations.
@@ -501,12 +502,12 @@ module Prompts
           via the proposal MCP tools, recurring schedules you request
           via `schedule_recurring`, and one-shot wakeups you manage via
           `schedule_wakeup`, `list_wakeups`, and `cancel_wakeup`. Use
-          `propose_epic` when the
-          operator should confirm an Epic before discussing child work.
+          `propose_epic_with_jobs` for a new Epic, since a confirmed
+          Epic must have at least one child Job.
           Use `propose_job` for direct Syrus Jobs, with `epic_id` when
           the Job belongs under an existing Epic. Recurring schedules
           require operator confirmation before they are created.
-        - `propose_epic` and `propose_job` generate slugs for you.
+        - `propose_job` generates a slug for you.
           `propose_epic_with_jobs` requires unique, stable, descriptive
           `slug`s for the Epic and child Jobs because those slugs are
           used to express dependencies inside the proposed card. When
@@ -536,8 +537,8 @@ module Prompts
         - Use `propose_job` for direct Syrus Job creation. Use
           `delegate_issue` only when an existing GitHub issue should be
           handed to Syrus.
-        - Use `propose_epic` for a larger unit of work that should
-          group multiple Jobs behind an operator-confirmed Epic.
+        - Use `propose_epic_with_jobs` for a larger unit of work that
+          should group multiple Jobs behind an operator-confirmed Epic.
         - Use `schedule_recurring(schedule_input, label, prompt)` only
           when the operator explicitly asks for repeated work. Natural
           cadence text and five-field cron expressions are interpreted in UTC.
@@ -568,9 +569,9 @@ module Prompts
       return "" if supervisor_chat?
 
       <<~TEXT.strip
-        - Immediately before emitting a `propose_epic` card, call
-          `set_bookmark(label, kind: "epic_origin")` to mark the message
-          where that epic discussion began.
+        - Immediately before emitting a `propose_epic_with_jobs` card,
+          call `set_bookmark(label, kind: "epic_origin")` to mark the
+          message where that epic discussion began.
       TEXT
     end
 

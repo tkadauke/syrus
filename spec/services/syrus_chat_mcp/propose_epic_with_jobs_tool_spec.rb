@@ -115,6 +115,17 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(ui.dependencies.pluck(:slug)).to eq([ "export-schema" ])
   end
 
+  it "rejects an empty jobs array and creates no proposal" do
+    response = call_tool(
+      epic: { slug: "no-children", title: "No children", description: "Framing only." },
+      jobs: []
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("must include at least one child Job")
+    expect(chat_session.proposals).to be_empty
+  end
+
   it "rejects existing Epics outside the chat user's scope" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
