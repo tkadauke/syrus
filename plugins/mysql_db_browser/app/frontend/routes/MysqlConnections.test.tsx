@@ -292,9 +292,95 @@ describe("MysqlConnections", () => {
     renderConnections()
 
     const row = (await screen.findByText("Staging")).closest("tr") as HTMLElement
-    fireEvent.click(within(row).getByRole("button", { name: "Test connection" }))
+    fireEvent.click(within(row).getByRole("button", { name: "Test" }))
 
     expect(await within(row).findByText("Connection succeeded.")).toBeInTheDocument()
+  })
+
+  describe("mobile connections list", () => {
+    const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+    afterEach(() => {
+      if (originalMatchMedia) {
+        Object.defineProperty(window, "matchMedia", originalMatchMedia)
+      } else {
+        Reflect.deleteProperty(window, "matchMedia")
+      }
+    })
+
+    function mockMobileViewport() {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: vi.fn((query: string) => ({
+          matches: false,
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn()
+        }))
+      })
+    }
+
+    it("renders a single-column card per connection instead of a table", async () => {
+      mockMobileViewport()
+      setupFetchMock()
+      renderConnections()
+
+      expect(await screen.findByText("Staging")).toBeInTheDocument()
+      expect(screen.queryByRole("table")).not.toBeInTheDocument()
+      expect(screen.getByText("db.staging.internal:3306")).toBeInTheDocument()
+      expect(screen.getByText("app")).toBeInTheDocument()
+      expect(screen.getByText("staging")).toBeInTheDocument()
+      expect(screen.getByText("Set")).toBeInTheDocument()
+      expect(screen.getByText("Disabled")).toBeInTheDocument()
+      expect(screen.getByText("Read-only")).toBeInTheDocument()
+
+      const card = screen.getByText("Staging").closest("article") as HTMLElement
+      expect(within(card).getByRole("button", { name: "Connect" })).toBeInTheDocument()
+      expect(within(card).getByRole("button", { name: "Test" })).toBeInTheDocument()
+      expect(within(card).getByRole("button", { name: "Edit" })).toBeInTheDocument()
+      expect(within(card).getByRole("button", { name: "Delete" })).toBeInTheDocument()
+    })
+
+    it("still browses into the schema explorer from the card's Connect button", async () => {
+      mockMobileViewport()
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
+
+      expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
+    })
+
+    it("edits a connection inline in the card without a table row", async () => {
+      mockMobileViewport()
+      setupFetchMock()
+      renderConnections()
+
+      fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+
+      const heading = await screen.findByText("Edit connection")
+      expect(heading.closest("tr")).toBeNull()
+
+      const editCard = heading.closest("form") as HTMLElement
+      fireEvent.change(within(editCard).getByLabelText("Label"), { target: { value: "Staging (renamed)" } })
+      fireEvent.click(within(editCard).getByRole("button", { name: "Save" }))
+
+      expect(await screen.findByText("Staging (renamed)")).toBeInTheDocument()
+    })
+
+    it("shows the empty state as a single message instead of a table row", async () => {
+      mockMobileViewport()
+      setupFetchMock([])
+      renderConnections()
+
+      expect(await screen.findByText("No connections yet. Add one to get started.")).toBeInTheDocument()
+      expect(screen.queryByRole("table")).not.toBeInTheDocument()
+    })
   })
 
   describe("schema browsing", () => {
@@ -302,7 +388,7 @@ describe("MysqlConnections", () => {
       setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
 
       expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
       expect(await screen.findByText("app_staging")).toBeInTheDocument()
@@ -320,7 +406,7 @@ describe("MysqlConnections", () => {
       setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
       await screen.findByText("grace@example.com")
@@ -341,7 +427,7 @@ describe("MysqlConnections", () => {
       setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
       await screen.findByText("grace@example.com")
@@ -358,7 +444,7 @@ describe("MysqlConnections", () => {
       setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       expect(await screen.findByText("Browsing Staging")).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Back to connections" }))
@@ -372,7 +458,7 @@ describe("MysqlConnections", () => {
       const { calls } = setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByRole("tab", { name: "Query" }))
 
       fireEvent.change(screen.getByLabelText("SQL statement"), { target: { value: "SELECT * FROM users" } })
@@ -389,7 +475,7 @@ describe("MysqlConnections", () => {
       setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
       await screen.findByText("grace@example.com")
@@ -404,7 +490,7 @@ describe("MysqlConnections", () => {
       const { calls } = setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
       await screen.findByText("grace@example.com")
@@ -422,7 +508,7 @@ describe("MysqlConnections", () => {
       const { calls } = setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByText("app_staging"))
       fireEvent.click(await screen.findByText("users"))
       await screen.findByText("grace@example.com")
@@ -444,7 +530,7 @@ describe("MysqlConnections", () => {
       const { calls } = setupFetchMock()
       renderConnections()
 
-      fireEvent.click(await screen.findByRole("button", { name: "Browse Schema" }))
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }))
       fireEvent.click(await screen.findByRole("tab", { name: "Live" }))
 
       await waitFor(() => expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/query"))).toBe(true))

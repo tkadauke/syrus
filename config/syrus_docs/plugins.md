@@ -1470,9 +1470,14 @@ Bundled plugins:
   gate inside their own provider. `MysqlConnections.tsx` consumes the admin
   CRUD + test-connection API under `/api/v1/app/admin/mysql_connections` to
   list, add, edit, delete, and test connections; edit forms never receive a
-  stored password back from the server. A "Browse Schema" button per
+  stored password back from the server. A "Connect" button per
   connection switches the same page into a two-pane schema explorer
   (`SchemaBrowser`/`DatabaseNode`/`TableDetail` in the same file) backed by
   `MysqlDbBrowser::SchemaInspector` and the
   `GET /api/v1/app/admin/mysql_connections/:id/schema[/…]` routes — see
-  `config/syrus_docs/mysql_db_browser.md` for the introspection design.
+  `config/syrus_docs/mysql_db_browser.md` for the introspection design. The
+  connections list itself switches from a table to a one-column stack of
+  cards below the 1024px breakpoint (`useMediaQuery`, same convention as
+  `dashboard/components.tsx`'s job list) so every field stays readable
+  instead of forcing horizontal scroll on a phone; row actions render as
+  "Connect"/"Test"/"Edit"/"Delete" in both layouts.
