@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { NoticeToast } from "@app/components/NoticeToast"
@@ -141,6 +141,39 @@ function ConnectionsTable({
 }) {
   const { t } = useT("mysql_db_browser")
   const [editingId, setEditingId] = useState<number | null>(null)
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+
+  if (!isDesktop) {
+    return (
+      <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+        {connections.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("empty")}</p>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-gray-900">
+            {connections.map((connection) => (
+              editingId === connection.id ? (
+                <MobileConnectionEditCard
+                  connection={connection}
+                  key={connection.id}
+                  onCancel={() => setEditingId(null)}
+                  onNotice={onNotice}
+                  onSaved={() => setEditingId(null)}
+                />
+              ) : (
+                <MobileConnectionCard
+                  connection={connection}
+                  key={connection.id}
+                  onBrowse={() => onBrowse(connection)}
+                  onEdit={() => setEditingId(connection.id)}
+                  onNotice={onNotice}
+                />
+              )
+            ))}
+          </div>
+        )}
+      </section>
+    )
+  }
 
   return (
     <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
@@ -199,14 +232,6 @@ function ConnectionRow({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("mysql_db_browser")
-  const queryClient = useQueryClient()
-  const destroy = useMutation({
-    mutationFn: () => deleteMysqlConnection(connection.id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-      onNotice(t("deleted_notice", { label: connection.label }))
-    }
-  })
 
   return (
     <tr>
@@ -230,43 +255,129 @@ function ConnectionRow({
         </StatusBadge>
       </td>
       <td className="px-4 py-3">
-        <div className="flex flex-wrap items-start justify-end gap-2">
-          <button
-            className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500"
-            onClick={onBrowse}
-            type="button"
-          >
-            {t("browse_button")}
-          </button>
-          <TestButton onTest={() => testMysqlConnection(connection.id)} />
-          <button
-            className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            onClick={onEdit}
-            type="button"
-          >
-            {t("edit_button")}
-          </button>
-          <button
-            className="rounded border border-red-300 dark:border-red-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={destroy.isPending}
-            onClick={() => {
-              if (window.confirm(t("confirm_delete", { label: connection.label }))) {
-                onNotice(null)
-                destroy.mutate()
-              }
-            }}
-            type="button"
-          >
-            {destroy.isPending ? t("deleting") : t("delete_button")}
-          </button>
-        </div>
-        {destroy.isError ? <p className="mt-2 text-right text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, t("delete_error_fallback"))}</p> : null}
+        <ConnectionActions align="end" connection={connection} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
       </td>
     </tr>
   )
 }
 
-function ConnectionEditRow({
+function MobileConnectionCard({
+  connection,
+  onBrowse,
+  onEdit,
+  onNotice
+}: {
+  connection: MysqlConnectionRow
+  onBrowse: () => void
+  onEdit: () => void
+  onNotice: (message: string | null) => void
+}) {
+  const { t } = useT("mysql_db_browser")
+
+  return (
+    <article className="space-y-3 px-4 py-4">
+      <div>
+        <p className="font-medium text-gray-900 dark:text-gray-100">{connection.label}</p>
+        <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{connection.host}:{connection.port}</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <MobileField label={t("col_username")} value={connection.username} />
+        <MobileField label={t("col_default_database")} value={connection.default_database || "-"} />
+        <MobileField label={t("col_password")}>
+          <StatusBadge tone={connection.has_password ? "success" : "neutral"}>
+            {connection.has_password ? t("has_password_yes") : t("has_password_no")}
+          </StatusBadge>
+        </MobileField>
+        <MobileField label={t("col_agentic_access")}>
+          <StatusBadge tone={connection.agentic_access_enabled ? "success" : "neutral"}>
+            {connection.agentic_access_enabled ? t("agentic_enabled") : t("agentic_disabled")}
+          </StatusBadge>
+        </MobileField>
+        <MobileField label={t("col_allow_writes")}>
+          <StatusBadge tone={connection.allow_writes ? "warning" : "neutral"}>
+            {connection.allow_writes ? t("allow_writes_enabled") : t("allow_writes_disabled")}
+          </StatusBadge>
+        </MobileField>
+      </dl>
+      <ConnectionActions align="start" connection={connection} onBrowse={onBrowse} onEdit={onEdit} onNotice={onNotice} />
+    </article>
+  )
+}
+
+function MobileField({ children, label, value }: { children?: ReactNode; label: string; value?: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</dt>
+      <dd className="mt-0.5 truncate text-gray-700 dark:text-gray-300">{children ?? value}</dd>
+    </div>
+  )
+}
+
+function ConnectionActions({
+  align,
+  connection,
+  onBrowse,
+  onEdit,
+  onNotice
+}: {
+  align: "start" | "end"
+  connection: MysqlConnectionRow
+  onBrowse: () => void
+  onEdit: () => void
+  onNotice: (message: string | null) => void
+}) {
+  const { t } = useT("mysql_db_browser")
+  const queryClient = useQueryClient()
+  const destroy = useMutation({
+    mutationFn: () => deleteMysqlConnection(connection.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+      onNotice(t("deleted_notice", { label: connection.label }))
+    }
+  })
+
+  return (
+    <div>
+      <div className={`flex flex-wrap items-start gap-2 ${align === "end" ? "justify-end" : ""}`}>
+        <button
+          className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500"
+          onClick={onBrowse}
+          type="button"
+        >
+          {t("browse_button")}
+        </button>
+        <TestButton onTest={() => testMysqlConnection(connection.id)} />
+        <button
+          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          onClick={onEdit}
+          type="button"
+        >
+          {t("edit_button")}
+        </button>
+        <button
+          className="rounded border border-red-300 dark:border-red-900 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={destroy.isPending}
+          onClick={() => {
+            if (window.confirm(t("confirm_delete", { label: connection.label }))) {
+              onNotice(null)
+              destroy.mutate()
+            }
+          }}
+          type="button"
+        >
+          {destroy.isPending ? t("deleting") : t("delete_button")}
+        </button>
+      </div>
+      {destroy.isError ? (
+        <p className={`mt-2 text-xs text-red-700 dark:text-red-300 ${align === "end" ? "text-right" : ""}`} role="alert">
+          {errorMessage(destroy.error, t("delete_error_fallback"))}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function ConnectionEditForm({
   connection,
   onCancel,
   onNotice,
@@ -305,37 +416,71 @@ function ConnectionEditRow({
   }
 
   return (
+    <form className="space-y-3" onSubmit={submit}>
+      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
+      <ConnectionFieldsGrid
+        idPrefix={`edit-connection-${connection.id}`}
+        onChange={setValues}
+        passwordHint={t("field_password_hint_edit")}
+        values={values}
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={update.isPending}
+          type="submit"
+        >
+          {update.isPending ? t("saving") : t("save_button")}
+        </button>
+        <button
+          className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          onClick={onCancel}
+          type="button"
+        >
+          {t("cancel_button")}
+        </button>
+        <TestButton onTest={() => testMysqlConnection(connection.id, values.password || undefined)} />
+      </div>
+      {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
+    </form>
+  )
+}
+
+function ConnectionEditRow({
+  connection,
+  onCancel,
+  onNotice,
+  onSaved
+}: {
+  connection: MysqlConnectionRow
+  onCancel: () => void
+  onNotice: (message: string | null) => void
+  onSaved: () => void
+}) {
+  return (
     <tr>
       <td className="px-4 py-4" colSpan={7}>
-        <form className="space-y-3" onSubmit={submit}>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("edit_heading")}</h3>
-          <ConnectionFieldsGrid
-            idPrefix={`edit-connection-${connection.id}`}
-            onChange={setValues}
-            passwordHint={t("field_password_hint_edit")}
-            values={values}
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="rounded bg-gray-900 dark:bg-gray-100 px-3 py-1.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={update.isPending}
-              type="submit"
-            >
-              {update.isPending ? t("saving") : t("save_button")}
-            </button>
-            <button
-              className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-              onClick={onCancel}
-              type="button"
-            >
-              {t("cancel_button")}
-            </button>
-            <TestButton onTest={() => testMysqlConnection(connection.id, values.password || undefined)} />
-          </div>
-          {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("update_error_fallback"))}</p> : null}
-        </form>
+        <ConnectionEditForm connection={connection} onCancel={onCancel} onNotice={onNotice} onSaved={onSaved} />
       </td>
     </tr>
+  )
+}
+
+function MobileConnectionEditCard({
+  connection,
+  onCancel,
+  onNotice,
+  onSaved
+}: {
+  connection: MysqlConnectionRow
+  onCancel: () => void
+  onNotice: (message: string | null) => void
+  onSaved: () => void
+}) {
+  return (
+    <div className="px-4 py-4">
+      <ConnectionEditForm connection={connection} onCancel={onCancel} onNotice={onNotice} onSaved={onSaved} />
+    </div>
   )
 }
 
@@ -855,6 +1000,32 @@ function StatusBadge({ children, tone }: { children: ReactNode; tone: "success" 
       ? "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
       : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${classes}`}>{children}</span>
+}
+
+function useMediaQuery(query: string, defaultMatches: boolean) {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return defaultMatches
+
+    return window.matchMedia(query).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return
+
+    const media = window.matchMedia(query)
+    const updateMatches = () => setMatches(media.matches)
+    updateMatches()
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", updateMatches)
+      return () => media.removeEventListener("change", updateMatches)
+    }
+
+    media.addListener(updateMatches)
+    return () => media.removeListener(updateMatches)
+  }, [query])
+
+  return matches
 }
 
 function Panel({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "error" | "success" }) {
