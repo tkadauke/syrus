@@ -108,7 +108,11 @@ module Jobs
         raise ArgumentError, "expected #{count} commit(s) ending at #{job.landed_sha}, found #{shas.size}"
       end
 
-      write_landed_commits!(job, shas, kind: "implementation") unless dry_run
+      # All GitHub/git reads happen above; the transaction below is pure DB
+      # writes so a mid-loop failure (e.g. a uniqueness violation) rolls back
+      # to zero rows instead of leaving a partial write that a resumed run
+      # would then mistake for "already recorded".
+      ActiveRecord::Base.transaction { write_landed_commits!(job, shas, kind: "implementation") } unless dry_run
       result.recorded += 1
       result.commits_recorded += shas.size
       logger.info("[LandedCommitsBackfill] #{dry_run ? "would record" : "recorded"} #{shas.size} commit(s) for #{job.slug}")
@@ -158,8 +162,13 @@ module Jobs
       base_parent, integration_parent = parents
       remaining = ranged_log(base_parent, integration_parent)
       landable = landed_commit_landable(train)
-      total_commits = 0
 
+      # Resolve every member's commit range (each a GitHub API call that can
+      # raise — deleted PR, rate limit, etc.) BEFORE writing anything. If any
+      # member fails, nothing has been persisted yet for this train, so a
+      # resumed run finds no LandedCommit rows and retries the whole train
+      # instead of silently skipping it as "already recorded".
+      member_shas = {}
       train.members.includes(:job).each do |member|
         subjects = pr_commit_subjects(member.job)
         taken = remaining.first(subjects.size)
@@ -167,8 +176,7 @@ module Jobs
           raise ArgumentError, "commits for #{member.job.slug} did not match the integration range at #{sha}"
         end
 
-        write_landed_commits!(member.job, taken.map(&:first), kind: "implementation") unless dry_run
-        total_commits += taken.size
+        member_shas[member.job] = taken.map(&:first)
         remaining = remaining.drop(taken.size)
       end
 
@@ -176,19 +184,22 @@ module Jobs
       # squashes the whole reconcile step into a single commit) — if several
       # entries are somehow left, the last one (closest to the integration
       # tip) is the true post-reconcile state.
-      if remaining.present?
-        write_landed_commits!(landable, [ remaining.last.first ], kind: "reconcile") unless dry_run
-        total_commits += 1
-      end
+      reconcile_sha = remaining.last&.first
+      total_commits = member_shas.values.sum(&:size) + (reconcile_sha ? 1 : 0) + 1
 
-      write_landed_commits!(landable, [ sha ], kind: "integration_merge") unless dry_run
-      total_commits += 1
+      unless dry_run
+        ActiveRecord::Base.transaction do
+          member_shas.each { |job, shas| write_landed_commits!(job, shas, kind: "implementation") }
+          write_landed_commits!(landable, [ reconcile_sha ], kind: "reconcile") if reconcile_sha
+          write_landed_commits!(landable, [ sha ], kind: "integration_merge")
+        end
+      end
 
       result.recorded += 1
       result.commits_recorded += total_commits
       logger.info(
         "[LandedCommitsBackfill] #{dry_run ? "would record" : "recorded"} merge-train ##{train.id} " \
-        "(#{train.members.size} member(s)#{remaining.present? ? " + reconcile" : ""})"
+        "(#{train.members.size} member(s)#{reconcile_sha ? " + reconcile" : ""})"
       )
     end
 
