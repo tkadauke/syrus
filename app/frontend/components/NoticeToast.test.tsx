@@ -25,6 +25,15 @@ describe("NoticeToast", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
+  it("clears the mobile in-flow header while sitting near the top on desktop", () => {
+    const onDismiss = vi.fn()
+    render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
+
+    const classes = screen.getByRole("status").className
+    expect(classes).toContain("top-[68px]")
+    expect(classes).toContain("lg:top-4")
+  })
+
   it("still supports manual dismissal", () => {
     const onDismiss = vi.fn()
     render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
