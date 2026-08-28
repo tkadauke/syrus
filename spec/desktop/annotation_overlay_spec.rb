@@ -438,7 +438,7 @@ RSpec.describe "desktop annotation overlay" do
 
     it "tears the overlay down when the app window closes and when the app quits" do
       # Closing the web window mid-recording can't run the renderer's disable.
-      on_closed = main[/onClosed: \(\) => \{[\s\S]{0,360}webAppWindow = null[\s\S]{0,360}/]
+      on_closed = main[/onClosed: \(\) => \{[\s\S]{0,360}webAppWindow = null[\s\S]{0,450}/]
       expect(on_closed).to include("annotationController?.disable()")
       # And a transparent always-on-top window must never survive quit.
       before_quit = main[/app\.on\("before-quit"[\s\S]{0,500}/]

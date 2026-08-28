@@ -10,6 +10,7 @@
 //     relaunchToUpdate(): void
 //     installSkill(): Promise<{ ok, message }>
 //     dismissSkillOffer(): void
+//     notifications.reportLive(live): void  // ipc "shell:notifications-live"
 //   }
 //
 // Nothing sensitive crosses the bridge: booleans, a version string, and two
@@ -55,6 +56,19 @@ contextBridge.exposeInMainWorld("syrusShell", {
     ipcRenderer.invoke("shell:install-skill") as Promise<{ ok: boolean; message: string | null }>,
   dismissSkillOffer: () => {
     void ipcRenderer.invoke("shell:dismiss-skill-offer")
+  },
+  // Lets the web app's own AppUserChannel-driven native dispatch (see
+  // app/frontend/lib/nativeNotifications.ts) tell Electron's main process
+  // whether IT is currently subscribed and capable of showing a native
+  // notification for this same event stream. Main combines this with its
+  // own window-visibility check (desktop/electron/main.ts) to decide
+  // whether its own independent WebSocket-driven dispatch is redundant —
+  // main's dispatch is the fallback for "app running, no live window",
+  // never a second guaranteed path. Fire-and-forget; no response expected.
+  notifications: {
+    reportLive: (live: boolean) => {
+      void ipcRenderer.invoke("shell:notifications-live", live)
+    }
   },
   dictation: {
     prewarmMicrophone: () =>

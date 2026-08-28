@@ -12,8 +12,6 @@ module Api
 
         def update
           attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
-          notification_preferences = attrs.delete("notification_preferences")
-          merge_desktop_notification_preferences!(Current.user, notification_preferences) if notification_preferences.present?
 
           if Current.user.update(attrs)
             render json: credentials_payload(Current.user.reload).merge(message: "Credentials updated.")
@@ -260,11 +258,7 @@ module Api
             provider_availability_overrides: user.provider_availability_overrides.to_h,
             scheduling_paused: user.scheduling_paused,
             auto_approve_mode: user.auto_approve_mode,
-            locale: user.locale,
-            notification_preferences: {
-              desktop_job_implemented: user.desktop_notification_enabled?(:desktop_job_implemented),
-              desktop_job_failed: user.desktop_notification_enabled?(:desktop_job_failed)
-            }
+            locale: user.locale
           }
         end
 
@@ -332,8 +326,7 @@ module Api
                                 :profile_location, :role, :agent_provider, :chat_provider, :claude_oauth_token, :codex_auth_mode,
                                 :codex_api_key, :codex_auth_json, :gemini_api_key, :github_token,
                                 :agent_max_turns, :scheduling_paused, :auto_approve_mode, :locale,
-                                { provider_availability_pause_thresholds: [ :claude, :codex ] },
-                                { notification_preferences: [ :desktop_job_implemented, :desktop_job_failed ] } ])
+                                { provider_availability_pause_thresholds: [ :claude, :codex ] } ])
         end
 
         def provider_param
@@ -355,21 +348,6 @@ module Api
 
         def blank_write_only_value?(key, value)
           User::CLEARABLE_CREDENTIALS.key?(key.to_s) && (value.nil? || (value.is_a?(String) && value.blank?))
-        end
-
-        def merge_desktop_notification_preferences!(user, preferences)
-          permitted = ActionController::Parameters.new(preferences)
-                                                   .permit(:desktop_job_implemented, :desktop_job_failed)
-                                                   .to_h
-          return if permitted.empty?
-
-          boolean = ActiveModel::Type::Boolean.new
-          current = user.read_attribute(:notification_preferences)
-          current = {} unless current.is_a?(Hash)
-          user.write_attribute(
-            :notification_preferences,
-            current.merge(permitted.transform_values { |value| boolean.cast(value) })
-          )
         end
       end
     end

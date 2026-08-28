@@ -33,11 +33,7 @@ function makePayload(locale = "en"): CredentialsPayload {
       provider_availability_overrides: {},
       scheduling_paused: false,
       auto_approve_mode: "never",
-      locale,
-      notification_preferences: {
-        desktop_job_implemented: true,
-        desktop_job_failed: true
-      }
+      locale
     },
     credential_status: {
       github_token: false,

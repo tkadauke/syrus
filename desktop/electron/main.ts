@@ -165,10 +165,6 @@ type LocalStatus = {
 type BootstrapPayload = {
   current_user: {
     admin: boolean
-    notification_preferences?: {
-      desktop_job_implemented?: boolean
-      desktop_job_failed?: boolean
-    }
     theme?: "light" | "dark" | "system"
   } | null
   unread_notifications_count?: number
@@ -215,6 +211,14 @@ let preferencesWindow: BrowserWindow | null = null
 let onboardingWindow: BrowserWindow | null = null
 let onboardingDriver: OnboardingDriver | null = null
 let webAppWindow: WebAppWindowHandle | null = null
+// Reported by the web-app renderer via window.syrusShell.notifications.reportLive
+// once it has successfully subscribed to AppUserChannel and wired up its own
+// native-notification dispatch (app/frontend/lib/nativeNotifications.ts).
+// Combined with a live window-visibility check (webAppWindowHandlingNotifications)
+// to decide whether main's own dispatchNativeNotification call is redundant.
+// Reset to false whenever the web-app window closes so a new window starts
+// unconfirmed until its renderer reports in again — see webAppWindow's onClosed.
+let webAppNotificationsLive = false
 // The red-pen annotation overlay controller (labs feature of the walkthrough
 // recorder). Lazily created the first time the web app calls annotation:enable
 // on record start; torn down on record stop/discard, web-window close, and app
@@ -543,12 +547,39 @@ const broadcastNotificationEvent = (event: unknown) => {
   }
 }
 
+// True only when the web-app window's own renderer has confirmed (via
+// window.syrusShell.notifications.reportLive) that it is subscribed to
+// AppUserChannel and dispatching native notifications itself AND the window
+// is currently in a state where the user would actually see that dispatch
+// (open, not minimized, not hidden). Either condition alone is not enough:
+// a reported-live window that's minimized/hidden shows no OS notification
+// from the renderer's Notification API on some platforms, and a visible
+// window whose renderer hasn't reported in yet (e.g. still loading) hasn't
+// necessarily wired up its own dispatch. Checking both, live, avoids relying
+// on any single stale signal. When in doubt this returns false (main
+// dispatches) rather than true (main stays silent) — a duplicate
+// notification is far less bad than a dropped one.
+const webAppWindowHandlingNotifications = (): boolean => {
+  if (!webAppNotificationsLive) return false
+
+  const window = webAppWindow?.window
+  if (!window || window.isDestroyed()) return false
+
+  return window.isVisible() && !window.isMinimized()
+}
+
 desktopNotificationEvents.on(DESKTOP_NOTIFICATION_EVENT, (event: unknown) => {
   if (event && typeof event === "object" && (event as { type?: unknown }).type === "notification_created") {
     handleNotificationCreated(event)
   }
 
-  dispatchNativeNotification(event, cachedCredentials)
+  // Main's own dispatch is a fallback for "app running, no live window
+  // handling this event" — not a second guaranteed path. Skip it only when
+  // the web-app window is demonstrably already covering the same event.
+  if (!webAppWindowHandlingNotifications()) {
+    dispatchNativeNotification(event, cachedCredentials)
+  }
+
   broadcastNotificationEvent(event)
 })
 
@@ -1948,6 +1979,8 @@ const showWebAppWindow = async () => {
     onLoadFailed: () => startBackendRecoveryPolling(),
     onClosed: () => {
       webAppWindow = null
+      // A closed renderer can't report itself not-live anymore.
+      webAppNotificationsLive = false
       // Closing the app window mid-recording can't run the renderer's
       // annotation:disable / recorderHud:hide — tear the overlay + shortcut +
       // floating HUD down here so none outlive the window that drives them.
@@ -2844,6 +2877,21 @@ ipcMain.handle("shell:dismiss-skill-offer", async (event) => {
   store.set("skillOfferDismissed", true)
   await broadcastShellNoticeState()
 })
+// The notifications-liveness bridge (webAppPreload.cts / window.syrusShell.
+// notifications.reportLive): lets the web-app renderer tell main whether IT
+// is subscribed and dispatching native notifications for AppUserChannel
+// events, so main's own independent dispatch (desktopNotificationEvents
+// listener above) can skip firing a duplicate. Same sender validation as
+// every other shell:* handler; a refused/malformed call is treated as "not
+// live" so main keeps dispatching rather than going silently silent.
+ipcMain.handle("shell:notifications-live", (event, live) => {
+  if (!shellSenderAllowed(event, "shell:notifications-live")) {
+    webAppNotificationsLive = false
+    return
+  }
+
+  webAppNotificationsLive = live === true
+})
 // The annotation overlay bridge (webAppPreload.cts / window.syrusShell.
 // annotation): the walkthrough recorder turns the red-pen overlay on at record
 // start and off at stop/discard. Same strict sender validation as the other
@@ -2908,19 +2956,6 @@ ipcMain.handle("quit-app", () => {
 })
 ipcMain.handle("copy-text", async (_event, text: string) => {
   clipboard.writeText(text)
-})
-ipcMain.handle("syrusDesktop:showNotification", async (_event, opts: { title: string; body: string; jobId: number }) => {
-  if (!Notification.isSupported()) {
-    return
-  }
-
-  const notification = new Notification({ title: opts.title, body: opts.body })
-  notification.on("click", () => {
-    void showPopoverWindow().then(() => {
-      mainWindow?.webContents.send("syrusDesktop:navigateToJob", opts.jobId)
-    })
-  })
-  notification.show()
 })
 ipcMain.handle("fetch-bootstrap", async () => fetchBootstrap())
 ipcMain.handle("fetch-repositories", async () => fetchRepositories())

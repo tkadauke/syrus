@@ -29,8 +29,7 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
       agent_max_turns: 200,
       scheduling_paused: false,
       auto_approve_mode: "never",
-      locale: "en",
-      notification_preferences: { desktop_job_implemented: false, desktop_job_failed: false }
+      locale: "en"
     },
     credential_status: {
       gemini_api_key: false,
