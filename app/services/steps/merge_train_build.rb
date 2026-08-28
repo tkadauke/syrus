@@ -85,6 +85,7 @@ module Steps
     # branch, then fast-forward the integration branch to the result.
     def integrate!(member, branch)
       temp = "__mt_member_#{member.id}"
+      previous_tip = @git.run("rev-parse", @integration, chdir: @chdir).strip
       @git.run("checkout", "-B", temp, "FETCH_HEAD", chdir: @chdir)
 
       begin
@@ -96,7 +97,27 @@ module Steps
       verify_rebased!(branch, temp)
       @git.run("checkout", @integration, chdir: @chdir)
       @git.run("merge", "--ff-only", temp, chdir: @chdir)
+      new_tip = @git.run("rev-parse", @integration, chdir: @chdir).strip
+      record_member_commits!(member, previous_tip, new_tip)
       @git.run("branch", "-D", temp, chdir: @chdir)
+    end
+
+    # `git rev-list --reverse previous..new` enumerates exactly this
+    # member's rebased commits (including any agent conflict-resolution
+    # commit from resolve_with_agent!), oldest first. Additive bookkeeping
+    # alongside the member's PR/branch state; any failure here must not
+    # fail the build.
+    def record_member_commits!(member, previous_tip, new_tip)
+      return if previous_tip == new_tip
+
+      shas = @git.run("rev-list", "--reverse", "#{previous_tip}..#{new_tip}", chdir: @chdir)
+        .to_s.split("\n").map(&:strip).reject(&:empty?)
+
+      shas.each_with_index do |sha, position|
+        LandedCommit.create!(landable: member, sha: sha, kind: "implementation", position: position)
+      end
+    rescue StandardError => e
+      log("merge_train: could not record landed commits for #{member.branch_name}: #{e.class}: #{e.message}", kind: "system")
     end
 
     # Hand the in-progress (correctly-targeted) rebase to the agent to
