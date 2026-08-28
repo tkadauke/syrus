@@ -92,13 +92,16 @@ On mobile, the bell opens the full `/notifications` page with the same
 recent list and read behavior.
 
 The same live event that updates the bell also dispatches a native OS
-notification via the browser's standard Notification API in a plain browser
-tab — clicking it opens the matching Job or pull request. Syrus never prompts
-for OS notification permission on page load; permission is requested lazily
-the first time you interact with the bell, and if it is denied or unsupported
-the in-app bell keeps working exactly as before. In the [desktop app](/docs/desktop),
-this browser-tab dispatch stays dormant so it never duplicates the desktop
-app's own native notifications; a follow-up unifies the two paths.
+notification via the browser's standard Notification API — clicking it opens
+the matching Job or pull request. Syrus never prompts for OS notification
+permission on page load; permission is requested lazily the first time you
+interact with the bell, and if it is denied or unsupported the in-app bell
+keeps working exactly as before. This works the same way in a plain browser
+tab and in the [desktop app](/docs/desktop)'s app window. The desktop app's
+own independent native-notification dispatch is a fallback for when no app
+window is open (or it hasn't granted permission yet) — it stands down
+whenever the app window is already showing notifications itself, so you get
+exactly one native notification per event either way.
 
 ## Primary Sidebar Navigation
 

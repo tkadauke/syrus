@@ -113,7 +113,7 @@ describe("applyAppEvent", () => {
     expect(FakeNotification.instances).toHaveLength(0)
   })
 
-  it("does not dispatch a native browser notification inside the desktop shell, which already dispatches its own via Electron main", () => {
+  it("dispatches a native browser notification inside the desktop shell too -- Electron main's own dispatch is fallback-only now", () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(desktopUa)
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "granted"
@@ -127,7 +127,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(FakeNotification.instances).toHaveLength(0)
+    expect(FakeNotification.instances).toHaveLength(1)
   })
 
   it("marks one cached notification read when a notification read event arrives", () => {
