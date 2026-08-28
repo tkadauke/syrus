@@ -84,4 +84,44 @@ RSpec.describe PerformanceLogEvent do
       )
     end
   end
+
+  describe ".persist_observability_events!" do
+    it "uses plain bulk inserts in batches instead of conflict-checking upserts" do
+      rows = 2.times.map do |index|
+        described_class.from_event_hash(
+          "occurred_at" => (index + 1).minutes.ago.iso8601,
+          "event" => PerformanceLogging::SLOW_SQL_EVENT,
+          "path" => "/api/example/#{index}",
+          "duration_ms" => 250 + index
+        )
+      end
+      allow(described_class).to receive(:insert_all!).and_call_original
+
+      described_class.persist_observability_events!(rows, batch_size: 1)
+
+      expect(described_class).to have_received(:insert_all!).twice
+      expect(described_class.order(:path).pluck(:path)).to eq([
+        "/api/example/0",
+        "/api/example/1"
+      ])
+    end
+
+    it "normalizes sparse rows so batches can contain different payload shapes" do
+      described_class.persist_observability_events!([
+        described_class.from_event_hash(
+          "occurred_at" => 1.minute.ago.iso8601,
+          "event" => PerformanceLogging::SLOW_REQUEST_EVENT,
+          "path" => "/api/with-path"
+        ),
+        described_class.from_event_hash(
+          "occurred_at" => 2.minutes.ago.iso8601,
+          "event" => PerformanceLogging::SLOW_JOB_EVENT,
+          "job_class" => "PollInputSourceJob"
+        ).except(:path)
+      ], batch_size: 10)
+
+      expect(described_class.count).to eq(2)
+      expect(described_class.find_by(event_name: PerformanceLogging::SLOW_JOB_EVENT).path).to be_nil
+    end
+  end
 end

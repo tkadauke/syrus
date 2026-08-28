@@ -3,6 +3,8 @@ module AdminMysql
     MAX_LIMIT = 200
     DEFAULT_LIMIT = 50
     DIAGNOSTIC_SELECT_TIMEOUT_MS = 1_000
+    SLOW_LOG_SELECT_TIMEOUT_MS = 250
+    SLOW_LOG_LOOKBACK = 2.hours
 
     class Unavailable < StandardError; end
 
@@ -291,9 +293,10 @@ module AdminMysql
       end
 
       safe_section do
-        rows = select_all_with_timeout(<<~SQL.squish)
+        rows = select_all_with_timeout(<<~SQL.squish, timeout_ms: SLOW_LOG_SELECT_TIMEOUT_MS)
           SELECT start_time, user_host, query_time, lock_time, rows_sent, rows_examined, db, LEFT(sql_text, 1000) AS sql_text
           FROM mysql.slow_log
+          WHERE start_time >= #{connection.quote(SLOW_LOG_LOOKBACK.ago)}
           ORDER BY start_time DESC
           LIMIT #{limit}
         SQL

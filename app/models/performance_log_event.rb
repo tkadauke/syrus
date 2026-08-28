@@ -9,6 +9,12 @@ class PerformanceLogEvent < ApplicationRecord
 
   scope :expired, -> { where(occurred_at: ...RETENTION.ago) }
 
+  def self.persist_observability_events!(rows, batch_size:)
+    rows.each_slice(batch_size) do |batch|
+      insert_all!(normalize_insert_rows(batch)) # rubocop:disable Rails/SkipsModelValidations
+    end
+  end
+
   def self.from_event_hash(event)
     attrs = event.to_h
     now = Time.current
@@ -136,5 +142,10 @@ class PerformanceLogEvent < ApplicationRecord
         "max_duration_ms" => attrs["max_duration_ms"]
       }.compact_blank
     end.presence
+  end
+
+  def self.normalize_insert_rows(rows)
+    keys = rows.flat_map(&:keys).uniq
+    rows.map { |row| keys.index_with { |key| row[key] } }
   end
 end

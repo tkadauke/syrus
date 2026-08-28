@@ -100,4 +100,29 @@ RSpec.describe AdminMysql::Inspector do
     expect(payload).to include(available: true, rows: [ { sql_text: "SELECT 1" } ])
     expect(inspector).to have_received(:slow_log_rows).with(limit: 5)
   end
+
+  it "bounds explicit slow-log reads to recent rows with a short timeout" do
+    inspector = described_class.new
+    connection = double(quote: "'2026-08-27 10:00:00'")
+    allow(inspector).to receive(:variables).and_return({
+      "slow_query_log" => "ON",
+      "log_output" => "TABLE",
+      "long_query_time" => 1
+    })
+    allow(inspector).to receive(:connection).and_return(connection)
+    allow(inspector).to receive(:select_all_with_timeout).and_return([])
+
+    expected_lookback = Time.zone.parse("2026-08-27 10:00:00 UTC")
+
+    payload = freeze_time(Time.zone.parse("2026-08-27 12:00:00 UTC")) do
+      inspector.send(:slow_log_rows, limit: 5)
+    end
+
+    expect(payload).to include(available: true, rows: [])
+    expect(inspector).to have_received(:select_all_with_timeout).with(
+      include("FROM mysql.slow_log", "WHERE start_time >=", "ORDER BY start_time DESC"),
+      timeout_ms: 250
+    )
+    expect(connection).to have_received(:quote).with(expected_lookback)
+  end
 end
