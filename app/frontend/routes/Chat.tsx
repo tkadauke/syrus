@@ -606,7 +606,17 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pb-28 pt-12 sm:p-4 sm:pb-32 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      {
+        // pb-* used to be a static guess sized for the composer's default
+        // height. `--chat-composer-height` (set by ChatColumn from Compose's
+        // ResizeObserver) tracks its actual rendered height, so typed lines,
+        // attachment rows, etc. that grow the composer keep pushing this
+        // padding down instead of letting the composer paint over history
+        // that scrolling can't reveal. max() with the old static values
+        // keeps the default (pre-measurement, or composer shorter than
+        // assumed) case unchanged.
+      }
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto overscroll-contain p-2 pt-12 pb-[max(7rem,calc(var(--chat-composer-height,0px)+1.5rem))] sm:p-4 sm:pt-12 sm:pb-[max(8rem,calc(var(--chat-composer-height,0px)+2rem))]" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
@@ -640,7 +650,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       </div>
       {newMessageCount > 0 ? (
         <button
-          className="absolute bottom-24 left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800 sm:bottom-28 dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200"
+          className="absolute left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800 bottom-[max(6rem,calc(var(--chat-composer-height,0px)+1rem))] sm:bottom-[max(7rem,calc(var(--chat-composer-height,0px)+1rem))] dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200"
           onClick={scrollToBottom}
           type="button"
         >
@@ -1017,18 +1027,27 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
+  // Reported by Compose's own ResizeObserver on its floating form element —
+  // exposed as a CSS variable so the message stream's bottom padding and the
+  // "new messages" pill (both siblings, not descendants, of Compose) can
+  // track the composer's actual rendered height instead of a static guess.
+  const [composerHeight, setComposerHeight] = useState<number | null>(null)
   const { t } = useT("chat")
   const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage
 
   useEffect(() => {
     setHasSentFirstMessage(false)
     setCanLoadEarlierMessages(payload.has_more_older)
+    setComposerHeight(null)
   }, [payload.chat.id, payload.has_more_older])
 
   const loadEarlierMessagesFromCompose = useCallback(() => olderMessageRequesterRef.current?.({ preserveScroll: false }) ?? false, [])
 
   return (
-    <section className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-2 sm:gap-3"}`}>
+    <section
+      className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-2 sm:gap-3"}`}
+      style={composerHeight != null ? { "--chat-composer-height": `${composerHeight}px` } as CSSProperties : undefined}
+    >
       <ChatTour />
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
@@ -1044,7 +1063,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       </div>
       <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "shrink-0"}>
         {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-        <Compose key={chatId} autoFocus={landing} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={!landing} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+        <Compose key={chatId} autoFocus={landing} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={!landing} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
     </section>
   )

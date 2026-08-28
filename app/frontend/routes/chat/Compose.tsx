@@ -48,7 +48,7 @@ import { ScheduleMessageModal } from "./ScheduleMessageModal"
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, floating = true, onComposerHeightChange, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; floating?: boolean; onComposerHeightChange?: (height: number | null) => void; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -96,6 +96,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
+  const formRef = useRef<HTMLFormElement | null>(null)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
@@ -1237,6 +1238,28 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
+  // The floating composer's rendered height grows with typed lines and
+  // attachment/walkthrough rows; report it so ChatColumn can keep the
+  // pending-proposal banner, the message stream's bottom padding, and the
+  // "new messages" pill from being covered by (or covering) it. Not needed
+  // in the non-floating (landing) layout, where the composer is in normal
+  // document flow.
+  useEffect(() => {
+    if (!floating || !onComposerHeightChange) return
+
+    const form = formRef.current
+    if (!form || typeof ResizeObserver === "undefined") return
+
+    const observer = new ResizeObserver(() => {
+      onComposerHeightChange(form.getBoundingClientRect().height)
+    })
+    observer.observe(form)
+    return () => {
+      observer.disconnect()
+      onComposerHeightChange(null)
+    }
+  }, [floating, onComposerHeightChange])
+
   useEffect(() => {
     if (!attachmentPopoverOpen) return
 
@@ -1264,24 +1287,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
   return (
     <>
-      {pendingProposalCount > 0 ? (
-        <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-          <span>
-            {pendingProposalCount === 1
-              ? "1 pending proposal"
-              : `${pendingProposalCount} pending proposals`}
-          </span>
-          <button
-            className="font-medium underline hover:no-underline"
-            onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
-            type="button"
-          >
-            {pendingProposals.length > 0
-              ? pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"
-              : canLoadEarlierMessages ? "Load earlier messages" : "Scroll to top"}
-          </button>
-        </div>
-      ) : null}
       {recorder.state.phase === "recording" && nativeRecorderHud && annotationIdleKind === "accessibility" ? (
         // The floating native HUD only fits the terse hint; the actionable
         // System Settings guidance renders here in the page — the ONLY way a
@@ -1365,16 +1370,53 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           onSchedule={(input) => scheduleMessage.mutate(input)}
         />
       ) : null}
+      {
+        // The pending-proposal banner used to render as a plain in-flow
+        // sibling of this form. That worked while the form was in normal
+        // flow, but the floating form is `absolute` (its rendered height is
+        // content-driven and doesn't push siblings), so the banner ended up
+        // painted UNDER the form instead of above it. Wrapping both in one
+        // positioned box lets the banner use `bottom-full` to always sit
+        // exactly at the form's current top edge, however tall the form
+        // grows — no measurement needed for this part.
+      }
+      <div
+        className={floating
+          ? "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-2xl lg:max-w-4xl xl:max-w-5xl"
+          : undefined}
+        data-tour="chat-compose"
+      >
+        {pendingProposalCount > 0 ? (
+          <div className={floating
+            ? "absolute inset-x-0 bottom-full mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+            : "mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"}
+          >
+            <span>
+              {pendingProposalCount === 1
+                ? "1 pending proposal"
+                : `${pendingProposalCount} pending proposals`}
+            </span>
+            <button
+              className="font-medium underline hover:no-underline"
+              onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
+              type="button"
+            >
+              {pendingProposals.length > 0
+                ? pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"
+                : canLoadEarlierMessages ? "Load earlier messages" : "Scroll to top"}
+            </button>
+          </div>
+        ) : null}
       <form
         className={floating
-          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-2xl sm:p-3 lg:max-w-4xl xl:max-w-5xl dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+          ? `relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
           : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
-        data-tour="chat-compose"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onSubmit={submit}
+        ref={formRef}
       >
         {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
         {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
@@ -1707,6 +1749,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         ) : null}
       </div>
       </form>
+      </div>
     </>
   )
 }
