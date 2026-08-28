@@ -1038,8 +1038,18 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   useEffect(() => {
     setHasSentFirstMessage(false)
     setCanLoadEarlierMessages(payload.has_more_older)
-    setComposerHeight(null)
   }, [payload.chat.id, payload.has_more_older])
+
+  // Deliberately scoped to chat.id alone (not has_more_older, which this
+  // same effect above tracks too): has_more_older can flip mid-session
+  // (e.g. after "Load earlier messages") with no composer resize alongside
+  // it, so resetting composerHeight on that dep would wipe the tracked
+  // height with nothing left to re-measure it — reintroducing the covered
+  // history bug this state exists to fix. A real chat switch remounts
+  // Compose (key={chatId}), whose own effect re-measures immediately.
+  useEffect(() => {
+    setComposerHeight(null)
+  }, [payload.chat.id])
 
   const loadEarlierMessagesFromCompose = useCallback(() => olderMessageRequesterRef.current?.({ preserveScroll: false }) ?? false, [])
 

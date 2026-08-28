@@ -1407,348 +1407,348 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             </button>
           </div>
         ) : null}
-      <form
-        className={floating
-          ? `relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
-          : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        onSubmit={submit}
-        ref={formRef}
-      >
-        {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
-        {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
-        {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
-        {dictation.message ? (
-          <div className={`mb-2 text-sm ${dictation.messageTone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>
-            {dictation.message}
-          </div>
-        ) : null}
-        {clearConfirmationOpen ? (
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
-            <span>{t("clear_confirm")}</span>
-            <span className="flex gap-2">
-              <Button disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} variant="secondary">{t("clear")}</Button>
-              <Button disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} variant="secondary">{t("cancel")}</Button>
-            </span>
-          </div>
-        ) : null}
-        {queuedMessages.length > 0 ? <QueuedMessages chatId={chatId} messages={queuedMessages} queryKey={queryKey} /> : null}
-        <ScratchpadPanel
-          chatId={chatId}
-          enqueuePath={payload.paths.app_enqueue_message_path}
-          items={payload.scratchpad_items || []}
-          open={scratchpadOpen || (agentActive && (payload.scratchpad_items || []).length > 0)}
-          queryKey={queryKey}
-          reorderPath={payload.paths.app_scratchpad_reorder_path}
-          text={text}
-          onDismiss={() => setScratchpadOpen(false)}
-          onLoadToInput={updateText}
-        />
-        {pendingConfirmation ? (
-          <SlashCommandConfirmation
-            commandName={pendingConfirmation.commandName}
-            disabled={send.isPending || systemCommandAction.isPending}
-            prompt={pendingConfirmation.prompt}
-            text={pendingConfirmation.text}
-            onCancel={cancelPendingSlashCommand}
-            onConfirm={confirmPendingSlashCommand}
-          />
-        ) : null}
-        {commandPaletteOpen ? (
-          <SlashCommandPalette
-            activeIndex={activeCommandIndex}
-            commands={matchingCommands}
-            context={{ chat: { pinned: payload.chat.pinned } }}
-            query={commandQuery}
-            onSelect={(command) => completeSlashCommand(command)}
-          />
-        ) : null}
-        {pickerMode ? (
-          <JobEpicPickerPopup
-            kind={pickerMode.kind}
-            jobState={pickerMode.jobState}
-            repositorySlug={payload.chat.repository?.slug ?? null}
-            filterByPr={pickerMode.filterByPr}
-            onCancel={() => {
-              setPickerMode(null)
-              textareaRef.current?.focus()
-            }}
-            onSelect={pickerMode.onSelect}
-          />
-        ) : null}
-        {attachments.length > 0 ? (
-          <div className="mb-3 flex flex-wrap gap-2">
-            {attachments.map((attachment, index) => (
-              <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
-                {attachment.mimeType.startsWith("image/") ? (
-                  <>
-                    <button aria-label={`Annotate ${attachment.name}`} className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand" onClick={() => setAnnotatingIndex(index)} type="button">
-                      <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
-                      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                        <PencilIcon className="h-4 w-4" />
-                      </span>
-                    </button>
-                    {annotatingIndex === index ? (
-                      <ImageAnnotationModal
-                        dataUrl={attachment.dataUrl}
-                        initialShapes={attachment.shapes}
-                        name={attachment.name}
-                        originalDataUrl={attachment.originalDataUrl}
-                        onClose={() => setAnnotatingIndex(null)}
-                        onDone={(annotatedDataUrl, shapes) => {
-                          setAttachments((current) => current.map((item, attachmentIndex) =>
-                            attachmentIndex === index
-                              ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png", shapes, originalDataUrl: item.originalDataUrl ?? item.dataUrl }
-                              : item
-                          ))
-                          setAnnotatingIndex(null)
-                        }}
-                      />
-                    ) : null}
-                  </>
-                ) : (
-                  <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
-                )}
-                <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
-                <button aria-label={`Remove ${attachment.name}`} className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
-                  <CloseIcon className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      {walkthrough ? (
-        <div className="mb-3 flex w-full items-center gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" data-testid="walkthrough-chip">
-          <span aria-hidden="true" className="text-base">🎬</span>
-          <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">
-            {walkthrough.filename}
-            {walkthrough.durationSeconds ? <span className="ml-1 text-xs text-gray-500">({formatClock(walkthrough.durationSeconds)})</span> : null}
-          </span>
-          {walkthrough.status === "ready" ? <span className="text-xs text-gray-500">{t("walkthrough_ready")}</span> : null}
-          {walkthrough.status === "uploading" ? (
-            <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-              {t("walkthrough_uploading", { percent: walkthrough.percent })}
-              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                <span className="block h-full rounded-full bg-brand transition-all" style={{ width: `${walkthrough.percent}%` }} />
+        <form
+          className={floating
+            ? `relative w-full rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+            : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onSubmit={submit}
+          ref={formRef}
+        >
+          {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
+          {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
+          {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
+          {dictation.message ? (
+            <div className={`mb-2 text-sm ${dictation.messageTone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>
+              {dictation.message}
+            </div>
+          ) : null}
+          {clearConfirmationOpen ? (
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+              <span>{t("clear_confirm")}</span>
+              <span className="flex gap-2">
+                <Button disabled={systemAction.isPending} onClick={() => systemAction.mutate({ kind: "clear" })} variant="secondary">{t("clear")}</Button>
+                <Button disabled={systemAction.isPending} onClick={() => setClearConfirmationOpen(false)} variant="secondary">{t("cancel")}</Button>
               </span>
-            </span>
+            </div>
           ) : null}
-          {walkthrough.status === "analyzing" ? (
-            <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-              <AnalyzingHint messages={walkthroughAnalyzingHints} />
-            </span>
+          {queuedMessages.length > 0 ? <QueuedMessages chatId={chatId} messages={queuedMessages} queryKey={queryKey} /> : null}
+          <ScratchpadPanel
+            chatId={chatId}
+            enqueuePath={payload.paths.app_enqueue_message_path}
+            items={payload.scratchpad_items || []}
+            open={scratchpadOpen || (agentActive && (payload.scratchpad_items || []).length > 0)}
+            queryKey={queryKey}
+            reorderPath={payload.paths.app_scratchpad_reorder_path}
+            text={text}
+            onDismiss={() => setScratchpadOpen(false)}
+            onLoadToInput={updateText}
+          />
+          {pendingConfirmation ? (
+            <SlashCommandConfirmation
+              commandName={pendingConfirmation.commandName}
+              disabled={send.isPending || systemCommandAction.isPending}
+              prompt={pendingConfirmation.prompt}
+              text={pendingConfirmation.text}
+              onCancel={cancelPendingSlashCommand}
+              onConfirm={confirmPendingSlashCommand}
+            />
           ) : null}
-          {walkthrough.status === "failed" ? (
-            <span className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
-              <span className="max-w-64 truncate" title={walkthrough.error}>{walkthrough.error}</span>
-              {walkthrough.id ? (
-                <button className="font-medium underline hover:no-underline" onClick={retryWalkthroughAnalysis} type="button">
-                  {t("walkthrough_retry")}
-                </button>
-              ) : null}
-            </span>
+          {commandPaletteOpen ? (
+            <SlashCommandPalette
+              activeIndex={activeCommandIndex}
+              commands={matchingCommands}
+              context={{ chat: { pinned: payload.chat.pinned } }}
+              query={commandQuery}
+              onSelect={(command) => completeSlashCommand(command)}
+            />
           ) : null}
-          {walkthrough.status === "ready" || walkthrough.status === "failed" ? (
-            <button
-              aria-label={t("walkthrough_remove")}
-              className="rounded-full p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
-              onClick={() => {
-                setWalkthrough(null)
-                // Clear any walkthrough-scoped error (e.g. one-at-a-time) so
-                // it can't linger and disable the send button for the next
-                // ordinary message.
-                setAttachmentError(null)
+          {pickerMode ? (
+            <JobEpicPickerPopup
+              kind={pickerMode.kind}
+              jobState={pickerMode.jobState}
+              repositorySlug={payload.chat.repository?.slug ?? null}
+              filterByPr={pickerMode.filterByPr}
+              onCancel={() => {
+                setPickerMode(null)
+                textareaRef.current?.focus()
               }}
-              type="button"
-            >
-              <CloseIcon className="h-3.5 w-3.5" />
-            </button>
+              onSelect={pickerMode.onSelect}
+            />
           ) : null}
-        </div>
-      ) : null}
-      {showAttachedRepositories && attachedRepositories.length > 0 ? (
-        <div className="mb-3 flex w-full flex-wrap gap-2">
-          {attachedRepositories.map((repository) => (
-            <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-sm text-brand" key={repository.id}>
-              <span className="truncate" title={repository.label}>{repository.label}</span>
+          {attachments.length > 0 ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {attachments.map((attachment, index) => (
+                <div className="flex max-w-full items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={`${attachment.name}-${index}`}>
+                  {attachment.mimeType.startsWith("image/") ? (
+                    <>
+                      <button aria-label={`Annotate ${attachment.name}`} className="group relative rounded focus:outline-none focus:ring-2 focus:ring-brand" onClick={() => setAnnotatingIndex(index)} type="button">
+                        <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
+                        <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                          <PencilIcon className="h-4 w-4" />
+                        </span>
+                      </button>
+                      {annotatingIndex === index ? (
+                        <ImageAnnotationModal
+                          dataUrl={attachment.dataUrl}
+                          initialShapes={attachment.shapes}
+                          name={attachment.name}
+                          originalDataUrl={attachment.originalDataUrl}
+                          onClose={() => setAnnotatingIndex(null)}
+                          onDone={(annotatedDataUrl, shapes) => {
+                            setAttachments((current) => current.map((item, attachmentIndex) =>
+                              attachmentIndex === index
+                                ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png", shapes, originalDataUrl: item.originalDataUrl ?? item.dataUrl }
+                                : item
+                            ))
+                            setAnnotatingIndex(null)
+                          }}
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
+                  )}
+                  <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
+                  <button aria-label={`Remove ${attachment.name}`} className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
+                    <CloseIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        {walkthrough ? (
+          <div className="mb-3 flex w-full items-center gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900" data-testid="walkthrough-chip">
+            <span aria-hidden="true" className="text-base">🎬</span>
+            <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">
+              {walkthrough.filename}
+              {walkthrough.durationSeconds ? <span className="ml-1 text-xs text-gray-500">({formatClock(walkthrough.durationSeconds)})</span> : null}
+            </span>
+            {walkthrough.status === "ready" ? <span className="text-xs text-gray-500">{t("walkthrough_ready")}</span> : null}
+            {walkthrough.status === "uploading" ? (
+              <span className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                {t("walkthrough_uploading", { percent: walkthrough.percent })}
+                <span className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <span className="block h-full rounded-full bg-brand transition-all" style={{ width: `${walkthrough.percent}%` }} />
+                </span>
+              </span>
+            ) : null}
+            {walkthrough.status === "analyzing" ? (
+              <span className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent" />
+                <AnalyzingHint messages={walkthroughAnalyzingHints} />
+              </span>
+            ) : null}
+            {walkthrough.status === "failed" ? (
+              <span className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
+                <span className="max-w-64 truncate" title={walkthrough.error}>{walkthrough.error}</span>
+                {walkthrough.id ? (
+                  <button className="font-medium underline hover:no-underline" onClick={retryWalkthroughAnalysis} type="button">
+                    {t("walkthrough_retry")}
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
+            {walkthrough.status === "ready" || walkthrough.status === "failed" ? (
               <button
-                aria-label={`Detach repository ${repository.label}`}
-                className="rounded-full p-2 text-brand hover:bg-brand/20 hover:text-brand-emphasis disabled:text-brand/40"
-                disabled={detachRepository.isPending}
-                onClick={() => detachRepository.mutate(repository.app_detach_path)}
-                title={`Detach repository ${repository.label}`}
+                aria-label={t("walkthrough_remove")}
+                className="rounded-full p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
+                onClick={() => {
+                  setWalkthrough(null)
+                  // Clear any walkthrough-scoped error (e.g. one-at-a-time) so
+                  // it can't linger and disable the send button for the next
+                  // ordinary message.
+                  setAttachmentError(null)
+                }}
                 type="button"
               >
                 <CloseIcon className="h-3.5 w-3.5" />
               </button>
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <Input
-        accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
-        aria-label={t("chat_attachments")}
-        className="hidden"
-        disabled={send.isPending || systemAction.isPending}
-        multiple
-        onChange={(event) => handleAttachmentChange(event.target.files)}
-        ref={fileInputRef}
-        type="file"
-      />
-      {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
-        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">{t("group_mention_hint")}</p>
-      ) : null}
-      <div className="relative">
-        <textarea
-          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-          aria-expanded={commandPaletteOpen}
-          aria-haspopup="listbox"
-          className="min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 pr-3 text-base leading-6 focus:border-brand focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-          disabled={send.isPending || systemAction.isPending}
-          onChange={(event) => {
-            updateText(event.target.value)
-            if (clearConfirmationOpen) setClearConfirmationOpen(false)
-          }}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : isSupervisorChat(payload) ? t("ask_supervisor") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
-          ref={textareaRef}
-          required={attachments.length === 0 && walkthrough?.status !== "ready"}
-          rows={1}
-          value={text}
-        />
-        {ghostSuggestion ? (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-            <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
-            <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-2xs font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+            ) : null}
           </div>
         ) : null}
-        <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
-      </div>
-      <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
-        <Button
-          aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
-          aria-expanded={attachmentPopoverOpen}
-          aria-label={t("add_attachment")}
-          aria-haspopup="dialog"
-          className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
-          disabled={send.isPending || systemAction.isPending}
-          onClick={() => setAttachmentPopoverOpen((open) => !open)}
-          ref={addAttachmentButtonRef}
-          size="sm"
-          variant="secondary"
-        >
-          +
-        </Button>
-        {dictation.available ? (
-          <DictationButton
-            disabled={send.isPending || systemAction.isPending}
-            labels={{
-              idle: t("dictation_start"),
-              requesting: t("dictation_requesting"),
-              recording: t("dictation_stop"),
-              transcribing: t("dictation_transcribing"),
-              unavailable: t("dictation_unavailable")
-            }}
-            phase={dictation.phase}
-            onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
-          />
+        {showAttachedRepositories && attachedRepositories.length > 0 ? (
+          <div className="mb-3 flex w-full flex-wrap gap-2">
+            {attachedRepositories.map((repository) => (
+              <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-brand/30 bg-brand/10 px-2.5 text-sm text-brand" key={repository.id}>
+                <span className="truncate" title={repository.label}>{repository.label}</span>
+                <button
+                  aria-label={`Detach repository ${repository.label}`}
+                  className="rounded-full p-2 text-brand hover:bg-brand/20 hover:text-brand-emphasis disabled:text-brand/40"
+                  disabled={detachRepository.isPending}
+                  onClick={() => detachRepository.mutate(repository.app_detach_path)}
+                  title={`Detach repository ${repository.label}`}
+                  type="button"
+                >
+                  <CloseIcon className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
         ) : null}
-        <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-        <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-        <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-            className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
-            disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
-            type="submit"
-          >
-            {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
-          </button>
-          {text.trim().length > 0 ? (
-            <button
-              aria-label={t("scratchpad_stash")}
-              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-              disabled={stash.isPending}
-              onClick={() => stash.mutate(undefined)}
-              title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
-              type="button"
-            >
-              <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                <rect height="4" rx="1" width="6" x="9" y="3" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-            </button>
+        <Input
+          accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
+          aria-label={t("chat_attachments")}
+          className="hidden"
+          disabled={send.isPending || systemAction.isPending}
+          multiple
+          onChange={(event) => handleAttachmentChange(event.target.files)}
+          ref={fileInputRef}
+          type="file"
+        />
+        {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
+          <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">{t("group_mention_hint")}</p>
+        ) : null}
+        <div className="relative">
+          <textarea
+            aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+            aria-expanded={commandPaletteOpen}
+            aria-haspopup="listbox"
+            className="min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 pr-3 text-base leading-6 focus:border-brand focus:ring-brand disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+            disabled={send.isPending || systemAction.isPending}
+            onChange={(event) => {
+              updateText(event.target.value)
+              if (clearConfirmationOpen) setClearConfirmationOpen(false)
+            }}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : isSupervisorChat(payload) ? t("ask_supervisor") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
+            ref={textareaRef}
+            required={attachments.length === 0 && walkthrough?.status !== "ready"}
+            rows={1}
+            value={text}
+          />
+          {ghostSuggestion ? (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
+              <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
+              <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-2xs font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+            </div>
           ) : null}
-          {agentActive && !payload.switching_provider ? (
-            <StopButton
-              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
-              payload={payload}
-              queryKey={queryKey}
+          <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
+        </div>
+        <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
+          <Button
+            aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
+            aria-expanded={attachmentPopoverOpen}
+            aria-label={t("add_attachment")}
+            aria-haspopup="dialog"
+            className="h-6 min-h-11 w-6 min-w-11 shrink-0 !text-lg leading-none sm:min-h-0 sm:min-w-0 sm:text-sm"
+            disabled={send.isPending || systemAction.isPending}
+            onClick={() => setAttachmentPopoverOpen((open) => !open)}
+            ref={addAttachmentButtonRef}
+            size="sm"
+            variant="secondary"
+          >
+            +
+          </Button>
+          {dictation.available ? (
+            <DictationButton
+              disabled={send.isPending || systemAction.isPending}
+              labels={{
+                idle: t("dictation_start"),
+                requesting: t("dictation_requesting"),
+                recording: t("dictation_stop"),
+                transcribing: t("dictation_transcribing"),
+                unavailable: t("dictation_unavailable")
+              }}
+              phase={dictation.phase}
+              onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
             />
           ) : null}
-        </div>
-        {attachmentPopoverOpen ? (
-          <div
-            aria-label={t("add_attachment")}
-            className="absolute bottom-full left-0 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
-            id="chat-attachment-popover"
-            onKeyDown={handleAttachmentPopoverKeyDown}
-            ref={attachmentPopoverRef}
-            role="dialog"
-          >
+          <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+          <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+          <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
+          <div className="ml-auto flex items-center gap-1">
             <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-              onClick={openAttachmentFilePicker}
-              type="button"
+              aria-label={agentActive ? t("enqueue_message") : t("send_message")}
+              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-brand hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:hover:bg-gray-800"
+              disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
+              type="submit"
             >
-              <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
-              {t("upload_file")}
+              {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
             </button>
-            {payload.walkthroughs_enabled ? (
+            {text.trim().length > 0 ? (
               <button
-                className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                onClick={startWalkthroughRecording}
-                title={t("record_walkthrough_title")}
+                aria-label={t("scratchpad_stash")}
+                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+                disabled={stash.isPending}
+                onClick={() => stash.mutate(undefined)}
+                title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
                 type="button"
               >
-                <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                  <span className="h-2.5 w-2.5 rounded-full border-2 border-red-500" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block">{t("record_walkthrough")}</span>
-                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{t("record_walkthrough_hint")}</span>
-                </span>
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                  <rect height="4" rx="1" width="6" x="9" y="3" />
+                  <path d="M9 12h6M9 16h4" />
+                </svg>
               </button>
             ) : null}
-            <div className="border-t border-gray-100 dark:border-gray-800" />
-            <button
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-              onClick={() => {
-                setAttachmentPopoverOpen(false)
-                setScratchpadOpen((prev) => !prev)
-              }}
-              type="button"
-            >
-              <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                <rect height="4" rx="1" width="6" x="9" y="3" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-              {t("scratchpad_title")}
-            </button>
-            <div className="border-t border-gray-100 dark:border-gray-800" />
-            <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
+            {agentActive && !payload.switching_provider ? (
+              <StopButton
+                className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+                payload={payload}
+                queryKey={queryKey}
+              />
+            ) : null}
           </div>
-        ) : null}
-      </div>
-      </form>
+          {attachmentPopoverOpen ? (
+            <div
+              aria-label={t("add_attachment")}
+              className="absolute bottom-full left-0 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+              id="chat-attachment-popover"
+              onKeyDown={handleAttachmentPopoverKeyDown}
+              ref={attachmentPopoverRef}
+              role="dialog"
+            >
+              <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                onClick={openAttachmentFilePicker}
+                type="button"
+              >
+                <UploadIcon className="h-4 w-4 shrink-0 text-gray-400" />
+                {t("upload_file")}
+              </button>
+              {payload.walkthroughs_enabled ? (
+                <button
+                  className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  onClick={startWalkthroughRecording}
+                  title={t("record_walkthrough_title")}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                    <span className="h-2.5 w-2.5 rounded-full border-2 border-red-500" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block">{t("record_walkthrough")}</span>
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{t("record_walkthrough_hint")}</span>
+                  </span>
+                </button>
+              ) : null}
+              <div className="border-t border-gray-100 dark:border-gray-800" />
+              <button
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                onClick={() => {
+                  setAttachmentPopoverOpen(false)
+                  setScratchpadOpen((prev) => !prev)
+                }}
+                type="button"
+              >
+                <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                  <rect height="4" rx="1" width="6" x="9" y="3" />
+                  <path d="M9 12h6M9 16h4" />
+                </svg>
+                {t("scratchpad_title")}
+              </button>
+              <div className="border-t border-gray-100 dark:border-gray-800" />
+              <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
+            </div>
+          ) : null}
+        </div>
+        </form>
       </div>
     </>
   )
