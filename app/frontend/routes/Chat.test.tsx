@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { ChatRoute } from "./Chat"
+import { ChatRoute, chatQueryKey } from "./Chat"
 import { CHAT_WORKSPACE_SPLIT_MIN_WIDTH } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
@@ -3508,6 +3508,46 @@ describe("floating composer control order", () => {
     expect(wrapper.className).toContain("hidden")
     expect(wrapper.className).toContain("sm:block")
   })
+
+  it("renders the effort selector's trigger through the shared Button component, matching its mode/model siblings", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const mode = await screen.findByRole("button", { name: "Change mode" })
+    const effort = screen.getByRole("button", { name: "Effort" })
+
+    // Button's semantic-token secondary-variant + font-medium classes:
+    // regression guard for the raw gray-scale/lighter-weight styling that
+    // made the effort selector visibly mismatch "Planning"/"Default".
+    for (const token of ["border-border", "bg-surface", "text-text-primary", "font-medium"]) {
+      expect(effort.className).toContain(token)
+    }
+    expect(effort.className).not.toMatch(/\btext-gray-600\b/)
+    expect(effort.className).not.toContain("py-1 ")
+
+    // Same trigger shape (label span + trailing chevron svg) as the sibling selectors.
+    expect(effort.children).toHaveLength(mode.children.length)
+  })
+
+  it("sizes the dictation and attachment icon buttons without the text-oriented padding that squeezed their icons", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const attachment = await screen.findByRole("button", { name: "Add attachment" })
+    const dictation = screen.getByRole("button", { name: "Start dictation" })
+
+    for (const button of [attachment, dictation]) {
+      expect(button.className).not.toContain("px-2.5")
+      expect(button.className).not.toContain("py-1.5")
+    }
+
+    const micIcon = dictation.querySelector("svg")
+    expect(micIcon).not.toBeNull()
+    expect(micIcon?.getAttribute("class")).toContain("h-4")
+    expect(micIcon?.getAttribute("class")).toContain("w-4")
+  })
 })
 
 describe("floating composer positioning", () => {
@@ -3571,6 +3611,159 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).toContain("sm:inset-x-0")
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
+  })
+
+  // Regression coverage for the banner-painted-under-the-pill bug: the
+  // banner used to be a plain in-flow sibling of the (absolutely
+  // positioned) composer, so the composer's own box didn't push it up and
+  // the composer painted over it instead. It now lives inside the same
+  // positioned box as the composer (`[data-tour="chat-compose"]`) and uses
+  // `bottom-full`, so it always sits exactly at the composer's current top
+  // edge, however tall the composer grows.
+  it("positions the pending-proposal banner with bottom-full inside the composer's own positioned box", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" }))]
+    }))
+    renderRoute()
+
+    const bannerText = await screen.findByText("1 pending proposal")
+    const banner = bannerText.closest("div") as HTMLElement
+    expect(banner.className).toContain("absolute")
+    expect(banner.className).toContain("bottom-full")
+
+    const composerBox = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+    expect(composerBox).not.toBeNull()
+    expect(composerBox.contains(banner)).toBe(true)
+    expect(composerBox.className).toContain("absolute")
+  })
+})
+
+// jsdom has no ResizeObserver (Compose already no-ops when it's undefined,
+// same guard pattern as Terminal.tsx), so these tests install a synchronous
+// stub to exercise the propagation path: Compose measures its floating
+// form -> reports the height up to ChatColumn -> ChatColumn exposes it as
+// `--chat-composer-height` on the chat column section, which the message
+// stream's padding, the "new messages" pill, and the pending-proposal
+// banner all read from.
+describe("floating composer height tracking", () => {
+  let observedElements: HTMLElement[]
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+    observedElements = []
+
+    class StubResizeObserver {
+      private callback: () => void
+
+      constructor(callback: () => void) {
+        this.callback = callback
+      }
+
+      observe(element: HTMLElement) {
+        observedElements.push(element)
+        // A real ResizeObserver reports asynchronously (never inside the
+        // same effect flush that called observe()) — mirror that here so
+        // this doesn't race ChatColumn's own synchronous mount-time reset
+        // effect the way a same-tick callback would.
+        void Promise.resolve().then(() => this.callback())
+      }
+
+      unobserve() {}
+      disconnect() {}
+    }
+
+    vi.stubGlobal("ResizeObserver", StubResizeObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("exposes the composer's measured height as --chat-composer-height on the chat column", async () => {
+    // The stub's observe() invokes its callback synchronously (mirroring a
+    // real ResizeObserver's initial report), so the mocked height needs to
+    // be in place before the composer's mount-time effect calls observe().
+    vi.spyOn(HTMLFormElement.prototype, "getBoundingClientRect").mockReturnValue({
+      height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect)
+
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const form = document.querySelector('[data-tour="chat-compose"] form') as HTMLFormElement
+    expect(form).not.toBeNull()
+    expect(observedElements).toContain(form)
+
+    let ancestor: HTMLElement | null = form.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+    expect(ancestor).not.toBeNull()
+    const columnAncestor = ancestor as HTMLElement
+
+    await waitFor(() => {
+      expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
+    })
+  })
+
+  it("wires the message stream padding and the new-messages pill to track --chat-composer-height without regressing their static fallback", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    expect(messageStream.className).toContain("pb-[max(7rem,calc(var(--chat-composer-height,0px)+1.5rem))]")
+    expect(messageStream.className).toContain("sm:pb-[max(8rem,calc(var(--chat-composer-height,0px)+2rem))]")
+  })
+
+  // Regression coverage: ChatColumn's composerHeight reset effect must be
+  // scoped to chat.id alone. It used to also depend on has_more_older,
+  // which can flip mid-session (e.g. after loading earlier messages) with
+  // no accompanying composer resize — wiping the tracked height with
+  // nothing left to re-measure it, silently reintroducing the covered
+  // chat history bug this state exists to fix.
+  it("does not reset the tracked composer height when has_more_older changes without a chat switch", async () => {
+    vi.spyOn(HTMLFormElement.prototype, "getBoundingClientRect").mockReturnValue({
+      height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect)
+
+    const payload = chatPayload({}, { has_more_older: false })
+    mockChatRouteFetch(payload)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const form = document.querySelector('[data-tour="chat-compose"] form') as HTMLFormElement
+    let ancestor: HTMLElement | null = form.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+    const columnAncestor = ancestor as HTMLElement
+
+    await waitFor(() => {
+      expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
+    })
+
+    // react-query notifies subscribers asynchronously, so flush a real tick
+    // (not just microtasks) to let ChatColumn actually re-render off the new
+    // payload before asserting — otherwise this check would trivially read
+    // the stale pre-update DOM regardless of whether the reset effect is
+    // correctly scoped.
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), { ...payload, has_more_older: true })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
   })
 })
 

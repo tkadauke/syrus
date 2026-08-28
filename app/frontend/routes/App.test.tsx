@@ -1826,6 +1826,7 @@ describe("App", () => {
       expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
       expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
       expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
+      expect(within(settingsNav).queryByRole("link", { name: "Design System" })).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
       expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/settings/hidden_chats?page=1", expect.anything())
     } finally {
@@ -11629,7 +11630,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "What would you like to build?" }).closest("section")).toHaveClass("items-center", "justify-center")
-    expect(screen.getByPlaceholderText("Ask about this repository...").closest("form")?.parentElement).toHaveClass("max-w-sm", "sm:max-w-2xl")
+    expect(screen.getByPlaceholderText("Ask about this repository...").closest("form")?.parentElement?.parentElement).toHaveClass("max-w-sm", "sm:max-w-2xl")
   })
 
   it("shows a removable attached repository chip in the empty chat landing compose area", async () => {

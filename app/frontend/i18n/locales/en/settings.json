@@ -11,8 +11,7 @@
     "memories": "Memories",
     "templates": "Templates",
     "tags": "Tags",
-    "connected_platforms": "Connected Platforms",
-    "design_system": "Design System"
+    "connected_platforms": "Connected Platforms"
   },
   "backend_updating": "The Syrus backend is updating — credential status can't be checked right now. Your saved credentials are unaffected; this closes out in a minute or two.",
   "profile": {

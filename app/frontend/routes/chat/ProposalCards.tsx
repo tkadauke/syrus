@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
+import { cancelPendingAction, confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -447,9 +447,11 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const action = useMutation({
-    mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
+    mutationFn: (input: { action: "confirm" | "reject" | "dismiss"; path: string }) => {
       const path = appendSearch(input.path, search)
-      return input.action === "confirm" ? confirmPendingAction(path) : rejectPendingAction(path)
+      if (input.action === "confirm") return confirmPendingAction(path)
+      if (input.action === "reject") return rejectPendingAction(path)
+      return cancelPendingAction(path)
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -467,6 +469,8 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
   const chatMessageId = "chat_message_id" in pendingAction ? pendingAction.chat_message_id : null
   const resourceTitle = pendingActionResourceTitle(pendingAction)
   const resourceUrl = pendingActionResourceUrl(pendingAction)
+  const dismissPath = "app_cancel_path" in pendingAction ? pendingAction.app_cancel_path : null
+  const canDismiss = pendingAction.state === "failed" && Boolean(dismissPath)
 
   useEffect(() => {
     if (pendingAction.state !== "confirmed") return
@@ -483,12 +487,25 @@ export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectM
       muted={Boolean(terminalLabel)}
       header={
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{pendingActionBadgeLabel(pendingAction)}</span>
-            <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-info/10 text-info" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
-              {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
-              {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
-            </span>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{pendingActionBadgeLabel(pendingAction)}</span>
+              <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${isPending || isConfirming ? "bg-info/10 text-info" : pendingAction.state === "failed" ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+                {isExecuting ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" /> : null}
+                {isConfirming ? "Working..." : isQueued ? "Waiting..." : terminalLabel || "Needs confirmation"}
+              </span>
+            </div>
+            {canDismiss ? (
+              <button
+                aria-label="Dismiss failed action"
+                className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                disabled={action.isPending}
+                onClick={() => dismissPath && action.mutate({ action: "dismiss", path: dismissPath })}
+                type="button"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
           {chatMessageId && onSelectMessage ? (
             <h3 className="mt-2 text-base font-semibold">

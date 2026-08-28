@@ -841,7 +841,7 @@ module Api
         def destroy_pending_action
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
-          rejection = pending_action.action_type != "schedule_recurring" && !pending_action.queued?
+          rejection = pending_action.pending? && pending_action.action_type != "schedule_recurring"
           result = rejection ? pending_action.reject! : pending_action.cancel!(user: Current.user)
 
           if result

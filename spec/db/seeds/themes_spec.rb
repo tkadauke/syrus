@@ -2,16 +2,30 @@ require "rails_helper"
 require Rails.root.join("db/seeds/themes")
 
 RSpec.describe Seeds::Themes do
-  describe ".seed!" do
-    it "creates the 3 built-in themes with valid token shapes" do
-      expect { described_class.seed! }.to change(Theme, :count).by(3)
+  BUILT_IN_SLUGS = %w[
+    terracotta ocean forest sunset lavender slate rose amber midnight
+    mint plum sand sky crimson moss coral steel violet
+  ].freeze
 
-      %w[terracotta ocean forest].each do |slug|
+  describe ".seed!" do
+    it "creates the 18 built-in themes with valid token shapes" do
+      expect { described_class.seed! }.to change(Theme, :count).by(18)
+
+      BUILT_IN_SLUGS.each do |slug|
         theme = Theme.find_by(slug: slug)
         expect(theme).to be_present
         expect(theme.built_in).to be true
         expect(theme.owner_user_id).to be_nil
         expect(theme).to be_valid
+      end
+    end
+
+    it "passes WCAG AA contrast validation for every built-in theme" do
+      described_class.seed!
+
+      BUILT_IN_SLUGS.each do |slug|
+        theme = Theme.find_by!(slug: slug)
+        expect(theme.contrast_issues).to eq([]), "#{slug}: #{theme.contrast_issues.map { |i| i[:message] }.join('; ')}"
       end
     end
 

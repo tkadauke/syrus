@@ -62,6 +62,13 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Small" }).className).toContain("text-xs")
   })
 
+  it("gives the icon size no text-oriented padding so it doesn't fight a caller's fixed h-*/w-*", () => {
+    render(<Button size="icon">X</Button>)
+    const className = screen.getByRole("button", { name: "X" }).className
+    expect(className).not.toContain("px-2.5")
+    expect(className).not.toContain("py-1.5")
+  })
+
   it("fires onClick", () => {
     const onClick = vi.fn()
     render(<Button onClick={onClick}>Save</Button>)

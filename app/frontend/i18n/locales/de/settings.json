@@ -11,8 +11,7 @@
     "memories": "Erinnerungen",
     "templates": "Vorlagen",
     "tags": "Tags",
-    "connected_platforms": "Verbundene Plattformen",
-    "design_system": "Design-System"
+    "connected_platforms": "Verbundene Plattformen"
   },
   "backend_updating": "Das Syrus-Backend wird gerade aktualisiert — der Status der Zugangsdaten kann im Moment nicht geprüft werden. Ihre gespeicherten Zugangsdaten sind davon nicht betroffen; in ein bis zwei Minuten ist es geschafft.",
   "profile": {
