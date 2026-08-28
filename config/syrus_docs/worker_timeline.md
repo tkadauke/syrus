@@ -59,7 +59,12 @@ the same query services for the browser:
   `from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes the
   `filter_schema` the FilterBar renders against: `repository_id`/
   `epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
-  `/api/v1/app/filters/fk_options` resolver, `status` as a multi-select
+  `/api/v1/app/filters/fk_options` resolver (`Filters::FkOptionsResolver`
+  serves `repository_id`/`epic_id` unscoped — every repository/epic in
+  the instance, not just ones the signed-in admin owns — when the current
+  user is an admin, since this is a cross-tenant admin view and every
+  visitor is admin-gated already; non-admin callers elsewhere in the app
+  keep the ownership-scoped relation), `status` as a multi-select
   `enum`, and a `window` `date` field supporting `within_last` (relative)
   and `between` (absolute) — no `q` (no chips at all) defaults to
   `within_last` the last 3 hours with no other filters applied, i.e. every

@@ -62,16 +62,25 @@ module Timeline
       Array(chip_value("status"))
     end
 
+    # Never returns nil, even for a malformed chip (unparsable "between"
+    # bound, unsupported within_last unit): MacroQuery's own DEFAULT_WINDOW
+    # is 1 hour (the documented default for the separate bearer-token
+    # API), so leaking a nil from/to through would silently reintroduce
+    # the 1-hour window this default was written to replace.
     def from
       return now - DEFAULT_WINDOW unless window_chip
 
-      window_chip.op == "between" ? parse_time(Array(window_chip.value).first) : duration_for(window_chip.value)&.ago
+      if window_chip.op == "between"
+        parse_time(Array(window_chip.value).first) || now - DEFAULT_WINDOW
+      else
+        duration_for(window_chip.value)&.ago || now - DEFAULT_WINDOW
+      end
     end
 
     def to
       return now unless window_chip
 
-      window_chip.op == "between" ? parse_time(Array(window_chip.value).last) : now
+      window_chip.op == "between" ? (parse_time(Array(window_chip.value).last) || now) : now
     end
 
     private
