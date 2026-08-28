@@ -1397,7 +1397,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       }
       <div
         className={floating
-          ? "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:inset-x-0 sm:bottom-4"
+          // `sm:left-5 sm:right-5` deliberately sit 1.25rem inside
+          // ChatColumn's own `sm:px-8` padding box (rather than flush via
+          // `sm:inset-x-0`) so the composer ends up inset slightly *more*
+          // than the message stream's cards, which sit at ChatColumn's
+          // padding plus the stream's own `sm:p-4` (2rem + 1rem = 3rem).
+          // Flush-to-padding-box left the composer at just 2rem, narrower
+          // an inset than the 3rem the cards get — reading as *wider* than
+          // the chat history above it, the reverse of the intended layout.
+          ? "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:left-5 sm:right-5 sm:bottom-4"
           : undefined}
         data-tour="chat-compose"
       >
