@@ -125,6 +125,14 @@ export function codingFilesTabVisible(payload: ChatPayload): boolean {
   )
 }
 
+export function localDiffTabVisible(payload: ChatPayload): boolean {
+  return Boolean(
+    payload.local_mode_enabled &&
+    payload.chat.mode === "local" &&
+    payload.local_tunnel_connected
+  )
+}
+
 export function jobsTabVisible(payload: ChatPayload): boolean {
   return (payload.chat.confirmed_proposal_count ?? 0) > 0 ||
     (payload.chat.linked_direct_job_count ?? 0) > 0

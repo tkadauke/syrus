@@ -150,4 +150,22 @@ describe("availableWorkspaceTabs", () => {
     payload.chat.linked_direct_job_count = 1
     expect(availableWorkspaceTabs(payload)).toContain("jobs")
   })
+
+  it("excludes the diff tab when the tunnel is connected but the chat has switched back to planning mode", () => {
+    const payload = makePayload({ local_mode_enabled: true, local_tunnel_connected: true })
+    payload.chat.mode = "planning"
+    expect(availableWorkspaceTabs(payload)).not.toContain("diff")
+  })
+
+  it("includes the diff tab when in local mode with a connected tunnel", () => {
+    const payload = makePayload({ local_mode_enabled: true, local_tunnel_connected: true })
+    payload.chat.mode = "local"
+    expect(availableWorkspaceTabs(payload)).toContain("diff")
+  })
+
+  it("excludes the diff tab when local mode is disabled instance-wide", () => {
+    const payload = makePayload({ local_mode_enabled: false, local_tunnel_connected: true })
+    payload.chat.mode = "local"
+    expect(availableWorkspaceTabs(payload)).not.toContain("diff")
+  })
 })
