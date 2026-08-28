@@ -51,16 +51,36 @@ auth via `Api::V1::App::Admin::BaseController#require_admin`, plus its own
 `require_worker_timeline_enabled` gate mirroring `mysql_db_browser`) wraps
 the same query services for the browser:
 
-- `GET /api/v1/app/admin/worker_timeline/macro` — `?from=&to=` (ISO8601,
-  default last hour) plus `repository_id=`, `epic_id=`, `job_id=`,
-  `hostname=`, `status=` (repeatable) filters.
+- `GET /api/v1/app/admin/worker_timeline/macro` — `?q=<base64-encoded
+  filter tree>`, the same wire format the app-wide shared FilterBar
+  (`app/frontend/components/FilterBar.tsx`) uses everywhere else
+  (`Filters::QueryParam`/`Filters::Ast`). `Timeline::MacroQueryFilter`
+  decodes `q` into the `repository_id`/`epic_id`/`hostname`/`status`/
+  `from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes the
+  `filter_schema` the FilterBar renders against: `repository_id`/
+  `epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
+  `/api/v1/app/filters/fk_options` resolver, `status` as a multi-select
+  `enum`, and a `window` `date` field supporting `within_last` (relative)
+  and `between` (absolute) — no `q` (no chips at all) defaults to
+  `within_last` the last 3 hours with no other filters applied, i.e. every
+  worker lane and every workflow in that window. The response echoes back
+  `filter` (the applied tree) and `filter_schema` alongside `range`/
+  `lanes`/`pending`.
 - `GET /api/v1/app/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
   the Step/Run waterfall for one Workflow (wraps
   `Timeline::WorkflowWaterfallQuery`).
-- `GET /api/v1/app/admin/worker_timeline/filters` — filter option lists for
-  the frontend's controls: `repositories`, `epics`, a fixed `statuses` list
-  (`queued`/`running`/`succeeded`/`failed`/`cancelled`), and worker
-  `hostnames` (from `InstanceVersion` rows with `role: "worker"`).
+
+`Timeline::MacroQueryFilter` is intentionally not a `Filters::Registry`
+subject: `Timeline::MacroQuery` isn't a single AR relation a
+`Filters::Compiler` chip can `.where` against (spans come from `Workflow`,
+pending from a second `Workflow` scope, idle lanes from `InstanceVersion`,
+and the time window is an overlap test applied across all three, not a
+plain column comparison), so it only understands a flat top-level AND of
+chips — the shape the FilterBar produces for this small, fixed field set.
+The separate bearer-token `GET /api/v1/timeline/macro` endpoint (see
+`config/syrus_docs/worker_activity_timeline.md`) is untouched by this and
+keeps its own flat `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/
+`status=`/`from=`/`to=` params and 1-hour default.
 
 ## Frontend
 
@@ -69,8 +89,10 @@ renders `WorkerTimeline.tsx`: hand-rolled React+SVG bars per span (no
 charting library, consistent with `spending_insights`), `d3-scale` for the
 time axis and `d3-zoom`/`d3-selection` for pan/zoom gesture handling, row
 virtualization (only lanes within the current scroll viewport render their
-span rects), and filter controls for repository/epic/status/worker
-hostname plus a time-range picker. Hovering a span shows a tooltip with the
+span rects), and the app-wide shared `FilterBar` (same component and
+query-tree wiring as `AdminQueue`/`AdminUsers`/`Dashboard`) for repository/
+epic/hostname/status/time-window filtering — the plugin no longer ships its
+own filter UI. Hovering a span shows a tooltip with the
 Job/Workflow id and title, duration, and the blocked-reason explanation (or
 a plain "no historical data" message when none survives). Clicking a
 Workflow span navigates to `/worker_timeline/workflow?id=<id>`.
