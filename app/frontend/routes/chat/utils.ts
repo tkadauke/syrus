@@ -82,6 +82,24 @@ export function appendSearch(path: string, search: string) {
   return search ? `${path}${search}` : path
 }
 
+// Floating composer container classes. Anchored with `absolute` inside
+// ChatColumn's own `position: relative` <section>, so `left-*`/`right-*` (and
+// `inset-x-*`) are already relative to ChatColumn's true rendered width, not
+// the viewport — correct regardless of the resizable workspace panel's
+// current width. Deliberately fixed symmetric insets rather than
+// `mx-auto` + a `max-w-*` step: for an absolutely-positioned box with both
+// `left`/`right` set and `width: auto`, browsers resolve auto margins to 0
+// before `max-width` clamps the box, so a width cap leaves the freed space
+// on one side instead of centering it — the containment/overlap bug this
+// guards against. At `sm:` and up the visible margin comes from
+// ChatColumn's own `sm:px-8` padding (see the section in Chat.tsx), not from
+// a hardcoded inset here — `sm:inset-x-0` pins flush to that padding box, so
+// there's a single source of truth for the margin instead of two numbers
+// that can drift apart.
+export function composeFloatingClassName(isDragOver: boolean) {
+  return `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+}
+
 export function primaryButton() {
   return "flex h-11 items-center justify-center rounded bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
 }
@@ -122,6 +140,14 @@ export function codingFilesTabVisible(payload: ChatPayload): boolean {
     payload.coding_mode_enabled &&
     payload.chat.mode === "coding" &&
     payload.chat.coding_checkout_branch
+  )
+}
+
+export function localDiffTabVisible(payload: ChatPayload): boolean {
+  return Boolean(
+    payload.local_mode_enabled &&
+    payload.chat.mode === "local" &&
+    payload.local_tunnel_connected
   )
 }
 

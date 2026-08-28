@@ -28,7 +28,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { syrusShellBridge } from "../../lib/desktopShell"
 import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
-import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
+import { appendSearch, chatDisplayTitle, composeFloatingClassName, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
 import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
@@ -1367,7 +1367,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       ) : null}
       <form
         className={floating
-          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-2xl sm:p-3 lg:max-w-4xl xl:max-w-5xl dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+          ? composeFloatingClassName(isDragOver)
           : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
         data-tour="chat-compose"
         onDragEnter={handleDragEnter}
