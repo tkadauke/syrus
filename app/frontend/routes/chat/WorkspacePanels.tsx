@@ -20,7 +20,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS } from "./constants"
-import { chatDisplayTitle, snapshotKindLabel, diffLineClass, secondaryButton, errorAsError, formatCurrency, formatTokenCount, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { chatDisplayTitle, snapshotKindLabel, diffLineClass, secondaryButton, errorAsError, formatCurrency, formatTokenCount, localDiffTabVisible, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import { PinIcon } from "../../components/PinIcon"
@@ -150,7 +150,7 @@ export function ChatWorkspacePanel({
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
-        {activeTab === "diff" && payload.local_tunnel_connected ? <LocalDiffPanel /> : null}
+        {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
         {isPluginTab(activeTab) ? <PluginWorkspaceTabPanel activeTab={activeTab} payload={payload} /> : null}
       </div>
