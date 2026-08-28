@@ -1481,3 +1481,23 @@ Bundled plugins:
   `dashboard/components.tsx`'s job list) so every field stays readable
   instead of forcing horizontal scroll on a phone; row actions render as
   "Connect"/"Test"/"Edit"/"Delete" in both layouts.
+- `worker_timeline` — disabled by default (see
+  `config/syrus_docs/worker_timeline.md`); the third `sidebar_page` plugin.
+  `WorkerTimeline::SidebarPages` provides `worker_timeline.macro`: label
+  "Worker Timeline", `path` `/worker_timeline`, `paths`
+  `[ "/worker_timeline", "/worker_timeline/workflow" ]`,
+  `component: "worker_timeline/WorkerTimeline"`, `icon: "timeline"` (maps to
+  `TimelineIcon` via `sidebarNav.tsx`'s `PLUGIN_ICONS`), `order: 80`. Like
+  `mysql_db_browser`, it self-gates on both `WorkerTimeline.enabled?` and
+  `Current.user&.admin?`. `WorkerTimeline.tsx` consumes
+  `Api::V1::App::Admin::WorkerTimelineController`'s
+  `GET /api/v1/app/admin/worker_timeline/macro` and `.../filters` — a
+  session-authenticated wrapper around the same `Timeline::MacroQuery` the
+  bearer-token `/api/v1/timeline/macro` endpoint uses, since the plugin's
+  browser SPA frontend has no API token to send. Renders one horizontal lane
+  per worker hostname+pid as hand-rolled React+SVG bars, using `d3-scale`
+  for the time axis and `d3-zoom`/`d3-selection` for pan/zoom, with row
+  virtualization and repository/epic/status/hostname/time-range filters. The
+  same `paths` array covers a second, stub `/worker_timeline/workflow`
+  route (the real Step/Run waterfall drill-down is a follow-up) — see
+  `config/syrus_docs/worker_timeline.md`.
