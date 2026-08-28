@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement a feature or bug fix in this codebase based on the provided task description
+description: Use when a task description asks for a feature or bug fix to be built in this codebase — write, verify, and commit the actual code changes, not a plan or a partial attempt.
 ---
 
 $ARGUMENTS
@@ -59,6 +59,28 @@ Sane git ops are fine — `git status`, `git log`, `git diff`,
 `git add`, `git commit`, `git restore`, `git stash` (if you pop
 it back). `git rebase` and `git merge` against `<default_branch>`
 are also fine — they preserve history.
+
+---
+
+Corner-cutting contract — this is a one-shot, unattended run with
+no one to catch a shortcut before it ships. Rationalizations that
+show up under pressure, and why they don't hold here:
+
+  - "The happy path works, ship it." → Run the relevant tests or
+    build before claiming something works. An unverified claim is
+    not a working fix.
+  - "This is new/changed behavior, but it doesn't really need a
+    test." → New or changed behavior gets a test in the same
+    commit. No test means the behavior isn't actually defined yet.
+  - "This linter config / dev dependency / tool is broken, I'll
+    just work around it." → Same rule as the destructive-git-ops
+    guidance above, generalized: report a broken tool instead of
+    silently routing around it. Working around it hides a problem
+    the operator needs to know about.
+  - "I've made some progress, that's close enough to stop." →
+    Before stopping, diff your changes against the task
+    description. Stopping early and reporting done without
+    checking the diff actually matches the task is not done.
 
 ---
 
