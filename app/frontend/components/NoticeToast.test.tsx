@@ -7,7 +7,7 @@ describe("NoticeToast", () => {
     vi.useRealTimers()
   })
 
-  it("dismisses itself after ten seconds", () => {
+  it("dismisses itself after three seconds", () => {
     vi.useFakeTimers()
     const onDismiss = vi.fn()
     render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
@@ -15,7 +15,7 @@ describe("NoticeToast", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
 
     act(() => {
-      vi.advanceTimersByTime(9_999)
+      vi.advanceTimersByTime(2_999)
     })
     expect(onDismiss).not.toHaveBeenCalled()
 
