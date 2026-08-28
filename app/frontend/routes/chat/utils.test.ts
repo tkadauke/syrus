@@ -9,16 +9,18 @@ describe("composeFloatingClassName", () => {
     expect(className).toContain("right-[max(0.5rem,env(safe-area-inset-right))]")
   })
 
-  it("uses a fixed symmetric inset at sm and up instead of mx-auto plus a max-width step", () => {
+  it("pins flush to the ancestor's own padding box at sm and up instead of mx-auto plus a max-width step", () => {
     const className = composeFloatingClassName(false)
 
-    // Regression guard: `sm:inset-x-0 sm:mx-auto sm:max-w-*` looks like it
-    // centers the pill, but for an absolutely-positioned box with left/right
-    // both set, auto margins resolve to 0 before max-width clamps the box —
-    // the leftover space collapses onto one side instead of centering,
-    // which is exactly the reported right-edge overlap. A fixed inset-x is
-    // correct regardless of ChatColumn's actual rendered width.
-    expect(className).toContain("sm:inset-x-8")
+    // Regression guard: `mx-auto` plus a `max-w-*` step looks like it centers
+    // the pill, but for an absolutely-positioned box with left/right both
+    // set, auto margins resolve to 0 before max-width clamps the box — the
+    // leftover space collapses onto one side instead of centering, which is
+    // exactly the reported right-edge overlap. `sm:inset-x-0` pins both
+    // edges flush to ChatColumn's `position: relative` <section> padding
+    // box; the visible margin comes from that section's own `sm:px-8`
+    // padding (a single source of truth), not from a hardcoded inset here.
+    expect(className).toContain("sm:inset-x-0")
     expect(className).not.toContain("mx-auto")
     expect(className).not.toMatch(/max-w-/)
   })

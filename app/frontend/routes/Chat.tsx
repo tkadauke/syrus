@@ -1029,7 +1029,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   const loadEarlierMessagesFromCompose = useCallback(() => olderMessageRequesterRef.current?.({ preserveScroll: false }) ?? false, [])
 
   return (
-    <section className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-2 sm:gap-3"}`}>
+    <section className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-2 sm:gap-3 sm:px-8"}`}>
       <ChatTour />
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
