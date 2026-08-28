@@ -8,11 +8,11 @@ class CreateLandedCommits < ActiveRecord::Migration[8.1]
         t.integer :position, null: false, default: 0
         t.timestamps
       end
+    end
 
-      add_index :landed_commits, :sha, unique: true unless index_exists?(:landed_commits, :sha)
-      unless index_exists?(:landed_commits, [ :landable_type, :landable_id, :position ])
-        add_index :landed_commits, [ :landable_type, :landable_id, :position ]
-      end
+    add_index :landed_commits, :sha, unique: true unless index_exists?(:landed_commits, :sha)
+    unless index_exists?(:landed_commits, [ :landable_type, :landable_id, :position ])
+      add_index :landed_commits, [ :landable_type, :landable_id, :position ]
     end
   end
 
