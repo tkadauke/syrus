@@ -25,12 +25,29 @@ class WorkerQueueTopology
     new(config_file: config_file).consumed_queues
   end
 
+  # Whether a raw list of configured queue names — in whatever shape Solid
+  # Queue itself stores/accepts them, e.g. worker `queues:` config or
+  # SolidQueue::Process#metadata["queues"] — covers a given queue. Mirrors
+  # SolidQueue::QueueSelector's own matching (`"*"` = every queue, `"foo*"` =
+  # prefix match, otherwise exact) so every caller in this codebase agrees on
+  # wildcard semantics instead of each re-implementing "does this list cover
+  # that queue" against raw queue-name strings independently.
+  def self.queues_include?(queues, queue_name)
+    queues = Array(queues).map(&:to_s)
+    queue_name = queue_name.to_s
+
+    return true if queues.include?(WILDCARD)
+    return true if queues.include?(queue_name)
+
+    queues.any? { |queue| queue.end_with?(WILDCARD) && queue_name.start_with?(queue.delete_suffix(WILDCARD)) }
+  end
+
   def initialize(config_file: nil)
     @config_file = config_file
   end
 
   def consumes?(queue_name)
-    consumed_queues.include?(WILDCARD) || consumed_queues.include?(queue_name.to_s)
+    self.class.queues_include?(consumed_queues, queue_name)
   end
 
   def consumed_queues
