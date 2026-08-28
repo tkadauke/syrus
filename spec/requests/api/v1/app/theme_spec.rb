@@ -124,5 +124,21 @@ RSpec.describe "API: /api/v1/app/theme", type: :request do
       expect(parse_body["theme"]).to eq("dark")
       expect(user.reload.theme).to eq("dark")
     end
+
+    it "succeeds for a genuine JSON request body with only color_theme_id (regression: ParamsWrapper injecting an empty theme param)" do
+      # Unlike the other examples in this file, a bare `params:` hash sends
+      # form-encoded params, which never exercises ActionController::ParamsWrapper's
+      # JSON-only wrapping. The real frontend client (patchJson) sends an actual
+      # `application/json` body, which is what triggered this bug in practice.
+      ocean = theme(slug: "ocean", built_in: true)
+      user = Factories.user(theme: "dark")
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: ocean.id }.to_json, headers: { "CONTENT_TYPE" => "application/json" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["theme"]).to eq("dark")
+      expect(user.reload.color_theme_id).to eq(ocean.id)
+    end
   end
 end
