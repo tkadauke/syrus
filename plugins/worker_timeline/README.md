@@ -14,8 +14,12 @@ epics, and repositories.
   repository, epic, job status, and worker hostname.
 - A hover tooltip per span with the Job/Workflow id, title, duration, and —
   when available — why it was blocked before starting.
-- A stub per-workflow detail route (`/worker_timeline/workflow`); the actual
-  Step/Run waterfall drill-down view is a planned follow-up.
+- A per-workflow drill-down waterfall (`/worker_timeline/workflow?id=<id>`,
+  reachable by clicking a macro-view Workflow span): one lane per Step,
+  spans within a lane are that Step's Run attempt(s) (so retries are
+  visible), and hovering a not-yet-started Step explains what the Step or
+  Workflow was waiting on, reusing the same blocked-reason data as the
+  macro view.
 
 This plugin only reads existing data (`WorkflowActivityEvent`,
 `SpawnedProcess`, `InstanceVersion`, and Workflow/Step/Run timestamps via

@@ -5,9 +5,10 @@ import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchWorkerTimelineFilters, fetchWorkerTimelineMacro, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
+import { fetchWorkerTimelineFilters, fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
 import { FilterBar, type WorkerTimelineFilterValue } from "../components/FilterBar"
 import { TimelineLanes } from "../components/TimelineLanes"
+import { WorkflowWaterfall } from "../components/WorkflowWaterfall"
 
 const ONE_HOUR_MS = 60 * 60 * 1000
 
@@ -148,16 +149,23 @@ function WorkerTimelineWorkflowDetail() {
   const workflowId = searchParams.get("id")
   const prefix = routePrefix(location.pathname)
 
+  const detail = useQuery({
+    enabled: Boolean(workflowId),
+    queryKey: [ "worker_timeline", "workflow", workflowId ],
+    queryFn: () => fetchWorkerTimelineWorkflow(workflowId as string)
+  })
+
   return (
-    <main aria-label={t("detail_aria")} className="mx-auto max-w-3xl space-y-4 p-6">
+    <main aria-label={t("detail_aria")} className="mx-auto max-w-5xl space-y-4 p-6">
       <Link className="text-sm text-blue-700 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix("/worker_timeline", prefix)}>
         {t("back_to_timeline")}
       </Link>
       <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("detail_heading")}</h1>
-      <p className="text-sm text-gray-600 dark:text-gray-400">
-        {workflowId ? t("detail_placeholder_workflow", { id: workflowId }) : t("detail_placeholder_no_workflow")}
-      </p>
-      <p className="text-sm text-gray-600 dark:text-gray-400">{t("detail_placeholder_note")}</p>
+
+      {!workflowId ? <p className="text-sm text-gray-600 dark:text-gray-400">{t("detail_placeholder_no_workflow")}</p> : null}
+      {detail.isPending && workflowId ? <p className="text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
+      {detail.isError ? <p className="text-sm text-red-700 dark:text-red-300">{errorMessage(detail.error, t("error_loading"))}</p> : null}
+      {detail.data ? <WorkflowWaterfall payload={detail.data} /> : null}
     </main>
   )
 }

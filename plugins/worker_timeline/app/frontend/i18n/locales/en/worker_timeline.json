@@ -27,7 +27,14 @@
   "detail_aria": "Workflow detail",
   "detail_heading": "Workflow detail",
   "back_to_timeline": "← Back to Worker Timeline",
-  "detail_placeholder_workflow": "Workflow #{{id}} waterfall view is coming soon.",
   "detail_placeholder_no_workflow": "No workflow selected.",
-  "detail_placeholder_note": "The Step/Run waterfall drill-down for a single workflow is built in a follow-up change."
+  "detail_summary_aria": "Workflow summary",
+  "detail_summary": "Workflow #{{id}} · {{trigger_kind}} · {{status}}",
+  "detail_not_started_note": "This workflow hasn't started running yet. Hover a step below to see why.",
+  "detail_no_steps": "No steps recorded yet.",
+  "detail_steps_aria": "Workflow steps",
+  "detail_step_label": "{{kind}} · iteration {{iteration}}",
+  "detail_step_not_started": "Not started",
+  "detail_run_label": "Run #{{id}} · {{status}}",
+  "detail_run_tooltip_title": "Run #{{id}}"
 }

@@ -50,6 +50,46 @@ export type WorkerTimelineMacroPayload = {
   pending: WorkerTimelinePendingEntry[]
 }
 
+export type WorkerTimelineWaterfallWorkflow = {
+  id: number
+  job_id: number
+  trigger_kind: string
+  status: string
+  started_at: string | null
+  finished_at: string | null
+  hostname: string | null
+  pid: number | null
+  blocked: WorkerTimelineBlockedInfo
+}
+
+export type WorkerTimelineWaterfallRun = {
+  id: number
+  status: string
+  iteration: number
+  started_at: string | null
+  finished_at: string | null
+  last_heartbeat_at: string | null
+}
+
+export type WorkerTimelineWaterfallStep = {
+  id: number
+  kind: string
+  status: string
+  position: number
+  iteration: number
+  started_at: string | null
+  finished_at: string | null
+  hostname: string | null
+  pid: number | null
+  runs: WorkerTimelineWaterfallRun[]
+  blocked?: WorkerTimelineBlockedInfo
+}
+
+export type WorkerTimelineWaterfallPayload = {
+  workflow: WorkerTimelineWaterfallWorkflow
+  steps: WorkerTimelineWaterfallStep[]
+}
+
 export type WorkerTimelineFilterOption = { id: number; slug?: string; display_number?: string; title?: string }
 
 export type WorkerTimelineFiltersPayload = {
@@ -65,4 +105,8 @@ export function fetchWorkerTimelineMacro(search = "") {
 
 export function fetchWorkerTimelineFilters() {
   return getJson<WorkerTimelineFiltersPayload>("/api/v1/app/admin/worker_timeline/filters")
+}
+
+export function fetchWorkerTimelineWorkflow(workflowId: string) {
+  return getJson<WorkerTimelineWaterfallPayload>(`/api/v1/app/admin/worker_timeline/workflow?id=${encodeURIComponent(workflowId)}`)
 }

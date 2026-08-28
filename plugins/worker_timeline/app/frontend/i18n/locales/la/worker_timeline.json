@@ -27,7 +27,14 @@
   "detail_aria": "Singula Fluxus",
   "detail_heading": "Singula Fluxus",
   "back_to_timeline": "← Ad Tempus Operarii redi",
-  "detail_placeholder_workflow": "Visio cataractae Fluxus #{{id}} mox veniet.",
   "detail_placeholder_no_workflow": "Nullus fluxus electus.",
-  "detail_placeholder_note": "Visio cataractae Gradus/Cursus pro uno fluxu in mutatione sequenti aedificabitur."
+  "detail_summary_aria": "Summarium fluxus",
+  "detail_summary": "Fluxus #{{id}} · {{trigger_kind}} · {{status}}",
+  "detail_not_started_note": "Hic fluxus nondum currit. Supra gradum infra mane ut causam videas.",
+  "detail_no_steps": "Nulli gradus adhuc notati.",
+  "detail_steps_aria": "Gradus fluxus",
+  "detail_step_label": "{{kind}} · iteratio {{iteration}}",
+  "detail_step_not_started": "Non inceptus",
+  "detail_run_label": "Cursus #{{id}} · {{status}}",
+  "detail_run_tooltip_title": "Cursus #{{id}}"
 }
