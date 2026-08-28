@@ -45,11 +45,18 @@ RSpec.describe Timeline::MacroQueryFilter do
       expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
     end
 
-    it "falls back to the 3-hour default when a within_last chip has a malformed unit" do
+    it "falls back to the 3-hour default (not MacroQuery's own 1-hour default) when a within_last chip has a malformed unit" do
       filter = described_class.new({ "and" => [ { "field" => "window", "op" => "within_last", "value" => { "n" => 30, "unit" => "fortnights" } } ] })
 
-      expect(filter.from).to be_nil
+      expect(filter.from).to be_within(1).of(Time.current - 3.hours)
       expect(filter.to).to be_within(1).of(Time.current)
+    end
+
+    it "falls back to the 3-hour default on the broken side of a between chip with an unparsable bound" do
+      filter = described_class.new({ "and" => [ { "field" => "window", "op" => "between", "value" => [ "not-a-date", "2026-01-02" ] } ] })
+
+      expect(filter.from).to be_within(1).of(Time.current - 3.hours)
+      expect(filter.to).to eq(Time.zone.parse("2026-01-02"))
     end
   end
 
