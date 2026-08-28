@@ -1,10 +1,12 @@
 // Dispatches native OS notifications from the shared frontend via the
-// standard Web Notification API. Works unmodified in both a plain browser
-// tab and Electron's webAppWindow (Chromium's renderer supports the
-// standard Notification API, so no Electron-specific branching is needed
-// here). Mirrors desktop/electron/nativeNotifications.ts's kind->label and
-// click-URL conventions conceptually, but that file is Electron-main-only
-// code and must not be imported into this bundle.
+// standard Web Notification API. The underlying Notification call works
+// unmodified in both a plain browser tab and Electron's webAppWindow
+// (Chromium's renderer supports the standard Notification API, so no
+// Electron-specific branching is needed for the dispatch itself). Mirrors
+// desktop/electron/nativeNotifications.ts's kind->label and click-URL
+// conventions conceptually, but that file is Electron-main-only code and
+// must not be imported into this bundle.
+import { isDesktopShell } from "./desktopShell"
 import { routePrefix, withRoutePrefix } from "./routing"
 
 export type NativeNotificationPayload = {
@@ -57,6 +59,26 @@ export function nativeNotificationTitle(kind: string) {
   return [firstWord, ...words.slice(1)].join(" ")
 }
 
+// Mirrors desktop/electron/nativeNotifications.ts's httpUrlValue: only
+// http(s) URLs are trusted as a notification's click target. `pr_url` is
+// always server-constructed today, but this keeps parity with the Electron
+// original as defense in depth rather than relying on that invariant.
+export function httpNotificationUrl(value: unknown) {
+  if (typeof value !== "string") return null
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return null
+  }
+
+  return ["http:", "https:"].includes(url.protocol) ? url.toString() : null
+}
+
 export function nativeNotificationClickUrl(payload: Pick<NativeNotificationPayload, "jobId" | "prUrl">) {
   if (payload.prUrl) return payload.prUrl
   if (payload.jobId == null) return null
@@ -74,6 +96,10 @@ export function isNativeNotificationSupported() {
 // immediately with the existing permission if it isn't still "default" so
 // callers can invoke this unconditionally without re-prompting.
 export function requestNativeNotificationPermission() {
+  // No point prompting inside the desktop shell: dispatchNativeNotification
+  // never fires there (see its comment), since Electron's main process
+  // already owns native dispatch for that surface.
+  if (isDesktopShell()) return Promise.resolve<NotificationPermission>("default")
   if (!isNativeNotificationSupported()) return Promise.resolve<NotificationPermission>("denied")
   if (window.Notification.permission !== "default") return Promise.resolve(window.Notification.permission)
 
@@ -81,6 +107,15 @@ export function requestNativeNotificationPermission() {
 }
 
 export function dispatchNativeNotification(payload: NativeNotificationPayload) {
+  // The desktop shell's Electron main process already dispatches a native
+  // notification for this same notification_created event through its own
+  // independent AppUserChannel WebSocket subscription (desktop/electron/
+  // main.ts's connectAppUserCable -> dispatchNativeNotification), regardless
+  // of whether webAppWindow (which loads this very bundle) is open. Until
+  // that main-process path is made fallback-only (EPIC-275's next Job),
+  // dispatching here too inside the desktop shell would double-fire the
+  // same notification, so this path only ever fires in a plain browser tab.
+  if (isDesktopShell()) return false
   if (!isNativeNotificationSupported()) return false
   if (window.Notification.permission !== "granted") return false
 

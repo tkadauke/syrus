@@ -2,6 +2,8 @@ import { QueryClient } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { applyAppEvent, queryKeysFor } from "./appEvents"
 
+const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
+
 class FakeNotification {
   static permission: NotificationPermission = "granted"
   static instances: FakeNotification[] = []
@@ -21,6 +23,7 @@ class FakeNotification {
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   FakeNotification.permission = "granted"
   FakeNotification.instances = []
 })
@@ -97,6 +100,23 @@ describe("applyAppEvent", () => {
   it("does not dispatch a native browser notification when permission has not been granted", () => {
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "default"
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, {
+      type: "notification_created",
+      unread_count: 1,
+      payload: {
+        notification: { id: 1, kind: "pr_merged", body: "PR #4 merged", job_id: 4, pr_url: null }
+      }
+    })
+
+    expect(FakeNotification.instances).toHaveLength(0)
+  })
+
+  it("does not dispatch a native browser notification inside the desktop shell, which already dispatches its own via Electron main", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(desktopUa)
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
     const queryClient = new QueryClient()
 
     applyAppEvent(queryClient, {

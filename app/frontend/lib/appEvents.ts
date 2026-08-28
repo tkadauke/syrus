@@ -1,7 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
-import { dispatchNativeNotification, type NativeNotificationPayload } from "./nativeNotifications"
+import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -159,7 +159,7 @@ function notificationCreatedNativePayload(payload: unknown): NativeNotificationP
     kind,
     body,
     jobId: typeof record.job_id === "number" ? record.job_id : null,
-    prUrl: typeof record.pr_url === "string" ? record.pr_url : null
+    prUrl: httpNotificationUrl(record.pr_url)
   }
 }
 
