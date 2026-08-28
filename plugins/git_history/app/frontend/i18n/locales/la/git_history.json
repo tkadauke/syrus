@@ -11,6 +11,8 @@
   "empty": "Nulla committa inventa sunt.",
   "classification": {
     "syrus_landed": "Syrus",
+    "epic_landed": "Epicum",
+    "epic_reconciliation": "Conciliatio epici",
     "external_pr": "PR externum",
     "external_push": "Impulsus directus"
   },

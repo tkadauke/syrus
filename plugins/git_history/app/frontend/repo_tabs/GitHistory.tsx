@@ -100,6 +100,8 @@ function ClassificationPill({ commit }: { commit: GitHistoryCommit }) {
   const { t } = useT("git_history")
 
   if (commit.classification === "syrus_landed") return <TonePill tone="green">{t("classification.syrus_landed")}</TonePill>
+  if (commit.classification === "epic_landed") return <TonePill tone="green">{t("classification.epic_landed")}</TonePill>
+  if (commit.classification === "epic_reconciliation") return <TonePill tone="amber">{t("classification.epic_reconciliation")}</TonePill>
   if (commit.classification === "external_pr") return <TonePill tone="blue">{t("classification.external_pr")}</TonePill>
   return <TonePill tone="gray">{t("classification.external_push")}</TonePill>
 }
@@ -118,6 +120,29 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
         ) : null}
         {commit.user ? <span>{t("attribution.by", { name: commit.user.display_name })}</span> : null}
         <OriginLink origin={commit.origin} />
+      </span>
+    )
+  }
+
+  if (commit.classification === "epic_landed") {
+    return (
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {commit.epic ? (
+          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
+        ) : null}
+        {(commit.jobs ?? []).map((job) => (
+          <Link className="text-blue-600 hover:underline dark:text-blue-400" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
+        ))}
+      </span>
+    )
+  }
+
+  if (commit.classification === "epic_reconciliation") {
+    return (
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {commit.epic ? (
+          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
+        ) : null}
       </span>
     )
   }

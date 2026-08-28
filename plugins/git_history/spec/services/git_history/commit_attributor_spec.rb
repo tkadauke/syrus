@@ -53,6 +53,61 @@ RSpec.describe GitHistory::CommitAttributor do
     expect(result[:user]).to eq(id: viewer.id, display_name: viewer.display_name)
   end
 
+  describe "LandedCommit-based classification" do
+    it "classifies a commit with a LandedCommit(landable: Job, kind: implementation) row as syrus_landed" do
+      sha = "5" + "a" * 39
+      job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
+      LandedCommit.create!(landable: job, sha: sha, kind: "implementation", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("syrus_landed")
+      expect(result[:job]).to include(id: job.id, slug: job.slug)
+      expect(result[:user]).to eq(id: viewer.id, display_name: viewer.display_name)
+    end
+
+    it "classifies a commit with a LandedCommit(landable: Epic, kind: integration_merge) row as epic_landed, returning ALL member jobs" do
+      sha = "6" + "b" * 39
+      epic = Factories.epic(repository: repository, user: viewer)
+      job_one = Factories.job_record(repository: repository, user: viewer, kind: "issue", epic: epic, landed_sha: sha)
+      job_two = Factories.job_record(repository: repository, user: viewer, kind: "issue", epic: epic, landed_sha: sha)
+      LandedCommit.create!(landable: epic, sha: sha, kind: "integration_merge", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("epic_landed")
+      expect(result[:epic]).to eq(id: epic.id, slug: epic.slug, title: epic.title)
+      expect(result[:jobs]).to contain_exactly(
+        hash_including(id: job_one.id, slug: job_one.slug),
+        hash_including(id: job_two.id, slug: job_two.slug)
+      )
+    end
+
+    it "classifies a commit with a LandedCommit(landable: Epic, kind: reconcile) row as epic_reconciliation, with no single Job" do
+      sha = "7" + "c" * 39
+      epic = Factories.epic(repository: repository, user: viewer)
+      LandedCommit.create!(landable: epic, sha: sha, kind: "reconcile", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("epic_reconciliation")
+      expect(result[:epic]).to eq(id: epic.id, slug: epic.slug, title: epic.title)
+      expect(result).not_to have_key(:job)
+      expect(result).not_to have_key(:jobs)
+    end
+
+    it "falls back to legacy Job#landed_sha matching when no LandedCommit row exists for the sha" do
+      sha = "8" + "d" * 39
+      job = Factories.job_record(repository: repository, user: viewer, kind: "issue", landed_sha: sha)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("syrus_landed")
+      expect(result[:job]).to include(id: job.id, slug: job.slug)
+      expect(result[:user]).to eq(id: viewer.id, display_name: viewer.display_name)
+    end
+  end
+
   it "attaches the Job's Epic when present" do
     sha = "d" * 40
     epic = Factories.epic(repository: repository, user: viewer)

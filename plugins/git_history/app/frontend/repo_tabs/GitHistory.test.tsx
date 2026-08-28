@@ -58,6 +58,51 @@ describe("GitHistory", () => {
     expect(screen.getByRole("link", { name: "Issue #12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
   })
 
+  it("renders an epic_landed commit with the epic and every member job", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "1".repeat(40),
+        short_sha: "1111111111",
+        subject: "Merge Epic #9 via Syrus merge-train",
+        authored_at: "2026-08-22T10:00:00Z",
+        classification: "epic_landed",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        jobs: [
+          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+        ]
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Merge Epic #9 via Syrus merge-train")).toBeInTheDocument()
+    expect(screen.getByText("Epic")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
+  })
+
+  it("renders an epic_reconciliation commit with only the epic", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "2".repeat(40),
+        short_sha: "2222222222",
+        subject: "Syrus merge-train reconciliation",
+        authored_at: "2026-08-22T11:00:00Z",
+        classification: "epic_reconciliation",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Syrus merge-train reconciliation")).toBeInTheDocument()
+    expect(screen.getByText("Epic reconciliation")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
+    expect(screen.queryByRole("link", { name: /JOB-/ })).not.toBeInTheDocument()
+  })
+
   it("renders an externally-opened PR commit distinctly from a raw push", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
       {
