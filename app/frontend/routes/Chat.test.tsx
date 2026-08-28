@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { ChatRoute } from "./Chat"
+import { ChatRoute, chatQueryKey } from "./Chat"
 import { CHAT_WORKSPACE_SPLIT_MIN_WIDTH } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
@@ -3675,6 +3675,55 @@ describe("floating composer height tracking", () => {
     const messageStream = await screen.findByTestId("chat-message-stream")
     expect(messageStream.className).toContain("pb-[max(7rem,calc(var(--chat-composer-height,0px)+1.5rem))]")
     expect(messageStream.className).toContain("sm:pb-[max(8rem,calc(var(--chat-composer-height,0px)+2rem))]")
+  })
+
+  // Regression coverage: ChatColumn's composerHeight reset effect must be
+  // scoped to chat.id alone. It used to also depend on has_more_older,
+  // which can flip mid-session (e.g. after loading earlier messages) with
+  // no accompanying composer resize — wiping the tracked height with
+  // nothing left to re-measure it, silently reintroducing the covered
+  // chat history bug this state exists to fix.
+  it("does not reset the tracked composer height when has_more_older changes without a chat switch", async () => {
+    vi.spyOn(HTMLFormElement.prototype, "getBoundingClientRect").mockReturnValue({
+      height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect)
+
+    const payload = chatPayload({}, { has_more_older: false })
+    mockChatRouteFetch(payload)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const form = document.querySelector('[data-tour="chat-compose"] form') as HTMLFormElement
+    let ancestor: HTMLElement | null = form.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+    const columnAncestor = ancestor as HTMLElement
+
+    await waitFor(() => {
+      expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
+    })
+
+    // react-query notifies subscribers asynchronously, so flush a real tick
+    // (not just microtasks) to let ChatColumn actually re-render off the new
+    // payload before asserting — otherwise this check would trivially read
+    // the stale pre-update DOM regardless of whether the reset effect is
+    // correctly scoped.
+    await act(async () => {
+      queryClient.setQueryData(chatQueryKey("8", ""), { ...payload, has_more_older: true })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
   })
 })
 
