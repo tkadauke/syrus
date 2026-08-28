@@ -99,6 +99,32 @@ RSpec.describe "bin/rspec-focused" do
     end
   end
 
+  it "excludes evals/ scenario fixture specs even though they match the spec-file pattern" do
+    Dir.mktmpdir do |dir|
+      build_repo(dir) do
+        write_file(
+          dir,
+          "evals/scenarios/some_scenario/fixture_repo/spec/services/thing_spec.rb",
+          "# minitest fixture, not an rspec spec of this repo\n"
+        )
+        write_file(dir, "app/models/job.rb", "class Job; end\n")
+      end
+
+      log_path = File.join(dir, "calls.log")
+      stdout, stderr, status = run_script(dir, log_path)
+
+      expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
+      expect(File.exist?(log_path)).to be(true)
+
+      line = File.read(log_path).lines.first.chomp
+      passed_specs = line.sub(/\A.*args=/, "").split
+      expect(passed_specs).to contain_exactly("spec/models/job_spec.rb")
+      expect(passed_specs).not_to include(
+        "evals/scenarios/some_scenario/fixture_repo/spec/services/thing_spec.rb"
+      )
+    end
+  end
+
   it "exits 0 without invoking bin/rspec-fast when no Ruby files changed" do
     Dir.mktmpdir do |dir|
       build_repo(dir) do
