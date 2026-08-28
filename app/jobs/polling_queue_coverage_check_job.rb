@@ -41,7 +41,14 @@ class PollingQueueCoverageCheckJob < ApplicationJob
     nil
   end
 
+  # Delegates to WorkerQueueTopology's wildcard-aware matching (`"*"` /
+  # `"foo*"` / exact) instead of a plain literal-inclusion check — a worker
+  # whose registered queues are `"*"` (Solid Queue's own fallback when
+  # SOLID_QUEUE_CONFIG points at a missing file, or a deliberately
+  # unpartitioned single-worker deployment) does consume `polling`, and a
+  # naive `split(",").include?("polling")` would misreport it as not
+  # covered, producing a spurious "polling is dead" alarm.
   def consumes_polling?(process)
-    process.metadata["queues"].to_s.split(",").include?(POLLING_QUEUE)
+    WorkerQueueTopology.queues_include?(process.metadata["queues"].to_s.split(","), POLLING_QUEUE)
   end
 end

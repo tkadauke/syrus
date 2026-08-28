@@ -49,6 +49,22 @@ RSpec.describe PollingQueueCoverageCheckJob do
       described_class.perform_now
     end
 
+    it "does not log when a worker is registered with the `*` wildcard queue (covers polling implicitly)" do
+      worker_process(queues: %w[*])
+
+      expect(Rails.logger).not_to receive(:error)
+
+      described_class.perform_now
+    end
+
+    it "does not log when a worker is registered with a prefix-wildcard queue matching polling" do
+      worker_process(queues: %w[poll*])
+
+      expect(Rails.logger).not_to receive(:error)
+
+      described_class.perform_now
+    end
+
     it "does not raise and skips the check when the Solid Queue tables are unreachable" do
       allow(SolidQueue::Process).to receive(:where).and_raise(ActiveRecord::StatementInvalid, "no such table")
 

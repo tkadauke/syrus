@@ -54,4 +54,31 @@ RSpec.describe WorkerQueueTopology do
       expect(described_class.consumes?("runs", config_file: Rails.root.join("config/queue.yml"))).to be true
     end
   end
+
+  describe ".queues_include?" do
+    it "is true for an exact match" do
+      expect(described_class.queues_include?(%w[runs merges], "runs")).to be true
+    end
+
+    it "is false when the queue is absent" do
+      expect(described_class.queues_include?(%w[runs merges], "polling")).to be false
+    end
+
+    it "is true for the `*` wildcard regardless of the other configured queues" do
+      expect(described_class.queues_include?(%w[*], "polling")).to be true
+      expect(described_class.queues_include?(%w[runs *], "polling")).to be true
+    end
+
+    it "is true for a prefix wildcard that matches" do
+      expect(described_class.queues_include?(%w[poll*], "polling")).to be true
+    end
+
+    it "is false for a prefix wildcard that does not match" do
+      expect(described_class.queues_include?(%w[run*], "polling")).to be false
+    end
+
+    it "accepts a comma-joined queue string as stored on SolidQueue::Process#metadata" do
+      expect(described_class.queues_include?("resume-abc,runs".split(","), "runs")).to be true
+    end
+  end
 end

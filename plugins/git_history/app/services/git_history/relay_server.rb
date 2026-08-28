@@ -64,8 +64,14 @@ module GitHistory
         @instance
       end
 
+      # Memoized like @instance itself: the queue config a process is
+      # started with doesn't change over its lifetime, so re-parsing it on
+      # every Zeitwerk dev-reload cycle for a non-consuming worker pod would
+      # be pure waste.
       def polling_queue_consumer?
-        WorkerQueueTopology.consumes?(POLLING_QUEUE)
+        return @polling_queue_consumer if defined?(@polling_queue_consumer)
+
+        @polling_queue_consumer = WorkerQueueTopology.consumes?(POLLING_QUEUE)
       end
     end
 
