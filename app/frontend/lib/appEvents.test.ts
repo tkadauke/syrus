@@ -2,8 +2,27 @@ import { QueryClient } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { applyAppEvent, queryKeysFor } from "./appEvents"
 
+class FakeNotification {
+  static permission: NotificationPermission = "granted"
+  static instances: FakeNotification[] = []
+
+  title: string
+  body?: string
+
+  constructor(title: string, options?: NotificationOptions) {
+    this.title = title
+    this.body = options?.body
+    FakeNotification.instances.push(this)
+  }
+
+  close() {}
+}
+
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllGlobals()
+  FakeNotification.permission = "granted"
+  FakeNotification.instances = []
 })
 
 describe("queryKeysFor", () => {
@@ -55,6 +74,40 @@ describe("applyAppEvent", () => {
       unread_count: 3
     })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"] })
+  })
+
+  it("dispatches a native browser notification when permission is granted", () => {
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, {
+      type: "notification_created",
+      unread_count: 1,
+      payload: {
+        notification: { id: 1, kind: "pr_merged", body: "PR #4 merged", job_id: 4, pr_url: null }
+      }
+    })
+
+    expect(FakeNotification.instances).toHaveLength(1)
+    expect(FakeNotification.instances[0].title).toBe("PR merged")
+    expect(FakeNotification.instances[0].body).toBe("PR #4 merged")
+  })
+
+  it("does not dispatch a native browser notification when permission has not been granted", () => {
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "default"
+    const queryClient = new QueryClient()
+
+    applyAppEvent(queryClient, {
+      type: "notification_created",
+      unread_count: 1,
+      payload: {
+        notification: { id: 1, kind: "pr_merged", body: "PR #4 merged", job_id: 4, pr_url: null }
+      }
+    })
+
+    expect(FakeNotification.instances).toHaveLength(0)
   })
 
   it("marks one cached notification read when a notification read event arrives", () => {
