@@ -518,6 +518,15 @@ Rails.application.routes.draw do
           PluginRouteResolver.match?(request, controller_prefix: "api/v1/admin/")
         }
       end
+
+      # Read-only data API for the worker-activity-timeline plugin (macro
+      # multi-lane view + per-workflow waterfall drill-down). Gated the same
+      # way as the rest of the REST admin API above (Bearer-token +
+      # User#admin?); no frontend/plugin registration ships yet.
+      namespace :timeline do
+        get "macro", to: "macro#index"
+        get "workflows/:id", to: "workflows#show"
+      end
     end
   end
   get "repositories", to: "spa#show", as: :repositories
@@ -566,6 +575,8 @@ Rails.application.routes.draw do
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
   get "insights/spending", to: "spa#show", as: :insights_spending
   get "db_browser", to: "spa#show", as: :db_browser
+  get "worker_timeline", to: "spa#show", as: :worker_timeline
+  get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow
   get "terminal", to: "spa#show", as: :terminal
   get "jobs", to: "spa#show"
   get "workflows", to: redirect(status: 302) { |_params, request|

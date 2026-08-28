@@ -5,8 +5,35 @@ module WorkUnits
       WorkflowBlockProjection::REASON_MAP.fetch(start_blocked_reason.to_s, "preempted")
     end
 
+    # Reusable blocked-reason explanation for a Workflow's CURRENT state —
+    # the single source both Admin::StuckJobExplainer and the
+    # Timeline::* query services call, so neither reimplements the
+    # WorkUnit/artifact lookup this class already does.
+    #
+    # `blocked_reason`/`blocked_since`/`blocked_details` only ever come from
+    # the WorkUnit's live `blocked_reason` or the Workflow's own
+    # `artifacts["start_blocked_*"]` snapshot — never from
+    # WorkflowActivityEvent, which records point-in-time started/finished
+    # events, not blocked-reason transitions, and would have to guess. Once a
+    # block has been superseded (the WorkUnit unblocked, or a terminal
+    # Workflow never wrote a start_blocked artifact), `available` is false —
+    # that is the honest "no historical record" answer, not a null-guess.
+    def self.explain(workflow) = self.for(workflow).explanation
+
     def initialize(workflow)
       @workflow = workflow
+    end
+
+    def explanation
+      computed = data
+      {
+        blocked_reason: computed[:reason],
+        blocked_since: parse_time(computed[:at]),
+        blocked_details: computed[:details].presence || {},
+        next_check_at: next_check_at,
+        available: computed[:reason].present?,
+        historical: workflow.terminal?
+      }
     end
 
     def reason

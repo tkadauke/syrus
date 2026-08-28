@@ -181,15 +181,15 @@ module Admin
 
       runs = workflow.runs.to_a
       failed_run = runs.select(&:failed?).max_by { |run| [ run.finished_at || run.updated_at || run.created_at, run.id ] }
-      start_block = WorkUnits::StartBlock.for(workflow)
+      blocked = WorkUnits::StartBlock.explain(workflow)
       {
         id: workflow.id,
         trigger_kind: workflow.trigger_kind,
         state: workflow.state,
         failure_reason: workflow.failure_reason.presence || workflow.artifact("failure_reason").presence,
-        start_blocked_reason: start_block.data[:reason] || start_block.reason,
-        start_blocked_details: start_block.details,
-        start_blocked_next_check_at: start_block.next_check_at&.iso8601,
+        start_blocked_reason: blocked[:blocked_reason],
+        start_blocked_details: blocked[:blocked_details],
+        start_blocked_next_check_at: blocked[:next_check_at]&.iso8601,
         run_count: runs.size,
         latest_run_id: runs.max_by { |run| [ run.created_at || Time.zone.at(0), run.id ] }&.id,
         failed_run: failed_run_payload(failed_run),
