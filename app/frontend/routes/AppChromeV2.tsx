@@ -358,7 +358,7 @@ function BugReportTriggerButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       aria-label={t("bug_report.title")}
-      className="inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+      className="inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800"
       onClick={onClick}
       title={t("bug_report.title")}
       type="button"
