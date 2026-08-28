@@ -2,6 +2,7 @@ import { getJson } from "@app/api/client"
 
 export type GitHistoryJobRef = { id: number; slug: string; title: string | null }
 export type GitHistoryEpicRef = { id: number; slug: string; title: string | null }
+export type GitHistoryBundleRef = { id: number }
 export type GitHistoryUserRef = { id: number; display_name: string }
 export type GitHistoryPersonRef = { name: string | null; email: string | null }
 
@@ -16,10 +17,18 @@ export type GitHistoryCommit = {
   short_sha: string
   subject: string
   authored_at: string | null
-  classification: "syrus_landed" | "epic_landed" | "epic_reconciliation" | "external_pr" | "external_push"
+  classification:
+    | "syrus_landed"
+    | "epic_landed"
+    | "epic_reconciliation"
+    | "bundle_landed"
+    | "bundle_reconciliation"
+    | "external_pr"
+    | "external_push"
   job?: GitHistoryJobRef
   jobs?: GitHistoryJobRef[]
   epic?: GitHistoryEpicRef | null
+  bundle?: GitHistoryBundleRef | null
   user?: GitHistoryUserRef | null
   origin?: GitHistoryOrigin
   pr_number?: number
