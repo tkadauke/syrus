@@ -591,6 +591,330 @@ describe("FilterBar", () => {
   })
 })
 
+describe("FilterBar keyboard navigation", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  describe("add-filter combobox", () => {
+    it("highlights the first item on ArrowDown from the input, including a single-result menu", () => {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={null}
+            filterSchema={[filterSchema[1]]}
+            pathname="/dashboard/jobs"
+            search=""
+          />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      fireEvent.keyDown(screen.getByPlaceholderText("Search filters..."), { key: "ArrowDown" })
+
+      expect(screen.getByRole("button", { name: "Kind list" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+    })
+
+    it("highlights the last (bottommost) item on ArrowUp from the input", () => {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={null}
+            filterSchema={filterSchema}
+            pathname="/dashboard/jobs"
+            search=""
+          />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      fireEvent.keyDown(screen.getByPlaceholderText("Search filters..."), { key: "ArrowUp" })
+
+      expect(screen.getByRole("button", { name: "Repository reference" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+      expect(screen.getByRole("button", { name: "State list" })).not.toHaveClass("bg-gray-50")
+    })
+
+    it("selects the highlighted item on Enter, the same as a click", async () => {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={{ and: [] }}
+            filterSchema={filterSchema}
+            pathname="/dashboard/jobs"
+            search=""
+            suggestions={[
+              {
+                id: 1,
+                label: "State is Closed",
+                filter: { field: "state", op: "is", value: "closed" }
+              }
+            ]}
+          />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      const searchInput = screen.getByPlaceholderText("Search filters...")
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      fireEvent.keyDown(searchInput, { key: "Enter" })
+
+      await waitFor(() => {
+        expect(decodedFilterFromLocation()).toEqual({
+          and: [{ field: "state", op: "is", value: "closed" }]
+        })
+      })
+    })
+
+    it("resets the highlight when the query text changes", () => {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={null}
+            filterSchema={filterSchema}
+            pathname="/dashboard/jobs"
+            search=""
+          />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      const searchInput = screen.getByPlaceholderText("Search filters...")
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      expect(screen.getByRole("button", { name: "State list" })).toHaveClass("bg-gray-50")
+
+      fireEvent.change(searchInput, { target: { value: "s" } })
+
+      expect(screen.getByRole("button", { name: "State list" })).not.toHaveClass("bg-gray-50")
+      expect(screen.getByRole("button", { name: "State list" })).toHaveClass("hover:bg-gray-50")
+    })
+
+    it("no-ops on arrow keys when the filtered list is empty", () => {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={null}
+            filterSchema={filterSchema}
+            pathname="/dashboard/jobs"
+            search=""
+          />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      const searchInput = screen.getByPlaceholderText("Search filters...")
+      fireEvent.change(searchInput, { target: { value: "zzz-no-match" } })
+      expect(screen.getByText("No matching filters")).toBeInTheDocument()
+
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      fireEvent.keyDown(searchInput, { key: "ArrowUp" })
+
+      expect(screen.getByText("No matching filters")).toBeInTheDocument()
+    })
+  })
+
+  describe("typeahead FK value editor", () => {
+    function mockFkOptionsFetch(optionsByQuery: Record<string, { value: number; label: string }[]>) {
+      return vi.spyOn(window, "fetch").mockImplementation((input) => {
+        const url = new URL(String(input), "http://example.test")
+        if (url.pathname !== "/api/v1/app/filters/fk_options") {
+          return Promise.reject(new Error(`Unexpected fetch: ${url.pathname}`))
+        }
+
+        const q = url.searchParams.get("q") || ""
+        return Promise.resolve(jsonResponse({ options: optionsByQuery[q] || [] }))
+      })
+    }
+
+    function renderTypeahead() {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={{ and: [{ field: "repository_id", op: "is_one_of", value: [] }] }}
+            filterSchema={filterSchema}
+            pathname="/dashboard/jobs"
+            search=""
+          />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "Repository is one of (unset)" }))
+      return screen.getByPlaceholderText("Search by name...")
+    }
+
+    it("highlights the first item on ArrowDown from the input, including a single-result menu", async () => {
+      mockFkOptionsFetch({ ac: [{ value: 4, label: "acme/api" }] })
+      const searchInput = renderTypeahead()
+
+      fireEvent.change(searchInput, { target: { value: "ac" } })
+      await screen.findByRole("button", { name: "acme/api" })
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+
+      expect(screen.getByRole("button", { name: "acme/api" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+    })
+
+    it("highlights the last (bottommost) item on ArrowUp from the input", async () => {
+      mockFkOptionsFetch({
+        a: [{ value: 1, label: "alpha" }, { value: 2, label: "bravo" }, { value: 3, label: "gamma" }]
+      })
+      const searchInput = renderTypeahead()
+
+      fireEvent.change(searchInput, { target: { value: "a" } })
+      await screen.findByRole("button", { name: "gamma" })
+      fireEvent.keyDown(searchInput, { key: "ArrowUp" })
+
+      expect(screen.getByRole("button", { name: "gamma" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+      expect(screen.getByRole("button", { name: "alpha" })).not.toHaveClass("bg-gray-50")
+    })
+
+    it("selects the highlighted item on Enter, the same as a click", async () => {
+      mockFkOptionsFetch({ ac: [{ value: 4, label: "acme/api" }] })
+      const searchInput = renderTypeahead()
+
+      fireEvent.change(searchInput, { target: { value: "ac" } })
+      await screen.findByRole("button", { name: "acme/api" })
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      fireEvent.keyDown(searchInput, { key: "Enter" })
+
+      await waitFor(() => {
+        expect(decodedFilterFromLocation()).toEqual({
+          and: [{ field: "repository_id", op: "is_one_of", value: ["4"] }]
+        })
+      })
+    })
+
+    it("resets the highlight when the query text changes", async () => {
+      mockFkOptionsFetch({
+        a: [{ value: 1, label: "alpha" }],
+        al: [{ value: 1, label: "alpha" }]
+      })
+      const searchInput = renderTypeahead()
+
+      fireEvent.change(searchInput, { target: { value: "a" } })
+      await screen.findByRole("button", { name: "alpha" })
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      expect(screen.getByRole("button", { name: "alpha" })).toHaveClass("bg-gray-50")
+
+      fireEvent.change(searchInput, { target: { value: "al" } })
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "alpha" })).not.toHaveClass("bg-gray-50")
+      })
+    })
+
+    it("no-ops on arrow keys when there are no matching options", async () => {
+      mockFkOptionsFetch({})
+      const searchInput = renderTypeahead()
+
+      fireEvent.change(searchInput, { target: { value: "zzz-no-match" } })
+      await screen.findByText("No matches")
+
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      fireEvent.keyDown(searchInput, { key: "ArrowUp" })
+
+      expect(screen.getByText("No matches")).toBeInTheDocument()
+    })
+  })
+
+  describe("multi-select enum value editor", () => {
+    function renderMulti() {
+      render(
+        <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+          <FilterBar
+            filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }}
+            filterSchema={filterSchema}
+            pathname="/dashboard/jobs"
+            search=""
+          />
+          <LocationProbe />
+        </MemoryRouter>
+      )
+
+      fireEvent.click(screen.getByRole("button", { name: "State is none of (unset)" }))
+      return screen.getByPlaceholderText("Search...")
+    }
+
+    it("highlights the first item on ArrowDown from the input, including a single-result menu", () => {
+      const searchInput = renderMulti()
+
+      fireEvent.change(searchInput, { target: { value: "open" } })
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+
+      expect(screen.getByRole("button", { name: "Open" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+    })
+
+    it("highlights the last (bottommost) item on ArrowUp from the input", () => {
+      const searchInput = renderMulti()
+
+      fireEvent.keyDown(searchInput, { key: "ArrowUp" })
+
+      expect(screen.getByRole("button", { name: "Closed" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+      expect(screen.getByRole("button", { name: "Open" })).not.toHaveClass("bg-gray-50")
+    })
+
+    it("selects the highlighted item on Enter, the same as a click", async () => {
+      const searchInput = renderMulti()
+
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      fireEvent.keyDown(searchInput, { key: "Enter" })
+
+      await waitFor(() => {
+        expect(decodedFilterFromLocation()).toEqual({
+          and: [{ field: "state", op: "is_none_of", value: ["open"] }]
+        })
+      })
+    })
+
+    it("resets the highlight when the query text changes", () => {
+      const searchInput = renderMulti()
+
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      expect(screen.getByRole("button", { name: "Open" })).toHaveClass("bg-gray-50")
+
+      fireEvent.change(searchInput, { target: { value: "c" } })
+
+      expect(screen.getByRole("button", { name: "Closed" })).not.toHaveClass("bg-gray-50")
+    })
+
+    it("no-ops on arrow keys when the filtered list is empty", () => {
+      const searchInput = renderMulti()
+
+      fireEvent.change(searchInput, { target: { value: "zzz-no-match" } })
+      expect(screen.getByText("No matches")).toBeInTheDocument()
+
+      fireEvent.keyDown(searchInput, { key: "ArrowDown" })
+      fireEvent.keyDown(searchInput, { key: "ArrowUp" })
+
+      expect(screen.getByText("No matches")).toBeInTheDocument()
+    })
+  })
+
+  it("scrolls the highlighted item into view when navigating with arrow keys", () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={null}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.keyDown(screen.getByPlaceholderText("Search filters..."), { key: "ArrowDown" })
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" })
+  })
+})
+
 describe("FilterBar German locale", () => {
   afterEach(async () => {
     await i18n.changeLanguage("en")
