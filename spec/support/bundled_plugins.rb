@@ -327,6 +327,8 @@ RSpec.configure do |config|
 
     MysqlDbBrowser.register! unless registered_names.include?("mysql_db_browser")
 
+    WorkerTimeline.register! unless registered_names.include?("worker_timeline")
+
     Syrus::PluginRegistry.all_plugins
   end
 end

@@ -90,6 +90,8 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/search", element: <SearchRoute /> },
   { path: "/insights/spending", element: <PluginSidebarPageRoute /> },
   { path: "/db_browser", element: <PluginSidebarPageRoute /> },
+  { path: "/worker_timeline", element: <PluginSidebarPageRoute /> },
+  { path: "/worker_timeline/workflow", element: <PluginSidebarPageRoute /> },
   { path: "/terminal", element: <TerminalRoute /> },
   { path: "/notifications", element: <NotificationsRoute /> },
   { path: "/setup", element: <SetupRedirect /> },
