@@ -16,6 +16,15 @@ module GitHistory
   # - "epic_reconciliation": the sha has a LandedCommit(landable: Epic, kind:
   #   "reconcile") row (set by Steps::MergeTrainReconcile). Attributed to the
   #   Epic only.
+  # - "bundle_landed": the sha has a LandedCommit(landable: MergeTrain, kind:
+  #   "integration_merge") row for a bundle-backed (epicless) train (set by
+  #   Steps::MergeTrainLand). Attributed to the MergeTrain and every member
+  #   Job that landed through that integration commit — the bundle-backed
+  #   mirror of "epic_landed".
+  # - "bundle_reconciliation": the sha has a LandedCommit(landable:
+  #   MergeTrain, kind: "reconcile") row for a bundle-backed train (set by
+  #   Steps::MergeTrainReconcile). Attributed to the MergeTrain only — the
+  #   bundle-backed mirror of "epic_reconciliation".
   # - "external_pr": the sha matches an external_pr-kind Job#landed_sha
   #   (set by PollExternalPrJob when someone else's PR merges). Syrus only
   #   tracked this PR; it did not author it, so it's attributed to the raw
@@ -51,6 +60,10 @@ module GitHistory
         epic_landed_attributes(landed_commit)
       elsif landed_commit&.landable.is_a?(Epic) && landed_commit.kind == "reconcile"
         epic_reconciliation_attributes(landed_commit)
+      elsif landed_commit&.landable.is_a?(MergeTrain) && landed_commit.kind == "integration_merge"
+        bundle_landed_attributes(landed_commit)
+      elsif landed_commit&.landable.is_a?(MergeTrain) && landed_commit.kind == "reconcile"
+        bundle_reconciliation_attributes(landed_commit)
       else
         legacy_attributes_for(entry)
       end
@@ -108,6 +121,23 @@ module GitHistory
       }
     end
 
+    def bundle_landed_attributes(landed_commit)
+      train = landed_commit.landable
+
+      {
+        classification: "bundle_landed",
+        bundle: bundle_payload(train),
+        jobs: train.member_jobs.map { |job| job_payload(job) }
+      }
+    end
+
+    def bundle_reconciliation_attributes(landed_commit)
+      {
+        classification: "bundle_reconciliation",
+        bundle: bundle_payload(landed_commit.landable)
+      }
+    end
+
     def external_pr_attributes(entry, job)
       {
         classification: "external_pr",
@@ -136,6 +166,12 @@ module GitHistory
       return nil unless epic
 
       { id: epic.id, slug: epic.slug, title: epic.title }
+    end
+
+    def bundle_payload(train)
+      return nil unless train
+
+      { id: train.id }
     end
 
     def user_payload(user)

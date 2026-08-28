@@ -6,7 +6,14 @@ import { TonePill } from "@app/components/StatusPill"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchGitHistory, type GitHistoryCommit, type GitHistoryOrigin } from "../api/gitHistory"
-import { commitGroupKey, groupCommits, type CommitGroup, type EpicCommitGroup, type JobCommitGroup } from "./groupCommits"
+import {
+  commitGroupKey,
+  groupCommits,
+  type BundleCommitGroup,
+  type CommitGroup,
+  type EpicCommitGroup,
+  type JobCommitGroup
+} from "./groupCommits"
 
 export function GitHistory() {
   const { t } = useT("git_history")
@@ -89,6 +96,7 @@ function EmptyPanel({ label }: { label: string }) {
 
 function CommitGroupRow({ group }: { group: CommitGroup }) {
   if (group.kind === "epic") return <EpicGroupRow group={group} />
+  if (group.kind === "bundle") return <BundleGroupRow group={group} />
   if (group.kind === "job") return <JobGroupRow group={group} />
   return <ExternalCommitRow commit={group.commit} />
 }
@@ -99,6 +107,30 @@ function CommitGroupRow({ group }: { group: CommitGroup }) {
 // group render underneath, collapsed into one visual unit instead of a flat
 // list of unrelated-looking rows.
 function EpicGroupRow({ group }: { group: EpicCommitGroup }) {
+  const [headline, ...restCommits] = group.commits
+  const nestedJobGroups = group.jobGroups.filter((jobGroup) => jobGroup.commits.length > 0)
+  if (!headline) return null
+
+  return (
+    <li className="border-l-4 border-terracotta-400 dark:border-terracotta-600">
+      <details open>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CommitContent commit={headline} emphasized />
+        </summary>
+        {restCommits.length > 0 || nestedJobGroups.length > 0 ? (
+          <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/60 pl-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/40">
+            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
+            {nestedJobGroups.map((jobGroup) => <NestedJobGroupRow group={jobGroup} key={`job-${jobGroup.job.id}`} />)}
+          </div>
+        ) : null}
+      </details>
+    </li>
+  )
+}
+
+// The bundle-backed (non-Epic) mirror of EpicGroupRow -- anchored by
+// `bundle_landed`/`bundle_reconciliation` commits instead.
+function BundleGroupRow({ group }: { group: BundleCommitGroup }) {
   const [headline, ...restCommits] = group.commits
   const nestedJobGroups = group.jobGroups.filter((jobGroup) => jobGroup.commits.length > 0)
   if (!headline) return null
@@ -211,6 +243,8 @@ function ClassificationPill({ commit }: { commit: GitHistoryCommit }) {
   if (commit.classification === "syrus_landed") return <TonePill tone="green">{t("classification.syrus_landed")}</TonePill>
   if (commit.classification === "epic_landed") return <TonePill tone="green">{t("classification.epic_landed")}</TonePill>
   if (commit.classification === "epic_reconciliation") return <TonePill tone="amber">{t("classification.epic_reconciliation")}</TonePill>
+  if (commit.classification === "bundle_landed") return <TonePill tone="green">{t("classification.bundle_landed")}</TonePill>
+  if (commit.classification === "bundle_reconciliation") return <TonePill tone="amber">{t("classification.bundle_reconciliation")}</TonePill>
   if (commit.classification === "external_pr") return <TonePill tone="blue">{t("classification.external_pr")}</TonePill>
   return <TonePill tone="gray">{t("classification.external_push")}</TonePill>
 }
@@ -252,6 +286,25 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
         {commit.epic ? (
           <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
         ) : null}
+      </span>
+    )
+  }
+
+  if (commit.classification === "bundle_landed") {
+    return (
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {commit.bundle ? <span>{t("attribution.bundle", { id: commit.bundle.id })}</span> : null}
+        {(commit.jobs ?? []).map((job) => (
+          <Link className="text-blue-600 hover:underline dark:text-blue-400" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
+        ))}
+      </span>
+    )
+  }
+
+  if (commit.classification === "bundle_reconciliation") {
+    return (
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {commit.bundle ? <span>{t("attribution.bundle", { id: commit.bundle.id })}</span> : null}
       </span>
     )
   }

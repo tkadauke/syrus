@@ -70,6 +70,61 @@ describe("groupCommits", () => {
     expect(epicGroup.jobGroups[0].commits.some((c) => c.classification === "epic_reconciliation")).toBe(false)
   })
 
+  it("nests a bundle_landed commit's member jobs under the bundle group -- the bundle-backed mirror of epic_landed", () => {
+    const bundle = { id: 5 }
+    const job42 = { id: 42, slug: "JOB-42", title: "Add dark mode toggle" }
+    const job43 = { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+
+    const commits = [
+      commit({
+        sha: "1".repeat(40),
+        subject: "Land job bundle #5: 2 approved Jobs",
+        classification: "bundle_landed",
+        bundle,
+        jobs: [job42, job43]
+      }),
+      commit({ sha: "2".repeat(40), subject: "Implement dark mode", classification: "syrus_landed", job: job42, epic: null, user: { id: 1, display_name: "Ada" } }),
+      commit({ sha: "3".repeat(40), subject: "Implement light mode", classification: "syrus_landed", job: job43, epic: null, user: { id: 2, display_name: "Grace" } })
+    ]
+
+    const groups = groupCommits(commits)
+
+    expect(groups).toHaveLength(1)
+    const [bundleGroup] = groups
+    if (bundleGroup.kind !== "bundle") throw new Error("expected a bundle group")
+
+    expect(bundleGroup.bundle).toEqual(bundle)
+    expect(bundleGroup.commits.map((c) => c.sha)).toEqual([commits[0].sha])
+    expect(bundleGroup.jobGroups).toHaveLength(2)
+
+    const [job42Group, job43Group] = bundleGroup.jobGroups
+    expect(job42Group.job).toEqual(job42)
+    expect(job42Group.commits.map((c) => c.sha)).toEqual([commits[1].sha])
+    expect(job43Group.job).toEqual(job43)
+    expect(job43Group.commits.map((c) => c.sha)).toEqual([commits[2].sha])
+  })
+
+  it("attaches a bundle_reconciliation commit to its bundle group and not to any job", () => {
+    const bundle = { id: 5 }
+    const job42 = { id: 42, slug: "JOB-42", title: "Add dark mode toggle" }
+
+    const commits = [
+      commit({ sha: "1".repeat(40), classification: "bundle_landed", bundle, jobs: [job42] }),
+      commit({ sha: "2".repeat(40), subject: "Syrus merge-train reconciliation", classification: "bundle_reconciliation", bundle }),
+      commit({ sha: "3".repeat(40), classification: "syrus_landed", job: job42, epic: null })
+    ]
+
+    const groups = groupCommits(commits)
+    expect(groups).toHaveLength(1)
+    const [bundleGroup] = groups
+    if (bundleGroup.kind !== "bundle") throw new Error("expected a bundle group")
+
+    expect(bundleGroup.commits.map((c) => c.sha)).toEqual([commits[0].sha, commits[1].sha])
+    expect(bundleGroup.jobGroups).toHaveLength(1)
+    expect(bundleGroup.jobGroups[0].commits.map((c) => c.sha)).toEqual([commits[2].sha])
+    expect(bundleGroup.jobGroups[0].commits.some((c) => c.classification === "bundle_reconciliation")).toBe(false)
+  })
+
   it("groups a job's own syrus_landed commits together as a standalone group when no epic_landed commit is in view", () => {
     const job = { id: 55, slug: "JOB-55", title: "Ship it quietly" }
 
@@ -113,6 +168,7 @@ describe("groupCommits", () => {
 describe("commitGroupKey", () => {
   it("returns a stable, type-prefixed key for each group kind", () => {
     expect(commitGroupKey({ kind: "epic", epic: { id: 9, slug: "EPIC-9", title: null }, commits: [], jobGroups: [] })).toBe("epic-9")
+    expect(commitGroupKey({ kind: "bundle", bundle: { id: 5 }, commits: [], jobGroups: [] })).toBe("bundle-5")
     expect(commitGroupKey({ kind: "job", job: { id: 42, slug: "JOB-42", title: null }, commits: [] })).toBe("job-42")
     expect(commitGroupKey({ kind: "commit", commit: commit({ sha: "a".repeat(40), classification: "external_push" }) })).toBe(`commit-${"a".repeat(40)}`)
   })

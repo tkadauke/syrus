@@ -562,7 +562,7 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(rows.pluck(:sha)).to eq([ "newsha456" ])
     end
 
-    it "does not record a reconcile LandedCommit for a bundle-backed (non-Epic) train" do
+    it "records a reconcile LandedCommit attributed to the MergeTrain (not an Epic) for a bundle-backed train" do
       a = Factories.job_record(
         user: user, repository: repository, epic: nil,
         issue_number: 1, state: "landing", pr_number: 501, branch_name: "syrus/issue-1"
@@ -578,7 +578,8 @@ RSpec.describe "Steps::MergeTrain*" do
 
       handler.call
 
-      expect(LandedCommit.where(kind: "reconcile")).to be_empty
+      rows = LandedCommit.where(kind: "reconcile")
+      expect(rows.pluck(:sha, :landable_type, :landable_id)).to eq([ [ "newsha456", "MergeTrain", train.id ] ])
     end
 
     it "skips downstream validation after a no-op reconciliation when the same head is already validated" do
@@ -833,7 +834,7 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(LandedCommit.where(landable: b)).to be_empty
     end
 
-    it "does not record an integration-merge LandedCommit for a bundle-backed (non-Epic) train" do
+    it "records one LandedCommit row for the integration merge, attributed to the MergeTrain (not a member Job), for a bundle-backed train" do
       a = Factories.job_record(
         user: user, repository: repository, epic: nil,
         issue_number: 1, state: "landing", pr_number: 501, branch_name: "syrus/issue-1"
@@ -851,7 +852,9 @@ RSpec.describe "Steps::MergeTrain*" do
 
       handler.call
 
-      expect(LandedCommit.where(kind: "integration_merge")).to be_empty
+      rows = LandedCommit.where(kind: "integration_merge")
+      expect(rows.pluck(:sha, :landable_type, :landable_id)).to eq([ [ "trainsha789", "MergeTrain", train.id ] ])
+      expect(LandedCommit.where(landable: a)).to be_empty
     end
 
     it "deletes the integration branch and each member branch after landing" do

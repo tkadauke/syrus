@@ -23,5 +23,16 @@ module Steps
     def epic
       merge_train.epic
     end
+
+    # LandedCommit attribution target for train-level (not per-member)
+    # commits: the Epic for an Epic-backed train, the MergeTrain itself for a
+    # bundle-backed train (there's no Epic to attach to). nil is unreachable
+    # in practice -- MergeTrain validates it is always exactly one of the two.
+    def landed_commit_landable(train)
+      return train.epic if train.epic_backed?
+      return train if train.bundle_backed?
+
+      nil
+    end
   end
 end
