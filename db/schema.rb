@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_004447) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1202,6 +1201,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_27_135000) do
     t.index ["user_id", "updated_at", "id"], name: "idx_jobs_user_updated_recent"
     t.index ["user_id"], name: "index_jobs_on_user_id"
     t.index ["validity"], name: "index_jobs_on_validity"
+  end
+
+  create_table "landed_commits", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "kind", null: false
+    t.integer "landable_id", null: false
+    t.string "landable_type", null: false
+    t.integer "position", default: 0, null: false
+    t.string "sha", null: false
+    t.datetime "updated_at", null: false
+    t.index ["landable_type", "landable_id", "position"], name: "idx_on_landable_type_landable_id_position_4087ee989f"
+    t.index ["landable_type", "landable_id"], name: "index_landed_commits_on_landable"
+    t.index ["sha"], name: "index_landed_commits_on_sha", unique: true
   end
 
   create_table "local_daemon_sessions", force: :cascade do |t|
