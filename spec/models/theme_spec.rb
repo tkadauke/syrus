@@ -156,5 +156,18 @@ RSpec.describe Theme do
       expect(new_theme(tokens: nil).contrast_issues).to eq([])
       expect(new_theme(tokens: { "light" => legible_tokens["light"] }).contrast_issues).to eq([])
     end
+
+    it "flags on-brand text that fails WCAG AA against brand (the pairing on-brand exists to protect)" do
+      tokens = legible_tokens
+      tokens["dark"]["brand"] = "#5fbf7d"
+      tokens["dark"]["on-brand"] = "#6fcf8d"
+
+      issues = new_theme(tokens: tokens).contrast_issues
+      issue = issues.find { |i| i[:mode] == "dark" && i[:foreground] == "on-brand" && i[:background] == "brand" }
+
+      expect(issue).to be_present
+      expect(issue[:ratio]).to be < 4.5
+      expect(issue[:message]).to include("on-brand").and include("brand")
+    end
   end
 end

@@ -13,14 +13,20 @@ class Theme < ApplicationRecord
   TERRACOTTA_SLUG = "terracotta".freeze
 
   # Pairs checked by #contrast_issues: body text against both surface levels,
-  # plus each status tone against its own tinted "status pill" background
-  # (see ColorContrast.blend). TonePill's tint reads as roughly a 5-8% wash
-  # of the tone color over the page background across Tailwind's -50/-950
-  # shades; 0.06 lands in the middle of that range with margin against AA's
-  # 4.5:1 floor for every built-in theme.
+  # each status tone against its own tinted "status pill" background
+  # (see ColorContrast.blend), and `on-brand` against `brand` -- the exact
+  # pairing `on-brand` was introduced for (see Button's primary variant) --
+  # so a custom/agent-drafted theme can't slip an illegible brand button
+  # past install_theme/update_user_theme the same way built-in Ocean/Forest
+  # dark mode had to be hand-tuned to avoid. TonePill's tint reads as
+  # roughly a 5-8% wash of the tone color over the page background across
+  # Tailwind's -50/-950 shades; 0.06 lands in the middle of that range with
+  # margin against AA's 4.5:1 floor for every built-in theme.
   TEXT_TOKEN_KEYS = %w[text-primary text-secondary].freeze
   BACKGROUND_TOKEN_KEYS = %w[surface surface-raised].freeze
   STATUS_TONE_KEYS = %w[success warning danger info neutral].freeze
+  BRAND_TOKEN_KEY = "brand".freeze
+  ON_BRAND_TOKEN_KEY = "on-brand".freeze
   STATUS_TONE_BACKGROUND_TINT_ALPHA = 0.06
   MIN_CONTRAST_RATIO = ColorContrast::AA_NORMAL_TEXT_RATIO
 
@@ -52,11 +58,19 @@ class Theme < ApplicationRecord
       mode_tokens = tokens[mode]
       next [] unless mode_tokens.is_a?(Hash)
 
-      text_background_issues(mode, mode_tokens) + status_tone_issues(mode, mode_tokens)
+      text_background_issues(mode, mode_tokens) + status_tone_issues(mode, mode_tokens) + brand_contrast_issues(mode, mode_tokens)
     end
   end
 
   private
+
+  def brand_contrast_issues(mode, mode_tokens)
+    on_brand_color = mode_tokens[ON_BRAND_TOKEN_KEY]
+    brand_color = mode_tokens[BRAND_TOKEN_KEY]
+    return [] unless on_brand_color && brand_color
+
+    [ contrast_issue(mode: mode, foreground_key: ON_BRAND_TOKEN_KEY, foreground_color: on_brand_color, background_key: BRAND_TOKEN_KEY, background_color: brand_color) ].compact
+  end
 
   def text_background_issues(mode, mode_tokens)
     TEXT_TOKEN_KEYS.product(BACKGROUND_TOKEN_KEYS).filter_map do |text_key, background_key|
