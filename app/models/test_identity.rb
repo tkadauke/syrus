@@ -6,6 +6,7 @@ class TestIdentity < ApplicationRecord
   HISTORY_LIMIT = 100
   LIST_LOOKBACK = 20
   INTERESTING_LIMIT = 10
+  REFRESH_BATCH_SIZE = 1_000
 
   belongs_to :repository
   has_many :test_cases, dependent: :nullify
@@ -80,8 +81,9 @@ class TestIdentity < ApplicationRecord
     return if ids.empty?
 
     latest_by_identity_id = latest_cases_for(ids).index_by(&:test_identity_id)
-    failed_at_by_identity_id = latest_status_at_for(ids, %w[failed error])
-    passed_at_by_identity_id = latest_status_at_for(ids, "passed")
+    latest_status_times = latest_status_times_for(ids)
+    failed_at_by_identity_id = latest_status_times.fetch(:failed)
+    passed_at_by_identity_id = latest_status_times.fetch(:passed)
     now = Time.current
 
     updates = {}
@@ -106,30 +108,29 @@ class TestIdentity < ApplicationRecord
     ids = Array(ids).filter_map { |id| Integer(id, exception: false) }.uniq
     return [] if ids.empty?
 
-    TestCase.find_by_sql([
-      <<~SQL.squish,
-        SELECT *
-        FROM (
-          SELECT
-            test_cases.*,
-            ROW_NUMBER() OVER (
-              PARTITION BY test_cases.test_identity_id
-              ORDER BY test_cases.created_at DESC, test_cases.id DESC
-            ) AS syrus_test_case_row_number
-          FROM test_cases
-          WHERE test_cases.test_identity_id IN (?)
-        ) latest_test_cases
-        WHERE syrus_test_case_row_number = 1
-      SQL
-      ids
-    ])
+    latest_ids = ids.each_slice(REFRESH_BATCH_SIZE).flat_map do |slice|
+      TestCase.where(test_identity_id: slice).group(:test_identity_id).maximum(:id).values
+    end
+    return [] if latest_ids.empty?
+
+    TestCase.where(id: latest_ids)
   end
 
-  def self.latest_status_at_for(ids, statuses)
-    TestCase
-      .where(test_identity_id: ids, status: statuses)
-      .group(:test_identity_id)
-      .maximum(:created_at)
+  def self.latest_status_times_for(ids)
+    ids.each_slice(REFRESH_BATCH_SIZE).each_with_object({ failed: {}, passed: {} }) do |slice, result|
+      TestCase
+        .where(test_identity_id: slice, status: %w[failed error passed])
+        .group(:test_identity_id, :status)
+        .maximum(:created_at)
+        .each do |(identity_id, status), occurred_at|
+          if status == "passed"
+            result[:passed][identity_id] = occurred_at
+          else
+            previous = result[:failed][identity_id]
+            result[:failed][identity_id] = occurred_at if previous.nil? || occurred_at > previous
+          end
+        end
+    end
   end
 
   def self.bulk_update_summary_columns!(updates)
