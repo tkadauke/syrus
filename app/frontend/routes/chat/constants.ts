@@ -34,6 +34,13 @@ export const CHAT_WORKSPACE_MIN_WIDTH = 360
 
 export const CHAT_WORKSPACE_MAX_WIDTH = 760
 
+// Deliberately wider than AppChromeV2's own 1024px sidebar breakpoint. At
+// 1024px, the app's left sidebar (up to 420px) plus the workspace panel
+// (min 360px) leave too little room for the chat column, which wraps to
+// roughly one word per line. Decoupled so the app sidebar can stay visible
+// at widths where the chat-specific split still needs to collapse.
+export const CHAT_WORKSPACE_SPLIT_MIN_WIDTH = 1280
+
 export const CHAT_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
 
 export const CHAT_ATTACHMENT_TOTAL_MAX_BYTES = 20 * 1024 * 1024
