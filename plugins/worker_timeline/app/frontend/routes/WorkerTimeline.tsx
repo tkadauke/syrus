@@ -1,16 +1,13 @@
-import { useQuery } from "@tanstack/react-query"
-import { useMemo } from "react"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
-import { fetchWorkerTimelineFilters, fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
-import { FilterBar, type WorkerTimelineFilterValue } from "../components/FilterBar"
+import { FilterBar } from "@app/components/FilterBar"
+import { fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
 import { TimelineLanes } from "../components/TimelineLanes"
 import { WorkflowWaterfall } from "../components/WorkflowWaterfall"
-
-const ONE_HOUR_MS = 60 * 60 * 1000
 
 export function WorkerTimelineRoute() {
   const location = useLocation()
@@ -19,75 +16,18 @@ export function WorkerTimelineRoute() {
   return <WorkerTimelineMacroView />
 }
 
-function toLocalInputValue(date: Date): string {
-  const offset = date.getTimezoneOffset()
-  const local = new Date(date.getTime() - offset * 60_000)
-  return local.toISOString().slice(0, 16)
-}
-
-function filterValueFromSearchParams(searchParams: URLSearchParams): WorkerTimelineFilterValue {
-  const now = new Date()
-  const defaultFrom = new Date(now.getTime() - ONE_HOUR_MS)
-
-  return {
-    repositoryId: searchParams.get("repository_id") || "",
-    epicId: searchParams.get("epic_id") || "",
-    hostname: searchParams.get("hostname") || "",
-    statuses: searchParams.getAll("status"),
-    from: searchParams.get("from") || toLocalInputValue(defaultFrom),
-    to: searchParams.get("to") || toLocalInputValue(now)
-  }
-}
-
-function macroQueryString(value: WorkerTimelineFilterValue): string {
-  const params = new URLSearchParams()
-  if (value.repositoryId) params.set("repository_id", value.repositoryId)
-  if (value.epicId) params.set("epic_id", value.epicId)
-  if (value.hostname) params.set("hostname", value.hostname)
-  value.statuses.forEach((status) => params.append("status", status))
-  if (value.from) params.set("from", new Date(value.from).toISOString())
-  if (value.to) params.set("to", new Date(value.to).toISOString())
-
-  const search = params.toString()
-  return search ? `?${search}` : ""
-}
-
-function searchParamsFromFilterValue(value: WorkerTimelineFilterValue): URLSearchParams {
-  const params = new URLSearchParams()
-  if (value.repositoryId) params.set("repository_id", value.repositoryId)
-  if (value.epicId) params.set("epic_id", value.epicId)
-  if (value.hostname) params.set("hostname", value.hostname)
-  value.statuses.forEach((status) => params.append("status", status))
-  if (value.from) params.set("from", value.from)
-  if (value.to) params.set("to", value.to)
-  return params
-}
-
 export function WorkerTimelineMacroView() {
   const { t } = useT("worker_timeline")
   usePageTitle(t("heading"))
   const location = useLocation()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const prefix = routePrefix(location.pathname)
 
-  const filterValue = useMemo(() => filterValueFromSearchParams(searchParams), [ searchParams ])
-  const macroSearch = useMemo(() => macroQueryString(filterValue), [ filterValue ])
-
-  const filterOptions = useQuery({
-    queryKey: [ "worker_timeline", "filters" ],
-    queryFn: fetchWorkerTimelineFilters,
-    staleTime: 60_000
-  })
-
   const macro = useQuery({
-    queryKey: [ "worker_timeline", "macro", macroSearch ],
-    queryFn: () => fetchWorkerTimelineMacro(macroSearch)
+    queryKey: [ "worker_timeline", "macro", location.search ],
+    queryFn: () => fetchWorkerTimelineMacro(location.search),
+    placeholderData: keepPreviousData
   })
-
-  function handleFilterChange(next: WorkerTimelineFilterValue) {
-    setSearchParams(searchParamsFromFilterValue(next))
-  }
 
   function handleSelectWorkflow(workflowId: number) {
     navigate(withRoutePrefix(`/worker_timeline/workflow?id=${workflowId}`, prefix))
@@ -101,7 +41,7 @@ export function WorkerTimelineMacroView() {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("description")}</p>
       </header>
 
-      <FilterBar onChange={handleFilterChange} options={filterOptions.data} value={filterValue} />
+      <FilterBar filter={macro.data?.filter ?? null} filterSchema={macro.data?.filter_schema ?? []} pathname={location.pathname} search={location.search} />
 
       {macro.isPending ? <p className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
       {macro.isError ? <p className="p-6 text-sm text-red-700 dark:text-red-300">{errorMessage(macro.error, t("error_loading"))}</p> : null}

@@ -9,33 +9,26 @@ module Api
         # app/services/timeline/) so the browser SPA -- which authenticates
         # via session cookie, not an API token -- has routes it can call.
         class WorkerTimelineController < BaseController
-          STATUSES = %w[ queued running succeeded failed cancelled ].freeze
-
           before_action :require_worker_timeline_enabled
 
           def macro
+            filter = ::Timeline::MacroQueryFilter.from_params(params)
+
             render json: ::Timeline::MacroQuery.call(
-              from: params[:from],
-              to: params[:to],
-              repository_id: params[:repository_id],
-              epic_id: params[:epic_id],
-              job_id: params[:job_id],
-              hostname: params[:hostname],
-              status: params[:status]
+              from: filter.from,
+              to: filter.to,
+              repository_id: filter.repository_id,
+              epic_id: filter.epic_id,
+              hostname: filter.hostname,
+              status: filter.status
+            ).merge(
+              filter: filter.to_h,
+              filter_schema: ::Timeline::MacroQueryFilter.schema
             )
           end
 
           def workflow
             render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
-          end
-
-          def filters
-            render json: {
-              repositories: Repository.active.order(:owner, :name).limit(200).map { |repository| { id: repository.id, slug: repository.slug } },
-              epics: Epic.order(created_at: :desc).limit(200).map { |epic| { id: epic.id, display_number: epic.display_number, title: epic.title } },
-              statuses: STATUSES,
-              hostnames: InstanceVersion.where(role: "worker").distinct.order(:hostname).pluck(:hostname).compact_blank
-            }
           end
 
           private
