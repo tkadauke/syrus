@@ -36,6 +36,8 @@ function inline(markdown: string): string {
   return html;
 }
 
+const HEADING_PATTERN = /^(#{1,6})\s+(.+)$/;
+
 function isTableSeparator(line: string): boolean {
   return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
 }
@@ -148,7 +150,7 @@ export function renderMarkdown(markdown: string): string {
       continue;
     }
 
-    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    const heading = trimmed.match(HEADING_PATTERN);
     if (heading) {
       const level = heading[1].length;
       const text = heading[2].replace(/\s+#*$/, "");
@@ -192,7 +194,7 @@ export function renderMarkdown(markdown: string): string {
       const nextIsBlock =
         !currentTrimmed ||
         currentTrimmed.startsWith("```") ||
-        currentTrimmed.startsWith("#") ||
+        HEADING_PATTERN.test(currentTrimmed) ||
         currentTrimmed.startsWith(">") ||
         /^\s*[-*]\s+/.test(current) ||
         /^\s*\d+\.\s+/.test(current) ||
