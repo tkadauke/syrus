@@ -3479,6 +3479,46 @@ describe("floating composer control order", () => {
     expect(wrapper.className).toContain("hidden")
     expect(wrapper.className).toContain("sm:block")
   })
+
+  it("renders the effort selector's trigger through the shared Button component, matching its mode/model siblings", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const mode = await screen.findByRole("button", { name: "Change mode" })
+    const effort = screen.getByRole("button", { name: "Effort" })
+
+    // Button's semantic-token secondary-variant + font-medium classes:
+    // regression guard for the raw gray-scale/lighter-weight styling that
+    // made the effort selector visibly mismatch "Planning"/"Default".
+    for (const token of ["border-border", "bg-surface", "text-text-primary", "font-medium"]) {
+      expect(effort.className).toContain(token)
+    }
+    expect(effort.className).not.toMatch(/\btext-gray-600\b/)
+    expect(effort.className).not.toContain("py-1 ")
+
+    // Same trigger shape (label span + trailing chevron svg) as the sibling selectors.
+    expect(effort.children).toHaveLength(mode.children.length)
+  })
+
+  it("sizes the dictation and attachment icon buttons without the text-oriented padding that squeezed their icons", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const attachment = await screen.findByRole("button", { name: "Add attachment" })
+    const dictation = screen.getByRole("button", { name: "Start dictation" })
+
+    for (const button of [attachment, dictation]) {
+      expect(button.className).not.toContain("px-2.5")
+      expect(button.className).not.toContain("py-1.5")
+    }
+
+    const micIcon = dictation.querySelector("svg")
+    expect(micIcon).not.toBeNull()
+    expect(micIcon?.getAttribute("class")).toContain("h-4")
+    expect(micIcon?.getAttribute("class")).toContain("w-4")
+  })
 })
 
 describe("floating composer positioning", () => {
