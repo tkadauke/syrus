@@ -61,3 +61,7 @@ tmp/mcp_repro/
 # Local eval-harness run history (see evals/README.md) -- not meant to be
 # merged across branches/operators.
 /evals/results/*.jsonl
+
+# Playwright MCP browser-verification scratch (screenshots, console logs)
+# from manual preview testing -- not product artifacts.
+.playwright-mcp/
