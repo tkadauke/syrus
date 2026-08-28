@@ -127,7 +127,10 @@ RSpec.describe GitHistory::RelayServer do
   end
 
   describe ".ensure_running!" do
-    after { described_class.instance_variable_set(:@instance, nil) }
+    after do
+      described_class.instance_variable_set(:@instance, nil)
+      described_class.remove_instance_variable(:@polling_queue_consumer) if described_class.instance_variable_defined?(:@polling_queue_consumer)
+    end
 
     it "starts the relay when this process consumes the polling queue" do
       allow(WorkerQueueTopology).to receive(:consumes?).with(described_class::POLLING_QUEUE).and_return(true)
@@ -157,6 +160,16 @@ RSpec.describe GitHistory::RelayServer do
       described_class.ensure_running!
 
       expect(WorkerQueueTopology).not_to have_received(:consumes?)
+    end
+
+    it "memoizes the polling-queue-consumer check instead of re-deriving it on every call" do
+      allow(WorkerQueueTopology).to receive(:consumes?).with(described_class::POLLING_QUEUE).and_return(false)
+      allow(described_class).to receive(:start)
+
+      described_class.ensure_running!
+      described_class.ensure_running!
+
+      expect(WorkerQueueTopology).to have_received(:consumes?).once
     end
   end
 end
