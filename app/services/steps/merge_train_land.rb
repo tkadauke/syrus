@@ -25,7 +25,7 @@ module Steps
       train = merge_train
       client = GithubClient.for(repository: repository, user: job.user)
 
-      ensure_base_unchanged!(train, client)
+      pre_merge_base_sha = ensure_base_unchanged!(train, client)
       integration_sha = push_integration_branch(train, client)
       train.update!(integration_sha: integration_sha, state: "landing")
 
@@ -36,11 +36,15 @@ module Steps
       raise StepFailed, "merge_train: GitHub did not report the integration PR as merged" unless merged
 
       integration_sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
+      record_integration_merge_commit!(train, integration_sha)
       delete_branch_after_landing(client, train.integration_branch)
       reconcile_members!(train, client, pr, integration_sha: integration_sha)
 
       train.update!(state: "succeeded", finished_at: Time.current)
-      log("merge_train: landed #{train_label(train)} (#{train.members.size} PR(s)) via integration PR ##{pr.number}")
+      log(
+        "merge_train: landed #{train_label(train)} (#{train.members.size} PR(s)) via integration PR ##{pr.number}; " \
+        "integration #{integration_sha.to_s.first(9)} merged onto #{train.base_branch}@#{pre_merge_base_sha.to_s.first(9)}"
+      )
     end
 
     private
@@ -58,7 +62,7 @@ module Steps
         raise_missing_base!(train, current_base_sha)
       end
 
-      return if current_base_sha == built_base_sha
+      return current_base_sha if current_base_sha == built_base_sha
 
       # Base moved — record stale-base info and raise a typed failure so the
       # Try node in Workflows::MergeTrain can insert an incremental rebase
@@ -114,6 +118,18 @@ module Steps
         git.run("push", "--force-with-lease", push_url, "HEAD:refs/heads/#{train.integration_branch}", chdir: chdir)
       end
       git.run("rev-parse", "HEAD", chdir: chdir).strip
+    end
+
+    # The integration merge commit represents the whole train landing, not
+    # any single member — recorded against the Epic, never a member Job.
+    # Additive bookkeeping; any failure here must not fail the landing.
+    def record_integration_merge_commit!(train, integration_sha)
+      return unless train.epic_backed?
+      return if integration_sha.blank?
+
+      LandedCommit.create!(landable: train.epic, sha: integration_sha, kind: "integration_merge", position: 0)
+    rescue StandardError => e
+      log("merge_train: could not record integration merge commit: #{e.class}: #{e.message}", kind: "system")
     end
 
     def find_or_create_integration_pr(train, client)

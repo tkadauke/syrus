@@ -35,7 +35,13 @@ RSpec.describe "Steps::MergeTrain*" do
     git = instance_double(GitRunner)
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:streaming_git).and_return(git)
-    allow(git).to receive(:run)
+    # Per-member LandedCommit capture calls "rev-parse <integration branch>"
+    # before/after each member is integrated; default both calls to the same
+    # unstubbed value so previous_tip == new_tip and no commit gets recorded
+    # unless a spec stubs a specific sequence to exercise that behavior.
+    allow(git).to receive(:run) do |*args|
+      args.first == "rev-parse" ? "unstubbed-rev-parse-sha\n" : nil
+    end
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("#{head}\n")
     allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("treesha123\n")
     allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("#{base}\n")
@@ -214,6 +220,54 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(train.reload.state).to eq("grading")
       expect(train.integration_sha).to eq("intsha999")
       expect(handler.workflow.artifact("merge_train_base_sha")).to eq("basesha123")
+    end
+
+    it "records per-member LandedCommit rows with no cross-member bleed" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_build", train, b)
+      git = stub_git(handler)
+      allow(handler).to receive(:run_agent)
+      # member a is integrated first (previous tip -> a's new tip), then
+      # member b (a's tip -> b's new tip) - four rev-parse calls in order.
+      allow(git).to receive(:run)
+        .with("rev-parse", train.integration_branch, chdir: "/tmp/ws")
+        .and_return("base000\n", "a222\n", "a222\n", "b444\n")
+      allow(git).to receive(:run)
+        .with("rev-list", "--reverse", "base000..a222", chdir: "/tmp/ws")
+        .and_return("a-commit-1\na-commit-2\n")
+      allow(git).to receive(:run)
+        .with("rev-list", "--reverse", "a222..b444", chdir: "/tmp/ws")
+        .and_return("b-commit-1\n")
+
+      handler.call
+
+      a_rows = LandedCommit.where(landable: a).order(:position)
+      b_rows = LandedCommit.where(landable: b).order(:position)
+      expect(a_rows.pluck(:sha, :position)).to eq([ [ "a-commit-1", 0 ], [ "a-commit-2", 1 ] ])
+      expect(b_rows.pluck(:sha, :position)).to eq([ [ "b-commit-1", 0 ] ])
+      expect(a_rows.pluck(:kind).uniq).to eq([ "implementation" ])
+      expect(b_rows.pluck(:kind).uniq).to eq([ "implementation" ])
+      expect(LandedCommit.count).to eq(3)
+    end
+
+    it "does not fail the build when recording landed commits errors" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+      allow(handler).to receive(:run_agent)
+      allow(git).to receive(:run)
+        .with("rev-parse", train.integration_branch, chdir: "/tmp/ws")
+        .and_return("base000\n", "a222\n")
+      allow(git).to receive(:run)
+        .with("rev-list", "--reverse", "base000..a222", chdir: "/tmp/ws")
+        .and_raise(GitRunner::GitError.new([ "rev-list" ], 1, "boom"))
+
+      expect { handler.call }.not_to raise_error
+      expect(LandedCommit.where(landable: a)).to be_empty
+      expect(train.reload.state).to eq("grading")
     end
 
     it "refreshes the installation token and retries when GitHub rejects an authenticated fetch" do
@@ -480,6 +534,7 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(handler.run.agent_diff).to eq("")
       expect(train.reload.integration_sha).to eq("intsha999")
       expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: no reconciliation changes needed")
+      expect(LandedCommit.where(landable: epic, kind: "reconcile")).to be_empty
     end
 
     it "commits focused reconciliation changes onto the integration branch" do
@@ -503,6 +558,27 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(handler.run.step_agent_diff).to eq(diff)
       expect(train.reload.integration_sha).to eq("newsha456")
       expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: committed reconciliation changes")
+      rows = LandedCommit.where(landable: epic, kind: "reconcile")
+      expect(rows.pluck(:sha)).to eq([ "newsha456" ])
+    end
+
+    it "does not record a reconcile LandedCommit for a bundle-backed (non-Epic) train" do
+      a = Factories.job_record(
+        user: user, repository: repository, epic: nil,
+        issue_number: 1, state: "landing", pr_number: 501, branch_name: "syrus/issue-1"
+      )
+      train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium",
+                                  integration_branch: "syrus/job-bundle-1")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      train.update!(integration_sha: "oldsha123")
+      handler = step_handler(described_class, "merge_train_reconcile", train, a)
+      diff = "diff --git a/app/shared.rb b/app/shared.rb\n+consistent"
+      stub_reconcile_handler(handler, head_values: %w[oldsha123 newsha456], step_diff: diff)
+      allow(handler).to receive(:commit_agent_changes)
+
+      handler.call
+
+      expect(LandedCommit.where(kind: "reconcile")).to be_empty
     end
 
     it "skips downstream validation after a no-op reconciliation when the same head is already validated" do
@@ -737,6 +813,45 @@ RSpec.describe "Steps::MergeTrain*" do
 
       expect(a.reload.landed_sha).to eq("trainsha789")
       expect(b.reload.landed_sha).to eq("trainsha789")
+    end
+
+    it "records one LandedCommit row for the integration merge, attributed to the Epic (not a member Job)" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      rows = LandedCommit.where(kind: "integration_merge")
+      expect(rows.pluck(:sha, :landable_type, :landable_id)).to eq([ [ "trainsha789", "Epic", epic.id ] ])
+      expect(LandedCommit.where(landable: a)).to be_empty
+      expect(LandedCommit.where(landable: b)).to be_empty
+    end
+
+    it "does not record an integration-merge LandedCommit for a bundle-backed (non-Epic) train" do
+      a = Factories.job_record(
+        user: user, repository: repository, epic: nil,
+        issue_number: 1, state: "landing", pr_number: 501, branch_name: "syrus/issue-1"
+      )
+      train = MergeTrain.create!(
+        repository: repository, base_branch: "master", priority: "medium",
+        integration_branch: "syrus/job-bundle-1"
+      )
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      handler = step_handler(described_class, "merge_train_land", train, a)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      expect(LandedCommit.where(kind: "integration_merge")).to be_empty
     end
 
     it "deletes the integration branch and each member branch after landing" do

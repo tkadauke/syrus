@@ -36,10 +36,21 @@ module Steps
         skip_revalidated_grade_steps!(post_sha) if LandingValidationCache.valid_head_for?(job: job, head_sha: post_sha)
       else
         log("merge_train_reconcile: committed reconciliation changes #{base_sha.first(9)} -> #{post_sha.first(9)}")
+        record_reconcile_commit!(train, post_sha)
       end
     end
 
     private
+
+    # Additive bookkeeping; any failure here must not fail the reconcile step.
+    def record_reconcile_commit!(train, sha)
+      return unless train.epic_backed?
+      return if sha.blank?
+
+      LandedCommit.create!(landable: train.epic, sha: sha, kind: "reconcile", position: 0)
+    rescue StandardError => e
+      log("merge_train_reconcile: could not record reconcile commit: #{e.class}: #{e.message}", kind: "system")
+    end
 
     def git
       @git ||= streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0", "GIT_EDITOR" => "true" })
