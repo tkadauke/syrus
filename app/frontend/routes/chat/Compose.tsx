@@ -1597,7 +1597,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           disabled={send.isPending || systemAction.isPending}
           onClick={() => setAttachmentPopoverOpen((open) => !open)}
           ref={addAttachmentButtonRef}
-          size="sm"
+          size="icon"
           variant="secondary"
         >
           +
@@ -2062,7 +2062,7 @@ function DictationButton({
       }`}
       disabled={disabled || phase === "requesting" || phase === "transcribing"}
       onClick={onClick}
-      size="sm"
+      size="icon"
       title={label}
       variant="secondary"
     >
@@ -2356,21 +2356,22 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
 
   return (
     <div className="relative hidden sm:block">
-      <button
+      <Button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("effort_label")}
-        className="flex min-h-11 max-w-[5.5rem] items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        className="min-h-11 max-w-[5.5rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
         disabled={updateEffort.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
-        type="button"
+        size="sm"
+        variant="secondary"
       >
         <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
       {dropdownOpen ? (
         <div
           className="absolute bottom-full right-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"

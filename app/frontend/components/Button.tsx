@@ -2,7 +2,7 @@ import { forwardRef } from "react"
 import type { ButtonHTMLAttributes } from "react"
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "success"
-export type ButtonSize = "sm" | "md"
+export type ButtonSize = "sm" | "md" | "icon"
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -27,7 +27,12 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: "px-2.5 py-1.5 text-xs",
-  md: "px-3 py-2 text-sm"
+  md: "px-3 py-2 text-sm",
+  // No text-oriented horizontal/vertical padding: icon-only buttons are
+  // sized by explicit h-*/w-* utilities on the caller's className, and
+  // `size="sm"`'s px-2.5 py-1.5 fights those fixed dimensions (the padding
+  // and the width both apply, squeezing the icon into whatever's left).
+  icon: "p-1"
 }
 
 const BASE_CLASSES = "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-gray-950"
