@@ -6,7 +6,7 @@
 // desktop/electron/nativeNotifications.ts's kind->label and click-URL
 // conventions conceptually, but that file is Electron-main-only code and
 // must not be imported into this bundle.
-import { isDesktopShell } from "./desktopShell"
+import { notificationsBridge } from "./desktopShell"
 import { routePrefix, withRoutePrefix } from "./routing"
 
 export type NativeNotificationPayload = {
@@ -94,28 +94,26 @@ export function isNativeNotificationSupported() {
 // Lazy permission request -- only ever called from an explicit user
 // interaction (bell click, settings toggle), never on page load. Resolves
 // immediately with the existing permission if it isn't still "default" so
-// callers can invoke this unconditionally without re-prompting.
+// callers can invoke this unconditionally without re-prompting. Requested
+// the same way inside the desktop shell as in a plain browser tab: the
+// shell's webAppWindow is a normal Chromium renderer and Electron's main
+// process now only dispatches its own native notification as a fallback
+// when this path isn't live (see dispatchNativeNotification below), so
+// there's no longer a reason to withhold the prompt there.
 export function requestNativeNotificationPermission() {
-  // No point prompting inside the desktop shell: dispatchNativeNotification
-  // never fires there (see its comment), since Electron's main process
-  // already owns native dispatch for that surface.
-  if (isDesktopShell()) return Promise.resolve<NotificationPermission>("default")
   if (!isNativeNotificationSupported()) return Promise.resolve<NotificationPermission>("denied")
-  if (window.Notification.permission !== "default") return Promise.resolve(window.Notification.permission)
+  if (window.Notification.permission !== "default") {
+    syncDesktopShellNotificationLiveness()
+    return Promise.resolve(window.Notification.permission)
+  }
 
-  return window.Notification.requestPermission()
+  return window.Notification.requestPermission().then((permission) => {
+    syncDesktopShellNotificationLiveness()
+    return permission
+  })
 }
 
 export function dispatchNativeNotification(payload: NativeNotificationPayload) {
-  // The desktop shell's Electron main process already dispatches a native
-  // notification for this same notification_created event through its own
-  // independent AppUserChannel WebSocket subscription (desktop/electron/
-  // main.ts's connectAppUserCable -> dispatchNativeNotification), regardless
-  // of whether webAppWindow (which loads this very bundle) is open. Until
-  // that main-process path is made fallback-only (EPIC-275's next Job),
-  // dispatching here too inside the desktop shell would double-fire the
-  // same notification, so this path only ever fires in a plain browser tab.
-  if (isDesktopShell()) return false
   if (!isNativeNotificationSupported()) return false
   if (window.Notification.permission !== "granted") return false
 
@@ -136,4 +134,33 @@ export function dispatchNativeNotification(payload: NativeNotificationPayload) {
   }
 
   return true
+}
+
+// Whether this tab/window is currently subscribed to AppUserChannel — the
+// only other input (besides Notification.permission) to whether this path
+// is actually live and dispatching. Set by useAppEvents.ts as the
+// ActionCable subscription connects/disconnects; starts false so a
+// desktop-shell window that hasn't subscribed yet doesn't falsely claim to
+// be handling notifications before it can.
+let cableSubscribed = false
+
+// Tells the desktop shell's Electron main process whether THIS renderer is
+// currently able to show a native notification for an AppUserChannel event
+// (subscribed + permission granted), so main can skip its own independent
+// dispatch for the same event when this path already covers it. A no-op in
+// a plain browser tab (no bridge) or on older shells. Deliberately
+// conservative: only ever reports "live" when both conditions hold, so an
+// unresolved state (e.g. permission still "default") falls back to main
+// still dispatching -- an occasional duplicate beats a dropped notification.
+function syncDesktopShellNotificationLiveness() {
+  const bridge = notificationsBridge()
+  if (!bridge) return
+
+  bridge.reportLive(cableSubscribed && isNativeNotificationSupported() && window.Notification.permission === "granted")
+}
+
+// Called by useAppEvents.ts on every AppUserChannel connect/disconnect.
+export function setNativeNotificationCableSubscribed(subscribed: boolean) {
+  cableSubscribed = subscribed
+  syncDesktopShellNotificationLiveness()
 }

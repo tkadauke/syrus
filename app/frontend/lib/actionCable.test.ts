@@ -114,4 +114,35 @@ describe("subscribeToAppEvents", () => {
     expect(onConnectionChange).toHaveBeenCalledTimes(1)
     expect(onConnectionChange).toHaveBeenCalledWith(true)
   })
+
+  it("calls onSubscriptionChange on EVERY connect/disconnect, including the very first connect", () => {
+    // Unlike onConnectionChange (reconnect-only, drives the "reconnected"
+    // banner), the desktop-shell notification-liveness signal needs "are we
+    // subscribed right now" from the start, not just recovery from a drop.
+    const queryClient = new QueryClient()
+    const onSubscriptionChange = vi.fn()
+    let connected: (() => void) | undefined
+    let disconnected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          disconnected = mixin.disconnected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToAppEvents(queryClient, consumer, undefined, onSubscriptionChange)
+
+    connected?.()
+    expect(onSubscriptionChange).toHaveBeenNthCalledWith(1, true)
+
+    disconnected?.()
+    expect(onSubscriptionChange).toHaveBeenNthCalledWith(2, false)
+
+    connected?.()
+    expect(onSubscriptionChange).toHaveBeenNthCalledWith(3, true)
+    expect(onSubscriptionChange).toHaveBeenCalledTimes(3)
+  })
 })

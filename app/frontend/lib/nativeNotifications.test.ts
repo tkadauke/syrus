@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import type { SyrusShellBridge } from "./desktopShell"
 import {
   dispatchNativeNotification,
   httpNotificationUrl,
   isNativeNotificationSupported,
   nativeNotificationClickUrl,
   nativeNotificationTitle,
-  requestNativeNotificationPermission
+  requestNativeNotificationPermission,
+  setNativeNotificationCableSubscribed
 } from "./nativeNotifications"
 
 const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
@@ -41,6 +43,11 @@ afterEach(() => {
   FakeNotification.permission = "default"
   FakeNotification.requestPermissionMock = vi.fn()
   FakeNotification.instances = []
+  delete window.syrusShell
+  // Cable-subscription state is module-level (set by useAppEvents.ts as the
+  // ActionCable subscription connects/disconnects) — reset between tests so
+  // one test's subscribed state can't leak into the next.
+  setNativeNotificationCableSubscribed(false)
 })
 
 describe("nativeNotificationTitle", () => {
@@ -113,13 +120,14 @@ describe("isNativeNotificationSupported / requestNativeNotificationPermission", 
     expect(FakeNotification.requestPermissionMock).not.toHaveBeenCalled()
   })
 
-  it("never prompts inside the desktop shell, which has no dispatch path to grant permission for", async () => {
+  it("prompts inside the desktop shell too -- webAppWindow is a normal Chromium renderer and main's own dispatch is fallback-only now", async () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(desktopUa)
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "default"
+    FakeNotification.requestPermissionMock.mockResolvedValue("granted")
 
-    expect(await requestNativeNotificationPermission()).toBe("default")
-    expect(FakeNotification.requestPermissionMock).not.toHaveBeenCalled()
+    expect(await requestNativeNotificationPermission()).toBe("granted")
+    expect(FakeNotification.requestPermissionMock).toHaveBeenCalledOnce()
   })
 })
 
@@ -156,14 +164,75 @@ describe("dispatchNativeNotification", () => {
     expect(FakeNotification.instances[0].closed).toBe(true)
   })
 
-  it("fails silently inside the desktop shell so it never double-fires against Electron main's own dispatch", () => {
+  it("dispatches inside the desktop shell too -- Electron main's own dispatch is fallback-only now, so this path no longer needs to stand down", () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(desktopUa)
     vi.stubGlobal("Notification", FakeNotification)
     FakeNotification.permission = "granted"
 
     const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null })
 
-    expect(result).toBe(false)
-    expect(FakeNotification.instances).toHaveLength(0)
+    expect(result).toBe(true)
+    expect(FakeNotification.instances).toHaveLength(1)
+  })
+})
+
+describe("setNativeNotificationCableSubscribed / desktop-shell liveness reporting", () => {
+  it("is a no-op in a plain browser tab (no shell bridge to report to)", () => {
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+
+    expect(() => setNativeNotificationCableSubscribed(true)).not.toThrow()
+  })
+
+  it("reports live only once both subscribed AND permission is granted", () => {
+    const reportLive = vi.fn()
+    window.syrusShell = { notifications: { reportLive } } as unknown as SyrusShellBridge
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+
+    setNativeNotificationCableSubscribed(true)
+
+    expect(reportLive).toHaveBeenCalledWith(true)
+  })
+
+  it("reports not-live when subscribed but permission has not been granted", () => {
+    const reportLive = vi.fn()
+    window.syrusShell = { notifications: { reportLive } } as unknown as SyrusShellBridge
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "default"
+
+    setNativeNotificationCableSubscribed(true)
+
+    expect(reportLive).toHaveBeenCalledWith(false)
+  })
+
+  it("reports not-live when permission is granted but the cable is not subscribed", () => {
+    const reportLive = vi.fn()
+    window.syrusShell = { notifications: { reportLive } } as unknown as SyrusShellBridge
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+
+    setNativeNotificationCableSubscribed(false)
+
+    expect(reportLive).toHaveBeenCalledWith(false)
+  })
+
+  it("re-syncs liveness after a permission decision resolves", async () => {
+    const reportLive = vi.fn()
+    window.syrusShell = { notifications: { reportLive } } as unknown as SyrusShellBridge
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "default"
+    // Mirrors real browser behavior: once requestPermission() resolves, the
+    // Notification.permission getter reflects the new value too.
+    FakeNotification.requestPermissionMock.mockImplementation(async () => {
+      FakeNotification.permission = "granted"
+      return "granted"
+    })
+    setNativeNotificationCableSubscribed(true)
+    reportLive.mockClear()
+
+    await requestNativeNotificationPermission()
+
+    expect(reportLive).toHaveBeenCalledWith(true)
   })
 })
