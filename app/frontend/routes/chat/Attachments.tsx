@@ -125,7 +125,7 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
             return (
               <div className="flex items-center gap-2" key={row.id}>
                 <Button
-                  className={`block w-full text-left disabled:text-gray-300 dark:disabled:text-gray-600 ${pending ? "!border-red-200 !bg-red-50 !text-red-700 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300" : "hover:!border-red-200 hover:!bg-red-50 hover:!text-red-700 dark:hover:!border-red-800 dark:hover:!bg-red-950 dark:hover:!text-red-300"}`}
+                  className={`w-full !justify-start text-left disabled:text-gray-300 dark:disabled:text-gray-600 ${pending ? "!border-red-200 !bg-red-50 !text-red-700 dark:!border-red-800 dark:!bg-red-950 dark:!text-red-300" : "hover:!border-red-200 hover:!bg-red-50 hover:!text-red-700 dark:hover:!border-red-800 dark:hover:!bg-red-950 dark:hover:!text-red-300"}`}
                   disabled={detach.isPending}
                   onClick={() => {
                     if (pending) {
