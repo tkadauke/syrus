@@ -125,4 +125,38 @@ RSpec.describe GitHistory::RelayServer do
 
     expect(response[0]).to eq(404)
   end
+
+  describe ".ensure_running!" do
+    after { described_class.instance_variable_set(:@instance, nil) }
+
+    it "starts the relay when this process consumes the polling queue" do
+      allow(WorkerQueueTopology).to receive(:consumes?).with(described_class::POLLING_QUEUE).and_return(true)
+      fake_instance = instance_double(described_class)
+      allow(described_class).to receive(:start).and_return(fake_instance)
+
+      result = described_class.ensure_running!
+
+      expect(result).to eq(fake_instance)
+      expect(described_class).to have_received(:start)
+    end
+
+    it "does not start the relay when this process does not consume the polling queue" do
+      allow(WorkerQueueTopology).to receive(:consumes?).with(described_class::POLLING_QUEUE).and_return(false)
+      allow(described_class).to receive(:start)
+
+      result = described_class.ensure_running!
+
+      expect(result).to be_nil
+      expect(described_class).not_to have_received(:start)
+    end
+
+    it "does not re-derive queue topology once already running" do
+      described_class.instance_variable_set(:@instance, instance_double(described_class))
+      allow(WorkerQueueTopology).to receive(:consumes?)
+
+      described_class.ensure_running!
+
+      expect(WorkerQueueTopology).not_to have_received(:consumes?)
+    end
+  end
 end

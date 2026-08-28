@@ -94,6 +94,10 @@ default: &default
     class: WorkerHostHealthTelemetryCheckJob
     queue: cleanup
     schedule: every 5 minutes
+  check_polling_queue_coverage:
+    class: PollingQueueCoverageCheckJob
+    queue: cleanup
+    schedule: every 5 minutes
   prune_worker_host_health_samples:
     class: WorkerHostHealthSamplePruneJob
     queue: cleanup
