@@ -91,9 +91,13 @@ export function appendSearch(path: string, search: string) {
 // `left`/`right` set and `width: auto`, browsers resolve auto margins to 0
 // before `max-width` clamps the box, so a width cap leaves the freed space
 // on one side instead of centering it — the containment/overlap bug this
-// guards against.
+// guards against. At `sm:` and up the visible margin comes from
+// ChatColumn's own `sm:px-8` padding (see the section in Chat.tsx), not from
+// a hardcoded inset here — `sm:inset-x-0` pins flush to that padding box, so
+// there's a single source of truth for the margin instead of two numbers
+// that can drift apart.
 export function composeFloatingClassName(isDragOver: boolean) {
-  return `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-8 sm:bottom-4 sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+  return `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
 }
 
 export function primaryButton() {
