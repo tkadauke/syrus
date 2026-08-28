@@ -1,6 +1,6 @@
 ---
 name: rebase
-description: Resolve conflicts and rebase a branch that has fallen behind its base to restore PR mergeability
+description: Use when a branch has fallen behind its base and needs its conflicts resolved to restore PR mergeability — rebase onto the base branch and leave a clean, mergeable HEAD.
 ---
 
 $ARGUMENTS
@@ -24,6 +24,20 @@ Your job is to make it mergeable again. Specifically:
 
 Syrus will force-push the rebased branch to origin once you finish — your
 only job is to leave the working tree on a clean rebased HEAD.
+
+---
+
+Corner-cutting contract — rationalizations that show up mid-conflict,
+and why they don't hold here:
+
+  - "The two sides don't quite match, but I'll pick one and move on." →
+    If the two sides genuinely disagree on intent, that's the abort
+    case in step 7. Don't guess at intent and push anyway.
+  - "This chunk looks like a leftover conflict-marker artifact, I'll
+    just drop it." → Don't silently drop code that looks like a
+    conflict artifact. Preserve both intents; if you can't tell
+    whether it's leftover cruft or real work, that's also the abort
+    case in step 7.
 
 ---
 
