@@ -80,6 +80,17 @@ existed:
   "reconcile")` row, written by `Steps::MergeTrainReconcile` when its pass
   actually commits changes on the integration branch. Attributed to the Epic
   only, no single Job.
+- `bundle_landed` — the bundle-backed (epicless, `train.bundle_backed?`)
+  mirror of `epic_landed`: sha has a `LandedCommit(landable: MergeTrain, kind:
+  "integration_merge")` row, written by `Steps::MergeTrainLand` for the single
+  merge commit of a job-bundle landing (no Epic to attach to, so the
+  `MergeTrain` row itself is the landable). Attributed to the bundle (its
+  `MergeTrain` id) plus the full list of member Jobs
+  (`MergeTrain#member_jobs`) that landed through that integration commit.
+- `bundle_reconciliation` — the bundle-backed mirror of `epic_reconciliation`:
+  sha has a `LandedCommit(landable: MergeTrain, kind: "reconcile")` row,
+  written by `Steps::MergeTrainReconcile` for a bundle-backed train.
+  Attributed to the bundle only, no single Job.
 - `external_pr` — no `LandedCommit` row; sha matches an `external_pr`-kind
   Job's `landed_sha` (`PollExternalPrJob` tracked someone else's PR that
   merged). Attributed to the raw GitHub author/committer, not a Syrus user.
@@ -103,18 +114,21 @@ either way, but the reference itself never leaks.
 `epic_landed` commit anchors a collapsible group for its Epic, nesting every
 member Job's own `syrus_landed` commits underneath it as their own
 sub-group; `epic_reconciliation` commits attach directly to their Epic's
-group (never to a Job); a `syrus_landed` Job with no epic-landing commit in
-view (a regular, non-merge-train landing, or a merge-train landing whose
-integration commit hasn't loaded yet) still groups its own commits together
-as a standalone Job group. `external_pr`/`external_push` commits are never
-grouped — always in the list. Grouping is
-recomputed from the *entire* accumulated commit list on every render (not
-per-page), so a group split across a "load more" cursor boundary
-reassembles automatically once the rest of its commits load, regardless of
-where the boundary fell.
+group (never to a Job). `bundle_landed`/`bundle_reconciliation` mirror that
+exact shape for a job-bundle landing, grouping under a "Job bundle #<id>"
+header instead of an Epic (a bundle has no Epic page to link to, so the
+header is plain text rather than a link). A `syrus_landed` Job with no
+epic-landing or bundle-landing commit in view (a regular, non-merge-train
+landing, or a merge-train landing whose integration commit hasn't loaded
+yet) still groups its own commits together as a standalone Job group.
+`external_pr`/`external_push` commits are never grouped — always in the
+list. Grouping is recomputed from the *entire* accumulated commit list on
+every render (not per-page), so a group split across a "load more" cursor
+boundary reassembles automatically once the rest of its commits load,
+regardless of where the boundary fell.
 
-Syrus-attributed rows (`syrus_landed`/`epic_landed`/`epic_reconciliation`,
-and anything they group) render with bold text and a terracotta left-border
-accent; `external_pr`/`external_push` rows render de-emphasized (muted
-gray text, no accent border) — the operator ask this satisfies is
-"emphasize commits that are actual jobs over others."
+Syrus-attributed rows (`syrus_landed`/`epic_landed`/`epic_reconciliation`/
+`bundle_landed`/`bundle_reconciliation`, and anything they group) render with
+bold text and a terracotta left-border accent; `external_pr`/`external_push`
+rows render de-emphasized (muted gray text, no accent border) — the operator
+ask this satisfies is "emphasize commits that are actual jobs over others."

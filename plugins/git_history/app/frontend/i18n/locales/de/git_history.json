@@ -13,6 +13,8 @@
     "syrus_landed": "Syrus",
     "epic_landed": "Epic",
     "epic_reconciliation": "Epic-Abgleich",
+    "bundle_landed": "Job-Bündel",
+    "bundle_reconciliation": "Job-Bündel-Abgleich",
     "external_pr": "Externer PR",
     "external_push": "Direkter Push"
   },
@@ -21,7 +23,8 @@
     "pr": "PR #{{number}}",
     "opened_by": "eröffnet von {{name}}",
     "pushed_by": "gepusht von {{name}}",
-    "unknown_author": "unbekannt"
+    "unknown_author": "unbekannt",
+    "bundle": "Job-Bündel #{{id}}"
   },
   "origin": {
     "chat": "über Chat",

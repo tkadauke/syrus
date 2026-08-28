@@ -103,6 +103,51 @@ describe("GitHistory", () => {
     expect(screen.queryByRole("link", { name: /JOB-/ })).not.toBeInTheDocument()
   })
 
+  it("renders a bundle_landed commit with the bundle id and every member job", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "1".repeat(40),
+        short_sha: "1111111111",
+        subject: "Land job bundle #5: 2 approved Jobs",
+        authored_at: "2026-08-22T10:00:00Z",
+        classification: "bundle_landed",
+        bundle: { id: 5 },
+        jobs: [
+          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+        ]
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Land job bundle #5: 2 approved Jobs")).toBeInTheDocument()
+    expect(screen.getByText("Job bundle")).toBeInTheDocument()
+    expect(screen.getByText("Job bundle #5")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
+  })
+
+  it("renders a bundle_reconciliation commit with only the bundle id", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "2".repeat(40),
+        short_sha: "2222222222",
+        subject: "Syrus merge-train reconciliation",
+        authored_at: "2026-08-22T11:00:00Z",
+        classification: "bundle_reconciliation",
+        bundle: { id: 5 }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Syrus merge-train reconciliation")).toBeInTheDocument()
+    expect(screen.getByText("Job bundle reconciliation")).toBeInTheDocument()
+    expect(screen.getByText("Job bundle #5")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /JOB-/ })).not.toBeInTheDocument()
+  })
+
   it("renders an externally-opened PR commit distinctly from a raw push", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
       {
@@ -324,6 +369,58 @@ describe("GitHistory", () => {
     // link, and JOB-42's own nested implementation commit. The
     // reconciliation row contributes none -- it belongs to the Epic only.
     expect(screen.getAllByRole("link", { name: "JOB-42" })).toHaveLength(2)
+  })
+
+  it("nests member Jobs' implementation commits under their bundle group instead of listing them flat", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "1".repeat(40),
+        short_sha: "1111111111",
+        subject: "Land job bundle #5: 2 approved Jobs",
+        authored_at: "2026-08-22T10:00:00Z",
+        classification: "bundle_landed",
+        bundle: { id: 5 },
+        jobs: [
+          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+        ]
+      },
+      {
+        sha: "2".repeat(40),
+        short_sha: "2222222222",
+        subject: "Implement dark mode toggle",
+        authored_at: "2026-08-22T09:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: null,
+        user: { id: 3, display_name: "Ada Lovelace" }
+      },
+      {
+        sha: "3".repeat(40),
+        short_sha: "3333333333",
+        subject: "Implement light mode toggle",
+        authored_at: "2026-08-22T08:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 43, slug: "JOB-43", title: "Add light mode toggle" },
+        epic: null,
+        user: { id: 4, display_name: "Grace Hopper" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Land job bundle #5: 2 approved Jobs")).toBeInTheDocument()
+    expect(await screen.findByText("Implement dark mode toggle")).toBeInTheDocument()
+    expect(screen.getByText("Implement light mode toggle")).toBeInTheDocument()
+
+    // A single top-level list item for the whole bundle -- both jobs' own
+    // commits are nested underneath it, not flattened into separate
+    // top-level rows.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1)
+
+    const job42Links = screen.getAllByRole("link", { name: "JOB-42" })
+    expect(job42Links.length).toBeGreaterThan(0)
+    for (const link of job42Links) expect(link).toHaveAttribute("href", "/jobs/42")
   })
 
   it("renders a legacy-fallback syrus_landed commit (pre-migration history, no LandedCommit row) identically to a normal one", async () => {
