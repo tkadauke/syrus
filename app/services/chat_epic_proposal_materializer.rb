@@ -16,6 +16,7 @@ class ChatEpicProposalMaterializer
 
     @chat_session = epic_proposal.chat_session
     job_proposals = proposed_children_for(epic_proposal)
+    validate_child_count!(epic_proposal, job_proposals)
     validate_child_dependency_policy!(epic_proposal, job_proposals)
     ensure_active_repositories!([ epic_proposal ] + job_proposals)
     jobs = []
@@ -87,6 +88,19 @@ class ChatEpicProposalMaterializer
       epic_dependency_policy: "linear",
       state: "ready"
     )
+  end
+
+  # A confirmed Epic with zero child Jobs implements nothing -- the operator
+  # gets a "success" card and nothing ever runs. Bare Epic-only proposals
+  # (propose_epic tool) are still allowed to be *created* with no children,
+  # since "propose the Epic now, add child Jobs in a follow-up card" is a
+  # legitimate workflow; this only blocks *confirming* one while it (and any
+  # existing target Epic) still has no children at all.
+  def validate_child_count!(epic_proposal, job_proposals)
+    return if job_proposals.any?
+    return if epic_proposal.target_epic&.jobs&.exists?
+
+    raise ArgumentError, "Epic proposal must include at least one child Job before it can be confirmed"
   end
 
   def validate_child_dependency_policy!(epic_proposal, job_proposals)
