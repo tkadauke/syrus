@@ -1,6 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatAgentSubQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
+import { dispatchNativeNotification, type NativeNotificationPayload } from "./nativeNotifications"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -75,6 +76,9 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
       }
     })
     void queryClient.invalidateQueries({ queryKey: ["notifications"] })
+
+    const nativePayload = notificationCreatedNativePayload(event.payload)
+    if (nativePayload) dispatchNativeNotification(nativePayload)
     return
   }
 
@@ -137,6 +141,25 @@ function emptyNotificationsCache(unreadCount: number): NotificationsCache {
       total: 0,
       total_pages: 0
     }
+  }
+}
+
+function notificationCreatedNativePayload(payload: unknown): NativeNotificationPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const notification = (payload as { notification?: unknown }).notification
+  if (!notification || typeof notification !== "object") return null
+
+  const record = notification as Record<string, unknown>
+  const kind = typeof record.kind === "string" ? record.kind : null
+  const body = typeof record.body === "string" ? record.body : null
+  if (!kind || !body) return null
+
+  return {
+    kind,
+    body,
+    jobId: typeof record.job_id === "number" ? record.job_id : null,
+    prUrl: typeof record.pr_url === "string" ? record.pr_url : null
   }
 }
 

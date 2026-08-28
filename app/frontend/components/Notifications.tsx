@@ -11,6 +11,7 @@ import {
   type NotificationsPayload
 } from "../api/notifications"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { requestNativeNotificationPermission } from "../lib/nativeNotifications"
 import { useT } from "../hooks/useT"
 import { Button } from "./Button"
 
@@ -32,6 +33,7 @@ export function NotificationsBell({ initialUnreadCount, prefix, onNavigate }: { 
         aria-label={label}
         className={bellButtonClass()}
         onClick={() => {
+          void requestNativeNotificationPermission()
           setOpen(false)
           onNavigate?.()
         }}
@@ -50,7 +52,10 @@ export function NotificationsBell({ initialUnreadCount, prefix, onNavigate }: { 
         aria-haspopup="dialog"
         aria-label={label}
         className={bellButtonClass()}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          void requestNativeNotificationPermission()
+          setOpen((current) => !current)
+        }}
         type="button"
       >
         <BellIcon />
