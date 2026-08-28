@@ -4666,6 +4666,33 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(job_to_keep.reload).to be_open
   end
 
+  it "lets the operator dismiss a failed pending action through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job(repository: repository)
+    action = chat.pending_actions.create!(
+      action: "cancel_job",
+      state: "failed",
+      execution_status: "failed",
+      execution_error: "StandardError: boom",
+      payload: { "job_id" => job.id }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "failed"))
+
+    delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action cancelled.")
+    expect(action.reload).to be_cancelled
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to be_empty
+  end
+
   it "includes title, description, and repository resource for unanchored submit_coding_changes pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

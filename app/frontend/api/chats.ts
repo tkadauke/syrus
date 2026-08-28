@@ -278,6 +278,7 @@ export type ChatPendingActionInline = {
   resource_url?: string
   app_confirm_path: string
   app_reject_path: string
+  app_cancel_path?: string
 }
 
 export type ChatRenderMessageItem = ChatMessageItem & {
