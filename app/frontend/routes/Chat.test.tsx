@@ -3,7 +3,7 @@ import tailwindConfigSource from "../../../config/tailwind.config.js?raw"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
@@ -12,6 +12,7 @@ import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
+import { __resetDraftAttachmentsForTests } from "./chat/attachmentDraftStore"
 
 const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
 
@@ -32,6 +33,7 @@ vi.mock("@rails/actioncable", () => ({
 afterEach(() => {
   actionCableSubscriptions.length = 0
   vi.unstubAllGlobals()
+  __resetDraftAttachmentsForTests()
 })
 
 describe("storedWorkspaceCollapsed", () => {
@@ -2392,6 +2394,54 @@ describe("chat compose image attachments", () => {
   })
 })
 
+describe("chat compose attachment persistence across remounts", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("keeps an in-progress attachment after navigating away from the chat and back", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch()
+    renderRouteWithAwayLink()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "kept.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove kept.png" })
+
+    fireEvent.click(screen.getByText("Go away"))
+    await screen.findByText("Away page")
+
+    fireEvent.click(screen.getByText("Go back"))
+    await screen.findByPlaceholderText("Ask about this repository...")
+
+    expect(await screen.findByRole("button", { name: "Remove kept.png" })).toBeInTheDocument()
+  })
+
+  it("keeps an in-progress attachment when crossing the mobile/desktop breakpoint mid-session", async () => {
+    mockChatRouteFetch()
+    const viewport = mockDynamicViewport(true)
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "kept.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove kept.png" })
+
+    // ChatWorkspace renders an entirely different JSX branch per isDesktop,
+    // so flipping it remounts the ChatColumn/Compose subtree — the exact
+    // mechanism the bug report described for the breakpoint-crossing trigger.
+    act(() => {
+      viewport.setDesktop(false)
+    })
+    await screen.findByPlaceholderText("Ask about this repository...")
+
+    expect(await screen.findByRole("button", { name: "Remove kept.png" })).toBeInTheDocument()
+  })
+})
+
 describe("chat composer paste-to-attach", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -3412,6 +3462,23 @@ describe("floating composer control order", () => {
     expect(screen.getByRole("button", { name: "Chat model" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Effort" })).toBeInTheDocument()
   })
+
+  // jsdom never loads compiled CSS, so a Tailwind `hidden sm:block` wrapper
+  // can't be asserted via toBeInTheDocument()/toBeVisible() the way a
+  // conditional-render gate (like the agentActive check above) can — assert
+  // the responsive classes are present instead, mirroring how the
+  // "floating composer positioning" suite already asserts `className`
+  // content for CSS-driven behavior jsdom can't compute.
+  it("only ever renders the effort selector at sm: and above, independent of agent state", async () => {
+    mockDesktopViewport()
+    mockChatRouteFetch(fullControlsPayload())
+    renderRoute()
+
+    const effort = await screen.findByRole("button", { name: "Effort" })
+    const wrapper = effort.parentElement as HTMLElement
+    expect(wrapper.className).toContain("hidden")
+    expect(wrapper.className).toContain("sm:block")
+  })
 })
 
 describe("floating composer positioning", () => {
@@ -3442,6 +3509,39 @@ describe("floating composer positioning", () => {
     const columnAncestor = ancestor as HTMLElement
     expect(columnAncestor.className).toContain("relative")
     expect(columnAncestor.contains(panel)).toBe(false)
+  })
+
+  it("pins both horizontal edges to the chat column ancestor so no max-width value can push it past the workspace panel", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+
+    // jsdom never runs layout, so a fabricated getBoundingClientRect can't
+    // give this any real signal — it would just assert numbers this same
+    // test chose. What jsdom CAN verify is the actual mechanism the "no
+    // overlap" guarantee depends on: with both edges pinned to the
+    // `position: relative` ancestor via `left`/`right` (mobile) and
+    // `sm:inset-x-0` (desktop), CSS guarantees the rendered box can never
+    // exceed that ancestor's own padding box — `max-w-*` can only ever
+    // shrink it from there, never grow past it. A regression here (losing
+    // `sm:inset-x-0`, switching `absolute` to `fixed`, or reintroducing an
+    // unbounded width) is exactly the kind of change that would let the
+    // pill escape its ancestor and overlap the panel again.
+    let ancestor = composeForm.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+    expect(ancestor).not.toBeNull()
+
+    expect(composeForm.className).toContain("absolute")
+    expect(composeForm.className).not.toMatch(/(?:^|\s)fixed(?:\s|$)/)
+    expect(composeForm.className).toContain("left-[max(0.5rem,env(safe-area-inset-left))]")
+    expect(composeForm.className).toContain("right-[max(0.5rem,env(safe-area-inset-right))]")
+    expect(composeForm.className).toContain("sm:inset-x-0")
+    expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
+    expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
   })
 })
 
@@ -4310,6 +4410,74 @@ function renderRoute() {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function renderRouteWithAwayLink() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+        <Routes>
+          <Route element={<ChatRouteWithAwayLink />} path="/app-shell/chats/:id" />
+          <Route element={<AwayPage />} path="/app-shell/away" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function ChatRouteWithAwayLink() {
+  return (
+    <>
+      <Link to="/app-shell/away">Go away</Link>
+      <ChatRoute />
+    </>
+  )
+}
+
+function AwayPage() {
+  return (
+    <>
+      <div>Away page</div>
+      <Link to="/app-shell/chats/8">Go back</Link>
+    </>
+  )
+}
+
+// Unlike mockDesktopViewport/mockMobileViewport (a fixed snapshot), this
+// keeps the registered matchMedia change listener so a test can flip the
+// breakpoint mid-session the way a real window resize would.
+function mockDynamicViewport(initialDesktop: boolean) {
+  let matches = initialDesktop
+  const listeners = new Set<(event: { matches: boolean }) => void>()
+  const mediaQueryList = {
+    get matches() {
+      return matches
+    },
+    media: "(min-width: 1024px)",
+    onchange: null,
+    addEventListener: (_event: string, listener: (event: { matches: boolean }) => void) => {
+      listeners.add(listener)
+    },
+    removeEventListener: (_event: string, listener: (event: { matches: boolean }) => void) => {
+      listeners.delete(listener)
+    },
+    addListener: (listener: (event: { matches: boolean }) => void) => listeners.add(listener),
+    removeListener: (listener: (event: { matches: boolean }) => void) => listeners.delete(listener),
+    dispatchEvent: vi.fn()
+  }
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn(() => mediaQueryList)
+  })
+
+  return {
+    setDesktop(next: boolean) {
+      matches = next
+      listeners.forEach((listener) => listener({ matches: next }))
+    }
+  }
 }
 
 function renderRouteWithLocation() {

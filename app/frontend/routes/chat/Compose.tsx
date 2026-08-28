@@ -31,6 +31,7 @@ import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX
 import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
+import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -58,7 +59,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return ""
     }
   })
-  const [attachments, setAttachments] = useState<ChatComposeAttachment[]>([])
+  const [attachments, setAttachments] = useState<ChatComposeAttachment[]>(() => getDraftAttachments(chatId))
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -157,6 +158,12 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       // Local storage can be unavailable in hardened browser modes.
     }
   }, [chatId, text])
+
+  // Mirrors the text-draft effect above, but through the in-memory
+  // attachmentDraftStore rather than localStorage — see that module for why.
+  useEffect(() => {
+    setDraftAttachments(chatId, attachments)
+  }, [chatId, attachments])
 
   const send = useMutation({
     mutationFn: (messageText: string) => agentActive
@@ -1360,7 +1367,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       ) : null}
       <form
         className={floating
-          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:max-w-xl sm:mx-auto sm:p-3 dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
+          ? `absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-shadow sm:inset-x-0 sm:bottom-4 sm:mx-auto sm:max-w-2xl sm:p-3 lg:max-w-4xl xl:max-w-5xl dark:border-gray-700 dark:bg-gray-950/95 ${isDragOver ? "ring-2 ring-brand" : ""}`
           : `relative transition-shadow ${isDragOver ? "ring-2 ring-brand" : ""}`}
         data-tour="chat-compose"
         onDragEnter={handleDragEnter}
@@ -1580,7 +1587,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         ) : null}
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
       </div>
-      <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <div className="relative mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 sm:gap-x-2">
         <Button
           aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
           aria-expanded={attachmentPopoverOpen}
@@ -2174,7 +2181,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="min-h-11 max-w-[6.5rem] !gap-1 sm:min-h-0 sm:max-w-none"
+        className="min-h-11 max-w-[4.5rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2261,7 +2268,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="min-h-11 max-w-[6.5rem] !gap-1 sm:min-h-0 sm:max-w-none"
+        className="min-h-11 max-w-[4.5rem] !gap-1 !px-1.5 sm:min-h-0 sm:max-w-none sm:!px-2.5"
         disabled={updateModel.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2348,7 +2355,7 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
   const currentLabel = effortOptions.find((opt) => opt.value === currentEffort)?.label ?? t("effort_none")
 
   return (
-    <div className="relative">
+    <div className="relative hidden sm:block">
       <button
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"

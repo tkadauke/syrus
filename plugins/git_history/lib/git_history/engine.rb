@@ -7,7 +7,10 @@ module GitHistory
       # pods (see GitHistory::RelayServer). Only ever runs on worker
       # processes — the same ones with the $SYRUS_DATA_ROOT PVC mounted —
       # never on web pods, and never in test (RelayClient specs start their
-      # own instances against ephemeral ports).
+      # own instances against ephemeral ports). `ensure_running!` itself
+      # further gates on WorkerQueueTopology so it only actually starts on
+      # the worker pod(s) configured to consume the `polling` queue — the
+      # only ones that ever sync a bare clone in the first place.
       if SyrusVersion.server_process? && SyrusVersion.role == "worker"
         begin
           GitHistory::RelayServer.ensure_running!

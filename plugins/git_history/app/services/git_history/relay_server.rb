@@ -18,19 +18,29 @@ module GitHistory
   # per-request credential — GitHistoryController already authorizes the
   # request (`Repository.accessible_to(Current.user)`) before proxying.
   #
-  # Latent single-writer-pod assumption: today exactly one worker pod ever
-  # syncs bare clones, because `polling` is conventionally bundled onto the
-  # single "home" worker (`config/queue.home.yml`; see
-  # `config/syrus_docs/multi_worker.md`'s "never scale the home worker past
-  # one replica"). Nothing in code enforces or records this the way
-  # `ChatSession#coding_relay_address` records which pod holds a specific live
-  # checkout — this relay must run on the same worker pod(s) that process the
-  # `polling` queue, or reads may silently serve stale/inconsistent history
-  # depending on which pod happens to answer.
+  # Single-writer-pod assumption, now enforced rather than latent: exactly
+  # one worker pod ever syncs bare clones, because `RepositoryBareClone#sync!`
+  # only ever runs from PollMergeStateJob/PollPullRequestJob/
+  # LandingQueueRecheck, all processed on the `polling` queue. In a split
+  # deployment (`config/queue.home.yml` vs `config/queue.compute.yml`) most
+  # worker-role pods never consume `polling` at all, so starting this relay
+  # there unconditionally produced a relay that always answered
+  # `available: false` — reachable, but never useful, and indistinguishable
+  # from the normal "not synced yet" state from the outside. `ensure_running!`
+  # gates on `WorkerQueueTopology` (this process's actual configured queues)
+  # instead of the coarser `SyrusVersion.role == "worker"` check the caller
+  # (`GitHistory::Engine`) still uses, so the relay only ever starts on the
+  # pod(s) that can actually answer for a synced repository. Nothing in code
+  # enforces which of those pods answers a given request the way
+  # `ChatSession#coding_relay_address` pins a checkout to one pod — if
+  # `polling` is ever split across more than one pod, reads can still serve
+  # stale/inconsistent history depending on which pod answers.
   class RelayServer
     DEFAULT_PORT = 4571
     PORT = Integer(ENV.fetch("SYRUS_GIT_HISTORY_RELAY_PORT", DEFAULT_PORT))
     HOST = "0.0.0.0"
+
+    POLLING_QUEUE = "polling"
 
     AVAILABLE_PATH = %r{\A/repositories/(\d+)/available\z}
     COMMITS_PATH = %r{\A/repositories/(\d+)/commits\z}
@@ -43,13 +53,25 @@ module GitHistory
       # Idempotent boot-time entry point: starts the relay once per worker
       # process and tolerates the port already being bound from a previous
       # Zeitwerk dev-reload cycle — the old server thread is still running
-      # and still serving requests.
+      # and still serving requests. Only ever starts on a process actually
+      # configured to consume the `polling` queue — see the class comment.
       def ensure_running!(host: HOST, port: PORT)
         return @instance if @instance
+        return @instance unless polling_queue_consumer?
 
         @instance = start(host: host, port: port)
       rescue Errno::EADDRINUSE
         @instance
+      end
+
+      # Memoized like @instance itself: the queue config a process is
+      # started with doesn't change over its lifetime, so re-parsing it on
+      # every Zeitwerk dev-reload cycle for a non-consuming worker pod would
+      # be pure waste.
+      def polling_queue_consumer?
+        return @polling_queue_consumer if defined?(@polling_queue_consumer)
+
+        @polling_queue_consumer = WorkerQueueTopology.consumes?(POLLING_QUEUE)
       end
     end
 
