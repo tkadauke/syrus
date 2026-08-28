@@ -210,6 +210,44 @@ RSpec.describe Jobs::LandedCommitsBackfill do
       expect(result.skipped).to eq(1)
       expect(LandedCommit.count).to eq(2) # member commit + integration merge, not duplicated
     end
+
+    it "rolls back the whole train (not just the failing member) when a later member's API call fails, so a resumed run makes progress" do
+      epic = Factories.epic(user: user, repository: repository)
+      job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)
+      job_b = landed_job(pr_number: 602, landed_sha: "mergesha", issue_number: 2)
+      train = build_train(epic: epic)
+      MergeTrainMember.create!(merge_train: train, job: job_a, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: job_b, position: 1)
+
+      stub_two_parents
+      stub_ranged_log([
+        [ "shaA1", "Subject A1" ],
+        [ "shaB1", "Subject B1" ]
+      ])
+      client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
+      failing_client_b = double("GithubClient")
+      allow(failing_client_b).to receive(:pr_commits).and_raise(Octokit::NotFound.new)
+
+      service = service_for(clients_by_pr: { 601 => client_a, 602 => failing_client_b })
+      first_result = service.call
+
+      expect(first_result.errors).to eq(1)
+      expect(first_result.recorded).to eq(0)
+      # Member A's subjects matched and would have been the first write in
+      # the (rolled-back) transaction — assert nothing for the train
+      # persisted, not just that B is missing.
+      expect(LandedCommit.count).to eq(0)
+
+      client_b = github_client([ commit_double(sha: "origB1", message: "Subject B1") ])
+      second_result = service_for(clients_by_pr: { 601 => client_a, 602 => client_b }).call
+
+      expect(second_result.checked).to eq(1)
+      expect(second_result.recorded).to eq(1)
+      expect(second_result.errors).to eq(0)
+      expect(LandedCommit.where(landable: job_a).count).to eq(1)
+      expect(LandedCommit.where(landable: job_b).count).to eq(1)
+      expect(LandedCommit.find_by(landable: epic, kind: "integration_merge")).to be_present
+    end
   end
 
   it "supports dry runs without writing any LandedCommit rows" do
