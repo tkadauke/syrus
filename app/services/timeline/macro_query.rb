@@ -115,7 +115,7 @@ module Timeline
         scope = Workflow.where.not(started_at: nil)
           .where("workflows.started_at < ?", to)
           .where("workflows.finished_at IS NULL OR workflows.finished_at > ?", from)
-          .includes(:job)
+          .includes(:job, :work_unit)
           .order(:started_at)
         scope = apply_job_filters(scope)
         scope = scope.where(state: status_filter) if status_filter
@@ -125,7 +125,7 @@ module Timeline
 
     def pending_workflows
       @pending_workflows ||= begin
-        scope = Workflow.where(started_at: nil, state: "queued").includes(:job).order(:created_at)
+        scope = Workflow.where(started_at: nil, state: "queued").includes(:job, :work_unit).order(:created_at)
         apply_job_filters(scope).to_a
       end
     end
