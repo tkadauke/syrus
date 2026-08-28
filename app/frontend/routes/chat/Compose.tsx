@@ -97,6 +97,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
   const addAttachmentButtonRef = useRef<HTMLButtonElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
+  const pendingProposalBannerRef = useRef<HTMLDivElement | null>(null)
   const submitWithEnter = useSubmitChatWithEnter()
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
@@ -1244,21 +1245,35 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   // "new messages" pill from being covered by (or covering) it. Not needed
   // in the non-floating (landing) layout, where the composer is in normal
   // document flow.
+  //
+  // The banner renders `bottom-full` above the form, absolutely positioned
+  // against the wrapper div — CSS absolute positioning means it never
+  // enlarges the wrapper's own box, so observing the wrapper (or the form
+  // alone) only ever reports the form's height and silently drops the
+  // banner's footprint. Instead, measure the union: the form's own height
+  // plus however far the banner's top edge sits above the form's top edge
+  // (which already bakes in the banner's height and its bottom margin).
   useEffect(() => {
     if (!floating || !onComposerHeightChange) return
 
     const form = formRef.current
     if (!form || typeof ResizeObserver === "undefined") return
 
-    const observer = new ResizeObserver(() => {
-      onComposerHeightChange(form.getBoundingClientRect().height)
-    })
+    const measure = () => {
+      const formRect = form.getBoundingClientRect()
+      const bannerRect = pendingProposalBannerRef.current?.getBoundingClientRect()
+      const height = bannerRect ? Math.max(formRect.height, formRect.bottom - bannerRect.top) : formRect.height
+      onComposerHeightChange(height)
+    }
+
+    const observer = new ResizeObserver(measure)
     observer.observe(form)
+    if (pendingProposalBannerRef.current) observer.observe(pendingProposalBannerRef.current)
     return () => {
       observer.disconnect()
       onComposerHeightChange(null)
     }
-  }, [floating, onComposerHeightChange])
+  }, [floating, onComposerHeightChange, pendingProposalCount > 0])
 
   useEffect(() => {
     if (!attachmentPopoverOpen) return
@@ -1390,6 +1405,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           <div className={floating
             ? "absolute inset-x-0 bottom-full mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
             : "mb-2 flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"}
+            ref={floating ? pendingProposalBannerRef : undefined}
           >
             <span>
               {pendingProposalCount === 1

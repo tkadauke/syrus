@@ -11629,7 +11629,7 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "What would you like to build?" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "What would you like to build?" }).closest("section")).toHaveClass("items-center", "justify-center")
-    expect(screen.getByPlaceholderText("Ask about this repository...").closest("form")?.parentElement).toHaveClass("max-w-sm", "sm:max-w-2xl")
+    expect(screen.getByPlaceholderText("Ask about this repository...").closest("form")?.parentElement?.parentElement).toHaveClass("max-w-sm", "sm:max-w-2xl")
   })
 
   it("shows a removable attached repository chip in the empty chat landing compose area", async () => {
