@@ -3592,12 +3592,15 @@ describe("floating composer positioning", () => {
     // test chose. What jsdom CAN verify is the actual mechanism the "no
     // overlap" guarantee depends on: with both edges pinned to the
     // `position: relative` ancestor via `left`/`right` (mobile) and
-    // `sm:inset-x-0` (desktop), CSS guarantees the rendered box can never
-    // exceed that ancestor's own padding box — `max-w-*` can only ever
+    // `sm:left-5`/`sm:right-5` (desktop — inset 1.25rem past the ancestor's
+    // own `sm:px-8` padding box, so the pill reads narrower than the message
+    // stream's cards instead of wider), CSS guarantees the rendered box can
+    // never exceed that ancestor's own padding box — `max-w-*` can only ever
     // shrink it from there, never grow past it. A regression here (losing
-    // `sm:inset-x-0`, switching `absolute` to `fixed`, or reintroducing an
-    // unbounded width) is exactly the kind of change that would let the
-    // pill escape its ancestor and overlap the panel again.
+    // the `sm:left-5`/`sm:right-5` inset, switching `absolute` to `fixed`,
+    // or reintroducing an unbounded width) is exactly the kind of change
+    // that would let the pill escape its ancestor and overlap the panel
+    // again.
     let ancestor = composeForm.parentElement
     while (ancestor && !ancestor.contains(messageStream)) {
       ancestor = ancestor.parentElement
@@ -3608,9 +3611,40 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).not.toMatch(/(?:^|\s)fixed(?:\s|$)/)
     expect(composeForm.className).toContain("left-[max(0.5rem,env(safe-area-inset-left))]")
     expect(composeForm.className).toContain("right-[max(0.5rem,env(safe-area-inset-right))]")
-    expect(composeForm.className).toContain("sm:inset-x-0")
+    expect(composeForm.className).toContain("sm:left-5")
+    expect(composeForm.className).toContain("sm:right-5")
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
+  })
+
+  // Regression coverage for JOB-3820: the composer must be inset at least as
+  // much as the message stream's own cards (ChatColumn's `sm:px-8` plus the
+  // stream's own `sm:p-4`), so chat history reads equal-or-wider, never
+  // narrower, than the composer. Comparing raw utility values (rather than
+  // rendered pixels, which jsdom can't produce) is the only signal available
+  // here, but it's the same signal the two components' real margins are
+  // built from.
+  it("insets the composer at least as much as the message stream's own sm:p-4 card padding", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByTestId("chat-message-stream")
+    const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+    expect(composeForm).not.toBeNull()
+
+    // ChatColumn's section supplies `sm:px-8` (2rem) to both the composer
+    // and the message stream; the stream's own `sm:p-4` div (see
+    // `chat-message-stream` in Chat.tsx) adds another 1rem on top of that
+    // for its cards, totaling 3rem. The composer must match or exceed that
+    // same total, so it needs at least `sm:left-4`/`sm:right-4` (1rem) on
+    // top of the `sm:px-8` it already inherits from being flush to
+    // ChatColumn's padding box.
+    const leftMatch = composeForm.className.match(/(?:^|\s)sm:left-(\d+)(?:\s|$)/)
+    const rightMatch = composeForm.className.match(/(?:^|\s)sm:right-(\d+)(?:\s|$)/)
+    expect(leftMatch).not.toBeNull()
+    expect(rightMatch).not.toBeNull()
+    expect(Number(leftMatch?.[1])).toBeGreaterThanOrEqual(4)
+    expect(Number(rightMatch?.[1])).toBeGreaterThanOrEqual(4)
   })
 
   // Regression coverage for the banner-painted-under-the-pill bug: the
