@@ -2,6 +2,17 @@ module Api
   module V1
     module App
       class ThemeController < BaseController
+        # Rails' ActionController::ParamsWrapper wraps JSON request bodies
+        # under a key matching the controller name ("theme") using the
+        # `Theme` model's own column list -- which has no `color_theme_id`
+        # column (that belongs to User). A JSON PATCH with only
+        # `color_theme_id` in the body then gets a spurious empty
+        # `params[:theme] == {}` injected, which update_attributes below
+        # would otherwise forward straight into `User#theme` and fail its
+        # presence/inclusion validation. This controller's params are flat,
+        # not a nested resource payload, so disable wrapping entirely.
+        wrap_parameters false
+
         def update
           unless color_theme_param_selectable?
             render_error("validation_failed", "color theme is not available", status: :unprocessable_content)
