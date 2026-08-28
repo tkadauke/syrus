@@ -591,7 +591,6 @@ function settingsNavigationItems(t: (key: string) => string, simpleMode = false)
     { key: "memories", label: t("nav.memories"), path: "/memories", active: (path) => path === "/memories" },
     { key: "templates", label: t("nav.templates"), path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
     { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" },
-    { key: "design_system", label: t("nav.design_system"), path: "/design_system", active: (path) => path === "/design_system" },
     { key: "connected_platforms", label: t("nav.connected_platforms"), path: "/settings/connected_platforms", active: (path) => path === "/settings/connected_platforms" }
   ]
 
