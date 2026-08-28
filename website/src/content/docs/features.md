@@ -614,9 +614,10 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
-When a product owner confirms proposals, Syrus accepts standalone backlog
-Epics and non-Epic Jobs, but rejects proposals that would create Jobs inside
-an Epic until a developer claims and elaborates that Epic.
+When a product owner confirms proposals, Syrus accepts a new Epic proposed
+together with its own required initial child Job(s) and accepts non-Epic
+Jobs, but rejects any proposal that would add further Jobs to an
+already-existing Epic until a developer claims and elaborates that Epic.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics, Epics blocked on existing Jobs, and proposed Jobs
 blocked on specific Job proposals in other cards from the same chat session.
