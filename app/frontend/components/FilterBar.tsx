@@ -1,6 +1,7 @@
 import type { RefObject } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { useListNavigation } from "../hooks/useListNavigation"
 import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { Input } from "./Input"
@@ -10,6 +11,10 @@ import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, Filt
 import { clearFiltersLink, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isObjectValue, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
 export { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren } from "./filterBar/helpers"
 export type { FilterChip, FilterGroup, FilterLinkBuilder, FilterNode, FilterOption, FilterSchemaField, FilterSuggestion, FilterTree } from "./filterBar/types"
+
+function filterMenuItemClass(base: string, highlighted: boolean) {
+  return `${base} ${highlighted ? "bg-gray-50 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800"}`
+}
 
 export function FilterBar({
   filter,
@@ -59,6 +64,17 @@ export function FilterBar({
   const filteredSuggestions = activeSuggestions.filter((suggestion) => {
     const query = addQuery.trim().toLowerCase()
     return !addAlternativePath && (!query || suggestion.label.toLowerCase().includes(query))
+  })
+  const addMenuNavigation = useListNavigation({
+    itemCount: filteredSuggestions.length + filteredSchema.length,
+    onSelect: (index) => {
+      if (index < filteredSuggestions.length) {
+        addSuggestedFilter(filteredSuggestions[index])
+      } else {
+        addFilter(filteredSchema[index - filteredSuggestions.length])
+      }
+    },
+    resetKey: `${addMenuOpen}|${addQuery}`
   })
   const editingChip = editingPath ? filterNodeAtPath(draftTree, editingPath) : null
   const editingMeta = editingChip && "field" in editingChip ? filterMetaFor(filterSchema, editingChip.field) : null
@@ -279,6 +295,7 @@ export function FilterBar({
             <Input
               autoFocus
               onChange={(event) => setAddQuery(event.target.value)}
+              onKeyDown={addMenuNavigation.handleKeyDown}
               placeholder={t("filter_bar.search_placeholder")}
               type="search"
               value={addQuery}
@@ -287,11 +304,13 @@ export function FilterBar({
               {filteredSuggestions.length > 0 ? (
                 <div className="border-b border-gray-100 pb-1 dark:border-gray-800">
                   <div className="px-3 py-1.5 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">{t("filter_bar.suggested")}</div>
-                  {filteredSuggestions.map((suggestion) => (
+                  {filteredSuggestions.map((suggestion, suggestionIndex) => (
                     <button
-                      className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                      className={filterMenuItemClass("block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === suggestionIndex)}
                       key={suggestion.id}
                       onClick={() => addSuggestedFilter(suggestion)}
+                      onMouseEnter={() => addMenuNavigation.setHighlightedIndex(suggestionIndex)}
+                      ref={addMenuNavigation.registerItem(suggestionIndex)}
                       type="button"
                     >
                       {suggestion.label}
@@ -299,14 +318,17 @@ export function FilterBar({
                   ))}
                 </div>
               ) : null}
-              {filteredSchema.map((field) => {
+              {filteredSchema.map((field, schemaIndex) => {
                 const fieldLabel = t(`filter_fields.${field.field}`, { defaultValue: field.label })
+                const index = filteredSuggestions.length + schemaIndex
                 return (
                   <button
                     aria-label={`${fieldLabel} ${translateBucket(field.bucket, t)}`}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                    className={filterMenuItemClass("flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200", addMenuNavigation.highlightedIndex === index)}
                     key={field.field}
                     onClick={() => addFilter(field)}
+                    onMouseEnter={() => addMenuNavigation.setHighlightedIndex(index)}
+                    ref={addMenuNavigation.registerItem(index)}
                     type="button"
                   >
                     <span>{fieldLabel}</span>
@@ -568,6 +590,12 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
     }
   }
 
+  const navigation = useListNavigation({
+    itemCount: options.length,
+    onSelect: (index) => addValue(String(options[index].value)),
+    resetKey: query
+  })
+
   return (
     <div className={filterLabelClass()}>
       <label htmlFor={`filter-value-${meta.field}-search`}>{t("filter_bar.value")}</label>
@@ -590,6 +618,7 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
             className="min-w-32 flex-1 !rounded-none !border-0 !bg-transparent !p-0 focus:!ring-0"
             id={`filter-value-${meta.field}-search`}
             onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={navigation.handleKeyDown}
             placeholder={t("filter_bar.search_by_name")}
             ref={inputRef}
             type="text"
@@ -599,11 +628,13 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
         {query.trim() ? (
           <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
             {options.length > 0 ? (
-              options.map((option) => (
+              options.map((option, index) => (
                 <button
-                  className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                  className={filterMenuItemClass("block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200", navigation.highlightedIndex === index)}
                   key={String(option.value)}
                   onClick={() => addValue(String(option.value))}
+                  onMouseEnter={() => navigation.setHighlightedIndex(index)}
+                  ref={navigation.registerItem(index)}
                   type="button"
                 >
                   {option.label}
@@ -642,6 +673,12 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
     onChange({ ...chip, value: selected.filter((selectedValue) => selectedValue !== value) })
   }
 
+  const navigation = useListNavigation({
+    itemCount: filteredOptions.length,
+    onSelect: (index) => addValue(String(filteredOptions[index].value)),
+    resetKey: query
+  })
+
   return (
     <label className={filterLabelClass()} htmlFor={`filter-value-${meta.field}-search`}>
       <span className="sr-only">{t("filter_bar.value")}</span>
@@ -664,16 +701,19 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
           className="!rounded-none !border-0 !border-t !px-2 focus:!ring-0"
           id={`filter-value-${meta.field}-search`}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={navigation.handleKeyDown}
           placeholder={t("filter_bar.search_value_placeholder")}
           type="search"
           value={query}
         />
         <div className="max-h-56 overflow-y-auto border-t border-gray-200 py-1 dark:border-gray-700">
-          {filteredOptions.map((option) => (
+          {filteredOptions.map((option, index) => (
             <button
-              className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+              className={filterMenuItemClass("block w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-200", navigation.highlightedIndex === index)}
               key={String(option.value)}
               onClick={() => addValue(String(option.value))}
+              onMouseEnter={() => navigation.setHighlightedIndex(index)}
+              ref={navigation.registerItem(index)}
               type="button"
             >
               {option.label}
