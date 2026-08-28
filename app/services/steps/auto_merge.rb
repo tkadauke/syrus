@@ -66,6 +66,8 @@ module Steps
 
       raise StepFailed, "auto_merge: #{gate.reason}" unless gate.merge_ready?
 
+      previous_base_sha = capture_previous_base_sha(client, gate)
+
       merge = merge_pull_request(client, gate)
       return unless merge
 
@@ -73,6 +75,7 @@ module Steps
 
       sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
       job.update_column(:landed_sha, sha) if sha.present?
+      record_landed_commits(client, previous_base_sha, sha) if sha.present?
 
       comment = "Merged automatically by Syrus after approval and green checks. #{job.slug}: #{job_url}"
       add_merge_comment(client, comment)
@@ -110,6 +113,36 @@ module Steps
 
     def evaluate_gate(client)
       AutoMergeGate.new(job: job, client: client, bypass_cache: true).evaluate
+    end
+
+    # Snapshot the base branch's tip SHA immediately before the merge
+    # call so we can later ask GitHub which commits `compare_commits`
+    # says landed between that snapshot and the new tip.
+    def capture_previous_base_sha(client, gate)
+      base_branch = gate.pr&.base&.ref.presence || repository.default_branch
+      client.branch_head_sha(repository.slug, base_branch)
+    rescue StandardError => e
+      log("auto_merge: could not capture pre-merge base SHA: #{e.class}: #{e.message}", kind: "system")
+      nil
+    end
+
+    # `GithubClient#compare_commits` returns commits newest-first (its
+    # `.reverse` undoes GitHub's own oldest-first compare-API order —
+    # see the spec asserting that order). Landing order is chronological
+    # (oldest/base-adjacent commit first), so reverse it again before
+    # assigning `position`. This is additive bookkeeping alongside
+    # `landed_sha`; any failure here must not fail the landing.
+    def record_landed_commits(client, previous_base_sha, sha)
+      return if previous_base_sha.blank?
+
+      commits = client.compare_commits(repository.slug, previous_base_sha, sha)[:commits]
+      return if commits.blank?
+
+      commits.reverse_each.with_index do |commit, position|
+        LandedCommit.create!(landable: job, sha: commit[:sha], kind: "implementation", position: position)
+      end
+    rescue StandardError => e
+      log("auto_merge: could not record landed commits: #{e.class}: #{e.message}", kind: "system")
     end
 
     def close_job_for_closed_pull_request!(pr, client)
