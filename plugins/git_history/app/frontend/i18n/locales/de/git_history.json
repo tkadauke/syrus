@@ -11,6 +11,8 @@
   "empty": "Keine Commits gefunden.",
   "classification": {
     "syrus_landed": "Syrus",
+    "epic_landed": "Epic",
+    "epic_reconciliation": "Epic-Abgleich",
     "external_pr": "Externer PR",
     "external_push": "Direkter Push"
   },
