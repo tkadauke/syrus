@@ -61,7 +61,7 @@ Tailwind-style shade scale to draw an exact "-50"/"-950" background from
 approximated by alpha-blending the tone color over the theme's own
 `surface` at a fixed 6% mix (`Theme::STATUS_TONE_BACKGROUND_TINT_ALPHA`) --
 a documented approximation, not a literal Tailwind-scale match, tuned so
-all three built-in themes (`db/seeds/themes.rb`) pass with margin. It
+all 18 built-in themes (`db/seeds/themes.rb`) pass with margin. It
 returns `[]` when every pairing passes (or when `tokens` isn't shaped
 correctly yet -- that's `#tokens_has_required_shape`'s job to flag), or an
 array of issue hashes (`mode`, `foreground`, `background`,
