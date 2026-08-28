@@ -33,7 +33,7 @@ export function TimelineLanes({
 }) {
   const { t } = useT("worker_timeline")
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const zoomRef = useRef<HTMLDivElement | null>(null)
+  const axisRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT)
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity)
@@ -62,8 +62,15 @@ export function TimelineLanes({
     return () => observer.disconnect()
   }, [])
 
+  // Bound to the time-axis header only, NOT the scrollable lanes container
+  // below it. d3-zoom's default wheel handler calls preventDefault() /
+  // stopImmediatePropagation() on any wheel event that would change the
+  // horizontal scale -- which is every wheel event once the user has
+  // zoomed in at all. Binding it to the same element users scroll
+  // vertically to browse lanes would swallow that scroll the moment
+  // zooming is used, defeating row virtualization's whole point.
   useEffect(() => {
-    const el = zoomRef.current
+    const el = axisRef.current
     if (!el) return undefined
 
     const behavior = d3zoom<HTMLDivElement, unknown>()
@@ -90,14 +97,16 @@ export function TimelineLanes({
 
   return (
     <div className="relative">
-      <TimeAxis scale={xScale} />
+      <div ref={axisRef} style={{ touchAction: "none" }}>
+        <TimeAxis scale={xScale} />
+      </div>
       <div
         aria-label={t("lanes_aria")}
         className="relative h-[480px] overflow-y-auto overflow-x-hidden border-t border-gray-200 dark:border-gray-800"
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
         ref={scrollRef}
       >
-        <div ref={zoomRef} style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ height: totalHeight, position: "relative" }}>
           {visibleLanes.map((lane, offset) => (
             <LaneRow
               index={startIndex + offset}
@@ -164,6 +173,11 @@ function LaneRow({
               height="20"
               key={span.workflow_id}
               onClick={() => onSelectWorkflow(span.workflow_id)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                onSelectWorkflow(span.workflow_id)
+              }}
               onMouseEnter={(event) => onHover({ span, x: event.clientX, y: event.clientY })}
               onMouseLeave={() => onHover(null)}
               onMouseMove={(event) => onHover({ span, x: event.clientX, y: event.clientY })}
@@ -194,6 +208,7 @@ function SpanTooltip({ span, x, y }: { span: WorkerTimelineSpan; x: number; y: n
       style={{ left: x + 12, top: y + 12 }}
     >
       <p className="font-semibold">{span.label}</p>
+      {span.job_title ? <p className="text-gray-700 dark:text-gray-200">{span.job_title}</p> : null}
       <p className="text-gray-500 dark:text-gray-400">{t("tooltip_workflow", { id: span.workflow_id })}</p>
       <p>{duration}</p>
       <p className="mt-1 text-gray-600 dark:text-gray-300">{blockedText}</p>

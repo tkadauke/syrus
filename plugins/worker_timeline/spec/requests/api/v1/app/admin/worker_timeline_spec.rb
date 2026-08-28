@@ -4,7 +4,7 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
   let!(:admin) { Factories.user(admin: true) }
   let(:member) { Factories.user(admin: false) }
   let(:repository) { Factories.repository(user: admin) }
-  let(:job) { Factories.job_record(user: admin, repository: repository, state: "running") }
+  let(:job) { Factories.job_record(user: admin, repository: repository, state: "running", issue_title: "Fix the aqueducts") }
 
   def parse_body = JSON.parse(response.body)
 
@@ -44,8 +44,9 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
       get "/api/v1/app/admin/worker_timeline/macro", params: { repository_id: repository.id, hostname: "worker-x", status: "running" }
 
       expect(response).to have_http_status(:ok)
-      span_workflow_ids = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }
-      expect(span_workflow_ids).to eq([ matching.id ])
+      spans = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }
+      expect(spans.map { |span| span.fetch("workflow_id") }).to eq([ matching.id ])
+      expect(spans.first.fetch("job_title")).to eq("Fix the aqueducts")
     end
   end
 
