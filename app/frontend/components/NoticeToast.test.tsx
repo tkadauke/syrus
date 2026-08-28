@@ -7,7 +7,7 @@ describe("NoticeToast", () => {
     vi.useRealTimers()
   })
 
-  it("dismisses itself after ten seconds", () => {
+  it("dismisses itself after three seconds", () => {
     vi.useFakeTimers()
     const onDismiss = vi.fn()
     render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
@@ -15,7 +15,7 @@ describe("NoticeToast", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
 
     act(() => {
-      vi.advanceTimersByTime(9_999)
+      vi.advanceTimersByTime(2_999)
     })
     expect(onDismiss).not.toHaveBeenCalled()
 
@@ -23,6 +23,15 @@ describe("NoticeToast", () => {
       vi.advanceTimersByTime(1)
     })
     expect(onDismiss).toHaveBeenCalledTimes(1)
+  })
+
+  it("clears the mobile in-flow header while sitting near the top on desktop", () => {
+    const onDismiss = vi.fn()
+    render(<NoticeToast message="Bug report queued." onDismiss={onDismiss} />)
+
+    const classes = screen.getByRole("status").className
+    expect(classes).toContain("top-[68px]")
+    expect(classes).toContain("lg:top-4")
   })
 
   it("still supports manual dismissal", () => {
