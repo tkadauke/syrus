@@ -2638,7 +2638,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_004447) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
-
-  add_foreign_key "themes", "users", column: "owner_user_id"
-  add_foreign_key "users", "themes", column: "color_theme_id"
 end

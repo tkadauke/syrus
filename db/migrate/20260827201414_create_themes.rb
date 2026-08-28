@@ -4,7 +4,7 @@ class CreateThemes < ActiveRecord::Migration[8.1]
       t.string :name, null: false
       t.string :slug, null: false
       t.boolean :built_in, null: false, default: false
-      t.references :owner_user, null: true, foreign_key: { to_table: :users }
+      t.references :owner_user, null: true
       t.json :tokens
       t.text :prompt
 
