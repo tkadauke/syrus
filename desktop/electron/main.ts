@@ -165,10 +165,6 @@ type LocalStatus = {
 type BootstrapPayload = {
   current_user: {
     admin: boolean
-    notification_preferences?: {
-      desktop_job_implemented?: boolean
-      desktop_job_failed?: boolean
-    }
     theme?: "light" | "dark" | "system"
   } | null
   unread_notifications_count?: number
@@ -2960,19 +2956,6 @@ ipcMain.handle("quit-app", () => {
 })
 ipcMain.handle("copy-text", async (_event, text: string) => {
   clipboard.writeText(text)
-})
-ipcMain.handle("syrusDesktop:showNotification", async (_event, opts: { title: string; body: string; jobId: number }) => {
-  if (!Notification.isSupported()) {
-    return
-  }
-
-  const notification = new Notification({ title: opts.title, body: opts.body })
-  notification.on("click", () => {
-    void showPopoverWindow().then(() => {
-      mainWindow?.webContents.send("syrusDesktop:navigateToJob", opts.jobId)
-    })
-  })
-  notification.show()
 })
 ipcMain.handle("fetch-bootstrap", async () => fetchBootstrap())
 ipcMain.handle("fetch-repositories", async () => fetchRepositories())

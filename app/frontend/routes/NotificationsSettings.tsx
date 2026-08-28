@@ -28,19 +28,6 @@ const notificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; lab
   { kind: "main_inconclusive", labelKey: "notifications.pref_main_inconclusive" }
 ]
 
-const desktopNotificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; labelKey: string; descKey: string }> = [
-  {
-    kind: "desktop_job_implemented",
-    labelKey: "notifications.desktop_job_implemented_label",
-    descKey: "notifications.desktop_job_implemented_desc"
-  },
-  {
-    kind: "desktop_job_failed",
-    labelKey: "notifications.desktop_job_failed_label",
-    descKey: "notifications.desktop_job_failed_desc"
-  }
-]
-
 export function NotificationsSettingsRoute() {
   const { t } = useT("settings")
   usePageTitle(t("notifications.heading"))
@@ -120,25 +107,6 @@ function NotificationPreferenceToggles({
             <Checkbox
               aria-label={t(labelKey)}
               checked={payload.notification_preferences[kind]}
-              disabled={disabled}
-              onChange={(event) => onChange(kind, event.target.checked)}
-            />
-          </label>
-        ))}
-      </fieldset>
-
-      <fieldset className="space-y-3">
-        <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('notifications.desktop_heading')}</legend>
-        {desktopNotificationPreferenceKinds.map(({ kind, labelKey, descKey }) => (
-          <label className="flex items-start justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
-            <span>
-              <span className="block font-medium text-gray-700 dark:text-gray-300">{t(labelKey)}</span>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t(descKey)}</span>
-            </span>
-            <Checkbox
-              aria-label={t(labelKey)}
-              checked={payload.notification_preferences[kind]}
-              className="mt-1"
               disabled={disabled}
               onChange={(event) => onChange(kind, event.target.checked)}
             />

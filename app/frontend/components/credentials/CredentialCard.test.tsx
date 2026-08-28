@@ -35,11 +35,7 @@ function makePayload(overrides: {
       provider_availability_overrides: {},
       scheduling_paused: false,
       auto_approve_mode: "never",
-      locale: "en",
-      notification_preferences: {
-        desktop_job_implemented: true,
-        desktop_job_failed: true
-      }
+      locale: "en"
     },
     credential_status: {
       github_token: false,
