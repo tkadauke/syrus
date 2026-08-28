@@ -1826,6 +1826,7 @@ describe("App", () => {
       expect(within(settingsNav).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/documents")
       expect(within(settingsNav).getByRole("link", { name: "Templates" })).toHaveAttribute("href", "/app-shell/cron_templates")
       expect(within(settingsNav).getByRole("link", { name: "Tags" })).toHaveAttribute("href", "/app-shell/tags")
+      expect(within(settingsNav).queryByRole("link", { name: "Design System" })).not.toBeInTheDocument()
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials", expect.objectContaining({ credentials: "same-origin" }))
       expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/settings/hidden_chats?page=1", expect.anything())
     } finally {
