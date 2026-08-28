@@ -190,6 +190,7 @@ per-user/private:
   - app/controllers/api/v1/app/tags_controller.rb
   - app/controllers/api/v1/app/terminal_sessions_controller.rb
   - app/controllers/api/v1/app/theme_controller.rb
+  - app/controllers/api/v1/app/themes_controller.rb
   - app/controllers/api/v1/app/tours_controller.rb
   - app/controllers/api/v1/app/users_controller.rb
   - app/controllers/api/v1/app/video_walkthroughs_controller.rb
@@ -375,6 +376,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
 | `app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Current.user.terminal_sessions`; recent Workflow workspace choices and workflow defaults are scoped through `Current.user.workflows`. |
 | `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
+| `app/controllers/api/v1/app/themes_controller.rb` | per-user/private | Lists and shows themes through `Theme.selectable_by(Current.user)` (built-ins plus the current user's own custom themes), so a user can't fetch another user's custom theme by guessing its id. |
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |
 | `app/controllers/api/v1/app/users_controller.rb` | per-user/private | Invite-picker listing excludes the current user and, when scoping to a chat, excludes that chat's existing participants found through `Current.user.accessible_chat_sessions`. No admin gate — Syrus has no team/org scoping, so any authenticated user may see the flat instance user list. |
 | `app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |

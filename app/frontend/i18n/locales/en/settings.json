@@ -11,7 +11,8 @@
     "memories": "Memories",
     "templates": "Templates",
     "tags": "Tags",
-    "connected_platforms": "Connected Platforms"
+    "connected_platforms": "Connected Platforms",
+    "design_system": "Design System"
   },
   "backend_updating": "The Syrus backend is updating — credential status can't be checked right now. Your saved credentials are unaffected; this closes out in a minute or two.",
   "profile": {
@@ -212,6 +213,64 @@
     "count_epics": "Epics",
     "count_jobs": "Jobs",
     "count_open": "Open"
+  },
+  "design_system": {
+    "heading": "Design System",
+    "description": "A living gallery of Syrus's shared UI components, rendered from the real design-system primitives and styled from the active color token layer.",
+    "preview_banner": "Previewing \"{{name}}\" — shown on this page only. The rest of the app keeps your active theme.",
+    "preview_not_found": "That theme couldn't be loaded — it may not exist, or it may belong to another user.",
+    "tokens": {
+      "heading": "Color tokens",
+      "description": "Semantic color custom properties every primitive below is styled from."
+    },
+    "buttons": {
+      "heading": "Buttons",
+      "description": "Button variants and sizes.",
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "danger": "Danger",
+      "success": "Success",
+      "disabled": "Disabled"
+    },
+    "form": {
+      "heading": "Form controls",
+      "description": "Input, Select, Checkbox, and Toggle primitives.",
+      "input_label": "Text input",
+      "input_placeholder": "Type something…",
+      "input_invalid_label": "Invalid input",
+      "input_invalid_value": "Something's wrong",
+      "select_label": "Select",
+      "checkbox_label": "Enable notifications",
+      "toggle_label": "Auto-merge"
+    },
+    "cards": {
+      "heading": "Cards",
+      "description": "Base and preview card styles.",
+      "base_title": "Base card",
+      "base_body": "Plain bordered surface used for page sections.",
+      "preview_title": "Preview card"
+    },
+    "modal": {
+      "heading": "Modal",
+      "description": "Dialog primitive with a focus trap and escape-to-close.",
+      "open": "Open example modal",
+      "title": "Example modal",
+      "body": "This is an example modal dialog rendered with the shared Modal primitive.",
+      "close": "Close"
+    },
+    "status": {
+      "heading": "Status pills",
+      "description": "Tone palette and representative StatusPill states.",
+      "tones_heading": "Tones",
+      "states_heading": "Example states"
+    },
+    "headings": {
+      "heading": "Headings",
+      "description": "PageHeading and SectionHeading scale.",
+      "page_example": "Example page heading",
+      "section_example": "Example section heading",
+      "subsection_example": "Example sub-section heading"
+    }
   },
   "personal_documents": {
     "heading": "Personal documents",
@@ -980,6 +1039,7 @@
   "aria_repo_memberships": "Repository members",
   "aria_repositories": "Repositories",
   "aria_personal_documents": "Personal documents",
+  "aria_design_system": "Design System",
   "aria_notification_settings": "Notification settings",
   "page_title_schedules": "Schedules",
   "page_title_repo_schedules": "Schedules — {{slug}}"

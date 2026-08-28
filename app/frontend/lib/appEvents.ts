@@ -528,6 +528,16 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return true
   }
 
+  const themePreview = chatThemePreviewPayload(event.payload)
+  if (themePreview) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("syrus:theme-preview", {
+        detail: { chat_session_id: event.id, theme_id: themePreview.theme_id, path: themePreview.path }
+      }))
+    }
+    return true
+  }
+
   return false
 }
 
@@ -597,6 +607,12 @@ type ChatUpdateProposalPayload = {
 type ChatJobStatusChangedPayload = {
   action: "job_status_changed"
   job_id: number
+}
+
+type ChatThemePreviewPayload = {
+  action: "open_theme_preview"
+  theme_id: number
+  path: string
 }
 
 type ChatParticipantsPayload = {
@@ -828,6 +844,17 @@ function isChatParticipants(value: unknown): value is ChatParticipant[] {
     const candidate = item as Partial<ChatParticipant>
     return typeof candidate.id === "number" && typeof candidate.name === "string" && typeof candidate.role === "string"
   })
+}
+
+function chatThemePreviewPayload(payload: unknown): ChatThemePreviewPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatThemePreviewPayload>
+  if (candidate.action !== "open_theme_preview") return null
+  if (typeof candidate.theme_id !== "number") return null
+  if (typeof candidate.path !== "string") return null
+
+  return { action: "open_theme_preview", theme_id: candidate.theme_id, path: candidate.path }
 }
 
 function chatParticipantsPayload(payload: unknown): ChatParticipantsPayload | null {

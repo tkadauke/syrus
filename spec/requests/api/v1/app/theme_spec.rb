@@ -12,7 +12,7 @@ RSpec.describe "API: /api/v1/app/theme", type: :request do
     patch "/api/v1/app/theme", params: { theme: "dark" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("theme" => "dark")
+    expect(parse_body["theme"]).to eq("dark")
     expect(user.reload.theme).to eq("dark")
   end
 
@@ -23,7 +23,7 @@ RSpec.describe "API: /api/v1/app/theme", type: :request do
     patch "/api/v1/app/theme", params: { theme: "system" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("theme" => "system")
+    expect(parse_body["theme"]).to eq("system")
     expect(user.reload.theme).to eq("system")
   end
 
@@ -45,5 +45,84 @@ RSpec.describe "API: /api/v1/app/theme", type: :request do
 
     expect(response).to have_http_status(:unauthorized)
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
+  end
+
+  describe "color_theme_id" do
+    it "updates the signed-in user's color theme to a built-in theme" do
+      ocean = theme(slug: "ocean", built_in: true)
+      user = Factories.user
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: ocean.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["color_theme_id"]).to eq(ocean.id)
+      expect(parse_body["color_theme"]).to eq(
+        "id" => ocean.id,
+        "slug" => "ocean",
+        "name" => ocean.name,
+        "built_in" => true,
+        "tokens" => JSON.parse(ocean.tokens.to_json)
+      )
+      expect(user.reload.color_theme_id).to eq(ocean.id)
+    end
+
+    it "updates the signed-in user's color theme to their own custom theme" do
+      user = Factories.user
+      mine = theme(slug: "mine", built_in: false, owner_user: user)
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: mine.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(user.reload.color_theme_id).to eq(mine.id)
+    end
+
+    it "rejects another user's custom theme" do
+      user = Factories.user
+      other = Factories.user
+      theirs = theme(slug: "theirs", built_in: false, owner_user: other)
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: theirs.id }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(user.reload.color_theme_id).to be_nil
+    end
+
+    it "rejects an unknown color theme id" do
+      user = Factories.user
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: -1 }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "clears the color theme when given a blank value" do
+      ocean = theme(slug: "ocean", built_in: true)
+      user = Factories.user(color_theme: ocean)
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: "" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["color_theme_id"]).to be_nil
+      expect(user.reload.color_theme_id).to be_nil
+    end
+
+    it "leaves the mode untouched when only color_theme_id is given" do
+      ocean = theme(slug: "ocean", built_in: true)
+      user = Factories.user(theme: "dark")
+      sign_in_as(user)
+
+      patch "/api/v1/app/theme", params: { color_theme_id: ocean.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["theme"]).to eq("dark")
+      expect(user.reload.theme).to eq("dark")
+    end
   end
 end

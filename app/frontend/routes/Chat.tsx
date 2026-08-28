@@ -106,6 +106,7 @@ import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
+import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
 import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey } from "./chat/messageStreamItems"
@@ -403,6 +404,8 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
           onSettingsOpenChange={setSettingsOpen}
         />
       )}
+
+      <ThemePreviewModal chatId={chatId} prefix={prefix} />
     </div>
   )
 }

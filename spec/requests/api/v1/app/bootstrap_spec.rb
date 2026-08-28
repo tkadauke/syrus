@@ -553,6 +553,35 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(parse_body.dig("current_user", "sidebar_nav_order")).to eq(%w[ repositories dashboard ])
   end
 
+  it "includes the selected color theme in current_user payload" do
+    ocean = theme(slug: "ocean", built_in: true)
+    user = Factories.user(color_theme: ocean)
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("current_user", "color_theme_id")).to eq(ocean.id)
+    expect(parse_body.dig("current_user", "color_theme")).to eq(
+      "id" => ocean.id,
+      "slug" => "ocean",
+      "name" => ocean.name,
+      "built_in" => true,
+      "tokens" => JSON.parse(ocean.tokens.to_json)
+    )
+  end
+
+  it "returns a null color theme when the user has none set" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("current_user", "color_theme_id")).to be_nil
+    expect(parse_body.dig("current_user", "color_theme")).to be_nil
+  end
+
   it "includes locale in current_user payload" do
     user = Factories.user(locale: "de")
     sign_in_as(user)

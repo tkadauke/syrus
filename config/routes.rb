@@ -20,6 +20,8 @@ Rails.application.routes.draw do
         get "bootstrap", to: "bootstrap#show"
         get "setup", to: "setup#show"
         patch "theme", to: "theme#update"
+        get "themes", to: "themes#index"
+        get "themes/:id", to: "themes#show", constraints: { id: /\d+/ }
         get "auth/status", to: "auth#status"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
@@ -579,6 +581,7 @@ Rails.application.routes.draw do
   get "epics/:id", to: "spa#show", as: :epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "epics/:id/edit", to: "spa#show", as: :edit_epic, constraints: { id: /[a-zA-Z0-9_-]+/ }
   get "tags", to: "spa#show", as: :tags
+  get "design_system", to: "spa#show", as: :design_system
   get "cron_templates", to: "spa#show", as: :cron_templates
   get "cron_templates/new", to: "spa#show", as: :new_cron_template
   get "cron_templates/:id", to: "spa#show", as: :cron_template, constraints: { id: /\d+/ }

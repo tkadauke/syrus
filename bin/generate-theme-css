@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Regenerates app/assets/tailwind/generated/themes.generated.css from the
+# built-in `themes` table rows (seeded by db/seeds/themes.rb). Run this
+# after `bin/rails db:seed` or after editing a built-in theme's tokens.
+# Never hand-edit the generated CSS file; spec/lib/theme_css_generator_spec.rb
+# fails the build if it drifts from what this script would produce.
+
+require_relative "../config/environment"
+require_relative "../lib/theme_css_generator"
+
+themes = Theme.where(built_in: true).order(:slug)
+output_path = ThemeCssGenerator.generate!(themes: themes)
+puts "[generate-theme-css] wrote #{output_path} (#{themes.count} built-in themes: #{themes.pluck(:slug).join(', ')})"

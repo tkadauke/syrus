@@ -1,26 +1,53 @@
 <!DOCTYPE html>
-<%# data-theme carries the persisted preference (light/dark/system, defaulting to
-    system for signed-out visitors) to the inline script below, which resolves
-    "system" against prefers-color-scheme and sets the `dark` class before the
-    stylesheet paints anything — the class= fallback covers no-JS environments for
-    the two explicit themes (system can't be resolved server-side: the server has
-    no reliable signal for the client's OS color-scheme preference). %>
-<html class="<%= current_user&.theme == 'dark' ? 'dark' : '' %>" data-theme="<%= current_user&.theme || 'system' %>">
+<%# data-mode-pref carries the persisted mode preference (light/dark/system,
+    defaulting to system for signed-out visitors) to the inline script below,
+    which resolves "system" against prefers-color-scheme and sets the `dark`
+    class before the stylesheet paints anything — the class= fallback covers
+    no-JS environments for the two explicit modes (system can't be resolved
+    server-side: the server has no reliable signal for the client's OS
+    color-scheme preference).
+
+    data-theme carries the user's built-in color theme slug (terracotta/
+    ocean/forest/...), matching the compiled `[data-theme="slug"]` CSS blocks
+    (app/assets/tailwind/generated/themes.generated.css) so a built-in theme
+    never flashes. A non-built-in (custom) color theme isn't known at build
+    time, so instead of data-theme its token values are embedded as JSON
+    below and applied as inline custom properties by the same inline script,
+    before hydration — the same anti-flash treatment EPIC-267 established for
+    mode. %>
+<%
+  mode_pref = current_user&.theme || "system"
+  color_theme = current_user&.color_theme
+  custom_color_theme = color_theme && !color_theme.built_in? ? color_theme : nil
+%>
+<html class="<%= mode_pref == 'dark' ? 'dark' : '' %>" data-mode-pref="<%= mode_pref %>"<% if color_theme&.built_in? %> data-theme="<%= color_theme.slug %>"<% end %>>
   <head>
     <title>Syrus</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Syrus">
     <meta name="mobile-web-app-capable" content="yes">
+    <% if custom_color_theme %>
+      <script id="syrus-custom-color-theme-data" type="application/json"><%= raw json_escape(custom_color_theme.tokens.to_json) %></script>
+    <% end %>
     <script>
       (function () {
         try {
-          var theme = document.documentElement.dataset.theme;
+          var modePref = document.documentElement.dataset.modePref;
           var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-          var dark = theme === "dark" || (theme !== "light" && prefersDark);
+          var dark = modePref === "dark" || (modePref !== "light" && prefersDark);
           document.documentElement.classList.toggle("dark", dark);
+
+          var customThemeDataEl = document.getElementById("syrus-custom-color-theme-data");
+          if (customThemeDataEl) {
+            var tokensByMode = JSON.parse(customThemeDataEl.textContent);
+            var tokens = tokensByMode[dark ? "dark" : "light"] || {};
+            Object.keys(tokens).forEach(function (key) {
+              document.documentElement.style.setProperty("--color-" + key, tokens[key]);
+            });
+          }
         } catch {
-          // matchMedia unavailable or blocked — leave the server-rendered class alone.
+          // matchMedia/JSON unavailable or blocked — leave the server-rendered attributes alone.
         }
       })();
     </script>
