@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
+import { CHAT_WORKSPACE_SPLIT_MIN_WIDTH } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
@@ -235,6 +236,34 @@ describe("ChatWorkspace panel collapse", () => {
       expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("true")
     })
   }, 15000)
+})
+
+describe("ChatWorkspace split breakpoint", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("renders the mobile tab-strip layout between the 1024px app breakpoint and its own wider split breakpoint", async () => {
+    mockViewportWidth(CHAT_WORKSPACE_SPLIT_MIN_WIDTH - 1)
+    mockChatRouteFetch()
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Chat mobile tabs" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Open workspace panel" })).not.toBeInTheDocument()
+  })
+
+  it("renders the normal desktop split at and above its own wider split breakpoint", async () => {
+    mockViewportWidth(CHAT_WORKSPACE_SPLIT_MIN_WIDTH)
+    mockChatRouteFetch()
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open workspace panel" })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Chat mobile tabs" })).not.toBeInTheDocument()
+  })
 })
 
 describe("chat message tail refetch", () => {
@@ -4758,12 +4787,18 @@ function emptyChatContextPayload() {
   }
 }
 
-function mockDesktopViewport() {
+// Evaluates a `(min-width: Npx)` / `(max-width: Npx)` query against a
+// simulated viewport width, the way a real browser's matchMedia would.
+// Chat.tsx registers matchMedia listeners at more than one breakpoint (the
+// app-wide 1024px used by ChatView's header and ChatWorkspace's own wider
+// CHAT_WORKSPACE_SPLIT_MIN_WIDTH split), so a mock keyed to one literal
+// breakpoint string silently stops covering the other.
+function mockViewportWidth(width: number) {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     writable: true,
     value: vi.fn((query: string) => ({
-      matches: query.includes("min-width: 1024px"),
+      matches: matchesViewportWidth(query, width),
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -4775,21 +4810,22 @@ function mockDesktopViewport() {
   })
 }
 
+function matchesViewportWidth(query: string, width: number) {
+  const minMatch = query.match(/min-width:\s*(\d+)px/)
+  if (minMatch) return width >= Number(minMatch[1])
+
+  const maxMatch = query.match(/max-width:\s*(\d+)px/)
+  if (maxMatch) return width <= Number(maxMatch[1])
+
+  return false
+}
+
+function mockDesktopViewport() {
+  mockViewportWidth(1920)
+}
+
 function mockMobileViewport() {
-  Object.defineProperty(window, "matchMedia", {
-    configurable: true,
-    writable: true,
-    value: vi.fn((query: string) => ({
-      matches: !query.includes("min-width: 1024px"),
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn()
-    }))
-  })
+  mockViewportWidth(375)
 }
 
 function mockChatAttachmentFetch() {
