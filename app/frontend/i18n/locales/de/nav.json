@@ -17,6 +17,7 @@
   "sign_out": "Abmelden",
   "theme": "Design",
   "color_theme": "Farbschema",
+  "color_theme_current": "Farbschema: {{name}}",
   "light_mode": "Hell",
   "dark_mode": "Dunkel",
   "system_mode": "System",

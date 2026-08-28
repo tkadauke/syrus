@@ -162,7 +162,7 @@ describe("AppChromeV2", () => {
     }
   })
 
-  it("lists built-in and custom color themes as swatches and highlights the selected one", async () => {
+  it("collapses the color theme picker by default, showing only the current selection", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
@@ -177,6 +177,29 @@ describe("AppChromeV2", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+
+    const trigger = await screen.findByRole("button", { name: "Color theme: Ocean" })
+    expect(trigger).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("button", { name: "Ocean" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Forest" })).not.toBeInTheDocument()
+  })
+
+  it("lists built-in and custom color themes as swatches and highlights the selected one when expanded", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(undefined, {
+      bootstrap: bootstrapPayload({
+        current_user: { ...bootstrapPayload().current_user!, color_theme: oceanColorTheme(), color_theme_id: oceanColorTheme().id }
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(await screen.findByRole("button", { name: "Color theme: Ocean" }))
 
     await screen.findByRole("button", { name: "Ocean" })
     expect(screen.getByRole("button", { name: "Ocean" })).toHaveAttribute("aria-pressed", "true")
@@ -199,6 +222,7 @@ describe("AppChromeV2", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    fireEvent.click(await screen.findByRole("button", { name: "Color theme: Ocean" }))
     await screen.findByRole("button", { name: "Forest" })
     fireEvent.click(screen.getByRole("button", { name: "Forest" }))
 
