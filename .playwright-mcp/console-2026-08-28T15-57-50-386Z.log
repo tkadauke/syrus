@@ -1,0 +1,3 @@
+[   23092ms] [ERROR] WebSocket connection to 'ws://localhost:3001/cable' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3001/assets/spa-64d37ffc.js:10
+[   30058ms] [ERROR] WebSocket connection to 'ws://localhost:3001/cable' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3001/assets/spa-64d37ffc.js:10
+[   38119ms] [ERROR] WebSocket connection to 'ws://localhost:3001/cable' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3001/assets/spa-64d37ffc.js:10
