@@ -111,4 +111,43 @@ RSpec.describe WorkUnits::StartBlock do
     )
     expect(block.blocked_for?(StepDispatcher::MAIN_HEALTH_BLOCK_REASON)).to be(true)
   end
+
+  describe ".explain" do
+    it "reports a currently-blocked WorkUnit with the real reason" do
+      blocked_until = 10.minutes.from_now
+      workflow.work_unit.block!(
+        reason: "provider_availability",
+        blocked_until: blocked_until,
+        details: { "provider" => "codex" }
+      )
+
+      explanation = described_class.explain(workflow)
+
+      expect(explanation).to include(
+        blocked_reason: "provider_availability",
+        blocked_details: { "provider" => "codex" },
+        available: true,
+        historical: false
+      )
+      expect(explanation[:next_check_at]).to be_within(2.seconds).of(blocked_until)
+      expect(explanation[:blocked_since]).to be_a(Time)
+    end
+
+    it "is honest that no historical blocked-reason record survives for an already-finished workflow" do
+      workflow.work_unit.block!(reason: "provider_availability", blocked_until: 10.minutes.from_now, details: {})
+      workflow.work_unit.unblock!
+      workflow.update!(state: "succeeded", finished_at: 3.days.ago)
+
+      explanation = described_class.explain(workflow)
+
+      expect(explanation).to eq(
+        blocked_reason: nil,
+        blocked_since: nil,
+        blocked_details: {},
+        next_check_at: nil,
+        available: false,
+        historical: true
+      )
+    end
+  end
 end
