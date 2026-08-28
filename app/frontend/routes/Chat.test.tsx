@@ -704,6 +704,27 @@ describe("chat compose drafts", () => {
   }, 30000)
 })
 
+describe("chat main container width", () => {
+  it("stretches the chat main element to fill its flex column instead of sizing to content", async () => {
+    // Regression guard: this <main> is `mx-auto max-w-[96rem]` with no
+    // explicit width, inside AppChromeV2's `flex flex-col` page wrapper.
+    // Auto side margins on a flex item cancel the default cross-axis
+    // stretch and fall back to content-based (fit-content) sizing instead —
+    // fine on desktop, where fit-content and stretch happen to agree, but
+    // on a narrow mobile viewport the un-wrappable composer control row's
+    // min-content width exceeds the viewport, so fit-content sizes <main>
+    // to that oversized min-content instead of the viewport, pushing the
+    // floating composer (and the whole page) into horizontal overflow.
+    // `w-full` makes the width explicit so it always matches the flex
+    // column's cross size, regardless of content.
+    mockChatRouteFetch()
+    renderRoute()
+
+    const main = await screen.findByRole("main", { name: "Chat" })
+    expect(main.className).toContain("w-full")
+  })
+})
+
 describe("chat composer dictation", () => {
   beforeEach(() => {
     window.localStorage.clear()
