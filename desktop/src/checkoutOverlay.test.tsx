@@ -32,7 +32,7 @@ function stubBridge(over: Partial<typeof window.syrusDesktop> = {}) {
     ]),
     syrusCliStatus: vi.fn().mockResolvedValue({ available: true, bundledAvailable: true }),
     fetchBootstrap: vi.fn().mockResolvedValue({
-      current_user: { admin: false, notification_preferences: {} },
+      current_user: { admin: false },
       unread_notifications_count: 0
     }),
     fetchNotificationUnreadCount: vi.fn().mockResolvedValue(0),
