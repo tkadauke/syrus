@@ -60,7 +60,53 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function setupFetchMock(macroOverrides: Record<string, unknown> = {}) {
+function waterfallPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    workflow: {
+      id: 501,
+      job_id: 42,
+      trigger_kind: "initial",
+      status: "running",
+      started_at: "2026-01-01T00:10:00Z",
+      finished_at: null,
+      hostname: "worker-a",
+      pid: 123,
+      blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
+    },
+    steps: [
+      {
+        id: 901,
+        kind: "prepare",
+        status: "succeeded",
+        position: 0,
+        iteration: 1,
+        started_at: "2026-01-01T00:10:00Z",
+        finished_at: "2026-01-01T00:12:00Z",
+        hostname: "worker-a",
+        pid: 123,
+        runs: [
+          { id: 9001, status: "succeeded", iteration: 1, started_at: "2026-01-01T00:10:00Z", finished_at: "2026-01-01T00:12:00Z", last_heartbeat_at: null }
+        ]
+      },
+      {
+        id: 902,
+        kind: "implement",
+        status: "queued",
+        position: 1,
+        iteration: 1,
+        started_at: null,
+        finished_at: null,
+        hostname: "worker-a",
+        pid: 123,
+        runs: [],
+        blocked: { blocked_reason: "provider_availability", blocked_since: "2026-01-01T00:09:00Z", blocked_details: { provider: "codex" }, next_check_at: "2026-01-01T00:20:00Z", available: true, historical: false }
+      }
+    ],
+    ...overrides
+  }
+}
+
+function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallOverrides: Record<string, unknown> = {}) {
   const calls: string[] = []
 
   vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
@@ -72,6 +118,9 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}) {
     }
     if (url.startsWith("/api/v1/app/admin/worker_timeline/macro")) {
       return Promise.resolve(jsonResponse(macroPayload(macroOverrides)))
+    }
+    if (url.startsWith("/api/v1/app/admin/worker_timeline/workflow")) {
+      return Promise.resolve(jsonResponse(waterfallPayload(waterfallOverrides)))
     }
 
     return Promise.reject(new Error(`Unexpected fetch: ${url}`))
@@ -177,7 +226,7 @@ describe("WorkerTimeline macro view", () => {
     span.focus()
     fireEvent.keyDown(span, { key: "Enter" })
 
-    expect(await screen.findByText("Workflow #501 waterfall view is coming soon.")).toBeInTheDocument()
+    expect(await screen.findByText("prepare · iteration 1")).toBeInTheDocument()
   })
 
   it("plainly says when no historical blocker data is available for a finished span", async () => {
@@ -193,15 +242,17 @@ describe("WorkerTimeline macro view", () => {
     expect(tooltip).toHaveTextContent("No historical blocker data is available for this span.")
   })
 
-  it("navigates to the workflow detail stub when a workflow span is clicked", async () => {
-    setupFetchMock()
+  it("navigates to the per-workflow waterfall when a workflow span is clicked", async () => {
+    const calls = setupFetchMock()
     renderTimeline()
 
     const span = await screen.findByRole("button", { name: "JOB-42 · initial" })
     fireEvent.click(span)
 
-    expect(await screen.findByText("Workflow #501 waterfall view is coming soon.")).toBeInTheDocument()
+    expect(await screen.findByText("prepare · iteration 1")).toBeInTheDocument()
+    expect(screen.getByText("implement · iteration 1")).toBeInTheDocument()
     expect(screen.getByText("← Back to Worker Timeline")).toBeInTheDocument()
+    expect(calls.some((url) => url.includes("/worker_timeline/workflow") && url.includes("id=501"))).toBe(true)
   })
 
   it("virtualizes lanes so only the scrolled-into-view rows render, not every lane up front", async () => {
@@ -224,5 +275,77 @@ describe("WorkerTimeline macro view", () => {
       expect(screen.getByText("worker-19:119")).toBeInTheDocument()
     })
     expect(screen.queryByText("worker-0:100")).not.toBeInTheDocument()
+  })
+})
+
+describe("WorkerTimeline waterfall (micro) view", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("renders one lane per step with its run spans", async () => {
+    setupFetchMock()
+    renderTimeline("/worker_timeline/workflow?id=501")
+
+    expect(await screen.findByText("prepare · iteration 1")).toBeInTheDocument()
+    expect(screen.getByText("implement · iteration 1")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Run #9001 · succeeded" })).toBeInTheDocument()
+  })
+
+  it("shows a 'not started' marker for a step with no started run, not a bar", async () => {
+    setupFetchMock()
+    renderTimeline("/worker_timeline/workflow?id=501")
+
+    await screen.findByText("prepare · iteration 1")
+    expect(screen.getByRole("button", { name: "Not started" })).toBeInTheDocument()
+  })
+
+  it("reuses the workflow's blocked-reason explanation as the tooltip for a not-yet-started step", async () => {
+    setupFetchMock()
+    renderTimeline("/worker_timeline/workflow?id=501")
+
+    const marker = await screen.findByRole("button", { name: "Not started" })
+    fireEvent.mouseEnter(marker)
+
+    const tooltip = await screen.findByRole("tooltip")
+    expect(tooltip).toHaveTextContent("implement · iteration 1")
+    expect(tooltip).toHaveTextContent("Blocked: provider_availability")
+  })
+
+  it("shows a run tooltip with id, status, and duration on hover", async () => {
+    setupFetchMock()
+    renderTimeline("/worker_timeline/workflow?id=501")
+
+    const run = await screen.findByRole("img", { name: "Run #9001 · succeeded" })
+    fireEvent.mouseEnter(run)
+
+    const tooltip = await screen.findByRole("tooltip")
+    expect(tooltip).toHaveTextContent("Run #9001")
+    expect(tooltip).toHaveTextContent("succeeded")
+    expect(tooltip).toHaveTextContent("2m 0s")
+  })
+
+  it("skips the time axis and shows every step as not-started when the workflow itself hasn't started", async () => {
+    setupFetchMock({}, {
+      workflow: {
+        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, hostname: null, pid: null,
+        blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false }
+      },
+      steps: [
+        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, hostname: null, pid: null, runs: [],
+          blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false } }
+      ]
+    })
+    renderTimeline("/worker_timeline/workflow?id=501")
+
+    expect(await screen.findByText("This workflow hasn't started running yet. Hover a step below to see why.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Not started" })).toBeInTheDocument()
+  })
+
+  it("shows a message when no workflow id is present in the URL", async () => {
+    setupFetchMock()
+    renderTimeline("/worker_timeline/workflow")
+
+    expect(await screen.findByText("No workflow selected.")).toBeInTheDocument()
   })
 })

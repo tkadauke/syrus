@@ -50,6 +50,49 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
     end
   end
 
+  describe "GET /workflow" do
+    it "is disabled by default (plugin disabled)" do
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/worker_timeline/workflow", params: { id: 1 }
+
+      expect(response).to have_http_status(:not_found)
+      expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
+    end
+
+    it "rejects non-admins" do
+      enable_plugin!
+      sign_in_as(member)
+
+      get "/api/v1/app/admin/worker_timeline/workflow", params: { id: 1 }
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "delegates to Timeline::WorkflowWaterfallQuery for an admin with the plugin enabled" do
+      enable_plugin!
+      sign_in_as(admin)
+
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-a")
+      step = workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+
+      get "/api/v1/app/admin/worker_timeline/workflow", params: { id: workflow.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("workflow", "id")).to eq(workflow.id)
+      expect(parse_body.fetch("steps").map { |payload| payload.fetch("id") }).to eq([ step.id ])
+    end
+
+    it "404s for an unknown workflow id" do
+      enable_plugin!
+      sign_in_as(admin)
+
+      get "/api/v1/app/admin/worker_timeline/workflow", params: { id: -1 }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "GET /filters" do
     it "is disabled by default (plugin disabled)" do
       sign_in_as(admin)

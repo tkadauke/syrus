@@ -11,7 +11,7 @@ module WorkerTimeline
       disableable:     true,
       category:        "observability",
       description:     "Multi-lane worker activity timeline: one lane per worker process, with Job/Workflow spans over time.",
-      long_description: "Worker Timeline visualizes overlapping Syrus activity across every worker process (hostname+pid) as a multi-lane timeline. Hover a span to see what it was doing and, for spans that had to wait, why. This first release covers the macro (cross-job) lane view; a per-workflow waterfall drill-down is a planned follow-up.\n\nIt reads existing WorkflowActivityEvent/SpawnedProcess/InstanceVersion data and Workflow/Step/Run timestamps -- no new instrumentation -- so enabling it does not change scheduling, grading, or job behavior.",
+      long_description: "Worker Timeline visualizes overlapping Syrus activity across every worker process (hostname+pid) as a multi-lane timeline. Hover a span to see what it was doing and, for spans that had to wait, why. The macro (cross-job) lane view drills down into a per-workflow Step/Run waterfall.\n\nIt reads existing WorkflowActivityEvent/SpawnedProcess/InstanceVersion data and Workflow/Step/Run timestamps -- no new instrumentation -- so enabling it does not change scheduling, grading, or job behavior.",
       homepage:        "https://github.com/tkadauke/syrus",
       icon_url:        "/plugin-icons/worker_timeline.svg",
       author:          "Thomas Kadauke",
@@ -31,6 +31,11 @@ module WorkerTimeline
           verb: "GET",
           path: "/api/v1/app/admin/worker_timeline/filters",
           controller: "api/v1/app/admin/worker_timeline#filters"
+        },
+        {
+          verb: "GET",
+          path: "/api/v1/app/admin/worker_timeline/workflow",
+          controller: "api/v1/app/admin/worker_timeline#workflow"
         }
       ],
       provides: {

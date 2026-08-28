@@ -27,7 +27,14 @@
   "detail_aria": "Workflow-Detail",
   "detail_heading": "Workflow-Detail",
   "back_to_timeline": "← Zurück zur Worker-Timeline",
-  "detail_placeholder_workflow": "Die Wasserfallansicht für Workflow #{{id}} folgt in Kürze.",
   "detail_placeholder_no_workflow": "Kein Workflow ausgewählt.",
-  "detail_placeholder_note": "Die Step-/Run-Wasserfallansicht für einen einzelnen Workflow wird in einer Folgeänderung gebaut."
+  "detail_summary_aria": "Workflow-Zusammenfassung",
+  "detail_summary": "Workflow #{{id}} · {{trigger_kind}} · {{status}}",
+  "detail_not_started_note": "Dieser Workflow läuft noch nicht. Zeigen Sie auf einen Schritt unten, um den Grund zu sehen.",
+  "detail_no_steps": "Noch keine Schritte erfasst.",
+  "detail_steps_aria": "Workflow-Schritte",
+  "detail_step_label": "{{kind}} · Iteration {{iteration}}",
+  "detail_step_not_started": "Nicht gestartet",
+  "detail_run_label": "Lauf #{{id}} · {{status}}",
+  "detail_run_tooltip_title": "Lauf #{{id}}"
 }

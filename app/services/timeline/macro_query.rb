@@ -103,13 +103,10 @@ module Timeline
     # Reused on both spans (hover: "why did this take so long to start?")
     # and pending entries (hover: "why hasn't this started yet?") -- see
     # WorkUnits::StartBlock#explanation for why `available: false` there
-    # means "no record survives", not "nothing ever blocked this".
+    # means "no record survives", not "nothing ever blocked this". Shaping
+    # itself lives in BlockedExplanation, shared with WorkflowWaterfallQuery.
     def blocked_payload(workflow)
-      blocked = WorkUnits::StartBlock.explain(workflow)
-      blocked.merge(
-        blocked_since: blocked[:blocked_since]&.iso8601,
-        next_check_at: blocked[:next_check_at]&.iso8601
-      )
+      BlockedExplanation.for(workflow)
     end
 
     def workflows
