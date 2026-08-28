@@ -89,17 +89,30 @@ compute pod.
 `polling` queue — i.e. today, always the home worker. `GitHistory::RelayServer`
 (the internal-only HTTP server that answers the Git History tab's bare-clone
 reads for `Api::V1::App::GitHistoryController`, since web pods don't mount
-`$SYRUS_DATA_ROOT`) starts on every worker process at boot and reads whichever
-bare clones happen to exist on *its own* local disk — same shape as the `chat`
-pinning above, but nothing enforces it the way `chat_sessions` records no
-routing key either: there is no equivalent of `ChatSession#coding_relay_address`
-recording which pod actually holds a given repository's synced clone. As long
-as `polling` (and therefore bare-clone syncing) stays on a single home worker,
+`$SYRUS_DATA_ROOT`) is only ever booted on a process where
+`SyrusVersion.role == "worker"`, and `RelayServer.ensure_running!` additionally
+gates on `WorkerQueueTopology.consumes?("polling")` — this process's own
+resolved queue config, not just "some worker process" — so it starts
+specifically on the pod(s) that will actually sync bare clones, not on every
+worker-role pod. This used to be a coarser `role == "worker"`-only check,
+which meant every compute-tier pod in a split deployment started a relay that
+was reachable but could never answer `available: true` for anything — a bug
+that shipped invisibly because a misrouted-but-reachable relay looks
+identical to a healthy one that hasn't synced yet.
+`GitHistory::RelayServer` still has the same shape as the `chat` pinning
+above in one respect: nothing enforces which *specific* pod within the
+`polling`-consuming tier holds a given repository's synced clone the way
+`ChatSession#coding_relay_address` does for coding checkouts. As long as
+`polling` (and therefore bare-clone syncing) stays on a single home worker,
 the relay serving that same worker process is correct by construction. If
 `polling` is ever split across more than one pod, `GitHistory::RelayServer`
 must run on — and `GitHistoryController` must be able to reach — every pod
 that might hold a given repository's synced clone, or Git History reads can
 silently serve stale or inconsistent history depending on which pod answers.
+`PollingQueueCoverageCheckJob` (recurring, every 5 minutes) logs a structured
+error if *no* live worker process anywhere reports consuming `polling` at
+all — the backstop for a queue-config split that omits `polling` from every
+tier, which would otherwise degrade exactly as silently as the bug above.
 
 `SOLID_QUEUE_CONFIG` is a path relative to the Rails root; if it points at a
 missing file SolidQueue silently falls back to its *own* built-in default (not
