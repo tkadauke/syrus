@@ -178,7 +178,6 @@
     "description": "Choose which Syrus events create notifications for your account.",
     "loading": "Loading notification preferences...",
     "section_label": "Notifications",
-    "desktop_heading": "Desktop Notifications",
     "pref_job_failed": "Notify me when a job fails",
     "pref_job_implemented": "Notify me when a PR is ready for review",
     "pref_pr_comment_addressed": "Notify me when Syrus addresses my PR comments",
@@ -188,10 +187,6 @@
     "pref_epic_failed": "Notify me when a feature needs attention",
     "pref_epic_feedback_queued": "Notify me when feature feedback starts",
     "pref_main_inconclusive": "Notify me when main branch health needs review",
-    "desktop_job_implemented_label": "Job ready for review",
-    "desktop_job_implemented_desc": "Fires when a job transitions to implemented.",
-    "desktop_job_failed_label": "Job failed",
-    "desktop_job_failed_desc": "Fires when a job transitions to failed.",
     "updated": "Notification preferences updated."
   },
   "profiles": {

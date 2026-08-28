@@ -170,30 +170,6 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("user", "provider_availability_overrides", "codex")).to be_present
   end
 
-  it "updates desktop notification preferences without replacing the full preferences hash" do
-    sign_in_as(user)
-    user.update_column(:notification_preferences, { "desktop_job_failed" => true, "epic_completed" => true, "unknown_future_key" => false })
-
-    patch "/api/v1/app/credentials", params: {
-      user: {
-        notification_preferences: {
-          desktop_job_implemented: false
-        }
-      }
-    }
-
-    expect(response).to have_http_status(:ok)
-    user.reload
-    expect(user.desktop_notification_enabled?(:desktop_job_implemented)).to be(false)
-    expect(user.desktop_notification_enabled?(:desktop_job_failed)).to be(true)
-    expect(user.notification_preference_for(:epic_completed)).to be(true)
-    expect(user.read_attribute(:notification_preferences)).to include("unknown_future_key" => false)
-    expect(parse_body.dig("user", "notification_preferences")).to eq(
-      "desktop_job_implemented" => false,
-      "desktop_job_failed" => true
-    )
-  end
-
   it "updates the selected chat provider" do
     sign_in_as(user)
 

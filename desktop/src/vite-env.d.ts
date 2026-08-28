@@ -5,11 +5,6 @@ type SyrusCredentials = {
   token: string
 }
 
-type SyrusNotificationPreferences = {
-  desktop_job_implemented?: boolean
-  desktop_job_failed?: boolean
-}
-
 type SyrusJobItem = {
   id: number
   epic_id: number | null
@@ -115,16 +110,9 @@ type SyrusJobDetail = {
 type SyrusBootstrapPayload = {
   current_user: {
     admin: boolean
-    notification_preferences?: SyrusNotificationPreferences
     theme?: "light" | "dark" | "system"
   } | null
   unread_notifications_count?: number
-}
-
-type SyrusDesktopNotificationOptions = {
-  title: string
-  body: string
-  jobId: number
 }
 
 type SyrusNotificationRecord = {
@@ -247,7 +235,6 @@ interface Window {
     openInSyrus: (target?: string) => Promise<void>
     quitApp: () => Promise<void>
     copyText: (text: string) => Promise<void>
-    showNotification: (opts: SyrusDesktopNotificationOptions) => Promise<void>
     fetchBootstrap: () => Promise<SyrusBootstrapPayload>
     fetchRepositories: () => Promise<SyrusRepositoryItem[]>
     getLastUsedRepo: () => Promise<string>

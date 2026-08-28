@@ -178,7 +178,6 @@
     "description": "Wählen Sie, welche Syrus-Ereignisse Benachrichtigungen für Ihr Konto erstellen.",
     "loading": "Benachrichtigungseinstellungen werden geladen...",
     "section_label": "Benachrichtigungen",
-    "desktop_heading": "Desktop-Benachrichtigungen",
     "pref_job_failed": "Benachrichtige mich, wenn ein Job fehlschlägt",
     "pref_job_implemented": "Benachrichtige mich, wenn ein PR zur Überprüfung bereit ist",
     "pref_pr_comment_addressed": "Benachrichtige mich, wenn Syrus meine PR-Kommentare beantwortet",
@@ -188,10 +187,6 @@
     "pref_epic_failed": "Benachrichtige mich, wenn ein Feature Aufmerksamkeit braucht",
     "pref_epic_feedback_queued": "Benachrichtige mich, wenn Feature-Feedback startet",
     "pref_main_inconclusive": "Benachrichtige mich, wenn die Main-Branch-Gesundheit überprüft werden muss",
-    "desktop_job_implemented_label": "Job zur Überprüfung bereit",
-    "desktop_job_implemented_desc": "Wird ausgelöst, wenn ein Job zu implementiert übergeht.",
-    "desktop_job_failed_label": "Job fehlgeschlagen",
-    "desktop_job_failed_desc": "Wird ausgelöst, wenn ein Job zu fehlgeschlagen übergeht.",
     "updated": "Benachrichtigungseinstellungen aktualisiert."
   },
   "profiles": {

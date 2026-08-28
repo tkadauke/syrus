@@ -5,14 +5,8 @@ type Credentials = {
   token: string
 }
 
-type NotificationPreferences = {
-  desktop_job_implemented: boolean
-  desktop_job_failed: boolean
-}
-
 type CredentialsUser = {
   admin: boolean
-  notification_preferences?: Partial<NotificationPreferences>
 }
 
 type JobItem = {
@@ -112,12 +106,6 @@ type BootstrapPayload = {
   unread_notifications_count?: number
 }
 
-type DesktopNotificationOptions = {
-  title: string
-  body: string
-  jobId: number
-}
-
 type NotificationRecord = {
   id: number
   kind: string
@@ -210,8 +198,6 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   openInSyrus: (target?: string) => ipcRenderer.invoke("open-in-syrus", target) as Promise<void>,
   quitApp: () => ipcRenderer.invoke("quit-app") as Promise<void>,
   copyText: (text: string) => ipcRenderer.invoke("copy-text", text) as Promise<void>,
-  showNotification: (opts: DesktopNotificationOptions) =>
-    ipcRenderer.invoke("syrusDesktop:showNotification", opts) as Promise<void>,
   fetchBootstrap: () => ipcRenderer.invoke("fetch-bootstrap") as Promise<BootstrapPayload>,
   fetchRepositories: () => ipcRenderer.invoke("fetch-repositories") as Promise<RepositoryItem[]>,
   getLastUsedRepo: () => ipcRenderer.invoke("get-last-used-repo") as Promise<string>,

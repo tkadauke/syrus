@@ -178,7 +178,6 @@
     "description": "Elige quae eventus Syri notificationes pro tuo computatro creent.",
     "loading": "Praeferentias notificationum onerans...",
     "section_label": "Notificationes",
-    "desktop_heading": "Notificationes Scrinii",
     "pref_job_failed": "Me certiorem fac cum officium deficit",
     "pref_job_implemented": "Me certiorem fac cum PR ad recognitionem paratus est",
     "pref_pr_comment_addressed": "Me certiorem fac cum Syrus adnotationes meas PR tractat",
@@ -188,10 +187,6 @@
     "pref_epic_failed": "Me certiorem fac cum res attentionem requirit",
     "pref_epic_feedback_queued": "Me certiorem fac cum responsum rei incipit",
     "pref_main_inconclusive": "Me certiorem fac cum sanitas rami principalis recognitionem requirit",
-    "desktop_job_implemented_label": "Officium ad recognitionem paratum",
-    "desktop_job_implemented_desc": "Accenditur cum officium ad statum peractum transit.",
-    "desktop_job_failed_label": "Officium defecit",
-    "desktop_job_failed_desc": "Accenditur cum officium ad statum defectum transit.",
     "updated": "Praeferentiae nuntiationum renovatae."
   },
   "profiles": {
