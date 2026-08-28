@@ -54,7 +54,8 @@ describe("pendingActionCardData", () => {
       label: "Add dark mode toggle",
       detail: "**Branch:** syrus/chat-42-handoff-7",
       resource_title: "acme/widgets",
-      resource_url: "/repositories/9"
+      resource_url: "/repositories/9",
+      app_cancel_path: "/api/v1/app/chats/122/pending_actions/501"
     })
   })
 })

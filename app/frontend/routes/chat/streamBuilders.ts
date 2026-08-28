@@ -231,7 +231,8 @@ export function pendingActionCardData(action: ChatPendingAction): ChatPendingAct
     resource_title: action.resource_title,
     resource_url: action.resource_url,
     app_confirm_path: action.app_confirm_path,
-    app_reject_path: action.app_reject_path
+    app_reject_path: action.app_reject_path,
+    app_cancel_path: action.app_cancel_path
   }
 }
 
