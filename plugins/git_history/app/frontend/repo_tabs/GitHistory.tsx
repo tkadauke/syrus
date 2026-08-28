@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { useInfiniteQuery } from "@tanstack/react-query"
 import { Link, useParams } from "react-router-dom"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
@@ -5,6 +6,7 @@ import { TonePill } from "@app/components/StatusPill"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchGitHistory, type GitHistoryCommit, type GitHistoryOrigin } from "../api/gitHistory"
+import { commitGroupKey, groupCommits, type CommitGroup, type EpicCommitGroup, type JobCommitGroup } from "./groupCommits"
 
 export function GitHistory() {
   const { t } = useT("git_history")
@@ -19,6 +21,15 @@ export function GitHistory() {
     enabled: Boolean(repositoryId)
   })
 
+  // Recomputed over the full accumulated commit list (not per-page) so a
+  // Job's or Epic's commit group reassembles correctly even when "load
+  // more" happened to land in the middle of it.
+  const commits = useMemo(
+    () => (history.data ? history.data.pages.flatMap((page) => page.commits) : []),
+    [history.data]
+  )
+  const groups = useMemo(() => groupCommits(commits), [commits])
+
   if (history.isPending) {
     return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
   }
@@ -31,9 +42,7 @@ export function GitHistory() {
     )
   }
 
-  const pages = history.data.pages
-  const available = pages[0]?.available ?? false
-  const commits = pages.flatMap((page) => page.commits)
+  const available = history.data.pages[0]?.available ?? false
 
   return (
     <main aria-label={t("aria_label")} className="mx-auto max-w-5xl space-y-5 p-6">
@@ -49,7 +58,7 @@ export function GitHistory() {
       ) : (
         <>
           <ul className="divide-y divide-gray-200 rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-700 dark:bg-gray-900">
-            {commits.map((commit) => <CommitRow commit={commit} key={commit.sha} />)}
+            {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
           </ul>
 
           {history.hasNextPage ? (
@@ -78,21 +87,121 @@ function EmptyPanel({ label }: { label: string }) {
   )
 }
 
-function CommitRow({ commit }: { commit: GitHistoryCommit }) {
+function CommitGroupRow({ group }: { group: CommitGroup }) {
+  if (group.kind === "epic") return <EpicGroupRow group={group} />
+  if (group.kind === "job") return <JobGroupRow group={group} />
+  return <ExternalCommitRow commit={group.commit} />
+}
+
+// An Epic group is anchored by its `epic_landed` (and any
+// `epic_reconciliation`) commits -- the first one renders as the group's
+// summary row, any further ones plus every member Job's own nested commit
+// group render underneath, collapsed into one visual unit instead of a flat
+// list of unrelated-looking rows.
+function EpicGroupRow({ group }: { group: EpicCommitGroup }) {
+  const [headline, ...restCommits] = group.commits
+  const nestedJobGroups = group.jobGroups.filter((jobGroup) => jobGroup.commits.length > 0)
+  if (!headline) return null
+
   return (
-    <li className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+    <li className="border-l-4 border-terracotta-400 dark:border-terracotta-600">
+      <details open>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CommitContent commit={headline} emphasized />
+        </summary>
+        {restCommits.length > 0 || nestedJobGroups.length > 0 ? (
+          <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/60 pl-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/40">
+            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
+            {nestedJobGroups.map((jobGroup) => <NestedJobGroupRow group={jobGroup} key={`job-${jobGroup.job.id}`} />)}
+          </div>
+        ) : null}
+      </details>
+    </li>
+  )
+}
+
+// A standalone Job group (no epic-landing anchor in view) at the top
+// level of the list -- its own syrus_landed commits collapse underneath
+// its most recent one instead of appearing as separate flat rows.
+function JobGroupRow({ group }: { group: JobCommitGroup }) {
+  const [headline, ...restCommits] = group.commits
+  if (!headline) return null
+
+  return (
+    <li className="border-l-4 border-terracotta-400 dark:border-terracotta-600">
+      <details open>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CommitContent commit={headline} emphasized />
+        </summary>
+        {restCommits.length > 0 ? (
+          <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/60 pl-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/40">
+            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
+          </div>
+        ) : null}
+      </details>
+    </li>
+  )
+}
+
+// The same Job group shape, nested one level deeper inside its Epic group
+// (a <div>, not a fresh <li> -- the Epic's <li> already owns the list item).
+function NestedJobGroupRow({ group }: { group: JobCommitGroup }) {
+  const [headline, ...restCommits] = group.commits
+  if (!headline) return null
+
+  return (
+    <div className="border-l-2 border-terracotta-200 dark:border-terracotta-800">
+      <details open>
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <CommitContent commit={headline} emphasized />
+        </summary>
+        {restCommits.length > 0 ? (
+          <div className="divide-y divide-gray-100 border-t border-gray-100 pl-6 dark:divide-gray-800 dark:border-gray-800">
+            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
+          </div>
+        ) : null}
+      </details>
+    </div>
+  )
+}
+
+// external_pr / external_push commits are never grouped -- rendered
+// individually, de-emphasized relative to Syrus-attributed rows.
+function ExternalCommitRow({ commit }: { commit: GitHistoryCommit }) {
+  return (
+    <li className="border-l-4 border-transparent bg-gray-50/40 dark:bg-gray-900/40">
+      <CommitContent commit={commit} emphasized={false} />
+    </li>
+  )
+}
+
+function CommitContent({ commit, emphasized }: { commit: GitHistoryCommit; emphasized: boolean }) {
+  return (
+    <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <ClassificationPill commit={commit} />
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{commit.subject}</span>
+          <span
+            className={
+              emphasized
+                ? "truncate text-sm font-semibold text-gray-900 dark:text-gray-100"
+                : "truncate text-sm font-normal text-gray-500 dark:text-gray-500"
+            }
+          >
+            {commit.subject}
+          </span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+        <div
+          className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${
+            emphasized ? "text-gray-500 dark:text-gray-400" : "text-gray-400 dark:text-gray-600"
+          }`}
+        >
           <span className="font-mono">{commit.short_sha}</span>
           <RelativeTimestamp value={commit.authored_at} />
           <CommitAttribution commit={commit} />
         </div>
       </div>
-    </li>
+    </div>
   )
 }
 

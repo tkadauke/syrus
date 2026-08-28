@@ -117,3 +117,26 @@ Chat origin attribution redacts the chat session id/title unless the
 requesting user can actually access that chat
 (`User#accessible_chat_sessions`) — the commit is still marked chat-originated
 either way, but the reference itself never leaks.
+
+## Presentation
+
+`GitHistory.tsx` groups the flat, cursor-paginated commit list
+(`groupCommits.ts`) rather than rendering every commit as a flat row: an
+`epic_landed` commit anchors a collapsible group for its Epic, nesting every
+member Job's own `syrus_landed` commits underneath it as their own
+sub-group; `epic_reconciliation` commits attach directly to their Epic's
+group (never to a Job); a `syrus_landed` Job with no epic-landing commit in
+view (a regular, non-merge-train landing, or a merge-train landing whose
+integration commit hasn't loaded yet) still groups its own commits together
+as a standalone Job group. `external_pr`/`external_push` commits are never
+grouped — always in the list. Grouping is
+recomputed from the *entire* accumulated commit list on every render (not
+per-page), so a group split across a "load more" cursor boundary
+reassembles automatically once the rest of its commits load, regardless of
+where the boundary fell.
+
+Syrus-attributed rows (`syrus_landed`/`epic_landed`/`epic_reconciliation`,
+and anything they group) render with bold text and a terracotta left-border
+accent; `external_pr`/`external_push` rows render de-emphasized (muted
+gray text, no accent border) — the operator ask this satisfies is
+"emphasize commits that are actual jobs over others."
