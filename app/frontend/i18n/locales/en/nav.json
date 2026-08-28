@@ -17,6 +17,7 @@
   "sign_out": "Sign out",
   "theme": "Theme",
   "color_theme": "Color theme",
+  "color_theme_current": "Color theme: {{name}}",
   "light_mode": "Light",
   "dark_mode": "Dark",
   "system_mode": "System",
