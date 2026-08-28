@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   dispatchNativeNotification,
+  httpNotificationUrl,
   isNativeNotificationSupported,
   nativeNotificationClickUrl,
   nativeNotificationTitle,
   requestNativeNotificationPermission
 } from "./nativeNotifications"
+
+const desktopUa = "Mozilla/5.0 (Macintosh) Chrome/130.0.0.0 Electron/39.8.10 SyrusDesktop/0.1.0 Safari/537.36"
 
 class FakeNotification {
   static permission: NotificationPermission = "default"
@@ -34,6 +37,7 @@ class FakeNotification {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
   FakeNotification.permission = "default"
   FakeNotification.requestPermissionMock = vi.fn()
   FakeNotification.instances = []
@@ -71,6 +75,21 @@ describe("nativeNotificationClickUrl", () => {
   })
 })
 
+describe("httpNotificationUrl", () => {
+  it("accepts http and https urls", () => {
+    expect(httpNotificationUrl("https://github.com/o/r/pull/1")).toBe("https://github.com/o/r/pull/1")
+    expect(httpNotificationUrl("http://example.com/x")).toBe("http://example.com/x")
+  })
+
+  it("rejects non-http(s) schemes and unparseable values", () => {
+    expect(httpNotificationUrl("javascript:alert(1)")).toBeNull()
+    expect(httpNotificationUrl("not a url")).toBeNull()
+    expect(httpNotificationUrl("")).toBeNull()
+    expect(httpNotificationUrl(null)).toBeNull()
+    expect(httpNotificationUrl(42)).toBeNull()
+  })
+})
+
 describe("isNativeNotificationSupported / requestNativeNotificationPermission", () => {
   it("reports unsupported and denies permission when window.Notification is absent", async () => {
     expect(isNativeNotificationSupported()).toBe(false)
@@ -91,6 +110,15 @@ describe("isNativeNotificationSupported / requestNativeNotificationPermission", 
     FakeNotification.permission = "denied"
 
     expect(await requestNativeNotificationPermission()).toBe("denied")
+    expect(FakeNotification.requestPermissionMock).not.toHaveBeenCalled()
+  })
+
+  it("never prompts inside the desktop shell, which has no dispatch path to grant permission for", async () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(desktopUa)
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "default"
+
+    expect(await requestNativeNotificationPermission()).toBe("default")
     expect(FakeNotification.requestPermissionMock).not.toHaveBeenCalled()
   })
 })
@@ -126,5 +154,16 @@ describe("dispatchNativeNotification", () => {
     expect(focus).toHaveBeenCalledOnce()
     expect(assign).toHaveBeenCalledWith("/jobs/4")
     expect(FakeNotification.instances[0].closed).toBe(true)
+  })
+
+  it("fails silently inside the desktop shell so it never double-fires against Electron main's own dispatch", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(desktopUa)
+    vi.stubGlobal("Notification", FakeNotification)
+    FakeNotification.permission = "granted"
+
+    const result = dispatchNativeNotification({ kind: "pr_merged", body: "PR #4 merged", jobId: 4, prUrl: null })
+
+    expect(result).toBe(false)
+    expect(FakeNotification.instances).toHaveLength(0)
   })
 })
