@@ -185,7 +185,7 @@ function MysqlDashboard({
 
 function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+    <section className="min-w-0 rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Statement digests</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400">Performance Schema summary ordered by total time.</p>
@@ -225,7 +225,7 @@ function StatementDigestPanel({ payload }: { payload: MysqlSnapshot }) {
 
 function SlowLogPanel({ includeSlowLog, onToggleSlowLog, payload }: { includeSlowLog: boolean; onToggleSlowLog: () => void; payload: MysqlSnapshot }) {
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+    <section className="min-w-0 rounded border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Slow log</h2>
