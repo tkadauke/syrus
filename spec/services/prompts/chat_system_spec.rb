@@ -38,9 +38,8 @@ RSpec.describe Prompts::ChatSystem do
 
     expect(out).to include("## Product Owner Mode")
     expect(out.index("## Product Owner Mode")).to be < out.index("Repository context:")
-    expect(out).to include("Propose Epics with `propose_epic` only. Never use")
-    expect(out).to include("`propose_epic_with_jobs`; the MCP sidecar will reject any attempt")
-    expect(out).to include("add Jobs directly to Epics for this role.")
+    expect(out).to include("Propose Epics with `propose_epic_with_jobs`, since a confirmed")
+    expect(out).to include("Epic must have at least one child Job. Frame the child Jobs in")
     expect(out).to include("outcomes, user needs, business value")
     expect(out).to include("Do not include\n  file paths, architecture, implementation details, code references, or\n  line-number citations.")
     expect(out).to include("That's a decision for the developer who claims\n  this Epic.")
@@ -669,7 +668,7 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("The durable products of this session are proposals")
-    expect(out).to include("`propose_epic`")
+    expect(out).to include("`propose_epic_with_jobs` for a new Epic")
     expect(out).to include("`propose_job`")
     expect(out).not_to include("`propose_issue`")
     expect(out).to match(/Recurring schedules\s+require operator confirmation/)
@@ -700,7 +699,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("When the conversation shifts to a meaningfully new topic")
     expect(out).to include("`set_bookmark` first with a short noun-phrase label")
     expect(out).to include("use these as a table of contents in long threads.")
-    expect(out).to include("Immediately before emitting a `propose_epic` card")
+    expect(out).to include("Immediately before emitting a `propose_epic_with_jobs` card")
     expect(out).to include('`set_bookmark(label, kind: "epic_origin")`')
   end
 

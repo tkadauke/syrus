@@ -7,15 +7,12 @@ module Mcp::Tools
     tool_name "propose_epic"
 
     description <<~DESC
-      Create an Epic-only proposal card. Confirming the card creates the
-      Epic by itself, with no child Jobs.
-      Proposals cannot be updated after creation. To revise a proposal,
-      call delete_proposal with its slug, then call this tool again with a
-      new title or different input so a new slug is generated.
-      The `id` in the response is the proposal record ID -- NOT the Epic ID.
-      Never write `EPIC-{id}` using this number. The actual Epic ID is assigned
-      only when the operator confirms, and will appear as `EPIC-<id>` in the
-      next turn's system prompt under "Recent proposal activity".
+      DEPRECATED: always rejects. A confirmed Epic with zero child Jobs
+      implements nothing, so bare Epic-only proposals are no longer
+      allowed. Call propose_epic_with_jobs instead -- it proposes the
+      Epic together with at least one child Job in the same card, and
+      still accepts epic-level depends_on / depends_on_proposal_slugs
+      for sequencing.
     DESC
 
     input_schema(
@@ -32,50 +29,11 @@ module Mcp::Tools
 
     class << self
       def call(title:, description:, server_context:, attached_repos: [], depends_on: [], depends_on_job_ids: [], depends_on_proposal_slugs: [])
-        chat_session = server_context.fetch(:chat_session)
-        title = title.to_s.strip
-        description = description.to_s.strip
-        repo_tokens = normalize_string_list(attached_repos)
-        repository = repository_for(chat_session, repo_tokens.first)
-        depends_on_job_ids = normalize_integer_list(depends_on_job_ids)
-        epic_dependency_slugs = normalize_string_list(depends_on_proposal_slugs) | normalize_string_list(depends_on)
-
-        return Mcp::Tools.invalid("title is required") if title.empty?
-        return Mcp::Tools.invalid("description is required") if description.empty?
-        return Mcp::Tools.invalid("repository not found") unless repository
-
-        dependencies, unknown_slugs = dependency_proposals(chat_session, epic_dependency_slugs)
-        return Mcp::Tools.invalid("unknown depends_on_proposal_slugs: #{unknown_slugs.join(', ')}") if unknown_slugs.any?
-        non_epic_slugs = dependencies.reject(&:epic?).map(&:slug)
-        return Mcp::Tools.invalid("depends_on_proposal_slugs must reference Epic proposals: #{non_epic_slugs.join(', ')}") if non_epic_slugs.any?
-        dependency_error = proposal_dependency_target_error(dependencies)
-        return Mcp::Tools.invalid(dependency_error) if dependency_error
-        unknown_job_ids = unknown_job_dependency_ids(chat_session, depends_on_job_ids)
-        return Mcp::Tools.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
-        dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
-        return Mcp::Tools.invalid(dependency_error) if dependency_error
-
-        proposal = nil
-        ChatProposal.transaction do
-          proposal = chat_session.proposals.create!(
-            repository: repository,
-            slug: unique_slug(chat_session, title, prefix: "epic"),
-            title: title,
-            body: description,
-            kind: "epic",
-            depends_on_job_ids: depends_on_job_ids,
-            epic_depends_on_tokens: JSON.generate(epic_dependency_slugs)
-          )
-          dependencies.each do |dependency|
-            ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
-          end
-          create_proposal_message!(chat_session, proposal, text: "Epic proposal proposed.")
-        end
-
-        Mcp::Tools.broadcast_proposal_created(chat_session, proposal)
-        Mcp::Tools.success(Mcp::Tools.proposal_payload(proposal))
-      rescue ActiveRecord::RecordInvalid => e
-        Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+        Mcp::Tools.invalid(
+          "propose_epic no longer accepts zero-child Epic proposals -- a confirmed Epic with no " \
+          "child Jobs implements nothing. Call propose_epic_with_jobs instead, which proposes the " \
+          "Epic together with at least one child Job in the same card."
+        )
       end
     end
   end
