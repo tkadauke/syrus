@@ -3,11 +3,11 @@ module Api
     module App
       module Admin
         # Session-authenticated data API for the Worker Timeline plugin's
-        # macro (multi-lane) view. This wraps the same ::Timeline::MacroQuery
-        # the bearer-token-gated /api/v1/timeline/macro endpoint uses (see
-        # app/services/timeline/macro_query.rb) so the browser SPA -- which
-        # authenticates via session cookie, not an API token -- has a route
-        # it can actually call.
+        # macro (multi-lane) and micro (per-workflow waterfall) views. This
+        # wraps the same ::Timeline::MacroQuery / ::Timeline::WorkflowWaterfallQuery
+        # the bearer-token-gated /api/v1/timeline/* endpoints use (see
+        # app/services/timeline/) so the browser SPA -- which authenticates
+        # via session cookie, not an API token -- has routes it can call.
         class WorkerTimelineController < BaseController
           STATUSES = %w[ queued running succeeded failed cancelled ].freeze
 
@@ -23,6 +23,10 @@ module Api
               hostname: params[:hostname],
               status: params[:status]
             )
+          end
+
+          def workflow
+            render json: ::Timeline::WorkflowWaterfallQuery.call(workflow_id: params[:id])
           end
 
           def filters

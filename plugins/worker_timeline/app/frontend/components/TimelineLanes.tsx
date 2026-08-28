@@ -1,22 +1,14 @@
-import { scaleTime, type ScaleTime } from "d3-scale"
-import { select } from "d3-selection"
-import { zoom as d3zoom, zoomIdentity, type ZoomTransform } from "d3-zoom"
-import { useEffect, useMemo, useRef, useState } from "react"
+import type { ScaleTime } from "d3-scale"
+import { useState } from "react"
 import { useT } from "@app/hooks/useT"
 import type { WorkerTimelineLane, WorkerTimelineMacroPayload, WorkerTimelineSpan } from "../api/workerTimeline"
-
-const ROW_HEIGHT = 44
-const DEFAULT_VIEWPORT_HEIGHT = 480
-const BUFFER_ROWS = 3
-const CHART_WIDTH = 1000
-
-const STATUS_COLORS: Record<string, string> = {
-  queued: "#f59e0b",
-  running: "#2563eb",
-  succeeded: "#16a34a",
-  failed: "#dc2626",
-  cancelled: "#6b7280"
-}
+import { CHART_WIDTH, ROW_HEIGHT, STATUS_COLORS } from "./timeline/constants"
+import { TimeAxis } from "./timeline/TimeAxis"
+import { TimelineBar } from "./timeline/TimelineBar"
+import { TooltipCard } from "./timeline/TooltipCard"
+import { blockedMessage, formatDuration } from "./timeline/spanFormatting"
+import { useVirtualizedRows } from "./timeline/useVirtualizedRows"
+import { useZoomableTimeScale } from "./timeline/useZoomableTimeScale"
 
 type TooltipState = {
   span: WorkerTimelineSpan
@@ -32,64 +24,13 @@ export function TimelineLanes({
   onSelectWorkflow: (workflowId: number) => void
 }) {
   const { t } = useT("worker_timeline")
-  const scrollRef = useRef<HTMLDivElement | null>(null)
-  const axisRef = useRef<HTMLDivElement | null>(null)
-  const [scrollTop, setScrollTop] = useState(0)
-  const [viewportHeight, setViewportHeight] = useState(DEFAULT_VIEWPORT_HEIGHT)
-  const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
   const lanes = payload.lanes
 
-  const baseScale = useMemo(
-    () => scaleTime().domain([ new Date(payload.range.from), new Date(payload.range.to) ]).range([ 0, CHART_WIDTH ]),
-    [ payload.range.from, payload.range.to ]
-  )
-  const xScale = useMemo(() => transform.rescaleX(baseScale), [ baseScale, transform ])
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-
-    const measure = () => {
-      if (el.clientHeight > 0) setViewportHeight(el.clientHeight)
-    }
-    measure()
-
-    if (typeof ResizeObserver === "undefined") return undefined
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  // Bound to the time-axis header only, NOT the scrollable lanes container
-  // below it. d3-zoom's default wheel handler calls preventDefault() /
-  // stopImmediatePropagation() on any wheel event that would change the
-  // horizontal scale -- which is every wheel event once the user has
-  // zoomed in at all. Binding it to the same element users scroll
-  // vertically to browse lanes would swallow that scroll the moment
-  // zooming is used, defeating row virtualization's whole point.
-  useEffect(() => {
-    const el = axisRef.current
-    if (!el) return undefined
-
-    const behavior = d3zoom<HTMLDivElement, unknown>()
-      .scaleExtent([ 1, 200 ])
-      .translateExtent([ [ 0, 0 ], [ CHART_WIDTH, 0 ] ])
-      .extent([ [ 0, 0 ], [ CHART_WIDTH, 0 ] ])
-      .on("zoom", (event) => setTransform(event.transform))
-
-    const selection = select(el)
-    selection.call(behavior)
-    return () => {
-      selection.on(".zoom", null)
-    }
-  }, [])
-
-  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS)
-  const endIndex = Math.min(lanes.length, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + BUFFER_ROWS)
+  const { axisRef, xScale } = useZoomableTimeScale(payload.range.from, payload.range.to)
+  const { scrollRef, startIndex, endIndex, totalHeight, onScroll } = useVirtualizedRows(lanes.length, ROW_HEIGHT)
   const visibleLanes = lanes.slice(startIndex, endIndex)
-  const totalHeight = lanes.length * ROW_HEIGHT
 
   if (lanes.length === 0) {
     return <p className="p-6 text-sm text-gray-500 dark:text-gray-400">{t("no_lanes")}</p>
@@ -103,7 +44,7 @@ export function TimelineLanes({
       <div
         aria-label={t("lanes_aria")}
         className="relative h-[480px] overflow-y-auto overflow-x-hidden border-t border-gray-200 dark:border-gray-800"
-        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        onScroll={onScroll}
         ref={scrollRef}
       >
         <div style={{ height: totalHeight, position: "relative" }}>
@@ -121,19 +62,6 @@ export function TimelineLanes({
       </div>
       {tooltip ? <SpanTooltip span={tooltip.span} x={tooltip.x} y={tooltip.y} /> : null}
     </div>
-  )
-}
-
-function TimeAxis({ scale }: { scale: ScaleTime<number, number> }) {
-  const ticks = scale.ticks(6)
-  return (
-    <svg aria-hidden="true" className="h-6 w-full" preserveAspectRatio="none" viewBox={`0 0 ${CHART_WIDTH} 24`}>
-      {ticks.map((tick) => (
-        <text fill="currentColor" fontSize="9" key={tick.toISOString()} textAnchor="middle" x={scale(tick)} y="16">
-          {tick.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </text>
-      ))}
-    </svg>
   )
 }
 
@@ -164,30 +92,16 @@ function LaneRow({
         {lane.spans.map((span) => {
           const x = scale(new Date(span.started_at))
           const endDate = span.finished_at ? new Date(span.finished_at) : new Date()
-          const width = Math.max(2, scale(endDate) - x)
+          const width = scale(endDate) - x
           return (
-            <rect
-              aria-label={span.label}
-              data-workflow-id={span.workflow_id}
+            <TimelineBar
+              ariaLabel={span.label}
               fill={STATUS_COLORS[span.status] ?? "#94a3b8"}
-              height="20"
               key={span.workflow_id}
               onClick={() => onSelectWorkflow(span.workflow_id)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return
-                event.preventDefault()
-                onSelectWorkflow(span.workflow_id)
-              }}
-              onMouseEnter={(event) => onHover({ span, x: event.clientX, y: event.clientY })}
-              onMouseLeave={() => onHover(null)}
-              onMouseMove={(event) => onHover({ span, x: event.clientX, y: event.clientY })}
-              rx="3"
-              role="button"
-              style={{ cursor: "pointer" }}
-              tabIndex={0}
+              onHover={(position) => onHover(position ? { span, x: position.x, y: position.y } : null)}
               width={width}
               x={x}
-              y="6"
             />
           )
         })}
@@ -198,45 +112,15 @@ function LaneRow({
 
 function SpanTooltip({ span, x, y }: { span: WorkerTimelineSpan; x: number; y: number }) {
   const { t } = useT("worker_timeline")
-  const duration = formatDuration(span)
-  const blockedText = blockedMessage(span, t)
+  const duration = formatDuration(span.started_at, span.finished_at)
 
   return (
-    <div
-      className="pointer-events-none fixed z-50 max-w-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 p-2 text-xs text-gray-800 dark:text-gray-100 shadow-lg"
-      role="tooltip"
-      style={{ left: x + 12, top: y + 12 }}
-    >
+    <TooltipCard x={x} y={y}>
       <p className="font-semibold">{span.label}</p>
       {span.job_title ? <p className="text-gray-700 dark:text-gray-200">{span.job_title}</p> : null}
       <p className="text-gray-500 dark:text-gray-400">{t("tooltip_workflow", { id: span.workflow_id })}</p>
       <p>{duration}</p>
-      <p className="mt-1 text-gray-600 dark:text-gray-300">{blockedText}</p>
-    </div>
+      <p className="mt-1 text-gray-600 dark:text-gray-300">{blockedMessage(span.blocked, t)}</p>
+    </TooltipCard>
   )
-}
-
-function formatDuration(span: WorkerTimelineSpan): string {
-  const start = new Date(span.started_at).getTime()
-  const end = span.finished_at ? new Date(span.finished_at).getTime() : Date.now()
-  const totalSeconds = Math.max(0, Math.round((end - start) / 1000))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  const parts = []
-  if (hours) parts.push(`${hours}h`)
-  if (hours || minutes) parts.push(`${minutes}m`)
-  parts.push(`${seconds}s`)
-
-  const label = parts.join(" ")
-  return span.finished_at ? label : `${label}+ (running)`
-}
-
-function blockedMessage(span: WorkerTimelineSpan, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const blocked = span.blocked
-  if (!blocked.available) {
-    return blocked.historical ? t("no_historical_blocker_data") : t("no_blocker_data")
-  }
-
-  return t("blocked_reason_line", { reason: blocked.blocked_reason })
 }

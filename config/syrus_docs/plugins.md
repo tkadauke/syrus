@@ -1498,6 +1498,10 @@ Bundled plugins:
   per worker hostname+pid as hand-rolled React+SVG bars, using `d3-scale`
   for the time axis and `d3-zoom`/`d3-selection` for pan/zoom, with row
   virtualization and repository/epic/status/hostname/time-range filters. The
-  same `paths` array covers a second, stub `/worker_timeline/workflow`
-  route (the real Step/Run waterfall drill-down is a follow-up) — see
+  same `paths` array also covers `/worker_timeline/workflow`, the
+  per-workflow Step/Run waterfall drill-down (`WorkflowWaterfall.tsx`,
+  reached by clicking a macro-view Workflow span), consuming
+  `GET /api/v1/app/admin/worker_timeline/workflow` — a session-authenticated
+  wrapper around `Timeline::WorkflowWaterfallQuery` — and reusing the macro
+  view's bar/pan-zoom/tooltip rendering primitives — see
   `config/syrus_docs/worker_timeline.md`.
