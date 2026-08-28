@@ -640,6 +640,34 @@ RSpec.describe GithubClient do
       )
       expect(stub).to have_been_requested
     end
+
+    it "reverses GitHub's oldest-first compare order into newest-first" do
+      # GitHub's REST API documents (and returns) the "commits" array in
+      # chronological order: oldest (closest to base) first, newest
+      # (closest to head) last — equivalent to `git log --reverse
+      # base..head`, not `git log base..head`. This method's own doc
+      # comment claims the opposite ("newest-first") for its *return*
+      # value; assert the actual observed behavior instead of trusting
+      # that comment, since the two are easy to get backwards.
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...staging")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            status: "ahead",
+            merge_base_commit: { sha: "base-sha" },
+            commits: [
+              { sha: "older-sha", commit: { message: "Older commit", committer: { date: "2026-07-30T18:00:00Z" } } },
+              { sha: "newer-sha", commit: { message: "Newer commit", committer: { date: "2026-07-30T19:00:00Z" } } }
+            ]
+          }.to_json
+        )
+
+      result = client.compare_commits("acme/widgets", "base-sha", "staging")
+
+      expect(result[:commits].map { |c| c[:sha] }).to eq(%w[newer-sha older-sha])
+    end
   end
 
   describe "#merge_pull_request" do

@@ -81,18 +81,62 @@ which is the bigger operational problem.
 ## Attribution
 
 `GitHistory::CommitAttributor` classifies each commit and stays on the web
-pod (it needs `Current.user`/DB access the relay doesn't have):
+pod (it needs `Current.user`/DB access the relay doesn't have). Classification
+is driven primarily by the `landed_commits` table — the per-commit record a
+Job or Epic writes at landing time (`Steps::AutoMerge`, `Steps::MergeTrainBuild`,
+`Steps::MergeTrainLand`, `Steps::MergeTrainReconcile`) — with a fallback to the
+older single-SHA `Job#landed_sha` match for history recorded before that table
+existed:
 
-- `syrus_landed` — sha matches a non-`external_pr` Job's `landed_sha`.
-  Attributed to the creating user, Epic (if any), and origin (chat / GitHub
-  issue / cron).
-- `external_pr` — sha matches an `external_pr`-kind Job's `landed_sha`
-  (`PollExternalPrJob` tracked someone else's PR that merged). Attributed to
-  the raw GitHub author/committer, not a Syrus user.
-- `external_push` — no matching Job at all, a raw commit pushed straight to
-  the default branch. Attributed to the raw GitHub author/committer.
+- `syrus_landed` — sha has a `LandedCommit(landable: Job, kind:
+  "implementation")` row, or — as the legacy fallback — matches a non-
+  `external_pr` Job's `landed_sha` directly. Attributed to the creating user,
+  Epic (if any), and origin (chat / GitHub issue / cron).
+- `epic_landed` — sha has a `LandedCommit(landable: Epic, kind:
+  "integration_merge")` row, written by `Steps::MergeTrainLand` for the single
+  merge commit of an Epic merge-train landing. Attributed to the Epic plus the
+  full list of member Jobs that landed through that integration commit
+  (`Job.where(landed_sha: sha)` — every member still carries the same legacy
+  `landed_sha`).
+- `epic_reconciliation` — sha has a `LandedCommit(landable: Epic, kind:
+  "reconcile")` row, written by `Steps::MergeTrainReconcile` when its pass
+  actually commits changes on the integration branch. Attributed to the Epic
+  only, no single Job.
+- `external_pr` — no `LandedCommit` row; sha matches an `external_pr`-kind
+  Job's `landed_sha` (`PollExternalPrJob` tracked someone else's PR that
+  merged). Attributed to the raw GitHub author/committer, not a Syrus user.
+- `external_push` — no `LandedCommit` row and no matching Job at all, a raw
+  commit pushed straight to the default branch. Attributed to the raw GitHub
+  author/committer.
+
+Backfilling `LandedCommit` rows for history recorded before this table shipped
+is a separate, deferred follow-up — until that runs, older commits keep
+resolving through the `Job#landed_sha` fallback above.
 
 Chat origin attribution redacts the chat session id/title unless the
 requesting user can actually access that chat
 (`User#accessible_chat_sessions`) — the commit is still marked chat-originated
 either way, but the reference itself never leaks.
+
+## Presentation
+
+`GitHistory.tsx` groups the flat, cursor-paginated commit list
+(`groupCommits.ts`) rather than rendering every commit as a flat row: an
+`epic_landed` commit anchors a collapsible group for its Epic, nesting every
+member Job's own `syrus_landed` commits underneath it as their own
+sub-group; `epic_reconciliation` commits attach directly to their Epic's
+group (never to a Job); a `syrus_landed` Job with no epic-landing commit in
+view (a regular, non-merge-train landing, or a merge-train landing whose
+integration commit hasn't loaded yet) still groups its own commits together
+as a standalone Job group. `external_pr`/`external_push` commits are never
+grouped — always in the list. Grouping is
+recomputed from the *entire* accumulated commit list on every render (not
+per-page), so a group split across a "load more" cursor boundary
+reassembles automatically once the rest of its commits load, regardless of
+where the boundary fell.
+
+Syrus-attributed rows (`syrus_landed`/`epic_landed`/`epic_reconciliation`,
+and anything they group) render with bold text and a terracotta left-border
+accent; `external_pr`/`external_push` rows render de-emphasized (muted
+gray text, no accent border) — the operator ask this satisfies is
+"emphasize commits that are actual jobs over others."

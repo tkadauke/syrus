@@ -58,6 +58,51 @@ describe("GitHistory", () => {
     expect(screen.getByRole("link", { name: "Issue #12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
   })
 
+  it("renders an epic_landed commit with the epic and every member job", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "1".repeat(40),
+        short_sha: "1111111111",
+        subject: "Merge Epic #9 via Syrus merge-train",
+        authored_at: "2026-08-22T10:00:00Z",
+        classification: "epic_landed",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        jobs: [
+          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+        ]
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Merge Epic #9 via Syrus merge-train")).toBeInTheDocument()
+    expect(screen.getByText("Epic")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "JOB-43" })).toHaveAttribute("href", "/jobs/43")
+  })
+
+  it("renders an epic_reconciliation commit with only the epic", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "2".repeat(40),
+        short_sha: "2222222222",
+        subject: "Syrus merge-train reconciliation",
+        authored_at: "2026-08-22T11:00:00Z",
+        classification: "epic_reconciliation",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Syrus merge-train reconciliation")).toBeInTheDocument()
+    expect(screen.getByText("Epic reconciliation")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
+    expect(screen.queryByRole("link", { name: /JOB-/ })).not.toBeInTheDocument()
+  })
+
   it("renders an externally-opened PR commit distinctly from a raw push", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
       {
@@ -171,5 +216,180 @@ describe("GitHistory", () => {
       `/api/v1/app/repositories/7/git_history/commits?cursor=${"e".repeat(40)}`,
       expect.objectContaining({ credentials: "same-origin" })
     )
+  })
+
+  it("nests member Jobs' implementation commits under their Epic group instead of listing them flat", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "1".repeat(40),
+        short_sha: "1111111111",
+        subject: "Merge Epic #9 via Syrus merge-train",
+        authored_at: "2026-08-22T10:00:00Z",
+        classification: "epic_landed",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        jobs: [
+          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+        ]
+      },
+      {
+        sha: "2".repeat(40),
+        short_sha: "2222222222",
+        subject: "Implement dark mode toggle",
+        authored_at: "2026-08-22T09:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        user: { id: 3, display_name: "Ada Lovelace" }
+      },
+      {
+        sha: "3".repeat(40),
+        short_sha: "3333333333",
+        subject: "Autofix dark mode formatting",
+        authored_at: "2026-08-22T08:50:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        user: { id: 3, display_name: "Ada Lovelace" }
+      },
+      {
+        sha: "4".repeat(40),
+        short_sha: "4444444444",
+        subject: "Implement light mode toggle",
+        authored_at: "2026-08-22T08:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 43, slug: "JOB-43", title: "Add light mode toggle" },
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        user: { id: 4, display_name: "Grace Hopper" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Merge Epic #9 via Syrus merge-train")).toBeInTheDocument()
+    expect(await screen.findByText("Implement dark mode toggle")).toBeInTheDocument()
+    expect(screen.getByText("Autofix dark mode formatting")).toBeInTheDocument()
+    expect(screen.getByText("Implement light mode toggle")).toBeInTheDocument()
+
+    // A single top-level list item for the whole Epic -- both jobs' own
+    // commits are nested underneath it, not flattened into separate
+    // top-level rows.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1)
+
+    const job42Links = screen.getAllByRole("link", { name: "JOB-42" })
+    expect(job42Links.length).toBeGreaterThan(0)
+    for (const link of job42Links) expect(link).toHaveAttribute("href", "/jobs/42")
+  })
+
+  it("groups a reconciliation commit under its Epic group, not attached to any member Job", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "1".repeat(40),
+        short_sha: "1111111111",
+        subject: "Merge Epic #9 via Syrus merge-train",
+        authored_at: "2026-08-22T10:00:00Z",
+        classification: "epic_landed",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        jobs: [{ id: 42, slug: "JOB-42", title: "Add dark mode toggle" }]
+      },
+      {
+        sha: "2".repeat(40),
+        short_sha: "2222222222",
+        subject: "Syrus merge-train reconciliation",
+        authored_at: "2026-08-22T09:30:00Z",
+        classification: "epic_reconciliation",
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" }
+      },
+      {
+        sha: "3".repeat(40),
+        short_sha: "3333333333",
+        subject: "Implement dark mode toggle",
+        authored_at: "2026-08-22T09:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        user: { id: 3, display_name: "Ada Lovelace" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Syrus merge-train reconciliation")).toBeInTheDocument()
+    expect(screen.getByText("Implement dark mode toggle")).toBeInTheDocument()
+
+    // Everything collapses into the Epic's single top-level group.
+    expect(screen.getAllByRole("listitem")).toHaveLength(1)
+
+    // Exactly two JOB-42 links exist: the epic_landed row's inline member
+    // link, and JOB-42's own nested implementation commit. The
+    // reconciliation row contributes none -- it belongs to the Epic only.
+    expect(screen.getAllByRole("link", { name: "JOB-42" })).toHaveLength(2)
+  })
+
+  it("renders a legacy-fallback syrus_landed commit (pre-migration history, no LandedCommit row) identically to a normal one", async () => {
+    // CommitAttributor's legacy fallback (matching Job#landed_sha directly)
+    // produces the exact same "syrus_landed" wire shape as the new
+    // LandedCommit-backed path -- there is no marker distinguishing the two,
+    // so the frontend has nothing special to do and should render this
+    // exactly like the standard Syrus-landed case.
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "a".repeat(40),
+        short_sha: "aaaaaaaaaa",
+        subject: "Add dark mode toggle",
+        authored_at: "2026-08-20T10:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+        user: { id: 3, display_name: "Ada Lovelace" },
+        origin: { type: "github_issue", issue_number: 12, issue_url: "https://github.com/acme/widgets/issues/12" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    expect(await screen.findByText("Add dark mode toggle")).toBeInTheDocument()
+    expect(screen.getByText("Syrus")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-42" })).toHaveAttribute("href", "/jobs/42")
+    expect(screen.getByRole("link", { name: "EPIC-9" })).toHaveAttribute("href", "/epics/9")
+    expect(screen.getByText("by Ada Lovelace")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Issue #12" })).toHaveAttribute("href", "https://github.com/acme/widgets/issues/12")
+  })
+
+  it("visually de-emphasizes external commits relative to Syrus-attributed ones", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
+      {
+        sha: "a".repeat(40),
+        short_sha: "aaaaaaaaaa",
+        subject: "Add dark mode toggle",
+        authored_at: "2026-08-20T10:00:00Z",
+        classification: "syrus_landed",
+        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+        epic: null,
+        user: { id: 3, display_name: "Ada Lovelace" }
+      },
+      {
+        sha: "b".repeat(40),
+        short_sha: "bbbbbbbbbb",
+        subject: "Fix typo in readme",
+        authored_at: "2026-08-19T10:00:00Z",
+        classification: "external_pr",
+        job: { id: 100, slug: "JOB-100", title: "external contribution" },
+        pr_number: 55,
+        pr_url: "https://github.com/acme/widgets/pull/55",
+        github_author: "octocat",
+        author: { name: "octocat", email: "octocat@example.com" },
+        committer: { name: "octocat", email: "octocat@example.com" }
+      }
+    ])))
+
+    renderRoute(<GitHistory />)
+
+    const syrusSubject = await screen.findByText("Add dark mode toggle")
+    const externalSubject = await screen.findByText("Fix typo in readme")
+
+    expect(syrusSubject.className).toContain("font-semibold")
+    expect(externalSubject.className).not.toContain("font-semibold")
+    expect(externalSubject.className).toContain("font-normal")
   })
 })
