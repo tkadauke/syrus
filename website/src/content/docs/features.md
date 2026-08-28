@@ -386,7 +386,10 @@ Chats can propose Epics or propose an Epic with child Jobs, including
 Epic-level dependencies on existing Epics or other chat Epic proposals. Chat
 Epic proposals can reference each other by proposal slug, so operators can
 review the full plan first; Syrus wires the real Epic dependency once both
-proposal cards are confirmed.
+proposal cards are confirmed. Confirming an Epic proposal that would leave the
+Epic with zero child Jobs — a brand-new Epic proposal with no children, or one
+targeting an existing Epic that is itself still empty — is rejected, since
+nothing would ever get implemented; a single child Job is fine.
 
 When a developer opens chat on a backlog Epic with no child Jobs, Syrus treats
 it as product-owner-authored planning input. The chat agent surfaces the

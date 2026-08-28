@@ -481,9 +481,66 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.proposals.find_by!(slug: "rejected")).to be_rejected
   end
 
+  it "rejects confirming a bare Epic proposal with zero child Jobs" do
+    proposal = epic_proposal
+
+    expect {
+      expect {
+        described_class.new(user: user).file!(proposal)
+      }.to raise_error(ArgumentError, /must include at least one child Job/)
+    }.to change(Epic, :count).by(0).and change(Job, :count).by(0)
+
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "rejects confirming a zero-child proposal targeting an existing Epic that also has no Jobs" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Empty epic")
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to raise_error(ArgumentError, /must include at least one child Job/)
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "allows confirming a zero-child proposal targeting an existing Epic that already has Jobs" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic")
+    Factories.job_record(user: user, repository: repository, epic: target_epic, issue_number: 11)
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.not_to raise_error
+    expect(proposal.reload).to be_confirmed
+  end
+
+  it "allows confirming a single-child Epic proposal" do
+    proposal = epic_proposal
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "solo",
+      title: "Solo",
+      body: "Build it.",
+      repository: repository
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.size).to eq(1)
+  end
+
   it "rejects archived proposal repositories before creating records" do
     repository.archive!
     proposal = epic_proposal
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
 
     expect {
       expect {

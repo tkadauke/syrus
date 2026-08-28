@@ -4430,6 +4430,26 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal.reload).to be_proposed
   end
 
+  it "returns an actionable validation error when confirming a zero-child Epic proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.not_to change(Epic, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("at least one child Job")
+    expect(proposal.reload).to be_proposed
+  end
+
   it "rejects proposed child proposals when rejecting an Epic proposal" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
