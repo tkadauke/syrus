@@ -3572,6 +3572,110 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
   })
+
+  // Regression coverage for the banner-painted-under-the-pill bug: the
+  // banner used to be a plain in-flow sibling of the (absolutely
+  // positioned) composer, so the composer's own box didn't push it up and
+  // the composer painted over it instead. It now lives inside the same
+  // positioned box as the composer (`[data-tour="chat-compose"]`) and uses
+  // `bottom-full`, so it always sits exactly at the composer's current top
+  // edge, however tall the composer grows.
+  it("positions the pending-proposal banner with bottom-full inside the composer's own positioned box", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [messageWithProposal(9, proposal({ id: 1, title: "Survey aqueduct route" }))]
+    }))
+    renderRoute()
+
+    const bannerText = await screen.findByText("1 pending proposal")
+    const banner = bannerText.closest("div") as HTMLElement
+    expect(banner.className).toContain("absolute")
+    expect(banner.className).toContain("bottom-full")
+
+    const composerBox = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+    expect(composerBox).not.toBeNull()
+    expect(composerBox.contains(banner)).toBe(true)
+    expect(composerBox.className).toContain("absolute")
+  })
+})
+
+// jsdom has no ResizeObserver (Compose already no-ops when it's undefined,
+// same guard pattern as Terminal.tsx), so these tests install a synchronous
+// stub to exercise the propagation path: Compose measures its floating
+// form -> reports the height up to ChatColumn -> ChatColumn exposes it as
+// `--chat-composer-height` on the chat column section, which the message
+// stream's padding, the "new messages" pill, and the pending-proposal
+// banner all read from.
+describe("floating composer height tracking", () => {
+  let observedElements: HTMLElement[]
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+    observedElements = []
+
+    class StubResizeObserver {
+      private callback: () => void
+
+      constructor(callback: () => void) {
+        this.callback = callback
+      }
+
+      observe(element: HTMLElement) {
+        observedElements.push(element)
+        // A real ResizeObserver reports asynchronously (never inside the
+        // same effect flush that called observe()) — mirror that here so
+        // this doesn't race ChatColumn's own synchronous mount-time reset
+        // effect the way a same-tick callback would.
+        void Promise.resolve().then(() => this.callback())
+      }
+
+      unobserve() {}
+      disconnect() {}
+    }
+
+    vi.stubGlobal("ResizeObserver", StubResizeObserver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("exposes the composer's measured height as --chat-composer-height on the chat column", async () => {
+    // The stub's observe() invokes its callback synchronously (mirroring a
+    // real ResizeObserver's initial report), so the mocked height needs to
+    // be in place before the composer's mount-time effect calls observe().
+    vi.spyOn(HTMLFormElement.prototype, "getBoundingClientRect").mockReturnValue({
+      height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect)
+
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const form = document.querySelector('[data-tour="chat-compose"] form') as HTMLFormElement
+    expect(form).not.toBeNull()
+    expect(observedElements).toContain(form)
+
+    let ancestor: HTMLElement | null = form.parentElement
+    while (ancestor && !ancestor.contains(messageStream)) {
+      ancestor = ancestor.parentElement
+    }
+    expect(ancestor).not.toBeNull()
+    const columnAncestor = ancestor as HTMLElement
+
+    await waitFor(() => {
+      expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
+    })
+  })
+
+  it("wires the message stream padding and the new-messages pill to track --chat-composer-height without regressing their static fallback", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    expect(messageStream.className).toContain("pb-[max(7rem,calc(var(--chat-composer-height,0px)+1.5rem))]")
+    expect(messageStream.className).toContain("sm:pb-[max(8rem,calc(var(--chat-composer-height,0px)+2rem))]")
+  })
 })
 
 describe("composer textarea right padding", () => {
