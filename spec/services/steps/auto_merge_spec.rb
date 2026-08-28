@@ -38,6 +38,7 @@ RSpec.describe Steps::AutoMerge do
     allow(client).to receive(:pr_issue_comments).and_return([])
     allow(client).to receive(:pr_commits).and_return([])
     allow(client).to receive(:branch_head_sha).and_return("base")
+    allow(client).to receive(:compare_commits).and_return(commits: [], merge_base_sha: nil, status: nil)
     allow(client).to receive(:delete_branch).and_return(true)
   end
 
@@ -83,6 +84,82 @@ RSpec.describe Steps::AutoMerge do
     described_class.new(run).call
 
     expect(job.reload.landed_sha).to be_nil
+  end
+
+  describe "landed commit capture" do
+    before do
+      job.approve!(via: "github_review")
+      job.start_landing!
+      job.save!
+      allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "tip-sha"))
+      allow(client).to receive(:add_issue_comment)
+    end
+
+    it "captures the base tip SHA before merging and records one LandedCommit row for a single-commit PR" do
+      allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
+      allow(client).to receive(:compare_commits).with("acme/widgets", "base-before-merge", "tip-sha").and_return(
+        commits: [
+          { sha: "tip-sha", short_sha: "tip-sha", message: "Implement feature", date: "2026-08-27T12:00:00Z" }
+        ],
+        merge_base_sha: "base-before-merge",
+        status: "ahead"
+      )
+
+      described_class.new(run).call
+
+      expect(client).to have_received(:branch_head_sha).with("acme/widgets", "main").ordered
+      expect(client).to have_received(:merge_pull_request).ordered
+      rows = LandedCommit.where(landable: job).order(:position)
+      expect(rows.pluck(:sha, :kind, :position)).to eq([
+        [ "tip-sha", "implementation", 0 ]
+      ])
+    end
+
+    it "records every commit (including a grader autofix commit) in landing order for a multi-commit PR" do
+      allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
+      # GithubClient#compare_commits returns commits newest-first (see
+      # spec/services/github_client_spec.rb); the tip commit is first,
+      # the earliest commit on the branch is last.
+      allow(client).to receive(:compare_commits).with("acme/widgets", "base-before-merge", "tip-sha").and_return(
+        commits: [
+          { sha: "tip-sha", short_sha: "tip-sha", message: "Implement feature", date: "2026-08-27T12:02:00Z" },
+          { sha: "autofix-sha", short_sha: "autofix", message: "Autofix: rubocop", date: "2026-08-27T12:01:00Z" },
+          { sha: "first-sha", short_sha: "first-s", message: "Initial implementation", date: "2026-08-27T12:00:00Z" }
+        ],
+        merge_base_sha: "base-before-merge",
+        status: "ahead"
+      )
+
+      described_class.new(run).call
+
+      rows = LandedCommit.where(landable: job).order(:position)
+      expect(rows.pluck(:sha, :position)).to eq([
+        [ "first-sha", 0 ],
+        [ "autofix-sha", 1 ],
+        [ "tip-sha", 2 ]
+      ])
+      expect(rows.pluck(:kind).uniq).to eq([ "implementation" ])
+      expect(rows.pluck(:landable_type).uniq).to eq([ "Job" ])
+    end
+
+    it "does not fail the landing when compare_commits errors" do
+      allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
+      allow(client).to receive(:compare_commits).and_raise(Octokit::ServerError.new(status: 500))
+
+      expect { described_class.new(run).call }.not_to raise_error
+      expect(LandedCommit.where(landable: job)).to be_empty
+      expect(job.reload).to be_closed
+      expect(job.closure_reason).to eq("pr_merged")
+    end
+
+    it "does not fail the landing when compare_commits returns no commits" do
+      allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("base-before-merge")
+      allow(client).to receive(:compare_commits).and_return(commits: [], merge_base_sha: nil, status: nil)
+
+      expect { described_class.new(run).call }.not_to raise_error
+      expect(LandedCommit.where(landable: job)).to be_empty
+      expect(job.reload).to be_closed
+    end
   end
 
   it "cancels the run and workflow when the PR was already closed" do
