@@ -17,6 +17,7 @@
   "sign_out": "Exi",
   "theme": "Themae",
   "color_theme": "Schema Colorum",
+  "color_theme_current": "Schema Colorum: {{name}}",
   "light_mode": "Lucidus",
   "dark_mode": "Obscurus",
   "system_mode": "Systema",

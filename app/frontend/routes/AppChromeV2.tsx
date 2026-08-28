@@ -1139,33 +1139,57 @@ function ThemePicker() {
   )
 }
 
+const TERRACOTTA_SLUG = "terracotta"
+
 function ColorThemePicker() {
   const { t } = useTranslation("nav")
   const { colorTheme, setColorTheme } = useTheme()
   const themesQuery = useQuery({ queryKey: ["themes"], queryFn: fetchThemes })
   const themes = themesQuery.data?.themes ?? []
+  const [expanded, setExpanded] = useState(false)
 
   if (themes.length === 0) return null
 
+  const current = colorTheme ?? themes.find((option) => option.slug === TERRACOTTA_SLUG) ?? themes[0]
+  const inertAttributes = expanded ? {} : { inert: "" }
+
   return (
     <div className="px-4 py-2" role="group" aria-label={t("nav:color_theme")}>
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t("nav:color_theme")}</p>
-      <div className="grid grid-cols-3 gap-1 rounded border border-gray-200 p-1 dark:border-gray-700">
-        {themes.map((option) => {
-          const active = colorTheme?.id === option.id
-          return (
-            <button
-              aria-pressed={active}
-              className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
-              key={option.id}
-              onClick={() => setColorTheme(option)}
-              type="button"
-            >
-              <span aria-hidden="true" className="h-4 w-4 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: option.tokens.light.brand }} />
-              <span className="w-full truncate text-center">{option.name}</span>
-            </button>
-          )
-        })}
+      <button
+        aria-expanded={expanded}
+        aria-label={t("nav:color_theme_current", { name: current.name })}
+        className="flex w-full items-center gap-2 rounded px-1 py-1 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+        onClick={() => setExpanded((value) => !value)}
+        type="button"
+      >
+        <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: current.tokens.light.brand }} />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700 dark:text-gray-300">{current.name}</span>
+        <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform dark:text-gray-500 ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      <div
+        {...inertAttributes}
+        aria-hidden={!expanded}
+        className={`grid overflow-hidden transition-[grid-template-rows,margin-top] duration-200 ease-out ${expanded ? "grid-rows-[1fr] mt-1.5" : "grid-rows-[0fr]"}`}
+      >
+        <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
+          <div className="grid grid-cols-3 gap-1 rounded border border-gray-200 p-1 dark:border-gray-700">
+            {themes.map((option) => {
+              const active = colorTheme?.id === option.id
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-brand/10 text-brand" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+                  key={option.id}
+                  onClick={() => setColorTheme(option)}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="h-4 w-4 rounded-full border border-black/10 dark:border-white/20" style={{ backgroundColor: option.tokens.light.brand }} />
+                  <span className="w-full truncate text-center">{option.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )
