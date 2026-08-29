@@ -1658,6 +1658,60 @@ RSpec.describe WorkEngine::Reconciler do
     expect(retry_workflow.state).to be_in(%w[queued running])
   end
 
+  it "does not create a retry workflow on every tick while a cancelled start block is still active" do
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 208, agent_provider: "claude")
+    cancelled = child.latest_workflow
+    first_step = cancelled.first_step
+    first_run = first_step.runs.first
+
+    AppSetting.current.update!(main_branch_breakage_policy: "strict")
+    child.repository.update!(
+      main_branch_health_enabled: true,
+      ci_health: "broken",
+      grader_health: "broken",
+      landing_paused: true
+    )
+    cancelled.update!(
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+        "start_blocked_at" => 6.minutes.ago.iso8601,
+        "start_blocked_last_seen_at" => 1.minute.ago.iso8601,
+        "start_blocked_next_check_at" => 1.minute.ago.iso8601,
+        "start_blocked_count" => 3
+      }
+    )
+    cancelled.update_columns(state: "cancelled", started_at: 6.minutes.ago, finished_at: 1.minute.ago)
+    first_step.update_columns(state: "cancelled", started_at: 6.minutes.ago, finished_at: 1.minute.ago)
+    first_run.update_columns(state: "cancelled", started_at: 6.minutes.ago, finished_at: 1.minute.ago)
+    child.update_columns(state: "queued")
+    intent = cancelled.work_unit.work_intent
+
+    workflow_count = child.workflows.count
+    retry_count = child.workflows.where(trigger_kind: "retry").count
+
+    results = 3.times.map do |index|
+      reconcile_and_execute(work_intent_id: intent.id, now: Time.current + index.minutes)
+    end
+
+    expect(child.reload.workflows.count).to eq(workflow_count)
+    expect(child.workflows.where(trigger_kind: "retry").count).to eq(retry_count)
+    expect(kind(results.last, :requested_work_intent_without_active_unit)).to be_nil
+    expect(plan(results.last, :launch_requested_work_intent)).to be_nil
+    results.each do |result|
+      expect(kind(result, :queued_job_after_cancelled_start_block)).to have_attributes(
+        safe_to_auto_repair: false,
+        recommended_repair_action: "wait_for_cancelled_start_block_to_clear"
+      )
+      expect(kind(result, :queued_job_after_cancelled_workflow)).to be_nil
+      expect(plan(result, :wait_for_cancelled_start_block_to_clear)).to have_attributes(
+        auto_executable: false,
+        target_type: "Job",
+        target_id: child.id
+      )
+      expect(plan(result, :retry_job_after_cancelled_workflow)).to be_nil
+    end
+  end
+
   it "does not retry a queued Job after cancelled workflow while active WorkUnit ownership exists" do
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
     cancelled = child.latest_workflow
