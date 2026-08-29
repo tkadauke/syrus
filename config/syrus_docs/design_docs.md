@@ -32,6 +32,6 @@ owners can see their docs, explicit collaborators can see private docs, and
 public docs are visible to users who can access at least one associated
 repository.
 
-The host app keeps the migration and `db/schema.rb` because current Syrus
-database conventions load migrations and schema artifacts from the main Rails
-application.
+The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
+app adds bundled plugin migration paths at boot, and the shared Rails schema
+dump remains in `db/schema.rb`.
