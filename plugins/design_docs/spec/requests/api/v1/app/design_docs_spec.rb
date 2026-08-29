@@ -27,6 +27,16 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     doc
   end
 
+  it "returns not found when the design_docs plugin is disabled" do
+    PluginRecord.find_by!(name: "design_docs").update!(enabled: false)
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs"
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("plugin_disabled")
+  end
+
   it "creates a design doc with DOC identity, initial version, repositories, collaborators, and origin chat" do
     chat = ChatSession.create!(user: owner, title: "Design chat")
     repository.repository_memberships.create!(user: collaborator, role: "read")
