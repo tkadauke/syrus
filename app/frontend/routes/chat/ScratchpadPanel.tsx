@@ -290,11 +290,11 @@ function ScratchpadItemRow({
 
   if (editing) {
     return (
-      <div className="rounded border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-950">
+      <div className="rounded border border-brand/30 bg-brand/10 p-2">
         {update.isError ? <div className="mb-2 text-xs text-red-700 dark:text-red-300">{errorMessage(update.error, "Could not update item.")}</div> : null}
         <textarea
           aria-label={t("scratchpad_edit_item")}
-          className="min-h-16 w-full resize-y rounded border border-blue-200 bg-white px-2 py-1.5 text-xs focus:border-blue-500 focus:ring-blue-500 dark:border-blue-800 dark:bg-gray-950 dark:text-gray-100"
+          className="min-h-16 w-full resize-y rounded border border-brand/30 bg-white px-2 py-1.5 text-xs focus:border-brand focus:ring-brand dark:bg-gray-950 dark:text-gray-100"
           onChange={(e) => setDraft(e.target.value)}
           value={draft}
         />
@@ -309,7 +309,7 @@ function ScratchpadItemRow({
   return (
     <div>
       <div
-        className={`flex items-start gap-1.5 rounded border px-2 py-1.5 transition-colors ${isDragging ? "opacity-40" : ""} ${dragTarget ? "border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"}`}
+        className={`flex items-start gap-1.5 rounded border px-2 py-1.5 transition-colors ${isDragging ? "opacity-40" : ""} ${dragTarget ? "border-brand bg-brand/10" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"}`}
         draggable
         onDragEnd={onDragEnd}
         onDragOver={onDragOver}
@@ -336,7 +336,7 @@ function ScratchpadItemRow({
 
         <div className="min-w-0 flex-1">
           <button
-            className={`w-full text-left text-xs transition-colors ${loadPending ? "text-gray-400 dark:text-gray-500" : "text-gray-700 hover:text-blue-700 dark:text-gray-200 dark:hover:text-blue-300"}`}
+            className={`w-full text-left text-xs transition-colors ${loadPending ? "text-gray-400 dark:text-gray-500" : "text-gray-700 hover:text-brand dark:text-gray-200"}`}
             disabled={loadPending || remove.isPending}
             onClick={() => void handleLoad()}
             title={t("scratchpad_load")}
@@ -350,7 +350,7 @@ function ScratchpadItemRow({
         <div className="flex shrink-0 items-center gap-0.5">
           <button
             aria-label={t("scratchpad_queue_item")}
-            className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-blue-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-blue-300 dark:disabled:text-gray-700"
+            className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-brand disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:disabled:text-gray-700"
             disabled={queue.isPending || update.isPending || remove.isPending}
             onClick={() => queue.mutate()}
             title={t("scratchpad_queue_item")}

@@ -417,7 +417,7 @@ function BranchDivergencePanel({
         <div><dt className="font-semibold uppercase tracking-wide">{t("workflow_divergence_local")}</dt><dd className="font-mono">{shortSha(divergence.local_sha)}</dd></div>
       </dl>
       {divergence.recovery_pending ? (
-        <p className="mt-2 text-xs font-medium text-blue-700 dark:text-blue-300">{t("workflow_replace_pending")}</p>
+        <p className="mt-2 text-xs font-medium text-info">{t("workflow_replace_pending")}</p>
       ) : null}
       {divergence.recovery_error?.message ? (
         <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300">{t("workflow_replace_failed", { message: divergence.recovery_error.message })}</p>
@@ -543,7 +543,7 @@ function WorkflowGroup({ title, numberLabel, pills, status, open, onToggle, chil
     <section className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-gray-50 px-3 py-2 text-left hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-800/80 dark:hover:bg-gray-800"
+        className="flex w-full items-center justify-between gap-3 bg-gray-50 px-3 py-2 text-left hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:bg-gray-800/80 dark:hover:bg-gray-800"
         onClick={onToggle}
         type="button"
       >
@@ -598,7 +598,7 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
           {shownDescription}
           {isLong ? (
             <button
-              className="ml-1 font-medium text-blue-600 hover:text-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="ml-1 font-medium text-brand hover:text-brand-emphasis focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               onClick={() => setExpanded((current) => !current)}
               type="button"
             >
@@ -639,7 +639,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
     <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
       <button
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-gray-800"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:bg-gray-800"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
@@ -962,7 +962,7 @@ function RunRow({ run, payload, command, active = false, stepSummaryArtifact = n
   }
 
   return (
-    <div className={`rounded border bg-white p-3 text-sm dark:bg-gray-900 ${active ? "border-blue-300 ring-1 ring-blue-100 dark:border-blue-700 dark:ring-blue-900/70" : "border-gray-200 dark:border-gray-700"}`}>
+    <div className={`rounded border bg-white p-3 text-sm dark:bg-gray-900 ${active ? "border-brand/30 ring-1 ring-brand/20" : "border-gray-200 dark:border-gray-700"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">

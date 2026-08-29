@@ -66,7 +66,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
             </div>
           ) : null}
           {item.text.trim().length > 0 ? (
-            <PlainText className="whitespace-pre-wrap break-words rounded bg-blue-600 px-4 py-2 text-sm leading-normal text-white dark:bg-blue-500" text={item.text} />
+            <PlainText className="whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand" text={item.text} />
           ) : null}
           <MessageImageAttachments attachments={item.attachments} align="end" />
           <MessageFileAttachments attachments={item.attachments} align="end" />
@@ -123,7 +123,7 @@ function MessageImageAttachments({ attachments, align = "start" }: { attachments
           return (
             <button
               aria-label={`Open ${attachment.name || "image attachment"}`}
-              className="min-h-12 min-w-12 max-h-[10rem] max-w-[16rem] overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900"
+              className="min-h-12 min-w-12 max-h-[10rem] max-w-[16rem] overflow-hidden rounded border border-gray-200 bg-white p-0 shadow-sm transition hover:border-brand/30 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:bg-gray-900"
               key={`${attachment.name}-${index}`}
               onClick={() => setLightboxImage(attachment)}
               type="button"
@@ -177,7 +177,7 @@ export function ImageLightbox({ attachment, onClose }: { attachment: ChatMessage
       <section aria-label={attachment.name || "Image attachment"} aria-modal="true" className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()} role="dialog">
         <button
           aria-label={t("aria_close_image")}
-          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
           onClick={onClose}
           type="button"
         >
@@ -331,7 +331,7 @@ function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatR
     <button
       aria-label={pinned ? t("unpin_message") : t("pin_message")}
       aria-pressed={pinned}
-      className={`rounded border px-2 py-1 text-xs font-medium shadow-sm ${pinned ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+      className={`rounded border px-2 py-1 text-xs font-medium shadow-sm ${pinned ? "border-brand/30 bg-brand/10 text-brand hover:bg-brand/20" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
       disabled={togglePin.isPending}
       onClick={() => togglePin.mutate()}
       title={pinned ? t("unpin_message") : t("pin_message")}
@@ -393,7 +393,7 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
       <div className="space-y-1">
         {item.calls.map((call) => (
           <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" key={call.message_id}>
-            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${call.result_error ? "bg-amber-500" : "animate-pulse bg-blue-500"}`} />
+            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${call.result_error ? "bg-amber-500" : "animate-pulse bg-info"}`} />
             <span>{call.result_error ? "Hit a snag" : call.progress_label}</span>
           </div>
         ))}
