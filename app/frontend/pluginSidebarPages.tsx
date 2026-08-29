@@ -52,7 +52,7 @@ export function PluginSidebarPageRoute() {
     return <main className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("sidebar_pages.loading")}</main>
   }
 
-  const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => path === normalizedPath))
+  const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => path === normalizedPath || normalizedPath.startsWith(`${path}/`)))
   const Component = pluginSidebarComponentFor(page?.component)
 
   if (!page || !Component) {

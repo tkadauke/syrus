@@ -57,6 +57,14 @@ export function RepositoryIcon() {
   )
 }
 
+export function DocumentIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M7.25 4.75h7.25l4.25 4.25v10.25H7.25a2 2 0 0 1-2-2V6.75a2 2 0 0 1 2-2Zm7.25 0V9h4.25M8.75 12.25h6.5m-6.5 3h6.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+    </svg>
+  )
+}
+
 export function EpicIcon() {
   return (
     <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">

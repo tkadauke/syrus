@@ -577,7 +577,7 @@ Include `Syrus::Plugin::WorkspaceTab` and implement the class methods:
 
 | Method | Signature | Description |
 |---|---|---|
-| `workspace_tabs` | `() → Array<Hash>` | Tab metadata: `id` (unique across all plugins — see collision guard below; conventionally prefixed `"<plugin_name>."`, checked by `spec/lib/syrus/plugin_workspace_tab_contract_spec.rb`), `label` (fallback string), `label_key` (`"<i18n_namespace>:<key>"`), `component` (frontend component key, matching a `frontend.workspace_tabs` manifest entry), and optional `order` (default `0`). |
+| `workspace_tabs` | `() → Array<Hash>` | Tab metadata: `id` (unique across all plugins — see collision guard below; conventionally prefixed `"<plugin_name>."`, checked by `spec/lib/syrus/plugin_workspace_tab_contract_spec.rb`), `label` (fallback string), `label_key` (`"<i18n_namespace>:<key>"`), `component` (frontend component key, matching a `frontend.workspace_tabs` manifest entry), optional `order` (default `0`), and optional `closable` (`true` lets the user dismiss that plugin tab for the current chat view; omitted/false keeps the tab fixed). |
 | `available_for?` | `(chat_session) → bool` | Optional per-chat visibility gate. Defaults to always available. |
 
 ```ruby
@@ -586,7 +586,7 @@ class MyPlugin::WorkspaceTabs
 
   def self.workspace_tabs
     [ { id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status",
-        component: "my_plugin/StatusTab", order: 100 } ]
+        component: "my_plugin/StatusTab", order: 100, closable: true } ]
   end
 
   def self.available_for?(chat_session) = chat_session.repository.present?
