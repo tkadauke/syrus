@@ -48,14 +48,15 @@ dependencies automatically.
 `StepDispatcher` checks the Workflow's pinned `agent_provider` against the
 current user's per-agent pause threshold. Agent Settings stores these thresholds
 on the user; each provider defaults to 10%, and 0 disables automatic
-provider-availability pauses for that provider. When Codex structured usage is
-below the threshold, or any provider has an active usage-exhausted signal, Syrus
-records `pause_reason: provider_availability` and schedules a recheck instead
-of creating the next Run. Running steps finish first. Codex rechecks refresh the
-usage snapshot when stale so Workflows resume automatically once usage is above
-threshold. Operators can force a recheck or "Resume anyway" from Agent Settings
-or the usage banner; the override is per-user/per-provider and only suppresses
-pauses until newer provider evidence arrives.
+provider-availability pauses for that provider. When structured Codex or Claude
+usage is below the threshold, or any provider has an active usage-exhausted
+signal, Syrus records `pause_reason: provider_availability` and schedules a
+recheck instead of creating the next Run. Running steps finish first. Codex and
+Claude rechecks refresh the usage snapshot when stale so Workflows resume
+automatically once usage is above threshold. Operators can force a recheck or
+"Resume anyway" from Agent Settings or the usage banner; the override is
+per-user/per-provider and only suppresses pauses until newer provider evidence
+arrives.
 
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
@@ -70,12 +71,14 @@ oauth-2025-04-20` header, then reads Anthropic's `anthropic-ratelimit-unified-5h
 on the same 10-minute staleness window as Codex. It is invoked opportunistically —
 no dedicated cron — from `AgentProviders::Claude#invoke`/`.invoke_one_shot` after
 every Claude agent call, and from `ProviderAvailabilityPause#refresh_stale_usage`
-as a pre-Run gate check, exactly like Codex's wiring. Unlike Codex, this evidence
-does not (yet) feed the threshold-based provider-availability pause above or the
-usage banner/snapshot — those stay Codex-only pending a follow-up. It does feed
-`ProviderCircuitBreaker`: fresh `exhausted` probe evidence can open the Claude
-circuit before any Run fails, and fresh `available` evidence suppresses
-false-positive circuit opens, the same as Codex evidence already does.
+as a pre-Run gate check, exactly like Codex's wiring. It feeds Agent Settings'
+usage snapshot/depletion display and the threshold-based provider-availability
+pause above; reset offsets from Anthropic's headers are anchored to the probe's
+`observed_at` timestamp, with Syrus adding its normal retry buffer when
+scheduling a retry. It also feeds `ProviderCircuitBreaker`: fresh `exhausted`
+probe evidence can open the Claude circuit before any Run fails, and fresh
+`available` evidence suppresses false-positive circuit opens, the same as Codex
+evidence already does.
 
 ### run_skill
 
