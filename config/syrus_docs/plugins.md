@@ -1457,14 +1457,20 @@ Bundled plugins:
   `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
 - `design_docs` — default-enabled. Registers the first-party collaborative
-  design document plugin scaffold. The plugin owns discovery/enablement as
+  design document plugin. The plugin owns discovery/enablement as
   `design_docs`; the foundational Active Record models stay in core because
   design docs are Syrus authoring records, not attachment-oriented
-  `Document::KIND` rows. The initial schema stores canonical Markdown on
-  `DesignDoc`, append-only `DesignDocVersion` rows, n:m repository links,
-  explicit private-doc collaborators, and DB-authoritative anchors, threads,
-  comments, and one-range suggestions. User-facing references use
-  `DOC-<id>`.
+  `Document::KIND` rows. The schema stores canonical Markdown on `DesignDoc`,
+  append-only `DesignDocVersion` rows, n:m repository links, explicit
+  private-doc collaborators, and DB-authoritative anchors, threads, comments,
+  and one-range suggestions. User-facing references use `DOC-<id>`. It
+  contributes chat MCP tools `list_design_docs`, `read_design_doc`,
+  `propose_design_doc`, `comment_on_design_doc`, and
+  `suggest_design_doc_change`; existing-doc content edits from agents are
+  always pending suggestions, never direct canonical Markdown rewrites. Workflow
+  agents receive only read-only `list_design_docs` / `read_design_doc` scoped
+  to their run user and repository, with readable `DOC-<id>` references also
+  surfaced in worker prompt/snapshot context.
 - `mysql_db_browser` — disabled by default (see
   `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
   `MysqlDbBrowser::SidebarPages` provides `mysql_db_browser.connections`:

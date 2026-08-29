@@ -66,6 +66,22 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       expect(snapshot).to include("`submit_summary` / `syrus-mcp-sidecar.submit_summary`")
     end
+
+    it "surfaces readable repository design docs as read-only workflow context" do
+      repo = repository(owner: "rome", name: "aqueduct", default_branch: "main")
+      doc = DesignDoc.create!(owner_user: repo.user, title: "Checkout architecture", markdown: "# Checkout", visibility: "private")
+      version = doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: repo.user)
+      doc.update!(current_version: version)
+      doc.repositories << repo
+      job = Factories.job(repository: repo)
+      run = job.initial_run
+
+      snapshot = described_class.for_run(run, workspace_path: @workspace_path)
+
+      expect(snapshot).to include("Design docs: #{doc.display_id} Checkout architecture")
+      expect(snapshot).to include("worker agents may call `list_design_docs` and `read_design_doc`")
+      expect(snapshot).to include("no design doc mutation tools are available in workflow runs")
+    end
   end
 
   describe "coverage section" do

@@ -84,7 +84,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_chat_session(session)
 
       expect(tool_names_for(context, tier: :essential)).to include("complete_implement_step", "submit_coding_changes")
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
     end
 
     it "keeps the local mode chat tool set gated by role and feature flag" do
@@ -93,7 +93,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_chat_session(session)
 
       expect(tool_names_for(context, tier: :essential)).to include("read_file", "write_file", "run_command", "git_status")
-      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(sidecar_registry_tool_names(session, tier: :essential))
     end
 
     it "keeps the workflow implementation tool set unchanged" do

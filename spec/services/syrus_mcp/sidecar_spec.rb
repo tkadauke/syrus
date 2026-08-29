@@ -59,9 +59,10 @@ RSpec.describe Mcp::Sidecar do
       tool_names = response[:result][:tools].map { |t| t[:name] }
       expect(tool_names).to contain_exactly(
         *%w[read_live_state read_run_worker_health read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern start_preview stop_preview read_preview_log submit_summary submit_test_plan submit_review_plan submit_artifact submit_visual_artifact
-            browser_navigate browser_click browser_fill browser_snapshot browser_screenshot browser_wait_for browser_close]
+            browser_navigate browser_click browser_fill browser_snapshot browser_screenshot browser_wait_for browser_close list_design_docs read_design_doc]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
+      expect(tool_names).not_to include("propose_design_doc", "comment_on_design_doc", "suggest_design_doc_change")
     end
 
     it "advertises workflow evidence tools for agent insight runs via `tools/list`" do

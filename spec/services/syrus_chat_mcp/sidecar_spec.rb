@@ -106,8 +106,13 @@ RSpec.describe Mcp::Sidecar do
         edit_preview_file
         show_preview
         close_preview
+        list_design_docs
+        read_design_doc
+        propose_design_doc
+        comment_on_design_doc
+        suggest_design_doc_change
       ])
-      expect(tool_names.size).to eq(28)
+      expect(tool_names.size).to eq(33)
       expect(tool_names).not_to include("complete_implement_step")
     end
 
