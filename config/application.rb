@@ -20,6 +20,14 @@ module Syrus
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false
     end
 
+    root.glob("plugins/*/db/migrate").sort_by(&:to_s).each do |path|
+      config.paths["db/migrate"] << path.to_s
+    end
+
+    initializer "syrus.plugin_migration_paths" do
+      ActiveRecord::Migrator.migrations_paths = ActiveRecord::Tasks::DatabaseTasks.migrations_paths
+    end
+
     config.i18n.available_locales = %i[en de la]
     config.i18n.default_locale = :en
 
