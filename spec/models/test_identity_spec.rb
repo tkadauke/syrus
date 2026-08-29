@@ -108,9 +108,12 @@ RSpec.describe TestIdentity do
       expect(identities.first.last_passed_at).to be_present
     end
 
-    it "avoids window-function scans when selecting latest test cases" do
-      identity = create_identity!("case")
-      create_test_case!(identity, status: "passed", created_at: 1.minute.ago)
+    it "selects latest test cases without reserved window-function aliases" do
+      first_identity = create_identity!("first case")
+      second_identity = create_identity!("second case")
+      create_test_case!(first_identity, status: "failed", created_at: 2.minutes.ago)
+      latest_first = create_test_case!(first_identity, status: "passed", created_at: 1.minute.ago)
+      latest_second = create_test_case!(second_identity, status: "error", created_at: 30.seconds.ago)
 
       sql_statements = []
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
@@ -118,11 +121,20 @@ RSpec.describe TestIdentity do
         sql_statements << sql if sql.include?("test_cases")
       end
 
-      described_class.refresh_many!([ identity.id ])
-    ensure
-      ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+      begin
+        latest_cases = described_class.latest_cases_for([ first_identity.id, second_identity.id ])
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+      end
 
-      expect(sql_statements.join("\n")).not_to include("ROW_NUMBER() OVER")
+      expect(latest_cases.index_by(&:test_identity_id)).to eq({
+        first_identity.id => latest_first,
+        second_identity.id => latest_second
+      })
+      sql = sql_statements.join("\n").downcase
+      expect(sql).not_to include("row_number() over")
+      expect(sql).not_to match(/\bas\s+`?row_number`?\b/)
+      expect(sql).not_to match(/\bwhere\s+`?row_number`?\s*=/)
     end
 
     it "updates identity summaries in bulk" do
