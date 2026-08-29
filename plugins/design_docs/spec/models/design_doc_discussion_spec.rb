@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe "design doc discussions", type: :model do
   let(:owner) { Factories.user }
-  let(:doc) { DesignDoc.create!(owner_user: owner, title: "Discussion", markdown: "Hello world") }
+  let(:doc) { DesignDocs::DesignDoc.create!(owner_user: owner, title: "Discussion", markdown: "Hello world") }
 
   it "anchors comments and suggestions to a single design doc range" do
     version = doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
@@ -25,7 +25,7 @@ RSpec.describe "design doc discussions", type: :model do
   end
 
   it "rejects anchors, threads, and suggestions that cross design doc boundaries" do
-    other_doc = DesignDoc.create!(owner_user: owner, title: "Other", markdown: "Other")
+    other_doc = DesignDocs::DesignDoc.create!(owner_user: owner, title: "Other", markdown: "Other")
     other_anchor = other_doc.anchors.create!(start_offset: 0, end_offset: 1)
     anchor = doc.anchors.create!(start_offset: 0, end_offset: 1)
     thread = doc.threads.create!(anchor: anchor, opened_by_user: owner)

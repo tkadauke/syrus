@@ -24,6 +24,21 @@ RSpec.describe Syrus::PluginModelNamespaceChecker do
     expect(checker_for(model_classes: [ model ]).call).to be_success
   end
 
+  it "accepts plural plugin namespaces with a root table and singular child table prefix" do
+    root_model = FakePluginModel.new(
+      name: "DesignDocs::DesignDoc",
+      table_name: "design_docs",
+      superclass: FakePluginSuperclass.new(table_name: "application_records")
+    )
+    child_model = FakePluginModel.new(
+      name: "DesignDocs::DesignDocVersion",
+      table_name: "design_doc_versions",
+      superclass: FakePluginSuperclass.new(table_name: "application_records")
+    )
+
+    expect(checker_for(model_classes: [ root_model, child_model ]).call).to be_success
+  end
+
   it "rejects plugin-owned models with unprefixed tables" do
     model = FakePluginModel.new(
       name: "Linear::Ticket",

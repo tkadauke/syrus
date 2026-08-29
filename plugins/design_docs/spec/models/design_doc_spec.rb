@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe DesignDoc, type: :model do
+RSpec.describe DesignDocs::DesignDoc, type: :model do
   let(:owner) { Factories.user }
   let(:repo) { Factories.repository(user: owner) }
 
@@ -22,7 +22,7 @@ RSpec.describe DesignDoc, type: :model do
     doc.repositories << repo
     doc.repositories << second_repo
 
-    duplicate = DesignDocRepository.new(design_doc: doc, repository: repo)
+    duplicate = DesignDocs::DesignDocRepository.new(design_doc: doc, repository: repo)
 
     expect(doc.repositories).to contain_exactly(repo, second_repo)
     expect(duplicate).not_to be_valid
@@ -64,7 +64,7 @@ RSpec.describe DesignDoc, type: :model do
     expect {
       doc.destroy!
     }.to change(described_class, :count).by(-1)
-      .and change(DesignDocVersion, :count).by(-1)
+      .and change(DesignDocs::DesignDocVersion, :count).by(-1)
   end
 
   it "validates visibility and state values" do
