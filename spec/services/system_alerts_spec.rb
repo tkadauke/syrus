@@ -301,6 +301,74 @@ RSpec.describe SystemAlerts do
       expect(alert.title).to include("critical")
     end
 
+    it "surfaces stuck main-branch repair jobs to admins" do
+      admin = Factories.user(admin: true)
+      owner = Factories.user
+      repository = Factories.repository(
+        user: owner,
+        main_branch_health_enabled: true,
+        main_branch_repair_enabled: true,
+        last_health_checked_sha: "427145bed",
+        ci_health: "healthy",
+        grader_health: "broken"
+      )
+      repair_job = repository.jobs.create!(
+        user: owner,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch",
+        issue_body: "fixing main",
+        agent_provider: "claude",
+        priority: "urgent",
+        state: "triaging"
+      )
+      repair_job.update_columns(updated_at: 45.minutes.ago)
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: admin).find { |candidate| candidate.id == "stuck_main_branch_repair:#{repository.id}:#{repair_job.id}" }
+
+      expect(alert).to have_attributes(
+        severity: :alarm,
+        title: "Main branch repair is stuck.",
+        cta: { text: "Open stuck items", path: "/admin/stuck?refresh=1" }
+      )
+      expect(alert.message).to include(repository.slug, repair_job.slug, "triaging")
+    end
+
+    it "batch-loads stuck main-branch repair blockers instead of querying per broken repository" do
+      admin = Factories.user(admin: true)
+      owner = Factories.user
+      2.times do |index|
+        repository = Factories.repository(
+          user: owner,
+          owner: "acme#{index}",
+          name: "widgets#{index}",
+          main_branch_health_enabled: true,
+          main_branch_repair_enabled: true,
+          last_health_checked_sha: "427145bed#{index}",
+          ci_health: "healthy",
+          grader_health: "broken"
+        )
+        repair_job = repository.jobs.create!(
+          user: owner,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "Fix broken main branch",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "queued"
+        )
+        repair_job.update_columns(updated_at: 45.minutes.ago)
+      end
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+      expect(MainHealthChangedService).not_to receive(:new)
+
+      alerts = described_class.active_for(user: admin)
+
+      expect(alerts.count { |alert| alert.id.start_with?("stuck_main_branch_repair:") }).to eq(2)
+    end
+
     it "does not show disk usage alerts to non-admin users" do
       Factories.user(admin: true)
       user = Factories.user(admin: false)
