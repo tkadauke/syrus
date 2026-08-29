@@ -69,6 +69,8 @@ class RunFailureClassifier
       result("validation_or_user_error", 0.75, false, "The run failed on validation or user-supplied input.")
     when provider_transient?
       result("provider_transient", 0.75, true, "The provider failed transiently.")
+    when database_capacity?
+      result("database_capacity", 0.85, true, "The run failed because the database ran out of storage capacity (e.g. a MySQL table-full condition); this is transient infrastructure capacity, not a code defect.")
     when database_lock?
       result("database_lock", 0.80, true, "The run failed during transient database contention, timeout, or connection exhaustion.")
     when git_failure?
@@ -222,6 +224,10 @@ class RunFailureClassifier
   def database_lock?
     diagnostic&.error_class.to_s.match?(/Deadlocked|LockWaitTimeout|StatementTimeout|ConnectionNotEstablished|ConnectionTimeoutError/) ||
       text_match?(/database is locked|SQLite3::BusyException|Deadlocked|LockWaitTimeout|StatementTimeout|ConnectionNotEstablished|ConnectionTimeoutError|too many connections|could not obtain a connection/i)
+  end
+
+  def database_capacity?
+    text_match?(/table .* is full|ER_RECORD_FILE_FULL|record file full/i)
   end
 
   def mcp_sidecar?
