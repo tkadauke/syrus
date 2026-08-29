@@ -261,6 +261,30 @@ describe("RepositoryInsightsRoute", () => {
     })
   })
 
+  describe("state filter", () => {
+    it("supports changing state through the compact filter select", async () => {
+      const dismissed = makeSuggestion({ state: "dismissed" })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+        const url = String(input)
+        const state = new URL(url, "http://example.test").searchParams.get("state")
+        return Promise.resolve(jsonResponse(payload(state === "dismissed" ? [dismissed] : [])))
+      })
+
+      renderRepositoryInsightsRoute()
+
+      const compactFilter = await screen.findByRole("combobox", { name: "Filter by state" })
+      fireEvent.change(compactFilter, { target: { value: "dismissed" } })
+
+      await screen.findByText("Frequent prepare failures")
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining("state=dismissed"),
+          expect.anything()
+        )
+      })
+    })
+  })
+
   describe("independent memory save", () => {
     it("shows Save as memory button on accepted cards with a memory suggestion", async () => {
       const accepted = makeSuggestion({
