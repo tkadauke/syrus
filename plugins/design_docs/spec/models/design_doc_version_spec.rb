@@ -1,8 +1,8 @@
 require "rails_helper"
 
-RSpec.describe DesignDocVersion, type: :model do
+RSpec.describe DesignDocs::DesignDocVersion, type: :model do
   let(:owner) { Factories.user }
-  let(:doc) { DesignDoc.create!(owner_user: owner, title: "Versioned", markdown: "v1") }
+  let(:doc) { DesignDocs::DesignDoc.create!(owner_user: owner, title: "Versioned", markdown: "v1") }
 
   it "requires monotonically unique version numbers per design doc" do
     described_class.create!(design_doc: doc, markdown: "v1", version_number: 1, actor_kind: "user", actor_user: owner)

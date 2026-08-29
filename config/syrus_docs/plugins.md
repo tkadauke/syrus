@@ -1458,10 +1458,12 @@ Bundled plugins:
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
 - `design_docs` — default-enabled. Registers the first-party collaborative
   design document plugin scaffold. The plugin owns discovery/enablement,
-  domain models, validations, and model specs under `plugins/design_docs`;
+  `DesignDocs::` domain models, validations, and model specs under
+  `plugins/design_docs`;
   the host app keeps the database migration and schema artifacts under current
   Rails conventions. The initial schema stores canonical Markdown on
-  `DesignDoc`, append-only `DesignDocVersion` rows, n:m repository links,
+  `DesignDocs::DesignDoc`, append-only `DesignDocs::DesignDocVersion` rows,
+  n:m repository links,
   explicit private-doc collaborators, and DB-authoritative anchors, threads,
   comments, and one-range suggestions. User-facing references use
   `DOC-<id>`.

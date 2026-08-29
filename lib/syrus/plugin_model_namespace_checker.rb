@@ -83,10 +83,16 @@ module Syrus
       return if model.abstract_class
       return if model.superclass_table_name.present? && model.superclass_table_name == model.table_name
 
-      expected_prefix = "#{model.name.split("::").first.underscore}_"
-      return if model.table_name.start_with?(expected_prefix)
+      namespace = model.name.split("::").first.underscore
+      return if permitted_table_name?(model.table_name, namespace)
 
-      "#{model.name} uses table #{model.table_name.inspect}; plugin-owned model tables must start with #{expected_prefix.inspect}"
+      "#{model.name} uses table #{model.table_name.inspect}; plugin-owned model tables must start with #{namespace.inspect}, #{namespace + "_"} or #{namespace.singularize + "_"}"
+    end
+
+    def permitted_table_name?(table_name, namespace)
+      table_name == namespace ||
+        table_name.start_with?("#{namespace}_") ||
+        table_name.start_with?("#{namespace.singularize}_")
     end
 
     def migration_errors
