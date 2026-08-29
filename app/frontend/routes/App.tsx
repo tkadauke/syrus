@@ -88,6 +88,8 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/dashboard/jobs", element: <DashboardRoute /> },
   { path: "/dashboard/workflows", element: <DashboardRoute /> },
   { path: "/search", element: <SearchRoute /> },
+  { path: "/design_docs", element: <PluginSidebarPageRoute /> },
+  { path: "/design_docs/:id", element: <PluginSidebarPageRoute /> },
   { path: "/insights/spending", element: <PluginSidebarPageRoute /> },
   { path: "/db_browser", element: <PluginSidebarPageRoute /> },
   { path: "/worker_timeline", element: <PluginSidebarPageRoute /> },
