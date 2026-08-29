@@ -82,7 +82,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           {shaUrl && history.last_health_checked_sha ? (
             <div className="text-xs text-gray-500 dark:text-gray-400 self-center">
               {t("repository.health_checked_sha")}{" "}
-              <a className="font-mono hover:underline text-blue-600 dark:text-blue-400" href={shaUrl} rel="noopener" target="_blank">
+              <a className="font-mono text-brand hover:underline" href={shaUrl} rel="noopener" target="_blank">
                 {history.last_health_checked_sha.slice(0, 7)}
               </a>
             </div>
@@ -136,7 +136,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
               <div className="flex flex-wrap gap-x-2 gap-y-1">
                 <span>{t("repository.health_repair_failed_jobs")}</span>
                 {history.main_branch_repair.failed_jobs.map((job) => (
-                  <a className="font-medium text-blue-600 dark:text-blue-400 hover:underline" href={job.job_path} key={job.id}>
+                  <a className="font-medium text-brand hover:underline" href={job.job_path} key={job.id}>
                     {job.slug}
                   </a>
                 ))}
@@ -150,7 +150,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
               i18nKey={history.main_branch_repair.blocked_reason === "active" ? "repository.health_repair_active" : history.main_branch_repair.blocked_reason === "landing" ? "repository.health_repair_landing" : "repository.health_repair_waiting"}
               t={t}
             />{" "}
-            <a className="font-medium text-blue-600 dark:text-blue-400 hover:underline" href={history.main_branch_repair.blocking_job.job_path}>
+            <a className="font-medium text-brand hover:underline" href={history.main_branch_repair.blocking_job.job_path}>
               {history.main_branch_repair.blocking_job.title}
             </a>
           </div>
@@ -160,7 +160,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
           </div>
         ) : null}
         {history.current_health_pending ? (
-          <div className="rounded border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/40 p-3 text-sm text-blue-900 dark:text-blue-100">
+          <div className="rounded border border-info/30 bg-info/10 p-3 text-sm text-info">
             {t("repository.health_current_validation_pending")}
           </div>
         ) : null}
@@ -289,7 +289,7 @@ function HealthHistoryRow({ prefix, record, t }: { prefix: string; record: Repos
     <tr>
       <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap"><RelativeTimestamp value={record.checked_at} /></td>
       <td className="px-3 py-2">
-        <a className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline" href={record.sha_url} rel="noopener" target="_blank">
+        <a className="font-mono text-xs text-brand hover:underline" href={record.sha_url} rel="noopener" target="_blank">
           {record.sha}
         </a>
       </td>
