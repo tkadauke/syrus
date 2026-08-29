@@ -15,6 +15,13 @@ RSpec.describe WorkflowPhaseAdmissionJob do
     }.to have_enqueued_job(described_class).once
   end
 
+  it "can force an immediate recheck while the debounce key is live" do
+    expect {
+      described_class.enqueue_once(123, wait_until: 5.minutes.from_now)
+      described_class.enqueue_once(123, force: true)
+    }.to have_enqueued_job(described_class).twice
+  end
+
   it "keeps workflow-level and step-level rechecks separate" do
     expect {
       described_class.enqueue_once(123)
