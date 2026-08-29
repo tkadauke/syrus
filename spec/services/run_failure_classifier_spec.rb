@@ -12,12 +12,12 @@ RSpec.describe RunFailureClassifier do
     run.create_run_diagnostic!(error_class: error_class, error_message: message)
   end
 
-  def process(outcome)
+  def process(outcome, kind: "agent", command: "agent")
     SpawnedProcess.create!(
       run: run,
       workflow: run.workflow,
-      kind: "agent",
-      command: "agent",
+      kind: kind,
+      command: command,
       hostname: "worker-1",
       started_at: 5.minutes.ago,
       finished_at: 4.minutes.ago,
@@ -372,6 +372,17 @@ RSpec.describe RunFailureClassifier do
     expect(classification.classification).to eq("timeout")
   end
 
+  it "classifies git clone timeouts as retryable workspace clone failures" do
+    run.update!(state: "failed")
+    process("timed_out", kind: "git", command: "git clone --branch main https://github.com/acme/widgets.git /tmp/workflows/123")
+
+    result = classification
+
+    expect(result.classification).to eq("workspace_clone_timeout")
+    expect(result.retryable).to eq(true)
+    expect(result.reason).to include("clone timed out")
+  end
+
   it "classifies failed grader steps before worker-death noise" do
     run.step.update!(kind: "preflight_grader")
     run.update!(state: "failed")
@@ -498,6 +509,19 @@ RSpec.describe RunFailureClassifier do
     diagnostic("Steps::Base::AgentBrokeGitState", "branch has no common ancestor with origin/main")
 
     expect(classification.classification).to eq("git_state_corrupt")
+  end
+
+  it "classifies an existing workspace with no HEAD separately from generic git corruption" do
+    run.update!(state: "failed")
+    diagnostic(
+      "GitRunner::GitError",
+      "git rev-parse --verify HEAD exited 128\nexisting workflow workspace at /tmp/workflows/123 has no valid HEAD"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("workspace_checkout_invalid")
+    expect(result.retryable).to eq(true)
   end
 
   it "classifies an empty-commit amend as empty_commit, not git_state_corrupt (JOB-1830 regression)" do
