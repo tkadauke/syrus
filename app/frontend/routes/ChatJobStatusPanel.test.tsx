@@ -167,6 +167,19 @@ describe("ChatJobStatusPanel job cards", () => {
     })
   })
 
+  it("navigates to the job detail page when the card is activated by keyboard", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+
+    renderPanel()
+
+    const card = await screen.findByRole("button", { name: /Inspect the aqueduct/i })
+    fireEvent.keyDown(card, { key: "Enter" })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/jobs/42")
+    })
+  })
+
   it("copies the job slug to clipboard when the slug button is clicked", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
 
@@ -296,6 +309,22 @@ describe("ChatJobStatusPanel epic tree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy EPIC-5 to clipboard" }))
 
     expect(screen.getByText("Survey route")).toBeInTheDocument()
+  })
+
+  it("does not emit React invalid nesting warnings for copyable slugs inside clickable cards", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem(), jobItem()]))
+
+    renderPanel()
+
+    expect(await screen.findByText("Aqueduct renovation")).toBeInTheDocument()
+    expect(await screen.findByText("Inspect the aqueduct")).toBeInTheDocument()
+
+    const nestingWarnings = consoleError.mock.calls.filter((args) => {
+      const message = args.map(String).join(" ")
+      return message.includes("validateDOMNesting") || message.includes("cannot be a descendant of")
+    })
+    expect(nestingWarnings).toEqual([])
   })
 })
 
