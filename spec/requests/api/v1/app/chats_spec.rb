@@ -3529,39 +3529,36 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
 
     context "with the syrus-rails plugin registered" do
-      after do
-        # This example registers "syrus-rails" with a partial `provides` (only
-        # artifact_renderer). Without resetting, that manifest lingers in the
-        # process-global PluginRegistry for the rest of the suite and shadows
-        # other specs' own registration guards (`unless registered_names.include?`),
-        # e.g. grader_rspec_parser_integration_spec's test_result_parser lookup.
-        Syrus::PluginRegistry.reset!
-      end
-
       it "includes renderer_type for a submitted rails_schema_erd typed artifact" do
-        unless Syrus::PluginRegistry.registered_names.include?("syrus-rails")
-          Syrus::PluginRegistry.register(
-            name:    "syrus-rails",
-            version: "0.1.0",
-            provides: { artifact_renderer: [ SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer ] }
+        registered_before = Syrus::PluginRegistry.registered_names.include?("syrus-rails")
+
+        begin
+          unless registered_before
+            Syrus::PluginRegistry.register(
+              name:    "syrus-rails",
+              version: "0.1.0",
+              provides: { artifact_renderer: [ SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer ] }
+            )
+          end
+
+          sign_in_as(user)
+          chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+          Mcp::Tools::SubmitArtifactTool.call(
+            type:    "rails_schema_erd",
+            title:   "Schema ERD",
+            payload: { "tables" => [ { "name" => "users", "columns" => [] } ] },
+            server_context: { chat_session: chat }
           )
+
+          get "/api/v1/app/chats/#{chat.id}/media"
+
+          expect(response).to have_http_status(:ok)
+          entry = parse_body["typed_artifacts"].find { |e| e["type"] == "rails_schema_erd" }
+          expect(entry).to be_present
+          expect(entry["renderer_type"]).to eq("erd_diagram")
+        ensure
+          Syrus::PluginRegistry.reset! unless registered_before
         end
-
-        sign_in_as(user)
-        chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-        Mcp::Tools::SubmitArtifactTool.call(
-          type:    "rails_schema_erd",
-          title:   "Schema ERD",
-          payload: { "tables" => [ { "name" => "users", "columns" => [] } ] },
-          server_context: { chat_session: chat }
-        )
-
-        get "/api/v1/app/chats/#{chat.id}/media"
-
-        expect(response).to have_http_status(:ok)
-        entry = parse_body["typed_artifacts"].find { |e| e["type"] == "rails_schema_erd" }
-        expect(entry).to be_present
-        expect(entry["renderer_type"]).to eq("erd_diagram")
       end
     end
   end
