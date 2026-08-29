@@ -6,12 +6,32 @@ module Steps
   # Cross-workflow boundary: NO --resume from prior workflows.
   class AnalyzeAndFix < Base
     def call
-      perform_agentic_change_step(
-        log_message: "invoking agent for analyze_and_fix step (#{workflow.slug}, ci_failure)",
-        commit_message: job_commit_subject("Fix CI")
-      ) do
-        run.update!(prompt: compose_prompt) if run.prompt.blank?
+      workspace.setup
+      run.update!(prompt: compose_prompt) if run.prompt.blank?
+
+      log("invoking agent for analyze_and_fix step (#{workflow.slug}, ci_failure)")
+      base_sha = head_sha
+      run_agent(prompt: run.prompt)
+
+      commit_agent_changes(job_commit_subject("Fix CI"))
+      assert_branch_history_intact!
+
+      diff = diff_against_default
+      step_diff = diff_against_sha(base_sha)
+      current_head_sha = head_sha
+
+      if step_diff.blank? && (diagnosis = CiRepair::NonActionableDiagnosis.detect(workflow: workflow, run: run))
+        workflow.set_artifact!(CiRepair::NonActionableDiagnosis::ARTIFACT_KEY, diagnosis)
+        log(
+          "[analyze_and_fix] repeated non-actionable main-branch diagnosis; " \
+          "ending CI repair loop as #{diagnosis.fetch('outcome')}"
+        )
+      elsif diff.blank?
+        raise NoChangesProduced, "agent produced no changes"
       end
+
+      run.update!(agent_diff: diff, head_sha: current_head_sha, base_sha: base_sha, step_agent_diff: step_diff)
+      publish_run_checkpoint!
     end
 
     private

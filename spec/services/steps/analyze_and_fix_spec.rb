@@ -76,7 +76,7 @@ RSpec.describe Steps::AnalyzeAndFix do
     expect(run.reload.prompt).to eq("pre-set prompt content")
   end
 
-  it "uses the shared agentic change path to commit and capture the diff" do
+  it "commits and captures the diff" do
     expect(handler).to receive(:commit_agent_changes)
       .with(a_string_starting_with("Fix CI: #{job.slug}:"))
     expect(handler).to receive(:assert_branch_history_intact!)
@@ -85,6 +85,63 @@ RSpec.describe Steps::AnalyzeAndFix do
 
     expect(run.reload.agent_diff).to eq("diff --git a/spec/foo_spec.rb b/spec/foo_spec.rb\n+bar")
     expect(run.head_sha).to eq("def456")
+  end
+
+  it "records blocked_by_main when a no-op repair repeats a prior main-concern diagnosis" do
+    allow(handler).to receive(:diff_against_sha).and_return("")
+    prior_step = Step.create!(
+      workflow: workflow,
+      kind: "analyze_and_fix",
+      position: 99,
+      iteration: 0,
+      loop_id: step.loop_id,
+      state: "succeeded"
+    )
+    prior_run = prior_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      iteration: 0
+    )
+    MainConcernReport.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      run: prior_run,
+      observed_sha: "main123",
+      failing_tests: [ "rspec-ci" ],
+      reason: "rspec-ci fails the same way on origin/main"
+    )
+    MainConcernReport.create!(
+      repository: repository,
+      job: job,
+      workflow: workflow,
+      run: run,
+      observed_sha: "main123",
+      failing_tests: [ "rspec-ci" ],
+      reason: "  RSpec-CI fails the same way on origin/main\n"
+    )
+
+    handler.call
+
+    artifact = workflow.reload.artifact(CiRepair::NonActionableDiagnosis::ARTIFACT_KEY)
+    expect(artifact).to include(
+      "outcome" => "blocked_by_main",
+      "run_id" => run.id,
+      "prior_run_id" => prior_run.id,
+      "observed_sha" => "main123",
+      "failing_tests" => [ "rspec-ci" ]
+    )
+    expect(run.reload.step_agent_diff).to eq("")
+    expect(run.agent_diff).to include("diff --git")
+  end
+
+  it "still raises NoChangesProduced when the whole branch has no diff and no repeated diagnosis" do
+    allow(handler).to receive(:diff_against_default).and_return("")
+    allow(handler).to receive(:diff_against_sha).and_return("")
+
+    expect { handler.call }.to raise_error(Steps::Base::NoChangesProduced, "agent produced no changes")
   end
 
   context "prompt injector plugins" do

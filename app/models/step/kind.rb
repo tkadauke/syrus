@@ -17,10 +17,14 @@ class Step
     # triggers_auto_approval: true for the terminal grader step kinds that
     #   fire AutoApprovalRule after a successful grade.
     #
+    # advance_handler: optional class called by StepDispatcher after this
+    #   step succeeds, before the default linear successor is enqueued.
+    #
     # required_mcp_tools: MCP tools the agent MUST call during this step.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
                         :required_mcp_tools, :fail_policy, :reconcile_strategy,
                         :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
+                        :advance_handler,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_default_overrides) do
       def initialize(kind:, handler:, label:, style:, agentic:,
@@ -30,6 +34,7 @@ class Step
                      skip_if_artifact: nil,
                      triggers_auto_approval: false,
                      repair_semantics: nil,
+                     advance_handler: nil,
                      resource_profile_step_kinds: nil,
                      resource_profile_grader_name_key: nil,
                      resource_profile_default_overrides: nil)
@@ -40,6 +45,10 @@ class Step
 
       def handler_class
         "Steps::#{handler}".constantize
+      end
+
+      def advance_handler_class
+        advance_handler&.constantize
       end
 
       def deterministic_idempotent_repair?
@@ -112,7 +121,8 @@ class Step
       Entry.new(kind: "push_agent_rebase",  handler: "PushAgentRebase",    label: "Resolve push rebase",       style: "bg-teal-100 text-teal-700",   agentic: true),
       Entry.new(kind: "push_after_rebase",  handler: "PushAfterRebase",    label: "Push rebased branch",       style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "analyze_and_fix",    handler: "AnalyzeAndFix",      label: "Fix CI failures",            style: "bg-red-100 text-red-700",     agentic: true),
+      Entry.new(kind: "analyze_and_fix",    handler: "AnalyzeAndFix",      label: "Fix CI failures",            style: "bg-red-100 text-red-700",     agentic: true,
+                advance_handler: "CiRepair::NonActionableDiagnosis"),
       Entry.new(kind: "auto_rebase",        handler: "AutoRebase",         label: "Auto-rebase",                style: "bg-teal-100 text-teal-700",   agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "agent_rebase",       handler: "AgentRebase",        label: "Agent rebase",               style: "bg-teal-100 text-teal-700",   agentic: true),
