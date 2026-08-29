@@ -37,6 +37,8 @@ class RunFailureClassifier
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
       result("provider_prompt_too_long", 0.95, false, "The provider rejected the request because the prompt exceeded the model context budget.")
+    when stdin_race_failed?
+      result("stdin_race_failed", 0.90, true, "The agent process started before its stdin prompt was delivered; retrying should rerun the invocation with the same prompt.")
     when test_checkout_contention?
       result("database_lock", 0.85, true, "The run failed because another test run was already active in the same checkout; retry when the checkout is free.")
     when mcp_sidecar?
@@ -114,6 +116,10 @@ class RunFailureClassifier
 
   def provider_prompt_too_long?
     text_match?(/prompt is too long|context.*too long|maximum context|context length/i)
+  end
+
+  def stdin_race_failed?
+    text_match?(/no stdin data received|Input must be provided either through stdin|No deferred tool marker found in the resumed session/i)
   end
 
   def test_checkout_contention?
