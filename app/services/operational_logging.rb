@@ -8,6 +8,7 @@ module OperationalLogging
   MAX_BACKTRACE_FRAMES = 15
   INSTANCE_CONFIGURATION_CACHE_TTL = Rails.env.test? ? 0.seconds : 5.seconds
   INSTANCE_CONFIGURATION_CACHE_MUTEX = Mutex.new
+  NOTIFICATION_SUBSCRIPTION_MUTEX = Mutex.new
   SECRET_FILTERS = [
     /(authorization:\s*bearer\s+)[^\s,;]+/i,
     /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
@@ -15,6 +16,31 @@ module OperationalLogging
   ].freeze
 
   module_function
+
+  def install_notification_subscribers!
+    NOTIFICATION_SUBSCRIPTION_MUTEX.synchronize do
+      uninstall_notification_subscribers!
+      @notification_subscriptions = [
+        ActiveSupport::Notifications.subscribe("process_action.action_controller") do |_name, started, finished, _id, payload|
+          duration_ms = (finished - started) * 1_000.0
+          BackendExceptionLogging.ingest_request(payload, duration_ms)
+          OperationalLogging.ingest_request(payload, duration_ms)
+        end,
+        ActiveSupport::Notifications.subscribe("perform.active_job") do |_name, started, finished, _id, payload|
+          duration_ms = (finished - started) * 1_000.0
+          BackendExceptionLogging.ingest_job(payload, duration_ms)
+          OperationalLogging.ingest_job(payload, duration_ms)
+        end
+      ]
+    end
+  end
+
+  def uninstall_notification_subscribers!
+    Array(@notification_subscriptions).each do |subscription|
+      ActiveSupport::Notifications.unsubscribe(subscription)
+    end
+    @notification_subscriptions = []
+  end
 
   def enabled_for_instance?
     return true if Current.operational_log_indexing_enabled == true
