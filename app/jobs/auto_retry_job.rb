@@ -169,20 +169,7 @@ class AutoRetryJob < ApplicationJob
   end
 
   def stale_attempt?(attempt)
-    source = attempt.workflow
-    return false unless source
-
-    newer_successful_workflow?(attempt.job, source)
-  end
-
-  def newer_successful_workflow?(job, source)
-    cutoff = source.finished_at || source.created_at
-    return false unless cutoff
-
-    job.workflows
-       .where(state: "succeeded")
-       .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, source.id)
-       .exists?
+    Workflows::ValidationSupersession.superseded_by_successful_workflow?(attempt.workflow)
   end
 
   def retry_failed_step(attempt)
