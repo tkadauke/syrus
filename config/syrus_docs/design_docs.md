@@ -4,9 +4,17 @@ The `design_docs` plugin (`plugins/design_docs/`) is default-enabled first-party
 Syrus functionality for collaborative Markdown design documents.
 
 Design docs are separate from attachment-oriented `Document` records. The
-plugin registers the operator-visible capability as `design_docs`; the backing
-models live in the main Rails app so later API, navigation, repository-tab, chat
-workspace, and MCP surfaces can share one core schema.
+plugin registers the operator-visible capability as `design_docs` and owns its
+JSON API controller, policy, serializer, and create/update services under
+`plugins/design_docs/app/`.
+
+The backing Active Record models currently live in the main Rails app because
+Syrus' plugin model namespace contract requires plugin model classes and tables
+to share a plugin namespace/table prefix. Design Docs uses top-level
+`DesignDoc*` model constants and `design_doc*` tables, so moving the models
+into the plugin would require a broader compatibility migration. The host app
+also owns the shared schema migration and core associations from `User`,
+`Repository`, and `ChatSession`.
 
 ## Schema
 

@@ -1457,13 +1457,15 @@ Bundled plugins:
   `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
 - `design_docs` — default-enabled. Registers the first-party collaborative
-  design document plugin scaffold. The plugin owns discovery/enablement as
-  `design_docs`; the foundational Active Record models stay in core because
-  design docs are Syrus authoring records, not attachment-oriented
-  `Document::KIND` rows. The initial schema stores canonical Markdown on
-  `DesignDoc`, append-only `DesignDocVersion` rows, n:m repository links,
-  explicit private-doc collaborators, and DB-authoritative anchors, threads,
-  comments, and one-range suggestions. User-facing references use
+  design document plugin and owns its JSON API controller, policy, serializer,
+  and create/update services under `plugins/design_docs/app/`. The foundational
+  Active Record models stay in core because the plugin model namespace checker
+  requires plugin model classes and tables to share a plugin namespace/table
+  prefix, while Design Docs intentionally exposes existing top-level
+  `DesignDoc*` constants and `design_doc*` tables. The schema stores canonical
+  Markdown on `DesignDoc`, append-only `DesignDocVersion` rows, n:m repository
+  links, explicit private-doc collaborators, and DB-authoritative anchors,
+  threads, comments, and one-range suggestions. User-facing references use
   `DOC-<id>`.
 - `mysql_db_browser` — disabled by default (see
   `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.

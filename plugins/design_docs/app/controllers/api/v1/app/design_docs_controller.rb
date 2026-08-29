@@ -66,7 +66,7 @@ module Api
         end
 
         def serializer
-          ::App::DesignDocSerializer
+          ::DesignDocs::Serializer
         end
 
         def update_message(result)

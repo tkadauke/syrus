@@ -1,5 +1,5 @@
-module App
-  class DesignDocSerializer
+module DesignDocs
+  class Serializer
     class << self
       def summary(design_doc)
         {
