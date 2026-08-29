@@ -59,7 +59,7 @@ module Prompts
           in `submit_summary` instead of pushing a noop.
       PROMPT
 
-      [ simple_mode_context, main_prompt, injected_context_section ].compact_blank.join("\n\n")
+      [ simple_mode_context, main_prompt, injected_context_section, ShellCommandExecutionContract::TEXT ].compact_blank.join("\n\n")
     end
 
     private

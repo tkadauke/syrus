@@ -84,6 +84,7 @@ RSpec.describe Steps::HotfixSyncRepair do
         prompt = run.reload.prompt
         expect(prompt).to include("the deterministic merge attempt hit a conflict")
         expect(prompt).to include("Reconcile main into develop and resolve any conflicts.")
+        expect(prompt).to include(Prompts::ShellCommandExecutionContract::TEXT)
         expect(prompt).not_to include("{{source_branch}}")
       end
     end
