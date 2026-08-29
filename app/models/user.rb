@@ -26,9 +26,6 @@ class User < ApplicationRecord
   has_many :accessible_chat_sessions, through: :chat_participants, source: :chat_session
   has_many :chat_memories, dependent: :destroy
   has_many :documents, as: :attachable, dependent: :destroy
-  has_many :owned_design_docs, class_name: "DesignDoc", foreign_key: :owner_user_id, dependent: :destroy, inverse_of: :owner_user
-  has_many :design_doc_collaborations, class_name: "DesignDocCollaborator", dependent: :destroy
-  has_many :collaborative_design_docs, through: :design_doc_collaborations, source: :design_doc
   has_many :chat_pending_actions, dependent: :destroy
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify

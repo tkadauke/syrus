@@ -4,9 +4,9 @@ The `design_docs` plugin (`plugins/design_docs/`) is default-enabled first-party
 Syrus functionality for collaborative Markdown design documents.
 
 Design docs are separate from attachment-oriented `Document` records. The
-plugin registers the operator-visible capability as `design_docs`; the backing
-models live in the main Rails app so later API, navigation, repository-tab, chat
-workspace, and MCP surfaces can share one core schema.
+plugin registers the operator-visible capability as `design_docs`, owns the
+domain models under `plugins/design_docs/app/models`, and applies only the
+small host associations needed on `User`, `Repository`, and `ChatSession`.
 
 ## Schema
 
@@ -28,3 +28,7 @@ workspace, and MCP surfaces can share one core schema.
 `DesignDoc.visible_to(user)` implements the v1 visibility rule: owners can see
 their docs, explicit collaborators can see private docs, and public docs are
 visible to users who can access at least one associated repository.
+
+The host app keeps the migration and `db/schema.rb` because current Syrus
+database conventions load migrations and schema artifacts from the main Rails
+application.
