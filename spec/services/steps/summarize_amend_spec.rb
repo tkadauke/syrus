@@ -155,7 +155,29 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       expect(commit_message).to start_with("Address review feedback: tighten docstring")
     end
 
-    it "refuses to rewrite a different commit than the upstream run recorded" do
+    it "allows deterministic commits on top of the successful upstream run" do
+      respond_step = Step.create!(workflow: workflow, kind: "respond", position: 0, next_step_id: step.id)
+      upstream_sha = head_sha
+      Run.create!(
+        job: job,
+        step: respond_step,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        head_sha: upstream_sha
+      )
+
+      File.write(@ws_path.join("formatted.rb"), "class Formatted; end\n")
+      sh("git -C #{@ws_path} add formatted.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Format: apply deterministic formatting'")
+      stub_agent(title: "Address review feedback: tighten docstring", body: "Tightened the docs.")
+
+      handler.call
+
+      expect(workflow.reload.artifact("amend_commit_subject")).to eq("Address review feedback: tighten docstring")
+      expect(commit_message).to start_with("Address review feedback: tighten docstring")
+    end
+
+    it "refuses to rewrite when the workspace no longer contains the upstream run" do
       respond_step = Step.create!(workflow: workflow, kind: "respond", position: 0, next_step_id: step.id)
       upstream_sha = head_sha
       upstream_run = Run.create!(
@@ -166,6 +188,8 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
         head_sha: upstream_sha
       )
 
+      sh("git -C #{@ws_path} checkout --orphan unrelated-head")
+      sh("git -C #{@ws_path} rm -rf .")
       File.write(@ws_path.join("wrong_head.rb"), "class WrongHead; end\n")
       sh("git -C #{@ws_path} add wrong_head.rb")
       sh("git -C #{@ws_path} commit -q -m 'Different workspace HEAD'")
@@ -173,7 +197,7 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
 
       expect {
         handler.call
-      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not match upstream run HEAD #{upstream_run.head_sha}/)
+      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not contain upstream run HEAD #{upstream_run.head_sha}/)
       expect(workflow.reload.artifact("amend_commit_subject")).to be_nil
       expect(commit_message).to eq("Different workspace HEAD")
     end

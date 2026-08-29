@@ -92,10 +92,18 @@ module Steps
 
       actual_sha = head_sha
       return if actual_sha == expected_sha
+      return if upstream_head_ancestor_of?(actual_sha, expected_sha)
 
       raise StepFailed,
             "summarize_amend refused to rewrite commit message because workspace HEAD #{actual_sha} " \
-            "does not match upstream run HEAD #{expected_sha}"
+            "does not contain upstream run HEAD #{expected_sha}"
+    end
+
+    def upstream_head_ancestor_of?(actual_sha, expected_sha)
+      GitRunner.new.run("merge-base", "--is-ancestor", expected_sha, actual_sha, chdir: workspace.path.to_s)
+      true
+    rescue GitRunner::GitError
+      false
     end
   end
 end
