@@ -463,6 +463,45 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(lines.join).to eq("hello stdin".bytesize.to_s)
   end
 
+  it "delivers an initial stdin byte before a slow-scheduled writer thread can run" do
+    prompt = "x" * (described_class::SYNC_STDIN_BYTES + 1)
+    lines = []
+    original_thread_new = Thread.method(:new)
+
+    allow(Thread).to receive(:new).and_wrap_original do |_original, *args, &block|
+      if args.first == prompt.byteslice(described_class::SYNC_STDIN_BYTES..)
+        original_thread_new.call(*args) do |*thread_args|
+          sleep 0.3
+          block.call(*thread_args)
+        end
+      else
+        original_thread_new.call(*args, &block)
+      end
+    end
+
+    script = <<~RUBY
+      ready, = IO.select([ STDIN ], nil, nil, 0.1)
+      unless ready
+        warn "Warning: no stdin data received in 0.1s, proceeding without it."
+        exit 7
+      end
+
+      print STDIN.read.bytesize
+    RUBY
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", script ],
+      chdir: @dir,
+      timeout: 5,
+      stdin_data: prompt,
+      on_output_line: ->(line) { lines << line }
+    ).run
+
+    expect(result).to be_success
+    expect(lines.join).to eq(prompt.bytesize.to_s)
+  end
+
   it "does not deadlock when a large stdin payload is written while the child streams output" do
     # The payload (2 MiB) far exceeds the ~64 KiB stdin pipe buffer, and the
     # child echoes every line back — so a synchronous stdin write would wedge

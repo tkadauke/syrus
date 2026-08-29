@@ -546,6 +546,14 @@ When a worker process is killed mid-step (deploy rolling restart, OOM, node evic
 
 If Codex resume state is unavailable (`thread/resume failed`, missing rollout JSONL, or equivalent), Syrus classifies the failure as `agent_resume_unavailable`. Automatic failed-step retries carry an explicit no-resume marker so step-specific session fallbacks cannot keep selecting the same stale provider thread. Short synthesis steps such as `test_plan` may retry once in a fresh provider session using bounded durable context from the Job, PR summary, and implementation diff before falling back to deterministic artifacts.
 
+If an agent CLI starts before Syrus finishes delivering the stdin prompt, the
+provider may fail immediately with messages such as `no stdin data received`,
+`Input must be provided either through stdin`, or `No deferred tool marker found
+in the resumed session`. Syrus classifies these as `stdin_race_failed`, a
+retryable infrastructure failure, so operators can distinguish prompt-delivery
+races from genuine agent/application errors and automatic retry scheduling can
+handle them through the normal retryable-failure path.
+
 Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority.
 
 The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.

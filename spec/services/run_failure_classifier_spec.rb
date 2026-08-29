@@ -227,6 +227,34 @@ RSpec.describe RunFailureClassifier do
     expect(result.retryable).to eq(false)
   end
 
+  it "classifies agent stdin delivery races as retryable infrastructure failures" do
+    run.update!(state: "failed", agent_provider: "claude", agent_outcome: "turn_failed")
+    JobLog.append!(
+      run: run,
+      chunk: "Warning: no stdin data received in 3s, proceeding without it.\nError: Input must be provided either through stdin or as a prompt argument when using --print",
+      kind: "system"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("stdin_race_failed")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "classifies claude resume stdin races as retryable before generic resume failures" do
+    run.update!(state: "failed", agent_provider: "claude", agent_outcome: "turn_failed")
+    JobLog.append!(
+      run: run,
+      chunk: "Warning: no stdin data received in 3s, proceeding without it.\nError: No deferred tool marker found in the resumed session",
+      kind: "system"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("stdin_race_failed")
+    expect(result.retryable).to eq(true)
+  end
+
   it "does not mislabel an E2BIG failure whose command echoes --mcp-config as auth/config (JOB-1819 regression)" do
     run.update!(state: "failed", agent_provider: "claude")
     diagnostic(
