@@ -1,4 +1,5 @@
 require "design_docs/version"
+require "design_docs/host_associations"
 require "design_docs/engine"
 
 module DesignDocs
