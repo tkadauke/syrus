@@ -31,6 +31,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     testTimeout: 15000,
+    maxWorkers: 4,
     setupFiles: ["app/frontend/test/setup.ts"],
     include: ["app/frontend/**/*.test.{ts,tsx}", "plugins/*/app/frontend/**/*.test.{ts,tsx}", "desktop/src/**/*.test.{ts,tsx}"],
     // Desktop component tests would otherwise resolve react from
