@@ -884,4 +884,20 @@ describe("ChatWorkspacePanel plugin tabs", () => {
 
     expect(screen.queryByRole("button", { name: "Demo Tab" })).not.toBeInTheDocument()
   })
+
+  it("lets closeable plugin workspace tabs be dismissed without removing other tabs", () => {
+    const payload: ChatPayload = {
+      ...makePayload(),
+      workspace_tabs: [
+        { id: "design_docs.chat", label: "Design Docs", label_key: null, component: "design_docs/WorkspaceDesignDocs", order: 20, closable: true },
+        { id: "test_plugin.demo_tab", label: "Demo Tab", label_key: null, component: "test_plugin/DemoTab", order: 100 }
+      ]
+    }
+    renderWorkspacePanel(payload, { activeTab: "files" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Close workspace tab: Design Docs" }))
+
+    expect(screen.queryByRole("button", { name: "Design Docs" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Demo Tab" })).toBeInTheDocument()
+  })
 })
