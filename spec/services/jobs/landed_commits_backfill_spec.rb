@@ -211,6 +211,34 @@ RSpec.describe Jobs::LandedCommitsBackfill do
       expect(LandedCommit.count).to eq(2) # member commit + integration merge, not duplicated
     end
 
+    it "fills missing member commits when an earlier run only recorded the integration merge" do
+      epic = Factories.epic(user: user, repository: repository)
+      job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)
+      job_b = landed_job(pr_number: 602, landed_sha: "mergesha", issue_number: 2)
+      train = build_train(epic: epic)
+      MergeTrainMember.create!(merge_train: train, job: job_a, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: job_b, position: 1)
+      LandedCommit.create!(landable: epic, sha: "mergesha", kind: "integration_merge", position: 0)
+
+      stub_two_parents
+      stub_ranged_log([
+        [ "shaA1", "Subject A1" ],
+        [ "shaB1", "Subject B1" ],
+        [ "shaR1", "Syrus merge-train reconciliation" ]
+      ])
+      client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
+      client_b = github_client([ commit_double(sha: "origB1", message: "Subject B1") ])
+
+      result = service_for(clients_by_pr: { 601 => client_a, 602 => client_b }).call
+
+      expect(result.recorded).to eq(1)
+      expect(result.commits_recorded).to eq(3)
+      expect(LandedCommit.where(landable: job_a).pluck(:sha)).to eq([ "shaA1" ])
+      expect(LandedCommit.where(landable: job_b).pluck(:sha)).to eq([ "shaB1" ])
+      expect(LandedCommit.where(landable: epic, kind: "reconcile").pluck(:sha)).to eq([ "shaR1" ])
+      expect(LandedCommit.where(sha: "mergesha").count).to eq(1)
+    end
+
     it "rolls back the whole train (not just the failing member) when a later member's API call fails, so a resumed run makes progress" do
       epic = Factories.epic(user: user, repository: repository)
       job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)

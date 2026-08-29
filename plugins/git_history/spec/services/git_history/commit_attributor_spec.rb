@@ -66,6 +66,21 @@ RSpec.describe GitHistory::CommitAttributor do
       expect(result[:user]).to eq(id: viewer.id, display_name: viewer.display_name)
     end
 
+    it "classifies a merge-train member implementation row as the member Job" do
+      sha = "8" + "d" * 39
+      job = Factories.job_record(repository: repository, user: viewer, kind: "issue")
+      train = MergeTrain.create!(repository: repository, base_branch: "master", priority: "medium",
+                                  integration_branch: "syrus/job-bundle-1")
+      member = MergeTrainMember.create!(merge_train: train, job: job, position: 0)
+      LandedCommit.create!(landable: member, sha: sha, kind: "implementation", position: 0)
+
+      result = attributor.attribute(entry(sha: sha))
+
+      expect(result[:classification]).to eq("syrus_landed")
+      expect(result[:job]).to include(id: job.id, slug: job.slug)
+      expect(result[:user]).to eq(id: viewer.id, display_name: viewer.display_name)
+    end
+
     it "classifies a commit with a LandedCommit(landable: Epic, kind: integration_merge) row as epic_landed, returning ALL member jobs" do
       sha = "6" + "b" * 39
       epic = Factories.epic(repository: repository, user: viewer)

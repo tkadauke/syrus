@@ -124,12 +124,6 @@ module Jobs
       merge_train_scope.find_each do |train|
         result.checked += 1
 
-        if train_already_recorded?(train)
-          result.skipped += 1
-          logger.info("[LandedCommitsBackfill] skip merge-train ##{train.id}: already recorded")
-          next
-        end
-
         begin
           record_merge_train!(train, dry_run: dry_run, result: result)
         rescue *SOFT_FAIL_ERRORS => e
@@ -141,13 +135,6 @@ module Jobs
 
     def merge_train_scope
       MergeTrain.where(repository: repository, state: "succeeded")
-    end
-
-    def train_already_recorded?(train)
-      return true if train.integration_sha.present? && LandedCommit.exists?(sha: train.integration_sha)
-
-      member_job_ids = train.members.pluck(:job_id)
-      LandedCommit.exists?(landable_type: "Job", landable_id: member_job_ids)
     end
 
     def record_merge_train!(train, dry_run:, result:)
@@ -187,16 +174,23 @@ module Jobs
       reconcile_sha = remaining.last&.first
       total_commits = member_shas.values.sum(&:size) + (reconcile_sha ? 1 : 0) + 1
 
+      created_count = 0
       unless dry_run
-        ActiveRecord::Base.transaction do
-          member_shas.each { |job, shas| write_landed_commits!(job, shas, kind: "implementation") }
-          write_landed_commits!(landable, [ reconcile_sha ], kind: "reconcile") if reconcile_sha
-          write_landed_commits!(landable, [ sha ], kind: "integration_merge")
+        created_count = ActiveRecord::Base.transaction do
+          member_shas.sum { |job, shas| write_landed_commits!(job, shas, kind: "implementation") } +
+            (reconcile_sha ? write_landed_commits!(landable, [ reconcile_sha ], kind: "reconcile") : 0) +
+            write_landed_commits!(landable, [ sha ], kind: "integration_merge")
         end
       end
 
+      if !dry_run && created_count.zero?
+        result.skipped += 1
+        logger.info("[LandedCommitsBackfill] skip merge-train ##{train.id}: already recorded")
+        return
+      end
+
       result.recorded += 1
-      result.commits_recorded += total_commits
+      result.commits_recorded += dry_run ? total_commits : created_count
       logger.info(
         "[LandedCommitsBackfill] #{dry_run ? "would record" : "recorded"} merge-train ##{train.id} " \
         "(#{train.members.size} member(s)#{reconcile_sha ? " + reconcile" : ""})"
@@ -245,8 +239,11 @@ module Jobs
     end
 
     def write_landed_commits!(landable, shas, kind:)
-      shas.each_with_index do |sha, position|
+      shas.each_with_index.sum do |sha, position|
+        next 0 if sha.blank? || LandedCommit.exists?(sha: sha)
+
         LandedCommit.create!(landable: landable, sha: sha, kind: kind, position: position)
+        1
       end
     end
   end

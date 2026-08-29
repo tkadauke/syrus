@@ -4,8 +4,8 @@ module GitHistory
   # Job#landed_sha matching for history recorded before LandedCommit existed)
   # and returns a JSON-ready attribution payload.
   #
-  # - "syrus_landed": the sha has a LandedCommit(landable: Job, kind:
-  #   "implementation") row, or — as a compatibility fallback for
+  # - "syrus_landed": the sha has a LandedCommit(landable: Job or
+  #   MergeTrainMember, kind: "implementation") row, or — as a compatibility fallback for
   #   pre-LandedCommit history — matches a non-external_pr Job#landed_sha.
   #   Attributed to the creating user, the Job's Epic (if any), and its
   #   origin (chat / GitHub issue / cron).
@@ -56,6 +56,8 @@ module GitHistory
 
       if landed_commit&.landable.is_a?(Job) && landed_commit.kind == "implementation"
         syrus_landed_attributes(landed_commit.landable)
+      elsif landed_commit&.landable.is_a?(MergeTrainMember) && landed_commit.kind == "implementation"
+        syrus_landed_attributes(landed_commit.landable.job)
       elsif landed_commit&.landable.is_a?(Epic) && landed_commit.kind == "integration_merge"
         epic_landed_attributes(landed_commit)
       elsif landed_commit&.landable.is_a?(Epic) && landed_commit.kind == "reconcile"
