@@ -94,7 +94,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `spending_insights`, `git_history` |
-| `tooling` | Tooling | `syrus_dev` |
+| `tooling` | Tooling | `syrus_dev`, `design_docs` |
 
 ```ruby
 Syrus::PluginRegistry.register(
@@ -1456,6 +1456,15 @@ Bundled plugins:
   `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own
   `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
+- `design_docs` — default-enabled. Registers the first-party collaborative
+  design document plugin scaffold. The plugin owns discovery/enablement as
+  `design_docs`; the foundational Active Record models stay in core because
+  design docs are Syrus authoring records, not attachment-oriented
+  `Document::KIND` rows. The initial schema stores canonical Markdown on
+  `DesignDoc`, append-only `DesignDocVersion` rows, n:m repository links,
+  explicit private-doc collaborators, and DB-authoritative anchors, threads,
+  comments, and one-range suggestions. User-facing references use
+  `DOC-<id>`.
 - `mysql_db_browser` — disabled by default (see
   `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
   `MysqlDbBrowser::SidebarPages` provides `mysql_db_browser.connections`:
