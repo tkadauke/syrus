@@ -1459,14 +1459,14 @@ Bundled plugins:
 - `design_docs` — default-enabled. Registers the first-party collaborative
   design document plugin. The plugin owns discovery/enablement,
   `DesignDocs::` domain models, validations, model specs, migration, JSON API
-  controller, policy, serializer, and create/update services under
-  `plugins/design_docs`. The host app loads bundled plugin migration paths and
-  keeps the shared Rails schema artifact. The initial schema stores canonical
-  Markdown on `DesignDocs::DesignDoc`, append-only
+  controller, policy, serializer, create/update services, anchor marker
+  parsing, inline comment services, and owner-reviewed suggestion services
+  under `plugins/design_docs`. The host app loads bundled plugin migration
+  paths and keeps the shared Rails schema artifact. The initial schema stores
+  canonical Markdown on `DesignDocs::DesignDoc`, append-only
   `DesignDocs::DesignDocVersion` rows, n:m repository links, explicit
   private-doc collaborators, and DB-authoritative anchors, threads, comments,
-  and one-range suggestions. User-facing references use
-  `DOC-<id>`.
+  and one-range suggestions. User-facing references use `DOC-<id>`.
 - `mysql_db_browser` — disabled by default (see
   `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
   `MysqlDbBrowser::SidebarPages` provides `mysql_db_browser.connections`:
