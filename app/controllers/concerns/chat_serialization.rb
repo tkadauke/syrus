@@ -76,6 +76,7 @@ module ChatSerialization
         pending_actions: PerformanceLogging.phase("chat_payload.pending_actions", chat_id: chat_session.id) { pending_actions_json(chat_session) },
         agent_questions: PerformanceLogging.phase("chat_payload.agent_questions", chat_id: chat_session.id) { chat_session.agent_questions_payload },
         queued_messages: PerformanceLogging.phase("chat_payload.queued_messages", chat_id: chat_session.id) { chat_session.queued_messages_payload },
+        active_goal: PerformanceLogging.phase("chat_payload.active_goal", chat_id: chat_session.id) { chat_goal_json(chat_session.active_goal) },
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         video_walkthroughs: PerformanceLogging.phase("chat_payload.video_walkthroughs", chat_id: chat_session.id) { video_walkthroughs_json(chat_session) },
         preview_panels: PerformanceLogging.phase("chat_payload.preview_panels", chat_id: chat_session.id) { preview_panels_json(chat_session) },
@@ -144,9 +145,34 @@ module ChatSerialization
       records: [ chat_session ],
       associations: [
         :user,
+        :active_goal,
         { repository_attachments: :attachable }
       ]
     ).call
+  end
+
+  def chat_goal_json(goal)
+    return nil unless goal
+
+    {
+      id: goal.id,
+      chat_session_id: goal.chat_session_id,
+      user_id: goal.user_id,
+      repository_id: goal.repository_id,
+      prompt: goal.prompt,
+      completion_condition: goal.completion_condition,
+      mode_snapshot: goal.mode_snapshot || {},
+      status: goal.status,
+      approval_policy: goal.approval_policy,
+      auto_file_proposals: goal.auto_file_proposals?,
+      auto_submit_jobs: goal.auto_submit_jobs?,
+      iteration_count: goal.iteration_count.to_i,
+      terminal_at: goal.terminal_at&.iso8601,
+      terminal_reason: goal.terminal_reason,
+      terminal_details: goal.terminal_details,
+      created_at: goal.created_at.iso8601,
+      updated_at: goal.updated_at.iso8601
+    }
   end
 
   def attachment_groups_for_payload(chat_session)
