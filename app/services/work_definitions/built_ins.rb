@@ -73,6 +73,14 @@ module WorkDefinitions
     def requires_epic_readiness? = true
   end
 
+  module SerializesEpicFeedback
+    def lock_keys_for(job:, member_jobs:, artifacts: {}, **options)
+      keys = super
+      keys << "epic_feedback:#{job.epic_id}" if job.epic_id.present?
+      keys.uniq
+    end
+  end
+
   class Initial < Base
     include OpensReviewPullRequest
     include ResumesFailedSteps
@@ -90,6 +98,7 @@ module WorkDefinitions
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
+    include SerializesEpicFeedback
 
     self.kind = "pr_comment"
     self.workflow_trigger_kind = "pr_comment"
@@ -102,6 +111,7 @@ module WorkDefinitions
     include ResumesFailedSteps
     include CheckpointPreemptable
     include RecoverableCancelledWorkflow
+    include SerializesEpicFeedback
 
     self.kind = "chat_feedback"
     self.workflow_trigger_kind = "chat_feedback"

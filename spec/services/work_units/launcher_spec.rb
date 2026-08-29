@@ -79,6 +79,38 @@ RSpec.describe WorkUnits::Launcher do
     expect(first.work_unit).to be_active
   end
 
+  it "blocks feedback workflows for sibling jobs in the same epic" do
+    epic = Factories.epic(user: user, repository: repository)
+    first_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 101)
+    second_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 102)
+    first = described_class.instantiate(kind: "pr_comment", job: first_job)
+
+    second = described_class.instantiate(kind: "chat_feedback", job: second_job)
+    result = described_class.start!(second)
+
+    expect(first.work_unit.work_unit_locks.pluck(:lock_key)).to include("epic_feedback:#{epic.id}")
+    expect(second.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("job:#{second_job.id}")
+    expect(result).to be_blocked
+    expect(result.reason).to eq("active_work_lock")
+    expect(result.work_unit.blocked_details).to include(
+      "lock_key" => "epic_feedback:#{epic.id}",
+      "work_unit_id" => first.work_unit.id
+    )
+  end
+
+  it "allows feedback workflows for jobs in different epics to own different feedback locks" do
+    first_epic = Factories.epic(user: user, repository: repository)
+    second_epic = Factories.epic(user: user, repository: repository)
+    first_job = Factories.job_record(user: user, repository: repository, epic: first_epic, issue_number: 101)
+    second_job = Factories.job_record(user: user, repository: repository, epic: second_epic, issue_number: 102)
+
+    first = described_class.instantiate(kind: "pr_comment", job: first_job)
+    second = described_class.instantiate(kind: "chat_feedback", job: second_job)
+
+    expect(first.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("job:#{first_job.id}", "epic_feedback:#{first_epic.id}")
+    expect(second.work_unit.work_unit_locks.pluck(:lock_key)).to contain_exactly("job:#{second_job.id}", "epic_feedback:#{second_epic.id}")
+  end
+
   it "creates a fresh intent and unit for repeated non-idempotent launches after the first unit is terminal" do
     first = described_class.instantiate(kind: "manual_visual_review", job: job)
     first.work_unit.mark_terminal!("cancelled")
