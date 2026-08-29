@@ -8,7 +8,8 @@
     "dev": "npm run sync-plugin-icons && next dev",
     "build": "npm run sync-plugin-icons && next build",
     "start": "next start",
-    "sync-release": "node scripts/sync-release.mjs"
+    "sync-release": "node scripts/sync-release.mjs",
+    "sync-release:check": "node scripts/sync-release.mjs --check-only"
   },
   "dependencies": {
     "motion": "^11.18.2",

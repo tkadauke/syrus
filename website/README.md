@@ -22,6 +22,7 @@ npm run dev        # http://localhost:3000
 
 ```bash
 npm run sync-release   # refresh lib/release.json from the latest GH release (optional; network)
+npm run sync-release:check # validate committed release metadata without network/writes
 npm run build          # emits the static site to website/out/
 ```
 
