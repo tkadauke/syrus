@@ -28,5 +28,6 @@ RSpec.describe Prompts::CodingHandoffFix do
     expect(output).to include("- app/models/job.rb")
     expect(output).to include("abcdef1 Polish terminal panel")
     expect(output).to include(Prompts::GitSafety::TEXT)
+    expect(output).to include(Prompts::ShellCommandExecutionContract::TEXT)
   end
 end
