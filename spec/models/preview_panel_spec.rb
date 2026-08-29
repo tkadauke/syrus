@@ -175,7 +175,7 @@ RSpec.describe PreviewPanel, type: :model do
         resource: "chat",
         id: chat_session.id,
         changed: [ "preview_panels" ],
-        payload: { "id" => panel.id, "title" => "Widget preview", "state" => "open", "visibility" => "private", "file_count" => 0 }
+        payload: { "id" => panel.id, "title" => "Widget preview", "state" => "open", "visibility" => "private", "file_count" => 0, "entry_file" => "index.html" }
       )
 
       panel.broadcast_change!

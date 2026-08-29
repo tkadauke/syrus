@@ -18,6 +18,7 @@ module PreviewTools
         url: panel.preview_url(base_domain),
         file_count: panel.current_version&.files&.size || 0,
         version_id: panel.current_version&.id,
+        entry_file: panel.current_version&.entry_file,
         note: note
       }.compact
     end
