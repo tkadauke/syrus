@@ -69,6 +69,26 @@ export type JobDeliveryStatus =
   | "upstream_closed_without_merge"
   | "delivery_needs_attention"
 
+export type GoalProvenance = {
+  chat_goal_id: number | null
+  prompt_snapshot: {
+    id?: number
+    chat_session_id?: number
+    user_id?: number
+    repository_id?: number | null
+    prompt?: string
+    completion_condition?: string | null
+    mode_snapshot?: Record<string, unknown>
+    status?: string
+    approval_policy?: string
+    auto_file_proposals?: boolean
+    auto_submit_jobs?: boolean
+    iteration_count?: number
+    created_at?: string | null
+    updated_at?: string | null
+  }
+}
+
 export type JobRecord = {
   id: number
   kind: string
@@ -116,6 +136,7 @@ export type JobRecord = {
   landing_blocker_override_requested_by?: JobUserReference | null
   scheduled_task_id?: number | null
   scheduled_task?: JobScheduledTask | null
+  goal_provenance?: GoalProvenance | null
   total_cost_usd: number | null
   billed_runs_count: number
   source_chat: JobSourceChat | null

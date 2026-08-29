@@ -239,6 +239,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
             <span>{t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}</span>
             {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
             {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
+            {payload.job.goal_provenance?.chat_goal_id ? <span>· Goal {payload.job.goal_provenance.chat_goal_id}</span> : null}
             {payload.job.source_chat ? (
               <span>
                 · <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>

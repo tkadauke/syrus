@@ -608,6 +608,26 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:media_ids)).to eq([ "snapshot:#{snapshot.id}" ])
   end
 
+  it "includes goal provenance in proposal JSON" do
+    goal = chat.chat_goals.create!(prompt: "Draft visible goal work.", auto_file_proposals: true)
+    proposal = chat.proposals.create!(
+      repository: repository,
+      chat_goal: goal,
+      goal_prompt_snapshot: ChatGoalProvenance.snapshot(goal),
+      kind: "job",
+      state: "proposed",
+      slug: "goal-job",
+      title: "Goal job",
+      body: "Has provenance."
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposed." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:goal_provenance)).to include(chat_goal_id: goal.id)
+    expect(payload.dig(:goal_provenance, :prompt_snapshot)).to include("prompt" => "Draft visible goal work.")
+  end
+
   it "returns an empty array for media_ids when none are set" do
     proposal = chat.proposals.create!(
       repository: repository,

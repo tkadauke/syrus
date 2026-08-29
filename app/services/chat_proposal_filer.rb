@@ -132,7 +132,9 @@ class ChatProposalFiler
       issue_title: proposal.title,
       issue_body: proposal.body,
       agent_provider: target_repository.effective_agent_provider,
-      state: Job.initial_state_for_creator(user)
+      state: Job.initial_state_for_creator(user),
+      chat_goal: proposal.chat_goal,
+      goal_prompt_snapshot: proposal.goal_prompt_snapshot
     )
 
     attach_media_to_job!(proposal, job)
@@ -149,7 +151,9 @@ class ChatProposalFiler
       repository: proposal.effective_repository || repository,
       title: proposal.title,
       description: proposal.body,
-      state: "ready"
+      state: "ready",
+      chat_goal: proposal.chat_goal,
+      goal_prompt_snapshot: proposal.goal_prompt_snapshot
     )
   end
 

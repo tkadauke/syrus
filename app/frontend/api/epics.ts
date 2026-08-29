@@ -77,6 +77,26 @@ export type EpicOwner = {
   email_address: string
 }
 
+export type GoalProvenance = {
+  chat_goal_id: number | null
+  prompt_snapshot: {
+    id?: number
+    chat_session_id?: number
+    user_id?: number
+    repository_id?: number | null
+    prompt?: string
+    completion_condition?: string | null
+    mode_snapshot?: Record<string, unknown>
+    status?: string
+    approval_policy?: string
+    auto_file_proposals?: boolean
+    auto_submit_jobs?: boolean
+    iteration_count?: number
+    created_at?: string | null
+    updated_at?: string | null
+  }
+}
+
 export type EpicDetailRecord = {
   id: number
   number: number
@@ -106,6 +126,7 @@ export type EpicDetailRecord = {
   max_commits_behind_base: number | null
   furthest_behind_job_id: number | null
   furthest_behind_job_path: string | null
+  goal_provenance?: GoalProvenance | null
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: "linear" | "nonlinear"
 }

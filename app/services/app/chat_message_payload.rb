@@ -194,6 +194,7 @@ module App
         materialized_label: proposal.materialized_label,
         materialized_path: materialized_path(materialized),
         materialized: materialized_json(proposal),
+        goal_provenance: ChatGoalProvenance.payload_for(proposal),
         # When the proposal became an Epic, expose its state + state-change path
         # so the chat can offer a "Start" (move to In Progress) action.
         materialized_epic_state: materialized_epic&.state,
@@ -315,6 +316,7 @@ module App
         proposed: proposal.proposed?,
         repository_slug: proposal.repository&.slug || @repository&.slug,
         dependencies: dependency_records.map(&:slug),
+        goal_provenance: ChatGoalProvenance.payload_for(proposal),
         depends_on_job_ids: proposal.depends_on_job_ids || [],
         depends_on_epic_ids: proposal.depends_on_epic_ids || [],
         dependency_details: dependency_records.map { |dependency| child_dependency_json(proposal, dependency) },

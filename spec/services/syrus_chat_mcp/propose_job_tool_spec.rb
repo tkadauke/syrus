@@ -55,6 +55,60 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "stamps proposals with the active goal provenance snapshot" do
+    goal = chat_session.chat_goals.create!(
+      prompt: "Plan the widget overhaul.",
+      completion_condition: "Stop after proposals are filed.",
+      auto_file_proposals: true
+    )
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Install carved labels",
+      description: "Every marble drawer deserves a label."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Install carved labels")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.chat_goal).to eq(goal)
+    expect(proposal.goal_prompt_snapshot).to include(
+      "id" => goal.id,
+      "prompt" => "Plan the widget overhaul.",
+      "completion_condition" => "Stop after proposals are filed.",
+      "mode_snapshot" => include("mode" => "planning")
+    )
+
+    goal.update!(prompt: "Edited later.")
+    expect(proposal.reload.goal_prompt_snapshot.fetch("prompt")).to eq("Plan the widget overhaul.")
+  end
+
+  it "leaves goal provenance blank outside an active goal" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Standalone job",
+      description: "No goal is active."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Standalone job")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.chat_goal).to be_nil
+    expect(proposal.goal_prompt_snapshot).to be_nil
+  end
+
+  it "does not stamp rejected proposals because no proposal row is created" do
+    goal = chat_session.chat_goals.create!(prompt: "Plan valid work.")
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Bad media job",
+      description: "Invalid reference.",
+      media: [ "invalid-format" ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(chat_session.proposals.where(chat_goal: goal)).to be_empty
+  end
+
   it "rejects a Job proposed into a non-empty existing Epic without chaining onto its Jobs" do
     epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
     existing_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 9)

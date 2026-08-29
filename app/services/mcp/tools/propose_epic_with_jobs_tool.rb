@@ -345,6 +345,7 @@ module Mcp::Tools
 
       def upsert_epic_proposal(chat_session, repository, epic, target_epic)
         proposal = chat_session.proposals.find_or_initialize_by(slug: epic[:slug])
+        provenance = proposal.persisted? ? {} : ChatGoalProvenance.attributes_for(chat_session)
         proposal.assign_attributes(
           repository: repository,
           target_epic: target_epic,
@@ -356,7 +357,8 @@ module Mcp::Tools
           depends_on_job_ids: epic[:depends_on_job_ids],
           epic_depends_on_tokens: JSON.generate(epic[:depends_on]),
           state: "proposed",
-          edited_at: proposal.persisted? ? Time.current : nil
+          edited_at: proposal.persisted? ? Time.current : nil,
+          **provenance
         )
         proposal.save!
         proposal
@@ -370,6 +372,7 @@ module Mcp::Tools
             raise ActiveRecord::RecordInvalid.new(child.tap { |record| record.errors.add(:slug, "already belongs to another Epic proposal") })
           end
 
+          provenance = child.persisted? ? {} : ChatGoalProvenance.attributes_for(chat_session)
           child.assign_attributes(
             repository: repositories_by_slug.fetch(job[:slug]),
             parent_proposal: parent,
@@ -382,7 +385,8 @@ module Mcp::Tools
             depends_on_job_ids: job[:depends_on_job_ids],
             media_ids: job[:media_ids],
             state: "proposed",
-            edited_at: child.persisted? ? Time.current : nil
+            edited_at: child.persisted? ? Time.current : nil,
+            **provenance
           )
           child.save!
           child_by_slug[job[:slug]] = child

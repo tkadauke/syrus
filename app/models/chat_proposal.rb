@@ -16,6 +16,7 @@ class ChatProposal < ApplicationRecord
 
   belongs_to :chat_session
   belongs_to :repository, optional: true
+  belongs_to :chat_goal, optional: true
   belongs_to :job, optional: true
   belongs_to :epic, optional: true
   belongs_to :target_epic, class_name: "Epic", optional: true

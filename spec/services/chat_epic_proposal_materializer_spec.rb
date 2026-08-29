@@ -66,6 +66,27 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "copies goal provenance to the materialized Epic and child Jobs" do
+    goal = chat_session.chat_goals.create!(prompt: "File the bundle.", auto_file_proposals: true)
+    snapshot = ChatGoalProvenance.snapshot(goal)
+    proposal = epic_proposal
+    proposal.update!(chat_goal: goal, goal_prompt_snapshot: snapshot)
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository,
+      chat_goal: goal,
+      goal_prompt_snapshot: snapshot
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.epic).to have_attributes(chat_goal: goal, goal_prompt_snapshot: snapshot)
+    expect(child.reload.job).to have_attributes(chat_goal: goal, goal_prompt_snapshot: snapshot)
+  end
+
   it "enables auto-approval and per-Job auto-merge for simple-mode Epic children when the repository has opted in" do
     setting = AppSetting.current
     original_mode = setting.mode

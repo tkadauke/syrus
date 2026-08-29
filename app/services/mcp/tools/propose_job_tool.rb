@@ -120,7 +120,8 @@ module Mcp::Tools
             kind: "job",
             depends_on_epic_ids: depends_on_epic_ids,
             depends_on_job_ids: depends_on_job_ids,
-            media_ids: Array(media)
+            media_ids: Array(media),
+            **ChatGoalProvenance.attributes_for(chat_session)
           )
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)

@@ -348,6 +348,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
           <ProposalDependencyStrip dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
           <CopyableSlug className="mt-1 text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
+          <GoalProvenanceText goalId={proposal.goal_provenance?.chat_goal_id} />
         </>
       }
       body={
@@ -712,6 +713,12 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
+function GoalProvenanceText({ goalId }: { goalId?: number | null }) {
+  if (!goalId) return null
+
+  return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Goal {goalId}</p>
+}
+
 function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
@@ -725,7 +732,11 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
             {child.proposed && parentProposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
           </summary>
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span className="font-mono">{child.slug}</span>
+              <span>{child.repository_slug || "No repository attached"}</span>
+              {child.goal_provenance?.chat_goal_id ? <span>Goal {child.goal_provenance.chat_goal_id}</span> : null}
+            </div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
             {child.proposed && parentProposed ? (
               <div className="mt-3">

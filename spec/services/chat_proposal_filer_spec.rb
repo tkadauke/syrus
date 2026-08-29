@@ -82,6 +82,23 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "copies goal provenance from a direct Job proposal to the materialized Job" do
+      goal = session.chat_goals.create!(prompt: "File a direct Job.", auto_file_proposals: true)
+      snapshot = ChatGoalProvenance.snapshot(goal)
+      job_proposal = proposal(
+        slug: "goal-job",
+        title: "Goal Job",
+        chat_goal: goal,
+        goal_prompt_snapshot: snapshot
+      )
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      job = job_proposal.reload.job
+      expect(job.chat_goal).to eq(goal)
+      expect(job.goal_prompt_snapshot).to eq(snapshot)
+    end
+
     it "resolves pending proposal-backed dependencies after the referenced proposal files" do
       upstream = proposal(slug: "upstream-job", title: "Upstream job")
       dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)

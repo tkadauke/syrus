@@ -394,6 +394,26 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "includes goal provenance from the Job record" do
+      chat = ChatSession.create!(user: user, repository: repo)
+      goal = chat.chat_goals.create!(prompt: "Build traceable work.", auto_file_proposals: true)
+      snapshot = ChatGoalProvenance.snapshot(goal)
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Trace work",
+        chat_goal: goal,
+        goal_prompt_snapshot: snapshot
+      )
+
+      expect(payload_for(job).dig(:job, :goal_provenance)).to include(
+        chat_goal_id: goal.id,
+        prompt_snapshot: include("prompt" => "Build traceable work.")
+      )
+    end
+
     it "includes a workflow-recorded no-PR reason" do
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Review stack")
       Workflow.create!(

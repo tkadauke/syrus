@@ -86,7 +86,9 @@ class ChatEpicProposalMaterializer
       title: proposal.title,
       description: proposal.body,
       epic_dependency_policy: "linear",
-      state: "ready"
+      state: "ready",
+      chat_goal: proposal.chat_goal,
+      goal_prompt_snapshot: proposal.goal_prompt_snapshot
     )
   end
 
@@ -121,7 +123,9 @@ class ChatEpicProposalMaterializer
       issue_number: nil,
       issue_title: proposal.title,
       issue_body: proposal.body,
-      agent_provider: repository.effective_agent_provider
+      agent_provider: repository.effective_agent_provider,
+      chat_goal: proposal.chat_goal,
+      goal_prompt_snapshot: proposal.goal_prompt_snapshot
     )
   end
 

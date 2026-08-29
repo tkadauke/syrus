@@ -8,6 +8,9 @@ class ChatGoal < ApplicationRecord
   belongs_to :chat_session, inverse_of: :chat_goals
   belongs_to :user
   belongs_to :repository, optional: true
+  has_many :chat_proposals, dependent: :nullify
+  has_many :jobs, dependent: :nullify
+  has_many :epics, dependent: :nullify
 
   enum :status, STATUSES.index_with(&:itself), validate: true
   enum :approval_policy, APPROVAL_POLICIES.index_with(&:itself), validate: true

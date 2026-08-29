@@ -70,6 +70,62 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "stamps bundled Epic and child Job proposals with the active goal provenance snapshot" do
+    goal = chat_session.chat_goals.create!(
+      prompt: "Draft the milestone.",
+      completion_condition: "Stop once the bundle is ready.",
+      auto_file_proposals: true
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "goal-epic",
+        title: "Goal Epic",
+        description: "Plan goal-scoped work.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "goal-child",
+          target_repo: repository.slug,
+          title: "Goal child",
+          description: "Build it."
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = chat_session.proposals.find_by!(slug: "goal-epic")
+    child = chat_session.proposals.find_by!(slug: "goal-child")
+    expect(proposal.chat_goal).to eq(goal)
+    expect(child.chat_goal).to eq(goal)
+    expect(proposal.goal_prompt_snapshot).to include(
+      "id" => goal.id,
+      "prompt" => "Draft the milestone.",
+      "completion_condition" => "Stop once the bundle is ready."
+    )
+    expect(child.goal_prompt_snapshot).to include("id" => goal.id, "prompt" => "Draft the milestone.")
+  end
+
+  it "does not rewrite existing proposal goal snapshots when a bundle is edited" do
+    original_goal = chat_session.chat_goals.create!(prompt: "Original goal.", auto_file_proposals: true)
+    call_tool(
+      epic: { slug: "goal-epic", title: "Goal Epic", description: "Plan it.", target_repo: repository.slug },
+      jobs: [ { slug: "goal-child", target_repo: repository.slug, title: "Goal child", description: "Build it." } ]
+    )
+    original_goal.complete!
+    chat_session.chat_goals.create!(prompt: "Next goal.", auto_file_proposals: true)
+
+    response = call_tool(
+      epic: { slug: "goal-epic", title: "Goal Epic edited", description: "Plan it again.", target_repo: repository.slug },
+      jobs: [ { slug: "goal-child", target_repo: repository.slug, title: "Goal child edited", description: "Build it again." } ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(chat_session.proposals.find_by!(slug: "goal-epic").goal_prompt_snapshot.fetch("prompt")).to eq("Original goal.")
+    expect(chat_session.proposals.find_by!(slug: "goal-child").goal_prompt_snapshot.fetch("prompt")).to eq("Original goal.")
+  end
+
   it "creates a grouped child Job proposal card for an existing Epic" do
     target_epic = Factories.epic(
       user: user,

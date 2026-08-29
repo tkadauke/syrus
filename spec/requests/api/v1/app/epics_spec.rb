@@ -1564,6 +1564,27 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(parse_body["origin_chat"]).to be_nil
   end
 
+  it "includes goal provenance in the detail payload" do
+    sign_in_as(user)
+    chat_session = ChatSession.create!(user: user, repository: repository)
+    goal = chat_session.chat_goals.create!(prompt: "Build an Epic from a goal.", auto_file_proposals: true)
+    epic = Factories.epic(
+      user: user,
+      repository: repository,
+      title: "Goal Epic",
+      chat_goal: goal,
+      goal_prompt_snapshot: ChatGoalProvenance.snapshot(goal)
+    )
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "goal_provenance")).to include(
+      "chat_goal_id" => goal.id,
+      "prompt_snapshot" => include("prompt" => "Build an Epic from a goal.")
+    )
+  end
+
   it "resolves an epic by its human-readable slug" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Raise the aqueduct walls")

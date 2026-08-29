@@ -109,6 +109,26 @@ export type ChatMcpHealth = {
   unavailable_tools: string[]
 }
 
+export type GoalProvenance = {
+  chat_goal_id: number | null
+  prompt_snapshot: {
+    id?: number
+    chat_session_id?: number
+    user_id?: number
+    repository_id?: number | null
+    prompt?: string
+    completion_condition?: string | null
+    mode_snapshot?: Record<string, unknown>
+    status?: string
+    approval_policy?: string
+    auto_file_proposals?: boolean
+    auto_submit_jobs?: boolean
+    iteration_count?: number
+    created_at?: string | null
+    updated_at?: string | null
+  }
+}
+
 export type ChatProposal = {
   id: number
   kind: string
@@ -133,6 +153,7 @@ export type ChatProposal = {
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
   media_ids?: string[]
+  goal_provenance?: GoalProvenance | null
   materialized_label: string | null
   materialized_path: string | null
   materialized?: ChatProposalMaterialized | null
@@ -171,6 +192,7 @@ export type ChatProposalChild = {
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
   dependency_details?: ChatProposalChildDependency[]
+  goal_provenance?: GoalProvenance | null
   app_update_path: string
   app_reject_path: string
 }

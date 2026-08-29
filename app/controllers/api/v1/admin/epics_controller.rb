@@ -160,6 +160,7 @@ module Api
             owner_user:             owner_user_json(epic.owner_user),
             repository:             epic.repository.slug,
             github_issue_url:   epic.github_issue_url,
+            goal_provenance:    ChatGoalProvenance.payload_for(epic),
             done_at:            epic.done_at,
             created_at:         epic.created_at,
             updated_at:         epic.updated_at
@@ -183,6 +184,7 @@ module Api
             owner_status:        owner_status(epic),
             owner_user:          owner_user_json(epic.owner_user),
             github_issue_url:    epic.github_issue_url,
+            goal_provenance:     ChatGoalProvenance.payload_for(epic),
             done_at:            epic.done_at,
             created_at:         epic.created_at,
             updated_at:         epic.updated_at,

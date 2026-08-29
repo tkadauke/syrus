@@ -403,6 +403,7 @@ module Api
             owner_user: owner_user_json(epic.owner_user),
             repository_id: epic.repository_id,
             github_issue_url: epic.github_issue_url.to_s,
+            goal_provenance: ChatGoalProvenance.payload_for(epic),
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             epic_path: epic.persisted? ? epic_path(epic) : nil
@@ -440,6 +441,7 @@ module Api
             owner_user: owner_user_json(epic.owner_user),
             repository_slug: epic.repository.slug,
             repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository)),
+            goal_provenance: ChatGoalProvenance.payload_for(epic),
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             review_ready: epic.review_ready?,

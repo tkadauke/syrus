@@ -221,6 +221,7 @@ module App
         landing_blocker_override_requested_by: user_reference_json(@job.landing_blocker_override_requested_by_user),
         scheduled_task_id: @job.scheduled_task_id,
         scheduled_task: scheduled_task_json(@job.scheduled_task),
+        goal_provenance: ChatGoalProvenance.payload_for(@job),
         epic_id: @job.epic_id,
         total_cost_usd: @job.display_total_cost_usd&.to_f,
         billed_runs_count: @job.billed_runs_count,
