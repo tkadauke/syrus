@@ -195,4 +195,31 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("versions").map { |version| version.fetch("version_number") }).to eq([ 2, 1 ])
     expect(parse_body.fetch("design_doc")).to include("display_id" => "DOC-#{doc.id}")
   end
+
+  it "preloads version actors when returning version history" do
+    doc = create_design_doc(markdown: "v1")
+    reviewer = Factories.user(email_address: "reviewer@example.com")
+    second_reviewer = Factories.user(email_address: "reviewer2@example.com")
+    doc.versions.create!(markdown: "v2", version_number: 2, actor_kind: "user", actor_user: reviewer)
+    doc.versions.create!(markdown: "v3", version_number: 3, actor_kind: "user", actor_user: second_reviewer)
+    sign_in_as(owner)
+
+    user_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      next if payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+      next unless sql.match?(/\bFROM [`"]?users[`"]?/i)
+
+      user_selects << sql
+    end
+
+    get "/api/v1/app/design_docs/#{doc.id}/versions"
+
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+    subscriber = nil
+    expect(response).to have_http_status(:ok)
+    expect(user_selects.size).to be <= 3
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if defined?(subscriber) && subscriber
+  end
 end
