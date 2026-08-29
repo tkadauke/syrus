@@ -70,7 +70,7 @@ class PluginRouteResolver
     REPO_PAGE_TAB_PATH = %r{\A/repositories/(?<repository_id>\d+)/plugin/}
 
     def plugin_routes
-      Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+      Syrus::PluginRegistry.all_plugins.select(&:enabled?).flat_map do |manifest|
         metadata = manifest.metadata.with_indifferent_access
         Array(metadata[:routes]).filter_map do |raw_route|
           route = raw_route.to_h.with_indifferent_access

@@ -51,7 +51,7 @@ module Api
           design_doc = find_design_doc
           render json: {
             design_doc: serializer.summary(design_doc),
-            versions: design_doc.versions.order(version_number: :desc).map { |version| serializer.version(version) }
+            versions: design_doc.versions.includes(:actor_user).order(version_number: :desc).map { |version| serializer.version(version) }
           }
         end
 
