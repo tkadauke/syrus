@@ -78,6 +78,22 @@ describe("ErdDiagramRenderer", () => {
     expect(screen.getByText(/unique.*idx.*email|idx.*email.*unique/i)).toBeInTheDocument()
   })
 
+  it("renders malformed index records without column arrays", () => {
+    const payload = {
+      tables: [
+        {
+          name: "users",
+          columns: [{ name: "id", type: "integer" }],
+          indexes: [{ name: "index_users_on_email", unique: true }]
+        }
+      ]
+    } as SchemaErdPayload
+
+    render(<ErdDiagramRenderer payload={payload} />)
+
+    expect(screen.getByText(/unique idx: index_users_on_email/i)).toBeInTheDocument()
+  })
+
   it("renders an empty-state message when there are no tables", () => {
     render(<ErdDiagramRenderer payload={{ tables: [] }} />)
 
