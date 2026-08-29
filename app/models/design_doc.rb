@@ -17,6 +17,7 @@ class DesignDoc < ApplicationRecord
 
   before_validation :normalize_title
   before_validation :normalize_markdown
+  before_destroy :clear_current_version_reference, prepend: true
 
   validates :title, presence: true
   validates :markdown, presence: true
@@ -70,5 +71,9 @@ class DesignDoc < ApplicationRecord
     return if current_version.design_doc_id.nil? || current_version.design_doc_id == id
 
     errors.add(:current_version, "must belong to this design doc")
+  end
+
+  def clear_current_version_reference
+    update_column(:current_version_id, nil) if current_version_id.present?
   end
 end

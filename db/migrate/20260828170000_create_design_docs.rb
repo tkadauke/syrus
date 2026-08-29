@@ -130,7 +130,7 @@ class CreateDesignDocs < ActiveRecord::Migration[8.1]
     add_foreign_key :design_doc_collaborators, :users, column: :added_by_user_id unless foreign_key_exists?(:design_doc_collaborators, :users, column: :added_by_user_id)
     add_foreign_key :design_doc_versions, :design_docs unless foreign_key_exists?(:design_doc_versions, :design_docs)
     add_foreign_key :design_doc_versions, :users, column: :actor_user_id unless foreign_key_exists?(:design_doc_versions, :users, column: :actor_user_id)
-    add_foreign_key :design_docs, :design_doc_versions, column: :current_version_id unless foreign_key_exists?(:design_docs, :design_doc_versions, column: :current_version_id)
+    add_foreign_key :design_docs, :design_doc_versions, column: :current_version_id, on_delete: :nullify unless foreign_key_exists?(:design_docs, :design_doc_versions, column: :current_version_id)
     add_foreign_key :design_doc_anchors, :design_docs unless foreign_key_exists?(:design_doc_anchors, :design_docs)
     add_foreign_key :design_doc_anchors, :design_doc_versions unless foreign_key_exists?(:design_doc_anchors, :design_doc_versions)
     add_foreign_key :design_doc_threads, :design_docs unless foreign_key_exists?(:design_doc_threads, :design_docs)
