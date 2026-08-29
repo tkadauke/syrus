@@ -98,6 +98,23 @@ RSpec.describe RunCompletionReconciler do
 
         expect(advance_called).to be true
       end
+
+      it "does not force terminal recovery for pr_open because downstream steps may still need to run" do
+        run = make_pr_open_run
+        job.update!(pr_number: nil)
+        JobLog.append!(run: run, chunk: "pr_open: opened PR #7")
+        run.update_columns(state: "cancelled", finished_at: Time.current)
+        run.step.update_columns(state: "cancelled", finished_at: Time.current)
+        workflow.update_columns(state: "cancelled", finished_at: Time.current)
+
+        result = described_class.call(run, allow_terminal_recovery: true)
+
+        expect(result).not_to be_reconciled
+        expect(result.reason).to eq("pr_open is not eligible for terminal recovery")
+        expect(run.reload).to be_cancelled
+        expect(run.step.reload).to be_cancelled
+        expect(workflow.reload).to be_cancelled
+      end
     end
 
     context "with a running auto_merge step" do
