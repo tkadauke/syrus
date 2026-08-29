@@ -5,8 +5,8 @@ import type { ErdTable, SchemaErdPayload } from "../../api/artifacts"
 // stacked vertically; FK arrows are listed as text rather than SVG lines
 // to keep the implementation portable across rendering contexts.
 export function ErdDiagramRenderer({ payload }: { payload: SchemaErdPayload }) {
-  const { tables } = payload
-  if (!tables || tables.length === 0) {
+  const tables = Array.isArray(payload?.tables) ? payload.tables : []
+  if (tables.length === 0) {
     return <p className="text-sm text-gray-500 italic">No tables found in schema.</p>
   }
 
@@ -20,7 +20,10 @@ export function ErdDiagramRenderer({ payload }: { payload: SchemaErdPayload }) {
 }
 
 function ErdTableBox({ table }: { table: ErdTable }) {
-  const hasFks = table.foreign_keys && table.foreign_keys.length > 0
+  const columns = Array.isArray(table.columns) ? table.columns : []
+  const foreignKeys = Array.isArray(table.foreign_keys) ? table.foreign_keys : []
+  const indexes = Array.isArray(table.indexes) ? table.indexes : []
+  const hasFks = foreignKeys.length > 0
 
   return (
     <div className="min-w-[200px] rounded border border-gray-300 bg-white text-sm shadow-sm">
@@ -29,8 +32,8 @@ function ErdTableBox({ table }: { table: ErdTable }) {
       </div>
       <table className="w-full border-collapse">
         <tbody>
-          {table.columns.map((col, i) => {
-            const isFkSource = table.foreign_keys?.some((fk) => fk.from_column === col.name)
+          {columns.map((col, i) => {
+            const isFkSource = foreignKeys.some((fk) => fk.from_column === col.name)
             return (
               <tr key={col.name} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                 <td className="px-3 py-0.5 font-mono text-gray-800">
@@ -49,7 +52,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
       </table>
       {hasFks && (
         <div className="border-t border-gray-200 px-3 py-1.5">
-          {table.foreign_keys!.map((fk) => (
+          {foreignKeys.map((fk) => (
             <div key={fk.from_column} className="text-xs text-gray-500">
               <span className="font-mono text-gray-700">{fk.from_column}</span>
               {" → "}
@@ -60,13 +63,17 @@ function ErdTableBox({ table }: { table: ErdTable }) {
           ))}
         </div>
       )}
-      {table.indexes && table.indexes.length > 0 && (
+      {indexes.length > 0 && (
         <div className="border-t border-gray-100 px-3 py-1 text-xs text-gray-400">
-          {table.indexes.map((idx) => (
-            <div key={idx.name}>
-              {idx.unique ? "unique " : ""}idx: {idx.columns.join(", ")}
-            </div>
-          ))}
+          {indexes.map((idx, i) => {
+            const indexColumns = Array.isArray(idx.columns) ? idx.columns : []
+            const indexLabel = indexColumns.length > 0 ? indexColumns.join(", ") : (idx.name ?? "unknown")
+            return (
+              <div key={idx.name ?? i}>
+                {idx.unique ? "unique " : ""}idx: {indexLabel}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
