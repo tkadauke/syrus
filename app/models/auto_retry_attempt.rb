@@ -60,14 +60,6 @@ class AutoRetryAttempt < ApplicationRecord
   private
 
   def superseded_by_successful_workflow?
-    return false unless job && workflow
-
-    cutoff = workflow.finished_at || workflow.created_at
-    return false unless cutoff
-
-    job.workflows
-       .where(state: "succeeded")
-       .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, workflow.id)
-       .exists?
+    Workflows::ValidationSupersession.superseded_by_successful_workflow?(workflow)
   end
 end

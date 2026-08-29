@@ -126,6 +126,40 @@ RSpec.describe AutoRetryAttempt, type: :model do
       }.to change { attempt.reload.skipped_reason }.from(nil).to("source workflow was already superseded by a successful workflow")
     end
 
+    it "does not prune active repair attempts superseded only by successful maintenance" do
+      attempt = described_class.create!(valid_attrs(retry_kind: "retry_workflow"))
+      workflow.update_columns(trigger_kind: "ci_failure", state: "failed", finished_at: 10.minutes.ago)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "rebase",
+        state: "succeeded",
+        created_at: 5.minutes.ago,
+        started_at: 5.minutes.ago,
+        finished_at: 4.minutes.ago
+      )
+
+      expect(described_class.prune_stale_pending!).to eq(0)
+      expect(attempt.reload.skipped_reason).to be_nil
+    end
+
+    it "prunes active repair attempts superseded by newer successful validation" do
+      attempt = described_class.create!(valid_attrs(retry_kind: "retry_workflow"))
+      workflow.update_columns(trigger_kind: "ci_failure", state: "failed", finished_at: 10.minutes.ago)
+      validated = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "succeeded",
+        created_at: 5.minutes.ago,
+        started_at: 5.minutes.ago,
+        finished_at: 4.minutes.ago
+      )
+      validated.steps.create!(kind: "grader_collect", position: 0, state: "succeeded")
+
+      expect {
+        expect(described_class.prune_stale_pending!).to eq(1)
+      }.to change { attempt.reload.skipped_reason }.from(nil).to("source workflow was already superseded by a successful workflow")
+    end
+
     it "leaves still-actionable pending attempts alone" do
       attempt = described_class.create!(valid_attrs)
 

@@ -4325,6 +4325,153 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("deterministic_idempotent")
   end
 
+  it "keeps failed ci_failure validation visible after an unrelated successful rebase" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+
+    %w[prepare grader_fanout].each do |failed_step_kind|
+      target_job = Factories.job(agent_provider: "claude")
+      initial = target_job.latest_workflow
+      initial_step = initial.first_step
+      initial_run = initial_step.runs.first
+      initial.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+      initial_step.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+      initial_run.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+      target_job.update_columns(state: "failed")
+
+      ci_workflow = Workflow.create!(
+        job: target_job,
+        trigger_kind: "ci_failure",
+        agent_provider: target_job.agent_provider,
+        state: "failed",
+        started_at: 15.minutes.ago,
+        finished_at: 14.minutes.ago,
+        cleaned_up_at: nil
+      )
+      ci_step = ci_workflow.steps.create!(
+        kind: failed_step_kind,
+        position: 0,
+        state: "failed",
+        started_at: 15.minutes.ago,
+        finished_at: 14.minutes.ago
+      )
+      ci_run = ci_step.runs.create!(
+        job: target_job,
+        trigger_kind: "ci_failure",
+        agent_provider: target_job.agent_provider,
+        state: "failed",
+        started_at: 15.minutes.ago,
+        finished_at: 14.minutes.ago
+      )
+      RunDiagnostic.create!(
+        run: ci_run,
+        error_class: "ActiveRecord::ConnectionNotEstablished",
+        error_message: "Can't connect to server on syrus-mysql (115)"
+      )
+      attach_work_unit(ci_workflow, kind: "ci_failure", state: "failed")
+
+      rebase = Workflow.create!(
+        job: target_job,
+        trigger_kind: "rebase",
+        agent_provider: target_job.agent_provider,
+        state: "succeeded",
+        started_at: 10.minutes.ago,
+        finished_at: 9.minutes.ago
+      )
+      rebase_step = rebase.steps.create!(
+        kind: "force_push",
+        position: 0,
+        state: "succeeded",
+        finished_at: 9.minutes.ago
+      )
+      rebase_step.runs.create!(
+        job: target_job,
+        trigger_kind: "rebase",
+        agent_provider: target_job.agent_provider,
+        state: "succeeded",
+        finished_at: 9.minutes.ago
+      )
+      attach_work_unit(rebase, kind: "rebase", state: "succeeded")
+
+      result = nil
+      expect {
+        result = reconcile_and_execute(job_id: target_job.id)
+      }.to change { AutoRetryAttempt.where(retry_kind: "retry_workflow").count }.by(1)
+        .and have_enqueued_job(AutoRetryJob)
+      attempt = AutoRetryAttempt.order(:id).last
+
+      expect(kind(result, :retryable_run_failure)).to have_attributes(
+        safe_to_auto_repair: true,
+        recommended_repair_action: "plan_retry"
+      )
+      expect(plan(result, :retry_workflow)).to have_attributes(
+        auto_executable: true,
+        target_type: "Workflow",
+        target_id: ci_workflow.id
+      )
+      expect(ci_run.reload.run_failure_classification).to have_attributes(
+        classification: "database_lock",
+        retryable: true
+      )
+
+      expect {
+        perform_enqueued_jobs(only: AutoRetryJob)
+      }.to change { target_job.workflows.count }.by(1)
+      expect(attempt.reload).to have_attributes(performed_at: be_present, skipped_reason: nil)
+      expect(target_job.workflows.order(:id).last).to have_attributes(trigger_kind: "retry")
+    end
+  end
+
+  it "does not retry an older ci_failure after newer successful validation" do
+    workflow.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+    job.update_columns(state: "failed")
+
+    ci_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "ci_failure",
+      agent_provider: job.agent_provider,
+      state: "failed",
+      finished_at: 14.minutes.ago,
+      cleaned_up_at: nil
+    )
+    ci_step = ci_workflow.steps.create!(
+      kind: "grader_fanout",
+      position: 0,
+      state: "failed",
+      finished_at: 14.minutes.ago
+    )
+    ci_run = ci_step.runs.create!(
+      job: job,
+      trigger_kind: "ci_failure",
+      agent_provider: job.agent_provider,
+      state: "failed",
+      finished_at: 14.minutes.ago
+    )
+    RunFailureClassification.create!(
+      run: ci_run,
+      classification: "database_lock",
+      retryable: true,
+      confidence: 0.8,
+      reason: "transient DB connection failure",
+      classified_at: 14.minutes.ago
+    )
+
+    validated = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      agent_provider: job.agent_provider,
+      state: "succeeded",
+      finished_at: 9.minutes.ago
+    )
+    validated.steps.create!(kind: "grader_collect", position: 0, state: "succeeded", finished_at: 9.minutes.ago)
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(plan(result, :retry_workflow)).to be_nil
+  end
+
   it "does not plan automatic repair for external_pr_ingest grader failures even when the classification looks retryable" do
     external_job = Job.create!(
       user: job.user, repository: job.repository,
