@@ -6,9 +6,10 @@ module DesignDocs
       new(...).call
     end
 
-    def initialize(user:, attributes:)
+    def initialize(user:, attributes:, actor_kind: "user")
       @user = user
       @attributes = attributes
+      @actor_kind = actor_kind.to_s.presence || "user"
     end
 
     def call
@@ -27,8 +28,8 @@ module DesignDocs
         version = design_doc.versions.create!(
           markdown: design_doc.markdown,
           version_number: 1,
-          actor_kind: "user",
-          actor_user: user,
+          actor_kind: actor_kind,
+          actor_user: actor_kind == "user" ? user : nil,
           change_summary: attributes[:change_summary].presence
         )
         design_doc.update!(current_version: version)
@@ -39,7 +40,7 @@ module DesignDocs
 
     private
 
-    attr_reader :user, :attributes
+    attr_reader :user, :attributes, :actor_kind
 
     def origin_chat_session
       id = attributes[:origin_chat_session_id].presence

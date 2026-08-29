@@ -27,9 +27,12 @@ module DesignDocs
         i18n: [ "app/frontend/i18n/locales/*/design_docs.json" ]
       },
       provides: {
-        sidebar_page:  DesignDocs::SidebarPages,
-        repo_page_tab: DesignDocs::RepoPageTabs,
-        workspace_tab: DesignDocs::WorkspaceTabs
+        sidebar_page:       DesignDocs::SidebarPages,
+        repo_page_tab:      DesignDocs::RepoPageTabs,
+        workspace_tab:      DesignDocs::WorkspaceTabs,
+        chat_mcp_tool_set:  DesignDocs::ChatToolSet,
+        mcp_tool_set:       DesignDocs::WorkflowToolSet,
+        prompt_injector:    DesignDocs::PromptContext
       }
     )
   end

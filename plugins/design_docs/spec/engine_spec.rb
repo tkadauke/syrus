@@ -9,6 +9,11 @@ RSpec.describe DesignDocs::Engine do
     expect(manifest.default_enabled?).to be(true)
     expect(manifest.enabled?).to be(true)
     expect(manifest.disableable?).to be(true)
+    expect(manifest.provides).to include(
+      chat_mcp_tool_set: DesignDocs::ChatToolSet,
+      mcp_tool_set: DesignDocs::WorkflowToolSet,
+      prompt_injector: DesignDocs::PromptContext
+    )
   end
 
   it "is treated as enabled on a fresh install with no prior PluginRecord row", :reset_plugin_registry do
