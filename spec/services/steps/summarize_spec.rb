@@ -198,6 +198,35 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message).to start_with("Add greeting helper")
     end
 
+    it "reuses a prior summarize run payload when retrying after the commit message was already rewritten" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      Run.create!(
+        job: job,
+        step: implement_step,
+        trigger_kind: "initial",
+        state: "succeeded",
+        head_sha: implement_sha
+      )
+      prior_summary = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        state: "failed",
+        agent_pr_title: "Add greeting helper",
+        agent_pr_body: "Adds a tiny helper.",
+        agent_summary: "Added a greeting helper."
+      )
+
+      sh("git -C #{@ws_path} commit --amend --allow-empty -q -m 'Add greeting helper' -m 'Closes ##{job.issue_number}' -m 'Adds a tiny helper.'")
+
+      expect(handler).not_to receive(:run_agent)
+      handler.call
+
+      expect(workflow.reload.artifact("pr_title")).to eq(prior_summary.agent_pr_title)
+      expect(commit_message).to start_with("Add greeting helper")
+    end
+
     it "allows deterministic commits on top of the successful implement run" do
       implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
       implement_sha = head_sha

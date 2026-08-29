@@ -329,6 +329,48 @@ RSpec.describe RunFailureClassifier do
     expect(result.retryable).to eq(false)
   end
 
+  it "does not classify an orphaned subprocess as worker death when a concrete app error is present" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "summarize refused to rewrite commit message because workspace HEAD abc does not contain implement run HEAD def"
+    )
+    process("orphaned")
+
+    result = classification
+
+    expect(result.classification).to eq("application_error")
+    expect(result.retryable).to eq(false)
+  end
+
+  it "classifies GitHub 502s as provider transients even when subprocess cleanup marked a child orphaned" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Octokit::BadGateway",
+      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 502 - Server Error"
+    )
+    process("orphaned")
+
+    result = classification
+
+    expect(result.classification).to eq("provider_transient")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "classifies GitHub already-existing PR validation as validation, not worker death" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Octokit::UnprocessableEntity",
+      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: A pull request already exists for tkadauke:syrus/direct-3853."
+    )
+    process("orphaned")
+
+    result = classification
+
+    expect(result.classification).to eq("validation_or_user_error")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies rspec checkout lock contention as retryable infrastructure contention" do
     run.step.update!(kind: "grader")
     run.update!(state: "failed")

@@ -123,8 +123,8 @@ class RunFailureClassifier
 
   def process_died?
     run.agent_outcome == "worker_died" ||
-      text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated|exit status/i) ||
-      spawned_processes.any? { |process| %w[aliveness_failed orphaned stopped operator_killed].include?(process.outcome) }
+      text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated/i) ||
+      spawned_processes.any? { |process| %w[aliveness_failed stopped operator_killed].include?(process.outcome) }
   end
 
   def grader_failure?
@@ -206,7 +206,7 @@ class RunFailureClassifier
       transient|
       retry\ later|
       service\ unavailable|
-      bad\ gateway|
+      bad[\s_]*gateway|
       gateway\ timeout|
       connection\ reset|
       connection\ refused|

@@ -30,8 +30,15 @@ module Steps
 
       if (impl_run = implement_run_with_summary)
         log("implement step already called submit_summary — skipping agent call")
-        assert_workspace_contains_successful_implement_head!
         promote_artifacts!(from: impl_run)
+        assert_workspace_contains_successful_implement_head!
+        rewrite_implement_commit_message!
+        return
+      end
+      if (summary_run = prior_summarize_run_with_summary)
+        log("prior summarize run already called submit_summary — reusing captured PR copy")
+        promote_artifacts!(from: summary_run)
+        assert_workspace_contains_successful_implement_head!
         rewrite_implement_commit_message!
         return
       end
@@ -64,6 +71,16 @@ module Steps
     def implement_run_with_summary
       impl_run = successful_implement_run
       impl_run if impl_run&.agent_pr_title.present?
+    end
+
+    def prior_summarize_run_with_summary
+      Run
+        .joins(:step)
+        .where(steps: { workflow_id: workflow.id, kind: "summarize" })
+        .where.not(id: run.id)
+        .where.not(agent_pr_title: [ nil, "" ])
+        .order(created_at: :desc)
+        .first
     end
 
     def successful_implement_run
@@ -143,6 +160,7 @@ module Steps
       actual_sha = head_sha
       return if actual_sha == expected_sha
       return if implement_head_ancestor_of?(actual_sha, expected_sha)
+      return if workspace_head_matches_summary_commit_message?
 
       raise StepFailed,
             "summarize refused to rewrite commit message because workspace HEAD #{actual_sha} " \
@@ -152,6 +170,18 @@ module Steps
     def implement_head_ancestor_of?(actual_sha, expected_sha)
       GitRunner.new.run("merge-base", "--is-ancestor", expected_sha, actual_sha, chdir: workspace.path.to_s)
       true
+    rescue GitRunner::GitError
+      false
+    end
+
+    def workspace_head_matches_summary_commit_message?
+      title = workflow.artifact("pr_title")
+      return false if title.blank?
+
+      body = workflow.artifact("pr_body")
+      expected = build_pr_commit_message(title, body).strip
+      actual = GitRunner.new.run("log", "-1", "--pretty=%B", chdir: workspace.path.to_s).strip
+      actual == expected || actual.start_with?("#{expected}\n\nCo-authored-by:")
     rescue GitRunner::GitError
       false
     end

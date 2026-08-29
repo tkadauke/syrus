@@ -620,12 +620,11 @@ module WorkEngine
         sq = solid_queue_for_run(run)
         live_process = running_spawned_process_for(run)
         terminal_process = live_process ? nil : terminal_spawned_process_for(run)
-        terminal_process_ready = terminal_process&.outcome == "orphaned"
         heartbeat_stale = run_stale?(run)
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
-        repair_ready = (heartbeat_stale && !live_process) || detached_ready || terminal_process_ready
+        repair_ready = (heartbeat_stale && !live_process) || detached_ready
         next if !repair_ready && !detached && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
         related_spawned_process_ids = spawned_process_ids_for([ run.id ], [ run.workflow_id ].compact)

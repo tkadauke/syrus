@@ -2462,7 +2462,7 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
-  it "auto-repairs a running Run whose spawned process has already been marked orphaned" do
+  it "does not auto-repair a fresh running Run only because a spawned process was marked orphaned" do
     ensure_solid_queue_test_tables!
     run.update_columns(
       state: "running",
@@ -2489,20 +2489,17 @@ RSpec.describe WorkEngine::Reconciler do
     issue = kind(result, :running_run_without_live_worker_evidence)
 
     expect(issue).to have_attributes(
-      severity: "critical",
-      safe_to_auto_repair: true,
-      recommended_repair_action: "fail_run_as_worker_died",
-      check_after: nil
+      severity: "warning",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "capture_diagnostics"
     )
     expect(issue.affected_ids.fetch(:spawned_process_ids)).to include(spawned_process.id)
     expect(issue.evidence).to include(
       "terminal_spawned_process" => spawned_process.id,
       "terminal_spawned_process_outcome" => "orphaned"
     )
-    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
-      auto_executable: true,
-      target_id: run.id
-    )
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
+    expect(run.reload).to be_running
   end
 
   it "finds terminal spawned-process evidence without expression-ordering the audit table" do
