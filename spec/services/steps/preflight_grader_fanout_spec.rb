@@ -35,6 +35,7 @@ RSpec.describe Steps::PreflightGraderFanout do
   end
 
   before do
+    workflow.update!(trigger_kind: "main_branch_repair")
     collect_step
     step
 
@@ -60,6 +61,24 @@ RSpec.describe Steps::PreflightGraderFanout do
     grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position)
     expect(grader_steps.count).to eq(2)
     expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec lint])
+  end
+
+  it "selects ci-phase graders, not landing-only graders" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec
+          run: bin/rspec
+          phases: [landing]
+        - name: rspec-ci
+          run: bin/rspec-ci
+          phases: [ci]
+    YAML
+
+    handler.call
+
+    grader_steps = workflow.steps.where(kind: "preflight_grader").order(:position)
+    expect(grader_steps.map { |s| s.details["name"] }).to eq(%w[rspec-ci])
+    expect(grader_steps.first.details["phase"]).to eq("ci")
   end
 
   it "materializes preflight_grader (not grader) steps to avoid loop collisions" do
@@ -162,7 +181,7 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     details = workflow.steps.find_by!(kind: "preflight_grader").details
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["phase"]).to eq("landing")
+    expect(details["phase"]).to eq("ci")
     expect(details).not_to have_key("fast_command")
     expect(details).not_to have_key("fast_variant")
   end

@@ -39,7 +39,7 @@ module Steps
     private
 
     def effective_plan(plan)
-      LandingGraderPlan.landing(plan)
+      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: step.iteration)
     end
 
     def materialize_grader_steps!(graders)
