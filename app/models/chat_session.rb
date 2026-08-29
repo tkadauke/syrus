@@ -60,6 +60,11 @@ class ChatSession < ApplicationRecord
   has_many :wakeups, class_name: "ChatWakeup", dependent: :destroy
   has_many :scheduled_messages, class_name: "ScheduledChatMessage", dependent: :destroy
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
+  has_many :chat_goals, dependent: :destroy
+  has_one :active_goal,
+          -> { non_terminal.order(created_at: :desc, id: :desc) },
+          class_name: "ChatGoal",
+          inverse_of: :chat_session
   has_many :bookmarks,
            -> { where(chat_messages: { deleted_at: nil }).order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
            through: :messages,

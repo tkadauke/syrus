@@ -268,6 +268,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.index ["chat_session_id"], name: "index_chat_context_checkpoints_on_chat_session_id"
   end
 
+  create_table "chat_goals", force: :cascade do |t|
+    t.string "active_slot"
+    t.string "approval_policy", default: "manual", null: false
+    t.boolean "auto_file_proposals", default: false, null: false
+    t.boolean "auto_submit_jobs", default: false, null: false
+    t.integer "chat_session_id", null: false
+    t.text "completion_condition"
+    t.datetime "created_at", null: false
+    t.integer "iteration_count", default: 0, null: false
+    t.json "mode_snapshot", null: false
+    t.text "prompt", null: false
+    t.integer "repository_id"
+    t.string "status", default: "active", null: false
+    t.datetime "terminal_at"
+    t.json "terminal_details"
+    t.string "terminal_reason"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id", "active_slot"], name: "index_chat_goals_on_chat_session_id_and_active_slot", unique: true
+    t.index ["chat_session_id", "status"], name: "index_chat_goals_on_chat_session_id_and_status"
+    t.index ["chat_session_id"], name: "index_chat_goals_on_chat_session_id"
+    t.index ["repository_id"], name: "index_chat_goals_on_repository_id"
+    t.index ["user_id", "status"], name: "index_chat_goals_on_user_id_and_status"
+    t.index ["user_id"], name: "index_chat_goals_on_user_id"
+  end
+
   create_table "chat_memories", force: :cascade do |t|
     t.string "author"
     t.float "confidence"
@@ -2777,6 +2803,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
+  add_foreign_key "chat_goals", "chat_sessions"
+  add_foreign_key "chat_goals", "repositories"
+  add_foreign_key "chat_goals", "users"
   add_foreign_key "design_doc_anchors", "design_doc_versions"
   add_foreign_key "design_doc_anchors", "design_docs"
   add_foreign_key "design_doc_collaborators", "design_docs"
