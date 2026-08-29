@@ -202,6 +202,7 @@ module WorkEngine
       issues.concat(classify_implemented_jobs_missing_pr)
       issues.concat(classify_unambiguous_job_state_drift)
       issues.concat(classify_completed_infrastructure_jobs)
+      issues.concat(classify_stuck_main_branch_repair_jobs)
       issues.concat(classify_start_blocks)
       issues.concat(classify_main_broken_workflows)
       issues.concat(classify_resource_congestion)
@@ -1856,6 +1857,36 @@ module WorkEngine
             closure_reason: closure_reason
           },
           explanation: "#{job.kind.humanize} #{job_label(job)} is complete and can be closed."
+        )
+      end
+    end
+
+    def classify_stuck_main_branch_repair_jobs
+      jobs.filter_map do |job|
+        next unless job.main_branch_repair?
+        next unless MainHealthChangedService.new(job.repository).stuck_blocking_repair_job(now: now) == job
+
+        latest_workflow = latest_workflow_for_job(job)
+        issue(
+          kind: :stuck_main_branch_repair_job,
+          severity: :critical,
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow&.id ]),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "operator_review_main_branch_repair",
+          evidence: {
+            job_state: job.state,
+            repository_id: job.repository_id,
+            repository_slug: job.repository.slug,
+            main_health: job.repository.main_health,
+            ci_health: job.repository.ci_health,
+            grader_health: job.repository.grader_health,
+            last_health_checked_sha: job.repository.last_health_checked_sha,
+            updated_at: job.updated_at&.iso8601,
+            latest_workflow_id: latest_workflow&.id,
+            latest_workflow_state: latest_workflow&.state,
+            latest_workflow_trigger_kind: latest_workflow&.trigger_kind
+          },
+          explanation: "Main remains broken for #{job.repository.slug}, but repair #{job_label(job)} is #{job.state} and has not progressed."
         )
       end
     end
