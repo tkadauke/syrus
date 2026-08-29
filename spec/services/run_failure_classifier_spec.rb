@@ -402,6 +402,30 @@ RSpec.describe RunFailureClassifier do
     expect(result.reason).to include("connection exhaustion")
   end
 
+  it "classifies a MySQL ER_RECORD_FILE_FULL table-full error as retryable database capacity" do
+    run.update!(state: "failed")
+    diagnostic(
+      "ActiveRecord::StatementInvalid",
+      "Mysql2::Error: The table 'job_logs' is full: 'ER_RECORD_FILE_FULL'"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("database_capacity")
+    expect(result.retryable).to eq(true)
+    expect(result.reason).to include("storage capacity")
+  end
+
+  it "classifies a bare 'record file full' message as retryable database capacity" do
+    run.update!(state: "failed")
+    diagnostic("ActiveRecord::StatementInvalid", "Mysql2::Error: record file full")
+
+    result = classification
+
+    expect(result.classification).to eq("database_capacity")
+    expect(result.retryable).to eq(true)
+  end
+
   it "classifies worker and agent process death" do
     run.update!(state: "failed", agent_outcome: "worker_died")
     process("orphaned")
