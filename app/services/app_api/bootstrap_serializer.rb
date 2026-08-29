@@ -55,7 +55,7 @@ module AppApi
         # Gates the walkthrough-video UI: without a key the composer offers
         # the Gemini setup sheet instead of the recorder/upload.
         gemini_configured: user.gemini_configured?,
-        notification_unread_count: user.notifications.unread.count,
+        notification_unread_count: unread_notifications_count,
         seen_tours: user.seen_tours,
         sidebar_nav_order: user.sidebar_nav_order
       }
@@ -150,12 +150,14 @@ module AppApi
     def unread_notifications_count
       return 0 unless user
 
-      if user.respond_to?(:notifications)
-        user.notifications.where(read_at: nil).count
-      elsif defined?(::Notification)
-        ::Notification.where(user: user, read_at: nil).count
-      else
-        0
+      @unread_notifications_count ||= begin
+        if user.respond_to?(:notifications)
+          user.notifications.where(read_at: nil).count
+        elsif defined?(::Notification)
+          ::Notification.where(user: user, read_at: nil).count
+        else
+          0
+        end
       end
     end
 
