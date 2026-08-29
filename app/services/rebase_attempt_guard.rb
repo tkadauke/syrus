@@ -1,12 +1,18 @@
 class RebaseAttemptGuard
   extend RebaseResultLookup
 
-  ATTEMPT_CAP = 5
-  BLOCK_REASON = "rebase cap reached; manual rebase or PR update required".freeze
+  ATTEMPT_CAP = 3
+  BLOCK_REASON = "rebase retry cooldown active; manual rebase, PR update, or cooldown expiry required".freeze
   AGENT_REBASE_STEPS = %w[ agent_rebase stack_agent_rebase ].freeze
+  MEMORY_WRITE_RETRY_STORM_THRESHOLD = 2
 
   def self.cap_reached?(job, pr: nil)
-    consecutive_failures(job, pr: pr) >= ATTEMPT_CAP
+    return false unless consecutive_failures(job, pr: pr) >= ATTEMPT_CAP
+
+    cooldown = AppSetting.rebase_failure_cooldown_minutes.minutes
+    return false unless cooldown.positive?
+
+    recent_failed_agent_workflow(job, pr: pr, since: cooldown.ago).present?
   end
 
   def self.cooling_down?(job, pr: nil)
@@ -27,6 +33,7 @@ class RebaseAttemptGuard
       next unless workflow.failed?
 
       break if pr && !matches_pr?(workflow, job, pr)
+      break unless failed_in_agent_rebase?(workflow)
 
       consecutive += 1
     end

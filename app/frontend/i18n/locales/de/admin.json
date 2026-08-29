@@ -483,7 +483,7 @@
     "proactive_rebase_commit_threshold_label": "Schwellenwert für proaktives Rebase (Commits)",
     "proactive_rebase_commit_threshold_help": "Anzahl der Commits, die ein PR hinter seinem Basisbranch liegen muss, bevor Syrus ihn proaktiv rebaset – auch wenn der GitHub-mergeable_state clean ist. Nützlich, wenn Branch-Protection nicht erfordert, dass Branches aktuell sind. Muss mindestens 1 sein.",
     "rebase_failure_cooldown_label": "Cooldown nach Rebase-Fehler (Minuten)",
-    "rebase_failure_cooldown_help": "Wie lange das automatische Merge-State-Polling wartet, bevor es denselben fehlgeschlagenen Rebase-Konflikt bei unverändertem PR-Head und unveränderter Basis erneut versucht. Vom Operator angeforderte Rebases und PR-Head-/Basisänderungen umgehen dies. 0 deaktiviert den Cooldown.",
+    "rebase_failure_cooldown_help": "Wie lange das automatische Merge-State-Polling wartet, bevor es nach wiederholten fehlgeschlagenen Agent-Rebases bei unverändertem PR-Head und unveränderter Basis erneut versucht. Vom Operator angeforderte Rebases, Ablauf des Cooldowns und PR-Head-/Basisänderungen umgehen dies. 0 deaktiviert den Cooldown.",
     "workflow_admission_control_label": "Workflow-Zulassung",
     "workflow_admission_control_help": "Wenn aktiviert, verzögert Syrus Workflow-Starts, die die vorhergesagte Worker-Kapazität überschreiten würden. Nur bei Incidents deaktivieren; Provider-Circuits, Abhängigkeiten, Landing-Pausen, archivierte Repositories und harte Worker-Erschöpfung blockieren weiterhin.",
     "workflow_admission_control_warning": "Deaktiviert: Syrus kann Worker überfüllen und den Durchsatz verschlechtern, bis dies wieder aktiviert wird.",
