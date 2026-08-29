@@ -31,12 +31,14 @@ class WorkspaceTabsPayload
 
   def tab_payload(tab)
     tab = tab.to_h.symbolize_keys
-    {
+    payload = {
       id: tab.fetch(:id).to_s,
       label: tab.fetch(:label).to_s,
       label_key: tab[:label_key].presence&.to_s,
       component: tab.fetch(:component).to_s,
       order: tab[:order].to_i
     }
+    payload[:closable] = true if ActiveModel::Type::Boolean.new.cast(tab[:closable])
+    payload
   end
 end

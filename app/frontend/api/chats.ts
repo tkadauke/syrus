@@ -519,6 +519,7 @@ export type ChatWorkspaceTab = {
   label_key: string | null
   component: string
   order: number
+  closable?: boolean
 }
 
 export type CodingFilesPayload = {

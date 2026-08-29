@@ -295,6 +295,7 @@
   "plugin_tab_unavailable": "This tab is not available.",
   "tab_chat": "Chat",
   "aria_close_preview_panel": "Close preview panel: {{title}}",
+  "aria_close_workspace_tab": "Close workspace tab: {{title}}",
   "preview_version_selector_label": "Preview version",
   "preview_version_latest": "Latest",
   "preview_version_label": "Version {{index}}",

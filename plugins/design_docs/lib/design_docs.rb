@@ -76,7 +76,24 @@ module DesignDocs
           path: "/api/v1/app/repositories/:repository_id/design_docs",
           controller: "api/v1/app/design_docs#repository_index"
         }
-      ]
+      ],
+      frontend: {
+        routes: {
+          "design_docs/DesignDocs" => "app/frontend/routes/DesignDocs.tsx"
+        },
+        repo_tabs: {
+          "design_docs/RepositoryDesignDocs" => "app/frontend/repo_tabs/RepositoryDesignDocs.tsx"
+        },
+        workspace_tabs: {
+          "design_docs/WorkspaceDesignDocs" => "app/frontend/workspaceTabs/WorkspaceDesignDocs.tsx"
+        },
+        i18n: [ "app/frontend/i18n/locales/*/design_docs.json" ]
+      },
+      provides: {
+        sidebar_page:  DesignDocs::SidebarPages,
+        repo_page_tab: DesignDocs::RepoPageTabs,
+        workspace_tab: DesignDocs::WorkspaceTabs
+      }
     )
   end
 
