@@ -905,6 +905,36 @@ module WorkEngine
         end
       end
 
+      class RelaunchStaleProviderBlockedWorkUnit < Base
+        def perform
+          unit = target_work_unit
+          return skipped("WorkUnit no longer exists") unless unit
+          return skipped("#{work_unit_label(unit)} is no longer stale-provider-blocked") unless WorkUnits::StaleProviderRelauncher.stale?(unit)
+
+          intent = unit.work_intent
+          workflow = unit.workflow
+          previous_provider = workflow&.agent_provider
+          desired_provider = WorkUnits::StaleProviderRelauncher.new(unit).desired_provider
+
+          WorkUnits::StaleProviderRelauncher.release!(unit)
+
+          if intent.definition.generic_intent_start_allowed?
+            result = WorkIntents::Scheduler.start_ready!(intent)
+            return skipped("#{work_intent_label(intent)} now waits on #{result.reason}") if result.waiting?
+            return success("relaunched #{work_intent_label(intent)} from #{previous_provider} to #{desired_provider} as #{workflow_label(result.workflow)}") unless result.already_active?
+
+            return skipped("#{work_intent_label(intent)} already has #{result.reason}")
+          end
+
+          if intent.definition.landing_lock?
+            LandingQueueProcessorJob.perform_later
+            return success("cancelled stale #{work_unit_label(unit)} for #{work_intent_label(intent)} and woke the landing queue")
+          end
+
+          success("cancelled stale #{work_unit_label(unit)} for #{work_intent_label(intent)}")
+        end
+      end
+
       class LaunchRequestedWorkIntent < Base
         def perform
           intent = target_work_intent
@@ -935,7 +965,19 @@ module WorkEngine
         end
 
         def latest_agent_provider_for(intent)
-          latest_workflow_for(intent)&.agent_provider
+          current_agent_provider_for(intent).presence || latest_workflow_for(intent)&.agent_provider
+        end
+
+        def current_agent_provider_for(intent)
+          job_for_intent(intent)&.workflow_agent_provider
+        end
+
+        def job_for_intent(intent)
+          if intent.scope_type == "job" && intent.scope_id.present?
+            Job.find_by(id: intent.scope_id)
+          else
+            latest_workflow_for(intent)&.job
+          end
         end
 
         def latest_workflow_for(intent)

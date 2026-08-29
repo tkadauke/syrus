@@ -1192,6 +1192,23 @@ module WorkEngine
         end
       end
 
+      class StaleProviderBlockedWorkUnit < Base
+        def plan
+          automatic_plan(
+            "relaunch_stale_provider_blocked_work_unit",
+            primary_work_unit,
+            "The WorkUnit is blocked on a provider that no longer matches the Job's resolved provider, so cancel the stale attempt and relaunch the persisted Intent.",
+            execution_steps: [ "Workflow#cancel!(provider_changed)", "WorkIntents::Scheduler.start_ready!" ],
+            preconditions: {
+              work_unit_state: "blocked",
+              blocked_reason: "provider_availability",
+              previous_provider: issue.evidence["previous_provider"],
+              desired_provider: issue.evidence["desired_provider"]
+            }
+          )
+        end
+      end
+
       class RequestedWorkIntentWithoutActiveUnit < Base
         def plan
           automatic_plan(

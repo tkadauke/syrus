@@ -1207,6 +1207,43 @@ RSpec.describe WorkEngine::Reconciler do
     expect(intent.reload).to have_attributes(state: "requested", wait_reason: nil, wait_details: {})
   end
 
+  it "relaunches provider-blocked WorkUnits when the Job now resolves to another provider" do
+    job.update!(agent_provider: "claude", job_provider_setting: "codex", state: "running")
+    workflow.update!(agent_provider: "claude", state: "running", started_at: 5.minutes.ago)
+    step.update!(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+    run.update!(
+      state: "succeeded",
+      agent_provider: "claude",
+      started_at: 5.minutes.ago,
+      finished_at: 4.minutes.ago
+    )
+    unit = attach_work_unit(
+      workflow,
+      state: "blocked",
+      blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON,
+      blocked_until: 1.day.from_now
+    )
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :stale_provider_blocked_work_unit)).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "relaunch_stale_provider_blocked_work_unit"
+    )
+    expect(plan(result, :relaunch_stale_provider_blocked_work_unit)).to have_attributes(
+      auto_executable: true,
+      target_type: "WorkUnit",
+      target_id: unit.id
+    )
+    expect(workflow.reload).to be_cancelled
+    expect(unit.reload).to have_attributes(state: "cancelled", preemption_reason: WorkUnits::StaleProviderRelauncher::PREEMPTION_REASON)
+    relaunched = job.workflows.order(:id).last
+    expect(relaunched).not_to eq(workflow)
+    expect(relaunched.agent_provider).to eq("codex")
+    expect(relaunched.work_unit.work_intent).to eq(unit.work_intent)
+  end
+
   it "does not recheck waiting WorkIntents while their gates still block" do
     blocker = Factories.job_record(user: job.user, repository: job.repository, state: "implemented", issue_number: 123)
     JobDependency.create!(job: job, depends_on_job: blocker, source: "manual")

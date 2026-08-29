@@ -181,6 +181,7 @@ module WorkEngine
       issues.concat(classify_workflows)
       issues.concat(classify_waiting_work_intents_with_active_units)
       issues.concat(classify_waiting_work_intents_ready_for_recheck)
+      issues.concat(classify_stale_provider_blocked_work_units)
       issues.concat(classify_dispatcher_owned_work_intents_without_active_units)
       issues.concat(classify_requested_work_intents_without_active_units)
       issues.concat(classify_active_work_units_without_workflows)
@@ -919,6 +920,28 @@ module WorkEngine
             active_work_unit_ids: active_unit_ids
           },
           explanation: "WorkIntent ##{intent.id} is still waiting for #{intent.wait_reason}, but active WorkUnits already exist for it."
+        )
+      end
+    end
+
+    def classify_stale_provider_blocked_work_units
+      work_units.select { |unit| WorkUnits::StaleProviderRelauncher.stale?(unit) }.map do |unit|
+        workflow = unit.workflow
+        desired_provider = WorkUnits::StaleProviderRelauncher.new(unit).desired_provider
+
+        issue(
+          kind: :stale_provider_blocked_work_unit,
+          severity: :warning,
+          affected_ids: ids_for(unit).merge(workflow_ids: [ workflow.id ], job_ids: [ workflow.job_id ]),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "relaunch_stale_provider_blocked_work_unit",
+          evidence: workflow_evidence(workflow).merge(
+            previous_provider: workflow.agent_provider,
+            desired_provider: desired_provider,
+            blocked_reason: unit.blocked_reason,
+            blocked_until: unit.blocked_until&.iso8601
+          ),
+          explanation: "#{unit.slug} is blocked on #{workflow.agent_provider}, but #{workflow.job.slug} now resolves to #{desired_provider}."
         )
       end
     end

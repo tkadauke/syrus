@@ -163,6 +163,35 @@ RSpec.describe WorkIntents::Scheduler do
     }.not_to change { active_intent.work_units.count }
   end
 
+  it "relaunches a provider-blocked active unit when the job now resolves to a different provider" do
+    job.update!(agent_provider: "claude", job_provider_setting: "codex", state: "running")
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: job, agent_provider: "claude", idempotency_key: "spec-provider-switch")
+    workflow.start!
+    workflow.first_step.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    workflow.first_step.runs.update_all(
+      state: "succeeded",
+      agent_provider: workflow.agent_provider,
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      updated_at: Time.current
+    )
+    workflow.work_unit.block!(reason: WorkUnits::Gates::ProviderAvailability::REASON)
+    intent = workflow.work_unit.work_intent
+
+    expect {
+      result = described_class.start_ready!(intent)
+      expect(result).to be_started
+      expect(result.workflow.agent_provider).to eq("codex")
+    }.to change { intent.work_units.count }.by(1)
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("provider_relaunch")).to include(
+      "previous_provider" => "claude",
+      "desired_provider" => "codex"
+    )
+    expect(workflow.work_unit.reload).to have_attributes(state: "cancelled", preemption_reason: WorkUnits::StaleProviderRelauncher::PREEMPTION_REASON)
+  end
+
   it "returns waiting instead of launching when intent gates block" do
     blocker = Factories.job_record(user: user, repository: repository, state: "implemented", issue_number: 99)
     JobDependency.create!(job: job, depends_on_job: blocker, source: "manual")

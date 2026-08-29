@@ -46,6 +46,7 @@ module WorkIntents
     end
 
     def start_ready!(artifacts: nil, agent_provider: nil, **options)
+      WorkUnits::StaleProviderRelauncher.release_for_intent!(intent)
       active_unit_ids = intent.work_units.where(state: TerminalUnitSync::ACTIVE_UNIT_STATES).pluck(:id)
       if active_unit_ids.any?
         return StartResult.new(
