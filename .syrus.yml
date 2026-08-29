@@ -309,11 +309,13 @@ grade:
 
   - name: website-build
     description: |
-      Builds the public Next.js website exactly like the GitHub Pages
-      deploy workflow. This rejects stale source layouts, broken static
-      export/type validation, and release-download page regressions
-      before `.github/workflows/deploy-website.yml` fails after merge.
-    run: npm --prefix website ci && npm --prefix website run sync-release && npm --prefix website run build
+      Builds the public Next.js website with committed release metadata
+      instead of refreshing it from GitHub. This rejects stale source layouts,
+      broken static export/type validation, and release-download page
+      regressions before `.github/workflows/deploy-website.yml` fails after
+      merge, without dirtying grader workspaces when newer release metadata
+      exists upstream.
+    run: npm --prefix website ci && npm --prefix website run sync-release:check && npm --prefix website run build
     phases: [landing, ci]
     failures: allow_inherited
     required: true
