@@ -46,7 +46,7 @@ module WorkEngine
         actionable_activity.each do |issue, plan, execution|
           record_issue!(issue)
           record_plan!(plan)
-          record_execution!(execution)
+          record_execution!(execution, issue: issue, plan: plan)
         end
       end
 
@@ -99,10 +99,19 @@ module WorkEngine
 
     def actionable_activity
       result.repair_executions.each_with_index.filter_map do |execution, index|
-        next if execution.status == "skipped"
+        issue = result.issues[index]
+        plan = result.repair_plans[index]
+        next if execution.status == "skipped" && !repair_attention_required?(issue, plan, execution)
 
-        [ result.issues[index], result.repair_plans[index], execution ]
+        [ issue, plan, execution ]
       end
+    end
+
+    def repair_attention_required?(issue, plan, execution)
+      return false unless issue&.safe_to_auto_repair
+      return false unless plan&.auto_executable
+
+      execution.status.in?(%w[skipped failed])
     end
 
     def record_issue!(issue)
@@ -151,18 +160,26 @@ module WorkEngine
       )
     end
 
-    def record_execution!(execution)
+    def record_execution!(execution, issue: nil, plan: nil)
       WorkEngineReconcilerActivityEvent.record!(
         event_type: "repair_executed",
         source: source,
         occurred_at: result.captured_at,
-        severity: execution.status == "failed" ? "error" : "info",
+        severity: execution_severity(execution, issue: issue, plan: plan),
+        issue_kind: issue&.kind || plan&.issue_kind,
         repair_action: execution.action,
         repair_status: execution.status,
         message: execution.message,
         **contextual_target_ids(execution),
         details: execution.as_json
       )
+    end
+
+    def execution_severity(execution, issue: nil, plan: nil)
+      return "error" if execution.status == "failed"
+      return "warn" if repair_attention_required?(issue, plan, execution)
+
+      "info"
     end
 
     def normalized_ids(ids)
