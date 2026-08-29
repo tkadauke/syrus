@@ -286,6 +286,21 @@ describe("RepositoryInsightsRoute", () => {
   })
 
   describe("independent memory save", () => {
+    it("does not show the create-job accept action for pending memory-only suggestions", async () => {
+      renderRoute([
+        makeSuggestion({
+          proposal_type: "save_memory",
+          suggested_prompt: null,
+          memory_suggestion: "Always check the logs first",
+          has_memory_suggestion: true
+        })
+      ])
+
+      expect(await screen.findByText("Frequent prepare failures")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Save as memory" })).toBeInTheDocument()
+    })
+
     it("shows Save as memory button on accepted cards with a memory suggestion", async () => {
       const accepted = makeSuggestion({
         state: "accepted",
