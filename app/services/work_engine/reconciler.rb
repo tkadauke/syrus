@@ -193,6 +193,7 @@ module WorkEngine
       issues.concat(classify_stale_auto_retry_workflows)
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
+      issues.concat(classify_landing_work_job_state_drift)
       issues.concat(classify_jobs_without_active_runtime_work)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
       issues.concat(classify_queued_jobs_cancelled_without_active_workflow)
@@ -1620,6 +1621,36 @@ module WorkEngine
       end
     end
 
+    def classify_landing_work_job_state_drift
+      jobs.filter_map do |job|
+        next if job.closed? || job.landing?
+        next unless job.running? || job.approved?
+
+        active_units = active_landing_work_units_for_job(job)
+        next if active_units.empty?
+
+        workflows = active_units.filter_map(&:workflow)
+        issue(
+          kind: :landing_work_job_state_drift,
+          severity: :critical,
+          affected_ids: ids_for(job).merge(
+            workflow_ids: workflows.map(&:id),
+            work_unit_ids: active_units.map(&:id)
+          ),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "repair_landing_work_job_state",
+          evidence: {
+            job_state: job.state,
+            work_unit_ids: active_units.map(&:id),
+            work_unit_kinds: active_units.map(&:kind).uniq,
+            workflow_ids: workflows.map(&:id),
+            workflow_trigger_kinds: workflows.map(&:trigger_kind).uniq
+          },
+          explanation: "#{job_label(job)} has active landing work but is marked #{job.state}, so it is invisible to landing lifecycle handling."
+        )
+      end
+    end
+
     def classify_queued_jobs_cancelled_by_epic_workflow_conflict
       jobs.filter_map do |job|
         next unless job.queued?
@@ -2704,6 +2735,18 @@ module WorkEngine
 
     def active_landing_work_for_job?(job)
       WorkEngine::RuntimeOwnership.active_landing_work_for_job?(job)
+    end
+
+    def active_landing_work_units_for_job(job)
+      return [] unless job
+
+      work_units.select do |unit|
+        unit.active? &&
+          WorkDefinitions.landing_work_unit_kinds.include?(unit.kind) &&
+          unit.work_unit_members.any? { |member| member.job_id == job.id } &&
+          unit.workflow&.landing_workflow? &&
+          Workflow::TriggerKind::ACTIVE_STATES.include?(unit.workflow.state)
+      end
     end
 
     def active_runtime_work_for_job?(job)

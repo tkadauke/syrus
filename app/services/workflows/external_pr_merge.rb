@@ -51,6 +51,7 @@ module Workflows
 
     def self.after_fail(workflow)
       job = workflow.job
+      LandingWorkJobState.ensure_landing!(job: job, workflow: workflow, reason: "external_pr_merge_failed") if job && !job.landing?
       return unless job&.landing?
 
       post_grader_failure_review!(workflow) if grader_failure?(workflow)

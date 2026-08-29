@@ -32,6 +32,7 @@ module Workflows
     def self.after_fail(workflow)
       job = workflow.job
       cleanup_unrepaired_workspace(workflow)
+      LandingWorkJobState.ensure_landing!(job: job, workflow: workflow, reason: "auto_merge_failed") if job && !job.landing?
       return unless job&.landing?
 
       LandingFailureHandler.call(job: job, reason: failure_reason_for(workflow), run: latest_failed_run(workflow))

@@ -548,6 +548,14 @@ class Job < ApplicationRecord
       transitions from: :approved, to: :landing
     end
 
+    # Reconciler-only repair for lifecycle-managed landing work that started
+    # while the Job still looked like ordinary active work. Landing workflows
+    # own their Job lifecycle; keeping the Job in :landing is what makes the
+    # landing queue UI, failure handling, and slot release code agree.
+    event :repair_to_landing do
+      transitions from: :running, to: :landing
+    end
+
     # Single after-callback hook on the transition. The previous
     # event-level `after: :refresh_epic_auto_state` was redundant
     # with the after_save callback and just made the wiring harder

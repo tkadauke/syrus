@@ -896,6 +896,18 @@ module WorkEngine
         end
       end
 
+      class LandingWorkJobStateDrift < Base
+        def plan
+          automatic_plan(
+            "repair_landing_work_job_state",
+            primary_job,
+            "Active landing work owns this Job, so the Job must be marked landing for queue visibility and landing failure handling.",
+            execution_steps: [ "Job#start_landing! or Job#repair_to_landing!" ],
+            preconditions: { active_landing_work: true, job_state: issue.evidence[:job_state] || issue.evidence["job_state"] }
+          )
+        end
+      end
+
       class JobWithoutActiveRuntimeWork < Base
         def plan
           operator_plan(

@@ -298,6 +298,25 @@ RSpec.describe WorkUnits::Launcher do
     expect(result.run.step).to eq(workflow.first_step)
   end
 
+  it "repairs approved single-job landing work to landing before starting" do
+    landing_job = Job.create!(
+      user: user,
+      owner_user: user,
+      repository: repository,
+      state: "implemented",
+      issue_number: nil,
+      external_pr_number: 2904,
+      kind: "external_pr"
+    )
+    landing_job.update_columns(state: "approved", approved_at: 1.minute.ago, approved_via: "operator")
+    workflow = described_class.instantiate(kind: "external_pr_merge", job: landing_job)
+
+    result = described_class.start!(workflow)
+
+    expect(result).to be_started
+    expect(landing_job.reload).to be_landing
+  end
+
   it "lets the work unit scheduler block a start before the first Run is created" do
     workflow = described_class.instantiate(kind: "manual_visual_review", job: job)
     workflow.work_unit.request_pause!

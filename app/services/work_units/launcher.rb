@@ -61,6 +61,7 @@ module WorkUnits
 
     def self.start!(workflow, **options)
       unit = workflow.work_unit
+      ensure_landing_job_state!(workflow, unit)
       if unit
         gate_result = Scheduler.evaluate!(unit)
         if gate_result.blocked?
@@ -109,6 +110,18 @@ module WorkUnits
       return StepDispatcher::START_BLOCKED_BACKOFF unless wait_until&.future?
 
       [ wait_until - Time.current, StepDispatcher::START_BLOCKED_BACKOFF.to_i ].max.seconds
+    end
+
+    def self.ensure_landing_job_state!(workflow, unit)
+      return unless workflow.landing_workflow?
+      return unless unit&.definition&.first_class?
+      return unless unit.definition.scope == "job"
+
+      LandingWorkJobState.ensure_landing!(
+        job: workflow.job,
+        workflow: workflow,
+        reason: "landing_work_start"
+      )
     end
 
     RelaunchContext = Data.define(:job, :member_jobs)

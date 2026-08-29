@@ -1197,6 +1197,30 @@ module WorkEngine
         end
       end
 
+      class RepairLandingWorkJobState < Base
+        def perform
+          job = target_job
+          return skipped("Job no longer exists") unless job
+          return skipped("Job is already landing") if job.landing?
+          return skipped("Job is #{job.state}, not repairable to landing") unless job.running? || job.approved?
+          return skipped("Job is not owned by active landing work") unless active_landing_work_for_job?(job)
+
+          workflow = target_workflow || job.workflows.where(trigger_kind: WorkDefinitions.landing_workflow_kinds, state: Workflow::TriggerKind::ACTIVE_STATES).order(created_at: :desc, id: :desc).first
+          with_transition_reason do
+            LandingWorkJobState.ensure_landing!(
+              job: job,
+              workflow: workflow,
+              reason: plan.action
+            )
+          end
+
+          return skipped("Job did not transition to landing") unless job.reload.landing?
+
+          LandingQueueProcessorJob.perform_later
+          success("repaired #{job_label(job)} to landing for active landing work")
+        end
+      end
+
       class ClearLandingStartBlockerAndWakeQueue < Base
         def perform
           job = target_job

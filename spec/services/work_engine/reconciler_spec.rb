@@ -3668,6 +3668,42 @@ RSpec.describe WorkEngine::Reconciler do
     expect(job.reload).to be_landing
   end
 
+  it "repairs a running Job that is owned by active landing work" do
+    external_job = Job.create!(
+      user: job.user,
+      owner_user: job.user,
+      repository: job.repository,
+      kind: "external_pr",
+      state: "implemented",
+      issue_number: nil,
+      external_pr_number: 2904,
+      approved_at: 5.minutes.ago,
+      approved_via: "operator"
+    )
+    external_job.update_columns(state: "running")
+    landing_workflow = Workflows::ExternalPrMerge.instantiate(job: external_job)
+    landing_workflow.update_columns(state: "running", started_at: 2.minutes.ago)
+    attach_work_unit(landing_workflow, kind: "external_pr_merge", state: "running", member_jobs: [ external_job ])
+
+    result = reconcile(job_id: external_job.id)
+    issue = kind(result, :landing_work_job_state_drift)
+
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "repair_landing_work_job_state"
+    )
+    expect(issue.evidence).to include(
+      "job_state" => "running",
+      "workflow_ids" => [ landing_workflow.id ],
+      "workflow_trigger_kinds" => [ "external_pr_merge" ]
+    )
+
+    executed = reconcile_and_execute(job_id: external_job.id)
+
+    expect(plan(executed, :repair_landing_work_job_state)).to be_present
+    expect(external_job.reload).to be_landing
+  end
+
   it "waits for landing workflows queued without a first Run while admission backoff is active" do
     landing_job = Factories.job_record(
       user: job.user,
