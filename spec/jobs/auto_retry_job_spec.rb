@@ -213,6 +213,48 @@ RSpec.describe AutoRetryJob do
     expect(RetryWorkflowEnqueuer).not_to have_received(:call)
   end
 
+  it "does not treat a newer successful rebase as superseding an active repair retry" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    workflow.update_columns(trigger_kind: "ci_failure")
+    Workflow.create!(
+      job: job,
+      trigger_kind: "rebase",
+      state: "succeeded",
+      created_at: workflow.finished_at + 1.minute,
+      started_at: workflow.finished_at + 1.minute,
+      finished_at: workflow.finished_at + 2.minutes
+    )
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+      RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
+    )
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload).to have_attributes(performed_at: be_present, skipped_reason: nil)
+    expect(RetryWorkflowEnqueuer).to have_received(:call)
+  end
+
+  it "treats newer successful validation as superseding an active repair retry" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    workflow.update_columns(trigger_kind: "ci_failure")
+    validated = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      state: "succeeded",
+      created_at: workflow.finished_at + 1.minute,
+      started_at: workflow.finished_at + 1.minute,
+      finished_at: workflow.finished_at + 2.minutes
+    )
+    validated.steps.create!(kind: "grader_collect", position: 0, state: "succeeded")
+    allow(RetryWorkflowEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded by a successful workflow")
+    expect(attempt.performed_at).to be_nil
+    expect(RetryWorkflowEnqueuer).not_to have_received(:call)
+  end
+
   it "skips pending attempts for terminal jobs" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     job.update_columns(state: "closed", closure_reason: "pr_merged")
