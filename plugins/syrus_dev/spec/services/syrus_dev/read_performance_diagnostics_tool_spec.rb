@@ -45,6 +45,7 @@ RSpec.describe SyrusDev::ReadPerformanceDiagnosticsTool do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Feature.clear_enabled_cache!("performance_logging")
     Current.reset
+    run
     PerformanceLogging::Store.clear!
   end
 
