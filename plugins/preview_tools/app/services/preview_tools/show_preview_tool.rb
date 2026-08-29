@@ -6,7 +6,11 @@ module PreviewTools
 
     tool_name "show_preview"
 
-    description "Publish a panel's scratch directory to a live preview tab in the operator's " \
+    description "Primary tool for operator-facing UI mockups, HTML prototypes, and " \
+                "preview submissions in Syrus Chat. If the user asks to create or submit " \
+                "a preview mockup, open a panel with show_preview, write index.html with " \
+                "write_preview_file, then call show_preview again with the same panel_id " \
+                "to publish. Publish a panel's scratch directory to a live preview tab in the operator's " \
                 "chat sidebar. Without panel_id, opens a new empty panel and returns its id -- " \
                 "write files into that panel's scratch directory with write_preview_file, then call " \
                 "show_preview again with the same panel_id to publish them. With panel_id, " \
