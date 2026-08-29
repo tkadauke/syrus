@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class DesignDocsController < BaseController
+        before_action :require_design_docs_enabled
+
         def index
           render json: { design_docs: scoped_design_docs.map { |design_doc| serializer.summary(design_doc) } }
         end
@@ -138,6 +140,12 @@ module Api
         end
 
         private
+
+        def require_design_docs_enabled
+          return if ::DesignDocs.enabled?
+
+          render_error("plugin_disabled", "The design_docs plugin is disabled.", status: :not_found)
+        end
 
         def scoped_design_docs
           policy_scope(DesignDoc).includes(:owner_user, :current_version, :repositories).newest_first
