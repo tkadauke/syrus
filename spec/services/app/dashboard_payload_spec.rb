@@ -596,6 +596,51 @@ RSpec.describe App::DashboardPayload do
       expect(item[:landing_queue_wait_reason]).to be_nil
     end
 
+    it "summarizes a failed landing workflow at the top of the landing queue" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "failed")
+      Step.create!(workflow: workflow, kind: "prepare", position: 0, state: "failed")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result.dig(:landing_queue, :status)).to include(
+        tone: "danger",
+        title: "Landing queue is stopped on #{job.slug}.",
+        summary: include("#{workflow.slug} failed: Prepare workspace failed")
+      )
+      expect(result.dig(:landing_queue, :status, :links)).to include(
+        { label: job.slug, path: "/jobs/#{job.id}" },
+        { label: workflow.slug, path: "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}" }
+      )
+    end
+
+    it "summarizes inconsistent active landing ownership when the workflow is already terminal" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      workflow = Workflow.create!(job: job, trigger_kind: "external_pr_merge", state: "failed")
+      backfill_work_unit(workflow, state: "running")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result.dig(:landing_queue, :status)).to include(
+        tone: "danger",
+        title: "Landing queue is wedged on #{job.slug}.",
+        summary: include("#{workflow.slug} is failed")
+      )
+    end
+
+    it "does not show a queue summary while the first landing unit has runnable work" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", state: "running")
+      backfill_work_unit(workflow, state: "running")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result.dig(:landing_queue, :status)).to be_nil
+    end
+
     it "shows required landing queue columns with neutral queue status copy" do
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
       required = result[:controls][:columns][:required]

@@ -66,7 +66,7 @@ function jobItem(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
   }
 }
 
-function buildPayload(items: DashboardJobItem[]): DashboardPayload {
+function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPayload> = {}): DashboardPayload {
   return {
     subject: "job",
     view: "list",
@@ -122,15 +122,16 @@ function buildPayload(items: DashboardJobItem[]): DashboardPayload {
       new_epic_path: "/epics/new",
       new_job_path: "/jobs/new",
       app_dashboard_path: "/api/v1/app/dashboard"
-    }
+    },
+    ...overrides
   }
 }
 
-function renderTable(items: DashboardJobItem[]) {
+function renderTable(items: DashboardJobItem[], payloadOverrides: Partial<DashboardPayload> = {}) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
-        <DashboardTable payload={buildPayload(items)} prefix="" setupStatus={null} />
+        <DashboardTable payload={buildPayload(items, payloadOverrides)} prefix="" setupStatus={null} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -200,5 +201,37 @@ describe("landing queue status column", () => {
 
     expect(screen.queryByText("Override granted")).not.toBeInTheDocument()
     expect(screen.queryByText("Override used")).not.toBeInTheDocument()
+  })
+
+  it("renders the landing queue summary when the backend reports a stuck queue", () => {
+    renderTable(
+      [ jobItem({ id: 6 }) ],
+      {
+        landing_queue: {
+          visible: true,
+          paused: false,
+          toggle_path: "",
+          entries: [],
+          status: {
+            tone: "danger",
+            title: "Landing queue is stopped on JOB-6.",
+            summary: "WF-10 failed: Prepare workspace failed. Retry the failed step after reviewing the workflow output.",
+            links: [
+              { label: "JOB-6", path: "/jobs/6" },
+              { label: "WF-10", path: "/jobs/6?tab=workflows#workflow-10" }
+            ]
+          }
+        }
+      }
+    )
+
+    expect(screen.getByRole("status")).toHaveTextContent("Landing queue is stopped on JOB-6.")
+    expect(screen.getByRole("link", { name: "WF-10" })).toHaveAttribute("href", "/jobs/6?tab=workflows#workflow-10")
+  })
+
+  it("does not render a landing queue summary when none is provided", () => {
+    renderTable([ jobItem({ id: 7 }) ])
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
   })
 })

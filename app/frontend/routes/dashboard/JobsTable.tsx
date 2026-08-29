@@ -17,7 +17,7 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { PILL_TONE_CLASSES, StatusPill, TonePill } from "../../components/StatusPill"
-import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
+import { approveDashboardJob, bulkDashboardJobs, unpauseDashboardJob, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLandingQueueStatus } from "../../api/dashboard"
 import { fetchPreview, startPreview, stopPreview, type LandingQueueBlockerJob, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
@@ -28,7 +28,7 @@ import { useConfirm } from "../../hooks/useConfirm"
 // per-job cells, and the mobile jobs list. Entry point rendered by the table
 // view. Depends only on leaf modules and shared UI imports.
 
-export function JobsDashboardTable({ items, columns, landingQueueEntries, prefix, sortState, t }: { items: DashboardJobItem[]; columns: string[]; landingQueueEntries: DashboardLandingQueueEntry[]; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string }) {
+export function JobsDashboardTable({ items, columns, landingQueueEntries, landingQueueStatus, prefix, sortState, t }: { items: DashboardJobItem[]; columns: string[]; landingQueueEntries: DashboardLandingQueueEntry[]; landingQueueStatus?: DashboardLandingQueueStatus | null; prefix: string; sortState: DashboardSortState; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedArray = useMemo(() => Array.from(selectedIds), [selectedIds])
@@ -61,6 +61,7 @@ export function JobsDashboardTable({ items, columns, landingQueueEntries, prefix
   return (
     <div className="space-y-3">
       <BulkJobActions selectedIds={selectedArray} onClear={() => setSelectedIds(new Set())} />
+      {landingQueueStatus ? <LandingQueueSummary status={landingQueueStatus} prefix={prefix} /> : null}
       <JobsTable
         allSelected={allSelected}
         columns={columns}
@@ -74,6 +75,30 @@ export function JobsDashboardTable({ items, columns, landingQueueEntries, prefix
         t={t}
       />
     </div>
+  )
+}
+
+function LandingQueueSummary({ status, prefix }: { status: DashboardLandingQueueStatus; prefix: string }) {
+  const toneClasses = status.tone === "danger"
+    ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100"
+    : status.tone === "warning"
+      ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100"
+      : "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100"
+
+  return (
+    <section className={`rounded border px-4 py-3 text-sm ${toneClasses}`} role="status">
+      <div className="font-semibold">{status.title}</div>
+      <p className="mt-1">{status.summary}</p>
+      {status.links && status.links.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {status.links.map((link) => (
+            <Link className="font-semibold underline decoration-current/40 underline-offset-2 hover:decoration-current" key={`${link.label}-${link.path}`} to={withRoutePrefix(link.path, prefix)}>
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </section>
   )
 }
 

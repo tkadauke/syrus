@@ -130,6 +130,13 @@ export type DashboardLandingQueueEntry = {
   dependency_edges: LandingQueueDependencyEdge[]
 }
 
+export type DashboardLandingQueueStatus = {
+  tone: "warning" | "danger" | "info"
+  title: string
+  summary: string
+  links?: Array<{ label: string; path: string }>
+}
+
 export type DashboardJobItem = {
   type: "job"
   id: number
@@ -385,6 +392,7 @@ export type DashboardPayload = {
     paused: boolean
     toggle_path: string
     entries?: DashboardLandingQueueEntry[]
+    status?: DashboardLandingQueueStatus | null
   }
   provider_availability?: Record<string, ProviderAvailability>
   broken_repositories?: DashboardHealthBlockedRepository[]

@@ -14,7 +14,11 @@ module App
           paused: user.landing_paused?,
           toggle_path: "/api/v1/app/dashboard/landing_pause"
         }
-        json[:entries] = landing_queue_entries_json if landing_queue_visible?
+        if landing_queue_visible?
+          json[:entries] = landing_queue_entries_json
+          status = landing_queue_status_json
+          json[:status] = status if status.present?
+        end
         json
       end
 
@@ -143,6 +147,36 @@ module App
         "Landing state drift: no active workflow"
       end
 
+      def landing_queue_status_json
+        jobs = current_landing_queue_jobs
+        return nil if jobs.empty?
+
+        front_jobs = landing_queue_front_jobs(jobs)
+        return landing_queue_paused_status(front_jobs) if user.landing_paused?
+
+        inconsistent = landing_queue_inconsistent_active_attempt(front_jobs)
+        return inconsistent if inconsistent
+
+        blocked_unit = landing_queue_blocked_work_unit(front_jobs)
+        return landing_queue_blocked_work_unit_status(blocked_unit, front_jobs) if blocked_unit
+
+        active_unit = landing_queue_active_work_unit(front_jobs)
+        return nil if active_unit&.workflow && Workflow::TriggerKind::ACTIVE_STATES.include?(active_unit.workflow.state)
+
+        failed_workflow = landing_queue_recent_failed_workflow(front_jobs)
+        return landing_queue_failed_workflow_status(failed_workflow, front_jobs) if failed_workflow
+
+        drift_job = front_jobs.find { |job| landing_state_drift_reason_for(job).present? }
+        return landing_queue_drift_status(drift_job) if drift_job
+
+        first_job = front_jobs.first
+        if first_job && landing_queue_front_entry_position(front_jobs).present? && !active_unit
+          return landing_queue_idle_status(first_job)
+        end
+
+        nil
+      end
+
       def merge_train_start_blocked_reason_for(job)
         merge_train_workflow_data_by_epic_id.dig(job.epic_id, :start_blocked_reason)
       end
@@ -242,6 +276,145 @@ module App
           job_ids = current_landing_queue_jobs.map(&:id)
           WorkUnits::Ownership.active_job_ids(job_ids)
         end
+      end
+
+      def landing_queue_front_jobs(jobs)
+        positioned = jobs.select { |job| job.landing_queue_entry_position.present? }
+        sorted = (positioned.presence || jobs).sort_by { |job| [ job.landing_queue_entry_position || Float::INFINITY, job.approved_at || job.created_at || Time.at(0), job.id ] }
+        first = sorted.first
+        return [] unless first
+
+        key = first.landing_queue_entry_key.presence || "job:#{first.id}"
+        sorted.select { |job| (job.landing_queue_entry_key.presence || "job:#{job.id}") == key }
+      end
+
+      def landing_queue_front_entry_position(jobs)
+        jobs.filter_map(&:landing_queue_entry_position).min
+      end
+
+      def landing_queue_active_work_unit(jobs)
+        landing_queue_active_work_units(jobs).find { |unit| unit.running? || unit.queued? } ||
+          landing_queue_active_work_units(jobs).first
+      end
+
+      def landing_queue_blocked_work_unit(jobs)
+        landing_queue_active_work_units(jobs).find(&:blocked?)
+      end
+
+      def landing_queue_active_work_units(jobs)
+        ids = Array(jobs).map(&:id)
+        return [] if ids.empty?
+
+        @landing_queue_active_work_units_by_job_ids ||= {}
+        cache_key = ids.sort.join(",")
+        @landing_queue_active_work_units_by_job_ids[cache_key] ||= WorkUnitMember
+          .joins(:work_unit)
+          .where(job_id: ids, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES, kind: WorkDefinitions.landing_lock_kinds })
+          .includes(work_unit: :workflow)
+          .order(WorkUnits::Ownership.active_priority_order)
+          .map(&:work_unit)
+          .uniq
+      end
+
+      def landing_queue_inconsistent_active_attempt(jobs)
+        unit = landing_queue_active_work_units(jobs).find { |candidate| candidate.workflow&.failed? || candidate.workflow&.cancelled? }
+        return unless unit&.workflow
+
+        workflow = unit.workflow
+        {
+          tone: "danger",
+          title: "Landing queue is wedged on #{landing_queue_unit_label(jobs)}.",
+          summary: "#{workflow.slug} is #{workflow.state}, but #{unit_label(unit)} is still #{unit.state}. The reconciler should clean this up; retry or cancel the landing attempt if it does not.",
+          links: landing_queue_status_links(jobs, workflow)
+        }
+      end
+
+      def landing_queue_recent_failed_workflow(jobs)
+        ids = Array(jobs).map(&:id)
+        return if ids.empty?
+
+        Workflow
+          .where(job_id: ids, trigger_kind: WorkDefinitions.landing_workflow_kinds, state: %w[ failed cancelled ])
+          .order(created_at: :desc, id: :desc)
+          .includes(:job)
+          .first
+      end
+
+      def landing_queue_paused_status(jobs)
+        {
+          tone: "warning",
+          title: "Landing queue is paused.",
+          summary: "#{landing_queue_unit_label(jobs)} is waiting because the landing queue is manually paused.",
+          links: landing_queue_status_links(jobs)
+        }
+      end
+
+      def landing_queue_blocked_work_unit_status(unit, jobs)
+        reason = display_start_blocked_reason(unit.blocked_reason.presence || "blocked")
+        summary = "#{unit_label(unit)} is blocked by #{reason}."
+        summary += " It will be checked again at #{unit.blocked_until.iso8601}." if unit.blocked_until.present?
+        {
+          tone: "warning",
+          title: "Landing queue is waiting on #{landing_queue_unit_label(jobs)}.",
+          summary: summary,
+          links: landing_queue_status_links(jobs, unit.workflow)
+        }
+      end
+
+      def landing_queue_failed_workflow_status(workflow, jobs)
+        failed_step = workflow.steps.where(state: "failed").order(:position).first
+        detail = failed_step ? "#{failed_step_label(failed_step)} failed" : "the workflow failed without a failed Step"
+
+        {
+          tone: "danger",
+          title: "Landing queue is stopped on #{landing_queue_unit_label(jobs)}.",
+          summary: "#{workflow.slug} #{workflow.state}: #{detail}. Retry the failed step or retry landing after reviewing the workflow output.",
+          links: landing_queue_status_links(jobs, workflow)
+        }
+      end
+
+      def landing_queue_drift_status(job)
+        {
+          tone: "danger",
+          title: "Landing queue state drift detected.",
+          summary: "#{job.slug} is marked landing, but no active landing workflow owns it. The reconciler should return it to the queue; retry landing if it remains stuck.",
+          links: landing_queue_status_links([ job ])
+        }
+      end
+
+      def landing_queue_idle_status(job)
+        {
+          tone: "warning",
+          title: "Landing queue is waiting to dispatch.",
+          summary: "#{job.slug} is first in line, but there is no active landing workflow yet. The landing processor or reconciler should pick it up shortly.",
+          links: landing_queue_status_links([ job ])
+        }
+      end
+
+      def landing_queue_status_links(jobs, workflow = nil)
+        primary_job = workflow&.job || jobs.first
+        links = []
+        links << { label: primary_job.slug, path: "/jobs/#{primary_job.id}" } if primary_job
+        links << { label: workflow.slug, path: "/jobs/#{workflow.job_id}?tab=workflows#workflow-#{workflow.id}" } if workflow
+        links
+      end
+
+      def landing_queue_unit_label(jobs)
+        jobs = Array(jobs)
+        return "the first landing unit" if jobs.empty?
+        return jobs.first.slug if jobs.one?
+
+        "#{jobs.first.slug} and #{jobs.size - 1} more"
+      end
+
+      def unit_label(unit)
+        "WU-#{unit.id}"
+      end
+
+      def failed_step_label(step)
+        Step::Kind.label_for(step.kind)
+      rescue ArgumentError
+        step.kind.to_s.tr("_", " ")
       end
 
       def landing_queue_epic_ids

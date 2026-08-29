@@ -877,7 +877,19 @@ export function DashboardTable({ payload, pathname = "", prefix, search = "", se
   const items = payload.items ?? []
   if (payload.simple_mode && payload.subject === "epic") return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
   if (payload.simple_mode) return <SimpleJobsTable items={items.filter((item): item is DashboardJobItem => item.type === "job")} />
-  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
+  if (payload.subject === "job") {
+    return (
+      <JobsDashboardTable
+        columns={columns}
+        items={items.filter((item): item is DashboardJobItem => item.type === "job")}
+        landingQueueEntries={payload.landing_queue.entries ?? []}
+        landingQueueStatus={payload.landing_queue.status ?? null}
+        prefix={prefix}
+        sortState={sortState}
+        t={t}
+      />
+    )
+  }
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 
   return <EpicsTable columns={epicTableColumns(columns)} items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
