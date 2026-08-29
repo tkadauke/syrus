@@ -133,6 +133,48 @@ RSpec.describe RunFailureClassifier do
     expect(classification.retryable).to eq(true)
   end
 
+  it "classifies Octokit service-unavailable diagnostics as retryable provider transients" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Octokit::ServiceUnavailable",
+      "POST https://api.github.com/repos/example/repo/merges: 503 - No server is currently available to handle this request."
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("provider_transient")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "classifies bare colon-prefixed GitHub API 5xx response text as retryable provider transients" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic(
+      "Octokit::Error",
+      "POST https://api.github.com/repos/example/repo/merges: 503 - No server is currently available to handle this request."
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("provider_transient")
+    expect(result.retryable).to eq(true)
+  end
+
+  it "does not classify Ruby backtrace line numbers in the 500s as provider transients" do
+    run.update!(state: "failed", agent_provider: "codex")
+    record = diagnostic("NoMethodError", "undefined method `call' for nil")
+    record.update!(
+      error_backtrace: [
+        "app/services/example_service.rb:503:in `call'",
+        "app/jobs/example_job.rb:17:in `perform'"
+      ].join("\n")
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("application_error")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies Codex auth/config failures from final payload text" do
     run.update!(state: "failed", agent_provider: "codex", agent_outcome: "turn_failed", agent_summary: "CODEX_API_KEY is invalid or not configured.")
 
