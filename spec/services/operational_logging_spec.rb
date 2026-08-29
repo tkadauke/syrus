@@ -128,6 +128,35 @@ RSpec.describe OperationalLogging do
     Thread.current[:syrus_current_run] = nil
   end
 
+  it "keeps notification subscription installation idempotent across repeated boot paths" do
+    prepare_search_tables
+    path = "/api/v1/app/jobs/operational-log-idempotency-spec"
+
+    described_class.uninstall_notification_subscribers!
+    begin
+      2.times { described_class.install_notification_subscribers! }
+
+      ActiveSupport::Notifications.instrument(
+        "process_action.action_controller",
+        request_id: "req-idempotent",
+        method: "GET",
+        path: path,
+        controller: "Api::V1::App::JobsController",
+        action: "show",
+        status: 200
+      ) {}
+      Observability::EventSink.flush!(kinds: [ :operational ])
+      perform_enqueued_jobs(only: IndexOperationalLogEventsJob)
+
+      events = OperationalLogEvent.where(source: "action_controller", request_id: "req-idempotent")
+      expect(events.count).to eq(1)
+      expect(events.first.message).to start_with("GET #{path} 200")
+      expect(indexed_event_ids).to eq([ events.first.id ])
+    ensure
+      described_class.install_notification_subscribers!
+    end
+  end
+
   it "captures exception message and a bounded backtrace on request and job ingestion" do
     error = begin
       raise ArgumentError, "boom detail"
@@ -290,5 +319,9 @@ RSpec.describe OperationalLogging do
         tokenize = 'porter unicode61'
       )
     SQL
+  end
+
+  def indexed_event_ids
+    SearchRecord.connection.select_values("SELECT operational_log_event_id FROM operational_log_fts ORDER BY operational_log_event_id").map(&:to_i)
   end
 end
