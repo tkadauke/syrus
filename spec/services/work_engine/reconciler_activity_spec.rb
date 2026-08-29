@@ -71,7 +71,7 @@ RSpec.describe WorkEngine::ReconcilerActivity do
     )
   end
 
-  it "does not record skipped-only repair passes as activity" do
+  it "records skipped auto-safe repairs as operator-visible attention events" do
     job = Factories.job
     result = reconciler_result(
       job: job,
@@ -79,6 +79,34 @@ RSpec.describe WorkEngine::ReconcilerActivity do
       run: job.initial_run,
       execution_status: "skipped"
     )
+
+    described_class.record_result!(
+      source: "spec",
+      execute_repairs: true,
+      result: result
+    )
+
+    expect(WorkEngineReconcilerActivityEvent.order(:id).pluck(:event_type)).to eq(
+      %w[issues_detected repair_planned repair_executed run_finished]
+    )
+    expect(WorkEngineReconcilerActivityEvent.find_by!(event_type: "repair_executed")).to have_attributes(
+      severity: "warn",
+      repair_status: "skipped",
+      message: "retry already pending"
+    )
+  end
+
+  it "does not record skipped operator-only repair passes as activity" do
+    job = Factories.job
+    result = reconciler_result(
+      job: job,
+      workflow: job.workflows.first,
+      run: job.initial_run,
+      execution_status: "skipped"
+    )
+    issue = result.issues.first.with(safe_to_auto_repair: false)
+    repair_plan = result.repair_plans.first.with(auto_executable: false)
+    result = result.with(issues: [ issue ], repair_plans: [ repair_plan ])
 
     described_class.record_result!(
       source: "spec",
