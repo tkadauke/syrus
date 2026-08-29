@@ -6,10 +6,10 @@ class WorkflowPhaseAdmissionJob < ApplicationJob
 
   discard_on ActiveRecord::RecordNotFound
 
-  def self.enqueue_once(workflow_id, step_id = nil, wait: nil, wait_until: nil, priority: nil)
+  def self.enqueue_once(workflow_id, step_id = nil, wait: nil, wait_until: nil, priority: nil, force: false)
     return false if workflow_id.blank?
 
-    if duplicate_suppressed?(workflow_id, step_id, wait: wait, wait_until: wait_until)
+    if !force && duplicate_suppressed?(workflow_id, step_id, wait: wait, wait_until: wait_until)
       return false
     end
 
