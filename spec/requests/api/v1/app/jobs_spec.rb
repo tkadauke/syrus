@@ -140,6 +140,37 @@ RSpec.describe "App API job detail", type: :request do
     expect(parse_body.dig("job", "job_provider_setting")).to eq("codex")
   end
 
+  it "repins and wakes unstarted workflows paused on the previous provider" do
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    paused_job = Factories.job_record(
+      user: user,
+      repository: repo,
+      state: "queued",
+      agent_provider: "claude",
+      job_provider_setting: "default"
+    )
+    workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: paused_job, agent_provider: "claude")
+    workflow.work_unit.block!(
+      reason: WorkUnits::Gates::ProviderAvailability::REASON,
+      blocked_until: 10.minutes.from_now,
+      details: { "provider" => "claude" }
+    )
+    allow(WorkflowPhaseAdmissionJob).to receive(:duplicate_suppressed?).and_return(true)
+    expect(WorkflowPhaseAdmissionJob.enqueue_once(workflow.id)).to be(false)
+    clear_enqueued_jobs
+
+    expect {
+      patch "/api/v1/app/jobs/#{paused_job.id}/provider_setting",
+        params: { job_provider_setting: "codex" },
+        as: :json
+    }.to have_enqueued_job(WorkflowPhaseAdmissionJob).with(workflow.id)
+
+    expect(response).to have_http_status(:ok)
+    expect(paused_job.reload.job_provider_setting).to eq("codex")
+    expect(workflow.reload.agent_provider).to eq("codex")
+    expect(workflow.steps.joins(:runs)).to be_empty
+  end
+
   it "rejects unconfigured explicit job provider settings" do
     patch "/api/v1/app/jobs/#{job.id}/provider_setting",
       params: { job_provider_setting: "codex" },
