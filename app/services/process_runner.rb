@@ -25,6 +25,7 @@ class ProcessRunner
   READ_CHUNK_BYTES = 16 * 1024
   KILL_POLL_INTERVAL_SECONDS = 1
   SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 30
+  SYNC_STDIN_BYTES = 32 * 1024
   # Live process resource samples are useful for the admin UI, but the JSON
   # update is a hot write on long-running agent/grader processes. Persist
   # sparingly while running; finalization always writes the final attribution.
@@ -369,27 +370,42 @@ class ProcessRunner
     CommandRedactor.redact(@display_command.presence || @command.compact.map(&:to_s).join(" ")).safe_byteslice(0, 4096)
   end
 
-  # Feed the child's stdin. When there is a payload, write it on a separate
-  # thread so the caller can start draining stdout immediately. A synchronous
-  # write of a large payload would deadlock: once the ~64 KiB stdin pipe buffer
-  # fills we would block writing stdin, while the child can be simultaneously
-  # blocked writing stdout that nobody is reading yet. The writer thread is
-  # joined after stream_output finishes (see #run).
+  # Feed the child's stdin. Write a bounded prefix synchronously so children
+  # with short stdin-wait windows observe input before the async writer can be
+  # delayed by host CPU/IO pressure. Payloads larger than the safe prefix still
+  # finish on a separate thread so the caller can drain stdout immediately; a
+  # fully synchronous large write could deadlock once the pipe buffer fills.
   def write_stdin(stdin)
     unless @stdin_data
       stdin.close unless stdin.closed?
       return
     end
 
-    @stdin_writer = Thread.new do
+    remaining = write_stdin_prefix(stdin)
+    if remaining.empty?
+      stdin.close unless stdin.closed?
+      return
+    end
+
+    @stdin_writer = Thread.new(remaining) do |payload|
       Thread.current.report_on_exception = false
-      stdin.write(@stdin_data)
+      Thread.current.priority = [ Thread.current.priority, 1 ].max
+      stdin.write(payload)
     rescue Errno::EPIPE, IOError
       # Child closed stdin before consuming the whole payload (e.g. it exited
       # early or read only what it needed). It already has what it read.
     ensure
       stdin.close unless stdin.closed?
     end
+  end
+
+  def write_stdin_prefix(stdin)
+    prefix = @stdin_data.byteslice(0, SYNC_STDIN_BYTES)
+    remaining = @stdin_data.byteslice(SYNC_STDIN_BYTES..) || +""
+    stdin.write(prefix)
+    remaining
+  rescue Errno::EPIPE, IOError
+    +""
   end
 
   def stream_output(output, wait_thread, silent_check)
