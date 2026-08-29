@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_143000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -439,6 +439,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
+    t.integer "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
@@ -451,6 +452,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.integer "epic_id"
     t.datetime "filed_at"
     t.integer "github_issue_number"
+    t.json "goal_prompt_snapshot"
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
     t.string "labels"
@@ -464,6 +466,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.datetime "withdrawn_at"
+    t.index ["chat_goal_id", "created_at"], name: "index_chat_proposals_on_chat_goal_id_and_created_at"
+    t.index ["chat_goal_id"], name: "index_chat_proposals_on_chat_goal_id"
     t.index ["chat_session_id", "slug"], name: "index_chat_proposals_on_chat_session_id_and_slug", unique: true
     t.index ["chat_session_id", "state"], name: "index_chat_proposals_on_chat_session_id_and_state"
     t.index ["chat_session_id"], name: "index_chat_proposals_on_chat_session_id"
@@ -884,12 +888,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
+    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.datetime "done_at"
     t.string "epic_dependency_policy", default: "linear", null: false
     t.string "github_issue_url"
+    t.json "goal_prompt_snapshot"
     t.integer "number", null: false
     t.integer "owner_id"
     t.integer "owner_user_id"
@@ -901,6 +907,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.datetime "updated_at", null: false
     t.datetime "user_approved_at"
     t.integer "user_id", null: false
+    t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
+    t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
     t.index ["number"], name: "index_epics_on_number", unique: true
     t.index ["owner_id"], name: "index_epics_on_owner_id"
@@ -1227,6 +1235,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
+    t.integer "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
@@ -1247,6 +1256,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.integer "fork_review_pr_number"
     t.boolean "github_mergeable"
     t.string "github_mergeable_state"
+    t.json "goal_prompt_snapshot"
     t.datetime "grace_period_expires_at"
     t.integer "input_source_id"
     t.json "invalidation_evidence", null: false
@@ -1323,6 +1333,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.integer "user_id", null: false
     t.string "validity", default: "valid", null: false
     t.index ["approved_by_user_id"], name: "index_jobs_on_approved_by_user_id"
+    t.index ["chat_goal_id", "created_at"], name: "index_jobs_on_chat_goal_id_and_created_at"
+    t.index ["chat_goal_id"], name: "index_jobs_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_jobs_on_claimed_at"
     t.index ["claimed_by_user_id"], name: "index_jobs_on_claimed_by_user_id"
     t.index ["closure_reason", "id"], name: "idx_jobs_spending_closure"
@@ -2806,6 +2818,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   add_foreign_key "chat_goals", "chat_sessions"
   add_foreign_key "chat_goals", "repositories"
   add_foreign_key "chat_goals", "users"
+  add_foreign_key "chat_proposals", "chat_goals"
   add_foreign_key "design_doc_anchors", "design_doc_versions"
   add_foreign_key "design_doc_anchors", "design_docs"
   add_foreign_key "design_doc_collaborators", "design_docs"
@@ -2830,4 +2843,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   add_foreign_key "design_docs", "chat_sessions", column: "origin_chat_session_id"
   add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id"
   add_foreign_key "design_docs", "users", column: "owner_user_id"
+  add_foreign_key "epics", "chat_goals"
+  add_foreign_key "jobs", "chat_goals"
 end

@@ -131,6 +131,8 @@ class ChatProposalFiler
       issue_number: nil,
       issue_title: proposal.title,
       issue_body: proposal.body,
+      chat_goal: proposal.chat_goal,
+      goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       agent_provider: target_repository.effective_agent_provider,
       state: Job.initial_state_for_creator(user)
     )
@@ -149,6 +151,8 @@ class ChatProposalFiler
       repository: proposal.effective_repository || repository,
       title: proposal.title,
       description: proposal.body,
+      chat_goal: proposal.chat_goal,
+      goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       state: "ready"
     )
   end

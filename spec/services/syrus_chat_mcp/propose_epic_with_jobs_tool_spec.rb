@@ -70,6 +70,44 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "returns active goal provenance for bundled Epic and child Job proposals" do
+    goal = ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Draft a traceable bundle"
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "traceable-bundle",
+        title: "Traceable bundle",
+        description: "Keep goal provenance.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "trace-child",
+          target_repo: repository.slug,
+          title: "Trace child",
+          description: "Keep child provenance."
+        }
+      ]
+    )
+
+    payload = response_payload(response)
+    proposal = chat_session.proposals.find_by!(slug: "traceable-bundle")
+    child = chat_session.proposals.find_by!(slug: "trace-child")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.chat_goal).to eq(goal)
+    expect(child.chat_goal).to eq(goal)
+    expect(payload[:goal_provenance]).to include(chat_goal_id: goal.id)
+    expect(payload[:child_jobs].sole[:goal_provenance]).to include(
+      chat_goal_id: goal.id,
+      prompt_snapshot: include(prompt: "Draft a traceable bundle")
+    )
+  end
+
   it "creates a grouped child Job proposal card for an existing Epic" do
     target_epic = Factories.epic(
       user: user,

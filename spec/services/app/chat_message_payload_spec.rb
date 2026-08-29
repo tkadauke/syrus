@@ -118,6 +118,29 @@ RSpec.describe App::ChatMessagePayload do
     expect(queries.grep(/FROM ["`]?chat_proposals["`]?/i)).to be_empty
   end
 
+  it "includes goal provenance on proposal cards" do
+    goal = ChatGoal.create!(
+      chat_session: chat,
+      user: user,
+      repository: repository,
+      prompt: "Surface goal provenance"
+    )
+    proposal = chat.proposals.create!(
+      slug: "surface-goal",
+      title: "Surface goal",
+      body: "Expose this.",
+      kind: "job"
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Job proposal proposed." })
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.dig(:proposal, :goal_provenance)).to include(
+      chat_goal_id: goal.id,
+      prompt_snapshot: include("prompt" => "Surface goal provenance")
+    )
+  end
+
   it "returns materialized job details for a confirmed job proposal" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Add inspection tools", state: "open")
     proposal = chat.proposals.create!(

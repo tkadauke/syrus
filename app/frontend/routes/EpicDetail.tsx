@@ -221,6 +221,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <span> · {t("jobs_count", { count: payload.epic.jobs_count })}</span>
           <span> · {epicOwnerLabel(payload.epic, t)}</span>
           <span> · {t("updated_relative", { time: formatRelativeDate(new Date(payload.epic.updated_at)) })}</span>
+          {payload.epic.goal_provenance ? <span title={payload.epic.goal_provenance.prompt_snapshot.prompt || undefined}> · Goal #{payload.epic.goal_provenance.chat_goal_id}</span> : null}
           {payload.origin_chat ? (
             <span> · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
               <ChatBubbleIcon />
