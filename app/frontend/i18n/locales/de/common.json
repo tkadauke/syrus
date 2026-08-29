@@ -340,7 +340,7 @@
     "waiting_github_mergeability_noop": "Warte auf GitHub-Mergebarkeit nach No-Op-Rebase",
     "landing_start_blocked_retrying": "Landing-Wiederholung geplant",
     "urgent_job_active": "Dringender Job aktiv",
-    "rebase_cap_reached": "Rebase-Limit erreicht; manueller Rebase oder PR-Update erforderlich",
+    "rebase_cap_reached": "Rebase-Wiederholungs-Cooldown aktiv; manueller Rebase, PR-Update oder Ablauf des Cooldowns erforderlich",
     "ci_failure_in_progress": "CI-Fehler-Workflow läuft auf {{slug}}",
     "ci_repair_no_effective_change": "CI-Reparatur hat keine wirksame Änderung vorgenommen und Prüfungen schlagen weiterhin fehl auf {{slug}}",
     "pr_checks_failing": "PR-Prüfungen schlagen fehl auf {{slug}}",
