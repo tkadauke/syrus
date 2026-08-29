@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type KeyboardEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem } from "../api/chats"
 import { fetchChatJobStatus } from "../api/chats"
@@ -35,15 +35,26 @@ function BlockerBanner({ blocker }: { blocker: ChatJobStatusBlocker }) {
   )
 }
 
+function activateOnEnterOrSpace(event: KeyboardEvent<HTMLDivElement>, callback: () => void) {
+  if (event.target !== event.currentTarget) return
+
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault()
+    callback()
+  }
+}
+
 function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: () => void }) {
   const { t } = useT("chat")
   const workflowStep = job.active_workflow?.step || job.workflow_step
 
   return (
-    <button
+    <div
       className={`w-full cursor-pointer border-l-4 bg-white px-3 py-2.5 text-left transition hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800 ${jobBorderClass(job)}`}
       onClick={onClick}
-      type="button"
+      onKeyDown={(event) => activateOnEnterOrSpace(event, onClick)}
+      role="button"
+      tabIndex={0}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -77,7 +88,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
         </div>
         <StatusPill state={job.active_workflow?.state || job.state} />
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -95,11 +106,13 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
 
   return (
     <div className="rounded border border-gray-200 dark:border-gray-700">
-      <button
+      <div
         aria-label={ariaLabel}
         className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
         onClick={() => setExpanded(!expanded)}
-        type="button"
+        onKeyDown={(event) => activateOnEnterOrSpace(event, () => setExpanded((value) => !value))}
+        role="button"
+        tabIndex={0}
       >
         <div className="flex min-w-0 items-center gap-2">
           <span onClick={(e) => e.stopPropagation()}>
@@ -126,7 +139,7 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </div>
-      </button>
+      </div>
       {expanded && visibleChildren.length > 0 ? (
         <div className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
           {visibleChildren.map((job) => (
