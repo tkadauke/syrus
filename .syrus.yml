@@ -179,7 +179,10 @@ grade:
     run: bin/check-plugin-model-namespaces
     phases: [review, landing, ci]
     required: true
-    timeout_minutes: 1
+    # Boots Rails before checking plugin-owned model classes. Under
+    # shared-worker IO pressure, the app boot can exceed the tight
+    # 1-minute budget even when the checker itself has no findings.
+    timeout_minutes: 3
 
   - name: eager-load
     description: |
