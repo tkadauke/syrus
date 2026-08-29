@@ -108,7 +108,7 @@ export function AdminProcessDetail() {
   return (
     <main aria-label={t("processes.aria_detail")} className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
+        <Link className="text-sm text-brand underline hover:no-underline" to={basePath}>{t("processes.heading")}</Link>
         <PageHeading className="mt-2">{t("processes.detail_heading")}{id ? ` #${id}` : ""}</PageHeading>
       </header>
 
@@ -163,7 +163,7 @@ function ProcessesTable({ processes, basePath, prefix }: { processes: SpawnedPro
               <td className="px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDuration(process.duration_s)}</td>
               <td className="px-3 py-2 align-top text-xs"><Outcome process={process} /></td>
               <td className="space-x-3 whitespace-nowrap px-3 py-2 text-right align-top text-xs">
-                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
+                <Link className="text-brand underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
                 <KillButton process={process} />
               </td>
             </tr>
@@ -219,7 +219,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         {process.run_id ? (
           <>
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_run")}</dt>
-            <dd><Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>#{process.run_id}</Link></dd>
+            <dd><Link className="text-brand underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>#{process.run_id}</Link></dd>
           </>
         ) : null}
         {process.workflow_id ? (
@@ -227,7 +227,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
             <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_workflow")}</dt>
             <dd>
               {process.workflow_path ? (
-                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(process.workflow_path, prefix)}>
+                <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(process.workflow_path, prefix)}>
                   {process.workflow_slug || workflowSlug(process.workflow_id)}
                 </Link>
               ) : process.workflow_slug || workflowSlug(process.workflow_id)}
@@ -295,7 +295,7 @@ function OwnerLabel({ owner, prefix }: { owner: SpawnedProcessOwner | null; pref
   if (!owner.path) return <span>{owner.label}</span>
 
   return (
-    <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(owner.path, prefix)}>
+    <Link className="text-brand underline hover:no-underline" to={withRoutePrefix(owner.path, prefix)}>
       {owner.label}
     </Link>
   )
