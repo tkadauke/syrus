@@ -1145,6 +1145,55 @@ RSpec.describe StepDispatcher do
       expect(retry_workflow.steps.find_by(kind: "landing_fix")).to be_nil
     end
 
+    it "exits a ci_failure retry_until loop after a repeated no-op main-branch diagnosis" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps Workflows::RetryUntil.new(
+                max_iterations: 3,
+                repair: [ :analyze_and_fix ],
+                check: [ :grader_fanout, :grader_collect ]
+              ),
+              :summarize_amend,
+              :push
+
+        def self.trigger_kind = "ci_failure"
+      end
+      retry_workflow = workflow_class.instantiate(job: job)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      described_class.fail_from(first_collect)
+      second_analyze = retry_workflow.steps.find_by!(kind: "analyze_and_fix", iteration: 2)
+      second_fanout = retry_workflow.steps.find_by!(kind: "grader_fanout", iteration: 2)
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      summarize = retry_workflow.steps.find_by!(kind: "summarize_amend")
+      second_run = second_analyze.runs.last
+      second_run.update!(state: "succeeded", step_agent_diff: "", agent_diff: "diff --git a/fix.rb b/fix.rb\n+ok")
+      second_analyze.update_columns(state: "succeeded")
+      retry_workflow.set_artifact!(
+        CiRepair::NonActionableDiagnosis::ARTIFACT_KEY,
+        {
+          "outcome" => CiRepair::NonActionableDiagnosis::OUTCOME,
+          "run_id" => second_run.id,
+          "step_id" => second_analyze.id,
+          "iteration" => 2,
+          "observed_sha" => "base123",
+          "failing_tests" => [ "rspec-ci" ],
+          "reason" => "same failure on origin/main"
+        }
+      )
+
+      expect {
+        described_class.advance_from(second_analyze)
+      }.to change { summarize.reload.runs.count }.by(1)
+
+      expect(second_fanout.reload).to be_skipped
+      expect(second_collect.reload).to be_skipped
+      expect(second_fanout.details).to include("skip_reason" => "blocked_by_main")
+      expect(retry_workflow.reload.artifact(CiRepair::NonActionableDiagnosis::ARTIFACT_KEY)).to include(
+        "outcome" => "blocked_by_main",
+        "skipped_check_step_ids" => contain_exactly(second_fanout.id, second_collect.id)
+      )
+      expect(summarize.runs.last.iteration).to eq(1)
+    end
+
     it "expands the merge_train_land failure branch when base moved" do
       try_workflow = workflow_with_try_merge_train_land_branch
       land = try_workflow.steps.find_by!(kind: "merge_train_land")
