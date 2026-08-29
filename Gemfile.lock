@@ -23,6 +23,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/design_docs
+  specs:
+    design_docs (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/discord
   specs:
     discord (0.1.0)
@@ -679,6 +685,7 @@ DEPENDENCIES
   codex_agent!
   commonmarker
   debug
+  design_docs!
   discord!
   django!
   docx
@@ -791,6 +798,7 @@ CHECKSUMS
   crass (1.0.7) sha256=94868719948664c89ddcaf0a37c65048413dfcb1c869470a5f7a7ceb5390b295
   date (3.5.1) sha256=750d06384d7b9c15d562c76291407d89e368dda4d4fff957eb94962d325a0dc0
   debug (1.11.1) sha256=2e0b0ac6119f2207a6f8ac7d4a73ca8eb4e440f64da0a3136c30343146e952b6
+  design_docs (0.1.0)
   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
   discord (0.1.0)
   django (0.1.0)

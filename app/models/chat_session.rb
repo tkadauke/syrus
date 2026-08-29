@@ -74,6 +74,7 @@ class ChatSession < ApplicationRecord
           class_name: "ProviderSession"
   has_one :whiteboard, dependent: :destroy
   has_many :preview_panels, dependent: :destroy
+  has_many :originated_design_docs, class_name: "DesignDoc", foreign_key: :origin_chat_session_id, dependent: :nullify, inverse_of: :origin_chat_session
   has_one :linked_job, class_name: "Job", foreign_key: :linked_chat_id, inverse_of: :linked_chat, dependent: :nullify
   has_one :local_daemon_session, dependent: :destroy
 
