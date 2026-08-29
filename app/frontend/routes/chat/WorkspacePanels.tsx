@@ -1,13 +1,13 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVisibility, type ChatRenderItem, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { chatPreviewPanelFileUrl, closeChatPreviewPanel, createWhiteboardSnapshot, fetchChatMedia, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatPreviewPanelVisibility, switchChatProvider, type ChatMode, type ChatPayload, type ChatPreviewPanel, type ChatPreviewPanelVersion, type ChatPreviewPanelVisibility, type ChatRenderItem, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Select } from "../../components/Select"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
@@ -33,6 +33,7 @@ import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
 import { availableWorkspaceTabs, defaultWorkspaceTab, isPluginTab, isPreviewTab, pluginTabIdFromTab, previewTabId, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { diffGutterClass, diffMarkerClass, parseUnifiedDiff } from "../jobDetail/diffRendering"
+import { Markdown } from "../../lib/Markdown"
 
 
 
@@ -259,6 +260,10 @@ function previewExportUrl(panel: ChatPreviewPanel, versionId: number | null) {
   return `${panel.app_export_path}?${new URLSearchParams({ v: String(versionId) }).toString()}`
 }
 
+function selectedPreviewVersion(panel: ChatPreviewPanel, selectedVersionId: number | null): ChatPreviewPanelVersion | null {
+  return panel.versions.find((version) => version.id === selectedVersionId) ?? panel.versions[0] ?? null
+}
+
 // Toolbar dropdown pattern (button + absolutely positioned listbox), same
 // shape as ChatModeSelector/ChatModelSelector/ChatEffortSelector in
 // Compose.tsx, opening downward since this toolbar sits above its panel
@@ -480,12 +485,12 @@ function PreviewShareControl({
 // "I can already open this chat" across that origin boundary. Fetched once
 // per mount/panel id; no silent background refresh (see preview_panels.md) —
 // on expiry the panel just stops resolving until the chat is reloaded.
-function usePreviewPanelAccessToken(panel: ChatPreviewPanel) {
+function usePreviewPanelAccessToken(panel: ChatPreviewPanel, enabled = true) {
   const isPrivate = panel.visibility !== "public"
   return useQuery({
     queryKey: ["preview_panel_access_token", panel.id],
     queryFn: () => fetchChatPreviewPanelAccessToken(panel.app_token_path),
-    enabled: isPrivate,
+    enabled: isPrivate && enabled,
     staleTime: Infinity,
     retry: false
   })
@@ -515,13 +520,19 @@ function PreviewPanelFrame({
     }
   }, [panel.current_version_id])
 
+  const selectedVersion = selectedPreviewVersion(panel, selectedVersionId)
+  const entryPath = selectedVersion?.entry_path ?? panel.entry_path
+  const viewerKind = selectedVersion?.entry_viewer_kind ?? panel.entry_viewer_kind
+  const rawEntryUrl = chatPreviewPanelFileUrl(panel.app_file_base_path, entryPath, selectedVersionId, true)
+  const htmlViewer = viewerKind === "html"
   const isPrivate = panel.visibility !== "public"
-  const accessToken = usePreviewPanelAccessToken(panel)
+  const accessToken = usePreviewPanelAccessToken(panel, htmlViewer)
   const token = isPrivate ? accessToken.data?.token ?? null : null
-  const canRenderFrame = !isPrivate || !!token
+  const canRenderPreview = !htmlViewer || !isPrivate || !!token
 
   const versionedUrl = previewVersionUrl(panel, selectedVersionId, token)
   const exportUrl = previewExportUrl(panel, selectedVersionId)
+  const openUrl = htmlViewer ? versionedUrl : rawEntryUrl
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -537,11 +548,11 @@ function PreviewPanelFrame({
           >
             <DownloadIcon className="h-3.5 w-3.5" />
           </a>
-          {canRenderFrame ? (
+          {canRenderPreview ? (
             <a
               aria-label={t("preview_open_new_tab_aria", { title: panel.title })}
               className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-              href={versionedUrl}
+              href={openUrl}
               rel="noopener noreferrer"
               target="_blank"
               title={t("preview_open_new_tab")}
@@ -560,19 +571,163 @@ function PreviewPanelFrame({
           )}
         </div>
       </div>
-      {canRenderFrame ? (
-        <iframe
-          className="h-full w-full min-h-0 flex-1 border-0"
-          referrerPolicy="no-referrer"
-          sandbox="allow-scripts"
-          src={versionedUrl}
-          title={panel.title}
-        />
+      {canRenderPreview ? (
+        htmlViewer ? (
+          <iframe
+            className="h-full w-full min-h-0 flex-1 border-0"
+            referrerPolicy="no-referrer"
+            sandbox="allow-scripts"
+            src={versionedUrl}
+            title={panel.title}
+          />
+        ) : (
+          <PreviewPanelNativeViewer
+            entryPath={entryPath}
+            panel={panel}
+            rawEntryUrl={rawEntryUrl}
+            selectedVersionId={selectedVersionId}
+            viewerKind={viewerKind}
+          />
+        )
       ) : accessToken.isError ? (
         <PanelMessage tone="error">{t("preview_access_denied")}</PanelMessage>
       ) : (
         <PanelMessage>{t("preview_access_pending")}</PanelMessage>
       )}
+    </div>
+  )
+}
+
+function PreviewPanelNativeViewer({
+  panel,
+  selectedVersionId,
+  entryPath,
+  viewerKind,
+  rawEntryUrl
+}: {
+  panel: ChatPreviewPanel
+  selectedVersionId: number | null
+  entryPath: string
+  viewerKind: string
+  rawEntryUrl: string
+}) {
+  const { t } = useT("chat")
+  const textQuery = useQuery({
+    queryKey: ["preview_panel_file", panel.id, selectedVersionId, entryPath],
+    queryFn: () => fetchChatPreviewPanelFile(panel.app_file_base_path, entryPath, selectedVersionId),
+    enabled: viewerKind === "markdown" || viewerKind === "unsupported",
+    staleTime: Infinity,
+    retry: false
+  })
+
+  if (viewerKind === "markdown") {
+    return <MarkdownPreviewPanel entryPath={entryPath} query={textQuery} rawEntryUrl={rawEntryUrl} />
+  }
+
+  if (viewerKind === "pdf") {
+    return <iframe className="h-full w-full min-h-0 flex-1 border-0 bg-white dark:bg-gray-950" src={rawEntryUrl} title={entryPath} />
+  }
+
+  if (viewerKind === "image") {
+    return <ImagePreviewPanel entryPath={entryPath} rawEntryUrl={rawEntryUrl} />
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="border-b border-gray-200 px-3 py-2 font-mono text-xs text-gray-600 dark:border-gray-700 dark:text-gray-300">{entryPath}</div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        {textQuery.isPending ? (
+          <PanelMessage>{t("preview_source_loading")}</PanelMessage>
+        ) : textQuery.isError ? (
+          <PanelMessage tone="error">{errorMessage(textQuery.error, t("preview_source_error"))}</PanelMessage>
+        ) : textQuery.data?.binary ? (
+          <PanelMessage>{t("preview_unsupported_binary")}</PanelMessage>
+        ) : (
+          <CodingSourceViewer content={textQuery.data?.content ?? ""} path={entryPath} />
+        )}
+      </div>
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-3 py-2 dark:border-gray-700">
+        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
+      </div>
+    </div>
+  )
+}
+
+function MarkdownPreviewPanel({ entryPath, query, rawEntryUrl }: { entryPath: string; query: UseQueryResult<Awaited<ReturnType<typeof fetchChatPreviewPanelFile>>>; rawEntryUrl: string }) {
+  const { t } = useT("chat")
+  const [mode, setMode] = useState<"preview" | "source">("preview")
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 dark:text-gray-300">{entryPath}</span>
+        <div className="flex rounded border border-gray-200 p-0.5 text-xs dark:border-gray-700">
+          <button className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("preview")} type="button">{t("preview_mode_preview")}</button>
+          <button className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("source")} type="button">{t("preview_mode_source")}</button>
+        </div>
+        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        {query.isPending ? (
+          <PanelMessage>{t("preview_source_loading")}</PanelMessage>
+        ) : query.isError ? (
+          <PanelMessage tone="error">{errorMessage(query.error, t("preview_source_error"))}</PanelMessage>
+        ) : mode === "preview" ? (
+          <div className="mx-auto max-w-4xl px-5 py-4">
+            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={query.data?.content ?? ""} />
+          </div>
+        ) : (
+          <CodingSourceViewer content={query.data?.content ?? ""} path={entryPath} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+const imageBackgroundClasses = {
+  checkerboard: "bg-[linear-gradient(45deg,#d1d5db_25%,transparent_25%),linear-gradient(-45deg,#d1d5db_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#d1d5db_75%),linear-gradient(-45deg,transparent_75%,#d1d5db_75%)] bg-[length:20px_20px] bg-[position:0_0,0_10px,10px_-10px,-10px_0] bg-white dark:bg-gray-950",
+  white: "bg-white",
+  dark: "bg-gray-950",
+  neutral: "bg-amber-50 dark:bg-amber-100"
+}
+
+function ImagePreviewPanel({ entryPath, rawEntryUrl }: { entryPath: string; rawEntryUrl: string }) {
+  const { t } = useT("chat")
+  const [zoom, setZoom] = useState(1)
+  const [fit, setFit] = useState(true)
+  const [background, setBackground] = useState<keyof typeof imageBackgroundClasses>("checkerboard")
+
+  function zoomBy(delta: number) {
+    setFit(false)
+    setZoom((current) => Math.min(4, Math.max(0.25, Number((current + delta).toFixed(2)))))
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-gray-600 dark:text-gray-300">{entryPath}</span>
+        <button className={secondaryButton()} onClick={() => setFit(true)} type="button">{t("preview_image_fit")}</button>
+        <button aria-label={t("preview_image_zoom_out")} className={secondaryButton()} onClick={() => zoomBy(-0.25)} type="button">-</button>
+        <button aria-label={t("preview_image_zoom_in")} className={secondaryButton()} onClick={() => zoomBy(0.25)} type="button">+</button>
+        <button className={secondaryButton()} onClick={() => { setFit(false); setZoom(1) }} type="button">{t("preview_image_actual")}</button>
+        <select aria-label={t("preview_image_background")} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" value={background} onChange={(event) => setBackground(event.target.value as keyof typeof imageBackgroundClasses)}>
+          <option value="checkerboard">{t("preview_image_background_checkerboard")}</option>
+          <option value="white">{t("preview_image_background_white")}</option>
+          <option value="dark">{t("preview_image_background_dark")}</option>
+          <option value="neutral">{t("preview_image_background_neutral")}</option>
+        </select>
+        <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
+      </div>
+      <div className={`min-h-0 flex-1 overflow-auto ${imageBackgroundClasses[background]}`}>
+        <div className="flex min-h-full items-center justify-center p-4">
+          <img
+            alt={entryPath}
+            className={fit ? "max-h-full max-w-full object-contain" : "max-w-none"}
+            src={rawEntryUrl}
+            style={fit ? undefined : { width: `${zoom * 100}%` }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

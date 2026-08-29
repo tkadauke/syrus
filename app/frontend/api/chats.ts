@@ -535,9 +535,13 @@ export type ChatWalkthroughMedia = {
 export type ChatPreviewPanelVersion = {
   id: number
   created_at: string
+  entry_path: string
+  entry_content_type: string
+  entry_viewer_kind: ChatPreviewPanelViewerKind
 }
 
 export type ChatPreviewPanelVisibility = "private" | "public"
+export type ChatPreviewPanelViewerKind = "html" | "markdown" | "pdf" | "image" | "unsupported"
 
 export type ChatPreviewPanel = {
   id: number
@@ -548,9 +552,20 @@ export type ChatPreviewPanel = {
   app_close_path: string
   app_visibility_path: string
   app_export_path: string
+  app_file_base_path: string
   app_token_path: string
   current_version_id: number | null
+  entry_path: string
+  entry_content_type: string
+  entry_viewer_kind: ChatPreviewPanelViewerKind
   versions: ChatPreviewPanelVersion[]
+}
+
+export type ChatPreviewPanelFileContent = {
+  content: string | null
+  binary: boolean
+  too_large: boolean
+  content_type: string
 }
 
 export type ChatPreviewPanelAccessToken = {
@@ -1085,6 +1100,19 @@ export function updateChatPreviewPanelVisibility(path: string, visibility: ChatP
 
 export function fetchChatPreviewPanelAccessToken(path: string) {
   return postJson<ChatPreviewPanelAccessToken>(path)
+}
+
+export function chatPreviewPanelFileUrl(basePath: string, filePath: string, versionId?: number | null, raw = false) {
+  const encodedPath = filePath.split("/").map((part) => encodeURIComponent(part)).join("/")
+  const params = new URLSearchParams()
+  if (versionId) params.set("v", String(versionId))
+  if (raw) params.set("raw", "1")
+  const query = params.toString()
+  return `${basePath}/${encodedPath}${query ? `?${query}` : ""}`
+}
+
+export function fetchChatPreviewPanelFile(basePath: string, filePath: string, versionId?: number | null) {
+  return getJson<ChatPreviewPanelFileContent>(chatPreviewPanelFileUrl(basePath, filePath, versionId))
 }
 
 // `start: true` asks the server to also move a materialized Epic to
