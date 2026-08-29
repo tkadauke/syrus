@@ -194,6 +194,19 @@ RSpec.describe RunFailureClassifier do
     expect(result.retryable).to eq(true)
   end
 
+  it "classifies agent wait misconceptions as retryable" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::AgentGaveUpWaiting",
+      "agent ended with no repository diff after expecting a background command or ScheduleWakeup to continue this Step Run"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("agent_gave_up_waiting")
+    expect(result.retryable).to eq(true)
+  end
+
   it "classifies an Errno::E2BIG argv-too-long agent failure as agent_invocation_too_large" do
     run.update!(state: "failed", agent_provider: "claude")
     diagnostic("Errno::E2BIG", "Argument list too long - claude")

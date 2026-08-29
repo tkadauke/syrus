@@ -30,6 +30,7 @@ class AutoRetryFailureClassifier
     Faraday::ConnectionFailed
     Octokit::TooManyRequests
     Octokit::ServerError
+    Steps::Base::AgentGaveUpWaiting
   ].freeze
 
   NON_RETRYABLE_MESSAGE_PATTERNS = [

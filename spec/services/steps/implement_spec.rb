@@ -54,6 +54,39 @@ RSpec.describe Steps::Implement do
       expect(run.reload.prompt).not_to include("quality graders flagged issues")
     end
 
+    it "raises a distinct retryable failure when a no-diff agent waited on background work" do
+      allow(handler).to receive(:diff_against_default).and_return("")
+      allow(handler).to receive(:run_agent) do
+        run.create_provider_session!(
+          provider: run.agent_provider,
+          session_id: "background-wait",
+          transcript_jsonl: [
+            {
+              "type" => "assistant",
+              "message" => {
+                "content" => [
+                  { "type" => "tool_use", "name" => "Bash", "id" => "u1", "input" => { "command" => "bin/rspec-fast &" } }
+                ]
+              }
+            }.to_json,
+            {
+              "type" => "assistant",
+              "message" => {
+                "content" => [
+                  { "type" => "text", "text" => "I'll wait for the completion notification." }
+                ]
+              }
+            }.to_json
+          ].join("\n")
+        )
+      end
+
+      expect { handler.call }.to raise_error(
+        Steps::Base::AgentGaveUpWaiting,
+        /background command or ScheduleWakeup/
+      )
+    end
+
     it "records an empty initial issue comment artifact when the issue has no comments" do
       handler.call
 

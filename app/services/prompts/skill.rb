@@ -16,7 +16,7 @@ module Prompts
     end
 
     def to_s
-      [ instructions, epic_context, memory_context, GitSafety::TEXT, phased_execution_note ].compact_blank.join("\n\n")
+      [ instructions, epic_context, memory_context, GitSafety::TEXT, ShellCommandExecutionContract::TEXT, phased_execution_note ].compact_blank.join("\n\n")
     end
 
     private
