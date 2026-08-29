@@ -25,7 +25,9 @@ module App
           collaborator_ids: design_doc.collaborator_users.map(&:id),
           collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
           pending_suggestions_count: design_doc.suggestions.where(state: "pending").count,
-          open_threads_count: design_doc.threads.where(state: "open").count
+          open_threads_count: design_doc.threads.where(state: "open").count,
+          threads: design_doc.threads.includes(:anchor, comments: :author_user).order(:created_at, :id).map { |thread| self.thread(thread) },
+          suggestions: design_doc.suggestions.includes(:anchor, :suggested_by_user, :reviewed_by_user).order(created_at: :desc, id: :desc).map { |suggestion| self.suggestion(suggestion) }
         )
       end
 

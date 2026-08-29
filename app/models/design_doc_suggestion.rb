@@ -1,7 +1,7 @@
 class DesignDocSuggestion < ApplicationRecord
   STATES = %w[pending accepted rejected stale conflict].freeze
   SUGGESTER_KINDS = %w[user agent system].freeze
-  CHANGE_TYPES = %w[replace delete insert].freeze
+  CHANGE_TYPES = %w[replace].freeze
 
   belongs_to :design_doc
   belongs_to :anchor, class_name: "DesignDocAnchor", foreign_key: :design_doc_anchor_id
