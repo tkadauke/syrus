@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute, chatQueryKey } from "./Chat"
-import { CHAT_WORKSPACE_SPLIT_MIN_WIDTH } from "./chat/constants"
+import { CHAT_WORKSPACE_DEFAULT_WIDTH, CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
@@ -3613,6 +3613,40 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
   })
 
+  it.each([
+    ["minimum workspace panel", CHAT_WORKSPACE_MIN_WIDTH, 1920],
+    ["default workspace panel", CHAT_WORKSPACE_DEFAULT_WIDTH, 1920],
+    ["narrow desktop split with maximum workspace panel", CHAT_WORKSPACE_MAX_WIDTH, CHAT_WORKSPACE_SPLIT_MIN_WIDTH]
+  ])("keeps the floating composer within ChatColumn bounds when the %s is open", async (_label, workspaceWidth, viewportWidth) => {
+    window.localStorage.setItem(CHAT_WORKSPACE_WIDTH_KEY, String(workspaceWidth))
+    mockViewportWidth(viewportWidth)
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const messageStream = await screen.findByTestId("chat-message-stream")
+    const panel = await screen.findByRole("complementary", { name: "Chat workspace" })
+    const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+    const chatColumn = messageStream.closest("section") as HTMLElement
+    const splitGrid = chatColumn.parentElement as HTMLElement
+
+    expect(chatColumn).not.toBeNull()
+    expect(splitGrid).not.toBeNull()
+    expect(splitGrid.style.gridTemplateColumns).toContain(`minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`)
+    expect(chatColumn).not.toContainElement(panel)
+
+    expect(composeForm.className).toContain("absolute")
+    expect(chatColumn.className).toContain("relative")
+    expect(chatColumn.className).toContain("sm:px-8")
+    expect(composeForm.className).toContain("sm:inset-x-0")
+    expect(composeForm.className).not.toMatch(/(?:^|\s)(?:fixed|w-screen|w-full|right-0)(?:\s|$)/)
+
+    const expectedChatColumnRight = viewportWidth - 8 - workspaceWidth
+    const composerRight = desktopComposerRightEdge(composeForm, chatColumn, viewportWidth, workspaceWidth)
+
+    expect(composerRight).toBeLessThanOrEqual(expectedChatColumnRight)
+    expect(composerRight).toBeLessThan(viewportWidth)
+  })
+
   // Regression coverage for the banner-painted-under-the-pill bug: the
   // banner used to be a plain in-flow sibling of the (absolutely
   // positioned) composer, so the composer's own box didn't push it up and
@@ -3637,6 +3671,15 @@ describe("floating composer positioning", () => {
     expect(composerBox.className).toContain("absolute")
   })
 })
+
+function desktopComposerRightEdge(composer: HTMLElement, chatColumn: HTMLElement, viewportWidth: number, workspaceWidth: number) {
+  if (composer.className.match(/(?:^|\s)(?:fixed|w-screen)(?:\s|$)/)) return viewportWidth
+  if (composer.className.match(/(?:^|\s)w-full(?:\s|$)/)) return viewportWidth
+  if (!chatColumn.className.match(/(?:^|\s)relative(?:\s|$)/)) return viewportWidth
+  if (!composer.className.includes("sm:inset-x-0")) return viewportWidth
+
+  return viewportWidth - 8 - workspaceWidth
+}
 
 // jsdom has no ResizeObserver (Compose already no-ops when it's undefined,
 // same guard pattern as Terminal.tsx), so these tests install a synchronous
