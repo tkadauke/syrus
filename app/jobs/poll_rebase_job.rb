@@ -3,13 +3,10 @@ class PollRebaseJob < ApplicationJob
 
   queue_as :polling
 
-  # Cap how many consecutive failed rebase attempts we make per Job
-  # before giving up. The second attempt usually succeeds when the
-  # first didn't (transient CI noise, GitHub mergeable computation
-  # lag). Five consecutive failures means the agent can't resolve the
-  # conflict mechanically — bail and surface to the operator.
-  # Successful rebases reset the counter (long-lived PRs that rebase
-  # cleanly many times should never be blocked).
+  # Cap how many consecutive failed agent rebase attempts we make per
+  # unchanged PR head/base pair before entering the configured cooldown.
+  # Successful rebases, PR changes, and cooldown expiry all reset the
+  # autonomous poller path; manual operator rebases bypass this guard.
   REBASE_ATTEMPT_CAP = RebaseAttemptGuard::ATTEMPT_CAP
 
   # Concurrent-rebase cap per repository on the AUTONOMOUS poller
@@ -130,7 +127,7 @@ class PollRebaseJob < ApplicationJob
   def attempt_cap_reached?(pr)
     return false unless RebaseAttemptGuard.cap_reached?(@job, pr: pr)
 
-    Rails.logger.info("[PollRebaseJob] #{@job.slug} hit rebase cap (#{REBASE_ATTEMPT_CAP} consecutive failures); skipping")
+    Rails.logger.info("[PollRebaseJob] #{@job.slug} hit rebase cap (#{REBASE_ATTEMPT_CAP} consecutive agent failures); cooling down")
     true
   end
 

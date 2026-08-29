@@ -355,7 +355,17 @@ Non-agentic. Attempts a deterministic `git rebase` onto the base branch. On clea
 
 ### agent_rebase
 
-Agentic. Resolves rebase conflicts. Runs only when `auto_rebase` encounters conflicts.
+Agentic. Resolves rebase conflicts. Runs only when `auto_rebase` encounters
+conflicts. The rebase prompt requires the agent to attempt concrete
+file-by-file conflict resolution before it may abort as "not mechanical"; broad
+architecture or commit-history judgments are not sufficient.
+
+Autonomous rebase dispatch is guarded against retry storms. After three
+consecutive failed `agent_rebase` / `stack_agent_rebase` attempts for the same
+Job and unchanged PR head/base SHA pair, the pollers pause redispatch for
+`AppSetting.rebase_failure_cooldown_minutes`. The block is time-boxed:
+successful rebases, PR head/base changes, cooldown expiry, or an explicit
+operator rebase can allow another attempt.
 
 ### force_push
 

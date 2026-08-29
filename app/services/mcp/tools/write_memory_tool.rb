@@ -51,6 +51,8 @@ module Mcp
           end
 
           author, source_type, source_id = run_provenance(context)
+          policy_rejection = MemoryWritePolicy.for(context).rejection_for(content)
+          return invalid_response(policy_rejection) if policy_rejection
 
           memory = ChatMemory.create!(
             user:        context.user,

@@ -579,7 +579,7 @@
     "show_work_unit_debug_label": "Show WorkIntent and WorkUnit debug panels in job workflow tabs",
     "show_work_unit_debug_help": "When off, WorkIntent and WorkUnit internals stay hidden from normal job pages. Admin Work Units remains available for diagnosis.",
     "rebase_failure_cooldown_label": "Rebase failure cooldown (minutes)",
-    "rebase_failure_cooldown_help": "How long autonomous merge-state polling waits before retrying the same failed rebase conflict for an unchanged PR head and base. Operator-requested rebases and PR head/base changes bypass this. 0 disables the cooldown.",
+    "rebase_failure_cooldown_help": "How long autonomous merge-state polling waits before retrying after repeated failed agent rebases for an unchanged PR head and base. Operator-requested rebases, cooldown expiry, and PR head/base changes bypass this. 0 disables the cooldown.",
     "workflow_admission_control_label": "Workflow admission control",
     "workflow_admission_control_help": "When enabled, Syrus delays workflow starts that would exceed predicted worker capacity. Disable only during incidents; provider circuits, dependencies, landing pauses, archived repositories, and hard worker exhaustion still block work.",
     "workflow_admission_control_warning": "Disabled: Syrus may overfill workers and degrade throughput until this is turned back on.",
