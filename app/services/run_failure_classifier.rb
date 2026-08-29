@@ -2,6 +2,7 @@ class RunFailureClassifier
   Result = Data.define(:classification, :confidence, :retryable, :reason, :diagnostic_summary, :classifier_inputs)
 
   RECENT_LOG_LIMIT = 25
+  OCTOKIT_TRANSIENT_ERROR_CLASS = /\AOctokit::(?:ServiceUnavailable|BadGateway|InternalServerError|TooManyRequests)\z/
 
   def self.classify(run)
     new(run).classify
@@ -199,13 +200,16 @@ class RunFailureClassifier
   def provider_transient?
     return false if run.agent_provider.blank?
     return true if run.agent_outcome.to_s == "server_error"
+    return true if diagnostic&.error_class.to_s.match?(OCTOKIT_TRANSIENT_ERROR_CLASS)
 
     text_match?(%r{
       overloaded|
       temporar(?:y|ily)|
       transient|
       retry\ later|
+      serviceunavailable|
       service\ unavailable|
+      badgateway|
       bad\ gateway|
       gateway\ timeout|
       connection\ reset|
@@ -215,6 +219,7 @@ class RunFailureClassifier
       failed\ to\ decode\ models\ response|
       unknown\ variant\ [`'"]?max[`'"]?|
       (?:status|http|code)\s*[:=]?\s*5\d\d|
+      :\s+5\d\d\s+-|
       5xx
     }ix)
   end
