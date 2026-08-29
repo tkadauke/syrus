@@ -5,9 +5,9 @@ Syrus functionality for collaborative Markdown design documents.
 
 Design docs are separate from attachment-oriented `Document` records. The
 plugin registers the operator-visible capability as `design_docs`, owns the
-`DesignDocs::` domain models under `plugins/design_docs/app/models`, and
-applies only the small host associations needed on `User`, `Repository`, and
-`ChatSession`.
+`DesignDocs::` domain models, JSON API controller, policy, serializer, and
+create/update services under `plugins/design_docs/app/`. The host app applies
+only the small associations needed on `User`, `Repository`, and `ChatSession`.
 
 ## Schema
 
