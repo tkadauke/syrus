@@ -230,6 +230,15 @@ handoff succeeds.
 
 **When it fires:** Spawned automatically by `MainHealthChangedService` when the repository's main branch is detected as broken and Syrus has a settled broken signal from either CI or the main-grader workflow. Repair does not wait for both probes to finish: if CI has already failed, the repair job can start while the main-grader is still running, and vice versa.
 
+If a main-branch repair Job already exists, it blocks spawning a duplicate.
+When that blocker is still in a non-progressing pre-runtime state
+(`needs_triage`, `triaging`, or `queued`) after
+`MainHealthChangedService::STUCK_REPAIR_ALERT_AFTER` while main is still
+broken, `MainHealthChangedService` logs the condition and requests
+job-scoped reconciler inspection. Admins also get a system alert banner that
+links to `/admin/stuck?refresh=1`, forcing the stuck page to recompute before
+showing the `stuck_main_branch_repair_job` evidence.
+
 **Step chain:** `preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
 
 The workflow runs a preflight grader check before invoking the agent. If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates `grader_health` to healthy, calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
