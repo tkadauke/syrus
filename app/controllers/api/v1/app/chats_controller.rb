@@ -724,6 +724,32 @@ module Api
           )
         end
 
+        def preview_panel_file
+          chat_session = find_chat_session
+          panel = chat_session.preview_panels.find(params[:panel_id])
+          version = params[:v].present? ? panel.preview_panel_versions.find_by(id: params[:v]) : panel.current_version
+          return render_error("not_found", "Preview panel version not found.", status: :not_found) unless version
+
+          file_path = params[:path].to_s
+          attachment = version.file_for(file_path)
+          return render_error("not_found", "Preview panel file not found.", status: :not_found) unless attachment
+
+          content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
+          if ActiveModel::Type::Boolean.new.cast(params[:raw])
+            send_data attachment.download,
+              type: content_type,
+              disposition: "inline",
+              filename: File.basename(file_path)
+            return
+          end
+
+          if preview_panel_text_content_type?(content_type)
+            render json: { content: attachment.download.force_encoding(Encoding::UTF_8), binary: false, too_large: false, content_type: content_type }
+          else
+            render json: { content: nil, binary: true, too_large: false, content_type: content_type }
+          end
+        end
+
         def update_preview_panel
           chat_session = find_chat_session
           panel = chat_session.preview_panels.find(params[:panel_id])
@@ -1288,6 +1314,10 @@ module Api
           else
             render_error("not_found", missing_message, status: :not_found)
           end
+        end
+
+        def preview_panel_text_content_type?(content_type)
+          content_type.start_with?("text/") || %w[application/json application/javascript image/svg+xml].include?(content_type)
         end
 
         def proxy_to_coding_relay(chat_session, path, params: {})

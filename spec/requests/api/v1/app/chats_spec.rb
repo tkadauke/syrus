@@ -3812,6 +3812,52 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(panel_payload["current_version_id"]).to eq(second_version_id)
     expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id, first_version_id ])
     expect(panel_payload["file_count"]).to eq(1)
+    expect(panel_payload["entry_path"]).to eq("index.html")
+    expect(panel_payload["entry_viewer_kind"]).to eq("html")
+  end
+
+  it "includes entry metadata for each preview panel version" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "notes.md" => "# Notes" }, entry_file: "notes.md")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    panel_payload = parse_body["preview_panels"].first
+    expect(panel_payload).to include(
+      "app_file_base_path" => "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/files",
+      "entry_path" => "notes.md",
+      "entry_content_type" => "text/markdown",
+      "entry_viewer_kind" => "markdown"
+    )
+    expect(panel_payload["versions"].first).to include(
+      "entry_path" => "notes.md",
+      "entry_content_type" => "text/markdown",
+      "entry_viewer_kind" => "markdown"
+    )
+  end
+
+  it "serves preview panel files through the app origin" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "notes.md" => "# Notes" }, entry_file: "notes.md")
+
+    get "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/files/notes.md"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("content" => "# Notes", "binary" => false, "content_type" => "text/markdown")
+  end
+
+  it "serves raw preview panel files through the app origin" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "diagram.svg" => "<svg></svg>" }, entry_file: "diagram.svg")
+
+    get "/api/v1/app/chats/#{chat.id}/preview_panels/#{panel.id}/files/diagram.svg", params: { raw: "1" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Content-Type"]).to eq("image/svg+xml")
+    expect(response.body).to eq("<svg></svg>")
   end
 
   it "exports the current preview panel version as a zip" do
