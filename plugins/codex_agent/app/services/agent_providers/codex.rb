@@ -15,6 +15,10 @@ module AgentProviders
       CodexUsageProbe.refresh_for(user: user)
     end
 
+    def self.refresh_usage!(user:, force: false)
+      CodexUsageProbe.refresh_for(user: user, force: force)
+    end
+
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
       codex_home = File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, "codex")
       codex_auth = CodexAuth.new(user: user, codex_home: codex_home)

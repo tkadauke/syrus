@@ -641,6 +641,9 @@ function ProviderAvailabilitySettings({
       {payload.options.agent_providers.map((provider) => {
         const availability = payload.provider_availability?.[provider]
         const threshold = values.provider_availability_pause_thresholds?.[provider] ?? 10
+        const usageTextClass = availability?.usage_exhausted
+          ? "text-red-700 dark:text-red-300"
+          : "text-gray-500 dark:text-gray-400"
         return (
           <div className="grid gap-3 rounded border border-gray-100 p-3 dark:border-gray-800 sm:grid-cols-[1fr_auto] sm:items-center" key={provider}>
             <div className="min-w-0">
@@ -661,8 +664,10 @@ function ProviderAvailabilitySettings({
                   value={threshold}
                 />
               </label>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {availability?.usage?.remaining_percent != null
+              <p className={`mt-1 text-xs ${usageTextClass}`}>
+                {availability?.usage_exhausted
+                  ? availability.message
+                  : availability?.usage?.remaining_percent != null
                   ? t("account_settings.provider_availability_remaining", { percent: Math.round(availability.usage.remaining_percent) })
                   : t("account_settings.provider_availability_no_usage")}
                 {availability?.override_active ? ` ${t("account_settings.provider_availability_override_active")}` : ""}
@@ -698,4 +703,3 @@ function ProviderAvailabilitySettings({
 function titleize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
-

@@ -338,12 +338,12 @@ module Api
         end
 
         def refresh_provider_availability(provider)
-          if provider == "codex"
-            CodexUsageProbe.refresh_for(user: Current.user, force: true)
-          else
+          AgentProviders.for(provider).refresh_usage!(user: Current.user, force: true).tap do
             ::App::ProviderAvailability.broadcast_changed(user: Current.user, provider: provider)
-            nil
           end
+        rescue AgentProviders::ConfigurationError
+          ::App::ProviderAvailability.broadcast_changed(user: Current.user, provider: provider)
+          nil
         end
 
         def blank_write_only_value?(key, value)
