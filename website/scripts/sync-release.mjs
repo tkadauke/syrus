@@ -6,13 +6,46 @@
 // Run explicitly (`npm run sync-release`), not as part of `build`, so local
 // offline builds don't depend on the network. The Pages workflow runs it
 // before building, and passes GITHUB_TOKEN to lift the API rate limit.
+// Graders use `--check-only` to validate the committed metadata without
+// fetching or rewriting it.
 import { writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const REPO = "tkadauke/syrus";
 const here = dirname(fileURLToPath(import.meta.url));
-const out = join(here, "..", "lib", "release.json");
+const out =
+  process.env.SYRUS_RELEASE_JSON_PATH ||
+  join(here, "..", "lib", "release.json");
+const checkOnly = process.argv.includes("--check-only");
+
+function readCommittedRelease() {
+  const data = JSON.parse(readFileSync(out, "utf8"));
+  if (typeof data !== "object" || data === null) {
+    throw new Error("release metadata must be an object");
+  }
+  if (data.version !== null && typeof data.version !== "string") {
+    throw new Error("release metadata version must be a string or null");
+  }
+  for (const key of ["mac", "windows"]) {
+    const platform = data[key];
+    if (typeof platform !== "object" || platform === null) {
+      throw new Error(`release metadata ${key} must be an object`);
+    }
+    if (platform.size !== null && typeof platform.size !== "number") {
+      throw new Error(`release metadata ${key}.size must be a number or null`);
+    }
+  }
+  return data;
+}
+
+if (checkOnly) {
+  const data = readCommittedRelease();
+  console.log(
+    `sync-release: checked committed release.json (v${data.version || "unknown"})`,
+  );
+  process.exit(0);
+}
 
 const headers = {
   accept: "application/vnd.github+json",
@@ -44,7 +77,7 @@ try {
 } catch (err) {
   let keep = "?";
   try {
-    keep = JSON.parse(readFileSync(out, "utf8")).version;
+    keep = readCommittedRelease().version;
   } catch {}
   console.warn(
     `sync-release: keeping committed release.json (v${keep}) — ${err.message}`,
