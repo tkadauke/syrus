@@ -6,7 +6,7 @@ import { I18nextProvider } from "react-i18next"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "../i18n"
 import type { CredentialsPayload } from "../api/credentials"
-import { CredentialsRoute } from "./AccountSettings"
+import { AgentSettingsRoute, CredentialsRoute } from "./AccountSettings"
 
 // The Codex card holds its ActionCable auto-exchange subscription at card
 // level; mock the consumer so tests can capture and fire the callback.
@@ -121,6 +121,21 @@ function renderCredentials() {
         <MemoryRouter initialEntries={["/credentials"]}>
           <Routes>
             <Route path="/credentials" element={<CredentialsRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </I18nextProvider>
+  )
+}
+
+function renderAgentSettings() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/settings/agent"]}>
+          <Routes>
+            <Route path="/settings/agent" element={<AgentSettingsRoute />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
@@ -247,5 +262,43 @@ describe("CredentialsRoute (provider cards)", () => {
 
     expect(await screen.findByText("API token")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Rotate token" })).toBeInTheDocument()
+  })
+
+  it("shows depleted Claude usage on the agent settings panel", async () => {
+    mockRoutes({
+      ...makePayload(),
+      provider_availability: {
+        claude: {
+          provider: "claude",
+          label: "Claude Code",
+          model: null,
+          state: "exhausted",
+          open: true,
+          usage_exhausted: true,
+          retry_after: "2026-08-29T12:00:00Z",
+          reason: "Provider usage limit exhausted (usage probe).",
+          message: "Claude Code usage limit reached. This item uses Claude Code until usage resets.",
+          usage: {
+            status: "exhausted",
+            observed_at: "2026-08-29T11:00:00Z",
+            remaining_percent: 0,
+            evidence: {
+              status: "exhausted",
+              source: "usage_probe",
+              observed_at: "2026-08-29T11:00:00Z",
+              provider: "claude"
+            }
+          }
+        },
+        codex: null
+      }
+    })
+    renderAgentSettings()
+
+    const claudeInput = await screen.findByLabelText("Claude pause threshold (%)")
+    const claudePanel = claudeInput.closest(".grid")
+    expect(claudePanel).not.toBeNull()
+    expect(within(claudePanel as HTMLElement).getByText(/Claude Code usage limit reached/)).toBeInTheDocument()
+    expect(within(claudePanel as HTMLElement).queryByText("No usage percentage recorded.")).not.toBeInTheDocument()
   })
 })

@@ -94,6 +94,55 @@ RSpec.describe App::ProviderAvailability do
     expect(after_reset).to be_nil
   end
 
+  it "shows exhausted Claude usage from structured probe evidence" do
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      status: "exhausted",
+      snapshot: {
+        "session_pct" => 100.0,
+        "session_reset_minutes" => 60,
+        "weekly_pct" => 82.5,
+        "weekly_reset_minutes" => 180
+      },
+      message: "Claude usage limit has been reached.",
+      http_status: 200,
+      observed_at: now
+    )
+
+    status = described_class.for_user(user, "claude", now: now, cached: false)
+
+    expect(status).to include(
+      provider: "claude",
+      state: "exhausted",
+      open: true,
+      usage_exhausted: true
+    )
+    expect(status[:message]).to include("Claude Code usage limit reached")
+    expect(status.dig(:usage, :remaining_percent)).to eq(0.0)
+    expect(status.dig(:usage, :windows, "five_hour")).to include(
+      label: "5h",
+      remaining_percent: 0.0,
+      used_percent: 100.0
+    )
+    expect(status.dig(:evidence, :current)).to include(status: "exhausted", source: "usage_probe", provider: "claude")
+    expect(Time.zone.parse(status[:retry_after])).to eq(now + 65.minutes)
+  end
+
+  it "clears exhausted Claude probe evidence after its reset window expires" do
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      status: "exhausted",
+      snapshot: { "session_pct" => 100.0, "session_reset_minutes" => 60 },
+      message: "Claude usage limit has been reached.",
+      observed_at: now
+    )
+
+    status = described_class.for_user(user, "claude", now: now + 66.minutes, cached: false)
+
+    expect(status).to include(state: "available", open: false, usage_exhausted: false)
+    expect(status.dig(:usage, :status)).to eq("exhausted")
+  end
+
   it "keeps transient circuit state separate from red usage exhaustion" do
     5.times do |index|
       run = failed_run(

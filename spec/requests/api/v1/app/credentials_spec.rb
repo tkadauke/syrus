@@ -147,6 +147,39 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body["message"]).to eq("Codex usage has 50% remaining.")
   end
 
+  it "forces a Claude usage recheck and returns depleted availability" do
+    sign_in_as(user)
+    result = ClaudeUsageProbe::Result.new(
+      status: "exhausted",
+      snapshot: { "session_pct" => 100.0, "session_reset_minutes" => 60 },
+      message: "Claude usage limit has been reached."
+    )
+    expected_user = user
+    allow(ClaudeUsageProbe).to receive(:refresh_for) do |user:, force:|
+      expect(user).to eq(expected_user)
+      expect(force).to be(true)
+      ProviderAvailabilityEvidence.record_claude_probe!(
+        user: user,
+        status: "exhausted",
+        snapshot: result.snapshot,
+        message: result.message,
+        observed_at: Time.current
+      )
+      result
+    end
+
+    post "/api/v1/app/credentials/recheck_provider_availability", params: { provider: "claude" }
+
+    expect(response).to have_http_status(:ok)
+    expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user, force: true)
+    expect(parse_body["message"]).to eq("Claude usage limit has been reached.")
+    expect(parse_body.dig("provider_availability", "claude")).to include(
+      "state" => "exhausted",
+      "usage_exhausted" => true
+    )
+    expect(parse_body.dig("provider_availability", "claude", "usage", "remaining_percent")).to eq(0.0)
+  end
+
   it "records a provider availability override and wakes provider-paused workflows" do
     sign_in_as(user)
     workflow = Workflow.create!(
