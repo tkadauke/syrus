@@ -19,6 +19,12 @@ module AgentProviders
       ClaudeUsageProbe.refresh_for(user: user)
     end
 
+    def self.refresh_usage!(user:, force: false)
+      return unless user.claude_oauth_token.present?
+
+      ClaudeUsageProbe.refresh_for(user: user, force: force)
+    end
+
     def session_capture(result)
       capture = super
       return nil unless capture
