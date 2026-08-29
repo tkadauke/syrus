@@ -1339,6 +1339,47 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(train.reload.state).to eq("failed")
     end
 
+    it "preserves a train across a worker_died merge_train_reconcile failure so the step can resume in place" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: { "merge_train_id" => train.id }
+      )
+      step = Step.create!(workflow: workflow, kind: "merge_train_reconcile", position: 0, state: "running")
+      run = Run.create!(job: a, step: step, trigger_kind: "merge_train", state: "running")
+      workflow.start!
+      workflow.save!
+
+      run.agent_outcome = "worker_died"
+      run.fail!
+      run.save!
+
+      expect(workflow.reload).to be_failed
+      expect(step.reload).to be_failed
+      expect(train.reload).not_to be_terminal
+      expect(train.state).to eq("building")
+      expect(train.members.pluck(:state).uniq).to eq([ "included" ])
+      expect(a.reload).to be_landing
+
+      result = RetryFailedStepEnqueuer.call(
+        workflow: workflow,
+        parent_session_id: "sess_reconcile",
+        prompt: "resume reconciliation"
+      )
+
+      expect(result).to be_success
+      expect(result.workflow).to eq(workflow)
+      expect(result.step).to eq(step)
+      expect(result.run.parent_session_id).to eq("sess_reconcile")
+      expect(result.run.prompt).to eq("resume reconciliation")
+      expect(workflow.reload).to be_running
+      expect(step.reload).to be_queued
+      expect(train.reload).not_to be_terminal
+      expect(a.reload).to be_landing
+    end
+
     it "defer_lands members when an old merge-train land workflow needs rebuilding" do
       a = member_job(issue_number: 1)
       train, workflow = train_with_workflow([ a ], reason: "merge_train: missing built base SHA; rebuild required")

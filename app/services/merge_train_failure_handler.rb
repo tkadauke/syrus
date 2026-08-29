@@ -13,6 +13,7 @@ class MergeTrainFailureHandler
   def call
     train = merge_train
     return unless train
+    return if preserve_train_for_continuation_retry?
 
     reason = failure_reason
     unless train.terminal?
@@ -74,6 +75,15 @@ class MergeTrainFailureHandler
     return unless run_id
 
     RunDiagnostic.where(run_id: run_id).pick(:error_message).presence
+  end
+
+  def preserve_train_for_continuation_retry?
+    return false if @cancelled
+
+    failed_step = RetryFailedStepEnqueuer.failed_step_for(@workflow)
+    return false unless failed_step
+
+    @workflow.work_definition.retry_policy.continuation?(failed_step)
   end
 
   def merge_train
