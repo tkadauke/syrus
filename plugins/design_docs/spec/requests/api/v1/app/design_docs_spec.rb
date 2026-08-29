@@ -139,24 +139,30 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
         }
       }
     }.to change(DesignDocSuggestion, :count).by(1)
-      .and change(DesignDocVersion, :count).by(0)
+      .and change(DesignDocVersion, :count).by(1)
 
     expect(response).to have_http_status(:ok)
     suggestion = DesignDocSuggestion.last
     expect(parse_body.fetch("mode")).to eq("suggestion")
     expect(parse_body.dig("suggestion", "id")).to eq(suggestion.id)
     expect(parse_body.dig("suggestion", "anchor")).to include(
+      "anchor_kind" => "range",
+      "status" => "active",
       "start_offset" => 6,
       "end_offset" => 11,
-      "selected_markdown" => "world"
+      "selected_markdown" => "world",
+      "selected_text" => "world"
     )
     expect(suggestion).to have_attributes(
       suggested_by_kind: "user",
       suggested_by_user: collaborator,
       original_markdown: "world",
-      suggested_markdown: "Hello Syrus"
+      suggested_markdown: "Syrus",
+      proposed_markdown: "Syrus"
     )
-    expect(doc.reload.markdown).to eq("Hello world")
+    expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
+    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Hello world")
+    expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Hello world")
   end
 
   it "enforces agent write restrictions from server-side auth context even when params claim a user actor" do
@@ -176,12 +182,144 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
         headers: { "Authorization" => "Bearer #{owner.api_token}" }
       )
     }.to change(DesignDocSuggestion, :count).by(1)
-      .and change(DesignDocVersion, :count).by(0)
+      .and change(DesignDocVersion, :count).by(1)
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("mode")).to eq("suggestion")
     expect(DesignDocSuggestion.last.suggested_by_kind).to eq("agent")
-    expect(doc.reload.markdown).to eq("canonical")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("canonical")
+  end
+
+  it "creates anchored comment threads with hidden markers and lets only owners resolve them" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+        comment: {
+          body: "Needs evidence",
+          start_offset: 6,
+          end_offset: 10,
+          selected_markdown: "beta"
+        }
+      }
+    }.to change(DesignDocThread, :count).by(1)
+      .and change(DesignDocComment, :count).by(1)
+      .and change(DesignDocVersion, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    thread = DesignDocThread.last
+    expect(parse_body.dig("thread", "anchor")).to include(
+      "anchor_kind" => "range",
+      "selected_text" => "beta"
+    )
+    expect(parse_body.dig("comment", "body")).to eq("Needs evidence")
+    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Alpha beta gamma")
+    expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{thread.anchor.marker_id}\" -->")
+
+    post "/api/v1/app/design_docs/#{doc.id}/threads/#{thread.id}/resolve"
+    expect(response).to have_http_status(:forbidden)
+
+    sign_in_as(owner)
+    post "/api/v1/app/design_docs/#{doc.id}/threads/#{thread.id}/resolve"
+
+    expect(response).to have_http_status(:ok)
+    expect(thread.reload).to have_attributes(state: "resolved", resolved_by_user: owner)
+  end
+
+  it "accepts owner-reviewed suggestions server-side when the anchored original text still matches" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+      suggestion: {
+        start_offset: 6,
+        end_offset: 11,
+        original_markdown: "world",
+        proposed_markdown: "Syrus",
+        change_type: "replace",
+        change_summary: "Use product name"
+      }
+    }
+    expect(response).to have_http_status(:created)
+    suggestion = DesignDocSuggestion.last
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
+    expect(suggestion.provenance).to include("suggested_by_user_id" => collaborator.id)
+
+    sign_in_as(owner)
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.to change(DesignDocVersion, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("suggestion", "state")).to eq("accepted")
+    expect(parse_body.dig("version", "version_number")).to eq(3)
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello Syrus")
+    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
+  end
+
+  it "rejects suggestions without mutating canonical markdown" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    ).suggestion
+    marked_markdown = doc.reload.markdown
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/reject"
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(suggestion.reload.state).to eq("rejected")
+    expect(doc.reload.markdown).to eq(marked_markdown)
+    expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Hello world")
+  end
+
+  it "marks suggestions stale when the anchored original text changed before owner acceptance" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    ).suggestion
+    doc.update!(markdown: doc.markdown.sub("world", "earth"))
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:conflict)
+    expect(suggestion.reload.state).to eq("stale")
+    expect(suggestion.anchor.reload.status).to eq("stale")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello earth")
+  end
+
+  it "marks suggestions conflicted when their anchor markers are missing" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    ).suggestion
+    doc.update!(markdown: DesignDocs::AnchorMarkers.strip(doc.markdown))
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:conflict)
+    expect(suggestion.reload.state).to eq("conflict")
+    expect(suggestion.anchor.reload.status).to eq("missing")
   end
 
   it "returns version history newest first" do

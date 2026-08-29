@@ -55,6 +55,88 @@ module Api
           }
         end
 
+        def comments
+          result = ::DesignDocs::CreateComment.call(
+            design_doc: find_design_doc,
+            user: Current.user,
+            attributes: comment_params.to_h.symbolize_keys,
+            actor_kind: design_doc_actor_kind
+          )
+
+          render json: {
+            design_doc: serializer.detail(result.design_doc),
+            thread: serializer.thread(result.thread),
+            comment: serializer.comment(result.comment),
+            version: serializer.version(result.version),
+            message: "Comment created."
+          }, status: :created
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue Pundit::NotAuthorizedError
+          render_error("forbidden", "You are not allowed to comment on this design doc.", status: :forbidden)
+        end
+
+        def resolve_thread
+          design_doc = find_design_doc
+          result = ::DesignDocs::ResolveThread.call(
+            thread: design_doc.threads.find(params[:thread_id]),
+            user: Current.user
+          )
+
+          render json: { thread: serializer.thread(result.thread), message: "Comment thread resolved." }
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue Pundit::NotAuthorizedError
+          render_error("forbidden", "Only the owner can resolve design doc comments.", status: :forbidden)
+        end
+
+        def create_suggestion
+          result = ::DesignDocs::CreateSuggestion.call(
+            design_doc: find_design_doc,
+            user: Current.user,
+            attributes: suggestion_params.to_h.symbolize_keys,
+            actor_kind: design_doc_actor_kind
+          )
+
+          render json: {
+            design_doc: serializer.detail(result.design_doc),
+            suggestion: serializer.suggestion(result.suggestion),
+            version: serializer.version(result.version),
+            message: "Suggestion created."
+          }, status: :created
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue Pundit::NotAuthorizedError
+          render_error("forbidden", "You are not allowed to suggest changes to this design doc.", status: :forbidden)
+        end
+
+        def accept_suggestion
+          result = review_suggestion(:accept)
+          status = result.applied ? :ok : :conflict
+
+          payload = { design_doc: serializer.detail(result.design_doc), suggestion: serializer.suggestion(result.suggestion), message: suggestion_review_message(result) }
+          payload[:version] = serializer.version(result.version) if result.version
+          render json: payload, status: status
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue Pundit::NotAuthorizedError
+          render_error("forbidden", "Only the owner can review design doc suggestions.", status: :forbidden)
+        end
+
+        def reject_suggestion
+          result = review_suggestion(:reject)
+
+          render json: {
+            design_doc: serializer.detail(result.design_doc),
+            suggestion: serializer.suggestion(result.suggestion),
+            message: "Suggestion rejected."
+          }
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        rescue Pundit::NotAuthorizedError
+          render_error("forbidden", "Only the owner can review design doc suggestions.", status: :forbidden)
+        end
+
         private
 
         def scoped_design_docs
@@ -102,6 +184,44 @@ module Api
             repository_ids: [],
             collaborator_user_ids: []
           )
+        end
+
+        def comment_params
+          params.require(:comment).permit(:body, :start_offset, :end_offset, :selected_markdown, :selected_text, :anchor_kind)
+        end
+
+        def suggestion_params
+          params.require(:suggestion).permit(
+            :start_offset,
+            :end_offset,
+            :selected_markdown,
+            :selected_text,
+            :original_markdown,
+            :suggested_markdown,
+            :proposed_markdown,
+            :change_type,
+            :change_summary,
+            :thread_id,
+            :run_id,
+            :workflow_id,
+            :chat_message_id
+          )
+        end
+
+        def review_suggestion(decision)
+          design_doc = find_design_doc
+          suggestion = design_doc.suggestions.find(params[:suggestion_id])
+          if decision == :accept
+            ::DesignDocs::ReviewSuggestion.accept(suggestion: suggestion, user: Current.user)
+          else
+            ::DesignDocs::ReviewSuggestion.reject(suggestion: suggestion, user: Current.user)
+          end
+        end
+
+        def suggestion_review_message(result)
+          return "Suggestion accepted." if result.applied
+
+          result.suggestion.conflict_reason.presence || "Suggestion can no longer be applied."
         end
       end
     end

@@ -21,9 +21,11 @@ module DesignDocs
       def detail(design_doc)
         summary(design_doc).merge(
           markdown: design_doc.markdown,
+          rendered_markdown: DesignDocs::AnchorMarkers.strip(design_doc.markdown),
           collaborator_ids: design_doc.collaborator_users.map(&:id),
           collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
-          pending_suggestions_count: design_doc.suggestions.where(state: "pending").count
+          pending_suggestions_count: design_doc.suggestions.where(state: "pending").count,
+          open_threads_count: design_doc.threads.where(state: "open").count
         )
       end
 
@@ -48,10 +50,35 @@ module DesignDocs
           suggested_by: user_json(suggestion.suggested_by_user),
           original_markdown: suggestion.original_markdown,
           suggested_markdown: suggestion.suggested_markdown,
+          proposed_markdown: suggestion.proposed_markdown_value,
+          change_type: suggestion.change_type,
           change_summary: suggestion.change_summary,
+          base_version_id: suggestion.base_version_id,
+          provenance: suggestion.provenance || {},
+          conflict_reason: suggestion.conflict_reason,
           anchor: anchor_json(suggestion.anchor),
+          reviewed_by: user_json(suggestion.reviewed_by_user),
+          reviewed_at: suggestion.reviewed_at&.iso8601,
           created_at: suggestion.created_at.iso8601
         }
+      end
+
+      def thread(thread)
+        {
+          id: thread.id,
+          state: thread.state,
+          anchor: anchor_json(thread.anchor),
+          opened_by: user_json(thread.opened_by_user),
+          resolved_by: user_json(thread.resolved_by_user),
+          resolved_at: thread.resolved_at&.iso8601,
+          comments: thread.comments.order(:created_at, :id).map { |comment| comment_json(comment) },
+          created_at: thread.created_at.iso8601,
+          updated_at: thread.updated_at.iso8601
+        }
+      end
+
+      def comment(comment)
+        comment_json(comment)
       end
 
       private
@@ -77,9 +104,28 @@ module DesignDocs
         {
           id: anchor.id,
           anchor_key: anchor.anchor_key,
+          marker_id: anchor.marker_id,
+          anchor_kind: anchor.anchor_kind,
+          status: anchor.status,
           start_offset: anchor.start_offset,
           end_offset: anchor.end_offset,
-          selected_markdown: anchor.selected_markdown
+          last_known_start_offset: anchor.last_known_start_offset,
+          last_known_end_offset: anchor.last_known_end_offset,
+          selected_markdown: anchor.selected_markdown,
+          selected_text: anchor.selected_text,
+          prefix_context: anchor.prefix_context,
+          suffix_context: anchor.suffix_context
+        }
+      end
+
+      def comment_json(comment)
+        {
+          id: comment.id,
+          author_kind: comment.author_kind,
+          author: user_json(comment.author_user),
+          body: comment.body,
+          created_at: comment.created_at.iso8601,
+          updated_at: comment.updated_at.iso8601
         }
       end
     end

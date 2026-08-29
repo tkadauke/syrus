@@ -36,28 +36,25 @@ module DesignDocs
     def create_suggestion
       raise Pundit::NotAuthorizedError unless DesignDocPolicy.new(user, design_doc).suggest?
 
-      suggested_markdown = attributes[:markdown].to_s
-      if suggested_markdown.blank?
+      candidate_markdown = attributes[:markdown].to_s
+      if candidate_markdown.blank?
         design_doc.errors.add(:markdown, "can't be blank for suggestions")
         raise ActiveRecord::RecordInvalid.new(design_doc)
       end
+      proposed_markdown = proposed_markdown_for_selection(candidate_markdown)
 
-      anchor = design_doc.anchors.create!(
-        design_doc_version: design_doc.current_version,
-        start_offset: anchor_start_offset,
-        end_offset: anchor_end_offset,
-        selected_markdown: selected_markdown
-      )
-      suggestion = design_doc.suggestions.create!(
-        anchor: anchor,
-        suggested_by_kind: actor_kind,
-        suggested_by_user: user,
-        original_markdown: selected_markdown,
-        suggested_markdown: suggested_markdown,
-        change_summary: attributes[:change_summary].presence
+      result = CreateSuggestion.call(
+        design_doc: design_doc,
+        user: user,
+        actor_kind: actor_kind,
+        attributes: attributes.merge(
+          proposed_markdown: proposed_markdown,
+          original_markdown: selected_markdown,
+          anchor_kind: "range"
+        )
       )
 
-      Result.new(design_doc: design_doc.reload, version: nil, suggestion: suggestion, mode: "suggestion")
+      Result.new(design_doc: result.design_doc, version: result.version, suggestion: result.suggestion, mode: "suggestion")
     end
 
     def apply_canonical_update
@@ -123,7 +120,18 @@ module DesignDocs
       explicit = attributes[:selected_markdown]
       return explicit.to_s if explicit.present?
 
-      design_doc.markdown[anchor_start_offset...anchor_end_offset].to_s
+      AnchorMarkers.strip(design_doc.markdown)[anchor_start_offset...anchor_end_offset].to_s
+    end
+
+    def proposed_markdown_for_selection(candidate_markdown)
+      rendered_markdown = AnchorMarkers.strip(design_doc.markdown)
+      prefix = rendered_markdown[0...anchor_start_offset].to_s
+      suffix = rendered_markdown[anchor_end_offset..].to_s
+      return candidate_markdown unless candidate_markdown.start_with?(prefix)
+      return candidate_markdown unless suffix.empty? || candidate_markdown.end_with?(suffix)
+
+      proposed_end = suffix.empty? ? candidate_markdown.length : candidate_markdown.length - suffix.length
+      candidate_markdown[prefix.length...proposed_end].to_s
     end
   end
 end
