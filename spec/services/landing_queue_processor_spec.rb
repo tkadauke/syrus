@@ -604,7 +604,9 @@ RSpec.describe LandingQueueProcessor do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     job.update!(pr_mergeable: false, landing_failure_reason: "auto_merge: dirty and rebase cap reached")
     RebaseAttemptGuard::ATTEMPT_CAP.times do
-      Workflows::Rebase.instantiate(job: job).update!(state: "failed")
+      workflow = Workflows::Rebase.instantiate(job: job)
+      workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed")
+      workflow.update!(state: "failed")
     end
 
     expect {

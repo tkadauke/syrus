@@ -51,6 +51,8 @@ module Mcp
           end
 
           author, source_type, source_id = run_provenance(context)
+          rebase_retry_storm_response = reject_rebase_retry_storm_abort_guidance(context, content)
+          return rebase_retry_storm_response if rebase_retry_storm_response
 
           memory = ChatMemory.create!(
             user:        context.user,
@@ -101,6 +103,38 @@ module Mcp
           else
             [ nil, nil, nil ]
           end
+        end
+
+        def reject_rebase_retry_storm_abort_guidance(context, content)
+          return nil unless context.run?
+          return nil unless context.run.step&.kind.in?(RebaseAttemptGuard::AGENT_REBASE_STEPS)
+          prior_failures = RebaseAttemptGuard.consecutive_failures(context.job)
+          return nil unless prior_failures >= RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD
+          return nil unless prescriptive_abort_guidance?(content)
+
+          invalid_response(
+            "write_memory rejected: rebase conflict abort guidance from an active retry storm " \
+            "must not become durable memory. Record verified file-level facts instead, or leave " \
+            "the abort rationale in the run summary."
+          )
+        end
+
+        def prescriptive_abort_guidance?(content)
+          normalized = content.to_s.downcase
+          prescriptive = normalized.match?(
+            /
+              future\ agents?|
+              future\ runs?|
+              next\ agents?|
+              do\ not\ re-?diagnose|
+              don't\ re-?diagnose|
+              skip\ re-?diagnosis|
+              always|must|should|just
+            /x
+          )
+          abortive = normalized.match?(/abort|unresolvable|not resolvable|cannot be resolved|operator intervention/)
+
+          prescriptive && abortive
         end
       end
     end
