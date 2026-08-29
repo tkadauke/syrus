@@ -23,9 +23,14 @@ only the small associations needed on `User`, `Repository`, and `ChatSession`.
   summary, metadata, and timestamps.
 - `design_doc_anchors`, `design_doc_threads`, `design_doc_comments`, and
   `design_doc_suggestions` provide the base inline discussion and
-  owner-reviewed suggestion model. Anchors expose hidden Markdown markers of
-  the form `<!-- syrus-design-doc-anchor:<anchor_key> -->`; database rows
-  remain authoritative for provenance, state, and permissions.
+  owner-reviewed suggestion model. Anchors are stored in canonical Markdown as
+  hidden HTML comments: point anchors use `<!-- syrus:anchor id="..." -->`,
+  and range anchors use paired `<!-- syrus:range-start id="..." -->` /
+  `<!-- syrus:range-end id="..." -->` markers. Rendered Markdown strips these
+  comments; database rows remain authoritative for marker ids, base version,
+  selected text, prefix/suffix context, last known offsets, provenance, state,
+  and permissions. Suggestions are v1 range replacements (`change_type:
+  replace`) reviewed explicitly by the design doc owner.
 
 `DesignDocs::DesignDoc.visible_to(user)` implements the v1 visibility rule:
 owners can see their docs, explicit collaborators can see private docs, and
