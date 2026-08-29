@@ -266,8 +266,11 @@ RSpec.describe PollRebaseJob do
       }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
     end
 
-    def rebase_workflow(state)
-      Workflow.create!(job: job, trigger_kind: "rebase", state: state)
+    def rebase_workflow(state, finished_at: nil)
+      workflow = Workflows::Rebase.instantiate(job: job)
+      workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed") if state == "failed"
+      workflow.update!(state: state, finished_at: finished_at)
+      workflow
     end
 
     context "rebase attempt cap (consecutive failures since last success)" do
@@ -282,24 +285,24 @@ RSpec.describe PollRebaseJob do
       it "does not block when only 1 failure follows prior successes" do
         stub_pr(pr_resource(mergeable: false))
         4.times { rebase_workflow("succeeded") }
-        rebase_workflow("failed")
+        rebase_workflow("failed", finished_at: 61.minutes.ago)
         expect {
           described_class.perform_now(job.id)
         }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
       end
 
-      it "blocks when all rebase workflows failed consecutively" do
+      it "blocks while the repeat-failure cooldown is active" do
         stub_pr(pr_resource(mergeable: false))
-        5.times { rebase_workflow("failed") }
+        PollRebaseJob::REBASE_ATTEMPT_CAP.times { rebase_workflow("failed") }
         expect {
           described_class.perform_now(job.id)
         }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
       end
 
-      it "blocks when 5 consecutive failures follow prior successes" do
+      it "blocks when capped consecutive failures follow prior successes" do
         stub_pr(pr_resource(mergeable: false))
         4.times { rebase_workflow("succeeded") }
-        5.times { rebase_workflow("failed") }
+        PollRebaseJob::REBASE_ATTEMPT_CAP.times { rebase_workflow("failed") }
         expect {
           described_class.perform_now(job.id)
         }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
@@ -307,7 +310,7 @@ RSpec.describe PollRebaseJob do
 
       it "ignores old rebase failures that do not match the current PR head/base" do
         stub_pr(pr_resource(mergeable: false, head_sha: "new-head", base_sha: "new-base"))
-        5.times do
+        PollRebaseJob::REBASE_ATTEMPT_CAP.times do
           rebase_workflow("failed").set_artifact!(
             "auto_rebase_result",
             {
@@ -316,6 +319,17 @@ RSpec.describe PollRebaseJob do
               "base_sha" => "old-base"
             }
           )
+        end
+
+        expect {
+          described_class.perform_now(job.id)
+        }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+      end
+
+      it "redispatches after capped failures once the cooldown expires" do
+        stub_pr(pr_resource(mergeable: false))
+        PollRebaseJob::REBASE_ATTEMPT_CAP.times do
+          rebase_workflow("failed").update!(finished_at: 61.minutes.ago, updated_at: 61.minutes.ago)
         end
 
         expect {

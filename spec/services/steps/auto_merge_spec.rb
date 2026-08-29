@@ -289,7 +289,9 @@ RSpec.describe Steps::AutoMerge do
   it "fails landing instead of dispatching a rebase once REBASE_ATTEMPT_CAP consecutive rebases have failed" do
     job.approve!(via: "github_review")
     PollRebaseJob::REBASE_ATTEMPT_CAP.times do
-      Workflows::Rebase.instantiate(job: job).update!(state: "failed")
+      workflow = Workflows::Rebase.instantiate(job: job)
+      workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed")
+      workflow.update!(state: "failed")
     end
     job.start_landing!
     job.save!

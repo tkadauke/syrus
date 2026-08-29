@@ -21,7 +21,10 @@ RSpec.describe RebaseAttemptGuard do
         "base_sha" => base_sha
       }.compact
     end
-    Workflows::Rebase.instantiate(job: job, artifacts: artifacts).update!(state: "failed")
+    workflow = Workflows::Rebase.instantiate(job: job, artifacts: artifacts)
+    workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed")
+    workflow.update!(state: "failed")
+    workflow
   end
 
   def failed_agent_rebase!(finished_at:, pre_sha: "head", base_sha: "base")
@@ -58,6 +61,32 @@ RSpec.describe RebaseAttemptGuard do
 
     expect(described_class.cap_reached?(job)).to eq(true)
     expect(described_class.cap_reached?(job, pr: pr(head_sha: "new-head", base_sha: "base"))).to eq(false)
+  end
+
+  it "does not count non-agent rebase failures toward the cap" do
+    described_class::ATTEMPT_CAP.times do
+      workflow = Workflows::Rebase.instantiate(job: job)
+      workflow.first_step.update!(state: "failed")
+      workflow.update!(state: "failed")
+    end
+
+    expect(described_class.cap_reached?(job)).to eq(false)
+  end
+
+  it "lets autonomous dispatch retry after the repeat-failure cooldown expires" do
+    AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
+    described_class::ATTEMPT_CAP.times do
+      failed_agent_rebase!(finished_at: 61.minutes.ago)
+    end
+
+    expect(described_class.cap_reached?(job, pr: pr)).to eq(false)
+  end
+
+  it "does not make the cap permanent when the cooldown setting is disabled" do
+    AppSetting.current.update!(rebase_failure_cooldown_minutes: 0)
+    described_class::ATTEMPT_CAP.times { failed_agent_rebase!(finished_at: 10.minutes.ago) }
+
+    expect(described_class.cap_reached?(job, pr: pr)).to eq(false)
   end
 
   it "cools down recent agent rebase failures for the same PR head and base" do

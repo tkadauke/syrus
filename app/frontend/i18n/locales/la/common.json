@@ -341,7 +341,7 @@
     "waiting_github_mergeability_noop": "Exspectatur coniungibilitas GitHub post rebase vacuum",
     "landing_start_blocked_retrying": "Iteratio landing statuta",
     "urgent_job_active": "Opus urgens activum",
-    "rebase_cap_reached": "Limes rebasandi attactus; rebase manuale aut renovatio PR necessaria est",
+    "rebase_cap_reached": "Mora iterationis rebase activa; rebase manuale, renovatio PR, aut finis morae necessaria est",
     "ci_failure_in_progress": "Cursus defectus CI in {{slug}} procedit",
     "ci_repair_no_effective_change": "Reparatio CI nihil efficax mutavit et examina adhuc deficiunt in {{slug}}",
     "pr_checks_failing": "Examina PR in {{slug}} deficiunt",
