@@ -1145,6 +1145,8 @@ class StepDispatcher
       if cursor.state == "queued"
         if skippable_queued_step?(cursor)
           skip_queued_step!(cursor)
+        elsif waiting_for_grader_batch?(cursor)
+          return nil
         else
           return cursor
         end
@@ -1159,6 +1161,23 @@ class StepDispatcher
     artifact_key && @workflow.artifact(artifact_key).present?
   rescue ArgumentError
     false
+  end
+
+  def waiting_for_grader_batch?(step)
+    case step.kind
+    when "grader_collect"
+      grader_batch_for(step, "grader").any? { |grader| !grader.terminal? }
+    when "preflight_grader_collect"
+      grader_batch_for(step, "preflight_grader").any? { |grader| !grader.terminal? }
+    else
+      false
+    end
+  end
+
+  def grader_batch_for(collect_step, grader_kind)
+    scope = @workflow.steps.where(kind: grader_kind, iteration: collect_step.iteration)
+    scope = scope.where(loop_id: collect_step.loop_id) if collect_step.loop_id.present?
+    scope.where("position < ?", collect_step.position).order(:position).to_a
   end
 
   def skip_queued_step!(step)
