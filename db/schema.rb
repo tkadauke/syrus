@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -266,6 +266,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
     t.index ["chat_session_id", "compacted_through_message_id"], name: "idx_chat_context_checkpoints_session_message", unique: true
     t.index ["chat_session_id", "created_at"], name: "idx_chat_context_checkpoints_session_created"
     t.index ["chat_session_id"], name: "index_chat_context_checkpoints_on_chat_session_id"
+  end
+
+  create_table "chat_goals", force: :cascade do |t|
+    t.string "active_slot"
+    t.string "approval_policy", default: "manual", null: false
+    t.boolean "auto_file_proposals", default: false, null: false
+    t.boolean "auto_submit_jobs", default: false, null: false
+    t.integer "chat_session_id", null: false
+    t.text "completion_condition"
+    t.datetime "created_at", null: false
+    t.integer "iteration_count", default: 0, null: false
+    t.json "mode_snapshot", null: false
+    t.text "prompt", null: false
+    t.integer "repository_id"
+    t.string "status", default: "active", null: false
+    t.datetime "terminal_at"
+    t.json "terminal_details"
+    t.string "terminal_reason"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id", "active_slot"], name: "index_chat_goals_on_chat_session_id_and_active_slot", unique: true
+    t.index ["chat_session_id", "status"], name: "index_chat_goals_on_chat_session_id_and_status"
+    t.index ["chat_session_id"], name: "index_chat_goals_on_chat_session_id"
+    t.index ["repository_id"], name: "index_chat_goals_on_repository_id"
+    t.index ["user_id", "status"], name: "index_chat_goals_on_user_id_and_status"
+    t.index ["user_id"], name: "index_chat_goals_on_user_id"
   end
 
   create_table "chat_memories", force: :cascade do |t|
@@ -2639,4 +2665,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "chat_goals", "chat_sessions"
+  add_foreign_key "chat_goals", "repositories"
+  add_foreign_key "chat_goals", "users"
 end
