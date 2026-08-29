@@ -199,9 +199,13 @@ operator activity log for what the reconciler did and why. Read-only inspections
 used by admin stuck surfaces do not create activity rows. Repairing reconciler
 runs record `run_started`, detailed issue/plan/execution rows for applied or
 failed repair executions, and a `run_finished` or `run_failed` summary. Skipped
-executions are aggregated in the summary counts instead of expanded every
-minute, so recurring passes do not flood the log with unchanged
-operator-review/waiting items. The app API endpoint is
+executions are usually aggregated in the summary counts instead of expanded
+every minute, so recurring passes do not flood the log with unchanged
+operator-review/waiting items. The exception is a skipped execution for an
+issue the classifier marked `safe_to_auto_repair` with an auto-executable plan:
+that is expanded as warning activity, with the `issue_kind` attached to the
+`repair_executed` row, because "safe but not applied" needs operator-visible
+attention on the next repairing tick. The app API endpoint is
 `/api/v1/app/admin/reconciler_activity`; the token admin API endpoint is
 `/api/v1/admin/reconciler_activity`. Both are paginated newest-first and accept
 `event_type`, `job_id`, `workflow_id`, and `run_id` filters.
