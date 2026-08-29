@@ -422,6 +422,7 @@ module Mcp::Tools
           target_epic: Mcp::Tools.target_epic_payload(proposal),
           depends_on: proposal.epic_dependency_tokens,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
+          goal_provenance: App::GoalProvenancePayload.for(proposal),
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,
@@ -430,6 +431,7 @@ module Mcp::Tools
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
               depends_on_job_ids: child.depends_on_job_ids,
+              goal_provenance: App::GoalProvenancePayload.for(child),
               depends_on: child.dependencies.order(:slug).pluck(:slug)
             }
           end

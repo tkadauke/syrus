@@ -4,6 +4,7 @@ import type { MergeTrainStatus } from "./epics"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
+import type { GoalProvenance } from "./chats"
 
 export type JobRepository = {
   id: number
@@ -116,6 +117,7 @@ export type JobRecord = {
   landing_blocker_override_requested_by?: JobUserReference | null
   scheduled_task_id?: number | null
   scheduled_task?: JobScheduledTask | null
+  goal_provenance?: GoalProvenance | null
   total_cost_usd: number | null
   billed_runs_count: number
   source_chat: JobSourceChat | null

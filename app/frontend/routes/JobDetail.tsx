@@ -244,6 +244,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsL
                 · <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
               </span>
             ) : null}
+            {payload.job.goal_provenance ? <span title={payload.job.goal_provenance.prompt_snapshot.prompt || undefined}>· Goal #{payload.job.goal_provenance.chat_goal_id}</span> : null}
             {payload.origin_chat ? (
               <span>
                 · <Link className="inline-flex items-center gap-1 font-medium text-brand hover:underline" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>

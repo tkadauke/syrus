@@ -49,6 +49,7 @@ class Job < ApplicationRecord
   belongs_to :input_source, optional: true
   belongs_to :scheduled_task, optional: true
   belongs_to :epic, optional: true
+  belongs_to :chat_goal, optional: true
   belongs_to :parent_job, class_name: "Job", optional: true
   belongs_to :dependencies_overridden_by_user, class_name: "User", optional: true
   belongs_to :approved_by_user, class_name: "User", optional: true

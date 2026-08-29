@@ -18,6 +18,7 @@ class ChatProposal < ApplicationRecord
   belongs_to :repository, optional: true
   belongs_to :job, optional: true
   belongs_to :epic, optional: true
+  belongs_to :chat_goal, optional: true
   belongs_to :target_epic, class_name: "Epic", optional: true
   belongs_to :parent_proposal,
              class_name: "ChatProposal",
@@ -74,6 +75,7 @@ class ChatProposal < ApplicationRecord
   validate :media_ids_belong_to_chat_session, on: :create
 
   before_validation :default_repository, on: :create
+  before_validation :stamp_goal_provenance, on: :create
   before_destroy :capture_unresolved_dependency_job_ids, prepend: true
   after_update_commit :repair_unresolved_job_dependency_placeholders,
                       if: :repair_unresolved_job_dependency_placeholders?
@@ -105,6 +107,19 @@ class ChatProposal < ApplicationRecord
 
   def effective_repository
     repository || chat_session.repository
+  end
+
+  def self.goal_prompt_snapshot_for(goal)
+    return nil unless goal
+
+    {
+      "prompt" => goal.prompt,
+      "completion_condition" => goal.completion_condition,
+      "mode_snapshot" => goal.mode_snapshot || {},
+      "approval_policy" => goal.approval_policy,
+      "auto_file_proposals" => goal.auto_file_proposals?,
+      "auto_submit_jobs" => goal.auto_submit_jobs?
+    }
   end
 
   def epic_bundle?
@@ -248,6 +263,16 @@ class ChatProposal < ApplicationRecord
 
   def default_repository
     self.repository ||= chat_session&.repository
+  end
+
+  def stamp_goal_provenance
+    return if chat_goal_id.present? || goal_prompt_snapshot.present?
+
+    goal = chat_session&.active_goal
+    return unless goal&.active?
+
+    self.chat_goal = goal
+    self.goal_prompt_snapshot = self.class.goal_prompt_snapshot_for(goal)
   end
 
   def default_cross_entity_dependencies
