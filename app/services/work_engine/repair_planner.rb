@@ -949,6 +949,22 @@ module WorkEngine
         end
       end
 
+      class QueuedJobAfterCancelledStartBlock < Base
+        def plan
+          waiting_plan(
+            "wait_for_cancelled_start_block_to_clear",
+            "The Job's latest Workflow was cancelled while a start block was active; do not materialize another Workflow until that blocker clears.",
+            target: primary_job,
+            preconditions: {
+              job_state: "queued",
+              active_runtime_work: false,
+              latest_workflow_state: "cancelled",
+              start_blocked_reason: issue.evidence["start_blocked_reason"]
+            }
+          )
+        end
+      end
+
       class QueuedJobAfterCancelledWorkflow < Base
         def plan
           automatic_plan(

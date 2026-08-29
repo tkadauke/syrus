@@ -195,6 +195,7 @@ module WorkEngine
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_jobs_without_active_runtime_work)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
+      issues.concat(classify_queued_jobs_cancelled_with_active_start_block)
       issues.concat(classify_queued_jobs_cancelled_without_active_workflow)
       issues.concat(classify_approved_jobs_with_landing_start_blockers)
       issues.concat(classify_approved_jobs_missing_pr)
@@ -951,6 +952,7 @@ module WorkEngine
 
       work_intents.select(&:requested?).filter_map do |intent|
         next unless intent.definition.generic_intent_start_allowed?
+        next if cancelled_start_block_workflow_for_intent(intent)
 
         relaunchability = work_intent_relaunchability(intent)
         next unless relaunchability.relaunchable?
@@ -986,6 +988,7 @@ module WorkEngine
 
       work_intents.select(&:requested?).filter_map do |intent|
         next if intent.definition.generic_intent_start_allowed?
+        next if cancelled_start_block_workflow_for_intent(intent)
 
         relaunchability = work_intent_relaunchability(intent)
         next unless relaunchability.relaunchable?
@@ -1657,6 +1660,7 @@ module WorkEngine
 
         latest = latest_workflow_for_job(job)
         next unless recoverable_cancelled_workflow_for_queued_job?(job, latest)
+        next if cancelled_start_block_still_active?(latest)
         next if ReconcileJobStatesJob::Plan.for(job)
 
         issue(
@@ -1676,6 +1680,39 @@ module WorkEngine
             main_broken: latest.artifact("main_broken")
           },
           explanation: "#{job_label(job)} is queued with no active Workflow after its latest Workflow was cancelled without a terminal or deliberate cancellation marker."
+        )
+      end
+    end
+
+    def classify_queued_jobs_cancelled_with_active_start_block
+      jobs.filter_map do |job|
+        next unless job.queued?
+        next if active_runtime_work_for_job?(job)
+
+        latest = latest_workflow_for_job(job)
+        next unless recoverable_cancelled_workflow_for_queued_job?(job, latest, include_active_start_block: true)
+        next unless cancelled_start_block_still_active?(latest)
+        next if ReconcileJobStatesJob::Plan.for(job)
+
+        check_after = cancelled_start_block_check_after(latest)
+        issue(
+          kind: :queued_job_after_cancelled_start_block,
+          severity: :info,
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest.id ], work_unit_ids: [ latest.work_unit&.id ].compact),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "wait_for_cancelled_start_block_to_clear",
+          check_after: check_after,
+          evidence: {
+            job_state: job.state,
+            latest_workflow_id: latest.id,
+            latest_workflow_state: latest.state,
+            latest_workflow_trigger_kind: latest.trigger_kind,
+            cancelled_reason: cancelled_workflow_reason(latest),
+            start_blocked_reason: start_block_reason(latest),
+            start_blocked_details: start_block_details(latest),
+            start_blocked_next_check_at: start_block_next_check_at(latest)&.iso8601
+          },
+          explanation: "#{job_label(job)} is queued after #{latest.slug} was cancelled before its first Run, but the recorded start block is still active: #{start_block_reason(latest)}."
         )
       end
     end
@@ -2531,7 +2568,15 @@ module WorkEngine
       when StepDispatcher::MAIN_HEALTH_BLOCK_REASON, "main_branch_health"
         StepDispatcher.main_health_blocking?(workflow)
       when StepDispatcher::STACK_BLOCK_REASON, "stack_dependencies_not_ready"
-        !stale_dependency_start_block?(workflow)
+        !workflow.job.dependencies_satisfied_for_execution?
+      when StepDispatcher::DEPENDENCY_FAILED_BLOCK_REASON, "dependency_failed"
+        workflow.job.dependencies_failed_for_execution?
+      when StepDispatcher::JOB_BLOCK_REASON, "job_not_ready_for_execution"
+        !workflow.job.ready_for_execution?
+      when StepDispatcher::URGENT_BLOCK_REASON, "urgent_job_active"
+        StepDispatcher.urgent_blocking?(workflow)
+      when StepDispatcher::EPIC_WIDE_BLOCK_REASON, "epic_wide_workflow_active"
+        active_epic_wide_workflow_for_job?(workflow.job)
       else
         true
       end
@@ -2713,15 +2758,40 @@ module WorkEngine
       job.reload.active_runtime_work?
     end
 
-    def recoverable_cancelled_workflow_for_queued_job?(job, workflow)
+    def recoverable_cancelled_workflow_for_queued_job?(job, workflow, include_active_start_block: false)
       return false unless workflow&.cancelled?
       return false unless recoverable_cancelled_workflow?(workflow)
       return false if cancelled_workflow_reason(workflow) == EpicWorkflowLock::BLOCK_REASON
       return false if deliberate_cancelled_workflow?(workflow)
       return false if active_epic_wide_workflow_for_job?(job)
       return false unless job.dependencies_satisfied_for_execution?
+      return false if !include_active_start_block && cancelled_start_block_still_active?(workflow)
 
       true
+    end
+
+    def cancelled_start_block_still_active?(workflow)
+      return false unless workflow&.cancelled?
+
+      reason = start_block_reason(workflow)
+      return false if reason.blank?
+
+      current_start_block_active?(workflow, reason)
+    end
+
+    def cancelled_start_block_check_after(workflow)
+      next_check_at = start_block_next_check_at(workflow)
+      return next_check_at if next_check_at&.future?
+
+      now + StepDispatcher::START_BLOCKED_BACKOFF
+    end
+
+    def cancelled_start_block_workflow_for_intent(intent)
+      relaunchability = work_intent_relaunchability(intent)
+      job = jobs.find { |candidate| candidate.id == relaunchability.representative_job_id } ||
+        Job.find_by(id: relaunchability.representative_job_id)
+      latest = latest_workflow_for_job(job)
+      latest if cancelled_start_block_still_active?(latest)
     end
 
     def recoverable_cancelled_workflow?(workflow)

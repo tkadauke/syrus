@@ -70,6 +70,7 @@ The classifier currently emits these families:
 - `running_run_without_live_worker_evidence`
 - `queued_workflow_without_first_run`
 - `running_workflow_without_active_descendants`
+- `queued_job_after_cancelled_start_block`
 - `job_workflow_state_drift`
 - `job_without_active_workflow`
 - `unambiguous_job_state_drift`
@@ -164,6 +165,15 @@ Planner examples:
   returns no unsatisfied dependencies, the reconciler emits
   `stale_dependency_start_block` with an automatic
   `clear_stale_start_block_and_start_workflow` repair.
+- If a Job is queued after its latest Workflow was cancelled before creating
+  a first Run, and that Workflow still records an active start block such as
+  broken main health, an unresolved dependency/stack wait, an urgent-job hold,
+  or an Epic-wide workflow lock, the reconciler emits
+  `queued_job_after_cancelled_start_block` with a wait-only
+  `wait_for_cancelled_start_block_to_clear` plan. The generic cancelled
+  Workflow retry and requested WorkIntent relaunch paths both suppress new
+  Workflow materialization until the current blocker clears, avoiding
+  per-minute recreate/cancel storms from the global stale-run sweep.
 - Terminal Workflows with stale queued/running descendants plan
   `cancel_terminal_workflow_active_descendants`, which cancels those child
   Steps/Runs without changing the terminal Workflow outcome. This handles old
