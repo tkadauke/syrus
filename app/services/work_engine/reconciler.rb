@@ -329,22 +329,26 @@ module WorkEngine
       elsif job_id.present?
         active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids([ job_id ]).to_a)
         latest_failed_workflows = latest_failed_workflows_for_jobs([ job_id ])
+        unrevalidated_repair_workflows = unrevalidated_failed_repair_workflows_for_jobs([ job_id ])
         stale_auto_retry_workflows = queued_retry_workflows_for_jobs([ job_id ])
         terminal_descendant_workflows = terminal_workflows_with_active_descendants(job_ids: [ job_id ])
 
         Workflow.where(id: active_workflows.select(:id))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
+          .or(Workflow.where(id: unrevalidated_repair_workflows.select(:id)))
           .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       else
         job_ids = jobs.map(&:id)
         active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids(job_ids).to_a)
         latest_failed_workflows = latest_failed_workflows_for_jobs(job_ids)
+        unrevalidated_repair_workflows = unrevalidated_failed_repair_workflows_for_jobs(job_ids)
         stale_auto_retry_workflows = queued_retry_workflows_for_jobs(job_ids)
         terminal_descendant_workflows = terminal_workflows_with_active_descendants
 
         Workflow.where(id: active_workflows.select(:id))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
+          .or(Workflow.where(id: unrevalidated_repair_workflows.select(:id)))
           .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
       end
@@ -459,6 +463,36 @@ module WorkEngine
         .with_latest_workflow_snapshot
         .filter_map { |job| job.latest_workflow_id if job.latest_workflow_state == "failed" }
       Workflow.where(id: latest_ids)
+    end
+
+    def unrevalidated_failed_repair_workflows_for_jobs(job_ids)
+      ids = Array(job_ids).compact
+      return Workflow.none if ids.empty?
+
+      candidates = Workflow
+        .where(job_id: ids, state: "failed", trigger_kind: active_repair_workflow_trigger_kinds)
+        .where(cleaned_up_at: nil)
+        .where(id: retryable_failed_repair_workflow_ids)
+        .includes(:steps, job: :workflows)
+        .select { |workflow| failed_repair_workflow_still_needs_validation?(workflow) }
+
+      Workflow.where(id: candidates.map(&:id))
+    end
+
+    def retryable_failed_repair_workflow_ids
+      Run.failed
+        .joins(:step)
+        .left_joins(:run_failure_classification, :run_diagnostic)
+        .where(steps: { state: "failed" })
+        .where(
+          "run_failure_classifications.retryable = :retryable OR " \
+          "run_diagnostics.error_class = :connection_error OR " \
+          "run_diagnostics.error_message LIKE :connection_message",
+          retryable: true,
+          connection_error: "ActiveRecord::ConnectionNotEstablished",
+          connection_message: "%ActiveRecord::ConnectionNotEstablished%"
+        )
+        .select("steps.workflow_id")
     end
 
     def classify_queued_runs
@@ -2043,7 +2077,7 @@ module WorkEngine
     def classify_retryable_failures
       runs.select(&:failed?).filter_map do |run|
         next if run.job&.closed?
-        next unless latest_workflow_run?(run)
+        next unless latest_workflow_run?(run) || repair_failure_still_needs_validation?(run)
         next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if recoverable_branch_divergence?(run)
@@ -2854,6 +2888,53 @@ module WorkEngine
       workflow = run.workflow
       job = run.job
       workflow && job && workflow == latest_workflow_for_job(job)
+    end
+
+    def repair_failure_still_needs_validation?(run)
+      workflow = run.workflow
+      return false unless workflow
+
+      failed_repair_workflow_still_needs_validation?(workflow)
+    end
+
+    def failed_repair_workflow_still_needs_validation?(workflow)
+      return false unless workflow&.failed?
+      return false unless workflow.job&.open?
+      return false unless active_repair_workflow_trigger_kinds.include?(workflow.trigger_kind)
+      return false if latest_workflow_for_job(workflow.job) == workflow
+
+      !newer_successful_validation_workflow?(workflow)
+    end
+
+    def newer_successful_validation_workflow?(workflow)
+      workflow.job.workflows
+        .where(state: "succeeded")
+        .where("id > ?", workflow.id)
+        .includes(:steps)
+        .any? { |candidate| validation_workflow?(candidate) }
+    end
+
+    def validation_workflow?(workflow)
+      workflow.steps.any? do |step|
+        step.succeeded? && validation_step_kind?(step.kind)
+      end
+    end
+
+    def validation_step_kind?(kind)
+      validation_step_kinds.include?(kind.to_s)
+    end
+
+    def validation_step_kinds
+      @validation_step_kinds ||= Step::Kind::ENTRIES
+        .select(&:triggers_auto_approval)
+        .map(&:kind)
+        .to_set + %w[grader_fanout preflight_grader_fanout grade]
+    end
+
+    def active_repair_workflow_trigger_kinds
+      @active_repair_workflow_trigger_kinds ||= WorkDefinitions.workflow_trigger_kinds_for(
+        WorkDefinitions.active_repair_work_kinds - WorkDefinitions.layered_auto_repair_suppressed_kinds
+      )
     end
 
     def failed_run_still_controls_step?(run)
