@@ -8,7 +8,7 @@ if [ ! -d node_modules/.bin ] || [ ! -f node_modules/.package-lock.json ] || [ p
   npm ci
 fi
 
-vitest_max_workers="${VITEST_MAX_WORKERS:-4}"
+vitest_max_workers="${VITEST_MAX_WORKERS:-2}"
 vitest_junit_output="${VITEST_JUNIT_OUTPUT:-.syrus/grade-output/react-tests-junit.xml}"
 mkdir -p "$(dirname "$vitest_junit_output")"
 
