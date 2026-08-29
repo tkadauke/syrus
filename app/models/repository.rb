@@ -70,8 +70,6 @@ class Repository < ApplicationRecord
   has_many :chat_sessions, through: :chat_attachments
   has_many :documents, as: :attachable, dependent: :destroy
   has_many :repository_documents, as: :attachable, class_name: "Document", dependent: :destroy
-  has_many :design_doc_repositories, dependent: :destroy
-  has_many :design_docs, through: :design_doc_repositories
   has_many :chat_pending_actions, dependent: :destroy
   has_many :main_branch_health_checks, dependent: :destroy
   has_many :insight_suggestions, dependent: :destroy
