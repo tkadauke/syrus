@@ -21,11 +21,32 @@ RSpec.describe PreviewPanelVersion, type: :model do
       expect(version.file_for("").blob.metadata["relative_path"]).to eq("index.html")
     end
 
+    it "resolves a blank or root path to the stored entry file" do
+      version = panel.create_version!({ "notes.md" => "# Notes", "index.html" => "<h1>hi</h1>" }, entry_file: "notes.md")
+
+      expect(version.file_for("/").blob.metadata["relative_path"]).to eq("notes.md")
+      expect(version.file_for("").blob.metadata["relative_path"]).to eq("notes.md")
+    end
+
     it "returns nil for a path with no matching attachment" do
       version = panel.create_version!("index.html" => "<h1>hi</h1>")
 
       expect(version.file_for("missing.js")).to be_nil
     end
+  end
+
+  it "defaults the entry file to index.html" do
+    version = panel.create_version!("index.html" => "<h1>hi</h1>")
+
+    expect(version.entry_file).to eq("index.html")
+    expect(version.entry_viewer_kind).to eq("html")
+  end
+
+  it "infers native viewer metadata from the entry file" do
+    version = panel.create_version!({ "diagram.svg" => "<svg></svg>" }, entry_file: "diagram.svg")
+
+    expect(version.entry_content_type).to eq("image/svg+xml")
+    expect(version.entry_viewer_kind).to eq("image")
   end
 
   describe "ordering" do

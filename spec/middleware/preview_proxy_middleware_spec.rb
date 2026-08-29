@@ -340,6 +340,29 @@ RSpec.describe PreviewProxyMiddleware do
       expect(body.join).to eq("<h1>hello</h1>")
     end
 
+    it "streams the stored entry attachment for the panel root path" do
+      panel = create_panel
+      panel.create_version!({ "notes.md" => "# Notes", "index.html" => "<h1>fallback</h1>" }, entry_file: "notes.md")
+
+      status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me"))
+
+      expect(status).to eq(200)
+      expect(headers["Content-Type"]).to eq("text/markdown")
+      expect(body.join).to eq("# Notes")
+    end
+
+    it "resolves the selected entry per requested version" do
+      panel = create_panel
+      first_version = panel.create_version!({ "notes.md" => "# V1" }, entry_file: "notes.md")
+      panel.create_version!({ "report.pdf" => "%PDF-1.4" }, entry_file: "report.pdf")
+
+      status, headers, body = middleware.call(env_for(host: "preview-panel-#{panel.id}.lvh.me", query: "v=#{first_version.id}"))
+
+      expect(status).to eq(200)
+      expect(headers["Content-Type"]).to eq("text/markdown")
+      expect(body.join).to eq("# V1")
+    end
+
     it "defaults to the panel's current (latest) version when no v param is given" do
       panel = create_panel
       panel.create_version!("index.html" => "<h1>v1</h1>")

@@ -256,6 +256,7 @@ Rails.application.routes.draw do
         delete "chats/:id/preview_panels/:panel_id", to: "chats#close_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }
         patch "chats/:id/preview_panels/:panel_id", to: "chats#update_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }
         get "chats/:id/preview_panels/:panel_id/export", to: "chats#export_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }
+        get "chats/:id/preview_panels/:panel_id/files/*path", to: "chats#preview_panel_file", constraints: { id: /\d+/, panel_id: /\d+/ }, format: false
         post "chats/:id/preview_panels/:panel_id/token", to: "chats#preview_panel_token", constraints: { id: /\d+/, panel_id: /\d+/ }
         get "chats/:id/proposals/search", to: "chats#search_proposals", constraints: { id: /\d+/ }
         patch "chats/:id/proposals/:proposal_id", to: "chats#update_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
