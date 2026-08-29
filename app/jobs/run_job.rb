@@ -275,7 +275,10 @@ class RunJob < ApplicationJob
     @step.reload
     @workflow.reload
 
-    return if @run.terminal? || @step.terminal? || @workflow.terminal?
+    if @run.terminal? || @step.terminal? || @workflow.terminal?
+      handle_terminal_after_successful_handler
+      return
+    end
 
     @run.succeed!
     @run.save!
@@ -302,6 +305,35 @@ class RunJob < ApplicationJob
     )
     ReconcileJobStatesJob.perform_later if eligibility.code.in?(%w[ pr_ready superseded ])
     true
+  end
+
+  def handle_terminal_after_successful_handler
+    return if expected_handler_terminal_return?
+
+    states = {
+      run: @run.state,
+      step: @step.state,
+      workflow: @workflow.state
+    }
+    message = "WARNING: #{@run.slug} handler #{@step.kind} returned successfully, " \
+              "but terminal state was observed before success could be recorded " \
+              "(run=#{states[:run]}, step=#{states[:step]}, workflow=#{states[:workflow]})"
+    Rails.logger.warn("[RunJob] #{message}")
+    log(message, kind: "system")
+
+    reconciliation = RunCompletionReconciler.call(@run, allow_terminal_recovery: true)
+    if reconciliation.reconciled?
+      log("run reconciled after terminal success race: #{reconciliation.reason}", kind: "system")
+    elsif reconciliation.reason.present?
+      log("terminal success race could not be reconciled: #{reconciliation.reason}", kind: "system")
+    end
+  end
+
+  def expected_handler_terminal_return?
+    @workflow.cancelled? &&
+      (@workflow.artifact("cancelled_reason").present? ||
+       @workflow.artifact("retry_cancelled_reason").present? ||
+       @workflow.artifact("start_cancelled_reason").present?)
   end
 
   def work_definition_for_run(run)
