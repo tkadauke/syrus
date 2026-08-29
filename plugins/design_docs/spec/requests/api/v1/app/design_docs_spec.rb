@@ -228,6 +228,42 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(thread.reload).to have_attributes(state: "resolved", resolved_by_user: owner)
   end
 
+  it "returns anchored threads and suggestions from the document detail API" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    comment_result = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    )
+    suggestion_result = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: collaborator,
+      attributes: { start_offset: 11, end_offset: 16, original_markdown: "gamma", proposed_markdown: "delta" }
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs/#{doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body.fetch("design_doc")
+    expect(body.fetch("rendered_markdown")).to eq("Alpha beta gamma")
+    expect(body.fetch("threads").first).to include(
+      "id" => comment_result.thread.id,
+      "state" => "open"
+    )
+    expect(body.dig("threads", 0, "comments", 0)).to include(
+      "id" => comment_result.comment.id,
+      "body" => "Needs evidence"
+    )
+    expect(body.fetch("suggestions").first).to include(
+      "id" => suggestion_result.suggestion.id,
+      "state" => "pending",
+      "proposed_markdown" => "delta",
+      "change_type" => "replace"
+    )
+  end
+
   it "accepts owner-reviewed suggestions server-side when the anchored original text still matches" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
@@ -320,6 +356,28 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:conflict)
     expect(suggestion.reload.state).to eq("conflict")
     expect(suggestion.anchor.reload.status).to eq("missing")
+  end
+
+  it "rejects unsupported suggestion change types in v1" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 6,
+          end_offset: 11,
+          original_markdown: "world",
+          proposed_markdown: "",
+          change_type: "delete"
+        }
+      }
+    }.not_to change(DesignDocSuggestion, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Change type is not included in the list")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
   end
 
   it "returns version history newest first" do
