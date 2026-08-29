@@ -190,6 +190,10 @@ RSpec.describe PreviewTools::ChatToolSet do
         response = call("show_preview", { panel_id: panel.id.to_s, title: "Widget", entry_file: "widget.html" })
 
         expect(response.error?).to be false
+        payload = json(response)
+        expect(payload["entry_file"]).to eq("widget.html")
+        expect(panel.reload.current_version.entry_file).to eq("widget.html")
+        expect(panel.file_for("/").download).to eq("<h1>hi</h1>")
       end
 
       it "errors for a closed panel" do

@@ -1,8 +1,8 @@
 # Preview Panels
 
 Preview panels let a planning-mode chat agent build and show a live HTML/CSS/JS
-mockup or interactive widget page directly in the operator's chat sidebar,
-without ever writing to an attached repository checkout. Unlike [Preview
+mockup, Markdown note, PDF, SVG, or raster image directly in the operator's
+chat sidebar, without ever writing to an attached repository checkout. Unlike [Preview
 Environments](preview_environments.md), which proxy to a running process
 spawned from a PR branch, a preview panel just serves ActiveStorage-attached
 static files — there is no process behind it. A chat can have several panels
@@ -26,16 +26,20 @@ top-level navigation (never embedded), so it doesn't need the same fix.
 File attachments live one level down, on `PreviewPanelVersion` (`belongs_to
 :preview_panel`, `has_many_attached :files`, ordered newest-first by
 default) — one row per published revision, following the same append-only
-pattern as `WhiteboardSnapshot`. `PreviewPanel#current_version` is the first
-(newest) row; `PreviewPanel#file_for(relative_path, version: nil)` resolves a
-file within a version, defaulting to the current one. Retention is
+pattern as `WhiteboardSnapshot`. Each version stores its selected
+`entry_file`, defaulting to `index.html` for old and HTML-first panels.
+`PreviewPanel#current_version` is the first (newest) row;
+`PreviewPanel#file_for(relative_path, version: nil)` resolves a file within a
+version, defaulting to the current one. A blank/root path resolves to the
+version's stored `entry_file` and falls back to `index.html`. Retention is
 indefinite — same cost/retention posture as ordinary attachments; there is no
 pruning job. `PreviewPanel::Service` is the sole sanctioned mutation path:
 
-- `open!(chat_session:, title:, files: {})` — creates an open panel and its
-  first version.
-- `#update!(files:)` — publishes a new `PreviewPanelVersion` snapshot from the
-  given files via `PreviewPanel#create_version!`. Prior versions and their
+- `open!(chat_session:, title:, files: {}, entry_file: "index.html")` —
+  creates an open panel and its first version.
+- `#update!(files:, entry_file: "index.html")` — publishes a new
+  `PreviewPanelVersion` snapshot from the given files via
+  `PreviewPanel#create_version!`. Prior versions and their
   attachments are left intact and stay servable by id — this is what makes
   version history possible, unlike the model's old purge-and-reattach
   `replace_files!` behavior.
@@ -58,8 +62,9 @@ to serve from an optional `?v=<version_id>` query param (defaulting to
 belong to the panel), resolves the request path against that version's
 attached files by their stored `relative_path` blob metadata (ActiveStorage
 sanitizes `/` out of plain filenames, so lookup can't use `blob.filename`),
-defaulting a blank or root path to `index.html`, and streams the matching
-blob with an inferred content type. It reuses the same `PREVIEW_CSP` header
+defaulting a blank or root path to the version's stored `entry_file`, and
+streams the matching blob with an inferred content type. Versions that do not
+have an explicit entry still use `index.html`. It reuses the same `PREVIEW_CSP` header
 the process-proxy branch sets. Origin isolation (a distinct subdomain per
 panel, not same-origin-with-sandbox) is required because a sandboxed
 iframe's restrictions only protect framed content, not a browser tab
@@ -124,26 +129,49 @@ mutation), invoked via `PATCH /api/v1/app/chats/:id/preview_panels/:panel_id`.
 `workspaceTabs.ts` has a `PreviewTab` variant (`preview:<id>`) alongside the
 sidebar's other, singleton, static tab kinds. `WorkspacePanels.tsx` renders
 one tab strip entry per open panel and, for the active panel, a small toolbar
-strip above the iframe, left to right: a version selector dropdown (hidden
+strip above the viewer, left to right: a version selector dropdown (hidden
 when the panel only has one version), a share control (`PreviewShareControl`)
 toggling private/public visibility, an export-as-zip button, and an "open in
-new tab" button, followed by a sandboxed iframe (`allow-scripts`, deliberately
-no `allow-same-origin`) pointed at the panel's per-instance subdomain. The
-version selector lists `panel.versions` newest-first (each labeled "Latest" /
-"Version N" with a relative timestamp); switching versions updates the iframe
-`src`'s `?v=` param (triggering a reload), the open-in-new-tab link, and the
-export link, so all three always act on whichever version is currently
-selected rather than hardcoding the latest. The share control shows the
-current visibility, offers a private/public toggle backed by
+new tab" button. HTML and HTM entries keep the existing sandboxed iframe
+(`allow-scripts`, deliberately no `allow-same-origin`) pointed at the panel's
+per-instance subdomain. App-native viewers use same-origin authenticated file
+URLs under `GET /api/v1/app/chats/:id/preview_panels/:panel_id/files/*path`
+so Markdown text, PDFs, SVGs, and images do not need cross-origin fetches or
+preview-subdomain tokens.
+
+Supported entry viewers in the first pass:
+
+- HTML/HTM: existing iframe behavior for interactive mockups.
+- Markdown (`.md`, `.markdown`, `.mdown`, `.mkdn`): rendered with the shared
+  React `Markdown` component and a Preview/Source toggle matching
+  `FilePreviewModal`.
+- PDF (`application/pdf`): inline app-origin iframe, with the normal toolbar
+  export and open-in-new-tab controls preserved.
+- SVG and raster images (`image/svg+xml`, PNG, JPEG, WebP, GIF): image viewer
+  with fit-to-screen, zoom out, zoom in, actual-size reset, and transparent
+  asset backgrounds (`checkerboard`, `white`, `dark`, `neutral`).
+- Unsupported entries: compact source view when the file is text, otherwise
+  an inline message plus raw/open and export controls.
+
+The version selector lists `panel.versions` newest-first (each labeled
+"Latest" / "Version N" with a relative timestamp); switching versions updates
+the viewer metadata, the iframe or app-origin raw URL, the open-in-new-tab
+link, and the export link, so all controls always act on whichever version is
+currently selected rather than hardcoding the latest. The share control shows
+the current visibility, offers a private/public toggle backed by
 `PATCH .../preview_panels/:panel_id`, and — only once the panel is public —
 a "Copy link" action that copies `panel.url` verbatim (no token needed to
-view it). While a private panel's access token is still loading, the iframe
-and "open in new tab" link are held back (a pending message and a disabled
-affordance, respectively) rather than firing an unauthorized request. Chat
+view it). While a private HTML panel's access token is still loading, the
+iframe and "open in new tab" link are held back (a pending message and a
+disabled affordance, respectively) rather than firing an unauthorized request.
+Native viewers render through the app-origin file endpoint and do not need
+that token. Chat
 payload serialization includes `preview_panels` (`id`, `title`, `file_count`,
 `url`, `visibility`, `app_close_path`, `app_visibility_path`,
-`app_export_path`, `app_token_path`, `current_version_id`, `versions` — each
-`{ id, created_at }`, newest-first) so opening or closing a panel, publishing
+`app_export_path`, `app_file_base_path`, `app_token_path`,
+`current_version_id`, `entry_path`, `entry_content_type`, `entry_viewer_kind`,
+`versions` — each `{ id, created_at, entry_path, entry_content_type,
+entry_viewer_kind }`, newest-first) so opening or closing a panel, publishing
 a new version, or switching visibility shows up live through the existing
 app-events refresh path. Closing a tab calls `DELETE
 /api/v1/app/chats/:id/preview_panels/:panel_id`, which drives
@@ -200,8 +228,9 @@ scoped only to a preview panel's own scratch directory:
   to iterate in place; each call adds to the panel's version history rather
   than overwriting it, so earlier iterations stay servable by version id.
   Requires `entry_file` (default `index.html`) to already exist among the
-  scratch files before publishing, since the panel always serves
-  `index.html` for its root URL regardless of `entry_file`.
+  scratch files before publishing, and stores that path on the new
+  `PreviewPanelVersion` so the panel root and chat sidebar viewer both open
+  the selected entry for that exact version.
 - `close_preview(panel_id)` — calls `PreviewPanel::Service#close!`.
 
 Both "quick interactive widget page" and "freeform layout mockup" go through
@@ -235,7 +264,10 @@ environment variable.
 access to that version's HTML/CSS/JS source, reusing the same
 `ChatMediaAttacher` blob-sharing pipeline snapshots and chat images already
 go through — one `Document` per attached file, sharing the existing blob
-rather than copying it. No zip/unzip, screenshot, or browser-automation step
-is involved. `JobAttachmentContext` frames these files to the implementing
-agent as reference material to adapt to the target repo's own conventions,
-not boilerplate to copy verbatim.
+rather than copying it. HTML, Markdown, PDF, SVG, and raster-image panel
+entries are all ordinary version files for handoff purposes; Office formats,
+videos, notebooks, CSV/table renderers, and Mermaid-specific rendering are
+intentionally out of scope for this first pass. No zip/unzip, screenshot, or
+browser-automation step is involved. `JobAttachmentContext` frames these files
+to the implementing agent as reference material to adapt to the target repo's
+own conventions, not boilerplate to copy verbatim.

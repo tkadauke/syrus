@@ -1750,6 +1750,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
 
   create_table "preview_panel_versions", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "entry_file", default: "index.html", null: false
     t.integer "preview_panel_id", null: false
     t.datetime "updated_at", null: false
     t.index ["preview_panel_id"], name: "index_preview_panel_versions_on_preview_panel_id"
