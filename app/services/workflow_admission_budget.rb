@@ -69,6 +69,10 @@ class WorkflowAdmissionBudget
       return urgent_override("urgent_priority_override", pressure)
     end
 
+    if landing_capacity_reserved_for_queue?
+      return delay("landing_queue_capacity_reserved", pressure, details: details_payload(candidate, active, decision_basis: "landing_queue_capacity_reserved"))
+    end
+
     if minimum_progress_floor_available?
       floor_reason = minimum_progress_floor_reason(candidate, active, pressure)
       return minimum_progress_floor_admit(floor_reason, candidate, active, pressure) if floor_reason
@@ -401,6 +405,31 @@ class WorkflowAdmissionBudget
       minimum_progress_floor_slots_used < minimum_progress_floor_capacity
   end
 
+  def landing_capacity_reserved_for_queue?
+    return false if step.present?
+    return false if landing_candidate?
+    return false unless medium_or_lower?
+
+    blocked_landing_work_waiting?
+  end
+
+  def landing_candidate?
+    kind = workflow.work_unit&.kind
+    return true if kind.present? && WorkDefinitions.landing_work_unit_kinds.include?(kind)
+
+    WorkDefinitions.landing_workflow_kinds.include?(workflow.trigger_kind)
+  end
+
+  def blocked_landing_work_waiting?
+    WorkUnit
+      .joins(:workflow)
+      .where(kind: WorkDefinitions.landing_work_unit_kinds)
+      .where(state: "blocked", blocked_reason: %w[admission_control resource_safety])
+      .where(workflows: { state: %w[queued running] })
+      .where.not(workflow_id: workflow.id)
+      .exists?
+  end
+
   def minimum_progress_floor_slots_used
     active_agentic_run_count + active_minimum_progress_handoff_count
   end
@@ -682,6 +711,7 @@ class WorkflowAdmissionBudget
     gates = []
     gates << "worker_host_pressure_high" if soft_host_pressure?
     gates << "bootstrap_missing_profiles" if bootstrap_missing_profiles?(candidate)
+    gates << "landing_queue_capacity_reserved" if landing_capacity_reserved_for_queue?
     gates << "predicted_budget_pressure_high" if over_budget?(pressure)
     gates << "pending_high_cost_work" if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower?
     if repository_active_workflow_count >= MAX_REPOSITORY_ACTIVE_WORKFLOWS && pending_high_cost_work?(active)
@@ -749,6 +779,7 @@ class WorkflowAdmissionBudget
     %w[
       worker_host_pressure_high
       bootstrap_missing_profiles
+      landing_queue_capacity_reserved
       predicted_budget_pressure_high
       pending_high_cost_work
       repository_concurrency_budget_exhausted

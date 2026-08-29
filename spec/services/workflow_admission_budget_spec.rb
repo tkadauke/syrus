@@ -230,6 +230,81 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.details.fetch("soft_pressure_gates_present")).to include("predicted_budget_pressure_high")
   end
 
+  it "reserves the next admission slot for blocked landing work before medium initial work" do
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "worker-1")
+    WorkflowStepResourceProfile.delete_all
+    %w[prepare implement].each do |step_kind|
+      profile(step_kind: step_kind, duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
+    end
+    %w[mergeability_preflight grader_fanout grader_collect push auto_merge].each do |step_kind|
+      profile(step_kind: step_kind, trigger_kind: "auto_merge", duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
+    end
+    landing_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "landing",
+      priority: "medium",
+      issue_number: 77,
+      pr_number: 77,
+      branch_name: "syrus/issue-77"
+    )
+    landing = Workflows::AutoMerge.instantiate(job: landing_job, agent_provider: "codex")
+    attach_work_unit(
+      landing,
+      kind: "auto_merge",
+      state: "blocked",
+      blocked_reason: "admission_control",
+      blocked_until: 1.minute.from_now
+    )
+    candidate = workflow_for
+
+    decision = described_class.call(workflow: candidate)
+
+    expect(decision.action).to eq("delay_until")
+    expect(decision.reason).to eq("landing_queue_capacity_reserved")
+    expect(decision.details).to include(
+      "decision_basis" => "landing_queue_capacity_reserved",
+      "minimum_progress_floor_available" => true
+    )
+  end
+
+  it "does not reserve landing capacity against another landing candidate" do
+    WorkerHostHealthSample.delete_all
+    worker_sample(hostname: "worker-1")
+    WorkflowStepResourceProfile.delete_all
+    %w[mergeability_preflight grader_fanout grader_collect push auto_merge].each do |step_kind|
+      profile(step_kind: step_kind, trigger_kind: "auto_merge", duration: 20, cpu: 2.0, io: 2.0, memory: 20.0)
+    end
+    first_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "landing",
+      priority: "medium",
+      issue_number: 77,
+      pr_number: 77,
+      branch_name: "syrus/issue-77"
+    )
+    first = Workflows::AutoMerge.instantiate(job: first_job, agent_provider: "codex")
+    attach_work_unit(first, kind: "auto_merge", state: "blocked", blocked_reason: "admission_control")
+    second_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "landing",
+      priority: "medium",
+      issue_number: 78,
+      pr_number: 78,
+      branch_name: "syrus/issue-78"
+    )
+    second = Workflows::AutoMerge.instantiate(job: second_job, agent_provider: "codex")
+    attach_work_unit(second, kind: "auto_merge", state: "queued")
+
+    decision = described_class.call(workflow: second)
+
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("minimum_progress_floor")
+  end
+
   it "resumes delaying once running agentic work reaches the healthy-worker floor" do
     WorkerHostHealthSample.delete_all
     worker_sample(hostname: "worker-1")
