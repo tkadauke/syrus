@@ -70,6 +70,13 @@ CI-only checks in explicit `.syrus.yml` graders with `phases: [ci]` so the
 agent can verify that the GitHub CI failure is actually fixed. If graders fail,
 their output feeds the next `analyze_and_fix` iteration.
 
+If a later `analyze_and_fix` iteration makes no new diff and repeats a prior
+`report_main_concern` diagnosis for the same observed main SHA, failing grader,
+and reason, Syrus records `blocked_by_main`, skips that iteration's pending
+grader check steps, and continues to `summarize_amend`/`push`. That preserves
+any legitimate fixes committed by earlier iterations instead of burning the
+full retry budget against a self-diagnosed pre-existing main failure.
+
 `PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
 spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's
 main branch is known-broken (`repository.landing_paused? && repository.main_health_broken?`,

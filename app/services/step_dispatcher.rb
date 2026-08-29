@@ -721,6 +721,7 @@ class StepDispatcher
   def advance!
     return if handle_successful_adversarial_loop_iteration
     return if handle_successful_visual_review_loop_iteration
+    return if handle_successful_step_advance_handler
 
     next_step = find_next_runnable
     if next_step
@@ -736,6 +737,48 @@ class StepDispatcher
     else
       finish_workflow!
     end
+  end
+
+  def skip_current_retry_until_check_steps!(step:, artifact_key:, reason:)
+    return false unless step.loop_id.present?
+
+    loop_node = loop_node_for(step)
+    return false unless loop_node&.fetch("type") == "retry_until"
+
+    check_kinds = Array(loop_node["check"]).map(&:to_s)
+    continuation = nil
+    skipped = []
+
+    Step.transaction do
+      cursor = step.next_step
+      while cursor &&
+          cursor.loop_id == step.loop_id &&
+          cursor.iteration == step.iteration &&
+          check_kinds.include?(cursor.kind)
+        if cursor.may_skip?
+          cursor.skip_with_reason!(reason)
+          skipped << cursor
+        end
+        cursor = cursor.next_step
+      end
+      continuation = cursor
+
+      @workflow.set_artifact!(
+        artifact_key,
+        @workflow.artifact(artifact_key).to_h.merge(
+          "skipped_check_step_ids" => skipped.map(&:id),
+          "continued_at" => Time.current.iso8601
+        )
+      )
+
+      if continuation&.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
+        self.class.create_run_and_enqueue(continuation, @workflow)
+      elsif continuation.nil?
+        finish_workflow!
+      end
+    end
+
+    true
   end
 
   def fail!
@@ -762,6 +805,18 @@ class StepDispatcher
       exit_verdicts: %w[approved],
       cancellation_reason: "adversarial_review_approved"
     )
+  end
+
+  def handle_successful_step_advance_handler
+    return false unless @from_step
+
+    Step::Kind.fetch(@from_step.kind).advance_handler_class&.call(
+      dispatcher: self,
+      workflow: @workflow,
+      step: @from_step
+    ) == true
+  rescue ArgumentError
+    false
   end
 
   # Mirrors handle_successful_adversarial_loop_iteration: the visual_review

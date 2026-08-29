@@ -105,6 +105,10 @@ Agentic. Addresses PR review feedback or chat feedback. Reads the new comments a
 ### analyze_and_fix
 
 Agentic. Inspects failing CI checks and fixes the root cause. Used in `ci_failure` workflows.
+When an iteration makes no new diff and repeats an earlier `report_main_concern`
+for the same observed main SHA, failing grader/test list, and normalized reason,
+Syrus treats it as `blocked_by_main`: the current retry loop's remaining grader
+check steps are skipped and the workflow proceeds to `summarize_amend`/`push`.
 If GitHub Actions reports that a job failed before repository tests ran
 (for example runner setup or action-download infrastructure failures), Syrus
 records the CI infrastructure reason and does not start an agentic repair
@@ -289,6 +293,9 @@ the fallback reason.
 Non-agentic. Aggregates grader results. Fails the check cycle if any required grader failed; succeeds otherwise.
 Failed collect steps still write grader loop timing before raising, so landing
 repair loops show whether the failed attempt actually spent time running graders.
+In `ci_failure` workflows, `grader_collect` may be skipped after a repeated
+no-op `analyze_and_fix` main-concern diagnosis so the workflow can publish
+earlier repair commits without rerunning known non-actionable graders.
 
 ### grade
 
