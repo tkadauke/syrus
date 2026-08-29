@@ -21,7 +21,7 @@ RSpec.describe Steps::AdversarialReview do
   let(:handler) { described_class.new(run) }
 
   before do
-    fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
+    fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
 
     implement_step.update!(state: "succeeded")
@@ -68,6 +68,7 @@ RSpec.describe Steps::AdversarialReview do
       expect(prompt).to include("submit_adversarial_review")
       expect(prompt).to include("Changed files from the latest succeeded implement step")
       expect(prompt).to include("app.rb")
+      expect(prompt).to include("git diff origin/main...HEAD -- <path>")
       expect(prompt).not_to include("puts 'review me'")
       expect(max_turns).to eq(described_class::TURN_BUDGET)
       expect(required_mcp_tools).to eq(%w[submit_adversarial_review])
@@ -80,6 +81,26 @@ RSpec.describe Steps::AdversarialReview do
     handler.call
 
     expect(run.reload.prompt).to include("Review the implementation independently.")
+  end
+
+  it "passes a stacked workspace base ref into the prompt" do
+    fake_ws = instance_double(
+      WorkflowWorkspace,
+      setup: true,
+      path: Pathname.new("/tmp/workspace"),
+      base_ref: "origin/syrus/direct-parent"
+    )
+    allow(handler).to receive(:workspace).and_return(fake_ws)
+
+    expect(handler).to receive(:run_agent) do |prompt: nil, **|
+      expect(prompt).to include("git diff origin/syrus/direct-parent...HEAD -- <path>")
+      expect(prompt).not_to include("<base>")
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Looks sound.", "verdict" => "approved" }
+      ])
+    end
+
+    handler.call
   end
 
   it "raises StepFailed when the reviewer does not submit findings" do
@@ -344,7 +365,7 @@ RSpec.describe Steps::AdversarialReview do
     let(:fb_handler) { described_class.new(fb_run) }
 
     before do
-      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
       allow(fb_handler).to receive(:workspace).and_return(fake_ws)
       respond_run # ensure persisted
       feedback_workflow.set_artifact!("pr_comments", [
@@ -416,7 +437,7 @@ RSpec.describe Steps::AdversarialReview do
     let(:chat_handler) { described_class.new(chat_run) }
 
     before do
-      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
       allow(chat_handler).to receive(:workspace).and_return(fake_ws)
       chat_respond_run # ensure persisted
       chat_workflow.set_artifact!("chat_feedback", "Please refactor the helper method.")

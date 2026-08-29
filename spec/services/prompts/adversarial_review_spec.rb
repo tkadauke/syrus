@@ -9,6 +9,7 @@ RSpec.describe Prompts::AdversarialReview do
       issue: issue,
       diff: diff,
       prior_findings: prior_findings,
+      base_ref: base_ref,
       workflow_kind: workflow_kind,
       feedback_context: feedback_context,
       criteria: criteria
@@ -19,6 +20,7 @@ RSpec.describe Prompts::AdversarialReview do
   let(:workflow_kind) { nil }
   let(:feedback_context) { nil }
   let(:criteria) { [] }
+  let(:base_ref) { "origin/main" }
 
   it "includes independence instruction" do
     expect(prompt).to include("independent reviewer")
@@ -32,8 +34,19 @@ RSpec.describe Prompts::AdversarialReview do
   it "includes a changed-file manifest instead of the full diff body" do
     expect(prompt).to include("Changed files from the latest succeeded implement step")
     expect(prompt).to include("auth.rb")
-    expect(prompt).to include("git diff <base>...HEAD -- <path>")
+    expect(prompt).to include("git diff origin/main...HEAD -- <path>")
+    expect(prompt).not_to include("<base>")
     expect(prompt).not_to include("return if user.nil?")
+  end
+
+  context "with a stacked base ref" do
+    let(:base_ref) { "origin/syrus/direct-3341" }
+
+    it "renders the concrete parent branch ref in diff instructions" do
+      expect(prompt).to include("git diff origin/syrus/direct-3341...HEAD -- <path>")
+      expect(prompt).not_to include("git diff origin/main...HEAD -- <path>")
+      expect(prompt).not_to include("<base>")
+    end
   end
 
   context "with generated asset diffs" do
