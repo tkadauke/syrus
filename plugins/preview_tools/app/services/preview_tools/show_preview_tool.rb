@@ -12,8 +12,7 @@ module PreviewTools
                 "show_preview again with the same panel_id to publish them. With panel_id, " \
                 "walks the panel's current scratch directory and replaces the panel's published " \
                 "files with it (deleted scratch files stop being served), so you can call this " \
-                "repeatedly to iterate in place. The panel always serves \"index.html\" for its " \
-                "root URL, regardless of entry_file, so name your landing page index.html."
+                "repeatedly to iterate in place. The panel root serves entry_file, defaulting to index.html."
 
     input_schema(
       type: "object",
@@ -51,7 +50,10 @@ module PreviewTools
           return error_response("entry_file #{resolved_entry_file.inspect} was not found among the scratch files: #{files.keys.sort.join(', ')}.")
         end
 
-        updated = PreviewPanel::Service.new(panel).update!(files: files.transform_values { |path| File.binread(path) })
+        updated = PreviewPanel::Service.new(panel).update!(
+          files: files.transform_values { |path| File.binread(path) },
+          entry_file: resolved_entry_file
+        )
         ok_response(panel_payload(updated))
       end
     end

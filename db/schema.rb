@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1571,6 +1571,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
 
   create_table "preview_panel_versions", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "entry_file", default: "index.html", null: false
     t.integer "preview_panel_id", null: false
     t.datetime "updated_at", null: false
     t.index ["preview_panel_id"], name: "index_preview_panel_versions_on_preview_panel_id"
