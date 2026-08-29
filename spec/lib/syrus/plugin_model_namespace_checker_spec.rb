@@ -94,4 +94,28 @@ RSpec.describe Syrus::PluginModelNamespaceChecker do
       expect(result.errors).to include(/creates table "tickets"/)
     end
   end
+
+  it "accepts plural plugin migrations with root and singular child table prefixes" do
+    Dir.mktmpdir("syrus-plugin-checker") do |dir|
+      root = Pathname.new(dir)
+      plugin = root.join("plugins/design_docs")
+      plugin.join("db/migrate").mkpath
+      plugin.join("design_docs.gemspec").write("Gem::Specification.new do |spec|\n  spec.name = \"design_docs\"\nend\n")
+      plugin.join("db/migrate/20260822000000_create_design_docs.rb").write(<<~RUBY)
+        class CreateDesignDocs < ActiveRecord::Migration[8.1]
+          def change
+            create_table :design_docs do |t|
+              t.timestamps
+            end
+
+            create_table :design_doc_versions do |t|
+              t.timestamps
+            end
+          end
+        end
+      RUBY
+
+      expect(checker_for(model_classes: [], root: root).call).to be_success
+    end
+  end
 end
