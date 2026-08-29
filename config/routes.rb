@@ -328,6 +328,11 @@ Rails.application.routes.draw do
         resources :design_docs, only: %i[index show create update] do
           member do
             get :versions
+            post :comments
+            post :suggestions, action: :create_suggestion
+            post "threads/:thread_id/resolve", action: :resolve_thread
+            post "suggestions/:suggestion_id/accept", action: :accept_suggestion
+            post "suggestions/:suggestion_id/reject", action: :reject_suggestion
           end
         end
         get "repositories/:repository_id/skills", to: "skills#index"

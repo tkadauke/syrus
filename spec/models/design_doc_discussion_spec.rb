@@ -65,4 +65,24 @@ RSpec.describe "design doc discussions", type: :model do
     expect(suggestion).not_to be_valid
     expect(suggestion.errors[:reviewed_at]).to be_present
   end
+
+  it "inserts later anchors at rendered markdown offsets after existing hidden markers" do
+    doc.update!(markdown: "Alpha beta gamma")
+    doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+    first = DesignDocs::CreateAnchor.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    ).anchor
+    second = DesignDocs::CreateAnchor.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: 11, end_offset: 16, selected_markdown: "gamma" }
+    ).anchor
+
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Alpha beta gamma")
+    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{first.marker_id}\" -->beta<!-- syrus:range-end id=\"#{first.marker_id}\" -->")
+    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{second.marker_id}\" -->gamma<!-- syrus:range-end id=\"#{second.marker_id}\" -->")
+    expect(second).to have_attributes(start_offset: 11, end_offset: 16, selected_text: "gamma")
+  end
 end

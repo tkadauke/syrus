@@ -11,6 +11,10 @@ class DesignDocPolicy < ApplicationPolicy
     admin? || owner? || collaborator?
   end
 
+  def review?
+    admin? || owner?
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.all if admin?

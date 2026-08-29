@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -673,14 +673,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_170000) do
 
   create_table "design_doc_anchors", force: :cascade do |t|
     t.string "anchor_key", null: false
+    t.string "anchor_kind", default: "range", null: false
     t.datetime "created_at", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_version_id"
     t.integer "end_offset", null: false
+    t.integer "last_known_end_offset"
+    t.integer "last_known_start_offset"
+    t.string "marker_id", null: false
+    t.text "prefix_context"
     t.text "selected_markdown"
+    t.text "selected_text"
     t.integer "start_offset", null: false
+    t.string "status", default: "active", null: false
+    t.text "suffix_context"
     t.datetime "updated_at", null: false
     t.index ["design_doc_id", "anchor_key"], name: "index_design_doc_anchors_on_doc_and_key", unique: true
+    t.index ["design_doc_id", "marker_id"], name: "index_design_doc_anchors_on_doc_and_marker_id", unique: true
     t.index ["design_doc_id"], name: "index_design_doc_anchors_on_design_doc_id"
     t.index ["design_doc_version_id"], name: "index_design_doc_anchors_on_design_doc_version_id"
   end
@@ -721,12 +730,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_170000) do
   end
 
   create_table "design_doc_suggestions", force: :cascade do |t|
+    t.integer "base_version_id"
     t.text "change_summary"
+    t.string "change_type", default: "replace", null: false
+    t.text "conflict_reason"
     t.datetime "created_at", null: false
     t.integer "design_doc_anchor_id", null: false
     t.integer "design_doc_id", null: false
     t.integer "design_doc_thread_id"
     t.text "original_markdown", null: false
+    t.text "proposed_markdown", null: false
+    t.json "provenance"
     t.datetime "reviewed_at"
     t.integer "reviewed_by_user_id"
     t.string "state", default: "pending", null: false
@@ -734,6 +748,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_170000) do
     t.integer "suggested_by_user_id"
     t.text "suggested_markdown", null: false
     t.datetime "updated_at", null: false
+    t.index ["base_version_id"], name: "index_design_doc_suggestions_on_base_version_id"
     t.index ["design_doc_anchor_id", "state"], name: "index_design_doc_suggestions_on_anchor_and_state"
     t.index ["design_doc_anchor_id"], name: "index_design_doc_suggestions_on_design_doc_anchor_id"
     t.index ["design_doc_id", "state"], name: "index_design_doc_suggestions_on_doc_and_state"
@@ -2773,6 +2788,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_170000) do
   add_foreign_key "design_doc_repositories", "repositories"
   add_foreign_key "design_doc_suggestions", "design_doc_anchors"
   add_foreign_key "design_doc_suggestions", "design_doc_threads"
+  add_foreign_key "design_doc_suggestions", "design_doc_versions", column: "base_version_id"
   add_foreign_key "design_doc_suggestions", "design_docs"
   add_foreign_key "design_doc_suggestions", "users", column: "reviewed_by_user_id"
   add_foreign_key "design_doc_suggestions", "users", column: "suggested_by_user_id"
