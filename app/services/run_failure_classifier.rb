@@ -33,6 +33,10 @@ class RunFailureClassifier
       result(ProviderUsageLimit::CLASSIFICATION, 0.95, false, "The provider or model usage limit is exhausted.")
     when rate_limited?
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
+    when workspace_clone_timeout?
+      result("workspace_clone_timeout", 0.95, true, "The workflow workspace clone timed out before producing a usable checkout.")
+    when workspace_checkout_invalid?
+      result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when timeout?
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
@@ -114,6 +118,18 @@ class RunFailureClassifier
     diagnostic&.error_class.to_s.match?(/Timeout/) ||
       text_match?(/timed out|timeout|execution expired/i) ||
       spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
+  end
+
+  def workspace_clone_timeout?
+    spawned_processes.any? do |process|
+      process.kind == "git" &&
+        process.outcome.in?(%w[timed_out silent_timed_out]) &&
+        process.command.to_s.match?(/\bgit\s+clone\b/)
+    end
+  end
+
+  def workspace_checkout_invalid?
+    text_match?(/existing workflow workspace .* has no valid HEAD|workflow workspace .* no valid HEAD/i)
   end
 
   def provider_prompt_too_long?
