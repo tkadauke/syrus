@@ -20,6 +20,7 @@ class Epic < ApplicationRecord
   attribute :epic_dependency_policy, :string, default: "linear"
 
   belongs_to :user
+  belongs_to :chat_goal, optional: true
   belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics
   belongs_to :repository
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics

@@ -188,6 +188,7 @@ module App
         has_dependencies: visible_dependencies.any?,
         target_epic_id: proposal.target_epic_id,
         target_epic_label: proposal.target_epic&.slug,
+        goal_provenance: App::GoalProvenancePayload.for(proposal),
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject",
@@ -317,6 +318,7 @@ module App
         dependencies: dependency_records.map(&:slug),
         depends_on_job_ids: proposal.depends_on_job_ids || [],
         depends_on_epic_ids: proposal.depends_on_epic_ids || [],
+        goal_provenance: App::GoalProvenancePayload.for(proposal),
         dependency_details: dependency_records.map { |dependency| child_dependency_json(proposal, dependency) },
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject"

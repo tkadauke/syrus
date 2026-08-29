@@ -273,6 +273,7 @@ module Api
             title: epic.title.to_s,
             state: epic.state,
             repository_slug: epic.repository.slug,
+            goal_provenance: ::App::GoalProvenancePayload.for(epic),
             done_jobs_count: done_jobs_count(jobs),
             total_jobs_count: jobs.size,
             updated_at: epic.updated_at&.iso8601,
@@ -405,6 +406,7 @@ module Api
             github_issue_url: epic.github_issue_url.to_s,
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
+            goal_provenance: ::App::GoalProvenancePayload.for(epic),
             epic_path: epic.persisted? ? epic_path(epic) : nil
           }
         end
@@ -440,6 +442,7 @@ module Api
             owner_user: owner_user_json(epic.owner_user),
             repository_slug: epic.repository.slug,
             repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository)),
+            goal_provenance: ::App::GoalProvenancePayload.for(epic),
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             review_ready: epic.review_ready?,
@@ -551,6 +554,7 @@ module Api
             owner_user: owner_user_json(job.owner_user),
             repository_slug: job.repository.slug,
             branch_name: job.branch_name.to_s,
+            goal_provenance: ::App::GoalProvenancePayload.for(job),
             depends_on_job_ids: job.dependencies.filter_map(&:depends_on_job_id)
           }
           stages = ::App::DeploymentStagesPayload.for_job(job, plan: deployment_stages_plan)

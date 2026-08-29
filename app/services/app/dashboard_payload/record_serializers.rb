@@ -94,6 +94,7 @@ module App
           owner_badge: owner_badge_for(owner_user),
           tags: tags,
           source_chat: source_chat,
+          goal_provenance: App::GoalProvenancePayload.for(job),
           needs_attention: job.needs_attention?,
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
@@ -233,6 +234,7 @@ module App
           done_at: epic.done_at&.iso8601,
           archived_at: epic.archived_at&.iso8601,
           repository: repository_json(epic.repository),
+          goal_provenance: App::GoalProvenancePayload.for(epic),
           paths: {
             epic_path: epic_path(epic),
             edit_epic_path: edit_epic_path(epic),
