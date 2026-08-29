@@ -237,6 +237,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           ) : null}
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
           <OwnerBadge badge={item.owner_badge} />
+          <GoalMetadata goalId={item.goal_provenance?.chat_goal_id} />
           {item.pr_number ? (
             <PrHoverCard jobId={item.id} prNumber={item.pr_number} prUrl={item.pr_url ?? ""}>
               <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
@@ -282,11 +283,18 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           <EpicStuckBadge stuck={item.stuck} />
           <OwnerBadge badge={item.owner_badge} />
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300" prefix={prefix} repository={item.repository} />
+          <GoalMetadata goalId={item.goal_provenance?.chat_goal_id} />
         </div>
       </div>
       <EpicProgressBar epic={item} fullWidth />
     </article>
   )
+}
+
+function GoalMetadata({ goalId }: { goalId?: number | null }) {
+  if (!goalId) return null
+
+  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 dark:bg-gray-800 dark:text-gray-300">Goal {goalId}</span>
 }
 
 function canMoveEpicToLane(epic: DashboardEpicItem, targetState: string) {

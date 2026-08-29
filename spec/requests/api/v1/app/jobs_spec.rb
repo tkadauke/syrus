@@ -60,9 +60,11 @@ RSpec.describe "App API job detail", type: :request do
 
   it "lists jobs for bearer-token CLI clients without admin access" do
     user.update!(api_token: "syrus_cli_token", global_role: "user")
+    chat = ChatSession.create!(user: user, repository: repo)
+    goal = chat.chat_goals.create!(prompt: "List traceable Jobs.", auto_file_proposals: true)
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")
     job
-    job.update!(epic: epic)
+    job.update!(epic: epic, chat_goal: goal, goal_prompt_snapshot: ChatGoalProvenance.snapshot(goal))
     finish_existing_work!(job)
     Factories.job(repository: Factories.repository(user: Factories.user, owner: "other", name: "repo"), issue_title: "Private")
 
@@ -79,6 +81,10 @@ RSpec.describe "App API job detail", type: :request do
       "issue_title" => "Repair aqueduct",
       "repository_id" => repo.id,
       "repository_slug" => "acme/widgets",
+      "goal_provenance" => include(
+        "chat_goal_id" => goal.id,
+        "prompt_snapshot" => include("prompt" => "List traceable Jobs.")
+      ),
       "branch_name" => "syrus/issue-42",
       "pr_number" => 7
     ))

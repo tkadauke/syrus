@@ -1180,6 +1180,7 @@ export type PickerJobRecord = {
   issue_title: string
   state: string
   repository_slug: string
+  goal_provenance?: GoalProvenance | null
   pr_url: string | null
 }
 

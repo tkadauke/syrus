@@ -33,7 +33,16 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
 
   it "lists epics for bearer-token CLI clients with repository scoping" do
     user.update!(api_token: "syrus_cli_token")
-    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "in_progress")
+    chat_session = ChatSession.create!(user: user, repository: repository)
+    goal = chat_session.chat_goals.create!(prompt: "List traceable Epics.", auto_file_proposals: true)
+    epic = Factories.epic(
+      user: user,
+      repository: repository,
+      title: "Raise the forum",
+      state: "in_progress",
+      chat_goal: goal,
+      goal_prompt_snapshot: ChatGoalProvenance.snapshot(goal)
+    )
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "open")
     other_user = Factories.user
@@ -47,6 +56,10 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "id" => epic.id,
       "title" => "Raise the forum",
       "repository_slug" => "acme/widgets",
+      "goal_provenance" => include(
+        "chat_goal_id" => goal.id,
+        "prompt_snapshot" => include("prompt" => "List traceable Epics.")
+      ),
       "done_jobs_count" => 1,
       "total_jobs_count" => 2
     ))

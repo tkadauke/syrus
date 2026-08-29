@@ -1,6 +1,6 @@
 import { getJson, getJsonWithMeta, patchJson, postJson } from "./client"
 import type { JsonResponseMeta } from "./client"
-import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
+import type { GoalProvenance, JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { StartBlockedDetails } from "../types/startBlocked"
@@ -146,6 +146,7 @@ export type DashboardJobItem = {
   total_cost_usd: number | null
   issue_number: number | null
   issue_url: string | null
+  goal_provenance?: GoalProvenance | null
   branch_name: string | null
   pr_number: number | null
   pr_is_external?: boolean
@@ -234,6 +235,7 @@ export type DashboardEpicItem = {
   landed_jobs_count: number
   job_state_counts: Record<string, number>
   max_commits_behind_base: number | null
+  goal_provenance?: GoalProvenance | null
   created_at: string | null
   updated_at: string | null
   done_at: string | null

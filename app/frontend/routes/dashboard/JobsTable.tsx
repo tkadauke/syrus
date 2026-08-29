@@ -97,6 +97,7 @@ export function SimpleJobsTable({ items }: { items: DashboardJobItem[] }) {
             <span className="min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{job.title}</span>
             <span className="flex flex-wrap items-center gap-2">
               <NeutralStatePill state={job.state} />
+              <GoalMetadata goalId={job.goal_provenance?.chat_goal_id} />
               {job.state === "closed" && job.closure_reason ? (
                 <span className="text-sm text-gray-500 dark:text-gray-400">{humanizeOption(job.closure_reason)}</span>
               ) : null}
@@ -780,6 +781,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
               </PrHoverCard>
             ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
+          <GoalMetadata goalId={job.goal_provenance?.chat_goal_id} />
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
@@ -822,6 +824,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
               </PrHoverCard>
             ) : null}
           {job.pr_is_external ? <ExternalPrBadge external={job.pr_is_external} /> : null}
+          <GoalMetadata goalId={job.goal_provenance?.chat_goal_id} />
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
@@ -1008,6 +1011,12 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
       <CopyableSlug slug={`JOB-${job.id}`} />
     </SlugHoverCard>
   )
+}
+
+function GoalMetadata({ goalId }: { goalId?: number | null }) {
+  if (!goalId) return null
+
+  return <span>Goal {goalId}</span>
 }
 
 function ManualPauseInline({ job }: { job: DashboardJobItem }) {

@@ -32,7 +32,10 @@ export function SimpleFeaturesTable({ items, prefix }: { items: DashboardEpicIte
               to={withRoutePrefix(epic.paths.epic_path, prefix)}
             >
               <span className="min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{epic.title}</span>
-              <span className="text-sm font-medium text-brand">{simpleStatusLabel(epic.simple_status, t)}</span>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-brand">
+                <span>{simpleStatusLabel(epic.simple_status, t)}</span>
+                <GoalMetadata goalId={epic.goal_provenance?.chat_goal_id} />
+              </span>
               {epic.updated_at ? <span className="text-sm text-gray-500 dark:text-gray-400">{formatRelativeDate(new Date(epic.updated_at))}</span> : null}
             </Link>
           </li>
@@ -178,6 +181,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={epic.repository} />
           <OwnerBadge badge={epic.owner_badge} />
+          <GoalMetadata goalId={epic.goal_provenance?.chat_goal_id} />
         </div>
       </div>
       {showProgress ? (
@@ -198,8 +202,9 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
     return (
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
-        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-xs text-gray-500 dark:text-gray-400">
           <SlugHoverCard id={epic.id} kind="epic">{epic.display_number}</SlugHoverCard>
+          <GoalMetadata goalId={epic.goal_provenance?.chat_goal_id} />
         </div>
       </td>
     )
@@ -232,6 +237,12 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
 
 function epicProgressVisible(epic: DashboardEpicItem) {
   return epic.state === "in_progress" && epic.jobs_count > 0
+}
+
+function GoalMetadata({ goalId }: { goalId?: number | null }) {
+  if (!goalId) return null
+
+  return <span className="font-sans text-xs text-gray-500 dark:text-gray-400">Goal {goalId}</span>
 }
 
 export function WorkflowsTable({ items, columns, prefix, sortState }: { items: DashboardWorkflowItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {

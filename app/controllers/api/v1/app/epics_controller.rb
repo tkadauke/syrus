@@ -273,6 +273,7 @@ module Api
             title: epic.title.to_s,
             state: epic.state,
             repository_slug: epic.repository.slug,
+            goal_provenance: ChatGoalProvenance.payload_for(epic),
             done_jobs_count: done_jobs_count(jobs),
             total_jobs_count: jobs.size,
             updated_at: epic.updated_at&.iso8601,

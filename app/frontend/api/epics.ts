@@ -313,6 +313,7 @@ export type PickerEpicRecord = {
   title: string
   state: string
   repository_slug: string
+  goal_provenance?: GoalProvenance | null
 }
 
 export type PickerEpicsPayload = {

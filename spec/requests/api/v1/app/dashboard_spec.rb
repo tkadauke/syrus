@@ -39,8 +39,20 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "returns a subject-aware dashboard read payload for the current user" do
       user.update_dashboard_sort!(subject: "job", column: "title", direction: "asc")
       tag = Factories.tag(user: user, name: "aqueduct", color: "blue")
+      goal_chat = ChatSession.create!(user: user, repository: repo)
+      goal = goal_chat.chat_goals.create!(prompt: "Dashboard traceability.", auto_file_proposals: true)
       epic = Factories.epic(user: user, repository: repo, title: "Raise the forum")
-      first = Factories.job_record(repository: repo, epic: epic, issue_number: 1, issue_title: "Build aqueduct", state: "queued", pr_number: 17, owner_user: user)
+      first = Factories.job_record(
+        repository: repo,
+        epic: epic,
+        issue_number: 1,
+        issue_title: "Build aqueduct",
+        state: "queued",
+        pr_number: 17,
+        owner_user: user,
+        chat_goal: goal,
+        goal_prompt_snapshot: ChatGoalProvenance.snapshot(goal)
+      )
       second = Factories.job_record(repository: repo, issue_number: 2, issue_title: "Chart forum", state: "running", owner_user: user)
       second_workflow = Workflow.create!(job: second, trigger_kind: "rebase", state: "running")
       chat = ChatSession.create!(user: user, repository: repo, title: "Roadmap chat")
@@ -90,6 +102,10 @@ RSpec.describe "App API dashboard commands", type: :request do
         "claimed_by_user" => include("id" => user.id, "profile_path" => "/profiles/#{user.id}"),
         "dependencies_overridden_at" => nil,
         "issue_url" => "https://github.com/acme/widgets/issues/1",
+        "goal_provenance" => include(
+          "chat_goal_id" => goal.id,
+          "prompt_snapshot" => include("prompt" => "Dashboard traceability.")
+        ),
         "pr_url" => "https://github.com/acme/widgets/pull/17",
         "active_workflow_trigger_kind" => nil,
         "manual_paused" => false,
@@ -273,7 +289,16 @@ RSpec.describe "App API dashboard commands", type: :request do
 
     it "honors an explicit epic subject in simple mode to surface the legacy epics list" do
       AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
-      epic = Factories.epic(user: user, repository: repo, title: "Checkout polish", state: "in_progress")
+      goal_chat = ChatSession.create!(user: user, repository: repo)
+      goal = goal_chat.chat_goals.create!(prompt: "Dashboard Epic traceability.", auto_file_proposals: true)
+      epic = Factories.epic(
+        user: user,
+        repository: repo,
+        title: "Checkout polish",
+        state: "in_progress",
+        chat_goal: goal,
+        goal_prompt_snapshot: ChatGoalProvenance.snapshot(goal)
+      )
 
       get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban" }
 
@@ -281,7 +306,15 @@ RSpec.describe "App API dashboard commands", type: :request do
       body = parse_body
       expect(body).to include("simple_mode" => true, "subject" => "epic", "view" => "list")
       expect(body.dig("controls", "views")).to eq(%w[list])
-      expect(body["items"]).to contain_exactly(include("type" => "epic", "id" => epic.id, "title" => "Checkout polish"))
+      expect(body["items"]).to contain_exactly(include(
+        "type" => "epic",
+        "id" => epic.id,
+        "title" => "Checkout polish",
+        "goal_provenance" => include(
+          "chat_goal_id" => goal.id,
+          "prompt_snapshot" => include("prompt" => "Dashboard Epic traceability.")
+        )
+      ))
     end
 
     it "presents deferred auto-merge workflows as postponed dashboard state" do
