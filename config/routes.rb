@@ -324,6 +324,12 @@ Rails.application.routes.draw do
         post "repositories/:repository_id/documents", to: "repository_documents#create"
         get "repository_documents/:id/file", to: "repository_documents#file"
         delete "repository_documents/:id", to: "repository_documents#destroy"
+        get "repositories/:repository_id/design_docs", to: "design_docs#repository_index"
+        resources :design_docs, only: %i[index show create update] do
+          member do
+            get :versions
+          end
+        end
         get "repositories/:repository_id/skills", to: "skills#index"
         post "repositories/:repository_id/skills", to: "skills#create"
         get "repositories/:repository_id/scheduled_tasks/new", to: "scheduled_tasks#new"
