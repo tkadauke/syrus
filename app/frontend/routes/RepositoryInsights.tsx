@@ -218,7 +218,7 @@ function SuggestionCard({
   const [showAcceptForm, setShowAcceptForm] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const legacyRevision = suggestion.proposal_type === "revise_existing_insight"
+  const canCreateJob = suggestion.proposal_type === "create_job"
 
   const queryKey = ["repositories", repositoryId, "insight_suggestions"]
 
@@ -478,7 +478,7 @@ function SuggestionCard({
               >
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
-            ) : legacyRevision ? null : (
+            ) : canCreateJob ? (
               <Button
                 disabled={showAcceptForm}
                 onClick={() => { setShowAcceptForm(true); setExpanded(true) }}
@@ -487,7 +487,7 @@ function SuggestionCard({
               >
                 {t("accept")}
               </Button>
-            )}
+            ) : null}
             <Button
               disabled={discussMutation.isPending}
               onClick={() => discussMutation.mutate()}
