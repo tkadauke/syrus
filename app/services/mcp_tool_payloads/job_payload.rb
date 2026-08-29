@@ -18,6 +18,7 @@ module McpToolPayloads
         job_provider_setting: job.job_provider_setting,
         priority: job.priority,
         issue_title: job.issue_title,
+        goal_provenance: App::GoalProvenancePayload.for(job),
         scheduled_task_id: job.scheduled_task_id,
         landed_sha: job.landed_sha,
         commits_behind_base: job.commits_behind_base,
@@ -45,6 +46,7 @@ module McpToolPayloads
         job_provider_setting: job.job_provider_setting,
         priority: job.priority,
         issue_title: job.issue_title,
+        goal_provenance: App::GoalProvenancePayload.for(job),
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601
       }
@@ -58,6 +60,7 @@ module McpToolPayloads
         kind: job.kind,
         issue_title: job.issue_title,
         state: job.state,
+        goal_provenance: App::GoalProvenancePayload.for(job),
         pr_number: job.pr_number || job.external_pr_number,
         priority: job.priority,
         created_at: job.created_at&.iso8601,

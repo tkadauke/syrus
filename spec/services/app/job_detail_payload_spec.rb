@@ -114,6 +114,22 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:job, :approval_evidence)).to be_nil
     end
 
+    it "includes goal provenance when the Job was created from a goal proposal" do
+      chat_session = ChatSession.create!(user: user, repository: repo)
+      goal = ChatGoal.create!(chat_session: chat_session, user: user, repository: repo, prompt: "Show Job goal provenance")
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        chat_goal: goal,
+        goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
+      )
+
+      expect(payload_for(job).dig(:job, :goal_provenance)).to include(
+        chat_goal_id: goal.id,
+        prompt_snapshot: include("prompt" => "Show Job goal provenance")
+      )
+    end
+
     it "includes cached PR check state and a GitHub checks link" do
       checked_at = Time.zone.parse("2026-08-26T19:20:00Z")
       job = Factories.job_record(

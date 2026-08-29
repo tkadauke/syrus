@@ -61,6 +61,24 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "copies goal provenance from a direct Job proposal to the created Job" do
+      goal = ChatGoal.create!(
+        chat_session: session,
+        user: user,
+        repository: repository,
+        prompt: "Generate work from this goal"
+      )
+      job_proposal = proposal(slug: "goal-job", title: "Goal Job")
+
+      described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+      expect(job_proposal.reload.chat_goal).to eq(goal)
+      expect(job_proposal.job).to have_attributes(
+        chat_goal_id: goal.id,
+        goal_prompt_snapshot: include("prompt" => "Generate work from this goal")
+      )
+    end
+
     it "wires Job proposal dependencies on existing Jobs" do
       prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
       job_proposal = proposal(
@@ -223,6 +241,23 @@ RSpec.describe ChatProposalFiler do
       expect(leaf.reload).to be_confirmed
       expect(root.epic).to have_attributes(title: "Root Epic", description: "Body for Root Epic")
       expect(leaf.epic.depends_on_epics).to contain_exactly(root.epic)
+    end
+
+    it "copies goal provenance from an Epic proposal to the created Epic" do
+      goal = ChatGoal.create!(
+        chat_session: session,
+        user: user,
+        repository: repository,
+        prompt: "Bundle work from this goal"
+      )
+      epic_proposal = proposal(slug: "goal-epic", title: "Goal Epic", kind: "epic")
+
+      result = described_class.new(user: user, repository: repository).file!([ epic_proposal ])
+
+      expect(result.epics.sole).to have_attributes(
+        chat_goal_id: goal.id,
+        goal_prompt_snapshot: include("prompt" => "Bundle work from this goal")
+      )
     end
 
     it "wires Epic proposal slug dependencies when the dependent is confirmed first" do
