@@ -393,6 +393,32 @@ RSpec.describe MainHealthChangedService do
         }.not_to change { repository.jobs.where(kind: "direct").count }
       end
 
+      it "surfaces a stale triaging repair Job instead of silently suppressing repeated broken signals" do
+        repair_job = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "repair stuck in triage",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "urgent",
+          state: "triaging"
+        )
+        repair_job.update_columns(updated_at: 45.minutes.ago)
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { repository.jobs.where(kind: "direct").count }
+
+        expect(WorkEngine::ReconcileJob).to have_been_enqueued.with(
+          source: "MainHealthChangedService#ensure_repair_job!",
+          job_id: repair_job.id,
+          workflow_id: nil,
+          run_id: nil
+        )
+        expect(described_class.new(repository.reload).stuck_blocking_repair_job).to eq(repair_job)
+      end
+
       it "does not spawn a second fix Job when a repair Job is waiting for review" do
         repository.jobs.create!(
           user: user,

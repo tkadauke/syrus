@@ -29,6 +29,7 @@ module SystemAlerts
     out << github_token_blocked(user) if user&.gh_api_blocked?
     out << codex_usage(user) if user
     out << data_root_disk_usage if user&.admin?
+    out.concat(stuck_main_branch_repairs(user)) if user&.admin?
     out
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
@@ -120,6 +121,35 @@ module SystemAlerts
     )
   end
   private_class_method :codex_usage
+
+  def self.stuck_main_branch_repairs(user)
+    Repository
+      .where(main_branch_health_enabled: true, main_branch_repair_enabled: true)
+      .where("ci_health = :broken OR grader_health = :broken", broken: "broken")
+      .includes(:user)
+      .filter_map do |repository|
+        job = MainHealthChangedService.new(repository).stuck_blocking_repair_job
+        next unless job
+
+        sha = repository.last_health_checked_sha.to_s.presence || "unknown"
+        sha_short = sha.length > 8 ? sha[0, 8] : sha
+        Alert.new(
+          id: "stuck_main_branch_repair:#{repository.id}:#{job.id}",
+          dismissal_key: "stuck_main_branch_repair:#{repository.id}:#{job.id}:#{job.updated_at&.to_i}",
+          severity: :alarm,
+          title: "Main branch repair is stuck.",
+          message: "Main remains broken on <code>#{ERB::Util.html_escape(repository.slug)}</code> at <code>#{ERB::Util.html_escape(sha_short)}</code>, " \
+                   "but repair <code>#{ERB::Util.html_escape(job.slug)}</code> has been <code>#{ERB::Util.html_escape(job.state)}</code> since " \
+                   "<code>#{ERB::Util.html_escape(job.updated_at&.iso8601)}</code>.",
+          action_steps: [
+            "Open the stuck-items page to inspect the repair Job and its reconciler evidence.",
+            "Retry or force-fail the stuck repair Job so Syrus can spawn a replacement if main is still broken."
+          ],
+          cta: { text: "Open stuck items", path: "/admin/stuck" }
+        )
+      end
+  end
+  private_class_method :stuck_main_branch_repairs
 
   def self.codex_provider_pause_active?(user, availability:, remaining:, exhausted:)
     return false unless user.provider_availability_pause_enabled?("codex")

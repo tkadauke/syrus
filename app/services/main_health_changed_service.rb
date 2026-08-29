@@ -11,6 +11,8 @@ class MainHealthChangedService
   MAX_CI_ATTACHMENT_BYTES = 4.megabytes
   MAX_GRADER_ATTACHMENT_BYTES = 12.megabytes
   BLOCKING_FIX_JOB_STATES = %w[needs_triage triaging queued running coding implemented approved landing].freeze
+  NON_PROGRESSING_FIX_JOB_STATES = %w[needs_triage triaging queued].freeze
+  STUCK_REPAIR_ALERT_AFTER = 30.minutes
 
   def self.on_health_change!(repository)
     new(repository).on_health_change!
@@ -80,7 +82,10 @@ class MainHealthChangedService
     return unless @repository.main_branch_health_enabled?
     return unless @repository.main_branch_repair_enabled?
     return unless @repository.main_health_broken?
-    return if blocking_fix_job
+    if (job = blocking_fix_job)
+      warn_if_blocking_repair_stuck!(job)
+      return
+    end
     return if !force && suppressed_by_recent_closed_repair?
 
     # The stale-SHA guard keeps AUTOMATIC repairs from firing on a health signal
@@ -176,6 +181,19 @@ class MainHealthChangedService
       can_request: can_request,
       can_spawn: can_request && (evidence_ready.nil? ? repair_evidence_ready? : evidence_ready)
     }
+  end
+
+  def stuck_blocking_repair_job(now: Time.current)
+    return unless @repository.main_branch_health_enabled?
+    return unless @repository.main_branch_repair_enabled?
+    return unless @repository.main_health_broken?
+
+    job = blocking_fix_job
+    return unless job
+    return unless job.state.in?(NON_PROGRESSING_FIX_JOB_STATES)
+    return unless job.updated_at && job.updated_at <= STUCK_REPAIR_ALERT_AFTER.ago(now)
+
+    job
   end
 
   private
@@ -389,6 +407,16 @@ class MainHealthChangedService
     else
       "waiting"
     end
+  end
+
+  def warn_if_blocking_repair_stuck!(job)
+    return unless stuck_blocking_repair_job
+
+    Rails.logger.warn(
+      "[MainHealthChangedService] #{@repository.slug} main remains broken, but repair job #{job.slug} " \
+      "has been #{job.state} since #{job.updated_at&.iso8601}; surfacing it through stuck-item reconciliation"
+    )
+    WorkEngine::Reconciler.request(source: "#{self.class.name}#ensure_repair_job!", job: job)
   end
 
   def checked_sha
