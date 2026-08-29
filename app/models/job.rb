@@ -687,8 +687,12 @@ class Job < ApplicationRecord
     previous_provider = workflow_agent_provider
     update!(job_provider_setting: setting)
     next_provider = workflow_agent_provider
+    if previous_provider.present? && previous_provider != next_provider
+      repin_provider_paused_unstarted_workflows!(from: previous_provider, to: next_provider)
+    end
     App::ProviderAvailability.broadcast_changed(user: user, provider: previous_provider) if previous_provider.present? && previous_provider != next_provider
     App::ProviderAvailability.broadcast_changed(user: user, provider: next_provider)
+    ProviderAvailabilityWakeup.call(provider: next_provider, user: user)
   end
 
   def effective_pr_repository
@@ -1031,6 +1035,20 @@ class Job < ApplicationRecord
   end
 
   private
+
+  def repin_provider_paused_unstarted_workflows!(from:, to:)
+    workflows
+      .joins(:work_unit)
+      .where(state: %w[queued running], agent_provider: from)
+      .where(work_units: {
+        state: "blocked",
+        blocked_reason: WorkUnits::Gates::ProviderAvailability::REASON
+      })
+      .where.not(
+        id: Workflow.joins(steps: :runs).select("workflows.id")
+      )
+      .update_all(agent_provider: to, updated_at: Time.current)
+  end
 
   def finish_stale_work_units_after_close
     WorkUnits::Ownership.active_units_for_job(self).each do |unit|
