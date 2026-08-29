@@ -29,6 +29,7 @@ module SystemAlerts
     out << github_token_blocked(user) if user&.gh_api_blocked?
     out << codex_usage(user) if user
     out << data_root_disk_usage if user&.admin?
+    out.concat(stuck_main_branch_repairs) if user&.admin?
     out
       .compact
       .sort_by { |alert| SEVERITIES.index(alert.severity) || SEVERITIES.length }
@@ -120,6 +121,54 @@ module SystemAlerts
     )
   end
   private_class_method :codex_usage
+
+  def self.stuck_main_branch_repairs
+    repositories = Repository
+      .where(main_branch_health_enabled: true, main_branch_repair_enabled: true)
+      .where("ci_health = :broken OR grader_health = :broken", broken: "broken")
+      .to_a
+    repositories_by_id = repositories.index_by(&:id)
+    blocking_jobs = stuck_repair_candidates(repositories_by_id.keys)
+      .each_with_object({}) { |job, memo| memo[job.repository_id] ||= job }
+
+    blocking_jobs.filter_map do |repository_id, job|
+      repository = repositories_by_id.fetch(repository_id)
+      next unless job.state.in?(MainHealthChangedService::NON_PROGRESSING_FIX_JOB_STATES)
+      next unless job.updated_at && job.updated_at <= MainHealthChangedService::STUCK_REPAIR_ALERT_AFTER.ago
+
+      sha = repository.last_health_checked_sha.to_s.presence || "unknown"
+      sha_short = sha.length > 8 ? sha[0, 8] : sha
+      Alert.new(
+        id: "stuck_main_branch_repair:#{repository.id}:#{job.id}",
+        dismissal_key: "stuck_main_branch_repair:#{repository.id}:#{job.id}:#{job.updated_at&.to_i}",
+        severity: :alarm,
+        title: "Main branch repair is stuck.",
+        message: "Main remains broken on <code>#{ERB::Util.html_escape(repository.slug)}</code> at <code>#{ERB::Util.html_escape(sha_short)}</code>, " \
+                 "but repair <code>#{ERB::Util.html_escape(job.slug)}</code> has been <code>#{ERB::Util.html_escape(job.state)}</code> since " \
+                 "<code>#{ERB::Util.html_escape(job.updated_at&.iso8601)}</code>.",
+        action_steps: [
+          "Open the stuck-items page to inspect the repair Job and its reconciler evidence.",
+          "Retry or force-fail the stuck repair Job so Syrus can spawn a replacement if main is still broken."
+        ],
+        cta: { text: "Open stuck items", path: "/admin/stuck?refresh=1" }
+      )
+    end
+  end
+  private_class_method :stuck_main_branch_repairs
+
+  def self.stuck_repair_candidates(repository_ids)
+    return Job.none if repository_ids.blank?
+
+    Job
+      .where(repository_id: repository_ids, kind: "direct", state: MainHealthChangedService::BLOCKING_FIX_JOB_STATES)
+      .where(
+        "jobs.system_kind = :system_kind OR (jobs.system_kind IS NULL AND jobs.issue_title = :title)",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        title: Job::MAIN_BRANCH_REPAIR_TITLE
+      )
+      .order(updated_at: :desc, id: :desc)
+  end
+  private_class_method :stuck_repair_candidates
 
   def self.codex_provider_pause_active?(user, availability:, remaining:, exhausted:)
     return false unless user.provider_availability_pause_enabled?("codex")

@@ -4835,6 +4835,39 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_job.closure_reason).to eq("preflight_passed")
   end
 
+  it "classifies a stale non-progressing main branch repair while main remains broken" do
+    job.repository.update!(
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
+      last_health_checked_sha: "427145bed",
+      ci_health: "healthy",
+      grader_health: "broken"
+    )
+    repair_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_number: nil,
+      issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+      state: "triaging"
+    )
+    repair_job.update_columns(updated_at: 45.minutes.ago)
+
+    result = reconcile(job_id: repair_job.id)
+
+    expect(kind(result, :stuck_main_branch_repair_job)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "operator_review_main_branch_repair"
+    )
+    expect(plan(result, :operator_review_main_branch_repair)).to have_attributes(
+      auto_executable: false,
+      target_type: "Job",
+      target_id: repair_job.id
+    )
+  end
+
   # A failed SolidQueue job keeps finished_at NULL forever, so the
   # unfinished-RunJob query accumulates every RunJob that ever failed. On
   # production that was 1,775 rows -- 1,751 of them permanently dead, oldest a

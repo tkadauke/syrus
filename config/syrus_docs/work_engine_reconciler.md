@@ -215,6 +215,17 @@ pressure, dependency blocks, unsuccessful closed dependencies, main-health
 blocks, retryable failed steps, and semantic/operator-needed failures from the
 reconciler issue and repair-plan pair.
 
+`stuck_main_branch_repair_job` is the operator-visible safety net for a broken
+main branch whose automatic repair Job exists but has not reached active
+runtime work. It fires when the repository is still broken and the blocking
+main-branch repair Job has remained in `needs_triage`, `triaging`, or `queued`
+past `MainHealthChangedService::STUCK_REPAIR_ALERT_AFTER`. The repair plan is
+operator-only (`operator_review_main_branch_repair`): inspect the Job, retry or
+force-fail it, and let `MainHealthChangedService` create a replacement if main
+is still broken. Admin system alerts link to `/admin/stuck?refresh=1` for this
+condition so the dedicated stuck page refreshes its reconciler snapshot before
+displaying the evidence.
+
 ## Repair execution
 
 `WorkEngine::ReconcileJob` calls the reconciler with `execute_repairs: true`.
