@@ -211,6 +211,7 @@ class StepDispatcher
   MANUAL_PAUSE_REASON = "manual_pause"
   PHASE_ADMISSION_RECHECK_DELAY = 10.minutes
   START_BLOCKED_BACKOFF = 5.minutes
+  WAITING_FOR_BATCH = Object.new.freeze
 
   def self.manually_paused?(workflow)
     if workflow.work_unit
@@ -724,6 +725,8 @@ class StepDispatcher
     return if handle_successful_step_advance_handler
 
     next_step = find_next_runnable
+    return if next_step == WAITING_FOR_BATCH
+
     if next_step
       # Idempotency: failure propagation fires fail_from twice
       # (once from Steps::LifecyclePropagation, once explicitly from
@@ -904,6 +907,8 @@ class StepDispatcher
 
   def advance_to_next_runnable!
     next_step = find_next_runnable
+    return if next_step == WAITING_FOR_BATCH
+
     if next_step
       # Idempotency: failure propagation fires fail_from twice
       # (once from Steps::LifecyclePropagation, once explicitly from
@@ -1200,6 +1205,8 @@ class StepDispatcher
       if cursor.state == "queued"
         if skippable_queued_step?(cursor)
           skip_queued_step!(cursor)
+        elsif waiting_for_grader_batch?(cursor)
+          return WAITING_FOR_BATCH
         else
           return cursor
         end
@@ -1214,6 +1221,19 @@ class StepDispatcher
     artifact_key && @workflow.artifact(artifact_key).present?
   rescue ArgumentError
     false
+  end
+
+  def waiting_for_grader_batch?(step)
+    grader_kind = Step::Kind.fetch(step.kind).waits_for_terminal_step_kind
+    grader_kind.present? && grader_batch_for(step, grader_kind).any? { |grader| !grader.terminal? }
+  rescue ArgumentError
+    false
+  end
+
+  def grader_batch_for(collect_step, grader_kind)
+    scope = @workflow.steps.where(kind: grader_kind, iteration: collect_step.iteration)
+    scope = scope.where(loop_id: collect_step.loop_id) if collect_step.loop_id.present?
+    scope.where("position < ?", collect_step.position).order(:position).to_a
   end
 
   def skip_queued_step!(step)
