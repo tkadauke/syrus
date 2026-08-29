@@ -308,12 +308,25 @@ module WorkEngine
           workflow ||= source_run&.workflow || target_workflow
           job ||= source_run&.job || workflow&.job || target_job
           return skipped("retry target is missing") unless workflow && job
-          return skipped("retry already pending") if workflow.auto_retry_attempts.pending.exists?
 
-          agent_provider = source_run&.agent_provider.presence || workflow.agent_provider || job.agent_provider
+          previous_provider = source_run&.agent_provider.presence || workflow.agent_provider || job.agent_provider
           classification = source_run&.run_failure_classification&.classification.presence ||
             source_run&.agent_outcome.presence ||
             "unknown"
+          agent_provider = retry_agent_provider_for(
+            job: job,
+            previous_provider: previous_provider,
+            classification: classification
+          )
+          provider_switched = agent_provider != previous_provider
+          skip_stale_default_provider_attempts!(
+            workflow: workflow,
+            previous_provider: previous_provider,
+            current_provider: agent_provider,
+            classification: classification
+          ) if provider_switched
+          return skipped("retry already pending") if workflow.auto_retry_attempts.pending.exists?
+
           circuit = ProviderCircuitBreaker.call(agent_provider, now: now, include_logs: false)
           if respect_provider_circuit && circuit.open?
             retry_at = circuit.retry_after ? " until #{circuit.retry_after.iso8601}" : ""
@@ -327,7 +340,7 @@ module WorkEngine
           ).count + 1
           return skipped("retry budget exhausted for #{agent_provider}/#{classification}") if attempt_number > retry_budget_limit(classification)
 
-          scheduled_at = plan.retry_after || now
+          scheduled_at = provider_switched ? now : (plan.retry_after || now)
           attempt = AutoRetryAttempt.create!(
             job: job,
             workflow: workflow,
@@ -341,6 +354,26 @@ module WorkEngine
           WorkUnits::AutoRetryBackoff.record!(attempt)
           AutoRetryJob.set(wait_until: scheduled_at, priority: job.solid_queue_priority).perform_later(attempt.id)
           success("scheduled #{retry_kind} auto-retry attempt ##{attempt.id} for #{scheduled_at.iso8601}")
+        end
+
+        def retry_agent_provider_for(job:, previous_provider:, classification:)
+          return previous_provider unless classification == ProviderUsageLimit::CLASSIFICATION
+          return previous_provider unless job&.job_provider_setting_default?
+
+          job.workflow_agent_provider.presence || previous_provider
+        end
+
+        def skip_stale_default_provider_attempts!(workflow:, previous_provider:, current_provider:, classification:)
+          return unless previous_provider.present? && current_provider.present?
+
+          workflow.auto_retry_attempts
+            .pending
+            .where(agent_provider: previous_provider, failure_classification: classification)
+            .find_each do |attempt|
+              attempt.skip_stale_pending!(
+                "default provider changed from #{previous_provider} to #{current_provider}; reconciler will retry with #{current_provider}"
+              )
+            end
         end
 
         def retry_budget_limit(classification)

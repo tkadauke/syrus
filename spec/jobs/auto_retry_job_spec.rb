@@ -156,6 +156,23 @@ RSpec.describe AutoRetryJob do
     expect(attempt.performed_at).to be_nil
   end
 
+  it "retries failed steps with the provider recorded on the retry attempt" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    attempt.update!(agent_provider: "codex")
+    allow(RetryFailedStepEnqueuer).to receive(:call).and_return(
+      RetryFailedStepEnqueuer::Result.new(run: instance_double(Run), workflow: workflow, step: step, error: nil)
+    )
+
+    described_class.perform_now(attempt.id)
+
+    expect(RetryFailedStepEnqueuer).to have_received(:call).with(
+      workflow: workflow,
+      agent_provider: "codex",
+      disable_session_resume: false
+    )
+    expect(attempt.reload.performed_at).to be_present
+  end
+
   it "reschedules failed-step attempts when another active WorkUnit owns the lock" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     allow(RetryFailedStepEnqueuer).to receive(:call).and_return(
@@ -250,6 +267,22 @@ RSpec.describe AutoRetryJob do
     expect(attempt.reload.skipped_reason).to eq("failure classification changed from rate_limited to git_state_corrupt before retry")
     expect(attempt.performed_at).to be_nil
     expect(run.run_failure_classification.reload.classification).to eq("git_state_corrupt")
+  end
+
+  it "skips stale usage-limit attempts when a default-provider job now resolves to another provider" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    attempt.update!(failure_classification: ProviderUsageLimit::CLASSIFICATION, scheduled_at: 1.hour.from_now)
+    job.update!(job_provider_setting: "default")
+    job.user.update_columns(agent_provider: "codex", codex_api_key: "ck-test")
+    allow(WorkEngine::Reconciler).to receive(:request)
+    allow(RetryFailedStepEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to eq("default provider changed from claude to codex; reconciler will retry with codex")
+    expect(attempt.performed_at).to be_nil
+    expect(RetryFailedStepEnqueuer).not_to have_received(:call)
+    expect(WorkEngine::Reconciler).to have_received(:request).with(source: "AutoRetryJob", job: job)
   end
 
   it "reschedules the same attempt when the provider circuit is still open" do

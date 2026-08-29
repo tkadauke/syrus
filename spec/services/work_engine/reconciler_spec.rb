@@ -4470,6 +4470,42 @@ RSpec.describe WorkEngine::Reconciler do
     expect(attempt.scheduled_at.to_i).to eq(reset_at.to_i)
   end
 
+  it "executes provider quota plans with the new effective provider for default-provider jobs" do
+    job.user.update_columns(agent_provider: "codex", codex_api_key: "ck-test")
+    job.update!(job_provider_setting: "default")
+    run.update_columns(
+      state: "failed",
+      agent_provider: "claude",
+      agent_outcome: "provider_usage_limit",
+      finished_at: Time.zone.parse("2026-08-01 08:30:00 UTC")
+    )
+    step.update_columns(state: "failed", finished_at: run.finished_at)
+    workflow.update_columns(state: "failed", agent_provider: "claude", finished_at: run.finished_at)
+    RunDiagnostic.create!(
+      run: run,
+      error_class: "Steps::Base::StepFailed",
+      error_message: "You're out of extra usage - resets 7am (America/New_York)"
+    )
+    RunFailureClassification.create!(
+      run: run,
+      classification: "provider_usage_limit",
+      retryable: false,
+      confidence: 0.95,
+      reason: "provider usage exhausted",
+      classified_at: run.finished_at
+    )
+
+    now = Time.zone.parse("2026-08-01 10:00:00 UTC")
+    expect {
+      reconcile_and_execute(run_id: run.id, now: now)
+    }.to change { AutoRetryAttempt.where(failure_classification: "provider_usage_limit").count }.by(1)
+      .and have_enqueued_job(AutoRetryJob)
+
+    attempt = AutoRetryAttempt.last
+    expect(attempt).to have_attributes(workflow: workflow, run: run, agent_provider: "codex", retry_kind: "failed_step")
+    expect(attempt.scheduled_at.to_i).to eq(now.to_i)
+  end
+
   it "does not execute safe retry plans while the provider circuit is open" do
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)

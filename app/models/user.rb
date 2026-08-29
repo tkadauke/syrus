@@ -33,6 +33,8 @@ class User < ApplicationRecord
   has_many :platform_identities, dependent: :destroy
   belongs_to :color_theme, class_name: "Theme", optional: true
 
+  after_update_commit :wake_default_provider_work_after_agent_provider_change, if: :saved_change_to_agent_provider?
+
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark system ].freeze
@@ -565,6 +567,15 @@ class User < ApplicationRecord
 
   def effective_chat_provider
     chat_provider.presence || agent_provider.presence || "claude"
+  end
+
+  def wake_default_provider_work_after_agent_provider_change
+    previous_provider, current_provider = saved_change_to_agent_provider
+    DefaultProviderChangeWakeup.call(
+      user: self,
+      previous_provider: previous_provider,
+      current_provider: current_provider
+    )
   end
 
   # Onboarding finishes when the operator's first Epic lands (all its child

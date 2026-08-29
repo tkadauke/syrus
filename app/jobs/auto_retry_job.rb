@@ -20,6 +20,7 @@ class AutoRetryJob < ApplicationJob
       return
     end
 
+    return if skip_if_default_provider_changed(attempt)
     return if skip_if_provider_delay_no_longer_matches(attempt)
     return if reschedule_if_provider_blocked(attempt)
     return if reschedule_if_active_work_owns_failed_step_retry(attempt)
@@ -78,6 +79,21 @@ class AutoRetryJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.warn("[AutoRetryJob] failed to refresh Run ##{attempt.run_id} failure classification: #{e.class}: #{e.message}")
     false
+  end
+
+  def skip_if_default_provider_changed(attempt)
+    return false unless attempt.failure_classification == ProviderUsageLimit::CLASSIFICATION
+    return false unless attempt.job&.job_provider_setting_default?
+
+    desired_provider = attempt.job.workflow_agent_provider.presence
+    return false if desired_provider.blank? || desired_provider == attempt.agent_provider
+
+    attempt.skip_stale_pending!(
+      "default provider changed from #{attempt.agent_provider} to #{desired_provider}; reconciler will retry with #{desired_provider}"
+    )
+    log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
+    WorkEngine::Reconciler.request(source: self.class.name, job: attempt.job)
+    true
   end
 
   def trusted_provider_delay_attempt?(attempt)
@@ -173,6 +189,7 @@ class AutoRetryJob < ApplicationJob
     if attempt.workflow.retry_available?
       RetryFailedStepEnqueuer.call(
         workflow: attempt.workflow,
+        agent_provider: attempt.agent_provider,
         disable_session_resume: attempt.failure_classification == "agent_resume_unavailable"
       )
     else
@@ -193,6 +210,7 @@ class AutoRetryJob < ApplicationJob
   def resume_failed_step(attempt)
     session = attempt.run&.provider_session
     return retry_workflow(attempt) unless session && attempt.workflow.retry_available? && attempt.run.step&.agentic?
+    return retry_failed_step(attempt) if session.provider.present? && session.provider != attempt.agent_provider
 
     RetryFailedStepEnqueuer.call(
       workflow: attempt.workflow,
