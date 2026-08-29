@@ -1,4 +1,5 @@
 require "mcp"
+require "set"
 
 module Mcp
   module Tools
@@ -6,6 +7,10 @@ module Mcp
       extend MemoryToolSupport
 
       tool_name "write_memory"
+
+      DUPLICATE_LOOKBACK = 14.days
+      DUPLICATE_SIMILARITY_THRESHOLD = 0.82
+      DUPLICATE_PREFIX_LENGTH = 80
 
       description "Write a persistent memory. In chat sessions the scope can be " \
                   "'global' (personal) or 'repository' (tied to a repository). " \
@@ -51,6 +56,13 @@ module Mcp
           end
 
           author, source_type, source_id = run_provenance(context)
+
+          if (duplicate = duplicate_memory_for(context, content, kind, effective_scope, repository&.id))
+            return invalid_response(
+              "similar #{kind} memory already exists as ChatMemory ##{duplicate.id}; " \
+              "read_memory that id and update or delete it instead of creating a duplicate"
+            )
+          end
 
           memory = ChatMemory.create!(
             user:        context.user,
@@ -101,6 +113,43 @@ module Mcp
           else
             [ nil, nil, nil ]
           end
+        end
+
+        def duplicate_memory_for(context, content, kind, scope, scope_id)
+          ChatMemory.active
+                    .where(user: context.user, kind: kind, scope: scope, scope_id: scope_id)
+                    .where(created_at: DUPLICATE_LOOKBACK.ago..)
+                    .order(created_at: :desc)
+                    .detect { |memory| duplicate_content?(memory.content, content) }
+        end
+
+        def duplicate_content?(existing_content, new_content)
+          existing_normalized = normalize_duplicate_text(existing_content)
+          new_normalized = normalize_duplicate_text(new_content)
+          return false if existing_normalized.blank? || new_normalized.blank?
+
+          existing_normalized.first(DUPLICATE_PREFIX_LENGTH) == new_normalized.first(DUPLICATE_PREFIX_LENGTH) ||
+            trigram_jaccard(existing_normalized, new_normalized) >= DUPLICATE_SIMILARITY_THRESHOLD
+        end
+
+        def normalize_duplicate_text(content)
+          content.to_s.downcase.gsub(/[^a-z0-9]+/, " ").squish
+        end
+
+        def trigram_jaccard(left, right)
+          left_trigrams = trigrams(left)
+          right_trigrams = trigrams(right)
+          return 1.0 if left_trigrams.empty? && right_trigrams.empty?
+          return 0.0 if left_trigrams.empty? || right_trigrams.empty?
+
+          (left_trigrams & right_trigrams).size.fdiv((left_trigrams | right_trigrams).size)
+        end
+
+        def trigrams(text)
+          padded = "  #{text}  "
+          return [ padded ] if padded.length < 3
+
+          padded.each_char.each_cons(3).map(&:join).to_set
         end
       end
     end
