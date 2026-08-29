@@ -45,6 +45,8 @@ class RunFailureClassifier
       result("grader_failure", 0.90, false, "A configured grader command failed.")
     when missing_required_tool_call?
       result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
+    when process_died_under_resource_pressure?
+      result("worker_died_under_resource_pressure", 0.95, false, "The worker or agent process disappeared while the host was under critical resource pressure.")
     when process_died?
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when agent_resume_unavailable?
@@ -125,6 +127,10 @@ class RunFailureClassifier
     run.agent_outcome == "worker_died" ||
       text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated|exit status/i) ||
       spawned_processes.any? { |process| %w[aliveness_failed orphaned stopped operator_killed].include?(process.outcome) }
+  end
+
+  def process_died_under_resource_pressure?
+    process_died? && run.run_resource_summary&.host_pressure_level == "critical"
   end
 
   def grader_failure?
@@ -286,6 +292,8 @@ class RunFailureClassifier
       "workflow_trigger_kind" => run.workflow&.trigger_kind,
       "workflow_state" => run.workflow&.state,
       "workflow_failure_reason" => run.workflow&.failure_reason,
+      "host_pressure_level" => run.run_resource_summary&.host_pressure_level,
+      "host_pressure_reasons" => run.run_resource_summary&.host_pressure_reasons,
       "diagnostic_id" => diagnostic&.id,
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),
