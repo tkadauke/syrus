@@ -16,6 +16,14 @@ Queued Job cards can carry a start-blocked badge when Syrus has deferred the fir
 
 When the blocked reason is workflow admission budgeting, the Workflow artifact stores the admission decision payload. The payload separates predicted command cost from current host headroom: command-attributed step profiles are used when they have enough samples, host-correlated profiles are included as fallback/context, and live worker host pressure is still checked immediately before starting work. The details also record attribution confidence, fallback reasons, active run/repository counts, Job priority, and whether the delay was caused by ambient host pressure or by predicted command cost not fitting the budget.
 
+After Solid Queue assigns a queued Run to a concrete compute worker,
+`RunJob` also performs a host-local pickup check. If the selected worker is
+critically pressured or already running resource-guarded agentic/grader work,
+the Run remains queued and is re-enqueued without spending a retry iteration.
+Those deferrals record `run_host_admission` on the Workflow artifact and a
+system JobLog line rather than `start_blocked_details`, because the Workflow
+was not phase-blocked by the dispatcher.
+
 Manual Job pause is different from admission/resource pauses: it is a persistent
 Job flag set by an operator. Pausing a Job does not kill the current Run. Syrus
 lets the active Step finish, then records `pause_reason: manual_pause` on the

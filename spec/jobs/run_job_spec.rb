@@ -624,6 +624,31 @@ RSpec.describe RunJob, :ci_only do
   # ----- Pre-pickup cancellation ---------------------------------
 
   describe "guards" do
+    it "defers a queued Run before start when the selected compute host is saturated" do
+      job
+      wf = job.workflows.last
+      run = wf.first_step.runs.first
+      decision = RunHostAdmission::Decision.new(
+        action: "defer",
+        reason: "local_worker_pressure_critical",
+        delay: 30.seconds,
+        details: { "hostname" => "worker-a" }
+      )
+      allow(RunHostAdmission).to receive(:call).with(run: run).and_return(decision)
+
+      expect {
+        RunJob.perform_now(run.id)
+      }.to have_enqueued_job(RunJob).with(run.id).on_queue("runs")
+
+      expect(run.reload).to be_queued
+      expect(wf.reload.artifact("run_host_admission")).to include(
+        "action" => "defer",
+        "reason" => "local_worker_pressure_critical",
+        "hostname" => "worker-a"
+      )
+      expect(JobLog.where(run: run).pluck(:chunk)).to include("compute host admission deferred before prepare: local_worker_pressure_critical")
+    end
+
     it "abandons a Run as cancelled when its Workflow is already terminal" do
       job
       wf = job.workflows.last

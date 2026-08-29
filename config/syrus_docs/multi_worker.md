@@ -134,6 +134,41 @@ agent (`:runs`-queue) Runs are already executing across all pods, a new one is
 deferred and re-enqueued. Main-branch grader Runs are on `:runs` and are counted
 too; landing/merge Runs are not counted. See `AppSetting` reference.
 
+## Per-host Run pickup admission
+
+Workflow admission control decides whether a workflow or phase should create a
+Run before Solid Queue chooses a worker. A second, host-local guard runs inside
+`RunJob` after the queued Run has been picked up but before the Run/Step/Workflow
+are marked running. This closes the multi-worker gap where a generally valid
+Run could still land on the one compute host already saturated by unrelated
+CPU-heavy work.
+
+The pickup guard applies to Runs whose workflow template uses the `:runs`
+compute queue. It uses the current worker hostname (`SyrusVersion.hostname`),
+fresh `worker_host_health_samples`, `workflows.worker_hostname` on already
+running workflows, and `workflow_step_resource_profiles` where available.
+
+- If the selected host's latest fresh sample is critical, `RunJob` leaves the
+  Run queued and re-enqueues it after `RunHostAdmission::RETRY_DELAY`.
+- If the candidate Run is resource-guarded and that same host already has a
+  resource-guarded Run executing, `RunJob` also defers it. Resource-guarded
+  means any agentic Step, `grader` / `preflight_grader`, or another Step whose
+  resource profile predicts CPU-heavy or long-running work. Missing profiles
+  use conservative defaults, so unknown expensive work is guarded until real
+  samples prove it cheap.
+- Non-critical hosts with no existing guarded Run admit the pickup normally.
+  Missing host telemetry is reported as `unknown`; it is not treated as either
+  healthy or critical by this host-local guard.
+
+This is intentionally a pickup-time deferral, not a failure. The Run remains
+`queued`; the Workflow and Step are not transitioned to `running`, no repair
+iteration is spent, and the re-enqueued job preserves the current Solid Queue
+queue and priority. On deferral, the Workflow artifact
+`run_host_admission` records the action, reason, hostname, sampled health,
+guard count/limit, step kind, Run id, `deferred_at`, and `retry_at`. The Run
+also receives a system `JobLog` line:
+`compute host admission deferred before <step_kind>: <reason>`.
+
 ## Retry-from-failed-step storage affinity
 
 Each Job keeps at most one on-disk workspace. On local-disk-per-worker
@@ -409,6 +444,13 @@ finishes while admission/resource sleepers exist, so blocked work is
 reconsidered promptly when active work frees capacity instead of waiting for the
 full backoff. `WorkflowPhaseAdmissionJob` retries the next queued step after
 either wakeup path.
+
+The per-host Run pickup admission described above is separate from
+`WorkflowAdmissionBudget`: it runs after Solid Queue selects a concrete worker
+and can therefore act on that worker's local pressure and already-running
+guarded Runs. It records `run_host_admission` artifacts instead of
+`start_blocked_details` / `pause_details`, because it does not change workflow
+phase ownership or create a WorkUnit admission block.
 
 Manual Job pause is operator-controlled and is not an admission-control signal.
 It persists on the Job (`manual_paused`) and takes effect at the next Step

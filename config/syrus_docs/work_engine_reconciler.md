@@ -137,6 +137,12 @@ Planner examples:
   fresh retry workflow only when the usual workflow retry gate is safe. The
   normal stale-heartbeat deadline remains `Run::STALE_HEARTBEAT_THRESHOLD`
   for ambiguous cases with active worker evidence.
+- When a `worker_died` failure has a critical `run_resource_summary`
+  host-pressure level, `RunFailureClassifier` records
+  `worker_died_under_resource_pressure` instead of retryable `worker_died`.
+  That classification is non-retryable so Syrus does not spend automatic
+  repair iterations on a run that likely died because its worker host was
+  already under critical CPU, memory, disk, or IO pressure.
 - A detached running Run can become repairable sooner: if the Run is older than
   the normal orphan grace, has no active SolidQueue RunJob (or only a
   `ProcessPrunedError` failed execution), has no live `SpawnedProcess`, and has

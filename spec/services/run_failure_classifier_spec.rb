@@ -25,6 +25,31 @@ RSpec.describe RunFailureClassifier do
     )
   end
 
+  def create_resource_summary!(run:, host_pressure_level:, host_pressure_reasons:)
+    summary = run.run_resource_summary || run.build_run_resource_summary
+    summary.update!(
+      run: run,
+      job: run.job,
+      workflow: run.workflow,
+      step: run.step,
+      repository: run.job.repository,
+      user: run.user,
+      agent_provider: run.agent_provider,
+      trigger_kind: run.workflow&.trigger_kind || run.trigger_kind,
+      step_kind: run.step&.kind,
+      started_at: run.started_at || 5.minutes.ago,
+      finished_at: run.finished_at || Time.current,
+      host_sample_count: 3,
+      host_sample_confidence: "sufficient",
+      host_pressure_level: host_pressure_level,
+      host_pressure_reasons: host_pressure_reasons,
+      process_attribution_method: "none",
+      process_attribution_version: RunResourceSummaries::Builder::ProcessAttribution::VERSION,
+      process_attribution_confidence: "unknown",
+      summary_version: RunResourceSummary::SUMMARY_VERSION
+    )
+  end
+
   it "persists a retryable worker_died classification when a run fails without a diagnostic" do
     run.update!(state: "running", agent_outcome: "worker_died")
 
@@ -40,6 +65,41 @@ RSpec.describe RunFailureClassifier do
       "run_id" => run.id,
       "agent_outcome" => "worker_died"
     )
+  end
+
+  it "classifies worker_died under critical host pressure as non-retryable resource pressure" do
+    run.update!(state: "failed", agent_outcome: "worker_died", finished_at: Time.current)
+    create_resource_summary!(run: run, host_pressure_level: "critical", host_pressure_reasons: [ "CPU pressure 55.0% >= 50%" ])
+
+    result = classification
+
+    expect(result.classification).to eq("worker_died_under_resource_pressure")
+    expect(result.retryable).to eq(false)
+    expect(result.classifier_inputs).to include(
+      "host_pressure_level" => "critical",
+      "host_pressure_reasons" => [ "CPU pressure 55.0% >= 50%" ]
+    )
+  end
+
+  it "refreshes resource summaries before classifying a worker_died transition" do
+    allow(SyrusVersion).to receive(:hostname).and_return("worker-1")
+    run.workflow.update!(worker_hostname: "worker-1")
+    WorkerHostHealthSample.create!(
+      hostname: "worker-1",
+      role: "worker",
+      version: "test",
+      observed_at: Time.current,
+      cpu_pressure_some: 55.0,
+      raw_metrics: {}
+    )
+    run.update!(state: "running", agent_outcome: "worker_died", started_at: 1.minute.ago)
+
+    run.fail!
+    run.save!
+
+    classification = run.reload.run_failure_classification
+    expect(classification.classification).to eq("worker_died_under_resource_pressure")
+    expect(classification.retryable).to eq(false)
   end
 
   it "uses captured diagnostics when classifying exception failures" do
