@@ -155,6 +155,39 @@ class RunJob < ApplicationJob
     true
   end
 
+  def defer_for_host_admission?
+    admission = RunHostAdmission.call(run: @run)
+    return false if admission.admit?
+
+    record_host_admission_deferral!(admission)
+    Rails.logger.info(
+      "[RunJob] host admission #{admission.reason} on #{admission.details['hostname']} - " \
+        "deferring Run ##{@run.id} by #{admission.delay.inspect}"
+    )
+    defer_run(@run.id, admission.delay)
+    true
+  end
+
+  def record_host_admission_deferral!(admission)
+    @workflow.update!(
+      artifacts: (@workflow.artifacts || {}).merge(
+        "run_host_admission" => admission.details.merge(
+          "action" => admission.action,
+          "reason" => admission.reason,
+          "deferred_at" => Time.current.iso8601,
+          "retry_at" => (Time.current + admission.delay).iso8601
+        )
+      )
+    )
+    JobLog.append!(
+      run: @run,
+      kind: "system",
+      chunk: "compute host admission deferred before #{@step.kind}: #{admission.reason}"
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[RunJob] failed to record host admission deferral for Run ##{@run.id}: #{e.class}: #{e.message}")
+  end
+
   def perform_step
     if @workflow.nil? || @step.nil?
       raise "Run ##{@run.id} has no Step / Workflow — backfill must run before legacy Runs can execute"
@@ -217,6 +250,8 @@ class RunJob < ApplicationJob
       succeed_workflow_for_merged_pull_request!(merged_pr)
       return
     end
+
+    return if defer_for_host_admission?
 
     @workflow.start! if @workflow.may_start?
     @workflow.save!

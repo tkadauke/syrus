@@ -32,6 +32,7 @@ module Runs
     end
 
     def failed!
+      refresh_resource_summary_after_completion!
       cascade_failure_to_step!
       classify_failure!
       record_provider_failure_evidence!
