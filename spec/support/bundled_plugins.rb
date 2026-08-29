@@ -329,6 +329,8 @@ RSpec.configure do |config|
 
     WorkerTimeline.register! unless registered_names.include?("worker_timeline")
 
+    DesignDocs.register! unless registered_names.include?("design_docs")
+
     Syrus::PluginRegistry.all_plugins
   end
 end

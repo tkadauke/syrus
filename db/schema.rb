@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_170000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -669,6 +669,128 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["user_id"], name: "index_cron_templates_on_user_id"
+  end
+
+  create_table "design_doc_anchors", force: :cascade do |t|
+    t.string "anchor_key", null: false
+    t.datetime "created_at", null: false
+    t.integer "design_doc_id", null: false
+    t.integer "design_doc_version_id"
+    t.integer "end_offset", null: false
+    t.text "selected_markdown"
+    t.integer "start_offset", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_doc_id", "anchor_key"], name: "index_design_doc_anchors_on_doc_and_key", unique: true
+    t.index ["design_doc_id"], name: "index_design_doc_anchors_on_design_doc_id"
+    t.index ["design_doc_version_id"], name: "index_design_doc_anchors_on_design_doc_version_id"
+  end
+
+  create_table "design_doc_collaborators", force: :cascade do |t|
+    t.integer "added_by_user_id"
+    t.datetime "created_at", null: false
+    t.integer "design_doc_id", null: false
+    t.string "role", default: "editor", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["added_by_user_id"], name: "index_design_doc_collaborators_on_added_by_user_id"
+    t.index ["design_doc_id", "user_id"], name: "index_design_doc_collaborators_on_doc_and_user", unique: true
+    t.index ["design_doc_id"], name: "index_design_doc_collaborators_on_design_doc_id"
+    t.index ["user_id"], name: "index_design_doc_collaborators_on_user_id"
+  end
+
+  create_table "design_doc_comments", force: :cascade do |t|
+    t.string "author_kind", null: false
+    t.integer "author_user_id"
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.integer "design_doc_thread_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_user_id"], name: "index_design_doc_comments_on_author_user_id"
+    t.index ["design_doc_thread_id", "created_at"], name: "index_design_doc_comments_on_thread_and_created_at"
+    t.index ["design_doc_thread_id"], name: "index_design_doc_comments_on_design_doc_thread_id"
+  end
+
+  create_table "design_doc_repositories", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "design_doc_id", null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_doc_id", "repository_id"], name: "index_design_doc_repositories_on_doc_and_repository", unique: true
+    t.index ["design_doc_id"], name: "index_design_doc_repositories_on_design_doc_id"
+    t.index ["repository_id"], name: "index_design_doc_repositories_on_repository_id"
+  end
+
+  create_table "design_doc_suggestions", force: :cascade do |t|
+    t.text "change_summary"
+    t.datetime "created_at", null: false
+    t.integer "design_doc_anchor_id", null: false
+    t.integer "design_doc_id", null: false
+    t.integer "design_doc_thread_id"
+    t.text "original_markdown", null: false
+    t.datetime "reviewed_at"
+    t.integer "reviewed_by_user_id"
+    t.string "state", default: "pending", null: false
+    t.string "suggested_by_kind", null: false
+    t.integer "suggested_by_user_id"
+    t.text "suggested_markdown", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_doc_anchor_id", "state"], name: "index_design_doc_suggestions_on_anchor_and_state"
+    t.index ["design_doc_anchor_id"], name: "index_design_doc_suggestions_on_design_doc_anchor_id"
+    t.index ["design_doc_id", "state"], name: "index_design_doc_suggestions_on_doc_and_state"
+    t.index ["design_doc_id"], name: "index_design_doc_suggestions_on_design_doc_id"
+    t.index ["design_doc_thread_id"], name: "index_design_doc_suggestions_on_design_doc_thread_id"
+    t.index ["reviewed_by_user_id"], name: "index_design_doc_suggestions_on_reviewed_by_user_id"
+    t.index ["suggested_by_user_id"], name: "index_design_doc_suggestions_on_suggested_by_user_id"
+  end
+
+  create_table "design_doc_threads", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "design_doc_anchor_id", null: false
+    t.integer "design_doc_id", null: false
+    t.integer "opened_by_user_id"
+    t.datetime "resolved_at"
+    t.integer "resolved_by_user_id"
+    t.string "state", default: "open", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_doc_anchor_id"], name: "index_design_doc_threads_on_design_doc_anchor_id"
+    t.index ["design_doc_id", "state"], name: "index_design_doc_threads_on_doc_and_state"
+    t.index ["design_doc_id"], name: "index_design_doc_threads_on_design_doc_id"
+    t.index ["opened_by_user_id"], name: "index_design_doc_threads_on_opened_by_user_id"
+    t.index ["resolved_by_user_id"], name: "index_design_doc_threads_on_resolved_by_user_id"
+  end
+
+  create_table "design_doc_versions", force: :cascade do |t|
+    t.string "actor_kind", null: false
+    t.integer "actor_user_id"
+    t.text "change_summary"
+    t.datetime "created_at", null: false
+    t.integer "design_doc_id", null: false
+    t.text "markdown", null: false
+    t.json "metadata"
+    t.integer "provenance_id"
+    t.string "provenance_type"
+    t.datetime "updated_at", null: false
+    t.integer "version_number", null: false
+    t.index ["actor_user_id"], name: "index_design_doc_versions_on_actor_user_id"
+    t.index ["design_doc_id", "version_number"], name: "index_design_doc_versions_on_doc_and_number", unique: true
+    t.index ["design_doc_id"], name: "index_design_doc_versions_on_design_doc_id"
+    t.index ["provenance_type", "provenance_id"], name: "index_design_doc_versions_on_provenance"
+  end
+
+  create_table "design_docs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "current_version_id"
+    t.text "markdown", null: false
+    t.integer "origin_chat_session_id"
+    t.integer "owner_user_id", null: false
+    t.string "state", default: "draft", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.string "visibility", default: "private", null: false
+    t.index ["current_version_id"], name: "index_design_docs_on_current_version_id"
+    t.index ["origin_chat_session_id"], name: "index_design_docs_on_origin_chat_session_id"
+    t.index ["owner_user_id"], name: "index_design_docs_on_owner_user_id"
+    t.index ["visibility", "state"], name: "index_design_docs_on_visibility_and_state"
   end
 
   create_table "documents", force: :cascade do |t|
@@ -2639,4 +2761,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_154548) do
     t.index ["worker_storage_key"], name: "index_workflows_on_worker_storage_key"
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
+
+  add_foreign_key "design_doc_anchors", "design_doc_versions"
+  add_foreign_key "design_doc_anchors", "design_docs"
+  add_foreign_key "design_doc_collaborators", "design_docs"
+  add_foreign_key "design_doc_collaborators", "users"
+  add_foreign_key "design_doc_collaborators", "users", column: "added_by_user_id"
+  add_foreign_key "design_doc_comments", "design_doc_threads"
+  add_foreign_key "design_doc_comments", "users", column: "author_user_id"
+  add_foreign_key "design_doc_repositories", "design_docs"
+  add_foreign_key "design_doc_repositories", "repositories"
+  add_foreign_key "design_doc_suggestions", "design_doc_anchors"
+  add_foreign_key "design_doc_suggestions", "design_doc_threads"
+  add_foreign_key "design_doc_suggestions", "design_docs"
+  add_foreign_key "design_doc_suggestions", "users", column: "reviewed_by_user_id"
+  add_foreign_key "design_doc_suggestions", "users", column: "suggested_by_user_id"
+  add_foreign_key "design_doc_threads", "design_doc_anchors"
+  add_foreign_key "design_doc_threads", "design_docs"
+  add_foreign_key "design_doc_threads", "users", column: "opened_by_user_id"
+  add_foreign_key "design_doc_threads", "users", column: "resolved_by_user_id"
+  add_foreign_key "design_doc_versions", "design_docs"
+  add_foreign_key "design_doc_versions", "users", column: "actor_user_id"
+  add_foreign_key "design_docs", "chat_sessions", column: "origin_chat_session_id"
+  add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id"
+  add_foreign_key "design_docs", "users", column: "owner_user_id"
 end
