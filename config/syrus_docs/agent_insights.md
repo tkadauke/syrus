@@ -103,11 +103,16 @@ The insight agent receives:
 - `read_run_worker_health` — inspect worker host health correlated with a Run in the current repository.
 - `read_syrus_logs` — search recent indexed Rails application logs for repeated exceptions, recurring warnings, slow behavior, retry storms, queue/worker anomalies, failed background jobs, and noisy code paths. This tool is provided by the `syrus_dev` plugin and returns data only when `operational_log_indexing` is enabled and the current repository is `tkadauke/syrus` or a registered fork/upstream. Operational log ingestion uses the shared observability sink: request/job hot paths append to per-process memory plus a local JSONL spool, and each process has a lazy background flusher that persists rows to `operational_log_events` and the FTS index in batches. The searchable retention window is 6 hours.
 - `read_memory`, `search_memories`, `list_memories` — read repository-scoped memories.
-- `write_memory` — store durable facts discovered during analysis. During
-  rebase retry storms, workflow agents may not write prescriptive memories that
-  tell future agents to skip diagnosis or abort a conflict based on an
-  unverified run-level conclusion; keep abort rationale in the run summary and
-  store only verified file-level facts.
+- `write_memory` — store durable facts discovered during analysis. Before
+  creating a row, the tool checks recent active memories for the same user,
+  scope, scope id, and kind. If normalized text has a matching first ~80
+  characters or high trigram/Jaccard overlap, the write is rejected with an
+  error that names the existing `ChatMemory` id so the agent can read, update,
+  or delete the existing memory instead of creating a duplicate. During rebase
+  retry storms, workflow agents may not write prescriptive memories that tell
+  future agents to skip diagnosis or abort a conflict based on an unverified
+  run-level conclusion; keep abort rationale in the run summary and store only
+  verified file-level facts.
 - `submit_insight` — record a new finding (only present when `agent_insights` flag is on), including structured memory-removal proposals.
 - `update_insight` — revise a pending or dismissed existing insight in place with an audit event. Accepted insights are rejected and should be handled by filing a new standalone insight that cites the accepted prior insight as context.
 - `retire_insight` — retire a pending or dismissed insight that is stale, duplicated, or superseded, with a required `reason` and optional `superseded_by_insight_id`/`superseded_by_job_id`. Accepted insights are rejected unless `retire_accepted: true` is passed explicitly. Records a `retired` audit event; the row stays inspectable, never deleted.
