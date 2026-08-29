@@ -42,6 +42,14 @@ Job with `closure_reason: "no_changes"` instead of marking it failed.
 `no_changes` is a successful terminal outcome and satisfies downstream Job
 dependencies automatically.
 
+If the no-diff run instead matches the background-wait failure pattern — the
+agent backgrounded or scheduled work, then ended the turn expecting a later
+notification or `ScheduleWakeup` continuation — Syrus raises
+`Steps::Base::AgentGaveUpWaiting` instead. That failure is classified as
+`agent_gave_up_waiting` and retryable, and it does not close the Job as
+`no_changes`; it means the agent misunderstood Step Run execution rather than
+proving the requested work was already unnecessary.
+
 **Provider usage-limit outcome:** If the provider reports exhausted usage, quota, credits, billing balance, or a daily/weekly/monthly/model limit, the run records `agent_outcome=provider_usage_limit` and failure classification `provider_usage_limit`. The provider circuit breaker opens immediately for the affected provider/model when known; if the model cannot be determined, Syrus fails closed at provider scope and shows that reason to the operator. When the provider reports a reset time, Syrus schedules the failed Run's auto-retry for five minutes after that reset; Codex structured usage reset windows are preferred over parsing log text, while provider text such as `resets 7am (America/New_York)` is parsed from the failure time. If no reset is known, Syrus uses the conservative provider-circuit backoff. The app projects current-user provider availability into chat and Job payloads: chats using the exhausted effective chat provider and Jobs using the exhausted agent provider show a red triangle warning until the usage-limit window expires/restores or the operator switches that chat/Job to another configured provider. Transient provider circuits remain separate and use the existing non-red treatment.
 
 **Provider availability pause:** Before the first Run and between Steps,
@@ -93,6 +101,11 @@ diff raises `Steps::Base::NoChangesProduced`, which `propagate_fail_to_job!`
 turns into a `closure_reason: "no_changes"` Job closure instead of `:failed`.
 This is the intended outcome for read-only skills (an `investigate` skill) and
 purely operational skills that only report.
+
+As with `implement`, a no-diff run that matches the background-wait failure
+pattern raises `Steps::Base::AgentGaveUpWaiting` instead of
+`Steps::Base::NoChangesProduced`, so it is visible as a retryable
+`agent_gave_up_waiting` failure rather than a successful no-op skill.
 
 `Steps::Summarize` treats `run_skill` the same as `implement` — it resumes the
 agent session from whichever of the two ran, so `run_skill → summarize →

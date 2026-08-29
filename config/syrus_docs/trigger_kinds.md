@@ -28,6 +28,12 @@ cron Jobs use for a no-op survey. This makes read-only skills (an
 `investigate` skill, an operational skill that only reports) first-class: no
 diff is a successful, PR-less outcome, not an error.
 
+The exception is the background-wait misuse pattern: if the transcript shows
+the agent backgrounded or scheduled work and ended the turn expecting a later
+notification or `ScheduleWakeup` continuation, Syrus raises
+`Steps::Base::AgentGaveUpWaiting` and classifies the run as retryable
+`agent_gave_up_waiting` instead of closing the Job as `no_changes`.
+
 When the agent does commit a diff, it is gated through the same
 `retry_until(agent_step, graders)` mechanism `initial`/`retry` use for
 `implement`: `run_skill` repairs, `grader_fanout`/`grader_collect` check, and

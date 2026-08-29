@@ -25,6 +25,7 @@ module Steps
   class Base
     class StepFailed < StandardError; end
     class NoChangesProduced < StepFailed; end
+    class AgentGaveUpWaiting < StepFailed; end
     DEFAULT_AGENT_RESUME = Object.new.freeze
     DISABLE_AGENT_RESUME = "__syrus_disable_agent_resume__".freeze
 
@@ -474,11 +475,20 @@ module Steps
       assert_branch_history_intact!
 
       diff = diff_against_default
-      raise NoChangesProduced, "agent produced no changes" if diff.blank?
+      raise_no_changes_produced! if diff.blank?
 
       step_diff = diff_against_sha(base_sha)
       run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
       publish_run_checkpoint!
+    end
+
+    def raise_no_changes_produced!
+      if AgenticWaitingNoDiffDetector.detect?(run)
+        raise AgentGaveUpWaiting,
+              "agent ended with no repository diff after expecting a background command or ScheduleWakeup to continue this Step Run"
+      end
+
+      raise NoChangesProduced, "agent produced no changes"
     end
 
     def publish_run_checkpoint!

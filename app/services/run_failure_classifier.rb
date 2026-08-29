@@ -45,6 +45,8 @@ class RunFailureClassifier
       result("grader_failure", 0.90, false, "A configured grader command failed.")
     when missing_required_tool_call?
       result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
+    when agent_gave_up_waiting?
+      result("agent_gave_up_waiting", 0.90, true, "The agent ended the turn with no repository diff while expecting a background command or ScheduleWakeup to continue the same Step Run.")
     when process_died?
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when agent_resume_unavailable?
@@ -137,6 +139,10 @@ class RunFailureClassifier
     %w[adversarial_review visual_review].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
       text_match?(/agent didn't call/i)
+  end
+
+  def agent_gave_up_waiting?
+    diagnostic&.error_class.to_s.match?(/Steps::Base::AgentGaveUpWaiting/)
   end
 
   def branch_diverged?

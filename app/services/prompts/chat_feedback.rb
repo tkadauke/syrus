@@ -22,7 +22,7 @@ module Prompts
         injected_context_section
       ].compact
 
-      [ sections.join("\n\n---\n\n"), GitSafety::TEXT, SubmitSummaryInstructions::TEXT ].join("\n\n")
+      [ sections.join("\n\n---\n\n"), GitSafety::TEXT, ShellCommandExecutionContract::TEXT, SubmitSummaryInstructions::TEXT ].join("\n\n")
     end
 
     private
