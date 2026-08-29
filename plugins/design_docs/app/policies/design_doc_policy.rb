@@ -11,6 +11,10 @@ class DesignDocPolicy < ApplicationPolicy
     admin? || owner? || collaborator?
   end
 
+  def review?
+    admin? || owner?
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.all if admin?
@@ -22,7 +26,7 @@ class DesignDocPolicy < ApplicationPolicy
   private
 
   def visible?
-    DesignDoc.visible_to(user).exists?(id: record.id)
+    DesignDocs::DesignDoc.visible_to(user).exists?(id: record.id)
   end
 
   def owner?

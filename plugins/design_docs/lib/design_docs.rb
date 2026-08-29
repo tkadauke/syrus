@@ -47,6 +47,31 @@ module DesignDocs
           controller: "api/v1/app/design_docs#versions"
         },
         {
+          verb: "POST",
+          path: "/api/v1/app/design_docs/:id/comments",
+          controller: "api/v1/app/design_docs#comments"
+        },
+        {
+          verb: "POST",
+          path: "/api/v1/app/design_docs/:id/suggestions",
+          controller: "api/v1/app/design_docs#create_suggestion"
+        },
+        {
+          verb: "POST",
+          path: "/api/v1/app/design_docs/:id/threads/:thread_id/resolve",
+          controller: "api/v1/app/design_docs#resolve_thread"
+        },
+        {
+          verb: "POST",
+          path: "/api/v1/app/design_docs/:id/suggestions/:suggestion_id/accept",
+          controller: "api/v1/app/design_docs#accept_suggestion"
+        },
+        {
+          verb: "POST",
+          path: "/api/v1/app/design_docs/:id/suggestions/:suggestion_id/reject",
+          controller: "api/v1/app/design_docs#reject_suggestion"
+        },
+        {
           verb: "GET",
           path: "/api/v1/app/repositories/:repository_id/design_docs",
           controller: "api/v1/app/design_docs#repository_index"
