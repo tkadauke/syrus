@@ -721,6 +721,7 @@ class StepDispatcher
   def advance!
     return if handle_successful_adversarial_loop_iteration
     return if handle_successful_visual_review_loop_iteration
+    return if handle_successful_ci_failure_non_actionable_diagnosis
 
     next_step = find_next_runnable
     if next_step
@@ -762,6 +763,59 @@ class StepDispatcher
       exit_verdicts: %w[approved],
       cancellation_reason: "adversarial_review_approved"
     )
+  end
+
+  def handle_successful_ci_failure_non_actionable_diagnosis
+    return false unless @from_step&.kind == "analyze_and_fix"
+    return false unless @workflow.trigger_kind == "ci_failure"
+    return false unless @from_step.loop_id.present?
+
+    diagnosis = @workflow.artifact(CiRepair::NonActionableDiagnosis::ARTIFACT_KEY).to_h
+    return false unless diagnosis["outcome"] == CiRepair::NonActionableDiagnosis::OUTCOME
+    return false unless diagnosis["run_id"] == @from_step.latest_run&.id
+
+    loop_node = loop_node_for(@from_step)
+    return false unless loop_node&.fetch("type") == "retry_until"
+
+    skip_current_iteration_check_steps!(
+      Array(loop_node["check"]).map(&:to_s),
+      reason: CiRepair::NonActionableDiagnosis::OUTCOME
+    )
+    true
+  end
+
+  def skip_current_iteration_check_steps!(check_kinds, reason:)
+    continuation = nil
+    skipped = []
+
+    Step.transaction do
+      cursor = @from_step.next_step
+      while cursor &&
+          cursor.loop_id == @from_step.loop_id &&
+          cursor.iteration == @from_step.iteration &&
+          check_kinds.include?(cursor.kind)
+        if cursor.may_skip?
+          cursor.skip_with_reason!(reason)
+          skipped << cursor
+        end
+        cursor = cursor.next_step
+      end
+      continuation = cursor
+
+      @workflow.set_artifact!(
+        CiRepair::NonActionableDiagnosis::ARTIFACT_KEY,
+        @workflow.artifact(CiRepair::NonActionableDiagnosis::ARTIFACT_KEY).to_h.merge(
+          "skipped_check_step_ids" => skipped.map(&:id),
+          "continued_at" => Time.current.iso8601
+        )
+      )
+
+      if continuation&.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
+        self.class.create_run_and_enqueue(continuation, @workflow)
+      elsif continuation.nil?
+        finish_workflow!
+      end
+    end
   end
 
   # Mirrors handle_successful_adversarial_loop_iteration: the visual_review
