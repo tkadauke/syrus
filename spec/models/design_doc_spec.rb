@@ -56,6 +56,17 @@ RSpec.describe DesignDoc, type: :model do
     expect(doc.errors[:current_version]).to include("must belong to this design doc")
   end
 
+  it "can be destroyed after its current version is set" do
+    doc = described_class.create!(owner_user: owner, title: "Destroyable", markdown: "v1")
+    version = doc.versions.create!(markdown: "v1", version_number: 1, actor_kind: "user", actor_user: owner)
+    doc.update!(current_version: version)
+
+    expect {
+      doc.destroy!
+    }.to change(described_class, :count).by(-1)
+      .and change(DesignDocVersion, :count).by(-1)
+  end
+
   it "validates visibility and state values" do
     doc = described_class.new(owner_user: owner, title: "Bad", markdown: "body", visibility: "team", state: "published")
 
