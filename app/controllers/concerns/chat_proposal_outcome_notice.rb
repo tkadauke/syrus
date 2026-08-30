@@ -13,7 +13,7 @@ module ChatProposalOutcomeNotice
     ApplicationRecord.transaction do
       chat = ChatSession.lock.find(chat_session.id)
 
-      if chat.agent_busy?
+      if chat.turn_in_flight? || chat.agent_busy?
         # An agent is actively running — don't interrupt it. Enqueue a deferred
         # notice that ChatQueuedMessagePromoter will deliver after the turn ends.
         # The content carries the same proposal_outcome source/acknowledgment fields
@@ -24,7 +24,8 @@ module ChatProposalOutcomeNotice
 
       chat.update!(
         last_message_at: Time.current,
-        title: chat.title.presence
+        title: chat.title.presence,
+        turn_in_flight: !deferred
       )
     end
 

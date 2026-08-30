@@ -292,6 +292,10 @@ module Api
             render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
             return
           end
+          if !message_has_attachments? && (command_result = ChatGoalCommand.new(chat_session: chat_session, user: Current.user).call(text)).handled
+            render json: chat_payload(chat_session.reload, message: command_result.message)
+            return
+          end
           content = message_content(text)
           return if performed?
 
@@ -320,6 +324,12 @@ module Api
           raise unless transient_chat_lock_error?(e)
 
           render_temporary_chat_lock_error
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence.presence || "Goal is invalid.", status: :unprocessable_content)
+        rescue ActiveRecord::RecordNotFound => e
+          render_error("not_found", e.message, status: :not_found)
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         def stop
@@ -886,6 +896,7 @@ module Api
             )
           )
           notify_agent_of_proposal_outcome(confirmation_message)
+          publish_goal_proposal_confirmed_event(proposal.reload, result)
           broadcast_proposal_updated(chat_session, proposal.reload)
 
           render json: proposal_action_payload(
@@ -1383,6 +1394,31 @@ module Api
           (chat_session.participants.to_a.presence || [ chat_session.user ]).each do |p|
             AppEvents.broadcast(user: p, **event_args)
           end
+        end
+
+        def publish_goal_proposal_confirmed_event(proposal, result)
+          goal = proposal.chat_goal
+          return unless goal&.active?
+
+          materialized = [
+            *Array(result.jobs).map { |job| "#{job.slug}:#{job.state}" },
+            *Array(result.epics).map { |epic| "#{epic.slug}:#{epic.state}" }
+          ]
+          ChatGoalWakeup.publish_work_event!(
+            goal: goal,
+            kind: "proposal_confirmed",
+            subject: "Proposal confirmed",
+            summary: "Proposal #{proposal.slug} was confirmed.",
+            repository: proposal.effective_repository,
+            proposal: proposal,
+            work_state: {
+              "proposal_id" => proposal.id,
+              "proposal_slug" => proposal.slug,
+              "state" => proposal.state,
+              "materialized" => materialized
+            },
+            dedupe_key: "goal:#{goal.id}:proposal:#{proposal.id}:confirmed"
+          )
         end
 
         ATTACHMENT_LABEL_FORMATTERS = {
