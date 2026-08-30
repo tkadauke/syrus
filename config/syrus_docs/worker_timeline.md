@@ -68,9 +68,9 @@ the same query services for the browser:
   (`app/frontend/components/FilterBar.tsx`) uses everywhere else
   (`Filters::QueryParam`/`Filters::Ast`). `Timeline::MacroQueryFilter`
   decodes `q` into the `repository_id`/`epic_id`/`hostname`/`status`/
-  `from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes the
-  `filter_schema` the FilterBar renders against: `repository_id`/
-  `epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
+  `from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes a
+  registry-backed `filter_schema` for the `worker_timeline` subject:
+  `repository_id`/`epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
   `/api/v1/app/filters/fk_options` resolver (`Filters::FkOptionsResolver`
   serves `repository_id`/`epic_id` unscoped — every repository/epic in
   the instance, not just ones the signed-in admin owns — when the current
@@ -92,13 +92,19 @@ the same query services for the browser:
   include the resolved `worker_storage_key`, `queue_role`, `hostname`, and
   `pid`.
 
-`Timeline::MacroQueryFilter` is intentionally not a `Filters::Registry`
-subject: `Timeline::MacroQuery` isn't a single AR relation a
-`Filters::Compiler` chip can `.where` against (spans come from `Workflow`,
-pending from a second `Workflow` scope, idle lanes from `InstanceVersion`,
-and the time window is an overlap test applied across all three, not a
-plain column comparison), so it only understands a flat top-level AND of
-chips — the shape the FilterBar produces for this small, fixed field set.
+`worker_timeline` is a `Filters::Registry` subject so shared FilterBar
+schema serialization, top-level suggestion search, and filter-usage
+recording can use the same infrastructure as Dashboard/Search. The macro
+query still does not compile arbitrary registry chips into one relation:
+`Timeline::MacroQuery` isn't a single AR relation a `Filters::Compiler`
+chip can `.where` against (spans come from `Workflow`, pending from a
+second `Workflow` scope, idle lanes from `InstanceVersion`, and the time
+window is an overlap test applied across all three, not a plain column
+comparison), so `Timeline::MacroQueryFilter` only understands a flat
+top-level AND of chips — the shape the FilterBar produces for this small,
+fixed field set. Worker timeline does not currently expose SmartFolders;
+its registry subject exists for filter metadata and suggestions, not
+saved-folder navigation.
 The separate bearer-token `GET /api/v1/timeline/macro` endpoint (see
 `config/syrus_docs/worker_activity_timeline.md`) is untouched by this and
 keeps its own flat `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/
@@ -132,3 +138,12 @@ blocked-reason explanation the macro view shows for a pending Workflow. If
 the Workflow itself hasn't started, the waterfall skips the time axis
 entirely (there's no meaningful scale yet) and shows every Step as a
 "not started" marker.
+
+The macro view wires `FilterBar`'s `suggestionSearch` to
+`surface: "worker_timeline", subject: "worker_timeline"` and records
+applied filters through `/api/v1/app/filters/usage` on the same
+surface/subject. Typing free text in the add-filter search before choosing a
+field therefore offers one-click top-level suggested chips for matching
+repositories, epics, and worker hostnames (for example, "Repository is
+tkadauke/syrus") in addition to the per-field typeahead that appears inside
+an already-added FK chip.

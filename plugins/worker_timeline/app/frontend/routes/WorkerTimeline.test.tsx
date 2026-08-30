@@ -180,6 +180,21 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
       if (field === "hostname") return Promise.resolve(jsonResponse({ options: [ { value: "worker-b", label: "worker-b" } ] }))
       return Promise.resolve(jsonResponse({ options: [] }))
     }
+    if (url.startsWith("/api/v1/app/filters/suggestions")) {
+      return Promise.resolve(jsonResponse({
+        suggestions: [
+          {
+            id: "value-repository",
+            label: "Repository is tkadauke/syrus",
+            filter: { field: "repository_id", op: "is", value: 2 },
+            source: "value"
+          }
+        ]
+      }))
+    }
+    if (url === "/api/v1/app/filters/usage") {
+      return Promise.resolve(jsonResponse({ recorded: true }))
+    }
 
     return Promise.reject(new Error(`Unexpected fetch: ${url}`))
   }) as typeof window.fetch)
@@ -238,6 +253,28 @@ describe("WorkerTimeline macro view", () => {
 
     await waitFor(() => {
       expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: "1" } ] })
+    })
+  })
+
+  it("offers top-level suggested filters from worker timeline deep search", async () => {
+    const calls = setupFetchMock()
+    renderTimeline()
+
+    await screen.findByText("runs")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "sy" } })
+
+    const suggestion = await screen.findByRole("button", { name: "Repository is tkadauke/syrus" })
+    expect(calls).toContain("/api/v1/app/filters/suggestions?surface=worker_timeline&subject=worker_timeline&q=sy")
+
+    fireEvent.click(suggestion)
+
+    await waitFor(() => {
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: 2 } ] })
+    })
+    await waitFor(() => {
+      expect(calls).toContain("/api/v1/app/filters/usage")
     })
   })
 
