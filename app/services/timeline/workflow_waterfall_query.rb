@@ -2,7 +2,7 @@ module Timeline
   # Read-only micro (single-Workflow waterfall) query backing the
   # worker-activity-timeline plugin's drill-down view: ordered Steps with
   # their Runs. Step/Run carry no host column of their own, so every row
-  # is attributed to the parent Workflow's single (hostname, pid) via
+  # is attributed to the parent Workflow's worker lane via
   # WorkerAttribution -- the same resolver Timeline::MacroQuery uses.
   #
   # Steps have no blocked-reason machinery of their own -- only the
@@ -49,6 +49,8 @@ module Timeline
         status: workflow.state,
         started_at: workflow.started_at&.iso8601,
         finished_at: workflow.finished_at&.iso8601,
+        worker_storage_key: attribution[:worker_storage_key],
+        queue_role: attribution[:queue_role],
         hostname: attribution[:hostname],
         pid: attribution[:pid],
         blocked: workflow_blocked
@@ -64,6 +66,8 @@ module Timeline
         iteration: step.iteration,
         started_at: step.started_at&.iso8601,
         finished_at: step.finished_at&.iso8601,
+        worker_storage_key: attribution[:worker_storage_key],
+        queue_role: attribution[:queue_role],
         hostname: attribution[:hostname],
         pid: attribution[:pid],
         runs: step.runs.map { |run| run_payload(run) }

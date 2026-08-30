@@ -4,7 +4,8 @@ module MysqlDbBrowser
   class ListTablesTool < MCP::Tool
     tool_name "mysql_db_browser_list_tables"
 
-    description "List tables in a database on an agentic-access-enabled MySQL DB Browser connection."
+    description "List tables in a database on an agentic-access-enabled MySQL DB Browser connection. " \
+                "Call mysql_db_browser_list_connections first to find an enabled mysql_connection_id."
 
     input_schema(
       type: "object",
@@ -12,7 +13,7 @@ module MysqlDbBrowser
       properties: {
         mysql_connection_id: {
           type: "integer",
-          description: "MysqlConnection id, from the DB Browser connections list."
+          description: "MysqlConnection id from mysql_db_browser_list_connections."
         },
         database: {
           type: "string",

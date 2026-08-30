@@ -4,6 +4,14 @@ MySQL DB Browser lets admins register external MySQL connections, inspect schema
 
 This plugin is separate from Admin MySQL: Admin MySQL inspects Syrus' own runtime database, while MySQL DB Browser is for operator-managed external databases that Syrus may need to inspect.
 
+Agentic DB Browser tools include `mysql_db_browser_list_connections`, which
+returns safe connection metadata only (`id`, `label`, `default_database`,
+`agentic_access_enabled`, `allow_writes`, and timestamps). Agents should call
+it before schema browsing or query execution so they do not have to guess a
+`mysql_connection_id`. Query execution remains read-only by default, but safe
+diagnostic statements such as `SHOW`, `DESCRIBE`, and `EXPLAIN SELECT ...` are
+accepted without enabling writes.
+
 ## What It Adds
 
 - Admin UI and API endpoints for MySQL connection management.

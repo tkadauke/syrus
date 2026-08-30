@@ -60,6 +60,19 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     expect(response.content.first[:text]).to include("read-only")
   end
 
+  it "allows EXPLAIN through the agentic query tool and audit-logs it as read-only" do
+    run = Factories.job(user: user).initial_run
+    MysqlDbBrowser::QueryExecutor.client_factory = ->(**) { fake_client(rows: [ { "table" => "users" } ]) }
+
+    response = call(mysql_connection_id: connection.id, sql: "EXPLAIN SELECT * FROM users", server_context: { run_id: run.id })
+
+    expect(response.error?).to be(false)
+    payload = JSON.parse(response.content.first[:text], symbolize_names: true)
+    expect(payload[:read_only]).to be(true)
+    expect(payload[:rows]).to eq([ { table: "users" } ])
+    expect(MysqlQueryAudit.last.read_only).to be(true)
+  end
+
   it "refuses when the connection has agentic access disabled" do
     disabled = Factories.mysql_connection(agentic_access_enabled: false)
     run = Factories.job(user: user).initial_run

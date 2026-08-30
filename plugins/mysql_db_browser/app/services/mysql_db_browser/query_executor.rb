@@ -9,9 +9,9 @@ module MysqlDbBrowser
   # GRANT-error hints. Every attempt, successful or not, is recorded to
   # MysqlQueryAudit.
   #
-  # Read-only is the default posture: anything that isn't a SELECT (or a
-  # SELECT-only WITH ... CTE) is rejected unless the connection has
-  # explicitly opted into writes (MysqlConnection#allow_writes).
+  # Read-only is the default posture: anything that isn't a SELECT, WITH,
+  # SHOW, DESCRIBE, or EXPLAIN-style diagnostic statement is rejected unless
+  # the connection has explicitly opted into writes (MysqlConnection#allow_writes).
   class QueryExecutor
     CONNECT_TIMEOUT_SECONDS = 5
     QUERY_TIMEOUT_MS = 5_000
@@ -85,7 +85,20 @@ module MysqlDbBrowser
     end
 
     def read_only_statement?(statement)
-      statement.match?(/\A(SELECT|WITH)\b/i)
+      statement.match?(/\A(SELECT|WITH|SHOW|DESCRIBE|DESC)\b/i) || explain_statement?(statement)
+    end
+
+    def explain_statement?(statement)
+      return false unless statement.match?(/\AEXPLAIN\b/i)
+
+      rest = statement.sub(/\AEXPLAIN\b/i, "").strip
+      return false if rest.blank?
+
+      analyze = rest.match?(/\AANALYZE\b/i)
+      rest = rest.sub(/\AANALYZE\b/i, "").strip
+      rest = rest.sub(/\AFORMAT\s*=\s*(?:TRADITIONAL|JSON|TREE)\b/i, "").strip
+      pattern = analyze ? /\A(SELECT|WITH|TABLE)\b/i : /\A(SELECT|WITH|TABLE|UPDATE|DELETE|INSERT|REPLACE)\b/i
+      rest.match?(pattern)
     end
 
     def build_client

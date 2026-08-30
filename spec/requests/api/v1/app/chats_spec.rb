@@ -3286,9 +3286,49 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal_payload).not_to have_key("body_html")
   end
 
-  it "updates a proposed proposal title, body, and dependencies" do
+  it "includes media refs for child proposal payloads" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat,
+      name: "Annotated proposal",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+    parent = ChatProposal.create!(
+      chat_session: chat,
+      kind: "epic",
+      slug: "media-epic",
+      title: "Media Epic",
+      body: "Parent."
+    )
+    child = ChatProposal.create!(
+      chat_session: chat,
+      parent_proposal: parent,
+      slug: "media-child",
+      title: "Media Child",
+      body: "Child.",
+      media_ids: [ "snapshot:#{snapshot.id}" ]
+    )
+    chat.messages.create!(role: "assistant", proposal: parent, content: { "text" => "Proposal proposed." })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    child_payload = parse_body["messages"].first.fetch("proposal").fetch("children").find { |item| item["id"] == child.id }
+    expect(child_payload["media_ids"]).to eq([ "snapshot:#{snapshot.id}" ])
+  end
+
+  it "updates a proposed proposal title, body, dependencies, and media refs" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat,
+      name: "Edited media",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
     proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Old body.")
     old_dependency = ChatProposal.create!(chat_session: chat, slug: "old-api", title: "Old API", body: "Old dependency.")
     new_dependency = ChatProposal.create!(chat_session: chat, slug: "new-api", title: "New API", body: "New dependency.")
@@ -3303,7 +3343,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
         body: "New body.",
         dependency_slugs: [ new_dependency.slug ],
         depends_on_job_ids: [ job_dependency.id ],
-        depends_on_epic_ids: [ epic_dependency.id ]
+        depends_on_epic_ids: [ epic_dependency.id ],
+        media_ids: [ "snapshot:#{snapshot.id}" ]
       }
     }
 
@@ -3314,10 +3355,42 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal.dependencies).to contain_exactly(new_dependency)
     expect(proposal.depends_on_job_ids).to eq([ job_dependency.id ])
     expect(proposal.depends_on_epic_ids).to eq([ epic_dependency.id ])
+    expect(proposal.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
     expect(proposal.edited_at).to be_present
     expect(parse_body.dig("proposal", "title")).to eq("Build better UI")
     expect(parse_body.dig("proposal", "depends_on_job_ids")).to eq([ job_dependency.id ])
+    expect(parse_body.dig("proposal", "media_ids")).to eq([ "snapshot:#{snapshot.id}" ])
     expect(parse_body.dig("message")).to eq("Proposal updated.")
+  end
+
+  it "rejects proposal media refs from another chat on update" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    other_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    other_snapshot = WhiteboardSnapshot.create!(
+      chat_session: other_chat,
+      name: "Other chat media",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+    proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Old body.")
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: {
+        title: "Build better UI",
+        body: "New body.",
+        dependency_slugs: [],
+        depends_on_job_ids: [],
+        depends_on_epic_ids: [],
+        media_ids: [ "snapshot:#{other_snapshot.id}" ]
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("does not belong to this chat session")
+    expect(proposal.reload).to have_attributes(title: "Build UI", body: "Old body.", media_ids: [])
   end
 
   it "removes the target epic from a proposed job proposal" do
@@ -4794,7 +4867,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["pending_actions"]).to be_empty
   end
 
-  it "includes title, description, and repository resource for unanchored submit_coding_changes pending actions" do
+  it "includes title, submitted description, and repository resource for unanchored submit_coding_changes pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     action = chat.pending_actions.create!(
@@ -4819,8 +4892,9 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       )
     )
     detail = parse_body["pending_actions"].first["detail"]
-    expect(detail).to include("**Branch:** syrus/chat-42-handoff-7")
-    expect(detail).to include("Implemented a dark mode toggle in the settings panel.")
+    expect(detail).to eq("Implemented a dark mode toggle in the settings panel.")
+    expect(detail).not_to include("**Branch:**")
+    expect(detail).not_to include("coding_handoff")
   end
 
   it "confirms supervisor retry_job pending actions for user-owned Jobs through the app API" do

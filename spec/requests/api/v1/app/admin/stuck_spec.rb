@@ -83,20 +83,18 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
 
   it "paginates stuck items 50 at a time" do
     sign_in_as(admin)
-    51.times do
-      job = Factories.job(user: admin)
-      job.initial_run.update_columns(
-        state: "running",
-        started_at: 10.minutes.ago,
-        last_heartbeat_at: 10.minutes.ago
-      )
-    end
+    snapshot = Admin::StuckItemsCache::Snapshot.new(
+      items: 51.times.map { |index| { "kind" => "cached_stuck_item", "ordinal" => index + 1 } },
+      captured_at: Time.current
+    )
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
 
     get "/api/v1/app/admin/stuck", params: { page: 2 }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["items"].size).to eq(1)
+    expect(body["items"].first).to include("ordinal" => 51)
     expect(body["pagination"]).to include(
       "page" => 2,
       "per_page" => 50,

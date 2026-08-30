@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { WorkerTimelineRoute } from "./WorkerTimeline"
+import type { WorkerTimelineMacroPayload } from "../api/workerTimeline"
 
 function filterSchema() {
   return [
@@ -55,11 +56,18 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
     filter_schema: filterSchema(),
     lanes: [
       {
+        key: "durable:storage-a:runs",
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
         hostname: "worker-a",
         pid: 123,
         instance: { id: 1, hostname: "worker-a", started_at: "2026-01-01T00:00:00Z", last_heartbeat_at: "2026-01-01T00:50:00Z", finished_at: null },
         spans: [
           {
+            worker_storage_key: "storage-a",
+            queue_role: "runs",
+            hostname: "worker-a",
+            pid: 123,
             workflow_id: 501,
             job_id: 42,
             started_at: "2026-01-01T00:10:00Z",
@@ -72,11 +80,18 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
         ]
       },
       {
+        key: "durable:storage-b:merges",
+        worker_storage_key: "storage-b",
+        queue_role: "merges",
         hostname: "worker-b",
         pid: 456,
         instance: null,
         spans: [
           {
+            worker_storage_key: "storage-b",
+            queue_role: "merges",
+            hostname: "worker-b",
+            pid: 456,
             workflow_id: 502,
             job_id: 43,
             started_at: "2026-01-01T00:15:00Z",
@@ -103,6 +118,8 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
       status: "running",
       started_at: "2026-01-01T00:10:00Z",
       finished_at: null,
+      worker_storage_key: "storage-a",
+      queue_role: "runs",
       hostname: "worker-a",
       pid: 123,
       blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
@@ -116,6 +133,8 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
         iteration: 1,
         started_at: "2026-01-01T00:10:00Z",
         finished_at: "2026-01-01T00:12:00Z",
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
         hostname: "worker-a",
         pid: 123,
         runs: [
@@ -130,6 +149,8 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
         iteration: 1,
         started_at: null,
         finished_at: null,
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
         hostname: "worker-a",
         pid: 123,
         runs: [],
@@ -184,12 +205,15 @@ describe("WorkerTimeline macro view", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders one lane per hostname+pid with its spans", async () => {
+  it("renders one lane per durable queue role with storage key secondary labels", async () => {
     setupFetchMock()
     renderTimeline()
 
-    expect(await screen.findByText("worker-a:123")).toBeInTheDocument()
-    expect(await screen.findByText("worker-b:456")).toBeInTheDocument()
+    expect(await screen.findByText("runs")).toBeInTheDocument()
+    expect(screen.getByText("storage-a")).toBeInTheDocument()
+    expect(screen.getByText("merges")).toBeInTheDocument()
+    expect(screen.getByText("storage-b")).toBeInTheDocument()
+    expect(screen.queryByText("worker-a:123")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "JOB-42 · initial" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "JOB-43 · pr_comment" })).toBeInTheDocument()
   })
@@ -205,7 +229,7 @@ describe("WorkerTimeline macro view", () => {
     const calls = setupFetchMock()
     renderTimeline()
 
-    await screen.findByText("worker-a:123")
+    await screen.findByText("runs")
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.click(screen.getByRole("button", { name: "Repository reference" }))
@@ -221,7 +245,7 @@ describe("WorkerTimeline macro view", () => {
     const calls = setupFetchMock()
     renderTimeline()
 
-    await screen.findByText("worker-a:123")
+    await screen.findByText("runs")
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.click(screen.getByRole("button", { name: "Status list" }))
@@ -236,7 +260,7 @@ describe("WorkerTimeline macro view", () => {
     const calls = setupFetchMock()
     renderTimeline()
 
-    await screen.findByText("worker-a:123")
+    await screen.findByText("runs")
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.click(screen.getByRole("button", { name: "Hostname reference" }))
@@ -252,7 +276,7 @@ describe("WorkerTimeline macro view", () => {
     setupFetchMock()
     renderTimeline()
 
-    await screen.findByText("worker-a:123")
+    await screen.findByText("runs")
 
     expect(screen.queryByRole("button", { name: /Repository is/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Status is/ })).not.toBeInTheDocument()
@@ -270,8 +294,132 @@ describe("WorkerTimeline macro view", () => {
     expect(tooltip).toHaveTextContent("JOB-43 · pr_comment")
     expect(tooltip).toHaveTextContent("Investigate flaky CI")
     expect(tooltip).toHaveTextContent("Workflow #502")
+    expect(tooltip).toHaveTextContent("ran on host worker-b from 2026-01-01T00:15:00Z–now")
     expect(tooltip).toHaveTextContent("+ (running)")
     expect(tooltip).toHaveTextContent("Blocked: provider_availability")
+  })
+
+  it("shows restart dividers when the pid changes within a durable lane", async () => {
+    const payload = macroPayload()
+    const firstLane = payload.lanes[0] as Record<string, unknown>
+    firstLane.spans = [
+      {
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
+        hostname: "worker-a",
+        pid: 123,
+        workflow_id: 501,
+        job_id: 42,
+        started_at: "2026-01-01T00:10:00Z",
+        finished_at: "2026-01-01T00:20:00Z",
+        status: "succeeded",
+        label: "JOB-42 · initial",
+        job_title: "Fix the aqueducts",
+        blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: true }
+      },
+      {
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
+        hostname: "worker-c",
+        pid: 789,
+        workflow_id: 503,
+        job_id: 44,
+        started_at: "2026-01-01T00:25:00Z",
+        finished_at: "2026-01-01T00:35:00Z",
+        status: "succeeded",
+        label: "JOB-44 · retry",
+        job_title: "Retry after restart",
+        blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: true }
+      }
+    ]
+    setupFetchMock({ lanes: payload.lanes })
+    renderTimeline()
+
+    await screen.findByText("runs")
+    const marker = screen.getByRole("img", { name: "worker process restarted here (pid 123 → 789)" })
+    fireEvent.mouseEnter(marker)
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("worker process restarted here (pid 123 → 789)")
+  })
+
+  it("packs genuinely overlapping spans into greedy concurrency sub-rows", async () => {
+    const payload = macroPayload({ lanes: [] }) as WorkerTimelineMacroPayload
+    payload.lanes = [
+      {
+        key: "durable:storage-a:runs",
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
+        hostname: "worker-a",
+        pid: 123,
+        instance: null,
+        spans: [
+          {
+            worker_storage_key: "storage-a",
+            queue_role: "runs",
+            hostname: "worker-a",
+            pid: 123,
+            workflow_id: 601,
+            job_id: 61,
+            started_at: "2026-01-01T00:00:00Z",
+            finished_at: "2026-01-01T00:30:00Z",
+            status: "running",
+            label: "JOB-61 · initial",
+            job_title: "",
+            blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
+          },
+          {
+            worker_storage_key: "storage-a",
+            queue_role: "runs",
+            hostname: "worker-a",
+            pid: 123,
+            workflow_id: 602,
+            job_id: 62,
+            started_at: "2026-01-01T00:05:00Z",
+            finished_at: "2026-01-01T00:35:00Z",
+            status: "running",
+            label: "JOB-62 · initial",
+            job_title: "",
+            blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
+          },
+          {
+            worker_storage_key: "storage-a",
+            queue_role: "runs",
+            hostname: "worker-a",
+            pid: 123,
+            workflow_id: 603,
+            job_id: 63,
+            started_at: "2026-01-01T00:10:00Z",
+            finished_at: "2026-01-01T00:40:00Z",
+            status: "running",
+            label: "JOB-63 · initial",
+            job_title: "",
+            blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
+          },
+          {
+            worker_storage_key: "storage-a",
+            queue_role: "runs",
+            hostname: "worker-a",
+            pid: 123,
+            workflow_id: 604,
+            job_id: 64,
+            started_at: "2026-01-01T00:35:00Z",
+            finished_at: "2026-01-01T00:45:00Z",
+            status: "succeeded",
+            label: "JOB-64 · initial",
+            job_title: "",
+            blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
+          }
+        ]
+      }
+    ]
+    setupFetchMock({ lanes: payload.lanes })
+    renderTimeline()
+
+    expect(await screen.findByText("runs")).toBeInTheDocument()
+    expect(screen.getByText("2/3")).toBeInTheDocument()
+    expect(screen.getByText("3/3")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "JOB-61 · initial" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "JOB-64 · initial" })).toBeInTheDocument()
   })
 
   it("activates a span with the keyboard, not just a mouse click", async () => {
@@ -313,24 +461,42 @@ describe("WorkerTimeline macro view", () => {
 
   it("virtualizes lanes so only the scrolled-into-view rows render, not every lane up front", async () => {
     const lanes = Array.from({ length: 20 }, (_, index) => ({
+      key: `durable:storage-${index}:runs`,
+      worker_storage_key: `storage-${index}`,
+      queue_role: `runs-${index}`,
       hostname: `worker-${index}`,
       pid: 100 + index,
       instance: null,
-      spans: []
+      spans: [
+        {
+          worker_storage_key: `storage-${index}`,
+          queue_role: `runs-${index}`,
+          hostname: `worker-${index}`,
+          pid: 100 + index,
+          workflow_id: 700 + index,
+          job_id: 70 + index,
+          started_at: "2026-01-01T00:10:00Z",
+          finished_at: "2026-01-01T00:20:00Z",
+          status: "succeeded",
+          label: `JOB-${70 + index} · initial`,
+          job_title: null,
+          blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: true }
+        }
+      ]
     }))
     setupFetchMock({ lanes })
     renderTimeline()
 
-    expect(await screen.findByText("worker-0:100")).toBeInTheDocument()
-    expect(screen.getByText("worker-13:113")).toBeInTheDocument()
-    expect(screen.queryByText("worker-19:119")).not.toBeInTheDocument()
+    expect(await screen.findByText("runs-0")).toBeInTheDocument()
+    expect(screen.getByText("runs-13")).toBeInTheDocument()
+    expect(screen.queryByText("runs-19")).not.toBeInTheDocument()
 
     fireEvent.scroll(screen.getByLabelText("Worker lanes"), { target: { scrollTop: 900 } })
 
     await waitFor(() => {
-      expect(screen.getByText("worker-19:119")).toBeInTheDocument()
+      expect(screen.getByText("runs-19")).toBeInTheDocument()
     })
-    expect(screen.queryByText("worker-0:100")).not.toBeInTheDocument()
+    expect(screen.queryByText("runs-0")).not.toBeInTheDocument()
   })
 })
 
@@ -384,11 +550,11 @@ describe("WorkerTimeline waterfall (micro) view", () => {
   it("skips the time axis and shows every step as not-started when the workflow itself hasn't started", async () => {
     setupFetchMock({}, {
       workflow: {
-        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, hostname: null, pid: null,
+        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null,
         blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false }
       },
       steps: [
-        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, hostname: null, pid: null, runs: [],
+        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null, runs: [],
           blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false } }
       ]
     })

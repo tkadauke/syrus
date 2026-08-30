@@ -9,17 +9,19 @@ RSpec.describe "App API repository tests", type: :request do
   def parse_body = JSON.parse(response.body)
 
   def make_test_run
-    run = Factories.job(user: user, repository: repo).initial_run
-    TestRun.create!(
-      run: run,
-      repository: repo,
-      grader_name: "rspec",
-      total_count: 1,
-      passed_count: 0,
-      failed_count: 1,
-      skipped_count: 0,
-      error_count: 0
-    )
+    @test_run ||= begin
+      run = Factories.job(user: user, repository: repo).initial_run
+      TestRun.create!(
+        run: run,
+        repository: repo,
+        grader_name: "rspec",
+        total_count: 1,
+        passed_count: 0,
+        failed_count: 1,
+        skipped_count: 0,
+        error_count: 0
+      )
+    end
   end
 
   def make_identity(name:, suite_name: "Suite", file_path: nil)

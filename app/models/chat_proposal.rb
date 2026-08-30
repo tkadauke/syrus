@@ -72,7 +72,7 @@ class ChatProposal < ApplicationRecord
   validate :repository_belongs_to_chat_user
   validate :target_epic_matches_repository
   validate :media_ids_valid_format
-  validate :media_ids_belong_to_chat_session, on: :create
+  validate :media_ids_belong_to_chat_session
 
   before_validation :default_repository, on: :create
   before_validation :stamp_goal_provenance, on: :create
