@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
 
-const slugPattern = /((?:JOB|EPIC)-\d+)/
+const slugPattern = /((?:JOB|EPIC|DOC)-\d+)/
 
 type LinkifySlugOptions = {
   jobStyle?: "link" | "copyable"
@@ -38,10 +38,19 @@ export function linkifySlugs(text: string, options: LinkifySlugOptions = {}): Re
       )
     }
 
+    const doc = part.match(/^DOC-(\d+)$/)
+    if (doc) {
+      return (
+        <Link className="text-blue-600 hover:underline dark:text-blue-400" key={index} to={`/design_docs/${doc[1]}`}>
+          {part}
+        </Link>
+      )
+    }
+
     return part
   })
 }
 
 export function containsSlug(text: string) {
-  return /(?:JOB|EPIC)-\d+/.test(text)
+  return /(?:JOB|EPIC|DOC)-\d+/.test(text)
 }

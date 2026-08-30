@@ -164,7 +164,7 @@ RSpec.describe "SPA shell", type: :request do
     user = Factories.user
     sign_in_as(user)
 
-    [ notifications_path, memories_path, search_chats_path ].each do |path|
+    [ notifications_path, memories_path, search_chats_path, design_docs_path, design_doc_path(9) ].each do |path|
       get path
 
       expect(response).to have_http_status(:ok)
