@@ -453,6 +453,18 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result[:content]).to include("Widgets")
     end
 
+    it "preserves UTF-8 symbols in file content" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("README.md").to_s, "Step -> Run\nStep → Run\n")
+
+      result = described_class.file_content(chat_session, repository, "README.md")
+
+      expect(result).not_to be_nil
+      expect(result[:content]).to include("Step → Run")
+      expect(result[:content]).not_to include("���")
+    end
+
     it "returns nil for a nonexistent file" do
       described_class.ensure_coding_checkout!(chat_session, repository)
 
@@ -487,6 +499,24 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(result).not_to be_nil
       expect(result[:content]).to eq("# Widgets\n")
+    end
+
+    it "preserves UTF-8 symbols in file content from a selected commit ref" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("README.md").to_s, "Step → Run\n")
+      sh("git -C #{checkout_path} add README.md")
+      sh("git -C #{checkout_path} commit -q -m 'add unicode arrow'")
+      unicode_sha = sh("git -C #{checkout_path} rev-parse HEAD").strip
+      File.write(checkout_path.join("README.md").to_s, "Step -> Run\n")
+      sh("git -C #{checkout_path} add README.md")
+      sh("git -C #{checkout_path} commit -q -m 'replace arrow'")
+
+      result = described_class.file_content(chat_session, repository, "README.md", ref: unicode_sha)
+
+      expect(result).not_to be_nil
+      expect(result[:content]).to eq("Step → Run\n")
+      expect(result[:content]).not_to include("���")
     end
   end
 
