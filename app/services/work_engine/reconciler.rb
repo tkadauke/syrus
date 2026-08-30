@@ -620,12 +620,14 @@ module WorkEngine
         sq = solid_queue_for_run(run)
         live_process = running_spawned_process_for(run)
         terminal_process = live_process ? nil : terminal_spawned_process_for(run)
+        terminal_orphan_process = orphaned_terminal_process(terminal_process)
+        terminal_orphan_ready = terminal_orphan_process_ready?(terminal_orphan_process)
         heartbeat_stale = run_stale?(run)
         last_activity_at = run.last_heartbeat_at || run.started_at
         detached = detached_running_run?(sq, live_process)
         detached_ready = detached && older_than?(last_activity_at, DETACHED_WORKER_EVIDENCE_GRACE)
-        repair_ready = (heartbeat_stale && !live_process) || detached_ready
-        next if !repair_ready && !detached && (fresh_activity?(run.last_heartbeat_at) || live_process)
+        repair_ready = terminal_orphan_ready || (heartbeat_stale && !live_process) || detached_ready
+        next if !repair_ready && !detached && !terminal_orphan_process && (fresh_activity?(run.last_heartbeat_at) || live_process)
 
         related_spawned_process_ids = spawned_process_ids_for([ run.id ], [ run.workflow_id ].compact)
 
@@ -639,7 +641,8 @@ module WorkEngine
             heartbeat_stale: heartbeat_stale,
             detached_ready: detached_ready,
             detached: detached,
-            last_activity_at: last_activity_at
+            last_activity_at: last_activity_at,
+            terminal_orphan_process: terminal_orphan_process
           ),
           evidence: run_evidence(run).merge(
             solid_queue: sq,
@@ -648,7 +651,8 @@ module WorkEngine
             last_heartbeat_age_seconds: seconds_since(last_activity_at),
             live_spawned_process: live_process&.id,
             terminal_spawned_process: terminal_process&.id,
-            terminal_spawned_process_outcome: terminal_process&.outcome
+            terminal_spawned_process_outcome: terminal_process&.outcome,
+            terminal_orphan_process_ready: terminal_orphan_ready
           ),
           explanation: "Run ##{run.id} is running without enough evidence of a live worker continuing it."
         )
@@ -2608,8 +2612,9 @@ module WorkEngine
       error.to_s.include?("ProcessPrunedError")
     end
 
-    def check_after_for_running_run(heartbeat_stale:, detached_ready:, detached:, last_activity_at:)
+    def check_after_for_running_run(heartbeat_stale:, detached_ready:, detached:, last_activity_at:, terminal_orphan_process: nil)
       return nil if heartbeat_stale || detached_ready
+      return terminal_orphan_process.finished_at + ORPHAN_RUN_GRACE_PERIOD if terminal_orphan_process&.finished_at
       return last_activity_at + DETACHED_WORKER_EVIDENCE_GRACE if detached && last_activity_at
       return last_activity_at + Run::STALE_HEARTBEAT_THRESHOLD if last_activity_at
 
@@ -2633,6 +2638,14 @@ module WorkEngine
         .where.not(finished_at: nil)
         .order(finished_at: :desc, id: :desc)
         .first
+    end
+
+    def orphaned_terminal_process(process)
+      process if process&.outcome == "orphaned"
+    end
+
+    def terminal_orphan_process_ready?(process)
+      process&.finished_at.present? && older_than?(process.finished_at, ORPHAN_RUN_GRACE_PERIOD)
     end
 
     def issue(kind:, severity:, evidence:, affected_ids:, safe_to_auto_repair:, recommended_repair_action:, explanation:, retry_after: nil, check_after: nil)

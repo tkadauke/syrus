@@ -2462,7 +2462,7 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
-  it "does not auto-repair a fresh running Run only because a spawned process was marked orphaned" do
+  it "auto-repairs a fresh running Run when its latest spawned process is known orphaned" do
     ensure_solid_queue_test_tables!
     run.update_columns(
       state: "running",
@@ -2489,17 +2489,64 @@ RSpec.describe WorkEngine::Reconciler do
     issue = kind(result, :running_run_without_live_worker_evidence)
 
     expect(issue).to have_attributes(
-      severity: "warning",
-      safe_to_auto_repair: false,
-      recommended_repair_action: "capture_diagnostics"
+      severity: "critical",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "fail_run_as_worker_died",
+      check_after: nil
     )
     expect(issue.affected_ids.fetch(:spawned_process_ids)).to include(spawned_process.id)
     expect(issue.evidence).to include(
       "terminal_spawned_process" => spawned_process.id,
-      "terminal_spawned_process_outcome" => "orphaned"
+      "terminal_spawned_process_outcome" => "orphaned",
+      "terminal_orphan_process_ready" => true
+    )
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_id: run.id
+    )
+    expect(run.reload).to be_running
+  end
+
+  it "waits for the orphan grace period before repairing a just-orphaned running Run" do
+    ensure_solid_queue_test_tables!
+    finished_at = 30.seconds.ago
+    run.update_columns(
+      state: "running",
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 30.seconds.ago
+    )
+    step.update_columns(state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+    spawned_process = SpawnedProcess.create!(
+      run: run,
+      workflow: workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-1",
+      started_at: 2.minutes.ago,
+      last_chunk_at: 90.seconds.ago,
+      finished_at: finished_at,
+      outcome: "orphaned"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :running_run_without_live_worker_evidence)
+
+    expect(issue).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "capture_diagnostics"
+    )
+    expect(issue.check_after).to be_within(1.second).of(finished_at + described_class::ORPHAN_RUN_GRACE_PERIOD)
+    expect(issue.evidence).to include(
+      "terminal_spawned_process" => spawned_process.id,
+      "terminal_spawned_process_outcome" => "orphaned",
+      "terminal_orphan_process_ready" => false
     )
     expect(plan(result, :mark_worker_died_and_retry_failed_step)).to be_nil
-    expect(run.reload).to be_running
+    expect(plan(result, :capture_run_diagnostics)).to have_attributes(auto_executable: false, target_id: run.id)
   end
 
   it "finds terminal spawned-process evidence without expression-ordering the audit table" do
@@ -2546,7 +2593,8 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue.evidence).to include(
       "terminal_spawned_process" => newer.id,
-      "terminal_spawned_process_outcome" => "orphaned"
+      "terminal_spawned_process_outcome" => "orphaned",
+      "terminal_orphan_process_ready" => true
     )
     expect(issue.affected_ids.fetch(:spawned_process_ids)).to include(newer.id, older.id)
     expect(queries.join("\n")).not_to include("COALESCE")
