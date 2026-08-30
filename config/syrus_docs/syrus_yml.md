@@ -273,7 +273,7 @@ adversarial_review:
     - Check that database queries use parameterized inputs
 ```
 
-`rounds` bounds the review loop. Range: 0–10. Rounds set here override the instance-wide `AppSetting.adversarial_review_rounds`. Set to `0` to disable. In `initial`, `implement` always runs once as a top-level step regardless of this setting; `rounds` then controls how many times the loop that follows can review (and, on `needs_work`, repair) that work — see [`adversarial_review.md`](adversarial_review.md) for the exact iteration shape. In feedback workflows (`pr_comment`, `chat_feedback`), `rounds` is simply the number of `respond`→`adversarial_review` iterations.
+`rounds` bounds the review loop. Range: 0–10. Rounds set here override the instance-wide `AppSetting.adversarial_review_rounds`. Set to `0` to disable. In `initial`, `implement` always runs once as a top-level step regardless of this setting; `rounds` then controls how many times the loop that follows can review (and, on `needs_work`, repair) that work — see [`adversarial_review.md`](adversarial_review.md) for the exact iteration shape. In `retry`, `rounds` is the number of `implement`→`adversarial_review` iterations before visual review and graders. In feedback workflows (`pr_comment`, `chat_feedback`, `external_pr_feedback`), `rounds` is the number of `respond`→`adversarial_review` iterations.
 
 `criteria` is an optional array of strings directing the reviewer toward repository-specific concerns. When present, each entry is included as a focus area in the reviewer prompt, supplementing the standard review checklist. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
 

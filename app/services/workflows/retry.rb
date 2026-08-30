@@ -10,6 +10,7 @@ module Workflows
     def self.steps_for(job)
       prepare_then(
         job,
+        adversarial_review_loop(job, agent_step: :implement),
         visual_review_loop(job, agent_step: :implement),
         grader_retry_loop(job, :implement, autofix: true),
         "coverage_analyze",
