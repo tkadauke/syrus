@@ -630,7 +630,7 @@ class ChatWorkspace
     end
 
     {
-      content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
+      content: decode_text_content(raw),
       binary: false,
       too_large: false
     }
@@ -976,10 +976,14 @@ class ChatWorkspace
     end
 
     {
-      content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
+      content: decode_text_content(raw),
       binary: false,
       too_large: false
     }
+  end
+
+  def decode_text_content(raw)
+    raw.dup.force_encoding(Encoding::UTF_8).encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
   end
 
   def file_tree_at_ref(checkout_dir, ref)
