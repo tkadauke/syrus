@@ -64,5 +64,24 @@ RSpec.describe "App API local daemon sessions", type: :request do
       expect(response).to have_http_status(:created)
       expect(parse_body.dig("daemon_session", "auth_token")).to be_present
     end
+
+    it "returns the reconnect command without marking a disconnected daemon connected" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, mode: "local", local_daemon_state: "disconnected")
+      session = LocalDaemonSession.create!(
+        chat_session: chat,
+        user: user,
+        auth_token: "reconnect-token",
+        disconnected_at: 1.minute.ago
+      )
+
+      post daemon_session_path(chat)
+
+      expect(response).to have_http_status(:created)
+      expect(parse_body.dig("daemon_session", "auth_token")).to eq("reconnect-token")
+      expect(parse_body.dig("daemon_session", "connected")).to be(false)
+      expect(session.reload).to be_disconnected
+      expect(chat.reload.local_daemon_state).to eq("disconnected")
+    end
   end
 end

@@ -57,7 +57,7 @@ class LocalTunnelChannel < ApplicationCable::Channel
 
     return unless chat_session_id.present? && tunnel_token.present?
 
-    session = LocalDaemonSession.connected.find_by(
+    session = LocalDaemonSession.find_by(
       chat_session_id: chat_session_id,
       auth_token: tunnel_token
     )

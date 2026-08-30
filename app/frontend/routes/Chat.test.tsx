@@ -5690,6 +5690,37 @@ describe("LocalDaemonBanner", () => {
     await screen.findByText("Could not prepare a pairing command. Try reloading the page.")
   })
 
+  it("shows a fresh pairing command when the daemon is disconnected", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/local_daemon_session" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          daemon_session: {
+            id: 1,
+            chat_session_id: 8,
+            connected: false,
+            daemon_repo: null,
+            daemon_branch: null,
+            last_heartbeat_at: null,
+            auth_token: "reconnect-token"
+          }
+        }, 201))
+      }
+      return Promise.resolve(jsonResponse({
+        ...chatPayload({ chat: { mode: "local", local_daemon_state: "disconnected" } }),
+        local_mode_enabled: true
+      }))
+    })
+    renderRoute()
+
+    await screen.findByText("Local daemon disconnected — waiting to reconnect.")
+    expect(await screen.findByText("syrus local --chat 8 --token reconnect-token")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy command" })).toBeInTheDocument()
+  })
+
   it("does not render a banner once the daemon is connected", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

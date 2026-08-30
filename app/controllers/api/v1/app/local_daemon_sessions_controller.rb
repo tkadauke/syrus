@@ -24,8 +24,6 @@ module Api
               chat_session: @chat_session,
               user: Current.user
             )
-          elsif session.disconnected?
-            session.update!(disconnected_at: nil, last_heartbeat_at: nil)
           end
 
           render json: { daemon_session: serialize(session, include_token: true) },

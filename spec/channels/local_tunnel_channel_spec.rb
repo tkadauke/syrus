@@ -52,11 +52,11 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     expect(subscription).to be_rejected
   end
 
-  it "rejects when the daemon session is already disconnected" do
+  it "accepts a disconnected daemon session so the CLI can reconnect" do
     enable_local_mode
     daemon_session.mark_disconnected!
     subscribe_to(daemon_session)
-    expect(subscription).to be_rejected
+    expect(subscription).to be_confirmed
   end
 
   it "confirms subscription when feature is enabled and token matches" do

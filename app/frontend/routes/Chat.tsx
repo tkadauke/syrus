@@ -1354,13 +1354,10 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const daemonState = payload.chat.local_daemon_state ?? null
   const chatId = payload.chat.id
 
-  // Only the "not connected yet" banner needs a pairing session — a
-  // previously-connected daemon that dropped ("disconnected") already has
-  // one, and a connected daemon doesn't need the command at all.
   const sessionQuery = useQuery({
     queryKey: ["local-daemon-session", chatId],
     queryFn: () => createLocalDaemonSession(chatId),
-    enabled: daemonState === null,
+    enabled: daemonState !== "connected",
     staleTime: Infinity
   })
   const session = sessionQuery.data?.daemon_session
@@ -1380,6 +1377,18 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
       <section className="rounded border border-amber-200 bg-white p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
         <div className="font-semibold">{t("local_daemon_disconnected_title")}</div>
         <p className="mt-1">{t("local_daemon_disconnected_body")}</p>
+        <div className="mt-3 flex items-center gap-2">
+          <code className="rounded bg-amber-50 px-2 py-1 font-mono text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100">{command ?? t("local_daemon_command_loading")}</code>
+          <button
+            className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!command}
+            onClick={copyCommand}
+            type="button"
+          >
+            {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
+          </button>
+        </div>
+        {sessionQuery.isError ? <p className="mt-2 text-red-600 dark:text-red-400">{t("local_daemon_session_error")}</p> : null}
       </section>
     )
   }
