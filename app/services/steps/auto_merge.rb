@@ -39,6 +39,9 @@ module Steps
       end
 
       gate = settle_transient_mergeability(client)
+
+      return if gate.merge_ready? && defer_if_base_moved_since_validation!(client, gate.pr, context: "auto_merge")
+
       persist_github_mergeability(gate.pr)
 
       # Every early-exit path here must transition the Job out of
@@ -176,19 +179,23 @@ module Steps
     rescue *TRANSIENT_MERGE_ERRORS => e
       defer_after_transient_merge_error!(e)
       nil
+    rescue Octokit::UnprocessableEntity => e
+      if retryable_merge_race_error?(e)
+        defer_after_transient_merge_error!(e)
+        return nil
+      end
+
+      raise StepFailed, "auto_merge: GitHub merge failed: #{e.message}"
     rescue Octokit::Error => e
       raise StepFailed, "auto_merge: GitHub merge failed: #{e.message}"
     end
 
     def defer_after_transient_merge_error!(error)
-      log("auto_merge: deferred - #{transient_error_message(error)}", kind: "system")
-      job.defer_landing! if job.may_defer_landing?
-      job.save! if job.changed?
-      cancel_workflow!
+      defer_landing_for_retry!(context: "auto_merge", reason: transient_error_message(error))
     end
 
     def retryable_method_not_allowed?(error)
-      !rebase_merge_rejected?(error)
+      !rebase_merge_rejected?(error) || retryable_merge_race_error?(error)
     end
 
     def rebase_merge_rejected?(error)

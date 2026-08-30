@@ -23,14 +23,14 @@ RSpec.describe Steps::ExternalPrMerge do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "external_pr_merge") }
   let(:client) { instance_double(GithubClient) }
 
-  def pr(state: "open", mergeable_state: "clean", merged: false)
+  def pr(state: "open", mergeable_state: "clean", merged: false, head_sha: "abc123", base_sha: "base")
     OpenStruct.new(
       state: state,
       mergeable_state: mergeable_state,
       merged: merged,
       labels: [],
-      head: OpenStruct.new(sha: "abc123"),
-      base: OpenStruct.new(ref: "main", sha: "base")
+      head: OpenStruct.new(sha: head_sha),
+      base: OpenStruct.new(ref: "main", sha: base_sha)
     )
   end
 
@@ -101,11 +101,34 @@ RSpec.describe Steps::ExternalPrMerge do
 
     expect {
       described_class.new(run).call
-    }.to raise_error(Steps::Base::StepFailed, /GitHub merge failed/)
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+      .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
 
     expect(client).to have_received(:merge_pull_request)
       .with("acme/widgets", 99, hash_including(sha: "abc123"))
-    expect(job.reload).to be_landing
+    expect(job.reload).to be_approved
+    expect(workflow.reload).to be_cancelled
+  end
+
+  it "defers and requeues landing when the external PR base moved after validation" do
+    job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    allow(client).to receive(:pull_request).and_return(pr(base_sha: "current-base"))
+    allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base")
+    allow(client).to receive(:merge_pull_request)
+
+    expect {
+      described_class.new(run).call
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+      .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
+
+    expect(client).not_to have_received(:merge_pull_request)
+    expect(job.reload).to be_approved
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("landing_base_moved")).to include(
+      "validated_base_sha" => "validated-base",
+      "current_base_sha" => "current-base",
+      "base_ref" => "main"
+    )
   end
 
   it "raises StepFailed instead of merging when the prepared head SHA is missing" do

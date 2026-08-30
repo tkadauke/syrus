@@ -3,6 +3,8 @@ module Steps
   # Closes the Job on success; raises StepFailed on merge failures
   # (conflicts, failing required status checks, etc.).
   class ExternalPrMerge < Base
+    include AutoMergeControl
+
     TRANSIENT_MERGE_ERRORS = [
       Octokit::Conflict,
       Octokit::ServiceUnavailable,
@@ -16,9 +18,11 @@ module Steps
       if pr.state == "closed"
         log("external_pr_merge: PR ##{job.external_pr_number} is already closed", kind: "system")
         close_job_for_closed_pr!(pr)
-        cancel_workflow!
+        cancel_closed_workflow!
         return
       end
+
+      return if defer_if_base_moved_since_validation!(client, pr, context: "external_pr_merge")
 
       pushed_head_sha = push_same_repository_repairs!
       merge_result = merge_pull_request(client, expected_head_sha(pushed_head_sha))
@@ -68,6 +72,18 @@ module Steps
         sha: expected_sha
       )
     rescue Octokit::MethodNotAllowed => e
+      if retryable_merge_race_error?(e)
+        defer_after_transient_error!(e)
+        return nil
+      end
+
+      raise StepFailed, "external_pr_merge: GitHub merge failed: #{e.message}"
+    rescue Octokit::UnprocessableEntity => e
+      if retryable_merge_race_error?(e)
+        defer_after_transient_error!(e)
+        return nil
+      end
+
       raise StepFailed, "external_pr_merge: GitHub merge failed: #{e.message}"
     rescue *TRANSIENT_MERGE_ERRORS => e
       defer_after_transient_error!(e)
@@ -77,10 +93,7 @@ module Steps
     end
 
     def defer_after_transient_error!(error)
-      log("external_pr_merge: deferred - #{error.message.to_s.first(121)}", kind: "system")
-      job.defer_landing! if job.may_defer_landing?
-      job.save! if job.changed?
-      cancel_workflow!
+      defer_landing_for_retry!(context: "external_pr_merge", reason: error.message.to_s.first(121))
     end
 
     def close_job_for_closed_pr!(pr)
@@ -90,7 +103,7 @@ module Steps
       job.close_with_reason!(reason)
     end
 
-    def cancel_workflow!
+    def cancel_closed_workflow!
       run.cancel! if run.may_cancel?
       run.save!
       step.cancel! if step.may_cancel?

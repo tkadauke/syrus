@@ -425,8 +425,32 @@ RSpec.describe Steps::AutoMerge do
     expect(job.closure_reason).to eq("pr_merged")
   end
 
+  it "defers and requeues landing when the base branch moved after validation" do
+    job.approve!(via: "github_review")
+    job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base")
+    allow(client).to receive(:merge_pull_request)
+
+    expect {
+      described_class.new(run).call
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+      .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
+
+    expect(client).not_to have_received(:merge_pull_request)
+    expect(job.reload).to be_approved
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("landing_base_moved")).to include(
+      "validated_base_sha" => "validated-base",
+      "current_base_sha" => "current-base",
+      "base_ref" => "main"
+    )
+  end
+
   [
     [ Octokit::MethodNotAllowed, 405, "Base branch was modified. Review and try the merge." ],
+    [ Octokit::UnprocessableEntity, 422, "Head branch was modified. Review and try the merge again." ],
     [ Octokit::Conflict, 409, "Pull request head is changing." ],
     [ Octokit::ServiceUnavailable, 503, "GitHub is temporarily unavailable." ],
     [ Octokit::InternalServerError, 500, "GitHub had an internal error." ]

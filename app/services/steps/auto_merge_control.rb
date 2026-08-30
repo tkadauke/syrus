@@ -1,5 +1,11 @@
 module Steps
   module AutoMergeControl
+    MERGE_BASE_MOVED_MESSAGE = "base branch moved after landing validation".freeze
+    RETRYABLE_MERGE_RACE_ERROR = /
+      (?:base\s+branch|head\s+branch|pull\s+request\s+head).*?(?:modified|changing)|
+      review\s+and\s+try\s+(?:the\s+)?merge
+    /ix
+
     private
 
     def persist_github_mergeability(pr)
@@ -28,6 +34,48 @@ module Steps
 
       job.defer_landing!
       job.save! if job.changed?
+    end
+
+    def defer_landing_for_retry!(context:, reason:)
+      log("#{context}: deferred - #{reason}", kind: "system")
+      defer_landing_if_possible!
+      LandingQueueProcessorJob.set(wait: LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY).perform_later
+      cancel_workflow!
+    end
+
+    def retryable_merge_race_error?(error)
+      RETRYABLE_MERGE_RACE_ERROR.match?(error.message.to_s)
+    end
+
+    def defer_if_base_moved_since_validation!(client, pr, context:)
+      validated_base_sha = job.mergeability_base_sha.to_s.presence
+      base_ref = MergeabilityRecorder.base_ref(pr).presence || job.mergeability_base_ref.presence || repository.default_branch
+      return false if validated_base_sha.blank? || base_ref.blank?
+
+      current_base_sha =
+        begin
+          client.branch_head_sha(repository.slug, base_ref).to_s.presence
+        rescue StandardError => e
+          log("#{context}: could not verify base SHA before merge: #{e.class}: #{e.message}", kind: "system")
+          return false
+        end
+      return false if current_base_sha.blank? || current_base_sha == validated_base_sha
+
+      workflow.set_artifact!(
+        "landing_base_moved",
+        {
+          "validated_base_sha" => validated_base_sha,
+          "current_base_sha" => current_base_sha,
+          "base_ref" => base_ref,
+          "reason" => "base_moved_after_validation",
+          "detected_at" => Time.current.iso8601
+        }
+      )
+      defer_landing_for_retry!(
+        context: context,
+        reason: "#{MERGE_BASE_MOVED_MESSAGE} (#{base_ref} #{validated_base_sha.first(12)} -> #{current_base_sha.first(12)})"
+      )
+      true
     end
 
     def handle_needs_rebase!(gate, defer_reason: "mergeable_state=#{deferred_mergeable_state(gate)}", client:)
