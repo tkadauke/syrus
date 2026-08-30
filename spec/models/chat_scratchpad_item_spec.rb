@@ -9,6 +9,27 @@ RSpec.describe ChatScratchpadItem, type: :model do
     expect(item.errors[:content]).to include("can't be blank")
   end
 
+  it "allows blank text when stored draft content carries attachments" do
+    chat = ChatSession.create!(user: Factories.user)
+    item = described_class.new(
+      chat_session: chat,
+      content: JSON.generate("text" => "", "attachments" => [ { "name" => "shot.png", "mime_type" => "image/png", "data" => "abc" } ]),
+      position: 0
+    )
+
+    expect(item).to be_valid
+    expect(item.text).to eq("")
+    expect(item.draft_content.attachments).to contain_exactly(include("name" => "shot.png"))
+  end
+
+  it "treats legacy plain-string content as text-only draft content" do
+    chat = ChatSession.create!(user: Factories.user)
+    item = described_class.new(chat_session: chat, content: "Draft idea", position: 0)
+
+    expect(item.text).to eq("Draft idea")
+    expect(item.draft_content.attachments).to eq([])
+  end
+
   it "broadcasts controls after commit" do
     chat = ChatSession.create!(user: Factories.user)
     expect(chat).to receive(:broadcast_controls).once

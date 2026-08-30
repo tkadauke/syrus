@@ -177,6 +177,7 @@
   "scratchpad_cancel": "Abbrechen",
   "scratchpad_queue_item": "Einreihen",
   "scratchpad_dismiss": "Entwurfsblock schließen",
+  "attachment_only_draft": "Entwurf nur mit Anhang",
   "mode_hint": "Zwischen Planung und direkter Code-Implementierung wechseln.",
   "gemini_setup_get_key": "Google AI Studio öffnen → anmelden → API-Schlüssel erstellen",
   "gemini_setup_intro": "Walkthrough-Videos werden von Googles Gemini analysiert — dem Modell, das Video heute am besten versteht. Du brauchst einen kostenlosen Gemini-API-Schlüssel (keine Kreditkarte nötig).",
