@@ -22,6 +22,8 @@ module SyrusMcp
       ::Mcp::Tools::ReadRunWorkerHealthTool,
       ::Mcp::Tools::ListRepositoryTestInsightsTool,
       ::Mcp::Tools::ReadTestInsightTool,
+      ::Mcp::Tools::ReadJobTestResultsTool,
+      ::Mcp::Tools::ReadRunTestResultsTool,
       ::Mcp::Tools::StartPreviewTool,
       ::Mcp::Tools::StopPreviewTool,
       ::Mcp::Tools::ReadPreviewLogTool,
