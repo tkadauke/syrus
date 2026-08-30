@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -83,6 +84,26 @@ func TestBuildLocalCableURLRejectsUnknownScheme(t *testing.T) {
 	_, err := buildLocalCableURL("ftp://syrus.example.com", "tok")
 	if err == nil {
 		t.Fatal("expected error for unsupported scheme")
+	}
+}
+
+func TestLocalHandshakeErrorIncludesResponseStatusAndBody(t *testing.T) {
+	response := &http.Response{
+		StatusCode: http.StatusNotFound,
+		Status:     "404 Not Found",
+		Body:       io.NopCloser(strings.NewReader("Page not found")),
+	}
+
+	err := localHandshakeError(websocket.ErrBadHandshake, response)
+
+	if !strings.Contains(err.Error(), "bad handshake") {
+		t.Fatalf("expected handshake error, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "HTTP 404 404 Not Found") {
+		t.Fatalf("expected HTTP status, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Page not found") {
+		t.Fatalf("expected response body, got %q", err.Error())
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -28,8 +29,31 @@ const (
 // Overridable for tests.
 var localDialer = func(ctx context.Context, rawURL string) (*websocket.Conn, error) {
 	d := websocket.DefaultDialer
-	conn, _, err := d.DialContext(ctx, rawURL, nil)
+	conn, response, err := d.DialContext(ctx, rawURL, nil)
+	if err != nil {
+		return nil, localHandshakeError(err, response)
+	}
 	return conn, err
+}
+
+func localHandshakeError(err error, response *http.Response) error {
+	if response == nil {
+		return err
+	}
+
+	var body string
+	if response.Body != nil {
+		defer response.Body.Close()
+		bytes, readErr := io.ReadAll(io.LimitReader(response.Body, 512))
+		if readErr == nil {
+			body = strings.TrimSpace(string(bytes))
+		}
+	}
+
+	if body == "" {
+		return fmt.Errorf("%w (HTTP %d %s)", err, response.StatusCode, response.Status)
+	}
+	return fmt.Errorf("%w (HTTP %d %s: %s)", err, response.StatusCode, response.Status, body)
 }
 
 func NewLocalCommand() *cobra.Command {
@@ -572,4 +596,3 @@ func executeLocalGitStatus(ctx context.Context, repoRoot string) map[string]any 
 	}
 	return map[string]any{"status": string(out)}
 }
-

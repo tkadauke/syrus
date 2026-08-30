@@ -1,4 +1,6 @@
 Rails.application.routes.draw do
+  mount ActionCable.server => "/cable"
+
   get "session/new", to: "spa#show", as: :new_session
   resource :session, only: %i[ create destroy ]
   get "passwords/new", to: "spa#show", as: :new_password
