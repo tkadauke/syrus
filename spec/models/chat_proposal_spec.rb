@@ -1,11 +1,57 @@
 require "rails_helper"
 
 RSpec.describe ChatProposal do
-  include ActiveJob::TestHelper
-
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+  describe "goal provenance" do
+    it "stamps proposals created while a goal is active with an immutable prompt snapshot" do
+      goal = ChatGoal.create!(
+        chat_session: chat_session,
+        user: user,
+        repository: repository,
+        prompt: "Ship goal mode",
+        completion_condition: "All goal work is visible",
+        approval_policy: "manual",
+        auto_file_proposals: true
+      )
+
+      proposal = chat_session.proposals.create!(
+        slug: "goal-proposal",
+        title: "Goal proposal",
+        body: "Do the thing.",
+        kind: "job"
+      )
+      goal.update!(prompt: "Edited later")
+      proposal.update!(state: "rejected", rejected_at: Time.current)
+
+      expect(proposal.reload.chat_goal).to eq(goal)
+      expect(proposal.goal_prompt_snapshot).to include(
+        "prompt" => "Ship goal mode",
+        "completion_condition" => "All goal work is visible",
+        "approval_policy" => "manual",
+        "auto_file_proposals" => true,
+        "auto_submit_jobs" => false
+      )
+      expect(proposal.goal_prompt_snapshot.dig("mode_snapshot", "mode")).to eq("planning")
+      expect(proposal.goal_prompt_snapshot.fetch("prompt")).to eq("Ship goal mode")
+    end
+
+    it "does not stamp proposals when no goal is active" do
+      proposal = chat_session.proposals.create!(
+        slug: "ordinary-proposal",
+        title: "Ordinary proposal",
+        body: "Do the thing.",
+        kind: "job"
+      )
+
+      expect(proposal.chat_goal).to be_nil
+      expect(proposal.goal_prompt_snapshot).to be_nil
+    end
+  end
+
+  include ActiveJob::TestHelper
 
   def proposal(slug)
     described_class.create!(

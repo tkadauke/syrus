@@ -51,6 +51,7 @@ export type ChatRecord = {
   cumulative_cost_usd: number
   pending_proposal_count?: number
   confirmed_proposal_count?: number
+  active_goal?: ChatGoal | null
   linked_direct_job_count?: number
   scratchpad_items_count?: number
   whiteboard_snapshot_count?: number
@@ -132,6 +133,7 @@ export type ChatProposal = {
   app_reject_path: string
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  goal_provenance?: GoalProvenance | null
   media_ids?: string[]
   materialized_label: string | null
   materialized_path: string | null
@@ -170,9 +172,52 @@ export type ChatProposalChild = {
   dependencies: string[]
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  goal_provenance?: GoalProvenance | null
   dependency_details?: ChatProposalChildDependency[]
   app_update_path: string
   app_reject_path: string
+}
+
+export type GoalProvenance = {
+  chat_goal_id: number
+  prompt_snapshot: {
+    prompt?: string | null
+    completion_condition?: string | null
+    mode_snapshot?: Record<string, unknown>
+    approval_policy?: string | null
+    auto_file_proposals?: boolean
+    auto_submit_jobs?: boolean
+    [key: string]: unknown
+  }
+}
+
+export type ChatGoal = {
+  id: number
+  chat_session_id: number
+  user_id: number
+  repository_id: number | null
+  prompt: string
+  completion_condition: string | null
+  mode_snapshot: Record<string, unknown>
+  status: "active" | "paused" | "completed" | "cancelled" | "blocked"
+  approval_policy: "manual" | "auto"
+  auto_file_proposals: boolean
+  auto_submit_jobs: boolean
+  iteration_count: number
+  terminal_at: string | null
+  terminal_reason: string | null
+  terminal_details: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export type ChatGoalInput = {
+  prompt?: string
+  completion_condition?: string | null
+  approval_policy?: ChatGoal["approval_policy"]
+  auto_file_proposals?: boolean
+  auto_submit_jobs?: boolean
+  repository_id?: number | string | null
 }
 
 export type ChatProposalUpdateInput = {
@@ -561,6 +606,7 @@ export type ChatPayload = {
   switching_provider: boolean
   has_more_older: boolean
   pending_proposal_count?: number
+  active_goal?: ChatGoal | null
   messages: ChatMessageItem[]
   bookmarks: ChatBookmark[]
   recent_chats: ChatNavRecord[]
@@ -865,6 +911,26 @@ export function updateChatModel(id: number | string, chatModel: string | null) {
 
 export function updateChatEffort(id: number | string, effort: string | null) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_effort: effort ?? "" } })
+}
+
+export function upsertChatGoal(chatId: number | string, goal: ChatGoalInput & { prompt: string }) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal`, { goal })
+}
+
+export function patchChatGoal(chatId: number | string, goal: ChatGoalInput) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal`, { goal })
+}
+
+export function pauseChatGoal(chatId: number | string) {
+  return postJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal/pause`)
+}
+
+export function resumeChatGoal(chatId: number | string) {
+  return postJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal/resume`)
+}
+
+export function stopChatGoal(chatId: number | string) {
+  return postJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal/stop`, { reason: "operator_stopped" })
 }
 
 export function cancelCodingCheckout(path: string) {

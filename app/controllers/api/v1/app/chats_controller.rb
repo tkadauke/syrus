@@ -16,6 +16,7 @@ module Api
         include ChatSearch
         include ChatTurnStreaming
         include ChatSerialization
+        include ChatGoalActions
         include ChatMessageParams
         include ChatSessionLifecycle
         include ChatLockErrors
@@ -291,6 +292,10 @@ module Api
             render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
             return
           end
+          if !message_has_attachments? && (command_result = ChatGoalCommand.new(chat_session: chat_session, user: Current.user).call(text)).handled
+            render json: chat_payload(chat_session.reload, message: command_result.message)
+            return
+          end
           content = message_content(text)
           return if performed?
 
@@ -319,6 +324,12 @@ module Api
           raise unless transient_chat_lock_error?(e)
 
           render_temporary_chat_lock_error
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence.presence || "Goal is invalid.", status: :unprocessable_content)
+        rescue ActiveRecord::RecordNotFound => e
+          render_error("not_found", e.message, status: :not_found)
+        rescue ArgumentError => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
         def stop
@@ -885,6 +896,7 @@ module Api
             )
           )
           notify_agent_of_proposal_outcome(confirmation_message)
+          publish_goal_proposal_confirmed_event(proposal.reload, result)
           broadcast_proposal_updated(chat_session, proposal.reload)
 
           render json: proposal_action_payload(
@@ -1384,6 +1396,39 @@ module Api
           end
         end
 
+        def publish_goal_proposal_confirmed_event(proposal, result)
+          goal = proposal.chat_goal
+          return unless goal&.active?
+
+          jobs = result.respond_to?(:jobs) ? Array(result.jobs) : []
+          epics = if result.respond_to?(:epics)
+            Array(result.epics)
+          elsif result.respond_to?(:epic)
+            Array(result.epic)
+          else
+            []
+          end
+          materialized = [
+            *jobs.map { |job| "#{job.slug}:#{job.state}" },
+            *epics.map { |epic| "#{epic.slug}:#{epic.state}" }
+          ]
+          ChatGoalWakeup.publish_work_event!(
+            goal: goal,
+            kind: "proposal_confirmed",
+            subject: "Proposal confirmed",
+            summary: "Proposal #{proposal.slug} was confirmed.",
+            repository: proposal.effective_repository,
+            proposal: proposal,
+            work_state: {
+              "proposal_id" => proposal.id,
+              "proposal_slug" => proposal.slug,
+              "state" => proposal.state,
+              "materialized" => materialized
+            },
+            dedupe_key: "goal:#{goal.id}:proposal:#{proposal.id}:confirmed"
+          )
+        end
+
         ATTACHMENT_LABEL_FORMATTERS = {
           Repository => ->(r) { r.slug },
           Epic       => ->(r) { [ r.slug, r.title.presence ].compact.join(": ") },
@@ -1492,6 +1537,7 @@ module Api
             turn_in_flight: chat_session.turn_in_flight?,
             agent_busy: chat_session.agent_busy?,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
+            active_goal: PerformanceLogging.phase("chat_json.active_goal", chat_id: chat_session.id) { chat_goal_json(chat_session.active_goal) },
             suggested_next_step: chat_session.suggested_next_step,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,

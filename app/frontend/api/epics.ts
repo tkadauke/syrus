@@ -4,6 +4,7 @@ import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { JobDeploymentStage } from "./jobs"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { RepositoryEpicDependencyPolicy } from "./repositories"
+import type { GoalProvenance } from "./chats"
 
 export type EpicRepositoryOption = {
   id: number
@@ -37,6 +38,7 @@ export type EpicFormRecord = {
   github_issue_url: string
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: "linear" | "nonlinear" | null
+  goal_provenance?: GoalProvenance | null
   epic_path: string | null
 }
 
@@ -108,6 +110,7 @@ export type EpicDetailRecord = {
   furthest_behind_job_path: string | null
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: "linear" | "nonlinear"
+  goal_provenance?: GoalProvenance | null
 }
 
 export type EpicDetailSummary = {
@@ -180,6 +183,7 @@ export type EpicDetailJob = {
   owner_user_id: number | null
   owner_user: EpicOwnerUser | null
   repository_slug: string
+  goal_provenance?: GoalProvenance | null
   deployment_stages?: JobDeploymentStage[]
 }
 

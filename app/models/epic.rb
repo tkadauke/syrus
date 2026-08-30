@@ -20,6 +20,7 @@ class Epic < ApplicationRecord
   attribute :epic_dependency_policy, :string, default: "linear"
 
   belongs_to :user
+  belongs_to :chat_goal, optional: true
   belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics
   belongs_to :repository
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics
@@ -57,6 +58,7 @@ class Epic < ApplicationRecord
   after_update_commit :enqueue_search_index_after_update
   after_update_commit :broadcast_app_epic_updated
   after_update_commit :refresh_dependent_epic_auto_states, if: :saved_change_to_state?
+  after_update_commit :publish_goal_boundary_event, if: :saved_change_to_goal_boundary?
   before_destroy :clear_job_epic_titles
 
   scope :non_terminal, -> { where(state: NON_TERMINAL_STATES) }
@@ -184,6 +186,31 @@ class Epic < ApplicationRecord
 
   def title_or_description_changed?
     saved_change_to_title? || saved_change_to_description?
+  end
+
+  def saved_change_to_goal_boundary?
+    saved_change_to_state? && (done? || archived?)
+  end
+
+  def publish_goal_boundary_event
+    return unless chat_goal&.active?
+
+    kind = done? ? "epic_completed" : "epic_blocked"
+    ChatGoalWakeup.publish_work_event!(
+      goal: chat_goal,
+      kind: kind,
+      subject: done? ? "Epic completed" : "Epic blocked",
+      summary: done? ? "#{slug} completed." : "#{slug} was archived before completion.",
+      repository: repository,
+      epic: self,
+      work_state: {
+        "epic_id" => id,
+        "epic_slug" => slug,
+        "state" => state,
+        "done_at" => done_at&.iso8601
+      }.compact,
+      dedupe_key: "goal:#{chat_goal_id}:epic:#{id}:#{kind}:#{updated_at.to_i}"
+    )
   end
 
   def record_version

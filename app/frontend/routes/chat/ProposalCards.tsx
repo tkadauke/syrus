@@ -708,11 +708,14 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>
       </div>
       {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("target_epic")}</dt><dd>{proposal.target_epic_label}</dd></div> : null}
+      {proposal.goal_provenance ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("goal_provenance_label")}</dt><dd title={proposal.goal_provenance.prompt_snapshot.prompt || undefined}>{t("goal_provenance_value", { id: proposal.goal_provenance.chat_goal_id })}</dd></div> : null}
     </dl>
   )
 }
 
 function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+  const { t } = useT("chat")
+
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -727,6 +730,7 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
+            {child.goal_provenance ? <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>{t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}</div> : null}
             {child.proposed && parentProposed ? (
               <div className="mt-3">
                 <button

@@ -241,6 +241,14 @@ Rails.application.routes.draw do
         patch "chats/:id/scratchpad_items/:item_id", to: "chats#update_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         delete "chats/:id/scratchpad_items/:item_id", to: "chats#destroy_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
+        get "chats/:id/goal", to: "chats#show_goal", constraints: { id: /\d+/ }
+        put "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }
+        patch "chats/:id/goal", to: "chats#upsert_goal", constraints: { id: /\d+/ }
+        post "chats/:id/goal/pause", to: "chats#pause_goal", constraints: { id: /\d+/ }
+        post "chats/:id/goal/resume", to: "chats#resume_goal", constraints: { id: /\d+/ }
+        post "chats/:id/goal/stop", to: "chats#stop_goal", constraints: { id: /\d+/ }
+        post "chats/:id/goal/complete", to: "chats#complete_goal", constraints: { id: /\d+/ }
+        post "chats/:id/goal/block", to: "chats#block_goal", constraints: { id: /\d+/ }
         post "chats/:id/stop", to: "chats#stop", constraints: { id: /\d+/ }
         post "chats/:id/daemon_connection", to: "chats#daemon_connection", constraints: { id: /\d+/ }
         post "chats/:id/switch_provider", to: "chats#switch_provider", constraints: { id: /\d+/ }

@@ -55,6 +55,30 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "returns active goal provenance for direct Job proposals" do
+    goal = ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Draft traceable work"
+    )
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Trace provenance",
+      description: "Stamp this proposal."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Trace provenance")
+    payload = response_payload(response)
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.chat_goal).to eq(goal)
+    expect(payload[:goal_provenance]).to include(
+      chat_goal_id: goal.id,
+      prompt_snapshot: include(prompt: "Draft traceable work")
+    )
+  end
+
   it "rejects a Job proposed into a non-empty existing Epic without chaining onto its Jobs" do
     epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
     existing_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 9)

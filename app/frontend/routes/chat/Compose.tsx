@@ -10,7 +10,7 @@ import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationS
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, scheduleChatMessage, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -251,6 +251,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         const path = `/api/v1/app/jobs/${encodeURIComponent(action.jobId)}/${endpoint}`
         await postJobCommand(path)
         return { jobId: action.jobId, notice }
+      }
+
+      if (action.kind === "goal") {
+        const chatId = payload.chat.id
+        if (action.action === "pause") return { payload: await pauseChatGoal(chatId), notice: t("goal_paused_notice") }
+        if (action.action === "resume") return { payload: await resumeChatGoal(chatId), notice: t("goal_resumed_notice") }
+        if (action.action === "stop") return { payload: await stopChatGoal(chatId), notice: t("goal_stopped_notice") }
+        if (action.action === "edit") return { payload: await patchChatGoal(chatId, { prompt: action.prompt || "" }), notice: t("goal_updated_notice") }
+        return { payload: await upsertChatGoal(chatId, { prompt: action.prompt || "" }), notice: t("goal_updated_notice") }
       }
 
       const current = await fetchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search))
@@ -705,6 +714,17 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
+    if (command.name === "/goal") {
+      const parsed = parseGoalCommandArgs(argsText)
+      if (!parsed) {
+        onNotice(t("goal_command_usage"))
+        return
+      }
+
+      systemCommandAction.mutate(parsed)
+      return
+    }
+
     if (command.name === "/scratch") {
       if (argsText) {
         stash.mutate(argsText, { onSuccess: () => onNotice("Stashed to scratch pad") })
@@ -717,6 +737,21 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
 
     setText("")
+  }
+
+  function parseGoalCommandArgs(argsText: string): ChatSystemCommandAction | null {
+    const trimmed = argsText.trim()
+    if (!trimmed) return payload.active_goal || payload.chat.active_goal ? { kind: "goal", action: "resume" } : null
+
+    const [first, ...rest] = trimmed.split(/\s+/)
+    const action = first.toLowerCase()
+    if (action === "pause" || action === "resume" || action === "stop") return { kind: "goal", action }
+    if (action === "edit") {
+      const prompt = rest.join(" ").trim()
+      return prompt ? { kind: "goal", action: "edit", prompt } : null
+    }
+
+    return { kind: "goal", action: "start", prompt: trimmed }
   }
 
   function confirmPendingSlashCommand() {

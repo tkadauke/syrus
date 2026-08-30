@@ -501,7 +501,13 @@ whenever more than one human is currently in the chat. Platform-origin
 sessions, such as future
 Telegram or Slack conversations, are found by platform plus participant
 membership and use the current `speak_when_spoken_to` trigger policy. The chat
-agent can read selected repository context, propose Jobs, propose Epics,
+composer also supports active goals through `/goal`: operators can start a
+goal with `/goal <objective>`, edit it with `/goal edit <objective>`, pause or
+resume it, and stop it. While active, goal-linked proposals, Jobs, and Epics
+wake the chat at meaningful boundaries so the agent can continue toward the
+goal; the agent can mark the goal completed or blocked, but pause/resume/stop
+remain operator controls.
+The chat agent can read selected repository context, propose Jobs, propose Epics,
 read user-visible Epics by id, list and
 update Epics, add or remove Epic dependencies, move Epics through
 their kanban states, schedule recurring work, inspect existing Jobs or PRs,

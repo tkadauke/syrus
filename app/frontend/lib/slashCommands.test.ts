@@ -27,7 +27,8 @@ describe("slashCommands", () => {
     "/review",
     "/clear-canvas",
     "/approve",
-    "/schedule"
+    "/schedule",
+    "/goal"
   ]
 
   it("registers /propose as a guided wizard skill command", () => {
@@ -118,6 +119,15 @@ describe("slashCommands", () => {
     expect(match?.command.args).toEqual([{ name: "time", required: false }, { name: "message", required: false }])
     expect(match?.argsText).toBe("2h check the queue")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[time] [message]")
+  })
+
+  it("registers /goal as a first-class system command", () => {
+    const match = findSlashCommand("/goal pause")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.args).toEqual([{ name: "action/objective", required: false }])
+    expect(match?.argsText).toBe("pause")
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[action/objective]")
   })
 
   it("keeps agent-backed commands as skill commands", () => {

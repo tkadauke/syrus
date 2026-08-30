@@ -3,6 +3,7 @@ import type { JsonResponseMeta } from "./client"
 import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { ProviderAvailability } from "./providerAvailability"
+import type { GoalProvenance } from "./chats"
 import type { StartBlockedDetails } from "../types/startBlocked"
 
 import type { SetupStatusPayload } from "./setup"
@@ -193,6 +194,7 @@ export type DashboardJobItem = {
   owner_badge: DashboardOwnerBadge | null
   tags: DashboardTag[]
   source_chat: JobSourceChat | null
+  goal_provenance?: GoalProvenance | null
   needs_attention: boolean
   needs_attention_reason: string | null
   delivery_status?: JobDeliveryStatus
@@ -246,6 +248,7 @@ export type DashboardEpicItem = {
   done_at: string | null
   archived_at: string | null
   repository: DashboardRepository
+  goal_provenance?: GoalProvenance | null
   paths: {
     epic_path: string
     edit_epic_path: string
