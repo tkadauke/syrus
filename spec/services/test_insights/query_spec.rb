@@ -136,6 +136,53 @@ RSpec.describe TestInsights::Query do
     expect(result.tests.map { |test| test.fetch(:failure_rate) }).to eq([ 1.0, 0.5 ])
   end
 
+  it "falls back to the default lookback for malformed lookback filters" do
+    identity = create_identity!(name: "malformed lookback", attrs: { last_seen_at: 1.minute.ago })
+    create_case!(identity: identity, status: "failed", created_at: 2.minutes.ago)
+
+    [ "abc", nil ].each do |lookback|
+      result = described_class.call(
+        user: user,
+        repository_id: repository.id,
+        filters: { lookback: lookback }
+      )
+
+      expect(result.tests.first.fetch(:name)).to eq("malformed lookback")
+      expect(result.tests.first.fetch(:failed_count)).to eq(1)
+    end
+  end
+
+  it "batch-loads recent stats for failure-rate sorting" do
+    6.times do |index|
+      identity = create_identity!(
+        name: "candidate #{index}",
+        attrs: { last_failed_at: index.minutes.ago, last_seen_at: index.minutes.ago }
+      )
+      create_case!(identity: identity, status: "failed", created_at: 2.minutes.ago)
+      create_case!(identity: identity, status: "passed", created_at: 1.minute.ago)
+    end
+
+    test_case_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      test_case_selects << sql if sql.match?(/FROM "?test_cases"?/i)
+    end
+
+    result = described_class.call(
+      user: user,
+      repository_id: repository.id,
+      category: "recently_seen",
+      sort: "failure_rate",
+      limit: 6
+    )
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+
+    expect(result.tests.size).to eq(6)
+    expect(test_case_selects.size).to be <= 4
+    expect(test_case_selects.join("\n").scan(/ROW_NUMBER\(\) OVER/).size).to eq(1)
+  end
+
   it "clamps limits and returns stable ids and links for related records" do
     identity = create_identity!(name: "linked", attrs: { last_seen_at: Time.current })
     test_case = create_case!(identity: identity, status: "failed", created_at: 1.minute.ago, duration_ms: 250)
