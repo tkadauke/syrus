@@ -255,11 +255,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
       if (action.kind === "goal") {
         const chatId = payload.chat.id
-        if (action.action === "pause") return { payload: await pauseChatGoal(chatId), notice: "Goal paused" }
-        if (action.action === "resume") return { payload: await resumeChatGoal(chatId), notice: "Goal resumed" }
-        if (action.action === "stop") return { payload: await stopChatGoal(chatId), notice: "Goal stopped" }
-        if (action.action === "edit") return { payload: await patchChatGoal(chatId, { prompt: action.prompt || "" }), notice: "Goal updated" }
-        return { payload: await upsertChatGoal(chatId, { prompt: action.prompt || "" }), notice: "Goal updated" }
+        if (action.action === "pause") return { payload: await pauseChatGoal(chatId), notice: t("goal_paused_notice") }
+        if (action.action === "resume") return { payload: await resumeChatGoal(chatId), notice: t("goal_resumed_notice") }
+        if (action.action === "stop") return { payload: await stopChatGoal(chatId), notice: t("goal_stopped_notice") }
+        if (action.action === "edit") return { payload: await patchChatGoal(chatId, { prompt: action.prompt || "" }), notice: t("goal_updated_notice") }
+        return { payload: await upsertChatGoal(chatId, { prompt: action.prompt || "" }), notice: t("goal_updated_notice") }
       }
 
       const current = await fetchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search))
@@ -717,7 +717,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (command.name === "/goal") {
       const parsed = parseGoalCommandArgs(argsText)
       if (!parsed) {
-        onNotice("Usage: /goal <objective>, /goal edit <objective>, /goal pause, /goal resume, or /goal stop")
+        onNotice(t("goal_command_usage"))
         return
       }
 
