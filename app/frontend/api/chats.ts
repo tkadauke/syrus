@@ -211,6 +211,15 @@ export type ChatGoal = {
   updated_at: string
 }
 
+export type ChatGoalInput = {
+  prompt?: string
+  completion_condition?: string | null
+  approval_policy?: ChatGoal["approval_policy"]
+  auto_file_proposals?: boolean
+  auto_submit_jobs?: boolean
+  repository_id?: number | string | null
+}
+
 export type ChatProposalUpdateInput = {
   title: string
   body: string
@@ -904,24 +913,24 @@ export function updateChatEffort(id: number | string, effort: string | null) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_effort: effort ?? "" } })
 }
 
-export function upsertChatGoal(chatId: number | string, goal: { prompt: string }) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal`, { goal })
+export function upsertChatGoal(chatId: number | string, goal: ChatGoalInput & { prompt: string }) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal`, { goal })
 }
 
-export function patchChatGoal(chatId: number | string, goal: { prompt?: string; completion_condition?: string | null }) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal`, { goal })
+export function patchChatGoal(chatId: number | string, goal: ChatGoalInput) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal`, { goal })
 }
 
 export function pauseChatGoal(chatId: number | string) {
-  return postJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal/pause`)
+  return postJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal/pause`)
 }
 
 export function resumeChatGoal(chatId: number | string) {
-  return postJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal/resume`)
+  return postJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal/resume`)
 }
 
 export function stopChatGoal(chatId: number | string) {
-  return postJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal/stop`, { reason: "operator_stopped" })
+  return postJson<ChatPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/goal/stop`, { reason: "operator_stopped" })
 }
 
 export function cancelCodingCheckout(path: string) {
