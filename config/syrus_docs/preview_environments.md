@@ -93,6 +93,14 @@ responses, which covers apps that hardcode Vite dev-server tags. Same-origin
 asset requests go back through the preview Rails process, and vite-ruby's Rack
 proxy forwards them to the app's local Vite dev server.
 
+Rails apps that do not expose a `dev` script still need to boot whatever
+frontend pipeline their development layout expects. Syrus itself uses
+`bin/syrus-preview-dev` in `.syrus.yml`: it starts Tailwind and Vite build
+watchers, waits until `app/assets/builds/spa.js` and
+`app/assets/builds/tailwind.css` exist, then starts Rails. That keeps visual
+review from inspecting a healthy Rails shell before React and CSS have
+compiled.
+
 ### Seeding must be idempotent
 
 `seed` (or, for auto-detected Rails repos, `SyrusRails::PreviewProvider#seed_command`) runs against a **fresh checkout on every preview spin-up**, not once. A seed script that isn't idempotent (a bare, unguarded insert) fails or duplicates rows on the second preview. The "Seed preview demo data" Job template (`lib/agent_skills/configure-preview-seed-data.md`, exposed via `PromptTemplate`) is a one-time, per-repo onboarding pass an operator runs to detect the repo's seed mechanism (Rails `db/seeds.rb`, Django, Laravel, Node/Prisma, or a hand-rolled equivalent) and make it idempotent, add a demo user and representative sample data if the repo has none, and record how to reach an authenticated/populated view in the repo's `.syrus.yml` `visual_review.seed_notes` (see [`syrus_yml.md`](syrus_yml.md)).

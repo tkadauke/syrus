@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p app/assets/builds log tmp/pids
+
+pids=()
+rails_pid=""
+
+cleanup() {
+  local pid
+  for pid in "${pids[@]}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+  wait "${pids[@]}" 2>/dev/null || true
+}
+
+trap cleanup EXIT INT TERM
+
+bin/rails tailwindcss:watch > log/tailwind.log 2>&1 &
+pids+=("$!")
+
+npm run build -- --watch > log/vite.log 2>&1 &
+pids+=("$!")
+
+wait_for_file() {
+  local path="$1"
+  local log_path="$2"
+  local deadline=$((SECONDS + 120))
+
+  until [ -f "$path" ]; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "timed out waiting for $path; see $log_path" >&2
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+wait_for_file app/assets/builds/spa.js log/vite.log
+wait_for_file app/assets/builds/tailwind.css log/tailwind.log
+
+bin/rails server -p "${PORT:-3000}" -b 0.0.0.0 -e development > log/development.log 2>&1 &
+rails_pid="$!"
+pids+=("$rails_pid")
+
+wait "$rails_pid"

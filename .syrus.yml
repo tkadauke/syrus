@@ -17,11 +17,13 @@ prepare: &syrus_prepare
 
 preview:
   setup: *syrus_prepare
-  start: bin/rails server -p $PORT -b 0.0.0.0 -e development
+  start: bin/syrus-preview-dev
   seed: bin/rails db:prepare db:seed
   health_check: /up
   logs:
     - log/development.log
+    - log/vite.log
+    - log/tailwind.log
   env:
     RAILS_ENV: development
     SEARCH_DATABASE_PATH: storage/preview_search.sqlite3
