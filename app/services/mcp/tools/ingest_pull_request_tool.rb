@@ -36,7 +36,7 @@ module Mcp::Tools
           return Mcp::Tools.invalid("classification must be one of: #{PrProvenanceClassifier::KINDS.join(', ')}")
         end
 
-        existing = repository.jobs.find_by(external_pr_number: pr_number)
+        existing = Job.find_by_tracked_pr(repository: repository, pr_number: pr_number)
         if existing
           return Mcp::Tools.success(pr_number: pr_number, already_ingested: true, job: job_payload(existing))
         end

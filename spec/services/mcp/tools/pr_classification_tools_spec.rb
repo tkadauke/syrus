@@ -79,6 +79,18 @@ RSpec.describe "Mcp::Tools PR classification tools" do
       expect(body.dig(:job, :id)).to eq(existing.id)
     end
 
+    it "returns a normal job that already owns the PR number" do
+      existing = Factories.job_record(user: user, repository: repository, issue_number: 30, state: "approved", pr_number: 31)
+
+      response = described_class.call(pr_number: existing.pr_number, server_context: chat_context)
+
+      expect(response).not_to be_error
+      body = payload(response)
+      expect(body[:already_ingested]).to be(true)
+      expect(body.dig(:job, :id)).to eq(existing.id)
+      expect(Job.find_by(repository: repository, external_pr_number: existing.pr_number)).to be_nil
+    end
+
     it "rejects an invalid classification override" do
       response = described_class.call(pr_number: 40, classification: "not_a_kind", server_context: chat_context)
 

@@ -177,6 +177,21 @@ class Job < ApplicationRecord
   scope :external_pr_kind, -> { where(kind: "external_pr") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
+
+  def self.find_by_tracked_pr(repository:, pr_number:)
+    where(repository: repository)
+      .where("pr_number = :pr_number OR external_pr_number = :pr_number", pr_number: pr_number)
+      .first
+  end
+
+  def self.tracked_pr_numbers_for(repository:)
+    where(repository: repository)
+      .where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL")
+      .pluck(:pr_number, :external_pr_number)
+      .flatten
+      .compact
+      .to_set
+  end
   scope :with_needs_attention, -> { where(needs_attention: true) }
   scope :in_grace_period, -> { where.not(grace_period_expires_at: nil).where("grace_period_expires_at > ?", Time.current) }
   scope :with_latest_workflow_snapshot, -> {

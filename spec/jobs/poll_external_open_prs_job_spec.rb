@@ -147,6 +147,20 @@ RSpec.describe PollExternalOpenPrsJob do
       }.not_to change(Job, :count)
     end
 
+    it "skips PRs that already have a Job with that pr_number" do
+      existing = Factories.job_record(repository: repository, issue_number: 99, state: "approved", pr_number: 30)
+
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: existing.pr_number, head_ref: "local-redo-chat-gutters")
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(Job, :count)
+
+      expect(Job.find_by(repository: repository, external_pr_number: existing.pr_number)).to be_nil
+    end
+
     it "skips PRs that already have an external_pr kind Job" do
       Job.create!(user: user, repository: repository, kind: "external_pr",
                   state: "implemented", external_pr_number: 31)

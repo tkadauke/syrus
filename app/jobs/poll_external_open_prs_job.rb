@@ -15,9 +15,7 @@ class PollExternalOpenPrsJob < ApplicationJob
     @slug = @repository.slug
 
     open_prs = @client.list_open_pull_requests(@slug)
-    existing_numbers = Job.where(repository: @repository)
-                          .where.not(external_pr_number: nil)
-                          .pluck(:external_pr_number).to_set
+    existing_numbers = Job.tracked_pr_numbers_for(repository: @repository)
 
     open_prs.each do |pr|
       # A same-repo `syrus/`-prefixed branch is already tracked elsewhere
