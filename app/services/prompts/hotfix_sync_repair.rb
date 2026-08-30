@@ -16,7 +16,7 @@ module Prompts
     end
 
     def to_s
-      [ context_section, skill_instructions ].join("\n\n---\n\n")
+      [ context_section, skill_instructions, ShellCommandExecutionContract::TEXT ].join("\n\n---\n\n")
     end
 
     private

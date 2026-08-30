@@ -1,4 +1,5 @@
 import { getJson } from "@app/api/client"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type WorkerTimelineBlockedInfo = {
   blocked_reason: string | null
@@ -48,6 +49,8 @@ export type WorkerTimelineMacroPayload = {
   range: { from: string; to: string }
   lanes: WorkerTimelineLane[]
   pending: WorkerTimelinePendingEntry[]
+  filter: Record<string, unknown> | null
+  filter_schema: FilterSchemaField[]
 }
 
 export type WorkerTimelineWaterfallWorkflow = {
@@ -90,21 +93,8 @@ export type WorkerTimelineWaterfallPayload = {
   steps: WorkerTimelineWaterfallStep[]
 }
 
-export type WorkerTimelineFilterOption = { id: number; slug?: string; display_number?: string; title?: string }
-
-export type WorkerTimelineFiltersPayload = {
-  repositories: Array<{ id: number; slug: string }>
-  epics: Array<{ id: number; display_number: string; title: string }>
-  statuses: string[]
-  hostnames: string[]
-}
-
 export function fetchWorkerTimelineMacro(search = "") {
   return getJson<WorkerTimelineMacroPayload>(`/api/v1/app/admin/worker_timeline/macro${search}`)
-}
-
-export function fetchWorkerTimelineFilters() {
-  return getJson<WorkerTimelineFiltersPayload>("/api/v1/app/admin/worker_timeline/filters")
 }
 
 export function fetchWorkerTimelineWorkflow(workflowId: string) {

@@ -2549,6 +2549,63 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :capture_run_diagnostics)).to have_attributes(auto_executable: false, target_id: run.id)
   end
 
+  it "surfaces an operator-visible warning when an orphaned running Run repair cannot schedule follow-up work" do
+    ensure_solid_queue_test_tables!
+    step.update_columns(kind: "implement")
+    run.update_columns(
+      state: "running",
+      started_at: 10.minutes.ago,
+      last_heartbeat_at: 30.seconds.ago
+    )
+    step.update_columns(state: "running", started_at: run.started_at)
+    workflow.update_columns(state: "running", started_at: run.started_at)
+    SpawnedProcess.create!(
+      run: run,
+      workflow: workflow,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-1",
+      started_at: 9.minutes.ago,
+      last_chunk_at: 8.minutes.ago,
+      finished_at: 7.minutes.ago,
+      outcome: "orphaned"
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+    decision = ProviderCircuitBreaker::Decision.new(
+      provider: "claude",
+      open: true,
+      reason: "provider transient failures",
+      retry_after: 10.minutes.from_now,
+      failure_count: 5,
+      job_count: 3,
+      signature: "worker_died"
+    )
+    allow(ProviderCircuitBreaker).to receive(:call).with("claude", now: kind_of(Time), include_logs: false).and_return(decision)
+    allow(ProviderCircuitBreaker).to receive(:open_circuits).and_return([ decision ])
+
+    result = nil
+    expect {
+      result = reconcile_and_execute(run_id: run.id)
+    }.not_to change { AutoRetryAttempt.count }
+
+    issue = kind(result, :running_run_without_live_worker_evidence)
+    execution = result.repair_executions.find { |entry| entry.action == "mark_worker_died_and_retry_failed_step" }
+    event = WorkEngineReconcilerActivityEvent.find_by!(
+      event_type: "repair_executed",
+      issue_kind: "running_run_without_live_worker_evidence",
+      repair_action: "mark_worker_died_and_retry_failed_step",
+      repair_status: "skipped"
+    )
+
+    expect(issue.safe_to_auto_repair).to eq(true)
+    expect(execution.message).to include("provider circuit is open for claude")
+    expect(event).to have_attributes(
+      severity: "warn",
+      run_id: run.id
+    )
+  end
+
   it "finds terminal spawned-process evidence without expression-ordering the audit table" do
     ensure_solid_queue_test_tables!
     run.update_columns(
@@ -4950,6 +5007,39 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_executions.map(&:message)).to include("closed completed direct #{repair_job.slug}")
     expect(repair_job.reload).to be_closed
     expect(repair_job.closure_reason).to eq("preflight_passed")
+  end
+
+  it "classifies a stale non-progressing main branch repair while main remains broken" do
+    job.repository.update!(
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
+      last_health_checked_sha: "427145bed",
+      ci_health: "healthy",
+      grader_health: "broken"
+    )
+    repair_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      kind: "direct",
+      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+      issue_number: nil,
+      issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+      state: "triaging"
+    )
+    repair_job.update_columns(updated_at: 45.minutes.ago)
+
+    result = reconcile(job_id: repair_job.id)
+
+    expect(kind(result, :stuck_main_branch_repair_job)).to have_attributes(
+      severity: "critical",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "operator_review_main_branch_repair"
+    )
+    expect(plan(result, :operator_review_main_branch_repair)).to have_attributes(
+      auto_executable: false,
+      target_type: "Job",
+      target_id: repair_job.id
+    )
   end
 
   # A failed SolidQueue job keeps finished_at NULL forever, so the

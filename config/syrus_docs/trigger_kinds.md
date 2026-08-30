@@ -28,6 +28,12 @@ cron Jobs use for a no-op survey. This makes read-only skills (an
 `investigate` skill, an operational skill that only reports) first-class: no
 diff is a successful, PR-less outcome, not an error.
 
+The exception is the background-wait misuse pattern: if the transcript shows
+the agent backgrounded or scheduled work and ended the turn expecting a later
+notification or `ScheduleWakeup` continuation, Syrus raises
+`Steps::Base::AgentGaveUpWaiting` and classifies the run as retryable
+`agent_gave_up_waiting` instead of closing the Job as `no_changes`.
+
 When the agent does commit a diff, it is gated through the same
 `retry_until(agent_step, graders)` mechanism `initial`/`retry` use for
 `implement`: `run_skill` repairs, `grader_fanout`/`grader_collect` check, and
@@ -69,6 +75,13 @@ the repository's configured `ci` phase graders before pushing the fix. Put
 CI-only checks in explicit `.syrus.yml` graders with `phases: [ci]` so the
 agent can verify that the GitHub CI failure is actually fixed. If graders fail,
 their output feeds the next `analyze_and_fix` iteration.
+
+If a later `analyze_and_fix` iteration makes no new diff and repeats a prior
+`report_main_concern` diagnosis for the same observed main SHA, failing grader,
+and reason, Syrus records `blocked_by_main`, skips that iteration's pending
+grader check steps, and continues to `summarize_amend`/`push`. That preserves
+any legitimate fixes committed by earlier iterations instead of burning the
+full retry budget against a self-diagnosed pre-existing main failure.
 
 `PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
 spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's
@@ -229,6 +242,15 @@ handoff succeeds.
 ## main_branch_repair
 
 **When it fires:** Spawned automatically by `MainHealthChangedService` when the repository's main branch is detected as broken and Syrus has a settled broken signal from either CI or the main-grader workflow. Repair does not wait for both probes to finish: if CI has already failed, the repair job can start while the main-grader is still running, and vice versa.
+
+If a main-branch repair Job already exists, it blocks spawning a duplicate.
+When that blocker is still in a non-progressing pre-runtime state
+(`needs_triage`, `triaging`, or `queued`) after
+`MainHealthChangedService::STUCK_REPAIR_ALERT_AFTER` while main is still
+broken, `MainHealthChangedService` logs the condition and requests
+job-scoped reconciler inspection. Admins also get a system alert banner that
+links to `/admin/stuck?refresh=1`, forcing the stuck page to recompute before
+showing the `stuck_main_branch_repair_job` evidence.
 
 **Step chain:** `preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
 

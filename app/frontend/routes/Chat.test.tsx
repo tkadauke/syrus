@@ -704,6 +704,27 @@ describe("chat compose drafts", () => {
   }, 30000)
 })
 
+describe("chat main container width", () => {
+  it("stretches the chat main element to fill its flex column instead of sizing to content", async () => {
+    // Regression guard: this <main> is `mx-auto max-w-[96rem]` with no
+    // explicit width, inside AppChromeV2's `flex flex-col` page wrapper.
+    // Auto side margins on a flex item cancel the default cross-axis
+    // stretch and fall back to content-based (fit-content) sizing instead —
+    // fine on desktop, where fit-content and stretch happen to agree, but
+    // on a narrow mobile viewport the un-wrappable composer control row's
+    // min-content width exceeds the viewport, so fit-content sizes <main>
+    // to that oversized min-content instead of the viewport, pushing the
+    // floating composer (and the whole page) into horizontal overflow.
+    // `w-full` makes the width explicit so it always matches the flex
+    // column's cross size, regardless of content.
+    mockChatRouteFetch()
+    renderRoute()
+
+    const main = await screen.findByRole("main", { name: "Chat" })
+    expect(main.className).toContain("w-full")
+  })
+})
+
 describe("chat composer dictation", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -3592,12 +3613,13 @@ describe("floating composer positioning", () => {
     // test chose. What jsdom CAN verify is the actual mechanism the "no
     // overlap" guarantee depends on: with both edges pinned to the
     // `position: relative` ancestor via `left`/`right` (mobile) and
-    // `sm:inset-x-0` (desktop), CSS guarantees the rendered box can never
-    // exceed that ancestor's own padding box — `max-w-*` can only ever
-    // shrink it from there, never grow past it. A regression here (losing
-    // `sm:inset-x-0`, switching `absolute` to `fixed`, or reintroducing an
-    // unbounded width) is exactly the kind of change that would let the
-    // pill escape its ancestor and overlap the panel again.
+    // `sm:left-14`/`sm:right-14` (desktop), CSS guarantees the rendered box
+    // can never exceed that ancestor's own border box — `max-w-*` can only
+    // ever shrink it from there, never grow past it. A regression here
+    // (losing the `sm:left-14`/`sm:right-14` inset, switching `absolute` to
+    // `fixed`, or reintroducing an unbounded width) is exactly the kind of
+    // change that would let the pill escape its ancestor and overlap the
+    // panel again.
     let ancestor = composeForm.parentElement
     while (ancestor && !ancestor.contains(messageStream)) {
       ancestor = ancestor.parentElement
@@ -3608,9 +3630,45 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).not.toMatch(/(?:^|\s)fixed(?:\s|$)/)
     expect(composeForm.className).toContain("left-[max(0.5rem,env(safe-area-inset-left))]")
     expect(composeForm.className).toContain("right-[max(0.5rem,env(safe-area-inset-right))]")
-    expect(composeForm.className).toContain("sm:inset-x-0")
+    expect(composeForm.className).toContain("sm:left-14")
+    expect(composeForm.className).toContain("sm:right-14")
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
+  })
+
+  // Regression coverage for JOB-3820: the composer must be inset at least as
+  // much as the message stream's own cards, so chat history reads
+  // equal-or-wider, never narrower, than the composer. Comparing raw
+  // utility values (rather than rendered pixels, which jsdom can't produce)
+  // is the only signal available here, but it's the same signal the two
+  // components' real margins are built from — and it was verified against
+  // a real browser's layout engine (offsets on an absolutely positioned box
+  // are measured from its containing block's padding edge, i.e. flush with
+  // the ancestor's border, NOT the ancestor's own padding box) before
+  // picking the threshold below.
+  it("insets the composer at least as much as the message stream's own cards", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByTestId("chat-message-stream")
+    const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
+    expect(composeForm).not.toBeNull()
+
+    // The composer's `left`/`right` are measured from ChatColumn's border
+    // (an absolutely positioned box ignores a `position: relative`
+    // ancestor's own padding), while the message stream's cards are normal-
+    // flow children and DO get both ChatColumn's `sm:px-8` (2rem/32px) and
+    // the stream's own `sm:p-4` (1rem/16px) — 48px of real inset from
+    // ChatColumn's border. So the composer's own left/right offsets must
+    // cover that full 48px themselves: Tailwind's `12` spacing step is
+    // exactly 3rem/48px, so anything at or past `sm:left-12`/`sm:right-12`
+    // clears the cards' true inset.
+    const leftMatch = composeForm.className.match(/(?:^|\s)sm:left-(\d+)(?:\s|$)/)
+    const rightMatch = composeForm.className.match(/(?:^|\s)sm:right-(\d+)(?:\s|$)/)
+    expect(leftMatch).not.toBeNull()
+    expect(rightMatch).not.toBeNull()
+    expect(Number(leftMatch?.[1])).toBeGreaterThanOrEqual(12)
+    expect(Number(rightMatch?.[1])).toBeGreaterThanOrEqual(12)
   })
 
   // Regression coverage for the banner-painted-under-the-pill bug: the

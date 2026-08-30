@@ -29,11 +29,6 @@ module WorkerTimeline
         },
         {
           verb: "GET",
-          path: "/api/v1/app/admin/worker_timeline/filters",
-          controller: "api/v1/app/admin/worker_timeline#filters"
-        },
-        {
-          verb: "GET",
           path: "/api/v1/app/admin/worker_timeline/workflow",
           controller: "api/v1/app/admin/worker_timeline#workflow"
         }

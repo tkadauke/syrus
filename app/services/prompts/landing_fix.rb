@@ -22,7 +22,7 @@ module Prompts
         directives_section
       ].compact
 
-      [ sections.join("\n\n---\n\n"), GitSafety::TEXT ].join("\n\n")
+      [ sections.join("\n\n---\n\n"), GitSafety::TEXT, ShellCommandExecutionContract::TEXT ].join("\n\n")
     end
 
     private

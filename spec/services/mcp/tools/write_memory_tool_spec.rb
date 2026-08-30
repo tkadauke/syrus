@@ -7,6 +7,13 @@ RSpec.describe Mcp::Tools::WriteMemoryTool do
   def run_context = { run_id: run.id }
   def chat_context(session) = { chat_session: session }
 
+  def failed_agent_rebase!(job:, finished_at: Time.current)
+    workflow = Workflows::Rebase.instantiate(job: job)
+    workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed", finished_at: finished_at)
+    workflow.update!(state: "failed", finished_at: finished_at)
+    workflow
+  end
+
   describe "schema surface" do
     it "has tool_name write_memory" do
       expect(described_class.tool_name).to eq("write_memory")
@@ -88,6 +95,51 @@ RSpec.describe Mcp::Tools::WriteMemoryTool do
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("ActiveRecord::RecordNotFound")
+    end
+
+    it "rejects prescriptive abort guidance from a rebase retry storm" do
+      rebase_job = Factories.job(user: run.job.user, repository: repository)
+      RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD.times do
+        failed_agent_rebase!(job: rebase_job, finished_at: 5.minutes.ago)
+      end
+      workflow = Workflows::Rebase.instantiate(job: rebase_job)
+      agent_step = workflow.steps.find_by!(kind: "agent_rebase")
+      rebase_run = agent_step.runs.create!(
+        job: rebase_job,
+        trigger_kind: "rebase",
+        agent_provider: rebase_job.agent_provider
+      )
+
+      response = described_class.call(
+        content: "Future agents should not re-diagnose this conflict; just abort.",
+        kind: "feedback",
+        server_context: { run_id: rebase_run.id }
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("rebase conflict abort guidance")
+    end
+
+    it "allows file-level rebase facts during a retry storm" do
+      rebase_job = Factories.job(user: run.job.user, repository: repository)
+      RebaseAttemptGuard::MEMORY_WRITE_RETRY_STORM_THRESHOLD.times do
+        failed_agent_rebase!(job: rebase_job, finished_at: 5.minutes.ago)
+      end
+      workflow = Workflows::Rebase.instantiate(job: rebase_job)
+      agent_step = workflow.steps.find_by!(kind: "agent_rebase")
+      rebase_run = agent_step.runs.create!(
+        job: rebase_job,
+        trigger_kind: "rebase",
+        agent_provider: rebase_job.agent_provider
+      )
+
+      response = described_class.call(
+        content: "The provider registry conflict involved app/services/agent_providers.",
+        kind: "project_fact",
+        server_context: { run_id: rebase_run.id }
+      )
+
+      expect(response).not_to be_error
     end
   end
 

@@ -18,9 +18,18 @@ Your job is to make it mergeable again. Specifically:
 6. Do NOT run tests, lint, formatters, or anything else that mutates files.
    If they catch real bugs introduced by the conflict resolution, that's
    a separate Run's problem.
-7. If you cannot resolve a conflict mechanically (the two sides genuinely
-   disagree on intent), abort the rebase (`git rebase --abort`) and explain
-   in `submit_summary`. Do NOT push a half-rebased branch.
+7. You may only conclude that a conflict is not mechanically resolvable after
+   you have attempted a file-by-file resolution of every conflicted file in
+   the in-progress rebase. Do not abort based only on commit history,
+   architectural summaries, naming patterns, or a high-level judgment that the
+   branches disagree. Inspect the conflict markers and surrounding code in
+   each file, preserve both intents where possible, stage resolved files, and
+   run `git rebase --continue` until either the rebase completes or a concrete
+   file-level contradiction remains.
+8. If, after that file-by-file attempt, you still cannot resolve a conflict
+   mechanically because the two sides genuinely disagree on intent, abort the
+   rebase (`git rebase --abort`) and explain the specific files and
+   contradictions in `submit_summary`. Do NOT push a half-rebased branch.
 
 Syrus will force-push the rebased branch to origin once you finish — your
 only job is to leave the working tree on a clean rebased HEAD.
@@ -37,7 +46,12 @@ and why they don't hold here:
     just drop it." → Don't silently drop code that looks like a
     conflict artifact. Preserve both intents; if you can't tell
     whether it's leftover cruft or real work, that's also the abort
-    case in step 7.
+    case in step 8.
+  - "The branch architecture looks incompatible with main, so this is
+    not mechanical." → That is not enough to abort. First attempt the
+    concrete file-level merge for each conflicted file; many apparent
+    architecture conflicts resolve mechanically once both sides are
+    preserved in code.
 
 ---
 

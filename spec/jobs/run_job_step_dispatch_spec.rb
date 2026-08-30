@@ -26,6 +26,14 @@ RSpec.describe RunJob, "step-dispatch path" do
 
   before do
     allow(Steps).to receive(:handler_for).and_return(noop_handler_class)
+    allow(RunHostAdmission).to receive(:call) do |run:|
+      RunHostAdmission::Decision.new(
+        action: "admit",
+        reason: "test_dispatch_path",
+        delay: nil,
+        details: { "run_id" => run.id }
+      )
+    end
   end
 
   it "drives the first step's Run through Steps.handler_for and succeeds" do
@@ -393,6 +401,78 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(second_implement.runs.last.parent_session_id).to eq("S-1")
       expect(loop_wf).to be_succeeded
       expect(grade_attempts).to eq(2)
+    end
+
+    it "waits for the last ci_failure grader before running grader_collect and fails on its required failure" do
+      AppSetting.current.update!(grade_max_iterations: 1)
+      loop_id = "ci-grade-loop"
+      ci_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "ci_failure",
+        state: "running",
+        chain_template: [
+          {
+            "type" => "retry_until",
+            "max_iterations" => 1,
+            "repair" => %w[ analyze_and_fix ],
+            "check" => %w[ grader_fanout grader_collect ]
+          },
+          { "type" => "step", "kind" => "summarize_amend" }
+        ]
+      )
+      fanout = Step.create!(workflow: ci_workflow, kind: "grader_fanout", position: 0, state: "succeeded", iteration: 1, loop_id: loop_id)
+      fast_grader = Step.create!(
+        workflow: ci_workflow,
+        kind: "grader",
+        position: 1,
+        state: "queued",
+        iteration: 1,
+        loop_id: loop_id,
+        details: { "name" => "lint", "required" => true }
+      )
+      last_grader = Step.create!(
+        workflow: ci_workflow,
+        kind: "grader",
+        position: 2,
+        state: "running",
+        iteration: 1,
+        loop_id: loop_id,
+        details: { "name" => "rspec-ci", "required" => true }
+      )
+      collect = Step.create!(workflow: ci_workflow, kind: "grader_collect", position: 3, iteration: 1, loop_id: loop_id)
+      summarize = Step.create!(workflow: ci_workflow, kind: "summarize_amend", position: 4)
+      [ fanout, fast_grader, last_grader, collect ].each_cons(2) { |step, next_step| step.update!(next_step_id: next_step.id) }
+      collect.update!(next_step_id: summarize.id)
+      fast_run = fast_grader.runs.create!(job: job, trigger_kind: "ci_failure", agent_provider: ci_workflow.agent_provider)
+      last_run = last_grader.runs.create!(job: job, trigger_kind: "ci_failure", agent_provider: ci_workflow.agent_provider)
+      last_run.update!(state: "running", started_at: 1.minute.ago)
+
+      collect_handler = Class.new(Steps::Base) do
+        def call
+          failed = workflow.steps.where(kind: "grader", state: "failed").map { |step| step.details["name"] }
+          raise Steps::Base::StepFailed, "required graders failed: #{failed.join(', ')}" if failed.any?
+        end
+      end
+      allow(Steps).to receive(:handler_for) do |kind|
+        kind == "grader_collect" ? collect_handler : noop_handler_class
+      end
+
+      described_class.perform_now(fast_run.id)
+
+      expect(collect.reload.runs).to be_empty
+      expect(ci_workflow.reload).to be_running
+
+      last_run.fail!
+      last_run.save!
+
+      expect(collect.reload.runs.count).to eq(1)
+      expect(ci_workflow.reload).to be_running
+
+      described_class.perform_now(collect.runs.last.id)
+
+      expect(collect.reload).to be_failed
+      expect(ci_workflow.reload).to be_failed
+      expect(summarize.reload.runs).to be_empty
     end
   end
 

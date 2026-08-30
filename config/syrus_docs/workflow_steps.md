@@ -2,6 +2,14 @@
 
 Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke the agent CLI) or **non-agentic** (run service code directly). Step kinds are registered in `app/models/step/kind.rb`.
 
+Before a queued Run starts, `RunJob` may defer pickup on the selected compute
+host if that host is under critical resource pressure or is already running a
+resource-guarded Run. This host-local guard applies to `:runs` queue workflows
+and covers agentic Steps plus CPU-heavy grader work. A deferred pickup leaves
+the Run queued, records a `run_host_admission` Workflow artifact and a system
+JobLog line, then re-enqueues the same Run without spending a retry or repair
+iteration. See [`multi_worker.md`](multi_worker.md#per-host-run-pickup-admission).
+
 ## Setup steps
 
 ### prepare
@@ -41,6 +49,14 @@ accuracy, but `propagate_fail_to_job!` detects this error class and closes the
 Job with `closure_reason: "no_changes"` instead of marking it failed.
 `no_changes` is a successful terminal outcome and satisfies downstream Job
 dependencies automatically.
+
+If the no-diff run instead matches the background-wait failure pattern — the
+agent backgrounded or scheduled work, then ended the turn expecting a later
+notification or `ScheduleWakeup` continuation — Syrus raises
+`Steps::Base::AgentGaveUpWaiting` instead. That failure is classified as
+`agent_gave_up_waiting` and retryable, and it does not close the Job as
+`no_changes`; it means the agent misunderstood Step Run execution rather than
+proving the requested work was already unnecessary.
 
 **Provider usage-limit outcome:** If the provider reports exhausted usage, quota, credits, billing balance, or a daily/weekly/monthly/model limit, the run records `agent_outcome=provider_usage_limit` and failure classification `provider_usage_limit`. The provider circuit breaker opens immediately for the affected provider/model when known; if the model cannot be determined, Syrus fails closed at provider scope and shows that reason to the operator. When the provider reports a reset time, Syrus schedules the failed Run's auto-retry for five minutes after that reset; Codex structured usage reset windows are preferred over parsing log text, while provider text such as `resets 7am (America/New_York)` is parsed from the failure time. If no reset is known, Syrus uses the conservative provider-circuit backoff. The app projects current-user provider availability into chat and Job payloads: chats using the exhausted effective chat provider and Jobs using the exhausted agent provider show a red triangle warning until the usage-limit window expires/restores or the operator switches that chat/Job to another configured provider. Transient provider circuits remain separate and use the existing non-red treatment.
 
@@ -94,6 +110,11 @@ turns into a `closure_reason: "no_changes"` Job closure instead of `:failed`.
 This is the intended outcome for read-only skills (an `investigate` skill) and
 purely operational skills that only report.
 
+As with `implement`, a no-diff run that matches the background-wait failure
+pattern raises `Steps::Base::AgentGaveUpWaiting` instead of
+`Steps::Base::NoChangesProduced`, so it is visible as a retryable
+`agent_gave_up_waiting` failure rather than a successful no-op skill.
+
 `Steps::Summarize` treats `run_skill` the same as `implement` — it resumes the
 agent session from whichever of the two ran, so `run_skill → summarize →
 pr_open` composes exactly like `implement → summarize → pr_open`.
@@ -105,6 +126,10 @@ Agentic. Addresses PR review feedback or chat feedback. Reads the new comments a
 ### analyze_and_fix
 
 Agentic. Inspects failing CI checks and fixes the root cause. Used in `ci_failure` workflows.
+When an iteration makes no new diff and repeats an earlier `report_main_concern`
+for the same observed main SHA, failing grader/test list, and normalized reason,
+Syrus treats it as `blocked_by_main`: the current retry loop's remaining grader
+check steps are skipped and the workflow proceeds to `summarize_amend`/`push`.
 If GitHub Actions reports that a job failed before repository tests ran
 (for example runner setup or action-download infrastructure failures), Syrus
 records the CI infrastructure reason and does not start an agentic repair
@@ -289,6 +314,9 @@ the fallback reason.
 Non-agentic. Aggregates grader results. Fails the check cycle if any required grader failed; succeeds otherwise.
 Failed collect steps still write grader loop timing before raising, so landing
 repair loops show whether the failed attempt actually spent time running graders.
+In `ci_failure` workflows, `grader_collect` may be skipped after a repeated
+no-op `analyze_and_fix` main-concern diagnosis so the workflow can publish
+earlier repair commits without rerunning known non-actionable graders.
 
 ### grade
 
@@ -355,7 +383,17 @@ Non-agentic. Attempts a deterministic `git rebase` onto the base branch. On clea
 
 ### agent_rebase
 
-Agentic. Resolves rebase conflicts. Runs only when `auto_rebase` encounters conflicts.
+Agentic. Resolves rebase conflicts. Runs only when `auto_rebase` encounters
+conflicts. The rebase prompt requires the agent to attempt concrete
+file-by-file conflict resolution before it may abort as "not mechanical"; broad
+architecture or commit-history judgments are not sufficient.
+
+Autonomous rebase dispatch is guarded against retry storms. After three
+consecutive failed `agent_rebase` / `stack_agent_rebase` attempts for the same
+Job and unchanged PR head/base SHA pair, the pollers pause redispatch for
+`AppSetting.rebase_failure_cooldown_minutes`. The block is time-boxed:
+successful rebases, PR head/base changes, cooldown expiry, or an explicit
+operator rebase can allow another attempt.
 
 ### force_push
 

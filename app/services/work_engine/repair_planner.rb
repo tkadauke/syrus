@@ -1043,6 +1043,16 @@ module WorkEngine
         end
       end
 
+      class StuckMainBranchRepairJob < Base
+        def plan
+          operator_plan(
+            "operator_review_main_branch_repair",
+            "Main is still broken, but the main-branch repair Job is stuck before active runtime work starts. Review the Job state, retry/force-fail it, or create a replacement repair once the blocker is cleared.",
+            target: primary_job
+          )
+        end
+      end
+
       class DependencyStackStartBlock < Base
         def plan
           waiting_plan(

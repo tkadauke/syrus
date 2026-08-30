@@ -28,6 +28,15 @@ RSpec.describe Prompts::Implement do
     expect(out).to include(Prompts::GitSafety::TEXT)
   end
 
+  it "warns that background shell commands do not continue a Step Run later" do
+    out = described_class.new(issue: issue).to_s
+
+    expect(out).to include("Shell command execution contract")
+    expect(out).to include("A backgrounded shell command finishing does")
+    expect(out).to include("ScheduleWakeup")
+    expect(out).to include("actively poll or monitor its output in")
+  end
+
   it "explains Syrus and .syrus.yml setup in the skill prompt" do
     out = described_class.new(issue: issue).to_s
     expect(out).to include("Syrus is the automation harness")

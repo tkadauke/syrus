@@ -125,11 +125,11 @@ export function JobFeedbackPanel({ error, isPending, onCancel, onSubmit }: { err
   }
 
   return (
-    <section aria-labelledby="job-feedback-title" className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+    <section aria-labelledby="job-feedback-title" className="rounded border border-brand/30 bg-brand/10 p-4">
       <form className="space-y-3" onKeyDown={submitOnShortcut} onSubmit={submit}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-feedback-title">{t("feedback_panel_title")}</h2>
         <textarea
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
           onChange={(event) => setBody(event.target.value)}
           placeholder={t("feedback_placeholder")}
@@ -161,12 +161,12 @@ export function RequestChangesPanel({ error, isPending, onCancel, onSubmit }: { 
   }
 
   return (
-    <section aria-labelledby="job-request-changes-title" className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+    <section aria-labelledby="job-request-changes-title" className="rounded border border-brand/30 bg-brand/10 p-4">
       <form className="space-y-3" onSubmit={submit}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100" id="job-request-changes-title">{t("request_changes_panel_title")}</h2>
         <p className="text-sm text-gray-600 dark:text-gray-300">{t("request_changes_panel_description")}</p>
         <textarea
-          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           disabled={isPending}
           onChange={(event) => setFeedback(event.target.value)}
           placeholder={t("request_changes_placeholder")}
@@ -396,7 +396,7 @@ function RetryFeedbackDialog({ command, input, onClose }: { command: ReturnType<
           </label>
           <textarea
             autoFocus
-            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            className="min-h-36 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             id="retry-feedback-text"
             onChange={(event) => setFeedback(event.target.value)}
             required

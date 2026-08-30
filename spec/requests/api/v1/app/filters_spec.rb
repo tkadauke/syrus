@@ -129,6 +129,41 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(parse_body["options"]).to eq([{ "value" => "syrus-worker-alpha", "label" => "syrus-worker-alpha" }])
   end
 
+  it "scopes repository_id/epic_id typeahead to the current user's own repositories/epics for non-admins" do
+    # The first User created in the process is auto-promoted to admin
+    # (User#promote_first_user_to_admin) -- create other_user first so
+    # `user` below is guaranteed non-admin regardless of reference order.
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "other", name: "widgets")
+    Factories.epic(user: other_user, repository: other_repo, title: "Typeahead migration elsewhere")
+    user = Factories.user
+    repo = Factories.repository(user:, owner: "acme", name: "widgets")
+    epic = Factories.epic(user:, repository: repo, title: "Typeahead migration")
+    sign_in_as(user)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "repository_id", q: "widg" }
+    expect(parse_body["options"].map { |row| row["value"] }).to eq([ repo.id ])
+
+    get "/api/v1/app/filters/fk_options", params: { field: "epic_id", q: "migration" }
+    expect(parse_body["options"].map { |row| row["value"] }).to eq([ epic.id ])
+  end
+
+  it "widens repository_id/epic_id typeahead to every repository/epic in the instance for admins" do
+    admin = Factories.user(admin: true)
+    owned_repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
+    owned_epic = Factories.epic(user: admin, repository: owned_repo, title: "Typeahead migration")
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "other", name: "widgets")
+    other_epic = Factories.epic(user: other_user, repository: other_repo, title: "Typeahead migration elsewhere")
+    sign_in_as(admin)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "repository_id", q: "widg" }
+    expect(parse_body["options"].map { |row| row["value"] }).to contain_exactly(owned_repo.id, other_repo.id)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "epic_id", q: "migration" }
+    expect(parse_body["options"].map { |row| row["value"] }).to contain_exactly(owned_epic.id, other_epic.id)
+  end
+
   it "returns a structured error for unknown fields" do
     sign_in_as(Factories.user)
 
@@ -204,9 +239,14 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
   end
 
   it "suggests complete filters from FK value matches" do
+    # The first User created in the process is auto-promoted to admin
+    # (User#promote_first_user_to_admin, which then sees every repository
+    # via Filters::FkOptionsResolver) -- create other_repo's owner first so
+    # `user` below is guaranteed a non-admin, still-scoped-to-its-own-repos
+    # signed-in user regardless of reference order.
+    other_repo = Factories.repository(user: Factories.user, owner: "tkadauke", name: "syrus-private")
     user = Factories.user
     repo = Factories.repository(user:, owner: "tkadauke", name: "syrus")
-    other_repo = Factories.repository(user: Factories.user, owner: "tkadauke", name: "syrus-private")
     sign_in_as(user)
 
     get "/api/v1/app/filters/suggestions", params: { surface: "dashboard", subject: "job", q: "sy" }

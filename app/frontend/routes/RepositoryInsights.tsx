@@ -20,6 +20,7 @@ import {
 } from "../api/insights"
 import { errorMessage } from "../lib/errorMessage"
 import { Button } from "../components/Button"
+import { Select } from "../components/Select"
 
 type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
@@ -118,9 +119,21 @@ function InsightSuggestionsList({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <SectionHeading>{t("suggestions_heading")}</SectionHeading>
-        <nav aria-label={t("filter_aria")} className="flex gap-1">
+        <Select
+          aria-label={t("filter_aria")}
+          className="sm:hidden"
+          onChange={(event) => onFilterChange(event.target.value as StateFilter)}
+          value={stateFilter}
+        >
+          {filterTabs.map((tab) => (
+            <option key={tab.key} value={tab.key}>
+              {tab.label} ({tab.count})
+            </option>
+          ))}
+        </Select>
+        <nav aria-label={t("filter_aria")} className="hidden gap-1 sm:flex">
           {filterTabs.map((tab) => (
             <Button
               key={tab.key}

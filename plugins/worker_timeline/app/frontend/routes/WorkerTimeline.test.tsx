@@ -7,18 +7,52 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { WorkerTimelineRoute } from "./WorkerTimeline"
 
-function filtersPayload() {
-  return {
-    repositories: [ { id: 1, slug: "acme/widgets" } ],
-    epics: [ { id: 9, display_number: "EPIC-9", title: "Worker activity timeline" } ],
-    statuses: [ "queued", "running", "succeeded", "failed", "cancelled" ],
-    hostnames: [ "worker-a", "worker-b" ]
-  }
+function filterSchema() {
+  return [
+    { field: "repository_id", label: "Repository", bucket: "fk", operators: [ "is" ], typeahead: true },
+    { field: "epic_id", label: "Epic", bucket: "fk", operators: [ "is" ], typeahead: true },
+    { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
+    {
+      field: "status",
+      label: "Status",
+      bucket: "enum",
+      operators: [ "is_one_of" ],
+      values: [
+        { value: "queued", label: "Queued" },
+        { value: "running", label: "Running" },
+        { value: "succeeded", label: "Succeeded" },
+        { value: "failed", label: "Failed" },
+        { value: "cancelled", label: "Cancelled" }
+      ]
+    },
+    { field: "window", label: "Time window", bucket: "date", operators: [ "within_last", "between" ] }
+  ]
+}
+
+function decodeQ(url: string) {
+  const q = new URL(url, "http://example.test").searchParams.get("q")
+  if (!q) return null
+
+  const normalized = q.replace(/-/g, "+").replace(/_/g, "/")
+  const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")
+  const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+  return JSON.parse(new TextDecoder().decode(bytes))
+}
+
+// Adding then selecting a filter value fires two macro requests (the
+// just-added chip's default empty value, then the selected value) --
+// always assert against the most recent one, not the first "q=" match.
+function latestMacroFilter(calls: string[]) {
+  const macroCalls = calls.filter((url) => url.startsWith("/api/v1/app/admin/worker_timeline/macro") && url.includes("q="))
+  const last = macroCalls.at(-1)
+  return last ? decodeQ(last) : null
 }
 
 function macroPayload(overrides: Record<string, unknown> = {}) {
   return {
     range: { from: "2026-01-01T00:00:00Z", to: "2026-01-01T01:00:00Z" },
+    filter: { and: [] },
+    filter_schema: filterSchema(),
     lanes: [
       {
         hostname: "worker-a",
@@ -113,14 +147,17 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
     const url = String(input)
     calls.push(url)
 
-    if (url.startsWith("/api/v1/app/admin/worker_timeline/filters")) {
-      return Promise.resolve(jsonResponse(filtersPayload()))
-    }
     if (url.startsWith("/api/v1/app/admin/worker_timeline/macro")) {
-      return Promise.resolve(jsonResponse(macroPayload(macroOverrides)))
+      return Promise.resolve(jsonResponse(macroPayload({ filter: decodeQ(url) || { and: [] }, ...macroOverrides })))
     }
     if (url.startsWith("/api/v1/app/admin/worker_timeline/workflow")) {
       return Promise.resolve(jsonResponse(waterfallPayload(waterfallOverrides)))
+    }
+    if (url.startsWith("/api/v1/app/filters/fk_options")) {
+      const field = new URL(url, "http://example.test").searchParams.get("field")
+      if (field === "repository_id") return Promise.resolve(jsonResponse({ options: [ { value: 1, label: "acme/widgets" } ] }))
+      if (field === "hostname") return Promise.resolve(jsonResponse({ options: [ { value: "worker-b", label: "worker-b" } ] }))
+      return Promise.resolve(jsonResponse({ options: [] }))
     }
 
     return Promise.reject(new Error(`Unexpected fetch: ${url}`))
@@ -164,16 +201,19 @@ describe("WorkerTimeline macro view", () => {
     expect(await screen.findByText("No worker activity in this time range.")).toBeInTheDocument()
   })
 
-  it("refetches with the selected repository filter", async () => {
+  it("uses the shared FilterBar and refetches with the selected repository filter", async () => {
     const calls = setupFetchMock()
     renderTimeline()
 
     await screen.findByText("worker-a:123")
 
-    fireEvent.change(screen.getByLabelText("Repository"), { target: { value: "1" } })
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Repository reference" }))
+    fireEvent.change(screen.getByPlaceholderText("Search by name..."), { target: { value: "acme" } })
+    fireEvent.click(await screen.findByText("acme/widgets"))
 
     await waitFor(() => {
-      expect(calls.some((url) => url.includes("/worker_timeline/macro") && url.includes("repository_id=1"))).toBe(true)
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: "1" } ] })
     })
   })
 
@@ -183,10 +223,12 @@ describe("WorkerTimeline macro view", () => {
 
     await screen.findByText("worker-a:123")
 
-    fireEvent.click(screen.getByLabelText("running"))
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Status list" }))
+    fireEvent.click(screen.getByRole("button", { name: "Running" }))
 
     await waitFor(() => {
-      expect(calls.some((url) => url.includes("/worker_timeline/macro") && url.includes("status=running"))).toBe(true)
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] })
     })
   })
 
@@ -196,11 +238,25 @@ describe("WorkerTimeline macro view", () => {
 
     await screen.findByText("worker-a:123")
 
-    fireEvent.change(screen.getByLabelText("Worker hostname"), { target: { value: "worker-b" } })
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Hostname reference" }))
+    fireEvent.change(screen.getByPlaceholderText("Search by name..."), { target: { value: "worker-b" } })
+    fireEvent.click(await screen.findByText("worker-b"))
 
     await waitFor(() => {
-      expect(calls.some((url) => url.includes("/worker_timeline/macro") && url.includes("hostname=worker-b"))).toBe(true)
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "hostname", op: "is", value: "worker-b" } ] })
     })
+  })
+
+  it("shows no filters and a 3-hour window by default", async () => {
+    setupFetchMock()
+    renderTimeline()
+
+    await screen.findByText("worker-a:123")
+
+    expect(screen.queryByRole("button", { name: /Repository is/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Status is/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
   })
 
   it("shows a tooltip with the job/workflow id, duration, and blocked reason on hover", async () => {

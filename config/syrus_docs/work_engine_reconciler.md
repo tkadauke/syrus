@@ -137,6 +137,12 @@ Planner examples:
   fresh retry workflow only when the usual workflow retry gate is safe. The
   normal stale-heartbeat deadline remains `Run::STALE_HEARTBEAT_THRESHOLD`
   for ambiguous cases with active worker evidence.
+- When a `worker_died` failure has a critical `run_resource_summary`
+  host-pressure level, `RunFailureClassifier` records
+  `worker_died_under_resource_pressure` instead of retryable `worker_died`.
+  That classification is non-retryable so Syrus does not spend automatic
+  repair iterations on a run that likely died because its worker host was
+  already under critical CPU, memory, disk, or IO pressure.
 - A detached running Run can become repairable sooner: if the Run is older than
   the normal orphan grace, has no active SolidQueue RunJob (or only a
   `ProcessPrunedError` failed execution), has no live `SpawnedProcess`, and has
@@ -193,9 +199,13 @@ operator activity log for what the reconciler did and why. Read-only inspections
 used by admin stuck surfaces do not create activity rows. Repairing reconciler
 runs record `run_started`, detailed issue/plan/execution rows for applied or
 failed repair executions, and a `run_finished` or `run_failed` summary. Skipped
-executions are aggregated in the summary counts instead of expanded every
-minute, so recurring passes do not flood the log with unchanged
-operator-review/waiting items. The app API endpoint is
+executions are usually aggregated in the summary counts instead of expanded
+every minute, so recurring passes do not flood the log with unchanged
+operator-review/waiting items. The exception is a skipped execution for an
+issue the classifier marked `safe_to_auto_repair` with an auto-executable plan:
+that is expanded as warning activity, with the `issue_kind` attached to the
+`repair_executed` row, because "safe but not applied" needs operator-visible
+attention on the next repairing tick. The app API endpoint is
 `/api/v1/app/admin/reconciler_activity`; the token admin API endpoint is
 `/api/v1/admin/reconciler_activity`. Both are paginated newest-first and accept
 `event_type`, `job_id`, `workflow_id`, and `run_id` filters.
@@ -214,6 +224,17 @@ The stuck copy distinguishes stale queue claims, queue starvation/capacity
 pressure, dependency blocks, unsuccessful closed dependencies, main-health
 blocks, retryable failed steps, and semantic/operator-needed failures from the
 reconciler issue and repair-plan pair.
+
+`stuck_main_branch_repair_job` is the operator-visible safety net for a broken
+main branch whose automatic repair Job exists but has not reached active
+runtime work. It fires when the repository is still broken and the blocking
+main-branch repair Job has remained in `needs_triage`, `triaging`, or `queued`
+past `MainHealthChangedService::STUCK_REPAIR_ALERT_AFTER`. The repair plan is
+operator-only (`operator_review_main_branch_repair`): inspect the Job, retry or
+force-fail it, and let `MainHealthChangedService` create a replacement if main
+is still broken. Admin system alerts link to `/admin/stuck?refresh=1` for this
+condition so the dedicated stuck page refreshes its reconciler snapshot before
+displaying the evidence.
 
 ## Repair execution
 

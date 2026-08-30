@@ -2,6 +2,7 @@ class RunFailureClassifier
   Result = Data.define(:classification, :confidence, :retryable, :reason, :diagnostic_summary, :classifier_inputs)
 
   RECENT_LOG_LIMIT = 25
+  OCTOKIT_TRANSIENT_ERROR_CLASS = /\AOctokit::(?:ServiceUnavailable|BadGateway|InternalServerError|TooManyRequests)\z/
 
   def self.classify(run)
     new(run).classify
@@ -33,6 +34,10 @@ class RunFailureClassifier
       result(ProviderUsageLimit::CLASSIFICATION, 0.95, false, "The provider or model usage limit is exhausted.")
     when rate_limited?
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
+    when workspace_clone_timeout?
+      result("workspace_clone_timeout", 0.95, true, "The workflow workspace clone timed out before producing a usable checkout.")
+    when workspace_checkout_invalid?
+      result("workspace_checkout_invalid", 0.95, true, "The workflow workspace exists but has no valid git HEAD; recreate the checkout before retrying.")
     when timeout?
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when provider_prompt_too_long?
@@ -45,6 +50,10 @@ class RunFailureClassifier
       result("grader_failure", 0.90, false, "A configured grader command failed.")
     when missing_required_tool_call?
       result("missing_required_tool_call", 0.85, true, "The reviewer agent completed analysis but didn't call the step's required MCP tool; safe to retry since these steps are read-only (workspace changes are discarded before this failure is raised).")
+    when process_died_under_resource_pressure?
+      result("worker_died_under_resource_pressure", 0.95, false, "The worker or agent process disappeared while the host was under critical resource pressure.")
+    when agent_gave_up_waiting?
+      result("agent_gave_up_waiting", 0.90, true, "The agent ended the turn with no repository diff while expecting a background command or ScheduleWakeup to continue the same Step Run.")
     when process_died?
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when agent_resume_unavailable?
@@ -69,6 +78,8 @@ class RunFailureClassifier
       result("validation_or_user_error", 0.75, false, "The run failed on validation or user-supplied input.")
     when provider_transient?
       result("provider_transient", 0.75, true, "The provider failed transiently.")
+    when database_capacity?
+      result("database_capacity", 0.85, true, "The run failed because the database ran out of storage capacity (e.g. a MySQL table-full condition); this is transient infrastructure capacity, not a code defect.")
     when database_lock?
       result("database_lock", 0.80, true, "The run failed during transient database contention, timeout, or connection exhaustion.")
     when git_failure?
@@ -112,6 +123,18 @@ class RunFailureClassifier
       spawned_processes.any? { |process| %w[timed_out silent_timed_out].include?(process.outcome) }
   end
 
+  def workspace_clone_timeout?
+    spawned_processes.any? do |process|
+      process.kind == "git" &&
+        process.outcome.in?(%w[timed_out silent_timed_out]) &&
+        process.command.to_s.match?(/\bgit\s+clone\b/)
+    end
+  end
+
+  def workspace_checkout_invalid?
+    text_match?(/existing workflow workspace .* has no valid HEAD|workflow workspace .* no valid HEAD/i)
+  end
+
   def provider_prompt_too_long?
     text_match?(/prompt is too long|context.*too long|maximum context|context length/i)
   end
@@ -127,6 +150,10 @@ class RunFailureClassifier
       spawned_processes.any? { |process| %w[aliveness_failed stopped operator_killed].include?(process.outcome) }
   end
 
+  def process_died_under_resource_pressure?
+    process_died? && run.run_resource_summary&.host_pressure_level == "critical"
+  end
+
   def grader_failure?
     %w[grader preflight_grader grader_collect preflight_grader_collect].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
@@ -137,6 +164,10 @@ class RunFailureClassifier
     %w[adversarial_review visual_review].include?(run.step&.kind.to_s) &&
       diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
       text_match?(/agent didn't call/i)
+  end
+
+  def agent_gave_up_waiting?
+    diagnostic&.error_class.to_s.match?(/Steps::Base::AgentGaveUpWaiting/)
   end
 
   def branch_diverged?
@@ -199,12 +230,14 @@ class RunFailureClassifier
   def provider_transient?
     return false if run.agent_provider.blank?
     return true if run.agent_outcome.to_s == "server_error"
+    return true if diagnostic&.error_class.to_s.match?(OCTOKIT_TRANSIENT_ERROR_CLASS)
 
     text_match?(%r{
       overloaded|
       temporar(?:y|ily)|
       transient|
       retry\ later|
+      serviceunavailable|
       service\ unavailable|
       bad[\s_]*gateway|
       gateway\ timeout|
@@ -215,6 +248,7 @@ class RunFailureClassifier
       failed\ to\ decode\ models\ response|
       unknown\ variant\ [`'"]?max[`'"]?|
       (?:status|http|code)\s*[:=]?\s*5\d\d|
+      :\s+5\d\d\s+-|
       5xx
     }ix)
   end
@@ -222,6 +256,10 @@ class RunFailureClassifier
   def database_lock?
     diagnostic&.error_class.to_s.match?(/Deadlocked|LockWaitTimeout|StatementTimeout|ConnectionNotEstablished|ConnectionTimeoutError/) ||
       text_match?(/database is locked|SQLite3::BusyException|Deadlocked|LockWaitTimeout|StatementTimeout|ConnectionNotEstablished|ConnectionTimeoutError|too many connections|could not obtain a connection/i)
+  end
+
+  def database_capacity?
+    text_match?(/table .* is full|ER_RECORD_FILE_FULL|record file full/i)
   end
 
   def mcp_sidecar?
@@ -286,6 +324,8 @@ class RunFailureClassifier
       "workflow_trigger_kind" => run.workflow&.trigger_kind,
       "workflow_state" => run.workflow&.state,
       "workflow_failure_reason" => run.workflow&.failure_reason,
+      "host_pressure_level" => run.run_resource_summary&.host_pressure_level,
+      "host_pressure_reasons" => run.run_resource_summary&.host_pressure_reasons,
       "diagnostic_id" => diagnostic&.id,
       "error_class" => diagnostic&.error_class,
       "error_message" => diagnostic&.error_message&.truncate(500),

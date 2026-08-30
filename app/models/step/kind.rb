@@ -17,12 +17,16 @@ class Step
     # triggers_auto_approval: true for the terminal grader step kinds that
     #   fire AutoApprovalRule after a successful grade.
     #
+    # advance_handler: optional class called by StepDispatcher after this
+    #   step succeeds, before the default linear successor is enqueued.
+    #
     # required_mcp_tools: MCP tools the agent MUST call during this step.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
                         :required_mcp_tools, :fail_policy, :reconcile_strategy,
                         :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
+                        :advance_handler,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
-                        :resource_profile_default_overrides) do
+                        :resource_profile_default_overrides, :waits_for_terminal_step_kind) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      fail_policy: :default,
@@ -30,9 +34,11 @@ class Step
                      skip_if_artifact: nil,
                      triggers_auto_approval: false,
                      repair_semantics: nil,
+                     advance_handler: nil,
                      resource_profile_step_kinds: nil,
                      resource_profile_grader_name_key: nil,
-                     resource_profile_default_overrides: nil)
+                     resource_profile_default_overrides: nil,
+                     waits_for_terminal_step_kind: nil)
         repair_semantics ||= agentic ? :agentic : :operator_review
         resource_profile_step_kinds ||= [ kind ]
         super
@@ -40,6 +46,10 @@ class Step
 
       def handler_class
         "Steps::#{handler}".constantize
+      end
+
+      def advance_handler_class
+        advance_handler&.constantize
       end
 
       def deterministic_idempotent_repair?
@@ -112,7 +122,8 @@ class Step
       Entry.new(kind: "push_agent_rebase",  handler: "PushAgentRebase",    label: "Resolve push rebase",       style: "bg-teal-100 text-teal-700",   agentic: true),
       Entry.new(kind: "push_after_rebase",  handler: "PushAfterRebase",    label: "Push rebased branch",       style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
-      Entry.new(kind: "analyze_and_fix",    handler: "AnalyzeAndFix",      label: "Fix CI failures",            style: "bg-red-100 text-red-700",     agentic: true),
+      Entry.new(kind: "analyze_and_fix",    handler: "AnalyzeAndFix",      label: "Fix CI failures",            style: "bg-red-100 text-red-700",     agentic: true,
+                advance_handler: "CiRepair::NonActionableDiagnosis"),
       Entry.new(kind: "auto_rebase",        handler: "AutoRebase",         label: "Auto-rebase",                style: "bg-teal-100 text-teal-700",   agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "agent_rebase",       handler: "AgentRebase",        label: "Agent rebase",               style: "bg-teal-100 text-teal-700",   agentic: true),
@@ -165,7 +176,8 @@ class Step
       Entry.new(kind: "grader_collect",     handler: "GraderCollect",      label: "Aggregate graders",          style: "bg-violet-100 text-violet-700", agentic: false,
                 fail_policy: :loop_iteration,
                 repair_semantics: :deterministic_idempotent,
-                triggers_auto_approval: true),
+                triggers_auto_approval: true,
+                waits_for_terminal_step_kind: "grader"),
       Entry.new(kind: "apply_suggestions",  handler: "ApplySuggestions",   label: "Apply suggestions",         style: "bg-lime-100 text-lime-700",   agentic: false,
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "landing_fix",        handler: "LandingFix",         label: "Final fix",                  style: "bg-blue-100 text-blue-700",   agentic: true),
@@ -220,7 +232,8 @@ class Step
                   failure_rate: 0.0
                 }),
       Entry.new(kind: "preflight_grader_collect", handler: "PreflightGraderCollect", label: "Preflight grader check",   style: "bg-violet-100 text-violet-700", agentic: false,
-                repair_semantics: :deterministic_idempotent),
+                repair_semantics: :deterministic_idempotent,
+                waits_for_terminal_step_kind: "preflight_grader"),
       # No repair_semantics override: falls back to :operator_review (the
       # non-agentic default). A deploy command isn't guaranteed idempotent
       # the way prepare/format/grader commands are, so a failure here

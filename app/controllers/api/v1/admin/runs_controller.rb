@@ -123,6 +123,7 @@ module Api
             "git_failure" => "repo_conflict_or_git_state",
             "validation_or_user_error" => "validation_or_user_error",
             "database_lock" => "syrus_internal",
+            "database_capacity" => "syrus_internal",
             "mcp_sidecar_failure" => "syrus_internal",
             "application_error" => "syrus_internal"
           }.fetch(classification.classification, "unknown")

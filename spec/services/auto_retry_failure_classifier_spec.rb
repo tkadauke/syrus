@@ -40,6 +40,18 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result.classification).to eq("non_retryable_failure")
   end
 
+  it "retries no-diff runs caused by agent background-wait misconceptions" do
+    fail_run!(
+      error_class: "Steps::Base::AgentGaveUpWaiting",
+      error_message: "agent ended with no repository diff after expecting a background command or ScheduleWakeup to continue this Step Run"
+    )
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("Steps::Base::AgentGaveUpWaiting")
+  end
+
   it "recognizes known non-retryable messages without a workflow" do
     expect(described_class.non_retryable_message?("auto_merge: PR is dirty and rebase cap reached")).to be(true)
   end
