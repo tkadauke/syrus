@@ -205,6 +205,35 @@ grade:
     phases: [review, landing, ci]
     timeout_minutes: 3
 
+  - name: cli-go-tests
+    description: |
+      Runs the Syrus CLI Go test suite for changes to the CLI module or
+      release/desktop packaging paths that ship the CLI binary. This
+      catches CLI regressions before release builds invoke
+      `bin/release-cli`.
+    run: cd cli && mise exec go@1.26.5 -- go test ./...
+    phases: [review, landing, ci]
+    when_files_changed:
+      - "cli/**/*.go"
+      - "cli/go.mod"
+      - "cli/go.sum"
+      - "cli/Makefile"
+      - "bin/release-cli"
+      - "bin/release-desktop"
+      - ".github/workflows/_build-app.yml"
+      - ".github/workflows/desktop-ci.yml"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/test-build.yml"
+      - "desktop/scripts/stage-cli.mjs"
+      - "desktop/electron/main.ts"
+      - "desktop/electron/preload.cts"
+      - "desktop/electron/settings.ts"
+      - "desktop/electron/credentialsStore.ts"
+      - "desktop/src/App.tsx"
+      - "desktop/package.json"
+      - "desktop/package-lock.json"
+    timeout_minutes: 5
+
   - name: rspec
     description: |
       Full RSpec suite. CLAUDE.md "Tests are not optional" is the
