@@ -107,6 +107,22 @@ func TestLocalHandshakeErrorIncludesResponseStatusAndBody(t *testing.T) {
 	}
 }
 
+func TestLocalCableOriginMatchesHTTPOriginForWebsocketURL(t *testing.T) {
+	origin := localCableOrigin("wss://syrus.internal.green-acres.estate/cable?api_token=secret")
+
+	if origin != "https://syrus.internal.green-acres.estate" {
+		t.Fatalf("expected same-origin https origin, got %q", origin)
+	}
+}
+
+func TestLocalCableOriginKeepsNonDefaultPort(t *testing.T) {
+	origin := localCableOrigin("ws://localhost:3000/cable?api_token=secret")
+
+	if origin != "http://localhost:3000" {
+		t.Fatalf("expected local http origin with port, got %q", origin)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // resolveLocalPath (boundary enforcement)
 // ---------------------------------------------------------------------------

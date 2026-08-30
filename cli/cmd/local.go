@@ -29,11 +29,36 @@ const (
 // Overridable for tests.
 var localDialer = func(ctx context.Context, rawURL string) (*websocket.Conn, error) {
 	d := websocket.DefaultDialer
-	conn, response, err := d.DialContext(ctx, rawURL, nil)
+	headers := http.Header{}
+	if origin := localCableOrigin(rawURL); origin != "" {
+		headers.Set("Origin", origin)
+	}
+	conn, response, err := d.DialContext(ctx, rawURL, headers)
 	if err != nil {
 		return nil, localHandshakeError(err, response)
 	}
 	return conn, err
+}
+
+func localCableOrigin(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	switch parsed.Scheme {
+	case "wss":
+		parsed.Scheme = "https"
+	case "ws":
+		parsed.Scheme = "http"
+	default:
+		return ""
+	}
+	parsed.Path = ""
+	parsed.RawPath = ""
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
 
 func localHandshakeError(err error, response *http.Response) error {
