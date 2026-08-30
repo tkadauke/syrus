@@ -503,7 +503,10 @@ Telegram or Slack conversations, are found by platform plus participant
 membership and use the current `speak_when_spoken_to` trigger policy. The chat
 composer also supports active goals through `/goal`: operators can start a
 goal with `/goal <objective>`, edit it with `/goal edit <objective>`, pause or
-resume it, and stop it. While active, goal-linked proposals, Jobs, and Epics
+resume it, and stop it. Starting a new goal immediately wakes the chat when the
+agent is idle, and updating a paused goal through the start/upsert path resumes
+it with the same immediate continuation. Editing an already-active goal does
+not queue another turn. While active, goal-linked proposals, Jobs, and Epics
 wake the chat at meaningful boundaries so the agent can continue toward the
 goal; the agent can mark the goal completed or blocked, but pause/resume/stop
 remain operator controls.
