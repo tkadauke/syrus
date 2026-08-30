@@ -12,6 +12,8 @@ class Job < ApplicationRecord
   include EnqueuesSearchIndex
 
   KINDS = %w[ issue cron direct main_grader agent_insight external_pr deploy ].freeze
+  INFRASTRUCTURE_KINDS = %w[ main_grader agent_insight deploy ].freeze
+  USER_FACING_KINDS = (KINDS - INFRASTRUCTURE_KINDS).freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze
   SCHEDULED_TASK_OUTCOMES = {
