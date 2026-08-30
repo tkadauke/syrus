@@ -148,7 +148,7 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
     calls.push(url)
 
     if (url.startsWith("/api/v1/app/admin/worker_timeline/macro")) {
-      return Promise.resolve(jsonResponse(macroPayload(macroOverrides)))
+      return Promise.resolve(jsonResponse(macroPayload({ filter: decodeQ(url) || { and: [] }, ...macroOverrides })))
     }
     if (url.startsWith("/api/v1/app/admin/worker_timeline/workflow")) {
       return Promise.resolve(jsonResponse(waterfallPayload(waterfallOverrides)))
