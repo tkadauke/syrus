@@ -588,7 +588,7 @@ module Api
           chat_session = find_chat_session
           queued_message = chat_session.queued_messages.find(params[:queued_message_id])
           text = message_text
-          existing = queued_message.content.is_a?(Hash) ? queued_message.content : {}
+          existing = queued_message.draft_content.to_message_content
           if text.blank? && !queued_message.carries_media?
             render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
             return
@@ -614,14 +614,16 @@ module Api
 
         def create_scratchpad_item
           chat_session = find_chat_session
-          content = params.dig(:scratchpad_item, :content).to_s.strip
-          if content.blank?
+          draft = scratchpad_draft_content
+          return if performed?
+
+          unless draft.present?
             render_error("validation_failed", "Content cannot be blank.", status: :unprocessable_content)
             return
           end
 
           max_position = chat_session.scratchpad_items.maximum(:position) || -1
-          chat_session.scratchpad_items.create!(content: content, position: max_position + 1)
+          chat_session.scratchpad_items.create!(content: draft.to_scratchpad_content, position: max_position + 1)
 
           render json: chat_payload(chat_session.reload, message: "Scratch pad item added.")
         rescue ActiveRecord::RecordInvalid => e
@@ -631,13 +633,15 @@ module Api
         def update_scratchpad_item
           chat_session = find_chat_session
           item = chat_session.scratchpad_items.find(params[:item_id])
-          content = params.dig(:scratchpad_item, :content).to_s.strip
-          if content.blank?
+          draft = scratchpad_draft_content(existing: item.draft_content)
+          return if performed?
+
+          unless draft.present?
             render_error("validation_failed", "Content cannot be blank.", status: :unprocessable_content)
             return
           end
 
-          item.update!(content: content)
+          item.update!(content: draft.to_scratchpad_content)
           render json: chat_payload(chat_session.reload, message: "Scratch pad item updated.")
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
@@ -1297,6 +1301,26 @@ module Api
         end
 
         private
+
+        def scratchpad_draft_content(existing: nil)
+          item_params = params[:scratchpad_item]
+          text = if item_params.respond_to?(:key?) && item_params.key?(:content)
+            item_params[:content].to_s.strip
+          else
+            message_text
+          end
+
+          attachments = if item_params.respond_to?(:key?) && item_params.key?(:attachments)
+            sanitized_attachments(item_params[:attachments])
+          elsif params.dig(:chat_message, :attachments).present?
+            sanitized_attachments(params.dig(:chat_message, :attachments))
+          else
+            existing&.attachments || []
+          end
+          return if performed?
+
+          ChatDraftContent.new(text: text, attachments: attachments)
+        end
 
         # "Private" panel access means "anyone who can already open this
         # chat" — the ordinary chat-ownership check (find_chat_session), or

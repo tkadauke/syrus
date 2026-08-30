@@ -9,16 +9,18 @@ class ChatQueuedMessage < ApplicationRecord
   scope :pending, -> { where(delivered_at: nil) }
 
   def text
-    content.is_a?(Hash) ? content["text"].to_s : content.to_s
+    draft_content.text
+  end
+
+  def draft_content
+    ChatDraftContent.from_content(content)
   end
 
   # A message that carries media (a walkthrough video or file/image attachments)
   # is valid with no text — the media IS the message. Only a bodyless, medialess
   # message is blank.
   def carries_media?
-    return false unless content.is_a?(Hash)
-
-    content["video_walkthrough_id"].present? || content["attachments"].present?
+    draft_content.media?
   end
 
   private
