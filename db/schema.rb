@@ -443,7 +443,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
@@ -892,7 +892,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
@@ -1239,7 +1239,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
@@ -2819,34 +2819,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
     t.index ["workflow_admission_override_present", "workflow_admission_override_at", "updated_at", "id"], name: "idx_workflows_admission_override_recent"
   end
 
-  add_foreign_key "chat_goals", "chat_sessions"
-  add_foreign_key "chat_goals", "repositories"
-  add_foreign_key "chat_goals", "users"
-  add_foreign_key "chat_proposals", "chat_goals"
-  add_foreign_key "design_doc_anchors", "design_doc_versions"
-  add_foreign_key "design_doc_anchors", "design_docs"
-  add_foreign_key "design_doc_collaborators", "design_docs"
-  add_foreign_key "design_doc_collaborators", "users"
-  add_foreign_key "design_doc_collaborators", "users", column: "added_by_user_id"
-  add_foreign_key "design_doc_comments", "design_doc_threads"
-  add_foreign_key "design_doc_comments", "users", column: "author_user_id"
-  add_foreign_key "design_doc_repositories", "design_docs"
-  add_foreign_key "design_doc_repositories", "repositories"
-  add_foreign_key "design_doc_suggestions", "design_doc_anchors"
-  add_foreign_key "design_doc_suggestions", "design_doc_threads"
-  add_foreign_key "design_doc_suggestions", "design_doc_versions", column: "base_version_id"
-  add_foreign_key "design_doc_suggestions", "design_docs"
-  add_foreign_key "design_doc_suggestions", "users", column: "reviewed_by_user_id"
-  add_foreign_key "design_doc_suggestions", "users", column: "suggested_by_user_id"
-  add_foreign_key "design_doc_threads", "design_doc_anchors"
-  add_foreign_key "design_doc_threads", "design_docs"
-  add_foreign_key "design_doc_threads", "users", column: "opened_by_user_id"
-  add_foreign_key "design_doc_threads", "users", column: "resolved_by_user_id"
-  add_foreign_key "design_doc_versions", "design_docs"
-  add_foreign_key "design_doc_versions", "users", column: "actor_user_id"
-  add_foreign_key "design_docs", "chat_sessions", column: "origin_chat_session_id"
-  add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id"
-  add_foreign_key "design_docs", "users", column: "owner_user_id"
-  add_foreign_key "epics", "chat_goals"
-  add_foreign_key "jobs", "chat_goals"
 end
