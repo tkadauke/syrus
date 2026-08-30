@@ -10,14 +10,20 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     expect(described_class.available_for?(chat_session, tier: :essential)).to be(false)
   end
 
-  it "is unavailable when no connection has opted into agentic access" do
+  it "is available when connections exist so agents can inspect safe access metadata" do
     allow(MysqlDbBrowser).to receive(:enabled?).and_return(true)
     Factories.mysql_connection(agentic_access_enabled: false)
+
+    expect(described_class.available_for?(chat_session, tier: :essential)).to be(true)
+  end
+
+  it "is unavailable when no connection has been configured" do
+    allow(MysqlDbBrowser).to receive(:enabled?).and_return(true)
 
     expect(described_class.available_for?(chat_session, tier: :essential)).to be(false)
   end
 
-  it "is available once at least one connection has opted in" do
+  it "is available once at least one connection exists" do
     allow(MysqlDbBrowser).to receive(:enabled?).and_return(true)
     Factories.mysql_connection(agentic_access_enabled: true)
 
@@ -36,11 +42,13 @@ RSpec.describe MysqlDbBrowser::ChatToolSet do
     tools = described_class.tool_definitions(tier: :essential)
 
     expect(tools.map { |tool| tool.fetch(:name) }).to contain_exactly(
+      "mysql_db_browser_list_connections",
       "mysql_db_browser_list_databases",
       "mysql_db_browser_list_tables",
       "mysql_db_browser_describe_table",
       "mysql_db_browser_execute_query"
     )
+    expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_list_databases" }.fetch(:description)).to include("mysql_db_browser_list_connections")
     expect(tools.find { |tool| tool.fetch(:name) == "mysql_db_browser_execute_query" }.dig(:input_schema, :required)).to eq([ "mysql_connection_id", "sql" ])
   end
 

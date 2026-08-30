@@ -5,8 +5,10 @@ module MysqlDbBrowser
     tool_name "mysql_db_browser_execute_query"
 
     description "Run a SQL statement against an agentic-access-enabled MySQL DB Browser connection. " \
-                "Read-only (SELECT/WITH) by default - rejected unless the connection has explicitly " \
-                "opted into writes. Every attempt, successful or not, is audit-logged."
+                "Call mysql_db_browser_list_connections first to find an enabled mysql_connection_id. " \
+                "Read-only SELECT/WITH/SHOW/DESCRIBE/EXPLAIN diagnostics are allowed by default; " \
+                "writes are rejected unless the connection has explicitly opted into writes. " \
+                "Every attempt, successful or not, is audit-logged."
 
     input_schema(
       type: "object",
@@ -14,7 +16,7 @@ module MysqlDbBrowser
       properties: {
         mysql_connection_id: {
           type: "integer",
-          description: "MysqlConnection id, from the DB Browser connections list."
+          description: "MysqlConnection id from mysql_db_browser_list_connections."
         },
         sql: {
           type: "string",

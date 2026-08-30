@@ -12,19 +12,26 @@ RSpec.describe MysqlDbBrowser::WorkflowToolSet do
     expect(described_class.available_for_context?(context)).to be(false)
   end
 
-  it "is unavailable when no connection has opted into agentic access" do
+  it "is available when connections exist so agents can inspect safe access metadata" do
     allow(MysqlDbBrowser).to receive(:enabled?).and_return(true)
     Factories.mysql_connection(agentic_access_enabled: false)
+
+    expect(described_class.available_for_context?(context)).to be(true)
+  end
+
+  it "is unavailable when no connection has been configured" do
+    allow(MysqlDbBrowser).to receive(:enabled?).and_return(true)
 
     expect(described_class.available_for_context?(context)).to be(false)
   end
 
-  it "is available to implement agents once at least one connection has opted in" do
+  it "is available to implement agents once at least one connection exists" do
     allow(MysqlDbBrowser).to receive(:enabled?).and_return(true)
     Factories.mysql_connection(agentic_access_enabled: true)
 
     expect(described_class.available_for_context?(context)).to be(true)
     expect(described_class.tool_definitions(context: context).map { |tool| tool.fetch(:name) }).to contain_exactly(
+      "mysql_db_browser_list_connections",
       "mysql_db_browser_list_databases",
       "mysql_db_browser_list_tables",
       "mysql_db_browser_describe_table",
