@@ -64,14 +64,15 @@ proving the requested work was already unnecessary.
 `StepDispatcher` checks the Workflow's pinned `agent_provider` against the
 current user's per-agent pause threshold. Agent Settings stores these thresholds
 on the user; each provider defaults to 10%, and 0 disables automatic
-provider-availability pauses for that provider. When Codex structured usage is
-below the threshold, or any provider has an active usage-exhausted signal, Syrus
-records `pause_reason: provider_availability` and schedules a recheck instead
-of creating the next Run. Running steps finish first. Codex rechecks refresh the
-usage snapshot when stale so Workflows resume automatically once usage is above
-threshold. Operators can force a recheck or "Resume anyway" from Agent Settings
-or the usage banner; the override is per-user/per-provider and only suppresses
-pauses until newer provider evidence arrives.
+provider-availability pauses for that provider. When structured Codex or Claude
+usage is below the threshold, or any provider has an active usage-exhausted
+signal, Syrus records `pause_reason: provider_availability` and schedules a
+recheck instead of creating the next Run. Running steps finish first. Codex and
+Claude rechecks refresh the usage snapshot when stale so Workflows resume
+automatically once usage is above threshold. Operators can force a recheck or
+"Resume anyway" from Agent Settings or the usage banner; the override is
+per-user/per-provider and only suppresses pauses until newer provider evidence
+arrives.
 
 **Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
 mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
@@ -86,12 +87,14 @@ oauth-2025-04-20` header, then reads Anthropic's `anthropic-ratelimit-unified-5h
 on the same 10-minute staleness window as Codex. It is invoked opportunistically —
 no dedicated cron — from `AgentProviders::Claude#invoke`/`.invoke_one_shot` after
 every Claude agent call, and from `ProviderAvailabilityPause#refresh_stale_usage`
-as a pre-Run gate check, exactly like Codex's wiring. Unlike Codex, this evidence
-does not (yet) feed the threshold-based provider-availability pause above or the
-usage banner/snapshot — those stay Codex-only pending a follow-up. It does feed
-`ProviderCircuitBreaker`: fresh `exhausted` probe evidence can open the Claude
-circuit before any Run fails, and fresh `available` evidence suppresses
-false-positive circuit opens, the same as Codex evidence already does.
+as a pre-Run gate check, exactly like Codex's wiring. It feeds Agent Settings'
+usage snapshot/depletion display and the threshold-based provider-availability
+pause above; reset offsets from Anthropic's headers are anchored to the probe's
+`observed_at` timestamp, with Syrus adding its normal retry buffer when
+scheduling a retry. It also feeds `ProviderCircuitBreaker`: fresh `exhausted`
+probe evidence can open the Claude circuit before any Run fails, and fresh
+`available` evidence suppresses false-positive circuit opens, the same as Codex
+evidence already does.
 
 ### run_skill
 
@@ -497,6 +500,8 @@ Non-agentic. Materializes one `preflight_grader` Step per configured grader at t
 - Does **not** check the `GraderConclusionCache` for reuse (always runs fresh)
 - Is not inside a retry loop (no `apply_loop_max_iterations!`)
 
+Resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_repair` is one of `LandingGraderPlan::CI_TRIGGER_KINDS`), the same phase `ci_failure`/`main_grader` use — not the `:landing` phase auto-merge/merge-train use. This matters because a repository can configure a lightweight grader for `phases: [landing]` (e.g. plain `rspec`) and a separate, slower, GitHub-Actions-equivalent grader for `phases: [ci]` (e.g. `rspec-ci`, including `:ci_only` specs) that is the one actually reflected in `Repository#ci_health`. Resolving `:landing` here would let preflight report "all required graders passed" without ever re-running the CI-equivalent suite, closing the repair Job on a false positive while the real CI-only failures (and `ci_health`) stayed broken — `MainHealthChangedService.ensure_repair_job!` would then spawn another `main_branch_repair` Job on the very next poll tick, looping indefinitely.
+
 ### preflight_grader
 
 Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files.
@@ -507,7 +512,7 @@ Preflight graders use the same command-span instrumentation as normal graders.
 
 Non-agentic. Aggregates preflight grader results. Two outcomes:
 
-- **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository healthy without the agent ever running.
+- **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
 - **Any required grader failed:** Logs the failure and returns normally so the chain continues to `prepare → implement`.
 
 Unlike `grader_collect`, this step never raises `StepFailed` — a grader failure here means "proceed to implement", not "fail the workflow."
@@ -543,6 +548,14 @@ When a worker process is killed mid-step (deploy rolling restart, OOM, node evic
 **Agentic steps** (e.g., `implement`, `respond`) do not use in-place retry. They use the work-engine reconciler's session-resume path so the agent can pick up where it left off with prior conversation context intact. Successful provider session transcripts are retained until the normal `ProviderSession::RETAIN_AFTER_TERMINAL` pruning window expires so later workflow steps can rehydrate resume state after worker movement or deploys.
 
 If Codex resume state is unavailable (`thread/resume failed`, missing rollout JSONL, or equivalent), Syrus classifies the failure as `agent_resume_unavailable`. Automatic failed-step retries carry an explicit no-resume marker so step-specific session fallbacks cannot keep selecting the same stale provider thread. Short synthesis steps such as `test_plan` may retry once in a fresh provider session using bounded durable context from the Job, PR summary, and implementation diff before falling back to deterministic artifacts.
+
+If an agent CLI starts before Syrus finishes delivering the stdin prompt, the
+provider may fail immediately with messages such as `no stdin data received`,
+`Input must be provided either through stdin`, or `No deferred tool marker found
+in the resumed session`. Syrus classifies these as `stdin_race_failed`, a
+retryable infrastructure failure, so operators can distinguish prompt-delivery
+races from genuine agent/application errors and automatic retry scheduling can
+handle them through the normal retryable-failure path.
 
 Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority.
 

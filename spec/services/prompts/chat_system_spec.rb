@@ -707,12 +707,25 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("You have access to a shared whiteboard alongside this chat.")
-    expect(out).to include("canvas wins for spatial relationships")
+    expect(out).to include("only when the operator explicitly asks for a canvas, diagram, sketch")
+    expect(out).to include("canvas wins for\nspatial relationships")
     expect(out).to include("Each shape\nyou create gets a stable id")
     expect(out).to include("`draw_line`")
     expect(out).to include("The scene\ncan include Excalidraw `elements`, `appState`, and `files`.")
     expect(out).to include("Reading the canvas via `read_scene` is cheap")
     expect(out).to include("`save_canvas` when the operator asks to preserve the current")
+  end
+
+  it "routes preview mockup requests to preview panel tools before whiteboard or Sites" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include('When the operator asks for a "preview", "preview mockup", "HTML')
+    expect(out).to include("prefer Syrus preview-panel\ntools over the whiteboard or Sites")
+    expect(out).to include("Search tools for `show_preview`,\n`write_preview_file`, or `edit_preview_file`")
+    expect(out).to include("create or update `index.html` in that panel's scratch directory")
+    expect(out).to include("calling `show_preview` again with the same `panel_id`")
+    expect(out).to include("Use Sites only when the operator explicitly asks for a hosted,\ndeployed, public, or production website URL.")
+    expect(out).to include("Use it\nonly when the operator explicitly asks for a canvas, diagram, sketch,\nor whiteboard")
   end
 
   it "requires read_job state check before submit_chat_feedback" do

@@ -12041,7 +12041,23 @@ describe("App", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         ...chatPayload(),
-        preview_panels: [{ id: 1, title: longTitle, file_count: 2, url: "http://127.0.0.1:3001", app_close_path: "/api/v1/app/chats/8/preview_panels/1" }]
+        preview_panels: [{
+          id: 1,
+          title: longTitle,
+          file_count: 2,
+          url: "http://127.0.0.1:3001",
+          visibility: "public",
+          app_close_path: "/api/v1/app/chats/8/preview_panels/1",
+          app_visibility_path: "/api/v1/app/chats/8/preview_panels/1",
+          app_export_path: "/api/v1/app/chats/8/preview_panels/1/export",
+          app_file_base_path: "/api/v1/app/chats/8/preview_panels/1/files",
+          app_token_path: "/api/v1/app/chats/8/preview_panels/1/token",
+          current_version_id: null,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
+          versions: []
+        }]
       }), { status: 200, headers: { "Content-Type": "application/json" } })
     )
 

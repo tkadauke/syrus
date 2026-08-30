@@ -43,8 +43,9 @@ class PreviewPanel < ApplicationRecord
   # Creates a new PreviewPanelVersion snapshot from the given files and
   # leaves prior versions intact, so old versions stay servable after a
   # later show_preview call republishes the panel.
-  def create_version!(files_by_path)
-    version = preview_panel_versions.create!
+  def create_version!(files_by_path = nil, entry_file: DEFAULT_ENTRY_FILENAME, **keyword_files_by_path)
+    files_by_path = (files_by_path || {}).merge(keyword_files_by_path)
+    version = preview_panel_versions.create!(entry_file: entry_file.to_s.presence || DEFAULT_ENTRY_FILENAME)
     files_by_path.each do |relative_path, content|
       io = content.respond_to?(:read) ? content : StringIO.new(content.to_s)
       version.files.attach(
@@ -75,7 +76,8 @@ class PreviewPanel < ApplicationRecord
       "title" => title,
       "state" => state,
       "visibility" => visibility,
-      "file_count" => current_version&.files&.size || 0
+      "file_count" => current_version&.files&.size || 0,
+      "entry_file" => current_version&.entry_file || DEFAULT_ENTRY_FILENAME
     }
   end
 end

@@ -57,6 +57,72 @@ RSpec.describe Mcp::Tools::WriteMemoryTool do
       expect(ChatMemory.last.scope_id).to eq(repository.id)
     end
 
+    it "rejects near-duplicate memories in the same recent scope and kind" do
+      existing = ChatMemory.create!(
+        user: run.job.user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "LandingQueueProcessor#blockage_for no longer fans out unrelated urgent job activity checks before matching blocked jobs.",
+        created_at: 7.hours.ago,
+        updated_at: 7.hours.ago
+      )
+
+      expect {
+        response = described_class.call(
+          content: "LandingQueueProcessor#blockage_for no longer fans out unrelated urgent job activity checks before matching blocked work.",
+          kind: "project_fact",
+          server_context: run_context
+        )
+
+        expect(response).to be_error
+        expect(response.content.first[:text]).to include("ChatMemory ##{existing.id}")
+        expect(response.content.first[:text]).to include("read_memory")
+      }.not_to change(ChatMemory, :count)
+    end
+
+    it "creates distinct memories in the same scope and kind" do
+      ChatMemory.create!(
+        user: run.job.user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "LandingQueueProcessor#blockage_for no longer fans out unrelated urgent job activity checks."
+      )
+
+      expect {
+        response = described_class.call(
+          content: "OperationalLogIndex reads recent deployment logs from the structured operational log store.",
+          kind: "project_fact",
+          server_context: run_context
+        )
+
+        expect(response).not_to be_error
+      }.to change(ChatMemory, :count).by(1)
+    end
+
+    it "does not reject duplicates outside the recent lookup window" do
+      ChatMemory.create!(
+        user: run.job.user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "OperationalLogIndex returns rows for read_syrus_logs after the deployment-lag fix.",
+        created_at: 15.days.ago,
+        updated_at: 15.days.ago
+      )
+
+      expect {
+        response = described_class.call(
+          content: "OperationalLogIndex returns rows for read_syrus_logs after the deployment-lag fix.",
+          kind: "project_fact",
+          server_context: run_context
+        )
+
+        expect(response).not_to be_error
+      }.to change(ChatMemory, :count).by(1)
+    end
+
     it "rejects global scope because it is not in allowed_memory_scopes for runs" do
       response = described_class.call(content: "x", kind: "feedback", scope: "global", server_context: run_context)
 

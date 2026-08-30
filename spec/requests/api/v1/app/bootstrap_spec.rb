@@ -11,6 +11,18 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:cached] || payload[:name] == "SCHEMA"
+
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "returns whoami fields for bearer-token CLI clients" do
     user = Factories.user(email_address: "cli@example.com", api_token: "syrus_cli_token")
 
@@ -138,6 +150,22 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "video_walkthroughs" => false,
       "visual_review" => false
     )
+  end
+
+  it "reuses the unread notification count across bootstrap fields" do
+    user = Factories.user
+    Notification.create!(user: user, kind: "job_failed", body: "Failed")
+    Notification.create!(user: user, kind: "job_implemented", body: "Implemented", read_at: Time.current)
+    sign_in_as(user)
+
+    queries = capture_sql { get api_v1_app_bootstrap_path }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("current_user", "notification_unread_count")).to eq(1)
+    expect(body["unread_notifications_count"]).to eq(1)
+    notification_counts = queries.grep(/SELECT COUNT\(\*\) FROM ["`]?notifications["`]?/i)
+    expect(notification_counts.size).to eq(1)
   end
 
   it "flags legacy_epics_visible only in simple mode while the user can still reach a non-terminal Epic" do

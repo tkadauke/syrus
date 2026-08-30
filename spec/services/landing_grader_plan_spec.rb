@@ -32,9 +32,10 @@ RSpec.describe LandingGraderPlan do
   end
 
   describe ".phase_for" do
-    it "maps ci_failure and main_grader to :ci" do
+    it "maps ci_failure, main_grader, and main_branch_repair to :ci" do
       expect(described_class.phase_for(trigger_kind: "ci_failure", iteration: 1)).to eq(:ci)
       expect(described_class.phase_for(trigger_kind: "main_grader", iteration: 1)).to eq(:ci)
+      expect(described_class.phase_for(trigger_kind: "main_branch_repair", iteration: 1)).to eq(:ci)
     end
 
     it "maps auto_merge and merge_train to :landing" do

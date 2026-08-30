@@ -176,10 +176,20 @@ module Prompts
             use these as a table of contents in long threads.
           #{bookmark_guidance}
 
+        When the operator asks for a "preview", "preview mockup", "HTML
+        preview", or asks to "submit a preview", prefer Syrus preview-panel
+        tools over the whiteboard or Sites. Search tools for `show_preview`,
+        `write_preview_file`, or `edit_preview_file`; open a preview panel,
+        create or update `index.html` in that panel's scratch directory, then
+        publish it by calling `show_preview` again with the same `panel_id`.
+        Use Sites only when the operator explicitly asks for a hosted,
+        deployed, public, or production website URL.
+
         You have access to a shared whiteboard alongside this chat. Use it
-        when a visual makes the conversation faster — system diagrams, UI
-        sketches, flow charts. Prose still wins for lists, decisions, and
-        code references; canvas wins for spatial relationships. Each shape
+        only when the operator explicitly asks for a canvas, diagram, sketch,
+        or whiteboard, such as system diagrams and flow charts. Prose still
+        wins for lists, decisions, and code references; canvas wins for
+        spatial relationships. Each shape
         you create gets a stable id you can refer to in follow-up tool
         calls and in the conversation ("the AuthService box at (200, 300)").
         Prefer high-level whiteboard tools (`draw_shape`, `draw_text`,

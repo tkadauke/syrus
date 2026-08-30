@@ -47,6 +47,16 @@ RSpec.describe PreviewTools::ChatToolSet do
 
       expect(names).to contain_exactly("write_preview_file", "edit_preview_file", "show_preview", "close_preview")
     end
+
+    it "describes show_preview as the preferred preview mockup submission flow" do
+      show_preview = described_class.tool_definitions(tier: :essential).find { |tool| tool.fetch(:name) == "show_preview" }
+
+      description = show_preview.fetch(:description)
+      expect(description).to include("Primary tool for operator-facing UI mockups, HTML prototypes, and preview submissions in Syrus Chat")
+      expect(description).to include("If the user asks to create or submit a preview mockup")
+      expect(description).to include("write index.html with write_preview_file")
+      expect(description).to include("call show_preview again with the same panel_id to publish")
+    end
   end
 
   describe "#handle" do
@@ -180,6 +190,10 @@ RSpec.describe PreviewTools::ChatToolSet do
         response = call("show_preview", { panel_id: panel.id.to_s, title: "Widget", entry_file: "widget.html" })
 
         expect(response.error?).to be false
+        payload = json(response)
+        expect(payload["entry_file"]).to eq("widget.html")
+        expect(panel.reload.current_version.entry_file).to eq("widget.html")
+        expect(panel.file_for("/").download).to eq("<h1>hi</h1>")
       end
 
       it "errors for a closed panel" do

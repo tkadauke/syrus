@@ -47,6 +47,15 @@ RSpec.describe PreviewPanel::Service do
       expect(panel.file_for("index.html").download).to eq("<h1>v2</h1>")
     end
 
+    it "stores the selected entry file on the new version" do
+      panel = described_class.open!(chat_session: chat_session, title: "Widget preview", files: {})
+
+      described_class.new(panel).update!(files: { "notes.md" => "# Notes" }, entry_file: "notes.md")
+
+      expect(panel.reload.current_version.entry_file).to eq("notes.md")
+      expect(panel.file_for("/").download).to eq("# Notes")
+    end
+
     it "creates a new version and leaves the prior version's files intact" do
       panel = described_class.open!(
         chat_session: chat_session,

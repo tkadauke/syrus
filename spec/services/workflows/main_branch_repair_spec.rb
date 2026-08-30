@@ -85,10 +85,24 @@ RSpec.describe Workflows::MainBranchRepair do
         expect(repository.reload.grader_health).to eq("healthy")
       end
 
+      it "updates ci_health to healthy since preflight now re-runs the ci-phase graders" do
+        repository.update!(ci_health: "broken")
+
+        described_class.after_success(workflow)
+
+        expect(repository.reload.ci_health).to eq("healthy")
+      end
+
       it "records last_graded_sha for the repaired main SHA" do
         described_class.after_success(workflow)
 
         expect(repository.reload.last_graded_sha).to eq("abc123def456")
+      end
+
+      it "records last_ci_evaluated_sha for the repaired main SHA" do
+        described_class.after_success(workflow)
+
+        expect(repository.reload.last_ci_evaluated_sha).to eq("abc123def456")
       end
 
       it "records a grader health check linked to the workflow" do
@@ -97,6 +111,7 @@ RSpec.describe Workflows::MainBranchRepair do
         check = MainBranchHealthCheck.last
         expect(check.workflow).to eq(workflow)
         expect(check.grader_health).to eq("healthy")
+        expect(check.ci_health).to eq("healthy")
       end
 
       it "closes the anchor job" do
@@ -143,10 +158,10 @@ RSpec.describe Workflows::MainBranchRepair do
         described_class.after_success(workflow)
       end
 
-      it "does not call MainHealthChangedService when CI remains unknown" do
+      it "calls MainHealthChangedService when CI was unknown, since preflight passing now resolves ci_health too" do
         repository.update!(grader_health: "unknown", ci_health: "unknown")
 
-        expect(MainHealthChangedService).not_to receive(:on_health_change!)
+        expect(MainHealthChangedService).to receive(:on_health_change!).with(kind_of(Repository))
 
         described_class.after_success(workflow)
       end

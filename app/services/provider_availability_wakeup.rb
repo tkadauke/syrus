@@ -1,23 +1,24 @@
 class ProviderAvailabilityWakeup
-  def self.call(provider:, user:)
-    new(provider: provider, user: user).call
+  def self.call(provider:, user:, force: false)
+    new(provider: provider, user: user, force: force).call
   end
 
-  def initialize(provider:, user:)
+  def initialize(provider:, user:, force: false)
     @provider = provider.to_s
     @user = user
+    @force = force
   end
 
   def call
     provider_paused_workflows.each do |workflow|
-      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, force: force)
     end
     LandingQueueProcessorJob.perform_later if provider_paused_workflows.any?(&:landing_workflow?)
   end
 
   private
 
-  attr_reader :provider, :user
+  attr_reader :provider, :user, :force
 
   def work_unit_workflows
     WorkUnit

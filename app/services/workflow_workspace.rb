@@ -197,19 +197,26 @@ class WorkflowWorkspace
   # Jobs it's the fetched upstream tip (`upstream/<default>`). Used for branch
   # creation and for the three-dot diff base.
   def base_ref
-    self.class.base_ref_for(@job, workflow: @workflow)
+    if base_on_upstream_default? && @workflow.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT).blank?
+      "upstream/#{@job.base_default_branch}"
+    else
+      "origin/#{base_branch}"
+    end
+  end
+
+  def base_branch
+    @base_branch ||= RebaseTarget.branch_for(job: @job, workflow: @workflow)
   end
 
   # SHA/ref-agnostic form usable without an instance (class method used by
   # local_diff_for on a failed workflow's on-disk workspace).
   def self.base_ref_for(job, workflow: nil)
-    prepared_base = workflow&.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT).presence
-    return "origin/#{prepared_base}" if prepared_base.present?
+    branch = RebaseTarget.branch_for(job: job, workflow: workflow)
 
-    if job.base_on_upstream_default?
+    if job.base_on_upstream_default? && workflow&.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT).blank?
       "upstream/#{job.base_default_branch}"
     else
-      "origin/#{job.effective_base_branch}"
+      "origin/#{branch}"
     end
   end
 
@@ -477,10 +484,6 @@ class WorkflowWorkspace
       chdir: path.to_s, env: @env
     )
     @git.run("checkout", @branch_name, chdir: path.to_s)
-  end
-
-  def base_branch
-    @base_branch ||= RebaseTarget.branch_for(job: @job, workflow: @workflow)
   end
 
   def base_on_upstream_default?

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider, updateChatPreviewPanelVisibility } from "../../api/chats"
+import { closeChatPreviewPanel, fetchChatMedia, fetchChatMessagePins, fetchChatPreviewPanelAccessToken, fetchChatPreviewPanelFile, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider, updateChatPreviewPanelVisibility } from "../../api/chats"
 import type { WorkspaceTab } from "./workspaceTabs"
 
 vi.mock("../../api/chats", async (importOriginal) => {
@@ -15,6 +15,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchChatMedia: vi.fn(),
     fetchChatMessagePins: vi.fn(),
     fetchChatPreviewPanelAccessToken: vi.fn(),
+    fetchChatPreviewPanelFile: vi.fn(),
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
@@ -505,6 +506,7 @@ describe("MediaGallery artifacts", () => {
 describe("ChatWorkspacePanel pinned tab", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(fetchChatPreviewPanelFile).mockResolvedValue({ content: "", binary: false, too_large: false, content_type: "text/plain" })
   })
 
   it("lists every pinned message newest first with sender and relative timestamp", async () => {
@@ -565,9 +567,13 @@ describe("ChatWorkspacePanel preview panels", () => {
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
           app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_file_base_path: "/api/v1/app/chats/1/preview_panels/7/files",
           app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
           visibility: "public",
           current_version_id: null,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
           versions: []
         }
       ]
@@ -597,9 +603,13 @@ describe("ChatWorkspacePanel preview panels", () => {
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
           app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_file_base_path: "/api/v1/app/chats/1/preview_panels/7/files",
           app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
           visibility: "public",
           current_version_id: null,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
           versions: []
         }
       ]
@@ -638,10 +648,14 @@ describe("ChatWorkspacePanel preview panels", () => {
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
           app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_file_base_path: "/api/v1/app/chats/1/preview_panels/7/files",
           app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
           visibility: "public",
           current_version_id: 100,
-          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z" } ]
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
+          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" } ]
         }
       ]
     }
@@ -663,13 +677,17 @@ describe("ChatWorkspacePanel preview panels", () => {
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
           app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_file_base_path: "/api/v1/app/chats/1/preview_panels/7/files",
           app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
           visibility: "public",
           current_version_id: 102,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
           versions: [
-            { id: 102, created_at: "2026-08-22T10:00:00Z" },
-            { id: 101, created_at: "2026-08-21T10:00:00Z" },
-            { id: 100, created_at: "2026-08-20T10:00:00Z" }
+            { id: 102, created_at: "2026-08-22T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" },
+            { id: 101, created_at: "2026-08-21T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" },
+            { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" }
           ]
         }
       ]
@@ -698,6 +716,94 @@ describe("ChatWorkspacePanel preview panels", () => {
       "href",
       "/api/v1/app/chats/1/preview_panels/7/export?v=101"
     )
+  })
+
+  it("renders Markdown entries with a preview/source toggle", async () => {
+    vi.mocked(fetchChatPreviewPanelFile).mockResolvedValue({ content: "# Notes\n\nDiscuss **roads**.", binary: false, too_large: false, content_type: "text/markdown" })
+    const payload = {
+      ...payloadWithPanel(),
+      preview_panels: [
+        {
+          ...payloadWithPanel().preview_panels[0],
+          current_version_id: 100,
+          entry_path: "notes.md",
+          entry_content_type: "text/markdown",
+          entry_viewer_kind: "markdown" as const,
+          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "notes.md", entry_content_type: "text/markdown", entry_viewer_kind: "markdown" as const } ]
+        }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(await screen.findByRole("heading", { name: "Notes" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Source" }))
+    expect(screen.getByTestId("coding-source-viewer")).toHaveTextContent("# Notes")
+  })
+
+  it("renders PDF entries through the app-origin raw file URL", () => {
+    const payload = {
+      ...payloadWithPanel(),
+      preview_panels: [
+        {
+          ...payloadWithPanel().preview_panels[0],
+          current_version_id: 100,
+          entry_path: "report.pdf",
+          entry_content_type: "application/pdf",
+          entry_viewer_kind: "pdf" as const,
+          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "report.pdf", entry_content_type: "application/pdf", entry_viewer_kind: "pdf" as const } ]
+        }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(document.querySelector("iframe")?.getAttribute("src")).toBe("/api/v1/app/chats/1/preview_panels/7/files/report.pdf?v=100&raw=1")
+  })
+
+  it("renders image entries with zoom and background controls", () => {
+    const payload = {
+      ...payloadWithPanel(),
+      preview_panels: [
+        {
+          ...payloadWithPanel().preview_panels[0],
+          current_version_id: 100,
+          entry_path: "diagram.svg",
+          entry_content_type: "image/svg+xml",
+          entry_viewer_kind: "image" as const,
+          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "diagram.svg", entry_content_type: "image/svg+xml", entry_viewer_kind: "image" as const } ]
+        }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(screen.getByRole("img", { name: "diagram.svg" })).toHaveAttribute("src", "/api/v1/app/chats/1/preview_panels/7/files/diagram.svg?v=100&raw=1")
+    expect(screen.getByRole("button", { name: "Fit" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Zoom in")).toBeInTheDocument()
+    expect(screen.getByLabelText("Image background")).toBeInTheDocument()
+  })
+
+  it("renders unsupported entries as source with a raw link", async () => {
+    vi.mocked(fetchChatPreviewPanelFile).mockResolvedValue({ content: "plain text", binary: false, too_large: false, content_type: "text/plain" })
+    const payload = {
+      ...payloadWithPanel(),
+      preview_panels: [
+        {
+          ...payloadWithPanel().preview_panels[0],
+          current_version_id: 100,
+          entry_path: "notes.txt",
+          entry_content_type: "text/plain",
+          entry_viewer_kind: "unsupported" as const,
+          versions: [ { id: 100, created_at: "2026-08-20T10:00:00Z", entry_path: "notes.txt", entry_content_type: "text/plain", entry_viewer_kind: "unsupported" as const } ]
+        }
+      ]
+    }
+
+    renderWorkspacePanel(payload, { activeTab: "preview:7" as WorkspaceTab })
+
+    expect(await screen.findByTestId("coding-source-viewer")).toHaveTextContent("plain text")
+    expect(screen.getByRole("link", { name: "Open raw" })).toHaveAttribute("href", "/api/v1/app/chats/1/preview_panels/7/files/notes.txt?v=100&raw=1")
   })
 
   it("does not render a preview tab or iframe once the panel list is empty", () => {
@@ -738,8 +844,12 @@ describe("ChatWorkspacePanel preview panel sharing", () => {
           app_close_path: "/api/v1/app/chats/1/preview_panels/7",
           app_visibility_path: "/api/v1/app/chats/1/preview_panels/7",
           app_export_path: "/api/v1/app/chats/1/preview_panels/7/export",
+          app_file_base_path: "/api/v1/app/chats/1/preview_panels/7/files",
           app_token_path: "/api/v1/app/chats/1/preview_panels/7/token",
           current_version_id: null,
+          entry_path: "index.html",
+          entry_content_type: "text/html",
+          entry_viewer_kind: "html",
           versions: []
         }
       ]

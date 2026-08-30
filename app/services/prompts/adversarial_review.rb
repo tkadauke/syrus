@@ -7,10 +7,11 @@ module Prompts
       pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
     }.freeze
 
-    def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil, criteria: [])
+    def initialize(issue:, diff:, prior_findings:, base_ref:, workflow_kind: nil, feedback_context: nil, criteria: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
+      @base_ref = base_ref.to_s
       @workflow_kind = workflow_kind.to_s
       @feedback_context = feedback_context.to_s
       @criteria = Array(criteria)
@@ -100,7 +101,7 @@ module Prompts
         *file_lines,
         "",
         "Do not rely on this manifest alone. Inspect the workspace directly before deciding:",
-        "- Run `git diff <base>...HEAD -- <path>` for the files that matter.",
+        "- Run `git diff #{@base_ref}...HEAD -- <path>` for the files that matter.",
         "- Read the current source files and related tests with normal file tools.",
         "- Use broad searches when the changed-file list suggests cross-cutting behavior.",
         "- Treat generated artifacts as validation targets, not primary review input."

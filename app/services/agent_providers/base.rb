@@ -70,6 +70,9 @@ module AgentProviders
     def self.refresh_stale_usage!(user:, now: Time.current)
     end
 
+    def self.refresh_usage!(user:, force: false)
+    end
+
     def provider
       self.class.provider
     end

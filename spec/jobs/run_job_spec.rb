@@ -509,6 +509,61 @@ RSpec.describe RunJob, :ci_only do
   end
 
   describe "AutoMerge workflow" do
+    it "reconciles a successful auto_merge when a poller cancels the active run before RunJob records success" do
+      repository.update!(auto_merge_enabled: true)
+      landing_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 42,
+        pr_number: 17,
+        branch_name: "syrus/issue-42-landing",
+        state: "landing"
+      )
+      workflow = Workflow.create!(
+        job: landing_job,
+        user: user,
+        trigger_kind: "auto_merge",
+        agent_provider: landing_job.agent_provider
+      )
+      step = Step.create!(workflow: workflow, kind: "auto_merge", position: 0)
+      run = Run.create!(
+        job: landing_job,
+        step: step,
+        trigger_kind: "auto_merge",
+        agent_provider: landing_job.agent_provider
+      )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/17").to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/json" },
+        body: {
+          number: 17,
+          state: "open",
+          merged: false,
+          body: "Existing PR body",
+          head: { sha: "head-sha" },
+          base: { ref: "main", sha: "base-sha" }
+        }.to_json
+      )
+
+      allow_any_instance_of(Steps::AutoMerge).to receive(:call) do |handler|
+        handler.job.close_with_reason!("pr_merged")
+        handler.run.cancel!
+        handler.run.save!
+      end
+
+      RunJob.perform_now(run.id)
+
+      expect(run.reload).to be_succeeded
+      expect(step.reload).to be_succeeded
+      expect(workflow.reload).to be_succeeded
+      expect(landing_job.reload).to be_closed
+      expect(landing_job.closure_reason).to eq("pr_merged")
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include(
+        "handler auto_merge returned successfully, but terminal state was observed"
+      )
+      expect(StateTransition.where(subject: run, from_state: "cancelled", to_state: "succeeded", source: "reconciler")).to exist
+    end
+
     it "runs final graders before repairing, pushing, and merging" do
       AppSetting.current.update!(grade_max_iterations: 2)
       repository.update!(auto_merge_enabled: true)

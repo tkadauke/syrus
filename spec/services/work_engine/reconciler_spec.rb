@@ -1658,6 +1658,100 @@ RSpec.describe WorkEngine::Reconciler do
     expect(retry_workflow.state).to be_in(%w[queued running])
   end
 
+  it "does not create a retry workflow on every tick while a cancelled start block is still active" do
+    child = Factories.job(user: job.user, repository: job.repository, issue_number: 208, agent_provider: "claude")
+    cancelled = child.latest_workflow
+    first_step = cancelled.first_step
+    first_run = first_step.runs.first
+
+    AppSetting.current.update!(main_branch_breakage_policy: "strict")
+    child.repository.update!(
+      main_branch_health_enabled: true,
+      ci_health: "broken",
+      grader_health: "broken",
+      landing_paused: true
+    )
+    cancelled.update!(
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+        "start_blocked_at" => 6.minutes.ago.iso8601,
+        "start_blocked_last_seen_at" => 1.minute.ago.iso8601,
+        "start_blocked_next_check_at" => 1.minute.ago.iso8601,
+        "start_blocked_count" => 3
+      }
+    )
+    cancelled.update_columns(state: "cancelled", started_at: 6.minutes.ago, finished_at: 1.minute.ago)
+    first_step.update_columns(state: "cancelled", started_at: 6.minutes.ago, finished_at: 1.minute.ago)
+    first_run.update_columns(state: "cancelled", started_at: 6.minutes.ago, finished_at: 1.minute.ago)
+    child.update_columns(state: "queued")
+    intent = cancelled.work_unit.work_intent
+
+    workflow_count = child.workflows.count
+    retry_count = child.workflows.where(trigger_kind: "retry").count
+
+    results = 3.times.map do |index|
+      reconcile_and_execute(work_intent_id: intent.id, now: Time.current + index.minutes)
+    end
+
+    expect(child.reload.workflows.count).to eq(workflow_count)
+    expect(child.workflows.where(trigger_kind: "retry").count).to eq(retry_count)
+    expect(kind(results.last, :requested_work_intent_without_active_unit)).to be_nil
+    expect(plan(results.last, :launch_requested_work_intent)).to be_nil
+    results.each do |result|
+      expect(kind(result, :queued_job_after_cancelled_start_block)).to have_attributes(
+        safe_to_auto_repair: false,
+        recommended_repair_action: "wait_for_cancelled_start_block_to_clear"
+      )
+      expect(kind(result, :queued_job_after_cancelled_workflow)).to be_nil
+      expect(plan(result, :wait_for_cancelled_start_block_to_clear)).to have_attributes(
+        auto_executable: false,
+        target_type: "Job",
+        target_id: child.id
+      )
+      expect(plan(result, :retry_job_after_cancelled_workflow)).to be_nil
+    end
+  end
+
+  it "relaunches cancelled stack-start-blocked intents once dependencies are ready regardless of recheck timing" do
+    [ 5.minutes.from_now, 1.minute.ago ].each_with_index do |next_check_at, index|
+      blocker = Factories.job_record(
+        user: job.user,
+        repository: job.repository,
+        state: "closed",
+        closure_reason: "pr_merged",
+        issue_number: 300 + index
+      )
+      child = Factories.job(user: job.user, repository: job.repository, issue_number: 400 + index, agent_provider: "claude")
+      JobDependency.create!(job: child, depends_on_job: blocker, source: "manual")
+      cancelled = child.latest_workflow
+      first_step = cancelled.first_step
+      first_run = first_step.runs.first
+      cancelled.update!(
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
+          "start_blocked_at" => 10.minutes.ago.iso8601,
+          "start_blocked_next_check_at" => next_check_at.iso8601
+        }
+      )
+      cancelled.update_columns(state: "cancelled", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+      first_step.update_columns(state: "cancelled", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+      first_run.update_columns(state: "cancelled", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+      cancelled.work_unit.mark_terminal!("cancelled")
+      child.update_columns(state: "queued")
+      intent = cancelled.work_unit.work_intent
+
+      expect {
+        result = reconcile_and_execute(work_intent_id: intent.id, now: Time.current)
+
+        expect(kind(result, :queued_job_after_cancelled_start_block)).to be_nil
+        expect(kind(result, :requested_work_intent_without_active_unit)).to have_attributes(
+          recommended_repair_action: "launch_requested_work_intent",
+          safe_to_auto_repair: true
+        )
+      }.to change { child.workflows.count }.by(1)
+    end
+  end
+
   it "does not retry a queued Job after cancelled workflow while active WorkUnit ownership exists" do
     child = Factories.job(user: job.user, repository: job.repository, issue_number: 206, agent_provider: "claude")
     cancelled = child.latest_workflow
@@ -4461,6 +4555,153 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(repair_plan).to have_attributes(auto_executable: true, target_type: "Workflow", target_id: workflow.id)
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("deterministic_idempotent")
+  end
+
+  it "keeps failed ci_failure validation visible after an unrelated successful rebase" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+
+    %w[prepare grader_fanout].each do |failed_step_kind|
+      target_job = Factories.job(agent_provider: "claude")
+      initial = target_job.latest_workflow
+      initial_step = initial.first_step
+      initial_run = initial_step.runs.first
+      initial.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+      initial_step.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+      initial_run.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+      target_job.update_columns(state: "failed")
+
+      ci_workflow = Workflow.create!(
+        job: target_job,
+        trigger_kind: "ci_failure",
+        agent_provider: target_job.agent_provider,
+        state: "failed",
+        started_at: 15.minutes.ago,
+        finished_at: 14.minutes.ago,
+        cleaned_up_at: nil
+      )
+      ci_step = ci_workflow.steps.create!(
+        kind: failed_step_kind,
+        position: 0,
+        state: "failed",
+        started_at: 15.minutes.ago,
+        finished_at: 14.minutes.ago
+      )
+      ci_run = ci_step.runs.create!(
+        job: target_job,
+        trigger_kind: "ci_failure",
+        agent_provider: target_job.agent_provider,
+        state: "failed",
+        started_at: 15.minutes.ago,
+        finished_at: 14.minutes.ago
+      )
+      RunDiagnostic.create!(
+        run: ci_run,
+        error_class: "ActiveRecord::ConnectionNotEstablished",
+        error_message: "Can't connect to server on syrus-mysql (115)"
+      )
+      attach_work_unit(ci_workflow, kind: "ci_failure", state: "failed")
+
+      rebase = Workflow.create!(
+        job: target_job,
+        trigger_kind: "rebase",
+        agent_provider: target_job.agent_provider,
+        state: "succeeded",
+        started_at: 10.minutes.ago,
+        finished_at: 9.minutes.ago
+      )
+      rebase_step = rebase.steps.create!(
+        kind: "force_push",
+        position: 0,
+        state: "succeeded",
+        finished_at: 9.minutes.ago
+      )
+      rebase_step.runs.create!(
+        job: target_job,
+        trigger_kind: "rebase",
+        agent_provider: target_job.agent_provider,
+        state: "succeeded",
+        finished_at: 9.minutes.ago
+      )
+      attach_work_unit(rebase, kind: "rebase", state: "succeeded")
+
+      result = nil
+      expect {
+        result = reconcile_and_execute(job_id: target_job.id)
+      }.to change { AutoRetryAttempt.where(retry_kind: "retry_workflow").count }.by(1)
+        .and have_enqueued_job(AutoRetryJob)
+      attempt = AutoRetryAttempt.order(:id).last
+
+      expect(kind(result, :retryable_run_failure)).to have_attributes(
+        safe_to_auto_repair: true,
+        recommended_repair_action: "plan_retry"
+      )
+      expect(plan(result, :retry_workflow)).to have_attributes(
+        auto_executable: true,
+        target_type: "Workflow",
+        target_id: ci_workflow.id
+      )
+      expect(ci_run.reload.run_failure_classification).to have_attributes(
+        classification: "database_lock",
+        retryable: true
+      )
+
+      expect {
+        perform_enqueued_jobs(only: AutoRetryJob)
+      }.to change { target_job.workflows.count }.by(1)
+      expect(attempt.reload).to have_attributes(performed_at: be_present, skipped_reason: nil)
+      expect(target_job.workflows.order(:id).last).to have_attributes(trigger_kind: "retry")
+    end
+  end
+
+  it "does not retry an older ci_failure after newer successful validation" do
+    workflow.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+    step.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
+    job.update_columns(state: "failed")
+
+    ci_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "ci_failure",
+      agent_provider: job.agent_provider,
+      state: "failed",
+      finished_at: 14.minutes.ago,
+      cleaned_up_at: nil
+    )
+    ci_step = ci_workflow.steps.create!(
+      kind: "grader_fanout",
+      position: 0,
+      state: "failed",
+      finished_at: 14.minutes.ago
+    )
+    ci_run = ci_step.runs.create!(
+      job: job,
+      trigger_kind: "ci_failure",
+      agent_provider: job.agent_provider,
+      state: "failed",
+      finished_at: 14.minutes.ago
+    )
+    RunFailureClassification.create!(
+      run: ci_run,
+      classification: "database_lock",
+      retryable: true,
+      confidence: 0.8,
+      reason: "transient DB connection failure",
+      classified_at: 14.minutes.ago
+    )
+
+    validated = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      agent_provider: job.agent_provider,
+      state: "succeeded",
+      finished_at: 9.minutes.ago
+    )
+    validated.steps.create!(kind: "grader_collect", position: 0, state: "succeeded", finished_at: 9.minutes.ago)
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(plan(result, :retry_workflow)).to be_nil
   end
 
   it "does not plan automatic repair for external_pr_ingest grader failures even when the classification looks retryable" do

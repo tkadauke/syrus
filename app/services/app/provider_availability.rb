@@ -261,8 +261,6 @@ module App
     end
 
     def current_usage_limit_evidence
-      return unless provider == "codex"
-
       ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "exhausted")
         .unrepaired_for_circuit
@@ -270,7 +268,7 @@ module App
         .recent
         .detect do |evidence|
           next false if false_positive_codex_evidence?(evidence)
-          next false if codex_evidence_reset_at(evidence)&.<= now
+          next false if usage_evidence_reset_at(evidence)&.<= now
 
           !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
             user: user,
@@ -376,20 +374,19 @@ module App
     end
 
     def usage_snapshot
-      return unless provider == "codex"
-
       PerformanceLogging.phase("provider_availability.usage_snapshot", provider: provider) do
-        snapshot = user.codex_usage_snapshot || {}
-        windows = codex_usage_windows(snapshot)
-        evidence = latest_codex_usage_evidence
-        status = user.codex_usage_status.presence || evidence&.status
-        observed_at = user.codex_usage_observed_at&.iso8601 || evidence&.observed_at&.iso8601
+        snapshot = usage_snapshot_source
+        evidence = latest_usage_evidence
+        windows = usage_windows(snapshot, observed_at: evidence&.observed_at)
+        status = usage_status(evidence)
+        observed_at = usage_observed_at(evidence)
+        remaining_percent = usage_remaining_percent(snapshot)
         return if windows.blank? && snapshot["remaining_percent"].blank? && status.blank? && evidence.blank?
 
         {
           status: status,
           observed_at: observed_at,
-          remaining_percent: snapshot["remaining_percent"],
+          remaining_percent: remaining_percent,
           windows: windows,
           evidence: evidence&.summary
         }.compact
@@ -397,24 +394,20 @@ module App
     end
 
     def latest_evidence_payload(primary: nil)
-      return unless provider == "codex"
-
       PerformanceLogging.phase("provider_availability.latest_evidence_payload", provider: provider) do
-        current = primary || latest_codex_evidence&.summary
-        return if current.blank? && latest_codex_positive_evidence.blank? && latest_codex_negative_evidence.blank?
+        current = primary || latest_evidence&.summary
+        return if current.blank? && latest_positive_evidence.blank? && latest_negative_evidence.blank?
 
         {
           current: current,
-          latest_positive: evidence_summary_if_not_older_than(latest_codex_positive_evidence, current),
-          latest_negative: evidence_summary_if_not_older_than(latest_codex_negative_evidence, current)
+          latest_positive: evidence_summary_if_not_older_than(latest_positive_evidence, current),
+          latest_negative: evidence_summary_if_not_older_than(latest_negative_evidence, current)
         }.compact
       end
     end
 
     def pause_metadata
-      observed_at = if provider == "codex"
-        latest_codex_evidence&.observed_at || user.codex_usage_observed_at
-      end
+      observed_at = latest_evidence&.observed_at || (user.codex_usage_observed_at if provider == "codex")
       {
         pause_threshold_percent: user.provider_availability_pause_threshold_for(provider),
         pause_enabled: user.provider_availability_pause_enabled?(provider),
@@ -455,25 +448,25 @@ module App
       }.compact
     end
 
-    def latest_codex_evidence
-      @latest_codex_evidence ||= latest_displayable_codex_evidence(ProviderAvailabilityEvidence.where(user: user, provider: "codex"))
+    def latest_evidence
+      @latest_evidence ||= latest_displayable_evidence(ProviderAvailabilityEvidence.where(user: user, provider: provider))
     end
 
-    def latest_codex_positive_evidence
-      @latest_codex_positive_evidence ||= ProviderAvailabilityEvidence.where(user: user, provider: "codex").positive.recent.first
+    def latest_positive_evidence
+      @latest_positive_evidence ||= ProviderAvailabilityEvidence.where(user: user, provider: provider).positive.recent.first
     end
 
-    def latest_codex_negative_evidence
-      @latest_codex_negative_evidence ||= latest_displayable_codex_evidence(ProviderAvailabilityEvidence.where(user: user, provider: "codex").negative)
+    def latest_negative_evidence
+      @latest_negative_evidence ||= latest_displayable_evidence(ProviderAvailabilityEvidence.where(user: user, provider: provider).negative)
     end
 
-    def latest_codex_usage_evidence
-      @latest_codex_usage_evidence ||= latest_displayable_codex_evidence(
-        ProviderAvailabilityEvidence.where(user: user, provider: "codex", source: ProviderAvailabilityEvidence::PROBE_SOURCES)
+    def latest_usage_evidence
+      @latest_usage_evidence ||= latest_displayable_evidence(
+        ProviderAvailabilityEvidence.where(user: user, provider: provider, source: ProviderAvailabilityEvidence::PROBE_SOURCES)
       )
     end
 
-    def latest_displayable_codex_evidence(scope)
+    def latest_displayable_evidence(scope)
       scope.recent.detect { |evidence| !false_positive_codex_evidence?(evidence) }
     end
 
@@ -483,8 +476,13 @@ module App
           (signal.run.finished_at || signal.run.updated_at || now) + ProviderCircuitBreaker::USAGE_LIMIT_OPEN_FOR
       end
 
-      codex_evidence_reset_at(signal.evidence) ||
+      usage_evidence_reset_at(signal.evidence) ||
         (signal.evidence&.observed_at || now) + ProviderCircuitBreaker::USAGE_LIMIT_OPEN_FOR
+    end
+
+    def usage_evidence_reset_at(evidence)
+      return codex_evidence_reset_at(evidence) if evidence&.provider == "codex"
+      return claude_evidence_reset_at(evidence) if evidence&.provider == "claude"
     end
 
     def codex_evidence_reset_at(evidence)
@@ -503,7 +501,47 @@ module App
       nil
     end
 
-    def codex_usage_windows(snapshot)
+    def claude_evidence_reset_at(evidence)
+      snapshot = evidence&.details&.dig("snapshot") || {}
+      minutes = [
+        snapshot["session_reset_minutes"],
+        snapshot["weekly_reset_minutes"]
+      ].compact.min
+      return if minutes.blank?
+
+      evidence.observed_at + Float(minutes).minutes + ProviderQuotaReset::RETRY_BUFFER
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def usage_snapshot_source
+      return user.codex_usage_snapshot || {} if provider == "codex"
+
+      latest_usage_evidence&.details&.dig("snapshot") || {}
+    end
+
+    def usage_status(evidence)
+      return user.codex_usage_status.presence || evidence&.status if provider == "codex"
+
+      evidence&.status
+    end
+
+    def usage_observed_at(evidence)
+      return user.codex_usage_observed_at&.iso8601 || evidence&.observed_at&.iso8601 if provider == "codex"
+
+      evidence&.observed_at&.iso8601
+    end
+
+    def usage_remaining_percent(snapshot)
+      return snapshot["remaining_percent"] if snapshot["remaining_percent"].present?
+
+      used_percentages = [ snapshot["session_pct"], snapshot["weekly_pct"] ].compact
+      return if used_percentages.blank?
+
+      (100.0 - used_percentages.max.to_f).clamp(0.0, 100.0).round(1)
+    end
+
+    def usage_windows(snapshot, observed_at: nil)
       [ snapshot["primary"], snapshot["secondary"] ].compact.each_with_object({}) do |window, memo|
         label = window["label"].to_s
         key = case label
@@ -518,6 +556,31 @@ module App
           reset_at: window["reset_at"]
         }.compact
       end
+        .merge(claude_usage_windows(snapshot, observed_at: observed_at))
+    end
+
+    def claude_usage_windows(snapshot, observed_at: nil)
+      [
+        [ "five_hour", "5h", snapshot["session_pct"], snapshot["session_reset_minutes"] ],
+        [ "weekly", "weekly", snapshot["weekly_pct"], snapshot["weekly_reset_minutes"] ]
+      ].each_with_object({}) do |(key, label, used_percent, reset_minutes), memo|
+        next if used_percent.blank?
+
+        memo[key] = {
+          label: label,
+          remaining_percent: (100.0 - used_percent.to_f).clamp(0.0, 100.0).round(1),
+          used_percent: used_percent,
+          reset_at: reset_time_from_minutes(reset_minutes, observed_at: observed_at)
+        }.compact
+      end
+    end
+
+    def reset_time_from_minutes(minutes, observed_at: nil)
+      return if minutes.blank?
+
+      ((observed_at || now) + Float(minutes).minutes).iso8601
+    rescue ArgumentError, TypeError
+      nil
     end
 
     def provider_label
