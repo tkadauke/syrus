@@ -54,6 +54,16 @@ RSpec.describe PluginRouteResolver do
 
       expect(described_class.match?(request, controller_prefix: "api/v1/app/")).to be false
     end
+
+    it "recognizes declared disabled API routes for wildcard routing" do
+      register_plugin("disabled_widgets", [
+        { verb: "GET", path: "/api/v1/app/disabled_widgets", controller: "api/v1/app/disabled_widgets#index" }
+      ])
+      PluginRecord.find_by!(name: "disabled_widgets").update!(enabled: false)
+      request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/disabled_widgets")
+
+      expect(described_class.declared_api_route?(request, controller_prefix: "api/v1/app/")).to be true
+    end
   end
 
   describe ".spa_route_declared?" do
