@@ -1106,10 +1106,10 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
       if (action === "resume") return resumeChatGoal(payload.chat.id)
       return stopChatGoal(payload.chat.id)
     },
-    onSuccess: (updated) => {
+    onSuccess: (updated, action) => {
       queryClient.setQueryData<ChatPayload>(queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
-      onNotice(updated.message || null)
+      onNotice(goalActionNotice(action, t))
     },
     onError: (error) => onNotice(errorMessage(error, t("goal_update_error")))
   })
@@ -1189,7 +1189,7 @@ function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: C
     onSuccess: (updated) => {
       queryClient.setQueryData<ChatPayload>(queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
-      onNotice(updated.message || t("goal_updated_notice"))
+      onNotice(t("goal_updated_notice"))
       onClose()
     },
     onError: (error) => onNotice(errorMessage(error, t("goal_update_error")))
@@ -1272,6 +1272,12 @@ function goalStatusLabel(status: ChatGoal["status"], t: (key: string, options?: 
 function goalPolicyLabel(goal: ChatGoal, mode: ChatMode, t: (key: string, options?: Record<string, unknown>) => string) {
   if (mode === "planning") return goal.auto_file_proposals ? t("goal_policy_auto_file_short") : t("goal_policy_draft_proposals_short")
   return goal.auto_submit_jobs ? t("goal_policy_auto_submit_short") : t("goal_policy_draft_jobs_short")
+}
+
+function goalActionNotice(action: "pause" | "resume" | "stop", t: (key: string, options?: Record<string, unknown>) => string) {
+  if (action === "pause") return t("goal_paused_notice")
+  if (action === "resume") return t("goal_resumed_notice")
+  return t("goal_stopped_notice")
 }
 
 function PlayIcon({ className = "h-4 w-4" }: { className?: string }) {
