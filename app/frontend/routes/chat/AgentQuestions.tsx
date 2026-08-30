@@ -21,7 +21,7 @@ type AgentAnswerDraft = string | string[] | null
 export function AgentQuestions({ questions, queryKey, onNotice }: { questions: ChatAgentQuestion[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   return (
-    <section aria-label={t("aria_agent_questions")} className="w-full max-w-3xl space-y-3 rounded border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/60">
+    <section aria-label={t("aria_agent_questions")} className="w-full max-w-3xl space-y-3 rounded border border-info/30 bg-info/10 p-3">
       {questions.map((question) => <AgentQuestionCard key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />)}
     </section>
   )
@@ -81,7 +81,7 @@ function AgentQuestionCard({ question, queryKey, onNotice }: { question: ChatAge
 
   if (phase === "summary") {
     return (
-      <div className="space-y-3 rounded border border-blue-200 bg-white p-3 text-sm dark:border-blue-800 dark:bg-gray-950">
+      <div className="space-y-3 rounded border border-info/30 bg-white p-3 text-sm dark:bg-gray-950">
         {errorBanner}
         <h3 className="font-medium text-gray-900 dark:text-gray-100">{t("review_your_answers")}</h3>
         <ol className="space-y-2">
@@ -158,7 +158,7 @@ function AgentQuestionStepField({ subQuestion, draft, disabled, onCommit }: { su
   }
 
   return (
-    <div className="space-y-3 rounded border border-blue-200 bg-white p-3 text-sm dark:border-blue-800 dark:bg-gray-950">
+    <div className="space-y-3 rounded border border-info/30 bg-white p-3 text-sm dark:bg-gray-950">
       <Markdown className="font-medium text-gray-900 dark:text-gray-100" text={subQuestion.question} />
       {options.length > 0 && subQuestion.multiple ? (
         <div className="flex flex-col gap-2">

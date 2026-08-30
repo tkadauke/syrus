@@ -89,7 +89,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
             {t('repository.github_quota_prefix')} <strong>{payload.repository.github_rate_limit.remaining.toLocaleString()}</strong> / {payload.repository.github_rate_limit.limit.toLocaleString()} ({payload.repository.github_rate_limit.resource})
           </span>
         ) : null}
-        <a className="text-blue-600 dark:text-blue-400 hover:underline" href={payload.paths.github_issues_path} rel="noopener" target="_blank">{t('repository.view_on_github')}</a>
+        <a className="text-brand hover:underline dark:text-brand-emphasis" href={payload.paths.github_issues_path} rel="noopener" target="_blank">{t('repository.view_on_github')}</a>
       </div>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -124,7 +124,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
               </button>
             ) : null}
             <button
-              className="rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60 disabled:opacity-50"
+              className="rounded border border-brand/30 bg-brand/10 px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand/20 disabled:opacity-50"
               disabled={selected.length === 0 || command.isPending}
               onClick={() => command.mutate({ kind: "bulk", bulkAction: "delegate", issueNumbers: selected })}
               type="button"
@@ -187,7 +187,7 @@ export function RepositoryIssues({ isRefreshing, onRefresh, payload, prefix }: {
           </h2>
           <form className="mt-3 space-y-3" onSubmit={submitComment}>
             <textarea
-              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand"
               onChange={(event) => setCommentBody(event.target.value)}
               rows={5}
               value={commentBody}
@@ -248,7 +248,7 @@ function RepositoryIssueRow({
           {issue.delegated ? (
             <span className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 px-2 py-1 text-center text-xs font-medium text-green-700 dark:text-green-300">{t('repository.delegated')}</span>
           ) : (
-            <button className="rounded bg-blue-50 dark:bg-blue-950/40 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/60" disabled={commandPending} onClick={onDelegate} type="button">{t('repository.delegate')}</button>
+            <button className="rounded bg-brand/10 px-2 py-1 text-xs font-medium text-brand hover:bg-brand/20" disabled={commandPending} onClick={onDelegate} type="button">{t('repository.delegate')}</button>
           )}
         </div>
       </td>

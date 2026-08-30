@@ -293,7 +293,7 @@ function ConfidencePill({ confidence }: { confidence: RepositoryThroughputConfid
   const className = {
     none: "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400",
     low: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300",
-    medium: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300",
+    medium: "border-info/30 bg-info/10 text-info",
     high: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
   }[confidence]
 
@@ -405,7 +405,7 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
           </dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
             {repository.owner_user.profile_path ? (
-              <Link className="text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
+              <Link className="text-brand hover:underline dark:text-brand-emphasis" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
             ) : (
               repository.owner_user.display_name || repository.owner_user.email_address
             )}
@@ -736,7 +736,7 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
       <td className="hidden px-4 py-3 text-gray-600 dark:text-gray-400 sm:table-cell">{job.runs_count}</td>
       <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell"><RelativeTimestamp value={job.updated_at} /></td>
       <td className="hidden px-4 py-3 text-right sm:table-cell">
-        <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.job_path, prefix)}>{t('repository.view')}</Link>
       </td>
     </tr>
   )
@@ -769,14 +769,14 @@ function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["sourc
   if (!job.source.path) return <span className="text-gray-600 dark:text-gray-400">{job.source.label}</span>
   if (!job.source.external) {
     return (
-      <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(job.source.path, prefix)}>
+      <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(job.source.path, prefix)}>
         {job.source.label}
       </Link>
     )
   }
 
   return (
-    <a className="text-blue-600 dark:text-blue-400 underline hover:no-underline" href={job.source.path} rel="noopener" target="_blank">
+    <a className="text-brand underline hover:no-underline dark:text-brand-emphasis" href={job.source.path} rel="noopener" target="_blank">
       {job.source.label}
     </a>
   )

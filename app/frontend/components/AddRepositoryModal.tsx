@@ -233,7 +233,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
             </h2>
             <button
               aria-label={t('add_repository.close')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
               onClick={() => { onSaved?.(); onClose() }}
               type="button"
             >
@@ -261,7 +261,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {t('add_repository.install_all_prefix')}{" "}
                   <button
-                    className="font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline"
+                    className="font-medium text-brand-emphasis underline hover:no-underline"
                     type="button"
                     onClick={() => {
                       openInNewTab(saved.credential_status.generic_install_url as string)
@@ -307,7 +307,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
             </div>
             <button
               aria-label={t('add_repository.close')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
               onClick={onClose}
               type="button"
             >

@@ -92,7 +92,7 @@ function ProfileWebsite({ value, websiteLabel, noWebsiteLabel }: { value: string
     <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{websiteLabel}</p>
       <p className="mt-1 break-words text-sm text-gray-800 dark:text-gray-200">
-        {value ? <a className="text-blue-600 dark:text-blue-400 hover:underline" href={value} rel="noopener" target="_blank">{value}</a> : noWebsiteLabel}
+        {value ? <a className="text-brand hover:underline dark:text-brand-emphasis" href={value} rel="noopener" target="_blank">{value}</a> : noWebsiteLabel}
       </p>
     </div>
   )
@@ -111,7 +111,7 @@ function RecentJob({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
   return (
     <article className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
-        <Link className="break-words text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 hover:underline" to={withRoutePrefix(job.path, prefix)}>
+        <Link className="break-words text-sm font-medium text-gray-900 hover:text-brand hover:underline dark:text-gray-100 dark:hover:text-brand-emphasis" to={withRoutePrefix(job.path, prefix)}>
           {job.title}
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
@@ -126,7 +126,7 @@ function RecentJob({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
 
 function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
   return (
-    <Link className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
+    <Link className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-400 dark:hover:text-brand-emphasis" to={withRoutePrefix(owner.profile_path, prefix)}>
       {owner.display_name}
     </Link>
   )
@@ -135,4 +135,3 @@ function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob
 function humanize(value: string) {
   return value.replace(/_/g, " ").replace(/^\w/, (match) => match.toUpperCase())
 }
-

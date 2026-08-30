@@ -234,16 +234,16 @@ function LinkingInstructions({
   }
 
   return (
-    <div className="mt-3 rounded border border-blue-100 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 p-3 text-sm text-blue-950 dark:text-blue-100">
+    <div className="mt-3 rounded border border-info/20 bg-info/10 p-3 text-sm text-info">
       <p className="font-medium">{t("connected_platforms.instructions_heading")}</p>
       <p className="mt-1 text-xs">{tokenPayload.instructions.text}</p>
       {tokenPayload.instructions.bot_handle ? (
         <div className="mt-2 flex items-center gap-2">
-          <code className="flex-1 rounded bg-blue-100 dark:bg-blue-900/60 px-2 py-1 font-mono text-xs break-all">
+          <code className="flex-1 rounded bg-info/10 px-2 py-1 font-mono text-xs break-all">
             /start {tokenPayload.token}
           </code>
           <button
-            className="shrink-0 rounded border border-blue-300 dark:border-blue-700 px-2 py-1 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60"
+            className="shrink-0 rounded border border-info/30 px-2 py-1 text-xs text-info hover:bg-info/10"
             onClick={copyToken}
             type="button"
           >
@@ -251,7 +251,7 @@ function LinkingInstructions({
           </button>
         </div>
       ) : null}
-      <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">{t("connected_platforms.expires")}</p>
+      <p className="mt-2 text-xs text-info">{t("connected_platforms.expires")}</p>
     </div>
   )
 }
