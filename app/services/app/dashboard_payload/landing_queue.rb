@@ -166,6 +166,8 @@ module App
         failed_workflow = landing_queue_recent_failed_workflow(front_jobs)
         return landing_queue_failed_workflow_status(failed_workflow, front_jobs) if failed_workflow
 
+        return nil if active_landing_work_for_visible_queue?
+
         drift_job = front_jobs.find { |job| landing_state_drift_reason_for(job).present? }
         return landing_queue_drift_status(drift_job) if drift_job
 
@@ -276,6 +278,17 @@ module App
           job_ids = current_landing_queue_jobs.map(&:id)
           WorkUnits::Ownership.active_job_ids(job_ids)
         end
+      end
+
+      def active_landing_work_for_visible_queue?
+        repository_ids = current_landing_queue_jobs.filter_map(&:repository_id).uniq
+        return false if repository_ids.empty?
+
+        WorkUnit
+          .joins(:workflow)
+          .where(repository_id: repository_ids, kind: WorkDefinitions.landing_lock_kinds, state: WorkUnits::Ownership::ACTIVE_STATES)
+          .where(workflows: { state: Workflow::TriggerKind::ACTIVE_STATES })
+          .exists?
       end
 
       def landing_queue_front_jobs(jobs)

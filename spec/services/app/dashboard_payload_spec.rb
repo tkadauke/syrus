@@ -641,6 +641,24 @@ RSpec.describe App::DashboardPayload do
       expect(result.dig(:landing_queue, :status)).to be_nil
     end
 
+    it "does not show the idle dispatch summary while another landing unit is active for the visible repository" do
+      first = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      first.update_columns(
+        landing_queue_position: 1,
+        landing_queue_entry_position: 1,
+        landing_queue_entry_key: "job:#{first.id}",
+        landing_queue_cached_at: Time.current
+      )
+
+      active = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 102)
+      active_workflow = Workflow.create!(job: active, trigger_kind: "merge_train", state: "running")
+      attach_work_unit(active_workflow, state: "running", kind: "merge_train", member_jobs: [ active ])
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result.dig(:landing_queue, :status)).to be_nil
+    end
+
     it "shows required landing queue columns with neutral queue status copy" do
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
       required = result[:controls][:columns][:required]
