@@ -232,7 +232,7 @@ handoff succeeds.
 
 **Step chain:** `preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
 
-The workflow runs a preflight grader check before invoking the agent. If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates `grader_health` to healthy, calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
+The workflow runs a preflight grader check before invoking the agent. Preflight resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_repair` is a `LandingGraderPlan::CI_TRIGGER_KINDS` entry) — the same phase `ci_failure`/`main_grader` use, and the phase that actually mirrors `ci_health` (e.g. a `phases: [ci]` grader like `rspec-ci`, not a `phases: [landing]`-only grader like plain `rspec`). If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates both `grader_health` and `ci_health` to healthy (a preflight pass under the `:ci` phase is conclusive evidence for both signals), calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
 
 If any required preflight grader fails, the chain continues normally to the implement step. The agent fixes the broken code, graders validate the fix, and a PR is opened. `PollPullRequestJob` calls `MainHealthChangedService.repair_landed!` when the PR merges.
 
