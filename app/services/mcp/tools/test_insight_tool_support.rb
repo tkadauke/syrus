@@ -20,6 +20,18 @@ module Mcp::Tools
       end
     end
 
+    def job_for(context, job_id:)
+      scope = context.user.admin? ? Job.all : Job.accessible_to(context.user)
+      scope = scope.where(repository_id: context.repository.id) if context.run? && context.repository
+      scope.find(normalize_numeric_ref(job_id, prefix: "job"))
+    end
+
+    def run_for(context, run_id:)
+      scope = context.user.admin? ? Run.joins(:job) : Run.joins(job: :repository).merge(Job.accessible_to(context.user))
+      scope = scope.where(jobs: { repository_id: context.repository.id }) if context.run? && context.repository
+      scope.find(normalize_numeric_ref(run_id, prefix: "run"))
+    end
+
     def repository_scope_for(context)
       base = context.user.admin? ? Repository.all : Repository.accessible_to(context.user)
       base = base.where(id: context.repository.id) if context.run? && context.repository
@@ -40,6 +52,14 @@ module Mcp::Tools
       return value if value == true || value == false
 
       !%w[false 0 no off].include?(value.to_s.downcase)
+    end
+
+    def normalize_numeric_ref(value, prefix:)
+      ref = value.to_s.strip
+      ref = ref[(prefix.length + 1)..] if ref.match?(/\A#{Regexp.escape(prefix)}-/i)
+      Integer(ref)
+    rescue ArgumentError, TypeError
+      raise ActiveRecord::RecordNotFound
     end
   end
 end
