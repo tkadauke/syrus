@@ -202,6 +202,52 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       expect(commit_message).to eq("Different workspace HEAD")
     end
 
+    it "restores a published upstream checkpoint when retrying from a rebuilt workspace" do
+      respond_step = Step.create!(workflow: workflow, kind: "respond", position: 0, next_step_id: step.id)
+      upstream_sha = head_sha
+      upstream_run = Run.create!(
+        job: job,
+        step: respond_step,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        head_sha: upstream_sha
+      )
+      checkpoint_ref = RunCheckpoint.remote_ref_for(upstream_run)
+      checkpoint_remote = @ws_path.dirname.join("checkpoint-#{upstream_run.id}-#{SecureRandom.hex(4)}.git")
+      sh("git clone --bare -q #{@ws_path} #{checkpoint_remote}")
+      sh("git -C #{@ws_path} push -q file://#{checkpoint_remote} HEAD:#{checkpoint_ref}")
+      RunCheckpoint.create!(
+        run: upstream_run,
+        workflow: workflow,
+        step: respond_step,
+        job: job,
+        repository: repository,
+        user: user,
+        step_kind: "respond",
+        commit_sha: upstream_sha,
+        remote_ref: checkpoint_ref,
+        status: "published",
+        published_at: Time.current
+      )
+
+      sh("git -C #{@ws_path} checkout --orphan rebuilt-from-main")
+      sh("git -C #{@ws_path} rm -rf .")
+      File.write(@ws_path.join("base_only.rb"), "class BaseOnly; end\n")
+      sh("git -C #{@ws_path} add base_only.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Rebuilt workspace from base'")
+      allow(GithubAuthenticatedGit).to receive(:run) do |**_kwargs, &block|
+        block.call("file://#{checkpoint_remote}")
+      end
+      stub_agent(title: "Address review feedback: tighten docstring", body: "Tightened the docs.")
+
+      handler.call
+
+      expect(workflow.reload.artifact("amend_commit_subject")).to eq("Address review feedback: tighten docstring")
+      expect(commit_message).to start_with("Address review feedback: tighten docstring")
+      expect(@ws_path.join("feature.rb")).to exist
+      expect(@ws_path.join("base_only.rb")).not_to exist
+    end
+
     it "fails if the summarize_amend agent changes workspace contents before submitting metadata" do
       allow(handler).to receive(:run_agent) do
         File.write(@ws_path.join("unrelated.rb"), "class Unrelated; end\n")

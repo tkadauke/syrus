@@ -495,6 +495,59 @@ module Steps
       RunCheckpointPublisher.publish!(run: run, workspace: workspace, log: method(:log))
     end
 
+    def restore_run_checkpoint_if_needed!(source_run, context:)
+      expected_sha = source_run&.head_sha.to_s.strip
+      return if expected_sha.blank?
+      return if workspace_contains_sha?(expected_sha)
+
+      checkpoint = source_run.run_checkpoint
+      return unless checkpoint&.published?
+
+      authenticated_git("git_checkpoint_restore") do |url|
+        streaming_git.run(
+          "fetch", url, checkpoint.remote_ref,
+          chdir: workspace.path.to_s,
+          env: { "GIT_TERMINAL_PROMPT" => "0" }
+        )
+      end
+
+      fetched_sha = GitRunner.new.run("rev-parse", "FETCH_HEAD", chdir: workspace.path.to_s).strip
+      unless fetched_sha == checkpoint.commit_sha && fetched_sha == expected_sha
+        raise StepFailed,
+              "#{context} checkpoint #{checkpoint.remote_ref} resolved to #{fetched_sha}, " \
+              "expected #{expected_sha}"
+      end
+
+      streaming_git.run(
+        "checkout", "-B", workspace.branch_name, expected_sha,
+        chdir: workspace.path.to_s
+      )
+      log("#{context}: restored workspace from #{checkpoint.remote_ref} at #{expected_sha.first(12)}", kind: "system")
+    rescue GitRunner::GitError => e
+      log("#{context}: could not restore checkpoint for Run ##{source_run&.id}: #{e.message}", kind: "system")
+    end
+
+    def workspace_contains_sha?(expected_sha)
+      actual_sha = head_sha
+      return true if actual_sha == expected_sha
+
+      GitRunner.new.run("merge-base", "--is-ancestor", expected_sha, actual_sha, chdir: workspace.path.to_s)
+      true
+    rescue GitRunner::GitError
+      false
+    end
+
+    def authenticated_git(operation_type, &block)
+      GithubAuthenticatedGit.run(
+        repository: repository,
+        user: job.user,
+        git: GitRunner.new,
+        operation_type: operation_type,
+        log: method(:log),
+        &block
+      )
+    end
+
     # Agent edits files; we commit them locally with a readable fallback
     # subject. Downstream summarize steps may rewrite the latest commit
     # message before push/open, but intermediate commits can still appear in

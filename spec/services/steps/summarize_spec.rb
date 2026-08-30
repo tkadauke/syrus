@@ -274,6 +274,52 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message).to eq("Different workspace HEAD")
     end
 
+    it "restores a published implement checkpoint when retrying from a rebuilt workspace" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      implement_run = Run.create!(
+        job: job,
+        step: implement_step,
+        trigger_kind: "initial",
+        state: "succeeded",
+        head_sha: implement_sha
+      )
+      checkpoint_ref = RunCheckpoint.remote_ref_for(implement_run)
+      checkpoint_remote = @ws_path.dirname.join("checkpoint-#{implement_run.id}-#{SecureRandom.hex(4)}.git")
+      sh("git clone --bare -q #{@ws_path} #{checkpoint_remote}")
+      sh("git -C #{@ws_path} push -q file://#{checkpoint_remote} HEAD:#{checkpoint_ref}")
+      RunCheckpoint.create!(
+        run: implement_run,
+        workflow: workflow,
+        step: implement_step,
+        job: job,
+        repository: repository,
+        user: user,
+        step_kind: "implement",
+        commit_sha: implement_sha,
+        remote_ref: checkpoint_ref,
+        status: "published",
+        published_at: Time.current
+      )
+
+      sh("git -C #{@ws_path} checkout --orphan rebuilt-from-main")
+      sh("git -C #{@ws_path} rm -rf .")
+      File.write(@ws_path.join("base_only.rb"), "class BaseOnly; end\n")
+      sh("git -C #{@ws_path} add base_only.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Rebuilt workspace from base'")
+      allow(GithubAuthenticatedGit).to receive(:run) do |**_kwargs, &block|
+        block.call("file://#{checkpoint_remote}")
+      end
+      stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
+
+      handler.call
+
+      expect(workflow.reload.artifact("pr_title")).to eq("Add greeting helper")
+      expect(commit_message).to start_with("Add greeting helper")
+      expect(@ws_path.join("feature.rb")).to exist
+      expect(@ws_path.join("base_only.rb")).not_to exist
+    end
+
     it "fails if the summarize agent changes workspace contents before submitting metadata" do
       allow(handler).to receive(:run_agent) do
         File.write(@ws_path.join("wrong_skill.rb"), "class WrongSkill; end\n")

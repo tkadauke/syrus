@@ -31,6 +31,7 @@ module Steps
       if (impl_run = implement_run_with_summary)
         log("implement step already called submit_summary — skipping agent call")
         promote_artifacts!(from: impl_run)
+        restore_run_checkpoint_if_needed!(impl_run, context: "summarize")
         assert_workspace_contains_successful_implement_head!
         rewrite_implement_commit_message!
         return
@@ -38,12 +39,14 @@ module Steps
       if (summary_run = prior_summarize_run_with_summary)
         log("prior summarize run already called submit_summary — reusing captured PR copy")
         promote_artifacts!(from: summary_run)
+        restore_run_checkpoint_if_needed!(successful_implement_run, context: "summarize")
         assert_workspace_contains_successful_implement_head!
         rewrite_implement_commit_message!
         return
       end
       raise StepFailed, "#{workflow.slug} has no completed implement run to summarize" if missing_required_implement_run?
 
+      restore_run_checkpoint_if_needed!(successful_implement_run, context: "summarize")
       assert_workspace_contains_successful_implement_head!
       run.update!(prompt: fallback_prompt)
       git_state_before_agent = capture_workspace_git_state

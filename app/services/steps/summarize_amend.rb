@@ -18,12 +18,14 @@ module Steps
 
       if (upstream_run = upstream_run_with_summary)
         log("upstream step already called submit_summary — skipping agent call")
+        restore_run_checkpoint_if_needed!(upstream_run, context: "summarize_amend")
         assert_workspace_matches_upstream_head!
         promote_artifacts!(from: upstream_run)
         rewrite_amend_commit_message!
         return
       end
 
+      restore_run_checkpoint_if_needed!(upstream_agentic_run, context: "summarize_amend")
       run.update!(prompt: Prompts::SummarizeAmend.new.to_s) if run.prompt.blank?
       git_state_before_agent = capture_workspace_git_state
 
