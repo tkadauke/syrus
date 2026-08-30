@@ -176,6 +176,8 @@ module App
         "Resume landing queue"
       when "submit_chat_feedback"
         "Submit feedback on #{job_slug(payload['job_id'])}"
+      when "complete_implement_step"
+        "Hand off #{job_slug(payload['job_id'])}"
       when "reopen_epic_and_attach_job"
         "Reopen Epic ##{payload['epic_id']} and attach #{job_slug(payload['job_id'])}"
       when "submit_coding_changes"
@@ -224,6 +226,8 @@ module App
         payload["comment"].presence
       when "submit_chat_feedback"
         payload["feedback"].presence
+      when "complete_implement_step"
+        payload["branch_name"].presence&.then { |branch| "Branch: #{branch}" }
       when "adopt_current_pr_head", "replace_pr_branch_with_workflow_output", "retry_from_current_pr_branch"
         evidence = payload["evidence"].to_h
         [
