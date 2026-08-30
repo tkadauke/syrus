@@ -149,12 +149,17 @@ read-only MCP tools:
   agents can omit `repository`/`repository_id` to default to their current
   Run's repository. `filter` accepts `recently_seen`, `failing`, `flaky`, and
   `slow`; `category` is accepted as an alias. `sort` accepts `last_seen`,
-  `last_failed`, `last_duration`, and `failure_rate`. For slow-test
-  investigations, use `sort: "last_duration"` with `direction: "desc"` so the
-  list is ranked by each identity's latest recorded duration. The response
-  includes suite/name/file, last status and timestamps, last duration, recent
-  pass/failure counts, failure rate, average duration, reasons, and latest
-  run/job references.
+  `last_failed`, `last_duration`, `failure_rate`, `avg_duration`,
+  `p50_duration`, and `p95_duration`. For quick slow-test investigations, use
+  `sort: "last_duration"` with `direction: "desc"` so the list is ranked by
+  each identity's latest recorded duration. For less noisy repository-wide
+  runtime ranking, use `sort: "p95_duration"` or `sort: "avg_duration"`; those
+  sorts read persisted `test_identity_runtime_summaries` rows for the bounded
+  `recent_100` window rather than aggregating raw `test_cases` at request time.
+  The response includes suite/name/file, last status and timestamps, last
+  duration, recent pass/failure counts, failure rate, average duration, runtime
+  summary p50/p95/avg/sample count when available, reasons, and latest run/job
+  references.
 - `read_test_insight(test_identity_id:, history_limit:, include_failures:)`
   returns one `TestIdentity`, recent execution history, duration points,
   related grader/run/job references, and bounded failure
@@ -173,10 +178,37 @@ read-only MCP tools:
   include_suites:, case_limit:)` returns the same compact payload for a
   specific Run. This is the direct Run-level path for investigating one
   grader execution without reading transcript logs or using app endpoints.
+- `compare_test_runtime(repository:, repository_id:, test_identity_ids:,
+  query:, grader_name:, limit:, baseline_run_id:, comparison_run_id:,
+  baseline_job_id:, comparison_job_id:, baseline_window:, comparison_window:)`
+  compares selected durable identities across exactly two bounded sources. Each
+  side must be one Run id, one Job id, or one explicit time window with
+  `starts_at`/`ends_at` (aliases `from`/`to` and `start`/`end` are accepted).
+  Run sources compare only that Run's ingested test cases and include
+  sanitized worker-health/command-span correlation from the existing
+  `read_run_worker_health` path. Job sources compare the Job's latest Workflow
+  that has Test Insights data. Window sources compare only selected identities
+  in the provided time bounds. The response includes sample count, avg, p50,
+  p95, latest, min, max, observed bounds, and absolute/percent deltas.
 
 These tools enforce repository visibility at the tool boundary. Workflow
 sidecars are restricted to the current Run's repository; chat sidecars use the
 same repository visibility rules as the app.
+
+Safe query boundaries:
+
+- Repository-wide slow-test lists rank candidates from `test_identities` or
+  persisted `test_identity_runtime_summaries`; they must not aggregate all
+  rows in `test_cases` during a request.
+- Per-identity history and comparison reads are bounded by selected
+  `test_identity_id` values, a specific Run/Job workflow, or explicit time
+  windows. Keep `limit` small and prefer passing `test_identity_ids` discovered
+  from `list_repository_test_insights`.
+- To answer "did this change make tests faster?", first compare the relevant
+  identities with `compare_test_runtime` across the before/after Runs or Jobs,
+  then inspect `worker_health` in the same response for host pressure and
+  command spans. If the run was under CPU/IO/memory pressure, treat runtime
+  deltas as infrastructure-correlated until a clean rerun confirms them.
 
 ## Configuring this for another repository
 

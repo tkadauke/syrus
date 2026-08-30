@@ -318,4 +318,46 @@ RSpec.describe "Test Insight MCP tools" do
       expect(response.content.first[:text]).to include("not_authorized")
     end
   end
+
+  describe Mcp::Tools::CompareTestRuntimeTool do
+    it "compares selected test runtime through the MCP boundary" do
+      identity = create_identity!(name: "runtime example")
+      baseline_run = Factories.job(user: user, repository: repository).initial_run
+      comparison_run = Factories.job(user: user, repository: repository).initial_run
+      baseline_test_run = create_test_run!(run: baseline_run, duration_ms: 200)
+      comparison_test_run = create_test_run!(run: comparison_run, duration_ms: 100)
+      create_test_case!(test_run: baseline_test_run, name: identity.name, suite_name: identity.suite_name, duration_ms: 200).update!(test_identity: identity)
+      create_test_case!(test_run: comparison_test_run, name: identity.name, suite_name: identity.suite_name, duration_ms: 100).update!(test_identity: identity)
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        repository: repository.slug,
+        test_identity_ids: [ identity.id ],
+        baseline_run_id: baseline_run.id,
+        comparison_run_id: comparison_run.id
+      )
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.dig(:tests, 0, :test, :id)).to eq(identity.id)
+      expect(payload.dig(:tests, 0, :delta, :avg_duration_ms)).to include(ms: -100, percent: -50.0)
+    end
+
+    it "rejects comparison runs outside the caller's visible repository" do
+      identity = create_identity!(name: "runtime example")
+      baseline_run = Factories.job(user: user, repository: repository).initial_run
+      foreign_run = Factories.job(user: user, repository: Factories.repository(user: user)).initial_run
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        repository_id: repository.id,
+        test_identity_ids: [ identity.id ],
+        baseline_run_id: baseline_run.id,
+        comparison_run_id: foreign_run.id
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("not_authorized")
+    end
+  end
 end

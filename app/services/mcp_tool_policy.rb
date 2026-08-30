@@ -145,6 +145,7 @@ class McpToolPolicy
       Mcp::Tools::ReadTestInsightTool,
       Mcp::Tools::ReadJobTestResultsTool,
       Mcp::Tools::ReadRunTestResultsTool,
+      Mcp::Tools::CompareTestRuntimeTool,
       Mcp::Tools::StartPreviewTool,
       Mcp::Tools::StopPreviewTool,
       Mcp::Tools::ReadPreviewLogTool
@@ -195,6 +196,7 @@ class McpToolPolicy
       Mcp::Tools::ReadRunTranscriptTool,
       Mcp::Tools::ReadJobTestResultsTool,
       Mcp::Tools::ReadRunTestResultsTool,
+      Mcp::Tools::CompareTestRuntimeTool,
       Mcp::Tools::ListOpenIssuesTool,
       Mcp::Tools::ListOpenPrsTool,
       Mcp::Tools::ReadPrTool,
@@ -272,6 +274,7 @@ class McpToolPolicy
       Mcp::Tools::ReadTestInsightTool,
       Mcp::Tools::ReadJobTestResultsTool,
       Mcp::Tools::ReadRunTestResultsTool,
+      Mcp::Tools::CompareTestRuntimeTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::WriteMemoryTool,
       Mcp::Tools::SearchMemoriesTool,
