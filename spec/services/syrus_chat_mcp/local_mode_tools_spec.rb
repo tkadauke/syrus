@@ -25,9 +25,11 @@ RSpec.describe "Local Mode MCP tools" do
 
   def stub_dispatch(tool_name, arguments, result: nil, error: nil)
     call = instance_double(LocalToolCall)
-    outcome = result ? { result: result } : { error: error }
+    outcome = result
     allow(daemon_session).to receive(:dispatch_tool_call!).with(tool_name, arguments).and_return(call)
     allow(call).to receive(:wait_for_result).and_return(outcome)
+    allow(call).to receive(:reload).and_return(call)
+    allow(call).to receive(:error).and_return(error)
   end
 
   shared_examples "disconnected daemon" do |tool_name, arguments = {}|
@@ -64,6 +66,16 @@ RSpec.describe "Local Mode MCP tools" do
       expect(response.dig(:result, :isError)).to be_falsey
       payload = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
       expect(payload[:content]).to eq("# Project")
+    end
+
+    it "does not turn daemon results into null" do
+      stub_dispatch("read_file", { path: "README.md" }, result: { content: "# Project" })
+      allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
+      server = server_with(described_class)
+
+      response = call_tool(server, "read_file", { path: "README.md" })
+
+      expect(response.dig(:result, :content, 0, :text)).not_to eq("null")
     end
   end
 
@@ -114,6 +126,17 @@ RSpec.describe "Local Mode MCP tools" do
 
     it "propagates daemon-side errors" do
       stub_dispatch("run_command", { command: "bad-cmd" }, error: "command not found")
+      allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
+      server = server_with(described_class)
+
+      response = call_tool(server, "run_command", { command: "bad-cmd" })
+
+      expect(response.dig(:result, :isError)).to be(true)
+      expect(response.dig(:result, :content, 0, :text)).to include("command not found")
+    end
+
+    it "treats daemon error payloads as tool errors" do
+      stub_dispatch("run_command", { command: "bad-cmd" }, result: { error: "command not found" })
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
 

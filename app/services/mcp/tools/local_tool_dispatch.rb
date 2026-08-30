@@ -9,10 +9,12 @@ module Mcp::Tools
       call = session.dispatch_tool_call!(tool_name, arguments)
       outcome = call.wait_for_result
 
-      if outcome[:error]
-        Mcp::Tools.tool_error(outcome[:error].to_s)
+      if outcome.nil?
+        Mcp::Tools.tool_error(call.reload.error.presence || "Local daemon tool call failed.")
+      elsif outcome.is_a?(Hash) && (outcome[:error].present? || outcome["error"].present?)
+        Mcp::Tools.tool_error((outcome[:error] || outcome["error"]).to_s)
       else
-        Mcp::Tools.success(outcome[:result])
+        Mcp::Tools.success(outcome)
       end
     end
   end
