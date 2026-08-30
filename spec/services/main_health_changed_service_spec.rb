@@ -981,9 +981,14 @@ RSpec.describe MainHealthChangedService do
 
       it "caps retries at MAX_RECOVERY_RETRIES" do
         (MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times do
-          j = Factories.job(repository: repository)
-          wf = j.latest_workflow
-          wf.update_columns(state: "failed")
+          j = Factories.job_record(repository: repository)
+          wf = Workflow.create!(
+            job: j,
+            user: user,
+            trigger_kind: "initial",
+            agent_provider: "claude",
+            state: "failed"
+          )
           wf.set_artifact!("main_broken", true)
         end
         # held_workflow + 11 more = 12 total; cap at 10
