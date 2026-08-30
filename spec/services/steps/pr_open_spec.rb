@@ -119,6 +119,67 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(job.reload.state).to eq("implemented")
   end
 
+  it "replaces a stale unpublished remote branch with force-with-lease before opening the first PR" do
+    job.update!(state: "running", pr_number: nil, fork_review_pr_number: nil)
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    branch = "syrus/issue-42-#{job.id}"
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: branch, path: path)
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+    rejection = GitRunner::GitError.new(
+      [ "push", push_url, "HEAD:refs/heads/#{branch}" ],
+      1,
+      "! [rejected] HEAD -> #{branch} (non-fast-forward)"
+    )
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    opener = instance_double(PullRequestOpener, open: 100)
+    allow(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
+    allow(git).to receive(:run)
+      .with("push", push_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s)
+      .and_raise(rejection)
+    allow(git).to receive(:run).with(
+      "fetch",
+      push_url,
+      "+refs/heads/#{branch}:refs/remotes/origin/#{branch}",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run)
+      .with("rev-parse", "refs/remotes/origin/#{branch}", chdir: path.to_s)
+      .and_return("remote-sha\n")
+    allow(git).to receive(:run)
+      .with("rev-parse", "HEAD", chdir: path.to_s)
+      .and_return("local-sha\n")
+    expect(git).to receive(:run).with(
+      "push",
+      "--force-with-lease=refs/heads/#{branch}:remote-sha",
+      push_url,
+      "HEAD:refs/heads/#{branch}",
+      chdir: path.to_s
+    ).and_return("")
+
+    handler.call
+
+    expect(job.reload.pr_number).to eq(100)
+    expect(workflow.reload.artifact("pr_open_force_pushed_unopened_branch")).to include(
+      "branch" => branch,
+      "remote_sha" => "remote-sha",
+      "local_sha" => "local-sha"
+    )
+    expect(workflow.artifact("branch_divergence")).to be_nil
+  end
+
   it "passes the Job to PullRequestOpener so dependent PRs use their effective base" do
     pr_open_run = Run.create!(
       job: job,

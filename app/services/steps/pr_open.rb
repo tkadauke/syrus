@@ -217,13 +217,12 @@ module Steps
     def push_branch
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       authenticated_git(git, "git_pr_open_push") do |push_url|
-        return :superseded if job.pr_number.present? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
-        git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
-                chdir: workspace.path.to_s)
+        return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
+        push_branch_to_remote(git, push_url)
       end
       :pushed
     rescue GitRunner::GitError => e
-      raise unless job.pr_number.present? && push_rejected?(e)
+      raise unless published_review_branch? && push_rejected?(e)
 
       return supersede_stale_publication!("push rejected after a newer workflow updated the PR branch") if stale_publication_workflow?
 
@@ -240,6 +239,43 @@ module Steps
         log: method(:log),
         &block
       )
+    end
+
+    def push_branch_to_remote(git, push_url)
+      git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
+              chdir: workspace.path.to_s)
+    rescue GitRunner::GitError => e
+      raise unless push_rejected?(e)
+      raise if published_review_branch?
+
+      force_push_unopened_publication_branch!(git, push_url, e)
+    end
+
+    def force_push_unopened_publication_branch!(git, push_url, error)
+      remote_sha = fetch_remote_branch!(git, push_url)
+      raise error if remote_sha.blank?
+
+      branch = workspace.branch_name
+      local_sha = current_head_sha(git)
+      workflow.set_artifact!("pr_open_force_pushed_unopened_branch", {
+        "branch" => branch,
+        "remote_sha" => remote_sha,
+        "local_sha" => local_sha,
+        "detected_at" => Time.current.iso8601,
+        "message" => "first PR publication found an existing remote branch"
+      })
+      log("pr_open: remote branch #{branch} already existed before PR creation; replacing it with force-with-lease")
+      git.run(
+        "push",
+        "--force-with-lease=refs/heads/#{branch}:#{remote_sha}",
+        push_url,
+        "HEAD:refs/heads/#{branch}",
+        chdir: workspace.path.to_s
+      )
+    end
+
+    def published_review_branch?
+      job.pr_number.present? || job.fork_review_pr_number.present?
     end
 
     def pr_base_branch
