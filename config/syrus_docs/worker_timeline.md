@@ -68,7 +68,7 @@ the same query services for the browser:
   (`app/frontend/components/FilterBar.tsx`) uses everywhere else
   (`Filters::QueryParam`/`Filters::Ast`). `Timeline::MacroQueryFilter`
   decodes `q` into the `repository_id`/`epic_id`/`hostname`/`status`/
-  `from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes the
+  `job_type`/`from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes the
   `filter_schema` the FilterBar renders against: `repository_id`/
   `epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
   `/api/v1/app/filters/fk_options` resolver (`Filters::FkOptionsResolver`
@@ -76,8 +76,10 @@ the same query services for the browser:
   the instance, not just ones the signed-in admin owns — when the current
   user is an admin, since this is a cross-tenant admin view and every
   visitor is admin-gated already; non-admin callers elsewhere in the app
-  keep the ownership-scoped relation), `status` as a multi-select
-  `enum`, and a `window` `date` field supporting `within_last` (relative)
+  keep the ownership-scoped relation), `status` and `job_type` as
+  multi-select `enum` fields (`job_type` values are `user` and `system`,
+  with the system option labeled "Infrastructure" in the timeline UI), and
+  a `window` `date` field supporting `within_last` (relative)
   and `between` (absolute) — no `q` (no chips at all) defaults to
   `within_last` the last 3 hours with no other filters applied, i.e. every
   worker lane and every workflow in that window. The response echoes back
@@ -100,9 +102,12 @@ and the time window is an overlap test applied across all three, not a
 plain column comparison), so it only understands a flat top-level AND of
 chips — the shape the FilterBar produces for this small, fixed field set.
 The separate bearer-token `GET /api/v1/timeline/macro` endpoint (see
-`config/syrus_docs/worker_activity_timeline.md`) is untouched by this and
-keeps its own flat `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/
-`status=`/`from=`/`to=` params and 1-hour default.
+`config/syrus_docs/worker_activity_timeline.md`) keeps its own flat
+`repository_id=`/`epic_id=`/`job_id=`/`hostname=`/`status=`/`job_type=`/
+`from=`/`to=` params and 1-hour default. `job_type=system` filters to
+system/infrastructure Job kinds, `job_type=user` filters to user-facing
+Job kinds, and `job_type=infra`/`job_type=infrastructure` are accepted
+aliases for `system`.
 
 ## Frontend
 
@@ -113,7 +118,7 @@ time axis and `d3-zoom`/`d3-selection` for pan/zoom gesture handling, row
 virtualization (only lanes within the current scroll viewport render their
 span rects), and the app-wide shared `FilterBar` (same component and
 query-tree wiring as `AdminQueue`/`AdminUsers`/`Dashboard`) for repository/
-epic/hostname/status/time-window filtering — the plugin no longer ships its
+epic/hostname/status/job-type/time-window filtering — the plugin no longer ships its
 own filter UI. Hovering a span shows a tooltip with the
 Job/Workflow id and title, duration, and the blocked-reason explanation (or
 a plain "no historical data" message when none survives). Clicking a
