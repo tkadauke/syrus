@@ -30,6 +30,8 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
             paths: [ "/insights/spending" ],
             component: "spending/Spending",
             icon: "spending",
+            smart_folder_api_path: "/api/v1/app/spending",
+            smart_folder_subject: "spending_report",
             order: 50
           }
         ]
@@ -49,6 +51,8 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
         "paths" => [ "/insights/spending" ],
         "component" => "spending/Spending",
         "icon" => "spending",
+        "smart_folder_api_path" => "/api/v1/app/spending",
+        "smart_folder_subject" => "spending_report",
         "order" => 50
       )
     )

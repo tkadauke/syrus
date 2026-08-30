@@ -1,4 +1,6 @@
 import { getJson, patchJson, postJson } from "@app/api/client"
+import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
+import type { FilterSchemaField } from "@app/components/filterBar/types"
 
 export type DesignDocUser = {
   id: number
@@ -105,6 +107,10 @@ export type DesignDocVersion = {
 }
 
 export type DesignDocsIndexPayload = {
+  active_smart_folder_id: number | null
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+  smart_folders: AdminSmartFolder[]
   design_docs: DesignDocSummary[]
 }
 
@@ -142,12 +148,12 @@ export type DesignDocInput = {
   selected_markdown?: string
 }
 
-export function fetchDesignDocs() {
-  return getJson<DesignDocsIndexPayload>("/api/v1/app/design_docs")
+export function fetchDesignDocs(search = "") {
+  return getJson<DesignDocsIndexPayload>(`/api/v1/app/design_docs${search}`)
 }
 
-export function fetchRepositoryDesignDocs(repositoryId: string | number) {
-  return getJson<RepositoryDesignDocsPayload>(`/api/v1/app/repositories/${repositoryId}/design_docs`)
+export function fetchRepositoryDesignDocs(repositoryId: string | number, search = "") {
+  return getJson<RepositoryDesignDocsPayload>(`/api/v1/app/repositories/${repositoryId}/design_docs${search}`)
 }
 
 export function fetchDesignDoc(id: string | number) {

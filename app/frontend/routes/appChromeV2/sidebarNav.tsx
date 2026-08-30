@@ -23,6 +23,8 @@ export type MergedNavItem = {
   to: string
   icon: ReactNode
   order: number
+  smartFolderApiPath?: string | null
+  smartFolderSubject?: string | null
 }
 
 // The primary sidebar nav, minus "spending" (now provided by the
@@ -79,6 +81,8 @@ export function buildSidebarNavItems(
     to: page.path,
     icon: resolvePluginIcon(page.icon),
     order: page.order,
+    smartFolderApiPath: page.smart_folder_api_path,
+    smartFolderSubject: page.smart_folder_subject,
   }))
 
   return [...coreItems, ...pluginItems]
