@@ -5157,6 +5157,29 @@ function proposal(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function chatGoal(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 55,
+    chat_session_id: 8,
+    user_id: 1,
+    repository_id: 3,
+    prompt: "Keep filing aqueduct cleanup work",
+    completion_condition: "All risky segments have Jobs",
+    mode_snapshot: { mode: "planning" },
+    status: "active",
+    approval_policy: "manual",
+    auto_file_proposals: false,
+    auto_submit_jobs: false,
+    iteration_count: 2,
+    terminal_at: null,
+    terminal_reason: null,
+    terminal_details: null,
+    created_at: "2026-08-29T12:00:00Z",
+    updated_at: "2026-08-29T12:30:00Z",
+    ...overrides
+  }
+}
+
 function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}, rootOverrides: Record<string, unknown> = {}) {
   return {
     chat: {
@@ -5180,6 +5203,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     switching_provider: false,
     has_more_older: false,
     pending_proposal_count: undefined,
+    active_goal: null,
     messages: overrides.messages || [
       {
         type: "message",
@@ -5245,6 +5269,127 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     ...rootOverrides
   }
 }
+
+describe("active goal strip", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders the active goal status, prompt, completion condition, and policy", async () => {
+    mockChatRouteFetch(chatPayload({}, { active_goal: chatGoal() }))
+    renderRoute()
+
+    const strip = await screen.findByTestId("active-goal-strip")
+    expect(within(strip).getByText("Active")).toBeInTheDocument()
+    expect(within(strip).getByText("Keep filing aqueduct cleanup work")).toBeInTheDocument()
+    expect(within(strip).getByText("Done when: All risky segments have Jobs")).toBeInTheDocument()
+    expect(within(strip).getByText("Draft proposals only")).toBeInTheDocument()
+  })
+
+  it("pauses, resumes, and stops from visible controls", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/goal/pause" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "paused" }), message: "Goal paused." })))
+      if (path === "/api/v1/app/chats/8/goal/resume" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "active" }), message: "Goal resumed." })))
+      if (path === "/api/v1/app/chats/8/goal/stop" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ status: "cancelled", terminal_reason: "operator_stopped" }), message: "Goal stopped." })))
+      return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal() })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pause goal" }))
+    await screen.findByRole("button", { name: "Resume goal" })
+    fireEvent.click(screen.getByRole("button", { name: "Resume goal" }))
+    await screen.findByRole("button", { name: "Pause goal" })
+    fireEvent.click(screen.getByRole("button", { name: "Stop goal" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/pause" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/resume" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/stop" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+    })
+  })
+
+  it("updates prompt, completion condition, and planning automation from the edit modal", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/goal" && init?.method === "PATCH") return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal({ prompt: "New objective", completion_condition: "No gaps remain", approval_policy: "auto", auto_file_proposals: true }), message: "Goal updated." })))
+      return Promise.resolve(jsonResponse(chatPayload({}, { active_goal: chatGoal() })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }))
+    fireEvent.change(screen.getByLabelText("Goal prompt"), { target: { value: "New objective" } })
+    fireEvent.change(screen.getByLabelText("Completion condition"), { target: { value: "No gaps remain" } })
+    fireEvent.click(screen.getByLabelText("Continue automatically when the policy below allows it."))
+    fireEvent.click(screen.getByLabelText("Auto-file proposed Jobs and Epics when allowed."))
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const goalPatch = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/app/chats/8/goal" && (call[1] as RequestInit)?.method === "PATCH")
+      expect(goalPatch).toBeTruthy()
+      expect(JSON.parse((goalPatch?.[1] as RequestInit).body as string)).toMatchObject({
+        goal: {
+          prompt: "New objective",
+          completion_condition: "No gaps remain",
+          approval_policy: "auto",
+          auto_file_proposals: true,
+          auto_submit_jobs: false
+        }
+      })
+    })
+  })
+
+  it("labels coding mode handoff automation explicitly in the edit modal", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { mode: "coding" } }, { active_goal: chatGoal({ mode_snapshot: { mode: "coding" }, auto_submit_jobs: false }) }))
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }))
+
+    expect(screen.getByText("Coding automation")).toBeInTheDocument()
+    expect(screen.getByLabelText("Draft generated Jobs and handoffs for review.")).toBeChecked()
+    expect(screen.getByLabelText("Auto-submit generated Jobs and handoffs when allowed.")).toBeInTheDocument()
+  })
+
+  it("disables visible controls and modal fields while the agent is active", async () => {
+    mockChatRouteFetch(chatPayload({}, { active_goal: chatGoal(), agent_busy: true }))
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Pause goal" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Stop goal" })).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Edit goal" }))
+
+    expect(screen.queryByRole("dialog", { name: "Edit goal" })).not.toBeInTheDocument()
+  })
+
+  it("shows goal provenance on proposal cards with materialized Job chips", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [
+        messageWithProposal(10, proposal({
+          state: "confirmed",
+          state_label: "Confirmed",
+          proposed: false,
+          resolved: true,
+          goal_provenance: {
+            chat_goal_id: 55,
+            prompt_snapshot: { prompt: "Trace proposal work" }
+          },
+          materialized_label: "JOB-123",
+          materialized_path: "/jobs/123",
+          materialized: { kind: "job", job_id: 123, job_title: "Survey aqueduct route", job_state: "open" }
+        }))
+      ]
+    }))
+    renderRoute()
+
+    expect(await screen.findByText("Goal #55")).toBeInTheDocument()
+    expect(screen.getByText("JOB-123")).toBeInTheDocument()
+  })
+})
 
 describe("chat mode selector in toolbar", () => {
   beforeEach(() => {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import type { Step } from "react-joyride"
-import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
+import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -37,6 +37,7 @@ import {
   deleteChatAttachment,
   enqueueChatMessage,
   reorderScratchpadItems,
+  patchChatGoal,
   updateScratchpadItem,
   fetchChat,
   fetchChatBookmarks,
@@ -52,11 +53,15 @@ import {
   sendChatMessage,
   shareChat,
   stopChat,
+  pauseChatGoal,
+  resumeChatGoal,
+  stopChatGoal,
   cancelCodingCheckout,
   updateChatProposal,
   updateChatPinned,
   updateQueuedChatMessage,
   type ChatAttachmentResult,
+  type ChatGoal,
   type ChatMode,
   type ChatAttachmentRow,
   type ChatBranchPayload,
@@ -91,7 +96,9 @@ import {
 import { fetchBootstrap, readInitialBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "../components/CloseIcon"
 import { GearIcon } from "../components/GearIcon"
+import { Input } from "../components/Input"
 import { PinIcon } from "../components/PinIcon"
+import { PencilIcon } from "./chat/icons"
 import { newestPins, useChatPins, useHasPins } from "./chat/pins"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -1034,7 +1041,8 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   // track the composer's actual rendered height instead of a static guess.
   const [composerHeight, setComposerHeight] = useState<number | null>(null)
   const { t } = useT("chat")
-  const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage
+  const activeGoal = currentChatGoal(payload)
+  const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage && !activeGoal
 
   useEffect(() => {
     setHasSentFirstMessage(false)
@@ -1063,6 +1071,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}
+      {activeGoal ? <ActiveGoalStrip goal={activeGoal} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       {payload.local_mode_enabled && payload.chat.mode === "local" ? (
         <LocalDaemonBanner payload={payload} />
       ) : null}
@@ -1077,6 +1086,215 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <Compose key={chatId} autoFocus={landing} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={!landing} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
     </section>
+  )
+}
+
+function currentChatGoal(payload: ChatPayload) {
+  return payload.active_goal ?? payload.chat.active_goal ?? null
+}
+
+function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
+  const agentActive = isAgentActive(payload)
+  const busyTitle = agentActive ? t("goal_controls_disabled_agent_active") : undefined
+  const disabled = agentActive
+  const mutateGoal = useMutation({
+    mutationFn: (action: "pause" | "resume" | "stop") => {
+      if (action === "pause") return pauseChatGoal(payload.chat.id)
+      if (action === "resume") return resumeChatGoal(payload.chat.id)
+      return stopChatGoal(payload.chat.id)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      updateRecentChatCache(queryClient, updated.chat)
+      onNotice(updated.message || null)
+    },
+    onError: (error) => onNotice(errorMessage(error, t("goal_update_error")))
+  })
+  const effectiveMode = goalMode(goal, payload)
+  const statusLabel = goalStatusLabel(goal.status, t)
+  const policyLabel = goalPolicyLabel(goal, effectiveMode, t)
+
+  return (
+    <section className="flex w-full flex-col gap-3 rounded border border-info/30 bg-info/5 px-3 py-2.5 text-sm text-gray-800 dark:border-info/40 dark:bg-gray-900 dark:text-gray-100" data-testid="active-goal-strip">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${goal.status === "active" ? "bg-emerald-500" : goal.status === "paused" ? "bg-amber-500" : goal.status === "blocked" ? "bg-red-500" : "bg-gray-400"}`} aria-hidden="true" />
+            <span className="font-semibold">{t("goal_heading")}</span>
+            <span className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">{statusLabel}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{policyLabel}</span>
+          </div>
+          <p className="mt-1 break-words text-gray-900 dark:text-gray-100">{goal.prompt}</p>
+          {goal.completion_condition ? <p className="mt-0.5 break-words text-xs text-gray-600 dark:text-gray-400">{t("goal_completion_prefix", { condition: goal.completion_condition })}</p> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <GoalIconButton disabled={disabled || mutateGoal.isPending} label={t("goal_edit")} title={busyTitle || t("goal_edit")} onClick={() => setEditOpen(true)}>
+            <PencilIcon className="h-4 w-4" />
+          </GoalIconButton>
+          {goal.status === "paused" ? (
+            <GoalIconButton disabled={disabled || mutateGoal.isPending} label={t("goal_resume")} title={busyTitle || t("goal_resume")} onClick={() => mutateGoal.mutate("resume")}>
+              <PlayIcon />
+            </GoalIconButton>
+          ) : (
+            <GoalIconButton disabled={disabled || mutateGoal.isPending || goal.status !== "active"} label={t("goal_pause")} title={busyTitle || t("goal_pause")} onClick={() => mutateGoal.mutate("pause")}>
+              <PauseIcon />
+            </GoalIconButton>
+          )}
+          <GoalIconButton disabled={disabled || mutateGoal.isPending || !["active", "paused"].includes(goal.status)} label={t("goal_stop")} title={busyTitle || t("goal_stop")} onClick={() => mutateGoal.mutate("stop")}>
+            <StopIcon />
+          </GoalIconButton>
+        </div>
+      </div>
+      {editOpen ? <GoalEditModal goal={goal} payload={payload} queryKey={queryKey} onClose={() => setEditOpen(false)} onNotice={onNotice} /> : null}
+    </section>
+  )
+}
+
+function GoalIconButton({ children, disabled, label, title, onClick }: { children: ReactNode; disabled: boolean; label: string; title: string; onClick: () => void }) {
+  return (
+    <button
+      aria-label={label}
+      className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      type="button"
+    >
+      {children}
+    </button>
+  )
+}
+
+function GoalEditModal({ goal, payload, queryKey, onClose, onNotice }: { goal: ChatGoal; payload: ChatPayload; queryKey: ChatQueryKey; onClose: () => void; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [prompt, setPrompt] = useState(goal.prompt)
+  const [completionCondition, setCompletionCondition] = useState(goal.completion_condition || "")
+  const [approvalPolicy, setApprovalPolicy] = useState<ChatGoal["approval_policy"]>(goal.approval_policy)
+  const [autoFileProposals, setAutoFileProposals] = useState(goal.auto_file_proposals)
+  const [autoSubmitJobs, setAutoSubmitJobs] = useState(goal.auto_submit_jobs)
+  const mode = goalMode(goal, payload)
+  const agentActive = isAgentActive(payload)
+  const updateGoal = useMutation({
+    mutationFn: () => patchChatGoal(payload.chat.id, {
+      prompt,
+      completion_condition: completionCondition.trim() || null,
+      approval_policy: approvalPolicy,
+      auto_file_proposals: mode === "planning" ? autoFileProposals : false,
+      auto_submit_jobs: mode === "coding" || mode === "local" ? autoSubmitJobs : false
+    }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      updateRecentChatCache(queryClient, updated.chat)
+      onNotice(updated.message || t("goal_updated_notice"))
+      onClose()
+    },
+    onError: (error) => onNotice(errorMessage(error, t("goal_update_error")))
+  })
+  const submitDisabled = agentActive || updateGoal.isPending || prompt.trim().length === 0
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (submitDisabled) return
+    updateGoal.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
+      <form aria-labelledby="goal-edit-title" aria-modal="true" className="w-full max-w-xl rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900" onClick={(event) => event.stopPropagation()} onSubmit={submit} role="dialog">
+        <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <SectionHeading id="goal-edit-title">{t("goal_edit_title")}</SectionHeading>
+          <button aria-label={t("goal_edit_close")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={onClose} type="button">
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </header>
+        <div className="space-y-4 px-4 py-4">
+          {agentActive ? <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("goal_controls_disabled_agent_active")}</p> : null}
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            {t("goal_prompt_label")}
+            <textarea className="mt-1 min-h-24 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" disabled={agentActive || updateGoal.isPending} value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+          </label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            {t("goal_completion_label")}
+            <textarea className="mt-1 min-h-20 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" disabled={agentActive || updateGoal.isPending} value={completionCondition} onChange={(event) => setCompletionCondition(event.target.value)} />
+          </label>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("goal_approval_policy_label")}</legend>
+            <GoalRadio label={t("goal_policy_manual")} checked={approvalPolicy === "manual"} disabled={agentActive || updateGoal.isPending} name="goal-approval-policy" onChange={() => setApprovalPolicy("manual")} />
+            <GoalRadio label={t("goal_policy_auto")} checked={approvalPolicy === "auto"} disabled={agentActive || updateGoal.isPending} name="goal-approval-policy" onChange={() => setApprovalPolicy("auto")} />
+          </fieldset>
+          {mode === "planning" ? (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("goal_planning_policy_label")}</legend>
+              <GoalRadio label={t("goal_proposals_draft_only")} checked={!autoFileProposals} disabled={agentActive || updateGoal.isPending} name="goal-planning-policy" onChange={() => setAutoFileProposals(false)} />
+              <GoalRadio label={t("goal_proposals_auto_file")} checked={autoFileProposals} disabled={agentActive || updateGoal.isPending} name="goal-planning-policy" onChange={() => setAutoFileProposals(true)} />
+            </fieldset>
+          ) : (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-gray-700 dark:text-gray-200">{t("goal_coding_policy_label")}</legend>
+              <GoalRadio label={t("goal_jobs_draft_only")} checked={!autoSubmitJobs} disabled={agentActive || updateGoal.isPending} name="goal-coding-policy" onChange={() => setAutoSubmitJobs(false)} />
+              <GoalRadio label={t("goal_jobs_auto_submit")} checked={autoSubmitJobs} disabled={agentActive || updateGoal.isPending} name="goal-coding-policy" onChange={() => setAutoSubmitJobs(true)} />
+            </fieldset>
+          )}
+        </div>
+        <footer className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+          <button className="rounded px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onClose} type="button">{t("cancel")}</button>
+          <button className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50" disabled={submitDisabled} type="submit">{t("save")}</button>
+        </footer>
+      </form>
+    </div>
+  )
+}
+
+function GoalRadio({ checked, disabled, label, name, onChange }: { checked: boolean; disabled: boolean; label: string; name: string; onChange: () => void }) {
+  return (
+    <label className="flex items-start gap-2 rounded border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200">
+      <Input checked={checked} className="mt-0.5" disabled={disabled} fullWidth={false} name={name} onChange={onChange} type="radio" />
+      <span>{label}</span>
+    </label>
+  )
+}
+
+function goalMode(goal: ChatGoal, payload: ChatPayload) {
+  const snapshotMode = typeof goal.mode_snapshot?.mode === "string" ? goal.mode_snapshot.mode : null
+  if (snapshotMode === "coding" || snapshotMode === "local" || snapshotMode === "planning") return snapshotMode
+  return payload.chat.mode || "planning"
+}
+
+function goalStatusLabel(status: ChatGoal["status"], t: (key: string, options?: Record<string, unknown>) => string) {
+  const key = status === "cancelled" ? "goal_status_stopped" : `goal_status_${status}`
+  return t(key)
+}
+
+function goalPolicyLabel(goal: ChatGoal, mode: ChatMode, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (mode === "planning") return goal.auto_file_proposals ? t("goal_policy_auto_file_short") : t("goal_policy_draft_proposals_short")
+  return goal.auto_submit_jobs ? t("goal_policy_auto_submit_short") : t("goal_policy_draft_jobs_short")
+}
+
+function PlayIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7Z" />
+    </svg>
+  )
+}
+
+function PauseIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+    </svg>
+  )
+}
+
+function StopIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M6 6h12v12H6z" />
+    </svg>
   )
 }
 
@@ -1178,4 +1396,3 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
     </section>
   )
 }
-
