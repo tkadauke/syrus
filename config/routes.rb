@@ -403,7 +403,7 @@ Rails.application.routes.draw do
           post "platform_polling/start", to: "platform_polling#start"
         end
         match "*plugin_route", to: "plugin_routes#show", via: :all, constraints: lambda { |request|
-          PluginRouteResolver.match?(request, controller_prefix: "api/v1/app/")
+          PluginRouteResolver.declared_api_route?(request, controller_prefix: "api/v1/app/")
         }
       end
 
@@ -515,7 +515,7 @@ Rails.application.routes.draw do
           end
         end
         match "*plugin_route", to: "plugin_routes#show", via: :all, constraints: lambda { |request|
-          PluginRouteResolver.match?(request, controller_prefix: "api/v1/admin/")
+          PluginRouteResolver.declared_api_route?(request, controller_prefix: "api/v1/admin/")
         }
       end
 

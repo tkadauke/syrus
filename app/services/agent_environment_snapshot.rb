@@ -6,7 +6,7 @@ class AgentEnvironmentSnapshot
   ELABORATION_EPIC_DESCRIPTION_BYTES = 4.kilobytes
 
   CHAT_TOOL_GROUPS = {
-    "repository context" => %w[attach_repository repo_info read_repo_document list_repo_documents create_repo_document delete_repo_document],
+    "repository context" => %w[attach_repository repo_info read_repo_document list_repo_documents create_repo_document delete_repo_document list_design_docs read_design_doc propose_design_doc comment_on_design_doc suggest_design_doc_change],
     "live Syrus state" => %w[list_chats list_jobs read_job explain_stuck_job read_pr list_open_issues list_open_prs cancel_job close_job_successfully retry_job rebase_job reopen_job poll_job_feedback run_visual_review check_job_mergeability delegate_issue pause_landing_queue resume_landing_queue read_epic analyze_walkthrough_segment],
     "proposals" => %w[propose_job propose_epic propose_epic_with_jobs list_proposals delete_proposal set_bookmark schedule_recurring],
     "whiteboard" => %w[read_scene draw_shape draw_text draw_line draw_arrow draw_freedraw draw_frame draw_embed draw_image move_element delete_element save_canvas clear_canvas update_scene]
@@ -69,6 +69,7 @@ class AgentEnvironmentSnapshot
       "- MCP/tools: #{mcp_tool_summary(step)}"
     ]
 
+    lines.concat(run_design_doc_lines)
     lines.concat(admin_links(job, workflow, run))
     lines.concat(workspace_lines)
     lines.concat(coverage_lines)
@@ -155,6 +156,30 @@ class AgentEnvironmentSnapshot
       "- Repository freshness: `git fetch` is allowed; use `git pull --ff-only` only when you intentionally need a current local view."
     ]
     lines
+  end
+
+  def run_design_doc_lines
+    return [] unless defined?(DesignDocs) && DesignDocs.respond_to?(:enabled?) && DesignDocs.enabled?
+    return [] unless repository && run&.job&.user
+
+    docs = DesignDocs::DesignDoc.visible_to(run.job.user)
+      .joins(:design_doc_repositories)
+      .where(design_doc_repositories: { repository_id: repository.id })
+      .includes(:current_version)
+      .newest_first
+      .limit(8)
+      .to_a
+    return [] if docs.empty?
+
+    lines = [ "- Design Docs: readable via `list_design_docs` / `read_design_doc`; workflow agents have no mutation tools." ]
+    docs.each do |doc|
+      version = doc.current_version&.version_number
+      version_label = version ? ", v#{version}" : ""
+      lines << "  - #{doc.display_id}: #{doc.title} (#{doc.state}, #{doc.visibility}#{version_label})"
+    end
+    lines
+  rescue StandardError => e
+    [ "- Design Docs: unavailable (#{e.class}: #{e.message})" ]
   end
 
   def prepare_summary

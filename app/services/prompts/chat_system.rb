@@ -209,8 +209,9 @@ module Prompts
             services/foo.rb:42" beats "there's a thing in services."
           - #{job_inspection_guidance}
           - When attached context is relevant, use the attachment details
-            above directly. Use `read_epic`, `read_job`, or
-            `read_repo_document` when you need full detail.
+            above directly. Use `read_epic`, `read_job`,
+            `read_repo_document`, or `read_design_doc` when you need full
+            detail. Reference design docs as `DOC-<id>`.
           - At the end of a turn, when there is one clear, natural next
             step, call `suggest_next_step(text)` with a concise,
             actionable next message written in the operator's voice
@@ -763,6 +764,7 @@ module Prompts
       lines.concat(attached_epic_lines)
       lines.concat(attached_job_lines)
       lines.concat(attached_document_lines)
+      lines.concat(attached_design_doc_lines)
 
       body = lines.presence&.join("\n") || "  - (none)"
       "Attached context:\n#{clip(body, ATTACHED_CONTEXT_BYTES)}"
@@ -810,6 +812,24 @@ module Prompts
       end
     end
 
+    def attached_design_doc_lines
+      return [] unless defined?(DesignDocs) && DesignDocs.respond_to?(:enabled?) && DesignDocs.enabled?
+      return [] if attached_repositories.empty?
+
+      docs = DesignDocs::DesignDoc.visible_to(@chat_session.user)
+        .joins(:design_doc_repositories)
+        .where(design_doc_repositories: { repository_id: attached_repositories.map(&:id) })
+        .includes(:repositories, :current_version)
+        .newest_first
+        .limit(8)
+        .to_a
+      return [] if docs.empty?
+
+      [ "  Design Docs:" ] + docs.map do |doc|
+        "  - #{doc.display_id}: #{doc.title} (#{doc.state}, #{doc.visibility}; use `read_design_doc`)"
+      end
+    end
+
     def job_label(job)
       pr = job.pr_number || job.external_pr_number
       pr_label = pr ? ", PR ##{pr}" : ""
@@ -821,13 +841,31 @@ module Prompts
       return "" unless @repository
 
       documents = @repository.repository_documents.with_attached_file.order(:created_at, :id)
-      return "" if documents.empty?
+      design_docs = repository_design_docs
+      return "" if documents.empty? && design_docs.empty?
 
       lines = documents.map do |document|
         "- [#{document.id}] #{document.title} (#{document_label(document)})"
       end
+      design_docs.each do |design_doc|
+        lines << "- #{design_doc.display_id}: #{design_doc.title} (Design Doc, #{design_doc.state}; use read_design_doc)"
+      end
 
-      "Supporting documents available (use read_repo_document to fetch):\n#{lines.join("\n")}"
+      "Supporting documents available (use read_repo_document to fetch):\n#{lines.join("\n")}\nDesign Docs use DOC-<id> references and `read_design_doc`."
+    end
+
+    def repository_design_docs
+      return [] unless defined?(DesignDocs) && DesignDocs.respond_to?(:enabled?) && DesignDocs.enabled?
+      return [] unless @chat_session&.user
+
+      DesignDocs::DesignDoc.visible_to(@chat_session.user)
+        .joins(:design_doc_repositories)
+        .where(design_doc_repositories: { repository_id: @repository.id })
+        .newest_first
+        .limit(8)
+        .to_a
+    rescue StandardError
+      []
     end
 
     def document_label(document)
