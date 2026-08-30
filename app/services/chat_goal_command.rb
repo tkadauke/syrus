@@ -24,6 +24,7 @@ class ChatGoalCommand
 
     goal = nil
     message = nil
+    publish_start = false
     @chat_session.with_lock do
       goal = @chat_session.active_goal
       case parsed.fetch(:action)
@@ -32,10 +33,15 @@ class ChatGoalCommand
         raise ArgumentError, "Usage: /goal <objective>" if prompt.blank?
 
         goal = if goal
+          was_paused = goal.paused?
           goal.update!(prompt: prompt)
-          goal.resume! if goal.paused?
+          if goal.paused?
+            goal.resume!
+            publish_start = was_paused
+          end
           goal
         else
+          publish_start = true
           @chat_session.chat_goals.create!(user: @user, prompt: prompt)
         end
         message = "Goal updated."
@@ -61,6 +67,8 @@ class ChatGoalCommand
         message = "Goal updated."
       end
     end
+
+    ChatGoalWakeup.publish_start!(goal) if publish_start
 
     Result.new(handled: true, message: message, goal: goal&.reload)
   end
