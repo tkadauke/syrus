@@ -572,14 +572,14 @@ RSpec.describe Workflow do
       expect(job.reload.state).to eq("running")
     end
 
-    it "reverts Job to :coding (not :failed) on workflow.fail! for local_mode_handoff grader failures" do
+    it "marks Job failed on workflow.fail! for local_mode_handoff grader failures" do
       job.update!(state: "running")
       wf = described_class.create!(job: job, trigger_kind: "local_mode_handoff", state: "running", started_at: 1.minute.ago)
       Step.create!(workflow: wf, kind: "grader_collect", position: 0, iteration: 1, state: "failed")
 
       wf.fail!; wf.save!
 
-      expect(job.reload.state).to eq("coding")
+      expect(job.reload.state).to eq("failed")
     end
 
     it "returns landing Jobs to implemented on workflow.fail! for auto_merge workflows" do

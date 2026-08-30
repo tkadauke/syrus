@@ -62,9 +62,10 @@ module Prompts
         2. Use `run_command("git push origin <branch>")` to push to the remote if not done yet.
         3. Call `complete_implement_step(job_id: <id>)` if a linked Job is specified.
            For new Jobs without an existing PR, also pass `branch_name: "<branch>"`.
-           This triggers graders (and PR creation if needed) in Syrus. The coding lock stays linked while the handoff runs so grader feedback can return to this chat.
-        4. Grader feedback will arrive as a follow-up chat message. Continue debugging
-           if graders fail.
+           This triggers graders (and PR creation if needed) in Syrus. The coding lock stays linked while the handoff runs so passive status can return to this chat.
+        4. If graders fail, workflow agents own repair and retry. Grader feedback may
+           arrive as a passive status message, but do not resume debugging unless the
+           operator explicitly asks you to.
 
         If no linked Job is specified, the operator manages commit and push themselves.
 

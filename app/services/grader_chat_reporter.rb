@@ -1,6 +1,6 @@
 class GraderChatReporter
-  # Post grader failure results to the chat. Coding handoff passes
-  # enqueue_agent_turn: false because workflow agents now own repair.
+  # Post grader failure results to the chat. Handoff workflows pass
+  # enqueue_agent_turn: false when workflow agents own repair.
   def self.report_failure(workflow:, chat:, enqueue_agent_turn: true)
     new(workflow, chat).report_failure(enqueue_agent_turn: enqueue_agent_turn)
   end
@@ -29,8 +29,7 @@ class GraderChatReporter
     return unless enqueue_agent_turn
 
     # Queued user message: triggers the chat-agent turn when the caller still
-    # wants chat-owned repair. Coding handoff disables this because the
-    # workflow retry loop owns repair.
+    # wants chat-owned repair. Worker-owned handoff retry loops disable this.
     trigger_text = "Graders have run and some required checks failed. " \
                    "Please review the results above and fix the issues, " \
                    "then call `complete_implement_step` when you're ready to re-run."

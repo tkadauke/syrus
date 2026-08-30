@@ -524,6 +524,10 @@ Unlike `grader_collect`, this step never raises `StepFailed` — a grader failur
 
 Same as above. In `coding_handoff`, they run inside a retry loop repaired by `coding_handoff_fix`.
 
+### local_mode_handoff_fix
+
+Agentic repair step for `local_mode_handoff` grader failures. The operator's local daemon has already committed and pushed the implementation branch, so this worker workflow owns any grader-failure repair. The step uses the latest grader failure feedback, makes the smallest focused branch changes needed for required graders to pass, commits those changes, and must not route repair back to the originating Local Mode chat.
+
 ## Grader command spans
 
 `grader` and `preflight_grader` Runs persist `CommandSpan` rows associated with

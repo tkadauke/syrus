@@ -538,9 +538,9 @@ class Job < ApplicationRecord
       transitions from: :coding, to: :implemented
     end
 
-    # Reverts a running coding_handoff workflow's job back to :coding
-    # when graders fail. The workflow skips propagate_fail_to_job! so
-    # the job remains :running until this event fires in after_fail.
+    # Legacy transition for returning a running handoff workflow's Job back
+    # to :coding. Worker-owned handoff repair paths now mark terminal grader
+    # failures as failed instead of routing ownership back to chat.
     event :revert_to_coding_mode do
       transitions from: :running, to: :coding
     end
