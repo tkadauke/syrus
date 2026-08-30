@@ -33,7 +33,7 @@ module Mcp::Tools
         },
         sort: {
           type: "string",
-          description: "Sort key: last_seen, last_failed, last_duration, or failure_rate."
+          description: "Sort key: last_seen, last_failed, last_duration, failure_rate, avg_duration, p50_duration, or p95_duration."
         },
         direction: {
           type: "string",

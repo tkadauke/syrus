@@ -275,6 +275,8 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).not_to include("MEMORY.md")
       expect(snapshot).not_to include("chat memory directory")
       expect(snapshot).to include('checkout=not cloned; call `attach_repository("rome/forums")`')
+      expect(snapshot).to include("repository context: attach_repository, repo_info")
+      expect(snapshot).to include("list_repository_test_insights, read_test_insight, read_job_test_results, read_run_test_results, compare_test_runtime")
       expect(snapshot).to include("live Syrus state: list_chats, list_jobs, read_job, explain_stuck_job, read_pr")
       expect(snapshot).to include("whiteboard: read_scene, draw_shape")
       expect(snapshot).to include("save_canvas, clear_canvas")
