@@ -170,6 +170,7 @@ export type ChatProposalChild = {
   dependencies: string[]
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  media_ids?: string[]
   dependency_details?: ChatProposalChildDependency[]
   app_update_path: string
   app_reject_path: string
