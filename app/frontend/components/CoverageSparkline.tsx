@@ -71,7 +71,7 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
           onMouseLeave={() => setTooltip(null)}
         >
           <path
-            className="fill-none stroke-blue-500 dark:stroke-blue-400"
+            className="fill-none stroke-brand dark:stroke-brand-emphasis"
             d={pathD}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -82,7 +82,7 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
             const y = toSvgY(p.lines_pct as number)
             return (
               <circle
-                className="cursor-crosshair fill-blue-500 dark:fill-blue-400"
+                className="cursor-crosshair fill-brand dark:fill-brand-emphasis"
                 cx={x}
                 cy={y}
                 key={`${p.date}-${i}`}
@@ -93,7 +93,7 @@ function SparklineChart({ points }: { points: CoverageTrendPoint[] }) {
           })}
         </svg>
         {lastPct != null ? (
-          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{lastPct.toFixed(1)}%</span>
+          <span className="text-xs font-medium text-brand-emphasis">{lastPct.toFixed(1)}%</span>
         ) : null}
       </div>
 

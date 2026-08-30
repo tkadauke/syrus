@@ -326,10 +326,10 @@ function RecentCallsPanel({ calls }: { calls: McpToolUsageRecentCall[] }) {
       key: "links",
       render: (row) => (
         <div className="flex flex-col gap-1">
-          {row.job_path ? <Link className="text-blue-600 underline hover:no-underline dark:text-blue-300" to={row.job_path}>{t("mcp_tool_usage.link_job", { id: row.job_id })}</Link> : null}
-          {row.workflow_path ? <Link className="text-blue-600 underline hover:no-underline dark:text-blue-300" to={row.workflow_path}>{t("mcp_tool_usage.link_workflow", { id: row.workflow_id })}</Link> : null}
-          {row.run_path ? <Link className="text-blue-600 underline hover:no-underline dark:text-blue-300" to={row.run_path}>{t("mcp_tool_usage.link_run", { id: row.run_id })}</Link> : null}
-          {row.chat_path ? <Link className="text-blue-600 underline hover:no-underline dark:text-blue-300" to={row.chat_path}>{t("mcp_tool_usage.link_chat")}</Link> : null}
+          {row.job_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.job_path}>{t("mcp_tool_usage.link_job", { id: row.job_id })}</Link> : null}
+          {row.workflow_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.workflow_path}>{t("mcp_tool_usage.link_workflow", { id: row.workflow_id })}</Link> : null}
+          {row.run_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.run_path}>{t("mcp_tool_usage.link_run", { id: row.run_id })}</Link> : null}
+          {row.chat_path ? <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={row.chat_path}>{t("mcp_tool_usage.link_chat")}</Link> : null}
         </div>
       )
     }
