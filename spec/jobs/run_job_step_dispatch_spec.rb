@@ -26,6 +26,14 @@ RSpec.describe RunJob, "step-dispatch path" do
 
   before do
     allow(Steps).to receive(:handler_for).and_return(noop_handler_class)
+    allow(RunHostAdmission).to receive(:call) do |run:|
+      RunHostAdmission::Decision.new(
+        action: "admit",
+        reason: "test_dispatch_path",
+        delay: nil,
+        details: { "run_id" => run.id }
+      )
+    end
   end
 
   it "drives the first step's Run through Steps.handler_for and succeeds" do
