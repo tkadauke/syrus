@@ -12,6 +12,7 @@ import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
 import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
+import { DocumentPreviewModal, isImageContentType, isPreviewableTextContentType } from "../../components/DocumentPreviewModal"
 import { useJobCommand } from "./command"
 import { jobSlug } from "./formatting"
 import type { ReactNode, UIEvent } from "react"
@@ -391,12 +392,14 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   const { t } = useT("jobs")
   const title = attachment.title || attachment.filename || attachment.google_doc_url || `Attachment #${attachment.id}`
   const [previewOpen, setPreviewOpen] = useState(false)
-  const previewable = !!attachment.content_path
+  const imagePreviewable = !!attachment.file_path && isImageContentType(attachment.content_type)
+  const textPreviewable = !!attachment.content_path && isPreviewableTextContentType(attachment.content_type)
+  const previewable = imagePreviewable || textPreviewable
 
   const fileContent = useQuery({
     queryKey: ["job_attachment_content", attachment.content_path],
     queryFn: () => fetchJobAttachmentContent(attachment.content_path!),
-    enabled: previewOpen && previewable
+    enabled: previewOpen && textPreviewable
   })
 
   return (
@@ -414,7 +417,17 @@ export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
         {attachment.google_doc_url ? <a className="text-brand hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </div>
-      {previewOpen && previewable ? (
+      {previewOpen && imagePreviewable ? (
+        <DocumentPreviewModal
+          file={{
+            title,
+            rawUrl: attachment.file_path!,
+            contentType: attachment.content_type
+          }}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
+      {previewOpen && textPreviewable ? (
         <FilePreviewModal
           onClose={() => setPreviewOpen(false)}
           path={attachment.filename || title}
