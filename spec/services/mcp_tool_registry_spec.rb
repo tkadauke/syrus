@@ -50,6 +50,7 @@ RSpec.describe McpToolRegistry do
         tier: :essential,
         admin_only: false,
         feature_flag: nil,
+        feature_flags_by_role: nil,
         required_roles: [],
         capability: nil,
         mutation: false
@@ -92,7 +93,7 @@ RSpec.describe McpToolRegistry do
       session = chat_session(mode: "local")
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to include("read_file", "write_file", "run_command", "git_status")
+      expect(tool_names_for(context, tier: :essential)).to include("read_file", "write_file", "run_command", "git_status", "complete_implement_step")
       expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
     end
 

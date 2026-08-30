@@ -5,6 +5,7 @@ class McpToolRegistry
     :tier,
     :admin_only,
     :feature_flag,
+    :feature_flags_by_role,
     :required_roles,
     :capability,
     :mutation
@@ -25,6 +26,7 @@ class McpToolRegistry
         tier: tier,
         admin_only: admin_only,
         feature_flag: feature_flag,
+        feature_flags_by_role: feature_flags_by_role,
         required_roles: required_roles,
         capability: capability,
         mutation: mutation,
@@ -91,8 +93,16 @@ class McpToolRegistry
     def allowed_entry?(entry, context)
       return false unless surface_allowed?(entry, context)
       return false if entry.admin_only && !context.user.admin?
-      return false if entry.feature_flag && !Feature.public_send("#{entry.feature_flag}_enabled?")
+      return false unless feature_allowed?(entry, context)
       return false if entry.required_roles.any? && !entry.required_roles.include?(context.role)
+
+      true
+    end
+
+    def feature_allowed?(entry, context)
+      role_feature_flag = entry.feature_flags_by_role&.fetch(context.role, nil)
+      return Feature.public_send("#{role_feature_flag}_enabled?") if role_feature_flag
+      return Feature.public_send("#{entry.feature_flag}_enabled?") if entry.feature_flag
 
       true
     end
@@ -146,7 +156,13 @@ class McpToolRegistry
         chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true),
         chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true),
         chat(Mcp::Tools::ResetWorkspaceTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
-        chat(Mcp::Tools::CompleteImplementStepTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
+        chat(Mcp::Tools::CompleteImplementStepTool,
+          feature_flags_by_role: {
+            AgentRole::CHAT_CODING => :coding_mode,
+            AgentRole::CHAT_LOCAL => :local_mode
+          },
+          required_roles: [ AgentRole::CHAT_CODING, AgentRole::CHAT_LOCAL ],
+          mutation: true),
         chat(Mcp::Tools::SubmitCodingChangesTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         chat(Mcp::Tools::AdminOverviewTool, admin_only: true),
         chat(Mcp::Tools::AdminStuckJobsTool, admin_only: true),
@@ -358,7 +374,7 @@ class McpToolRegistry
       entry(tool, surface: :workflow, **metadata)
     end
 
-    def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil,
+    def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
               required_roles: [], capability: nil, mutation: false)
       Entry.new(
         tool: tool,
@@ -366,10 +382,17 @@ class McpToolRegistry
         tier: tier&.to_sym,
         admin_only: admin_only,
         feature_flag: feature_flag&.to_sym,
+        feature_flags_by_role: normalize_feature_flags_by_role(feature_flags_by_role),
         required_roles: Array(required_roles).freeze,
         capability: capability&.to_sym,
         mutation: mutation
       )
+    end
+
+    def normalize_feature_flags_by_role(feature_flags_by_role)
+      return nil if feature_flags_by_role.blank?
+
+      feature_flags_by_role.to_h.transform_keys(&:to_s).transform_values(&:to_sym).freeze
     end
   end
 end

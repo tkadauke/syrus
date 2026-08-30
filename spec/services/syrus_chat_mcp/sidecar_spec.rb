@@ -571,7 +571,7 @@ RSpec.describe Mcp::Sidecar do
   end
 
   describe "local mode labs flag" do
-    let(:local_mode_tools) { %w[read_file write_file list_files run_command git_diff git_status] }
+    let(:local_mode_tools) { %w[read_file write_file list_files run_command git_diff git_status complete_implement_step] }
 
     def enable_local_mode
       feature = Feature.find_or_initialize_by(slug: "local_mode")

@@ -54,6 +54,27 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
   end
 
+  it "starts a local_mode_handoff workflow from a Local Mode chat" do
+    chat_session.update!(mode: "local")
+    Feature.find_or_create_by!(slug: "local_mode") do |record|
+      record.category = "Labs"
+      record.name = "Local Mode"
+    end.update!(enabled: true)
+    job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
+                               issue_number: nil, branch_name: nil, pr_number: nil)
+    job.update_columns(linked_chat_id: chat_session.id, state: "coding")
+
+    response = call_tool(job_id: job.id, branch_name: "syrus/job-3931-local-run-command-input")
+    result = payload(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(job.reload).to be_open
+    expect(job.branch_name).to eq("syrus/job-3931-local-run-command-input")
+    workflow = Workflow.find(result[:workflow_id])
+    expect(workflow.trigger_kind).to eq("local_mode_handoff")
+    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
+  end
+
   it "uses a supplied replacement branch_name instead of the stale stored branch" do
     job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
                                issue_number: nil, branch_name: "syrus/stale", pr_number: nil)
