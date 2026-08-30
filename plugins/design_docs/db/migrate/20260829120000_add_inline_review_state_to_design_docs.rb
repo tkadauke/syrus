@@ -57,8 +57,5 @@ class AddInlineReviewStateToDesignDocs < ActiveRecord::Migration[8.1]
     change_column_null :design_doc_suggestions, :proposed_markdown, false
 
     add_index :design_doc_suggestions, :base_version_id unless index_exists?(:design_doc_suggestions, :base_version_id)
-    unless foreign_key_exists?(:design_doc_suggestions, :design_doc_versions, column: :base_version_id)
-      add_foreign_key :design_doc_suggestions, :design_doc_versions, column: :base_version_id
-    end
   end
 end
