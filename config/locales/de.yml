@@ -1,6 +1,10 @@
 de:
   hello: "Hallo Welt"
 
+  errors:
+    messages:
+      inclusion: "ist kein gültiger Wert"
+
   passwords_mailer:
     reset:
       subject: "Passwort zurücksetzen"
