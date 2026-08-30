@@ -116,7 +116,10 @@ function LaneRow({
             <div className="truncate font-mono text-[11px] text-gray-500 dark:text-gray-500">{lane.laneSecondaryLabel}</div>
           </>
         ) : (
-          <div className="font-mono text-[11px] text-gray-400 dark:text-gray-600">{lane.subrowIndex + 1}/{lane.subrowCount}</div>
+          <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-600">
+            <span className="min-w-0 truncate font-semibold">{lane.laneLabel} ·</span>
+            <span className="shrink-0 rounded border border-gray-200 px-1 font-mono dark:border-gray-800">{lane.subrowIndex + 1}/{lane.subrowCount}</span>
+          </div>
         )}
       </div>
       <svg className="h-8 flex-1" preserveAspectRatio="none" role="img" viewBox={`0 0 ${CHART_WIDTH} 32`}>

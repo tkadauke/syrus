@@ -37,6 +37,50 @@ RSpec.describe Timeline::WorkerAttribution do
     )
   end
 
+  it "prefers the earliest activity event with a queue role over an earlier unattributed workflow event" do
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "running",
+      started_at: 10.minutes.ago,
+      worker_hostname: "worker-column",
+      worker_storage_key: "storage-a"
+    )
+    WorkflowActivityEvent.create!(
+      occurred_at: 9.minutes.ago,
+      event_type: "workflow_started",
+      source: "spec",
+      severity: "info",
+      hostname: "worker-dispatcher",
+      pid: 1111,
+      queue_role: nil,
+      workflow: workflow,
+      message: "workflow started",
+      metadata: {}
+    )
+    WorkflowActivityEvent.create!(
+      occurred_at: 8.minutes.ago,
+      event_type: "run_started",
+      source: "spec",
+      severity: "info",
+      hostname: "worker-runner",
+      pid: 2222,
+      queue_role: "runs",
+      workflow: workflow,
+      message: "run started",
+      metadata: {}
+    )
+
+    expect(described_class.for_workflows([ workflow ])).to eq(
+      workflow.id => {
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
+        hostname: "worker-runner",
+        pid: 2222
+      }
+    )
+  end
+
   it "falls back through spawned process, workflow hostname, and nil attribution" do
     workflow_with_process = Workflow.create!(
       job: job,
