@@ -25,18 +25,23 @@ class WorkspaceTabsPayload
 
   def tabs_for(provider)
     PerformanceLogging.plugin_call(extension_point: :workspace_tab, provider: provider, operation: :workspace_tabs) do
-      Array(provider.workspace_tabs).map { |tab| tab_payload(tab) }
+      method = provider.method(:workspace_tabs)
+      tabs = method.arity.zero? ? provider.workspace_tabs : provider.workspace_tabs(@chat_session)
+      Array(tabs).map { |tab| tab_payload(tab) }
     end
   end
 
   def tab_payload(tab)
     tab = tab.to_h.symbolize_keys
-    {
+    payload = {
       id: tab.fetch(:id).to_s,
       label: tab.fetch(:label).to_s,
       label_key: tab[:label_key].presence&.to_s,
       component: tab.fetch(:component).to_s,
       order: tab[:order].to_i
     }
+    payload[:closable] = true if ActiveModel::Type::Boolean.new.cast(tab[:closable])
+    payload[:data] = tab[:data] if tab.key?(:data)
+    payload
   end
 end

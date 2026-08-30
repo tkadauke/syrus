@@ -403,7 +403,7 @@ Rails.application.routes.draw do
           post "platform_polling/start", to: "platform_polling#start"
         end
         match "*plugin_route", to: "plugin_routes#show", via: :all, constraints: lambda { |request|
-          PluginRouteResolver.match?(request, controller_prefix: "api/v1/app/")
+          PluginRouteResolver.declared_api_route?(request, controller_prefix: "api/v1/app/")
         }
       end
 
@@ -515,7 +515,7 @@ Rails.application.routes.draw do
           end
         end
         match "*plugin_route", to: "plugin_routes#show", via: :all, constraints: lambda { |request|
-          PluginRouteResolver.match?(request, controller_prefix: "api/v1/admin/")
+          PluginRouteResolver.declared_api_route?(request, controller_prefix: "api/v1/admin/")
         }
       end
 
@@ -574,6 +574,8 @@ Rails.application.routes.draw do
   get "dashboard/jobs", to: "spa#show", as: :dashboard_jobs
   get "dashboard/workflows", to: "spa#show", as: :dashboard_workflows
   get "insights/spending", to: "spa#show", as: :insights_spending
+  get "design_docs", to: "spa#show", as: :design_docs
+  get "design_docs/:id", to: "spa#show", as: :design_doc, constraints: { id: /\d+/ }
   get "db_browser", to: "spa#show", as: :db_browser
   get "worker_timeline", to: "spa#show", as: :worker_timeline
   get "worker_timeline/workflow", to: "spa#show", as: :worker_timeline_workflow

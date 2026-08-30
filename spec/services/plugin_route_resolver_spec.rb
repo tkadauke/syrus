@@ -44,15 +44,35 @@ RSpec.describe PluginRouteResolver do
 
       expect(described_class.match?(request, controller_prefix: "api/v1/app/")).to be false
     end
+
+    it "does not match routes from disabled plugins" do
+      register_plugin("disabled_widgets", [
+        { verb: "GET", path: "/api/v1/app/disabled_widgets", controller: "api/v1/app/disabled_widgets#index" }
+      ])
+      PluginRecord.find_by!(name: "disabled_widgets").update!(enabled: false)
+      request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/disabled_widgets")
+
+      expect(described_class.match?(request, controller_prefix: "api/v1/app/")).to be false
+    end
+
+    it "recognizes declared disabled API routes for wildcard routing" do
+      register_plugin("disabled_widgets", [
+        { verb: "GET", path: "/api/v1/app/disabled_widgets", controller: "api/v1/app/disabled_widgets#index" }
+      ])
+      PluginRecord.find_by!(name: "disabled_widgets").update!(enabled: false)
+      request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/disabled_widgets")
+
+      expect(described_class.declared_api_route?(request, controller_prefix: "api/v1/app/")).to be true
+    end
   end
 
   describe ".spa_route_declared?" do
     it "matches a plugin-declared static spa#show path" do
-      register_plugin("admin_mysql", [
-        { verb: "GET", path: "/admin/mysql", controller: "spa#show" }
+      register_plugin("spa_widgets", [
+        { verb: "GET", path: "/admin/spa_widgets", controller: "spa#show" }
       ])
 
-      expect(described_class.spa_route_declared?("/admin/mysql")).to be true
+      expect(described_class.spa_route_declared?("/admin/spa_widgets")).to be true
       expect(described_class.spa_route_declared?("/admin/other")).to be false
     end
 

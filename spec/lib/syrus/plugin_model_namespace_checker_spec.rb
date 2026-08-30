@@ -24,6 +24,21 @@ RSpec.describe Syrus::PluginModelNamespaceChecker do
     expect(checker_for(model_classes: [ model ]).call).to be_success
   end
 
+  it "accepts plural plugin namespaces with a root table and singular child table prefix" do
+    root_model = FakePluginModel.new(
+      name: "DesignDocs::DesignDoc",
+      table_name: "design_docs",
+      superclass: FakePluginSuperclass.new(table_name: "application_records")
+    )
+    child_model = FakePluginModel.new(
+      name: "DesignDocs::DesignDocVersion",
+      table_name: "design_doc_versions",
+      superclass: FakePluginSuperclass.new(table_name: "application_records")
+    )
+
+    expect(checker_for(model_classes: [ root_model, child_model ]).call).to be_success
+  end
+
   it "rejects plugin-owned models with unprefixed tables" do
     model = FakePluginModel.new(
       name: "Linear::Ticket",
@@ -77,6 +92,30 @@ RSpec.describe Syrus::PluginModelNamespaceChecker do
       result = checker_for(model_classes: [], root: root).call
 
       expect(result.errors).to include(/creates table "tickets"/)
+    end
+  end
+
+  it "accepts plural plugin migrations with root and singular child table prefixes" do
+    Dir.mktmpdir("syrus-plugin-checker") do |dir|
+      root = Pathname.new(dir)
+      plugin = root.join("plugins/design_docs")
+      plugin.join("db/migrate").mkpath
+      plugin.join("design_docs.gemspec").write("Gem::Specification.new do |spec|\n  spec.name = \"design_docs\"\nend\n")
+      plugin.join("db/migrate/20260822000000_create_design_docs.rb").write(<<~RUBY)
+        class CreateDesignDocs < ActiveRecord::Migration[8.1]
+          def change
+            create_table :design_docs do |t|
+              t.timestamps
+            end
+
+            create_table :design_doc_versions do |t|
+              t.timestamps
+            end
+          end
+        end
+      RUBY
+
+      expect(checker_for(model_classes: [], root: root).call).to be_success
     end
   end
 end

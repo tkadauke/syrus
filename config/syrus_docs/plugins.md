@@ -94,7 +94,7 @@ a blank/absent category is still allowed, the same as a blank `author`.
 | `platform_delivery` | Platform delivery | `discord` |
 | `connectivity` | Connectivity | `tailscale` |
 | `observability` | Observability | `admin_mysql`, `spending_insights`, `git_history` |
-| `tooling` | Tooling | `syrus_dev` |
+| `tooling` | Tooling | `syrus_dev`, `design_docs` |
 
 ```ruby
 Syrus::PluginRegistry.register(
@@ -577,16 +577,17 @@ Include `Syrus::Plugin::WorkspaceTab` and implement the class methods:
 
 | Method | Signature | Description |
 |---|---|---|
-| `workspace_tabs` | `() → Array<Hash>` | Tab metadata: `id` (unique across all plugins — see collision guard below; conventionally prefixed `"<plugin_name>."`, checked by `spec/lib/syrus/plugin_workspace_tab_contract_spec.rb`), `label` (fallback string), `label_key` (`"<i18n_namespace>:<key>"`), `component` (frontend component key, matching a `frontend.workspace_tabs` manifest entry), and optional `order` (default `0`). |
+| `workspace_tabs` | `() → Array<Hash>` or `(chat_session) → Array<Hash>` | Tab metadata: `id` (unique across all plugins — see collision guard below; conventionally prefixed `"<plugin_name>."`, checked by `spec/lib/syrus/plugin_workspace_tab_contract_spec.rb`), `label` (fallback string), `label_key` (`"<i18n_namespace>:<key>"`), `component` (frontend component key, matching a `frontend.workspace_tabs` manifest entry), optional `order` (default `0`), optional `closable` (`true` lets the user dismiss that plugin tab for the current chat view; omitted/false keeps the tab fixed), and optional `data` for plugin-specific JSON context passed through to the frontend tab. |
 | `available_for?` | `(chat_session) → bool` | Optional per-chat visibility gate. Defaults to always available. |
 
 ```ruby
 class MyPlugin::WorkspaceTabs
   include Syrus::Plugin::WorkspaceTab
 
-  def self.workspace_tabs
+  def self.workspace_tabs(chat_session = nil)
     [ { id: "my_plugin.status", label: "Status", label_key: "my_plugin:tab_status",
-        component: "my_plugin/StatusTab", order: 100 } ]
+        component: "my_plugin/StatusTab", order: 100, closable: true,
+        data: { chat_id: chat_session&.id } } ]
   end
 
   def self.available_for?(chat_session) = chat_session.repository.present?
@@ -1456,6 +1457,17 @@ Bundled plugins:
   `save_canvas`, `clear_canvas`, `load_canvas`. Registers its own
   `/api/v1/app/chats/:id/whiteboard` and `/api/v1/app/chats/:chat_id/whiteboard_snapshots`
   routes; the underlying `Whiteboard`/`WhiteboardSnapshot` models stay in core.
+- `design_docs` — default-enabled. Registers the first-party collaborative
+  design document plugin. The plugin owns discovery/enablement,
+  `DesignDocs::` domain models, validations, model specs, migration, JSON API
+  controller, policy, serializer, create/update services, anchor marker
+  parsing, inline comment services, and owner-reviewed suggestion services
+  under `plugins/design_docs`. The host app loads bundled plugin migration
+  paths and keeps the shared Rails schema artifact. The initial schema stores
+  canonical Markdown on `DesignDocs::DesignDoc`, append-only
+  `DesignDocs::DesignDocVersion` rows, n:m repository links, explicit
+  private-doc collaborators, and DB-authoritative anchors, threads, comments,
+  and one-range suggestions. User-facing references use `DOC-<id>`.
 - `mysql_db_browser` — disabled by default (see
   `config/syrus_docs/mysql_db_browser.md`); the second `sidebar_page` plugin.
   `MysqlDbBrowser::SidebarPages` provides `mysql_db_browser.connections`:

@@ -83,22 +83,27 @@ module Syrus
       return if model.abstract_class
       return if model.superclass_table_name.present? && model.superclass_table_name == model.table_name
 
-      expected_prefix = "#{model.name.split("::").first.underscore}_"
-      return if model.table_name.start_with?(expected_prefix)
+      namespace = model.name.split("::").first.underscore
+      return if permitted_table_name?(model.table_name, namespace)
 
-      "#{model.name} uses table #{model.table_name.inspect}; plugin-owned model tables must start with #{expected_prefix.inspect}"
+      "#{model.name} uses table #{model.table_name.inspect}; plugin-owned model tables must start with #{namespace.inspect}, #{namespace + "_"} or #{namespace.singularize + "_"}"
+    end
+
+    def permitted_table_name?(table_name, namespace)
+      table_name == namespace ||
+        table_name.start_with?("#{namespace}_") ||
+        table_name.start_with?("#{namespace.singularize}_")
     end
 
     def migration_errors
       plugin_dirs.flat_map do |dir|
         plugin_name = plugin_name_for(dir)
-        expected_prefix = "#{plugin_name}_"
 
         Dir.glob(dir.join("db/migrate/*.rb")).sort.flat_map do |path|
           create_table_names(path).filter_map do |table_name|
-            next if table_name.start_with?(expected_prefix)
+            next if permitted_table_name?(table_name, plugin_name)
 
-            "#{relative(path)} creates table #{table_name.inspect}; plugin migration tables must start with #{expected_prefix.inspect}"
+            "#{relative(path)} creates table #{table_name.inspect}; plugin migration tables must start with #{plugin_name.inspect}, #{plugin_name + "_"} or #{plugin_name.singularize + "_"}"
           end
         end
       end

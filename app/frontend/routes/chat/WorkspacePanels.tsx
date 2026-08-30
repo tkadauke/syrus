@@ -71,7 +71,13 @@ export function ChatWorkspacePanel({
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const hasPins = useHasPins(payload.chat.id, queryKey[2])
-  const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode, hasPins), [payload, simpleMode, hasPins])
+  const [closedPluginTabs, setClosedPluginTabs] = useState<string[]>([])
+  useEffect(() => setClosedPluginTabs([]), [payload.chat.id])
+  const visiblePayload = useMemo(() => ({
+    ...payload,
+    workspace_tabs: payload.workspace_tabs.filter((tab) => !closedPluginTabs.includes(tab.id))
+  }), [closedPluginTabs, payload])
+  const tabs = useMemo(() => availableWorkspaceTabs(visiblePayload, simpleMode, hasPins), [visiblePayload, simpleMode, hasPins])
   const activePreviewPanel = isPreviewTab(activeTab)
     ? payload.preview_panels.find((panel) => previewTabId(panel.id) === activeTab) ?? null
     : null
@@ -92,6 +98,30 @@ export function ChatWorkspacePanel({
         <nav aria-label={t("aria_workspace_tabs")} className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
           {tabs.map((tab) => {
             if (!isPreviewTab(tab)) {
+              const tabId = isPluginTab(tab) ? pluginTabIdFromTab(tab) : null
+              const pluginTab = tabId ? payload.workspace_tabs.find((candidate) => candidate.id === tabId) : null
+              if (pluginTab?.closable) {
+                const label = workspaceTabLabel(tab, t, [], payload.workspace_tabs)
+                return (
+                  <span className={`group flex items-center gap-1 ${workspaceTabClass(activeTab === tab)}`} key={tab}>
+                    <button className="max-w-[8rem] truncate" onClick={() => onSelectTab(tab)} title={label} type="button">
+                      {label}
+                    </button>
+                    <button
+                      aria-label={t("aria_close_workspace_tab", { title: label })}
+                      className="rounded p-0.5 text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 focus:opacity-100 group-hover:opacity-100 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setClosedPluginTabs((current) => tabId && !current.includes(tabId) ? [...current, tabId] : current)
+                      }}
+                      type="button"
+                    >
+                      <CloseIcon className="h-3 w-3" />
+                    </button>
+                  </span>
+                )
+              }
+
               return (
                 <button
                   className={workspaceTabClass(activeTab === tab)}
@@ -170,7 +200,7 @@ function PluginWorkspaceTabPanel({ activeTab, payload }: { activeTab: WorkspaceT
 
   return (
     <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
-      <Component payload={payload} />
+      <Component payload={payload} tab={pluginTab} />
     </Suspense>
   )
 }

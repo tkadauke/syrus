@@ -6,6 +6,7 @@ gem "python",      path: "plugins/python"
 gem "django",      path: "plugins/django"
 gem "go",          path: "plugins/go"
 gem "syrus_rails", path: "plugins/rails"
+gem "design_docs", path: "plugins/design_docs"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.3", ">= 8.1.3.1"

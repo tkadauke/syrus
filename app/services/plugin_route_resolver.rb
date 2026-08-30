@@ -1,14 +1,26 @@
 class PluginRouteResolver
-  Route = Data.define(:verb, :path, :controller, :params)
+  Route = Data.define(:verb, :path, :controller, :params, :plugin_name, :enabled)
 
   class << self
     def find(request, controller_prefix:)
-      plugin_routes.find do |route|
+      plugin_routes(enabled: true).find do |route|
         next false unless controller_allowed?(route.controller, controller_prefix)
         next false unless verb_matches?(route.verb, request.request_method)
 
-        path_params = path_params_for(route.path, request.path)
-        return Route.new(verb: route.verb, path: route.path, controller: route.controller, params: path_params) if path_params
+        params = path_params_for(route.path, request.path)
+        return route.with(params: params) if params
+
+        false
+      end
+    end
+
+    def find_disabled(request, controller_prefix:)
+      plugin_routes(enabled: false).find do |route|
+        next false unless controller_allowed?(route.controller, controller_prefix)
+        next false unless verb_matches?(route.verb, request.request_method)
+
+        params = path_params_for(route.path, request.path)
+        return route.with(params: params) if params
 
         false
       end
@@ -18,6 +30,11 @@ class PluginRouteResolver
       find(request, controller_prefix: controller_prefix).present?
     end
 
+    def declared_api_route?(request, controller_prefix:)
+      find(request, controller_prefix: controller_prefix).present? ||
+        find_disabled(request, controller_prefix: controller_prefix).present?
+    end
+
     # Generic SPA-route existence check used by wildcard host routes (e.g.
     # "admin/*path", "repositories/:repository_id/plugin/*path") to decide
     # whether some plugin declared a matching `spa#show` route, instead of
@@ -25,7 +42,7 @@ class PluginRouteResolver
     # this only checks path shape (params can include dynamic segments like
     # ":repository_id"), not an HTTP verb, since spa#show is always GET.
     def spa_route_declared?(path)
-      plugin_routes.any? do |route|
+      plugin_routes(enabled: true).any? do |route|
         # path_params_for returns {} (falsy-looking but truthy) for a static
         # match with no dynamic segments — check truthiness, not #present?,
         # since {}.present? is false.
@@ -69,8 +86,10 @@ class PluginRouteResolver
 
     REPO_PAGE_TAB_PATH = %r{\A/repositories/(?<repository_id>\d+)/plugin/}
 
-    def plugin_routes
+    def plugin_routes(enabled:)
       Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+        next [] unless enabled.nil? || manifest.enabled? == enabled
+
         metadata = manifest.metadata.with_indifferent_access
         Array(metadata[:routes]).filter_map do |raw_route|
           route = raw_route.to_h.with_indifferent_access
@@ -80,7 +99,9 @@ class PluginRouteResolver
             verb: route[:verb].presence || "GET",
             path: route[:path].to_s,
             controller: route[:controller].to_s,
-            params: {}
+            params: {},
+            plugin_name: manifest.name,
+            enabled: manifest.enabled?
           )
         end
       end
