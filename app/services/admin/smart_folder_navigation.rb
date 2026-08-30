@@ -49,7 +49,7 @@ module Admin
     def builtin_i18n_key(folder)
       return nil unless folder.builtin?
 
-      definitions = SmartFolder::BUILTINS_BY_SUBJECT.fetch(folder.subject_type, [])
+      definitions = SmartFolder.builtins_by_subject.fetch(folder.subject_type, [])
       definitions.find { |d| d[:name] == folder.name }&.fetch(:key, nil)&.to_s
     end
 
@@ -81,7 +81,7 @@ module Admin
       when "spawned_process"
         admin_processes_path(smart_folder_id: folder.id)
       else
-        smart_folders_path(subject_type: subject)
+        SmartFolder.path_for_subject(subject, smart_folder_id: folder.id) || smart_folders_path(subject_type: subject)
       end
     end
   end

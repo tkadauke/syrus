@@ -15,6 +15,7 @@ export function AdminSmartFolderNav({
   activeFolderId,
   allLabel,
   allPath,
+  allowSaveWithoutActiveFolder = false,
   ariaLabel,
   currentFilter,
   folders,
@@ -27,6 +28,7 @@ export function AdminSmartFolderNav({
   activeFolderId?: number | null
   allLabel: string
   allPath: string
+  allowSaveWithoutActiveFolder?: boolean
   appliedFilter?: Record<string, unknown> | null
   ariaLabel: string
   currentFilter?: Record<string, unknown>
@@ -53,7 +55,7 @@ export function AdminSmartFolderNav({
   const currentTree = filterTreeFromPayload(currentFilter)
   const selectedFolder = folders.find((folder) => folder.id === activeFolderId)
   const filtersDiffer = selectedFolder?.filter != null && !filterTreesEqual(currentTree, filterTreeFromPayload(selectedFolder.filter))
-  const canSaveAsNew = topFilterChildren(currentTree).length > 0 && Boolean(subjectType) && filtersDiffer
+  const canSaveAsNew = topFilterChildren(currentTree).length > 0 && Boolean(subjectType) && (filtersDiffer || (allowSaveWithoutActiveFolder && selectedFolder == null))
   const createFolder = useMutation({
     mutationFn: () => {
       if (!currentFilter || !subjectType) throw new Error("No filter to save.")
