@@ -1,9 +1,9 @@
 class CreateChatGoals < ActiveRecord::Migration[8.1]
   def change
     create_table :chat_goals do |t|
-      t.references :chat_session, null: false, foreign_key: true
-      t.references :user, null: false, foreign_key: true
-      t.references :repository, foreign_key: true
+      t.references :chat_session, null: false
+      t.references :user, null: false
+      t.references :repository
       t.text :prompt, null: false
       t.text :completion_condition
       t.json :mode_snapshot, null: false
