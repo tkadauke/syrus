@@ -105,10 +105,23 @@ RSpec.describe Jobs::LandedCommitsBackfill do
         .and_return("#{base} #{integration}\n")
     end
 
+    def stub_one_parent(sha: "mergesha", parent: "parentsha")
+      allow(git).to receive(:run)
+        .with("log", "-1", "--pretty=format:%P", sha, chdir: clone_path.to_s)
+        .and_return("#{parent}\n")
+    end
+
     def stub_ranged_log(entries, base: "basesha", integration: "intsha")
       body = entries.map { |sha, subject| "#{sha}\x1f#{subject}" }.join("\n")
       allow(git).to receive(:run)
         .with("log", "--reverse", "--pretty=format:%H%x1f%s", "#{base}..#{integration}", chdir: clone_path.to_s)
+        .and_return(body)
+    end
+
+    def stub_first_parent_entries(entries, sha: "mergesha", count:)
+      body = entries.map { |entry_sha, subject| "#{entry_sha}\x1f#{subject}" }.join("\n")
+      allow(git).to receive(:run)
+        .with("log", "--first-parent", "--reverse", "-n", count.to_s, "--pretty=format:%H%x1f%s", sha, chdir: clone_path.to_s)
         .and_return(body)
     end
 
@@ -189,6 +202,60 @@ RSpec.describe Jobs::LandedCommitsBackfill do
       reconcile_row = LandedCommit.find_by(landable: epic, kind: "reconcile")
       expect(reconcile_row.sha).to eq("shaR1")
       expect(reconcile_row.position).to eq(0)
+    end
+
+    it "backfills a one-parent fast-forward train by matching member subjects in the first-parent tail" do
+      epic = Factories.epic(user: user, repository: repository)
+      job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)
+      job_b = landed_job(pr_number: 602, landed_sha: "mergesha", issue_number: 2)
+      train = build_train(epic: epic)
+      MergeTrainMember.create!(merge_train: train, job: job_a, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: job_b, position: 1)
+
+      stub_one_parent
+      stub_first_parent_entries([
+        [ "before", "Unrelated earlier commit" ],
+        [ "shaA1", "Subject A1" ],
+        [ "shaB1", "Subject B1" ]
+      ], count: 3)
+      client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
+      client_b = github_client([ commit_double(sha: "origB1", message: "Subject B1") ])
+
+      result = service_for(clients_by_pr: { 601 => client_a, 602 => client_b }).call
+
+      expect(result.checked).to eq(1)
+      expect(result.recorded).to eq(1)
+      expect(result.commits_recorded).to eq(2)
+      expect(result.errors).to eq(0)
+      expect(LandedCommit.where(landable: job_a).pluck(:sha)).to eq([ "shaA1" ])
+      expect(LandedCommit.where(landable: job_b).pluck(:sha)).to eq([ "shaB1" ])
+      expect(LandedCommit.where(landable: epic)).to be_empty
+    end
+
+    it "records a trailing reconcile commit for a one-parent train without double-recording the integration SHA" do
+      epic = Factories.epic(user: user, repository: repository)
+      job_a = landed_job(pr_number: 601, landed_sha: "mergesha", issue_number: 1)
+      train = build_train(epic: epic)
+      MergeTrainMember.create!(merge_train: train, job: job_a, position: 0)
+
+      stub_one_parent
+      stub_first_parent_entries([
+        [ "shaA1", "Subject A1" ],
+        [ "mergesha", "Syrus merge-train reconciliation" ]
+      ], count: 2)
+      client_a = github_client([ commit_double(sha: "origA1", message: "Subject A1") ])
+
+      result = service_for(clients_by_pr: { 601 => client_a }).call
+
+      expect(result.checked).to eq(1)
+      expect(result.recorded).to eq(1)
+      expect(result.commits_recorded).to eq(2)
+      expect(result.errors).to eq(0)
+      expect(LandedCommit.where(landable: job_a).pluck(:sha)).to eq([ "shaA1" ])
+
+      reconcile_row = LandedCommit.find_by(landable: epic, kind: "reconcile")
+      expect(reconcile_row.sha).to eq("mergesha")
+      expect(LandedCommit.where(landable: epic, kind: "integration_merge")).to be_empty
     end
 
     it "is idempotent: a second run skips a train that already has LandedCommit rows" do
