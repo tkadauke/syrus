@@ -15,7 +15,7 @@ module TestInsights
       def call(...) = new(...).call
     end
 
-    def initialize(user:, repository: nil, repository_id: nil, repository_slug: nil, category: nil, sort: nil, direction: nil, query: nil, limit: nil, filters: {})
+    def initialize(user:, repository: nil, repository_id: nil, repository_slug: nil, category: nil, sort: nil, direction: nil, query: nil, limit: nil, filters: {}, grader_name: nil)
       @user = user
       @repository = repository
       @repository_id = repository_id
@@ -26,6 +26,7 @@ module TestInsights
       @query = query.to_s.strip.presence
       @limit = clamp_limit(limit)
       @filters = Filters.new(filters)
+      @grader_name = grader_name.to_s.strip.presence
     end
 
     def call
@@ -33,6 +34,7 @@ module TestInsights
       scope = @category.apply(repository.test_identities)
       scope = scope.search_by_name(@query) if @query.present?
       scope = @filters.apply_summary_filters(scope)
+      scope = apply_grader_filter(scope, repository)
 
       identities =
         if @sort.requires_in_memory_failure_rate?
@@ -62,6 +64,18 @@ module TestInsights
 
     private
 
+    def apply_grader_filter(scope, repository)
+      return scope unless @grader_name
+
+      matching_identity_ids = TestCase
+        .joins(:test_run)
+        .where(repository_id: repository.id, test_runs: { grader_name: @grader_name })
+        .where.not(test_identity_id: nil)
+        .select(:test_identity_id)
+
+      scope.where(id: matching_identity_ids)
+    end
+
     def resolve_repository
       return accessible_scope.find(@repository.id) if @repository
       return accessible_scope.find(@repository_id) if @repository_id.present?
@@ -74,7 +88,7 @@ module TestInsights
     end
 
     def accessible_scope
-      Repository.accessible_to(@user)
+      @user.admin? ? Repository.all : Repository.accessible_to(@user)
     end
 
     def clamp_limit(limit)
