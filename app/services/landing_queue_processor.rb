@@ -153,9 +153,7 @@ class LandingQueueProcessor
     released_slots = release_main_health_blocked_landing_slots_for_repair_jobs!(queue_entries)
     released_slots.concat(release_urgent_blocked_landing_slots_for_urgent_jobs!(queue_entries))
     queue_entries = refresh_snapshot!(Job.landing_queue) if released_slots.any?
-    occupied_lock_keys = Set.new(
-      Job.landing.includes(:repository).filter_map { |landing_job| landing_lock_key_for(landing_job) }
-    )
+    occupied_lock_keys = active_landing_lock_keys
 
     queue_entries.group_by(&:landing_unit_key).each_value do |unit_entries|
       first_entry = unit_entries.first
@@ -564,18 +562,21 @@ class LandingQueueProcessor
     lock_key = landing_lock_key_for(job)
     return false unless lock_key
 
-    WorkUnits::Ownership.active_for_lock_key?(lock_key, kinds: WorkDefinitions.landing_lock_kinds) ||
-      landing_jobs_sharing_lock_key?(job, lock_key)
-  end
-
-  def landing_jobs_sharing_lock_key?(job, lock_key)
-    Job.landing.where(repository_id: job.repository_id).any? do |landing_job|
-      landing_lock_key_for(landing_job) == lock_key
-    end
+    WorkUnits::Ownership.active_for_lock_key?(lock_key, kinds: WorkDefinitions.landing_lock_kinds)
   end
 
   def landing_lock_key_for(job)
     WorkDefinitions.landing_lock_key_for(job, policy: delivery_policy_for(job))
+  end
+
+  def active_landing_lock_keys
+    WorkUnitLock
+      .joins(:work_unit)
+      .where(work_units: { state: WorkUnits::Ownership::ACTIVE_STATES, kind: WorkDefinitions.landing_lock_kinds })
+      .where(released_at: nil)
+      .distinct
+      .pluck(:lock_key)
+      .to_set
   end
 
   # Memoized per repository_id for the same reason

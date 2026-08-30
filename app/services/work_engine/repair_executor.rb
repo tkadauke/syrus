@@ -1193,7 +1193,8 @@ module WorkEngine
             job.save!
           end
 
-          success("deferred orphaned landing #{job_label(job)} back to approved")
+          LandingQueueProcessorJob.perform_later
+          success("deferred orphaned landing #{job_label(job)} back to approved and woke the landing queue")
         end
       end
 

@@ -89,6 +89,19 @@ RSpec.describe LandingQueueProcessor do
     )
   end
 
+  it "does not let a stale landing row block the recurring queue tick" do
+    stale_landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    stale_landing.start_landing!
+    stale_landing.save!
+    ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+
+    workflow = described_class.call
+
+    expect(workflow).to have_attributes(job: ready, trigger_kind: "auto_merge")
+    expect(ready.reload).to be_landing
+    expect(stale_landing.reload).to be_landing
+  end
+
   it "uses the newest landing-start blocker when deciding whether to skip a retry" do
     blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
     ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
@@ -1223,15 +1236,18 @@ RSpec.describe LandingQueueProcessor do
       expect(job.reload).to be_approved
     end
 
-    it "no-ops when another Job in the same repository is already landing" do
-      already_landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
-      already_landing.start_landing!
-      already_landing.save!
+    it "does not let a stale landing Job without active landing work occupy the repository slot" do
+      stale_landing = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+      stale_landing.start_landing!
+      stale_landing.save!
 
       target = queue_job(issue_number: 2, approved_at: 1.minute.ago)
 
-      expect(described_class.try_land!(target)).to be_nil
-      expect(target.reload).to be_approved
+      workflow = described_class.try_land!(target)
+
+      expect(workflow).to have_attributes(job: target, trigger_kind: "auto_merge")
+      expect(target.reload).to be_landing
+      expect(stale_landing.reload).to be_landing
     end
 
     it "no-ops when the repository landing slot is owned by an active WorkUnit lock" do
