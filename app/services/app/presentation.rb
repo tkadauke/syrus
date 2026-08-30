@@ -238,16 +238,7 @@ module App
           payload["prompt"].presence
         ].compact.join("\n\n").presence
       when "submit_coding_changes"
-        branch = payload["branch"].presence
-        description = payload["description"].presence
-        steps = <<~MARKDOWN.strip
-          **Branch:** #{branch}
-
-          1. Push branch to GitHub using server-side credentials
-          2. Create a new direct Job
-          3. Run the `coding_handoff` workflow (graders → summarize → PR open)
-        MARKDOWN
-        [ steps, description ].compact.join("\n\n---\n\n")
+        payload["description"].presence
       end
     end
   end
