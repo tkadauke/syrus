@@ -3299,6 +3299,58 @@ describe("scratchpad stash button", () => {
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
   })
 
+  it("stashes composer attachments with the draft and clears attachment chips", async () => {
+    const updatedPayload = {
+      ...chatPayload({
+        scratchpad_items: [{
+          id: 1,
+          content: "Draft idea",
+          text: "Draft idea",
+          attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+        }]
+      }),
+      agent_busy: true
+    }
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "screen.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove screen.png" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("")
+      expect(screen.queryByRole("button", { name: "Remove screen.png" })).not.toBeInTheDocument()
+    })
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
+      scratchpad_item: {
+        content: "Draft idea",
+        attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+      }
+    })
+  })
+
   it("shows 'Stash (Tab)' in the stash button tooltip", async () => {
     mockChatRouteFetch(chatPayload({ chat: { agent_busy: false } }))
     renderRoute()
@@ -3956,6 +4008,39 @@ describe("scratchpad panel", () => {
     )).toBe(true)
   })
 
+  it("loads scratchpad attachments back into the composer", async () => {
+    const afterDeletePayload = chatPayload({ scratchpad_items: [] })
+
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDeletePayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Attachment-only draft")
+    expect(screen.getByText("1 image")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Attachment-only draft"))
+
+    expect(await screen.findByRole("button", { name: "Remove diagram.png" })).toBeInTheDocument()
+  })
+
   it("auto-stashes existing text and loads item when textarea has content on load", async () => {
     const afterStashPayload = chatPayload({
       scratchpad_items: [
@@ -4191,6 +4276,68 @@ describe("scratchpad panel", () => {
     expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat_message: { text: "Refactor the aqueduct service" } })
   })
 
+  it("moves scratchpad attachments to the queue", async () => {
+    const queuedAttachment = { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }
+    const afterEnqueue = {
+      ...chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [queuedAttachment],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      }),
+      agent_busy: true,
+      queued_messages: [{ id: 20, text: "", attachments: [queuedAttachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/20", app_delete_path: "/api/v1/app/chats/8/queued_messages/20" }]
+    }
+    const afterDelete = chatPayload({ scratchpad_items: [], queued_messages: afterEnqueue.queued_messages })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/queued_messages" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterEnqueue))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDelete))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [queuedAttachment],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Attachment-only draft")
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+      )).toHaveLength(1)
+    })
+    const enqueueCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toEqual({
+      chat_message: { text: "", attachments: [queuedAttachment] }
+    })
+  })
+
   it("does not show the panel when agent is active but scratchpad is empty", async () => {
     mockChatRouteFetch({ ...chatPayload({ scratchpad_items: [] }), agent_busy: true })
     renderRoute()
@@ -4271,6 +4418,54 @@ describe("queued message stash", () => {
       String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Check the forum routes" } })
+  })
+
+  it("moves queued attachments to scratchpad", async () => {
+    const attachment = { name: "queue.png", mime_type: "image/png", data: "cGl4ZWxz" }
+    const afterCreate = chatPayload({
+      queued_messages: [
+        { id: 14, text: "", attachments: [attachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+      ],
+      scratchpad_items: [
+        { id: 5, content: "", text: "", attachments: [attachment], app_update_path: "/api/v1/app/chats/8/scratchpad_items/5", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5" }
+      ]
+    })
+    const afterDelete = chatPayload({ scratchpad_items: afterCreate.scratchpad_items, queued_messages: [] })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterCreate))
+      }
+      if (String(input) === "/api/v1/app/chats/8/queued_messages/14" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDelete))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        queued_messages: [
+          { id: 14, text: "", attachments: [attachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Attachment-only draft")
+    expect(screen.getByText("1 image")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+      )).toHaveLength(1)
+    })
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
+      scratchpad_item: { content: "", attachments: [attachment] }
+    })
   })
 })
 

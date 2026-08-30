@@ -177,6 +177,7 @@
   "scratchpad_cancel": "Cancel",
   "scratchpad_queue_item": "Queue",
   "scratchpad_dismiss": "Close scratch pad",
+  "attachment_only_draft": "Attachment-only draft",
   "mode_hint": "Switch between planning and direct code implementation.",
   "gemini_setup_get_key": "Open Google AI Studio → sign in → Create API key",
   "gemini_setup_intro": "Walkthrough videos are analyzed by Google's Gemini — the model that understands video best today. You'll need a free Gemini API key (no credit card required).",
