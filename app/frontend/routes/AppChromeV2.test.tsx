@@ -23,6 +23,7 @@ vi.mock("html2canvas-pro", () => ({
 
 describe("AppChromeV2", () => {
   beforeEach(() => {
+    vi.useRealTimers()
     window.localStorage.clear()
     delete window.syrusShell
     vi.restoreAllMocks()
