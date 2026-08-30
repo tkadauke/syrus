@@ -4,6 +4,12 @@ module Steps
   # PreflightGraderCollect cancels the implement chain and the workflow
   # succeeds without the agent running.
   #
+  # Resolves the grader plan via LandingGraderPlan's :ci phase (main_branch_repair
+  # is a CI_TRIGGER_KINDS entry) rather than :landing, so preflight re-runs the
+  # same ci-phase graders (e.g. rspec-ci) that mark ci_health broken — a grader
+  # configured `phases: [landing]` only (e.g. a plain `rspec`) is not sufficient
+  # evidence that the CI-only failures behind the repair have actually cleared.
+  #
   # Unlike GraderFanout, this step:
   #   - Does NOT filter graders by when_files_changed (no PR diff exists yet)
   #   - Does NOT check the GraderConclusionCache for reuse (always runs fresh)
@@ -39,7 +45,7 @@ module Steps
     private
 
     def effective_plan(plan)
-      LandingGraderPlan.landing(plan)
+      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: 1)
     end
 
     def materialize_grader_steps!(graders)
