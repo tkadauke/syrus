@@ -215,6 +215,9 @@ module Syrus
           @plugins = []
           @direct_providers = Hash.new { |h, k| h[k] = [] }
         end
+        Filters.reset_plugin_subjects! if defined?(Filters) && Filters.respond_to?(:reset_plugin_subjects!)
+        FilterUsage.reset_plugin_surfaces! if defined?(FilterUsage) && FilterUsage.respond_to?(:reset_plugin_surfaces!)
+        FilterUsage.reset_plugin_subjects! if defined?(FilterUsage) && FilterUsage.respond_to?(:reset_plugin_subjects!)
         clear_plugin_record_cache!
       end
 

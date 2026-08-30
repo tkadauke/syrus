@@ -201,26 +201,6 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(FilterUsage.find_by!(user:, surface: "dashboard", subject: "job", label: "Repository is acme/widgets").use_count).to eq(1)
   end
 
-  it "records worker timeline filter usage" do
-    user = Factories.user(admin: true)
-    repo = Factories.repository(user:, owner: "tkadauke", name: "syrus")
-    sign_in_as(user)
-
-    post "/api/v1/app/filters/usage",
-         params: {
-           surface: "worker_timeline",
-           subject: "worker_timeline",
-           filter: {
-             "and" => [
-               { "field" => "repository_id", "op" => "is", "value" => repo.id.to_s }
-             ]
-           }
-         }
-
-    expect(response).to have_http_status(:ok)
-    expect(FilterUsage.find_by!(user:, surface: "worker_timeline", subject: "worker_timeline", label: "Repository is tkadauke/syrus").use_count).to eq(1)
-  end
-
   it "does not record incomplete value filters" do
     user = Factories.user
     sign_in_as(user)
@@ -281,29 +261,6 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
       )
     )
     expect(suggestions.map { |suggestion| suggestion.dig("filter", "value") }).not_to include(other_repo.id)
-  end
-
-  it "suggests complete worker timeline filters from FK value matches" do
-    user = Factories.user(admin: true)
-    repo = Factories.repository(user:, owner: "tkadauke", name: "syrus")
-    epic = Factories.epic(user:, repository: repo, title: "Syrus worker timeline rollout")
-    SpawnedProcess.create!(
-      kind: "agent",
-      command: "codex exec",
-      hostname: "syrus-worker-suggestions",
-      started_at: 1.minute.ago
-    )
-    sign_in_as(user)
-
-    get "/api/v1/app/filters/suggestions", params: { surface: "worker_timeline", subject: "worker_timeline", q: "syrus" }
-
-    expect(response).to have_http_status(:ok)
-    labels = parse_body.fetch("suggestions").map { |suggestion| suggestion.fetch("label") }
-    expect(labels).to include(
-      "Repository is tkadauke/syrus",
-      "Epic is #{Filters::Schema.epic_label(epic)}",
-      "Hostname is syrus-worker-suggestions"
-    )
   end
 
   it "ranks learned matching filters ahead of generated value suggestions" do

@@ -142,7 +142,7 @@ module Filters
     end
   end
 
-  SUBJECTS = {
+  CORE_SUBJECTS = {
     job: Subject.new(
       name: :job,
       model: Job,
@@ -233,17 +233,6 @@ module Filters
         "started_at"  => "Filters::Chips::SpawnedProcesses::StartedAt"
       }
     ),
-    worker_timeline: Subject.new(
-      name: :worker_timeline,
-      model: Workflow,
-      chips: {
-        "repository_id" => "Filters::Chips::WorkerTimeline::RepositoryId",
-        "epic_id"       => "Filters::Chips::WorkerTimeline::EpicId",
-        "hostname"      => "Filters::Chips::WorkerTimeline::Hostname",
-        "status"        => "Filters::Chips::WorkerTimeline::Status",
-        "window"        => "Filters::Chips::WorkerTimeline::Window"
-      }
-    ),
     memory: Subject.new(
       name: :memory,
       model: ChatMemory,
@@ -276,9 +265,35 @@ module Filters
       }
     )
   }.freeze
+  SUBJECTS = CORE_SUBJECTS
+
+  @subject_mutex = Mutex.new
+  @plugin_subjects = {}
+
+  class << self
+    def register_subject(subject = nil, **attrs)
+      subject = subject.is_a?(Subject) ? subject : Subject.new(**attrs)
+      @subject_mutex.synchronize do
+        @plugin_subjects[subject.name] = subject
+      end
+      subject
+    end
+
+    def unregister_subject(name)
+      @subject_mutex.synchronize { @plugin_subjects.delete(name.to_sym) }
+    end
+
+    def reset_plugin_subjects!
+      @subject_mutex.synchronize { @plugin_subjects = {} }
+    end
+
+    def subjects
+      @subject_mutex.synchronize { CORE_SUBJECTS.merge(@plugin_subjects).freeze }
+    end
+  end
 
   def self.subject(name)
-    SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
+    subjects.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
   end
 
   def self.subject_for(name)

@@ -29,7 +29,7 @@ RSpec.describe FilterUsage, type: :model do
   end
 
   it "accepts all known surfaces" do
-    FilterUsage::SURFACES.each do |surface|
+    FilterUsage.surfaces.each do |surface|
       expect(described_class.new(valid_attrs(surface: surface))).to be_valid
     end
   end
@@ -43,7 +43,7 @@ RSpec.describe FilterUsage, type: :model do
   end
 
   it "accepts all known subject types" do
-    FilterUsage::SUBJECTS.each do |type|
+    FilterUsage.subjects.each do |type|
       expect(described_class.new(valid_attrs(subject: type, fingerprint: "fp-#{type}"))).to be_valid
     end
   end

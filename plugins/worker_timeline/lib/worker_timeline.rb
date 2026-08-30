@@ -34,9 +34,12 @@ module WorkerTimeline
         }
       ],
       provides: {
-        sidebar_page: WorkerTimeline::SidebarPages
+        sidebar_page: WorkerTimeline::SidebarPages,
+        callbacks:    WorkerTimeline::FilterRegistration
       }
     )
+
+    WorkerTimeline::FilterRegistration.register!
   end
 
   def self.enabled?

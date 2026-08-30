@@ -32,7 +32,7 @@ module Filters
     attr_reader :user, :surface, :subject, :query, :active_tree, :limit, :schema
 
     def validate_surface!
-      return if FilterUsage::SURFACES.include?(surface)
+      return if FilterUsage.surfaces.include?(surface)
 
       raise ArgumentError, "unknown filter suggestion surface: #{surface}"
     end
