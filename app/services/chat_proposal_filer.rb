@@ -30,7 +30,8 @@ class ChatProposalFiler
         proposal_attrs = {
           state: "confirmed",
           filed_at: Time.current,
-          confirmed_at: Time.current
+          confirmed_at: Time.current,
+          media_ids: existing_media_refs_for(proposal)
         }
 
         case materialized
@@ -163,6 +164,28 @@ class ChatProposalFiler
 
   def attach_media_to_job!(proposal, job)
     ChatMediaAttacher.new(chat_session: proposal.chat_session, job: job).attach!(proposal.media_ids)
+  end
+
+  def existing_media_refs_for(proposal)
+    Array(proposal.media_ids).select do |ref|
+      media_ref_belongs_to_chat_session?(proposal.chat_session, ref)
+    end
+  end
+
+  def media_ref_belongs_to_chat_session?(chat_session, ref)
+    return false unless chat_session && ChatMediaRef.valid?(ref)
+
+    kind, id = ChatMediaRef.split(ref)
+    case kind
+    when "snapshot"
+      chat_session.whiteboard_snapshots.exists?(id: id)
+    when "chat_image"
+      chat_session.attached_repository_documents.exists?(id: id)
+    when "preview_panel_version"
+      PreviewPanelVersion.where(preview_panel: chat_session.preview_panels).exists?(id: id)
+    else
+      false
+    end
   end
 
   def file_github_issue(proposal)
