@@ -51,7 +51,7 @@ export function TimelineLanes({
           {visibleLanes.map((lane, offset) => (
             <LaneRow
               index={startIndex + offset}
-              key={`${lane.hostname ?? "unknown"}:${lane.pid ?? "idle"}`}
+              key={lane.key}
               lane={lane}
               onHover={setTooltip}
               onSelectWorkflow={onSelectWorkflow}

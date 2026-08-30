@@ -5,7 +5,7 @@ RSpec.describe Timeline::MacroQuery do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Fix the aqueducts") }
 
-  def record_event(event_type:, workflow:, hostname:, pid:, occurred_at:)
+  def record_event(event_type:, workflow:, hostname:, pid:, occurred_at:, queue_role: nil)
     WorkflowActivity.synchronously do
       WorkflowActivity.record!(
         event_type: event_type,
@@ -16,23 +16,39 @@ RSpec.describe Timeline::MacroQuery do
       )
     end
     WorkflowActivityEvent.where(workflow_id: workflow.id, event_type: event_type)
-      .order(id: :desc).first.update_columns(hostname: hostname, pid: pid)
+      .order(id: :desc).first.update_columns(hostname: hostname, pid: pid, queue_role: queue_role)
   end
 
-  it "groups workflow spans into lanes keyed by hostname+pid attributed from WorkflowActivityEvent" do
+  it "groups workflow spans into durable lanes keyed by worker_storage_key+queue_role" do
     workflow = Workflow.create!(
       job: job, trigger_kind: "initial", state: "running",
-      started_at: 30.minutes.ago, worker_hostname: "worker-a"
+      started_at: 30.minutes.ago, worker_hostname: "worker-a", worker_storage_key: "storage-a"
     )
-    record_event(event_type: "workflow_started", workflow: workflow, hostname: "worker-a", pid: 4242, occurred_at: 30.minutes.ago)
+    redeployed_workflow = Workflow.create!(
+      job: job, trigger_kind: "retry", state: "running",
+      started_at: 20.minutes.ago, worker_hostname: "worker-a-v2", worker_storage_key: "storage-a"
+    )
+    merge_workflow = Workflow.create!(
+      job: job, trigger_kind: "auto_merge", state: "running",
+      started_at: 10.minutes.ago, worker_hostname: "worker-a-v2", worker_storage_key: "storage-a"
+    )
+    record_event(event_type: "workflow_started", workflow: workflow, hostname: "worker-a", pid: 4242, queue_role: "runs", occurred_at: 30.minutes.ago)
+    record_event(event_type: "workflow_started", workflow: redeployed_workflow, hostname: "worker-a-v2", pid: 5151, queue_role: "runs", occurred_at: 20.minutes.ago)
+    record_event(event_type: "workflow_started", workflow: merge_workflow, hostname: "worker-a-v2", pid: 6161, queue_role: "merges", occurred_at: 10.minutes.ago)
 
     result = described_class.call(from: 1.hour.ago, to: Time.current)
 
-    lane = result[:lanes].find { |candidate| candidate[:hostname] == "worker-a" }
-    expect(lane).to be_present
-    expect(lane[:pid]).to eq(4242)
-    expect(lane[:spans]).to contain_exactly(
-      include(workflow_id: workflow.id, job_id: job.id, status: "running", job_title: "Fix the aqueducts")
+    runs_lane = result[:lanes].find { |candidate| candidate[:worker_storage_key] == "storage-a" && candidate[:queue_role] == "runs" }
+    merges_lane = result[:lanes].find { |candidate| candidate[:worker_storage_key] == "storage-a" && candidate[:queue_role] == "merges" }
+    expect(runs_lane).to be_present
+    expect(runs_lane[:key]).to eq("durable:storage-a:runs")
+    expect(runs_lane[:spans]).to contain_exactly(
+      include(workflow_id: workflow.id, job_id: job.id, status: "running", job_title: "Fix the aqueducts", hostname: "worker-a", pid: 4242),
+      include(workflow_id: redeployed_workflow.id, job_id: job.id, status: "running", job_title: "Fix the aqueducts", hostname: "worker-a-v2", pid: 5151)
+    )
+    expect(merges_lane[:key]).to eq("durable:storage-a:merges")
+    expect(merges_lane[:spans]).to contain_exactly(
+      include(workflow_id: merge_workflow.id, hostname: "worker-a-v2", pid: 6161)
     )
   end
 
@@ -54,10 +70,14 @@ RSpec.describe Timeline::MacroQuery do
     result = described_class.call(from: 1.hour.ago, to: Time.current)
 
     process_lane = result[:lanes].find { |candidate| candidate[:hostname] == "worker-b" }
+    expect(process_lane[:worker_storage_key]).to be_nil
+    expect(process_lane[:queue_role]).to be_nil
     expect(process_lane[:pid]).to eq(777)
     expect(process_lane[:spans].map { |span| span[:workflow_id] }).to include(workflow_with_process.id)
 
     column_lane = result[:lanes].find { |candidate| candidate[:hostname] == "worker-c" }
+    expect(column_lane[:worker_storage_key]).to be_nil
+    expect(column_lane[:queue_role]).to be_nil
     expect(column_lane[:pid]).to be_nil
     expect(column_lane[:spans].map { |span| span[:workflow_id] }).to include(workflow_with_column_only.id)
   end

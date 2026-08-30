@@ -55,11 +55,18 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
     filter_schema: filterSchema(),
     lanes: [
       {
+        key: "durable:storage-a:runs",
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
         hostname: "worker-a",
         pid: 123,
         instance: { id: 1, hostname: "worker-a", started_at: "2026-01-01T00:00:00Z", last_heartbeat_at: "2026-01-01T00:50:00Z", finished_at: null },
         spans: [
           {
+            worker_storage_key: "storage-a",
+            queue_role: "runs",
+            hostname: "worker-a",
+            pid: 123,
             workflow_id: 501,
             job_id: 42,
             started_at: "2026-01-01T00:10:00Z",
@@ -72,11 +79,18 @@ function macroPayload(overrides: Record<string, unknown> = {}) {
         ]
       },
       {
+        key: "durable:storage-b:merges",
+        worker_storage_key: "storage-b",
+        queue_role: "merges",
         hostname: "worker-b",
         pid: 456,
         instance: null,
         spans: [
           {
+            worker_storage_key: "storage-b",
+            queue_role: "merges",
+            hostname: "worker-b",
+            pid: 456,
             workflow_id: 502,
             job_id: 43,
             started_at: "2026-01-01T00:15:00Z",
@@ -103,6 +117,8 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
       status: "running",
       started_at: "2026-01-01T00:10:00Z",
       finished_at: null,
+      worker_storage_key: "storage-a",
+      queue_role: "runs",
       hostname: "worker-a",
       pid: 123,
       blocked: { blocked_reason: null, blocked_since: null, blocked_details: {}, next_check_at: null, available: false, historical: false }
@@ -116,6 +132,8 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
         iteration: 1,
         started_at: "2026-01-01T00:10:00Z",
         finished_at: "2026-01-01T00:12:00Z",
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
         hostname: "worker-a",
         pid: 123,
         runs: [
@@ -130,6 +148,8 @@ function waterfallPayload(overrides: Record<string, unknown> = {}) {
         iteration: 1,
         started_at: null,
         finished_at: null,
+        worker_storage_key: "storage-a",
+        queue_role: "runs",
         hostname: "worker-a",
         pid: 123,
         runs: [],
@@ -313,6 +333,9 @@ describe("WorkerTimeline macro view", () => {
 
   it("virtualizes lanes so only the scrolled-into-view rows render, not every lane up front", async () => {
     const lanes = Array.from({ length: 20 }, (_, index) => ({
+      key: `legacy:worker-${index}:${100 + index}`,
+      worker_storage_key: null,
+      queue_role: null,
       hostname: `worker-${index}`,
       pid: 100 + index,
       instance: null,
@@ -384,11 +407,11 @@ describe("WorkerTimeline waterfall (micro) view", () => {
   it("skips the time axis and shows every step as not-started when the workflow itself hasn't started", async () => {
     setupFetchMock({}, {
       workflow: {
-        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, hostname: null, pid: null,
+        id: 501, job_id: 42, trigger_kind: "initial", status: "queued", started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null,
         blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false }
       },
       steps: [
-        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, hostname: null, pid: null, runs: [],
+        { id: 901, kind: "prepare", status: "queued", position: 0, iteration: 1, started_at: null, finished_at: null, worker_storage_key: null, queue_role: null, hostname: null, pid: null, runs: [],
           blocked: { blocked_reason: "provider_availability", blocked_since: null, blocked_details: {}, next_check_at: null, available: true, historical: false } }
       ]
     })

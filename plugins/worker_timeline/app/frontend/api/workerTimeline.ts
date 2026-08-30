@@ -11,6 +11,10 @@ export type WorkerTimelineBlockedInfo = {
 }
 
 export type WorkerTimelineSpan = {
+  worker_storage_key: string | null
+  queue_role: string | null
+  hostname: string | null
+  pid: number | null
   workflow_id: number
   job_id: number
   started_at: string
@@ -39,6 +43,9 @@ export type WorkerTimelineInstance = {
 }
 
 export type WorkerTimelineLane = {
+  key: string
+  worker_storage_key: string | null
+  queue_role: string | null
   hostname: string | null
   pid: number | null
   instance: WorkerTimelineInstance | null
@@ -60,6 +67,8 @@ export type WorkerTimelineWaterfallWorkflow = {
   status: string
   started_at: string | null
   finished_at: string | null
+  worker_storage_key: string | null
+  queue_role: string | null
   hostname: string | null
   pid: number | null
   blocked: WorkerTimelineBlockedInfo
@@ -82,6 +91,8 @@ export type WorkerTimelineWaterfallStep = {
   iteration: number
   started_at: string | null
   finished_at: string | null
+  worker_storage_key: string | null
+  queue_role: string | null
   hostname: string | null
   pid: number | null
   runs: WorkerTimelineWaterfallRun[]

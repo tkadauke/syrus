@@ -1,8 +1,8 @@
 module Timeline
   # Read-only macro (multi-lane worker activity) query backing the
   # worker-activity-timeline plugin. Given a time range and filters,
-  # groups Workflow spans into lanes keyed by the worker process
-  # (hostname+pid) that ran them, resolved via WorkerAttribution, and
+  # groups Workflow spans into lanes keyed by the durable worker lane
+  # (worker_storage_key+queue_role) that ran them, resolved via WorkerAttribution, and
   # layers in InstanceVersion so a worker that was alive but idle for the
   # whole window still gets a lane.
   #
@@ -32,7 +32,7 @@ module Timeline
 
       {
         range: { from: from.iso8601, to: to.iso8601 },
-        lanes: (active_lanes + idle_lanes_payload(active_hostnames)).sort_by { |lane| [ lane[:hostname].to_s, lane[:pid].to_i ] },
+        lanes: (active_lanes + idle_lanes_payload(active_hostnames)).sort_by { |lane| lane[:key].to_s },
         pending: pending_payload
       }
     end
@@ -42,12 +42,16 @@ module Timeline
     attr_reader :from, :to, :repository_id, :epic_id, :job_id, :hostname_filter, :status_filter
 
     def lanes_payload
-      spans.group_by { |span| [ span[:hostname], span[:pid] ] }.map do |(hostname, pid), lane_spans|
+      spans.group_by { |span| span[:lane_key] }.map do |_lane_key, lane_spans|
+        representative_span = lane_spans.max_by { |span| span[:started_at] }
         {
-          hostname: hostname,
-          pid: pid,
-          instance: instance_payload(instance_for_hostname(hostname)),
-          spans: lane_spans.sort_by { |span| span[:started_at] }.map { |span| span.except(:hostname, :pid) }
+          key: lane_payload_key(representative_span[:lane_key]),
+          worker_storage_key: representative_span[:worker_storage_key],
+          queue_role: representative_span[:queue_role],
+          hostname: representative_span[:hostname],
+          pid: representative_span[:pid],
+          instance: instance_payload(instance_for_hostname(representative_span[:hostname])),
+          spans: lane_spans.sort_by { |span| span[:started_at] }.map { |span| span.except(:lane_key) }
         }
       end
     end
@@ -57,6 +61,9 @@ module Timeline
         .group_by(&:hostname)
         .map do |hostname, instances|
           {
+            key: lane_payload_key([ "idle", hostname ]),
+            worker_storage_key: nil,
+            queue_role: nil,
             hostname: hostname,
             pid: nil,
             instance: instance_payload(instances.max_by(&:started_at)),
@@ -74,6 +81,9 @@ module Timeline
       return nil if hostname_filter && attribution[:hostname] != hostname_filter
 
       {
+        lane_key: lane_key_for(attribution),
+        worker_storage_key: attribution[:worker_storage_key],
+        queue_role: attribution[:queue_role],
         hostname: attribution[:hostname],
         pid: attribution[:pid],
         workflow_id: workflow.id,
@@ -154,6 +164,18 @@ module Timeline
 
     def attribution_for(workflow)
       attribution_by_workflow[workflow.id]
+    end
+
+    def lane_key_for(attribution)
+      if attribution[:worker_storage_key].present? && attribution[:queue_role].present?
+        [ "durable", attribution[:worker_storage_key], attribution[:queue_role] ]
+      else
+        [ "legacy", attribution[:hostname], attribution[:pid] ]
+      end
+    end
+
+    def lane_payload_key(parts)
+      parts.map { |part| part.presence || "unknown" }.join(":")
     end
 
     def attribution_by_workflow
