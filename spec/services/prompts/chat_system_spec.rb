@@ -755,6 +755,9 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("`read_file(path)`")
     expect(out).to include("`write_file(path, content)`")
     expect(out).to include("`run_command(command)`")
+    expect(out).to include("Local Mode is intentionally powerful")
+    expect(out).to include("Never push, force-push, delete branches, rewrite history, or publish local")
+    expect(out).to include("complete_implement_step` creates an operator confirmation action")
   end
 
   it "omits Local Mode guidance when the chat session has no mode" do

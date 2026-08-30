@@ -36,7 +36,7 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
-  it "starts a coding_handoff workflow and keeps the job linked while graders run" do
+  it "creates a pending handoff confirmation and leaves the coding Job locked" do
     job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
                                issue_number: nil, branch_name: "syrus/job-1", pr_number: 10)
     job.update_columns(linked_chat_id: chat_session.id, state: "coding")
@@ -46,15 +46,16 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     result = payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(result[:job_id]).to eq(job.id)
-    workflow = Workflow.find(result[:workflow_id])
-    expect(workflow.trigger_kind).to eq("coding_handoff")
-    expect(job.reload.linked_chat_id).to eq(chat_session.id)
-    expect(ChatJobStatusQuery.call(chat_session).map { |item| item[:job_id] }).to include(job.id)
-    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
+    expect(result[:message]).to include("requires operator confirmation")
+    pending_action = ChatPendingAction.find(result[:pending_action_id])
+    expect(pending_action.action).to eq("complete_implement_step")
+    expect(pending_action.payload).to eq("job_id" => job.id)
+    expect(job.reload).to be_coding
+    expect(job.linked_chat_id).to eq(chat_session.id)
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
   end
 
-  it "starts a local_mode_handoff workflow from a Local Mode chat" do
+  it "creates a Local Mode pending handoff confirmation with the supplied branch" do
     chat_session.update!(mode: "local")
     Feature.find_or_create_by!(slug: "local_mode") do |record|
       record.category = "Labs"
@@ -68,22 +69,29 @@ RSpec.describe Mcp::Tools::CompleteImplementStepTool do
     result = payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(job.reload).to be_open
-    expect(job.branch_name).to eq("syrus/job-3931-local-run-command-input")
-    workflow = Workflow.find(result[:workflow_id])
-    expect(workflow.trigger_kind).to eq("local_mode_handoff")
-    expect(WorkUnits::Launcher).to have_received(:start!).with(workflow)
+    pending_action = ChatPendingAction.find(result[:pending_action_id])
+    expect(pending_action.action).to eq("complete_implement_step")
+    expect(pending_action.payload).to eq(
+      "job_id" => job.id,
+      "branch_name" => "syrus/job-3931-local-run-command-input"
+    )
+    expect(job.reload).to be_coding
+    expect(job.branch_name).to be_nil
+    expect(WorkUnits::Launcher).not_to have_received(:start!)
   end
 
-  it "uses a supplied replacement branch_name instead of the stale stored branch" do
+  it "stores a supplied replacement branch_name on the pending action instead of mutating the Job immediately" do
     job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
                                issue_number: nil, branch_name: "syrus/stale", pr_number: nil)
     job.update_columns(linked_chat_id: chat_session.id, state: "coding")
 
     response = call_tool(job_id: job.id, branch_name: "syrus/fixed-rerun")
+    result = payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
-    expect(job.reload.branch_name).to eq("syrus/fixed-rerun")
+    pending_action = ChatPendingAction.find(result[:pending_action_id])
+    expect(pending_action.payload["branch_name"]).to eq("syrus/fixed-rerun")
+    expect(job.reload.branch_name).to eq("syrus/stale")
   end
 
   it "rejects invalid replacement branch names" do
