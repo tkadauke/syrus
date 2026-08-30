@@ -44,6 +44,56 @@ RSpec.describe "Test Insight MCP tools" do
     ).tap { identity.refresh_summary! }
   end
 
+  def create_workflow_run!(job:, trigger_kind: "initial", created_at: Time.current)
+    workflow = Workflow.create!(job: job, user: job.user, trigger_kind: trigger_kind, agent_provider: job.agent_provider, created_at: created_at, updated_at: created_at)
+    step = workflow.steps.create!(kind: "grader", position: 0, created_at: created_at, updated_at: created_at)
+    step.runs.create!(job: job, user: job.user, trigger_kind: trigger_kind, agent_provider: job.agent_provider, created_at: created_at, updated_at: created_at)
+  end
+
+  def create_result!(run:, grader_name: "rspec", cases:)
+    test_run = TestRun.create!(
+      run: run,
+      repository: run.job.repository,
+      grader_name: grader_name,
+      total_count: cases.size,
+      passed_count: cases.count { |attrs| attrs.fetch(:status) == "passed" },
+      failed_count: cases.count { |attrs| attrs.fetch(:status) == "failed" },
+      skipped_count: cases.count { |attrs| attrs.fetch(:status) == "skipped" },
+      error_count: cases.count { |attrs| attrs.fetch(:status) == "error" },
+      duration_ms: cases.sum { |attrs| attrs.fetch(:duration_ms, 0).to_i }
+    )
+
+    cases.each do |attrs|
+      identity = TestIdentity.find_or_create_by!(
+        repository: run.job.repository,
+        fingerprint: TestIdentity.fingerprint_for(suite_name: attrs.fetch(:suite_name), name: attrs.fetch(:name))
+      ) do |test_identity|
+        test_identity.suite_name = attrs.fetch(:suite_name)
+        test_identity.name = attrs.fetch(:name)
+        test_identity.file_path = attrs[:file_path]
+      end
+
+      TestCase.create!(
+        test_run: test_run,
+        repository: run.job.repository,
+        test_identity: identity,
+        suite_name: attrs.fetch(:suite_name),
+        name: attrs.fetch(:name),
+        status: attrs.fetch(:status),
+        file_path: attrs[:file_path],
+        duration_ms: attrs[:duration_ms],
+        failure_message: attrs[:failure_message],
+        failure_backtrace: attrs[:failure_backtrace],
+        output: attrs[:output],
+        created_at: attrs.fetch(:created_at, Time.current),
+        updated_at: attrs.fetch(:created_at, Time.current)
+      )
+      identity.refresh_summary!
+    end
+
+    test_run
+  end
+
   def payload_from(response)
     JSON.parse(response.content.first[:text], symbolize_names: true)
   end
@@ -179,6 +229,136 @@ RSpec.describe "Test Insight MCP tools" do
         server_context: { chat_session: chat_session },
         test_identity_id: foreign_identity.id
       )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("not_authorized")
+    end
+  end
+
+  describe Mcp::Tools::ReadJobTestResultsTool do
+    it "returns an empty compact payload when the job has no ingested test results" do
+      job = Factories.job(user: user, repository: repository)
+
+      response = described_class.call(server_context: { chat_session: chat_session }, job_id: job.id)
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.dig(:job, :id)).to eq(job.id)
+      expect(payload[:workflow]).to be_nil
+      expect(payload[:test_runs]).to eq([])
+      expect(payload.dig(:totals, :total_count)).to eq(0)
+    end
+
+    it "uses the latest workflow with test data and returns bounded failing cases by default" do
+      job = Factories.job(user: user, repository: repository)
+      older_run = job.initial_run
+      create_result!(run: older_run, cases: [
+        { suite_name: "OldSpec", name: "old failure", status: "failed", failure_message: "old", duration_ms: 10 }
+      ])
+      latest_run = create_workflow_run!(job: job, trigger_kind: "retry", created_at: 1.minute.from_now)
+      create_result!(run: latest_run, cases: [
+        { suite_name: "NewSpec", name: "passes", status: "passed", duration_ms: 25 },
+        { suite_name: "NewSpec", name: "fails", status: "failed", duration_ms: 50, failure_message: "boom", failure_backtrace: "line\n" * 500, output: "stdout" }
+      ])
+
+      response = described_class.call(server_context: { chat_session: chat_session }, job_id: job.id)
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.dig(:workflow, :id)).to eq(latest_run.workflow_id)
+      test_run = payload.fetch(:test_runs).sole
+      expect(test_run).to include(grader_name: "rspec", total_count: 2, passed_count: 1, failed_count: 1)
+      expect(test_run).not_to have_key(:slow_cases)
+      expect(test_run).not_to have_key(:suites)
+      failed = test_run.fetch(:failed_error_cases).sole
+      expect(failed).to include(suite_name: "NewSpec", name: "fails", status: "failed")
+      expect(failed.dig(:failure, :message, :text)).to eq("boom")
+      expect(failed.dig(:failure, :backtrace, :truncated)).to be(true)
+    end
+
+    it "keeps explicit null optional booleans compact by default" do
+      job = Factories.job(user: user, repository: repository)
+      create_result!(run: job.initial_run, cases: [
+        { suite_name: "Spec", name: "passes", status: "passed", duration_ms: 250 }
+      ])
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        job_id: job.id,
+        include_slow_cases: nil,
+        include_suites: nil
+      )
+
+      test_run = payload_from(response).fetch(:test_runs).sole
+      expect(test_run).not_to have_key(:slow_cases)
+      expect(test_run).not_to have_key(:suites)
+    end
+
+    it "includes slow cases, suites, and flakiness annotations when requested" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      create_result!(run: run, cases: [
+        { suite_name: "Spec", name: "flaky", status: "passed", duration_ms: 20, created_at: 3.minutes.ago },
+        { suite_name: "Spec", name: "flaky", status: "failed", duration_ms: 500, failure_message: "sometimes", created_at: 2.minutes.ago },
+        { suite_name: "Spec", name: "slow", status: "passed", duration_ms: 1_500, created_at: 1.minute.ago }
+      ])
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        job_id: job.id,
+        include_slow_cases: true,
+        include_suites: true
+      )
+
+      test_run = payload_from(response).fetch(:test_runs).sole
+      expect(test_run.fetch(:slow_cases).map { |test_case| test_case.fetch(:name) }).to include("slow")
+      flaky_case = test_run.fetch(:suites).first.fetch(:test_cases).find { |test_case| test_case.fetch(:name) == "flaky" }
+      expect(flaky_case.dig(:flakiness, :flaky)).to be(true)
+      expect(flaky_case.dig(:flakiness, :failed_count)).to eq(1)
+    end
+  end
+
+  describe Mcp::Tools::ReadRunTestResultsTool do
+    it "returns passing and failing summaries across multiple graders" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      create_result!(run: run, grader_name: "rspec", cases: [
+        { suite_name: "Ruby", name: "passes", status: "passed", duration_ms: 15 }
+      ])
+      create_result!(run: run, grader_name: "vitest", cases: [
+        { suite_name: "React", name: "errors", status: "error", duration_ms: 30, failure_message: "render blew up" }
+      ])
+
+      response = described_class.call(server_context: { chat_session: chat_session }, run_id: run.id)
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.dig(:run, :id)).to eq(run.id)
+      expect(payload.fetch(:test_runs).map { |test_run| test_run.fetch(:grader_name) }).to eq(%w[rspec vitest])
+      expect(payload.dig(:totals, :total_count)).to eq(2)
+      expect(payload.dig(:totals, :error_count)).to eq(1)
+    end
+
+    it "filters run results by grader name" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      create_result!(run: run, grader_name: "rspec", cases: [
+        { suite_name: "Ruby", name: "passes", status: "passed", duration_ms: 15 }
+      ])
+      create_result!(run: run, grader_name: "vitest", cases: [
+        { suite_name: "React", name: "passes", status: "passed", duration_ms: 30 }
+      ])
+
+      response = described_class.call(server_context: { chat_session: chat_session }, run_id: run.id, grader_name: "vitest")
+
+      expect(response).not_to be_error
+      expect(payload_from(response).fetch(:test_runs).map { |test_run| test_run.fetch(:grader_name) }).to eq([ "vitest" ])
+    end
+
+    it "rejects runs outside the caller's visibility" do
+      foreign_run = Factories.job.initial_run
+
+      response = described_class.call(server_context: { chat_session: chat_session }, run_id: foreign_run.id)
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("not_authorized")

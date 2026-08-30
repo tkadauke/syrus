@@ -41,7 +41,7 @@ module Mcp::Tools
             user: context.user,
             test_identity_id: test_identity_id,
             history_limit: history_limit,
-            include_failures: truthy?(include_failures)
+            include_failures: truthy?(include_failures, default: true)
           )
 
           Mcp::Tools.success(payload)

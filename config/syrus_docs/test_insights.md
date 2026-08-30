@@ -160,6 +160,18 @@ read-only MCP tools:
   related grader/run/job references, and bounded failure
   message/backtrace/output snippets. Use the list tool first to discover a
   `test_identity_id`.
+- `read_job_test_results(job_id:, grader_name:, include_slow_cases:,
+  include_suites:, case_limit:)` returns the latest Workflow on that Job with
+  ingested tests, matching the app Job test-results page semantics. The
+  default response is compact: grader summaries and bounded failed/error cases
+  with flakiness annotations and truncation metadata. Set `include_slow_cases`
+  for each grader's slowest cases or `include_suites` for bounded suite-grouped
+  case lists.
+- `read_run_test_results(run_id:, grader_name:, include_slow_cases:,
+  include_suites:, case_limit:)` returns ingested tests for one Run, optionally
+  filtered to a single grader. It uses the same compact defaults, failure
+  snippets, flakiness annotations, and truncation metadata as
+  `read_job_test_results`.
 
 Both tools enforce repository visibility at the tool boundary. Workflow
 sidecars are restricted to the current Run's repository; chat sidecars use the

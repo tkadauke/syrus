@@ -36,8 +36,11 @@ module Mcp::Tools
       normalized
     end
 
-    def truthy?(value)
+    def truthy?(value, default: false)
+      return default if value.nil?
       return value if value == true || value == false
+
+      return default if value.respond_to?(:blank?) && value.blank?
 
       !%w[false 0 no off].include?(value.to_s.downcase)
     end

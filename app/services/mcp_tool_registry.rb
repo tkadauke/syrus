@@ -229,6 +229,8 @@ class McpToolRegistry
         chat(Mcp::Tools::ReadPrTool, tier: :deferred),
         chat(Mcp::Tools::ListRepositoryTestInsightsTool, tier: :deferred),
         chat(Mcp::Tools::ReadTestInsightTool, tier: :deferred),
+        chat(Mcp::Tools::ReadJobTestResultsTool, tier: :deferred),
+        chat(Mcp::Tools::ReadRunTestResultsTool, tier: :deferred),
         chat(Mcp::Tools::UnapproveJobTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::RemoveJobFromEpicTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::StartEpicTool, tier: :deferred, mutation: true),
@@ -304,6 +306,11 @@ class McpToolRegistry
         AgentRole::WORKFLOW_MANUAL
       ]
 
+      main_concern_roles = workflow_roles - [
+        AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+        AgentRole::WORKFLOW_VISUAL_REVIEWER
+      ]
+
       [
         workflow(Mcp::Tools::ReadLiveStateTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadMemoryTool, required_roles: workflow_roles),
@@ -315,10 +322,12 @@ class McpToolRegistry
         workflow(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ListRepositoryTestInsightsTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadTestInsightTool, required_roles: workflow_roles),
+        workflow(Mcp::Tools::ReadJobTestResultsTool, required_roles: workflow_roles),
+        workflow(Mcp::Tools::ReadRunTestResultsTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
+        workflow(Mcp::Tools::ReportMainConcernTool, required_roles: main_concern_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitReviewPlanTool, capability: :submit_review_plan, required_roles: summary_roles, mutation: true),
@@ -340,6 +349,8 @@ class McpToolRegistry
       [
         entry(Mcp::Tools::ReadLiveStateTool, surface: :agent_insight),
         entry(Mcp::Tools::ReadRunWorkerHealthTool, surface: :agent_insight),
+        entry(Mcp::Tools::ReadJobTestResultsTool, surface: :agent_insight),
+        entry(Mcp::Tools::ReadRunTestResultsTool, surface: :agent_insight),
         entry(Mcp::Tools::ReadMemoryTool, surface: :agent_insight),
         entry(Mcp::Tools::WriteMemoryTool, surface: :agent_insight, mutation: true),
         entry(Mcp::Tools::SearchMemoriesTool, surface: :agent_insight),
