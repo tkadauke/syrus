@@ -3,6 +3,10 @@ module PluginRouteDispatch
 
   private
 
+  def render_syrus_dev_plugin_disabled
+    render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found
+  end
+
   def dispatch_plugin_route!(route)
     controller_path, action_name = route.controller.split("#", 2)
     raise ActionController::RoutingError, "Invalid plugin route target" if controller_path.blank? || action_name.blank?

@@ -3,6 +3,8 @@ require "rails_helper"
 RSpec.describe "API: /api/v1/app/linear", type: :request do
   let(:user) { Factories.user }
 
+  before { PluginRecord.find_by!(name: "linear_source").update!(enabled: true) }
+
   def parse_body
     JSON.parse(response.body)
   end

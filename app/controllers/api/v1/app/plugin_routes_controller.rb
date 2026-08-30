@@ -9,6 +9,8 @@ module Api
           unless route
             disabled_route = PluginRouteResolver.find_disabled(request, controller_prefix: "api/v1/app/")
             if disabled_route
+              return render_syrus_dev_plugin_disabled if disabled_route.plugin_name == "syrus_dev"
+
               return render_error("plugin_disabled", "The #{disabled_route.plugin_name} plugin is disabled.", status: :not_found)
             end
 
