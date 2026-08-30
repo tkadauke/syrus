@@ -497,6 +497,8 @@ Non-agentic. Materializes one `preflight_grader` Step per configured grader at t
 - Does **not** check the `GraderConclusionCache` for reuse (always runs fresh)
 - Is not inside a retry loop (no `apply_loop_max_iterations!`)
 
+Resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_repair` is one of `LandingGraderPlan::CI_TRIGGER_KINDS`), the same phase `ci_failure`/`main_grader` use — not the `:landing` phase auto-merge/merge-train use. This matters because a repository can configure a lightweight grader for `phases: [landing]` (e.g. plain `rspec`) and a separate, slower, GitHub-Actions-equivalent grader for `phases: [ci]` (e.g. `rspec-ci`, including `:ci_only` specs) that is the one actually reflected in `Repository#ci_health`. Resolving `:landing` here would let preflight report "all required graders passed" without ever re-running the CI-equivalent suite, closing the repair Job on a false positive while the real CI-only failures (and `ci_health`) stayed broken — `MainHealthChangedService.ensure_repair_job!` would then spawn another `main_branch_repair` Job on the very next poll tick, looping indefinitely.
+
 ### preflight_grader
 
 Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files.
@@ -507,7 +509,7 @@ Preflight graders use the same command-span instrumentation as normal graders.
 
 Non-agentic. Aggregates preflight grader results. Two outcomes:
 
-- **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository healthy without the agent ever running.
+- **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
 - **Any required grader failed:** Logs the failure and returns normally so the chain continues to `prepare → implement`.
 
 Unlike `grader_collect`, this step never raises `StepFailed` — a grader failure here means "proceed to implement", not "fail the workflow."

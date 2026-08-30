@@ -1,7 +1,7 @@
 # Selects graders by phase. The command is part of the grader entry itself;
 # workflow context only decides which configured phase is active.
 class LandingGraderPlan
-  CI_TRIGGER_KINDS = %w[ ci_failure main_grader ].freeze
+  CI_TRIGGER_KINDS = %w[ ci_failure main_grader main_branch_repair ].freeze
   LANDING_TRIGGER_KINDS = %w[
     auto_merge
     merge_train
