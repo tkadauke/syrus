@@ -114,34 +114,77 @@ function renderSurface(path = "/design_docs") {
   )
 }
 
+function indexPayload() {
+  return {
+    active_smart_folder_id: null,
+    filter: { and: [] },
+    filter_schema: [
+      { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [], typeahead: true },
+      { field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is", "is_not", "is_set", "is_unset"], values: [{ value: "me", label: "Me" }] },
+      { field: "state", label: "State", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [{ value: "draft", label: "Draft" }] },
+      { field: "visibility", label: "Visibility", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [{ value: "public", label: "Public" }] },
+      { field: "updated_at", label: "Updated", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago"], values: [] }
+    ],
+    smart_folders: [
+      {
+        id: 3,
+        name: "My docs",
+        i18n_key: "design_docs_mine",
+        position: 0,
+        kind: "builtin",
+        subject_type: "design_doc",
+        visibility: "always",
+        count: 1,
+        active: false,
+        filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+        path: "/design_docs?smart_folder_id=3"
+      },
+      {
+        id: 8,
+        name: "Accepted docs",
+        i18n_key: null,
+        position: 1,
+        kind: "user_defined",
+        subject_type: "design_doc",
+        visibility: "user_defined",
+        count: 1,
+        active: false,
+        filter: { and: [{ field: "state", op: "is", value: "accepted" }] },
+        path: "/design_docs?smart_folder_id=8"
+      }
+    ],
+    design_docs: [docDetail, secondDocDetail]
+  }
+}
+
 function mockFetch() {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
-    const path = String(input)
-    if (path === "/api/v1/app/repositories") {
+    const url = new URL(String(input), "http://test.host")
+    if (url.pathname === "/api/v1/app/repositories") {
       return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
     }
-    if (path === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse({ design_docs: [docDetail, secondDocDetail] })
+    if (url.pathname === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
+      return jsonResponse(indexPayload())
     }
-    if (path === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+    if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: docDetail })
     }
-    if (path === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
+    if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
     }
-    if (path === "/api/v1/app/design_docs/1/comments") {
+    if (url.pathname === "/api/v1/app/design_docs/1/comments") {
       return jsonResponse({ design_doc: { ...docDetail, open_threads_count: 2 }, message: "Comment created." }, 201)
     }
-    if (path === "/api/v1/app/design_docs/1/threads/7/resolve") {
+    if (url.pathname === "/api/v1/app/design_docs/1/threads/7/resolve") {
       return jsonResponse({ thread: { ...docDetail.threads[0], state: "resolved" }, message: "Comment thread resolved." })
     }
-    if (path === "/api/v1/app/design_docs/1/suggestions/9/accept") {
+    if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
     }
-    if (path === "/api/v1/app/design_docs/1/versions") {
+    if (url.pathname === "/api/v1/app/design_docs/1/versions") {
       return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Alpha beta gamma", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
     }
-    return jsonResponse({ error: { message: `Unhandled ${path}` } }, 404)
+    return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
   })
 }
 
@@ -150,12 +193,17 @@ describe("DesignDocsSurface", () => {
     vi.restoreAllMocks()
   })
 
-  it("shows list filters and navigates into the detail editor", async () => {
+  it("shows the shared filter bar and smart folders, and navigates into the detail editor", async () => {
     mockFetch()
     renderSurface()
 
     expect(await screen.findByRole("heading", { name: "Design Docs" })).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "Repository filter" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "My docs 1" })).toBeInTheDocument()
+    expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /\+ Add filter/ })).toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "Repository filter" })).not.toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Design Docs smart folders" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")

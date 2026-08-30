@@ -266,8 +266,18 @@ module Filters
     )
   }.freeze
 
+  @registered_subjects = {}
+
+  def self.register_subject(name:, model:, chips:)
+    @registered_subjects[name.to_sym] = Subject.new(name: name, model: model, chips: chips)
+  end
+
+  def self.subjects
+    SUBJECTS.merge(@registered_subjects)
+  end
+
   def self.subject(name)
-    SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
+    subjects.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
   end
 
   def self.subject_for(name)

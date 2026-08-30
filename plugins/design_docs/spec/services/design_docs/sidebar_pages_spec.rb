@@ -8,7 +8,9 @@ RSpec.describe DesignDocs::SidebarPages do
         label: "Design Docs",
         path: "/design_docs",
         component: "design_docs/DesignDocs",
-        icon: "document"
+        icon: "document",
+        smart_folder_api_path: "/api/v1/app/design_docs",
+        smart_folder_subject: "design_doc"
       )
     )
   end

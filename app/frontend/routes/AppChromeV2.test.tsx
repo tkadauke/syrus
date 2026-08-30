@@ -389,6 +389,85 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("renders plugin smart folders under an active plugin sidebar item", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({
+          pages: [{
+            id: "design_docs",
+            label: "Design Docs",
+            label_key: null,
+            path: "/design_docs",
+            paths: ["/design_docs"],
+            order: 25,
+            component: "DesignDocs",
+            icon: "document",
+            smart_folder_api_path: "/api/v1/app/design_docs",
+            smart_folder_subject: "design_doc"
+          }]
+        }))
+      }
+
+      if (url.pathname === "/api/v1/app/design_docs") {
+        expect(url.searchParams.get("smart_folder_id")).toBe("21")
+        return Promise.resolve(jsonResponse({
+          active_smart_folder_id: 21,
+          filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
+          smart_folders: [
+            {
+              id: 11,
+              name: "Open comments",
+              key: "design_docs_open_comments",
+              kind: "builtin",
+              subject_type: "design_doc",
+              visibility: "when_present",
+              position: 2,
+              count: 3,
+              active: false,
+              filter: { and: [{ field: "open_comments", op: "is_true", value: null }] },
+              path: "/design_docs?smart_folder_id=11"
+            },
+            {
+              id: 21,
+              name: "Team docs",
+              key: null,
+              kind: "user_defined",
+              subject_type: "design_doc",
+              visibility: "user_defined",
+              position: 1,
+              count: 4,
+              active: true,
+              filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] },
+              path: "/design_docs?smart_folder_id=21"
+            }
+          ]
+        }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Design Docs</div>, {
+      initialEntries: ["/design_docs?smart_folder_id=21"]
+    })
+
+    expect(await screen.findByRole("link", { name: "Design Docs" })).toBeInTheDocument()
+    const folderNav = await screen.findByRole("navigation", { name: "Design Docs smart folders" })
+    expect(within(folderNav).getByRole("link", { name: "All design docs" })).toHaveAttribute("href", "/design_docs")
+    expect(within(folderNav).getByRole("link", { name: "Open comments 3" })).toHaveAttribute("href", "/design_docs?smart_folder_id=11")
+
+    const savedFolderNav = screen.getByRole("navigation", { name: "Design Docs smart folders saved" })
+    expect(within(savedFolderNav).getByRole("link", { name: "Team docs 4" })).toHaveAttribute("href", "/design_docs?smart_folder_id=21")
+    expect(within(savedFolderNav).getByRole("button", { name: "Manage Team docs" })).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalled()
+  })
+
   it("highlights the clicked sidebar dashboard tab immediately, before the new subject's data finishes loading", async () => {
     let resolveEpicsFetch: (value: Response) => void = () => {}
     vi.spyOn(window, "fetch").mockImplementation((input) => {

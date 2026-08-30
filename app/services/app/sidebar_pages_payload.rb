@@ -27,6 +27,8 @@ module App
         paths: Array(page[:paths].presence || page[:path]).map(&:to_s),
         component: page[:component].presence&.to_s,
         icon: page[:icon].presence&.to_s,
+        smart_folder_api_path: page[:smart_folder_api_path].presence&.to_s,
+        smart_folder_subject: page[:smart_folder_subject].presence&.to_s,
         order: page[:order].to_i
       }
     end
