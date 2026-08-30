@@ -40,6 +40,7 @@ RSpec.describe Steps::PromotionPublish do
     allow(handler).to receive(:streaming_git).and_return(git)
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:access_token).and_return("token")
+    allow(client).to receive(:open_pull_request_for_head).and_return(nil)
     allow(repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
   end
 
