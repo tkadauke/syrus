@@ -24,6 +24,7 @@ module SyrusMcp
       ::Mcp::Tools::ReadTestInsightTool,
       ::Mcp::Tools::ReadJobTestResultsTool,
       ::Mcp::Tools::ReadRunTestResultsTool,
+      ::Mcp::Tools::CompareTestRuntimeTool,
       ::Mcp::Tools::StartPreviewTool,
       ::Mcp::Tools::StopPreviewTool,
       ::Mcp::Tools::ReadPreviewLogTool,

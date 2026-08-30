@@ -87,6 +87,31 @@ RSpec.describe TestRunIngester do
     expect(TestIdentitySearchIndex.search("fail_0", user_id: repo.user_id).map { |row| row[:test_identity_id] }).to eq([ TestIdentity.find_by!(name: "fail_0").id ])
   end
 
+  it "refreshes bounded runtime summaries for each identity and grader" do
+    ingester.ingest!
+
+    identity = TestIdentity.find_by!(name: "pass_0")
+    grader_summary = TestIdentityRuntimeSummary.find_by!(
+      test_identity: identity,
+      grader_name: "rspec",
+      window: TestIdentityRuntimeSummary::RECENT_100_WINDOW
+    )
+    all_summary = TestIdentityRuntimeSummary.find_by!(
+      test_identity: identity,
+      grader_name: TestIdentityRuntimeSummary::ALL_GRADERS,
+      window: TestIdentityRuntimeSummary::RECENT_100_WINDOW
+    )
+
+    expect(grader_summary).to have_attributes(
+      repository: repo,
+      sample_count: 1,
+      avg_duration_ms: 100,
+      p50_duration_ms: 100,
+      p95_duration_ms: 100
+    )
+    expect(all_summary.sample_count).to eq(1)
+  end
+
   it "links test cases to the repository" do
     ingester.ingest!
     expect(TestCase.last.repository).to eq(repo)
@@ -123,6 +148,20 @@ RSpec.describe TestRunIngester do
 
     expect(TestCase.where(test_run_id: old_tr_id)).to be_empty
     expect(TestCase.count).to eq(1)
+  end
+
+  it "removes runtime summaries for replaced tests that no longer have duration data" do
+    ingester.ingest!
+    identity = TestIdentity.find_by!(name: "fail_0")
+
+    second = described_class.new(
+      run: run,
+      grader_name: "rspec",
+      parsed_run: parsed_run(passed: 1, failed: 0, skipped: 0, error: 0)
+    )
+    second.ingest!
+
+    expect(TestIdentityRuntimeSummary.where(test_identity: identity)).to be_empty
   end
 
   it "keeps one durable identity when replacing a TestRun" do
