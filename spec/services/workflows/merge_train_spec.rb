@@ -60,7 +60,7 @@ RSpec.describe Workflows::MergeTrain do
     expect(try_node.dig("on_failure", Steps::MergeTrainLand::BaseMoved::FAILURE_CODE)).to be_present
   end
 
-  it "embeds the incremental-rebase failure branch in the chain_template" do
+  it "embeds bounded incremental-rebase failure branches in the chain_template" do
     train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
     workflow = described_class.instantiate(job: tip, artifacts: { "merge_train_id" => train.id })
 
@@ -68,7 +68,11 @@ RSpec.describe Workflows::MergeTrain do
     branch = try_node.dig("on_failure", Steps::MergeTrainLand::BaseMoved::FAILURE_CODE)
 
     kinds = branch.map { |n| n["type"] == "step" ? n["kind"] : n["type"] }
-    expect(kinds).to eq(%w[ merge_train_rebase retry_until merge_train_land_after_rebase ])
+    expect(kinds).to eq(%w[ merge_train_rebase retry_until try ])
+
+    retry_land = branch.last
+    expect(retry_land).to include("type" => "try", "step" => "merge_train_land_after_rebase")
+    expect(retry_land.dig("on_failure", Steps::MergeTrainLand::BaseMoved::FAILURE_CODE)).to be_present
   end
 
   describe ".after_success" do

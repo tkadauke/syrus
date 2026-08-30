@@ -6,7 +6,7 @@ module Workflows
   #     try(merge_train_land).on_failure("merge_train_base_moved",
   #       merge_train_rebase →
   #       retry_until(grader_fanout → grader_collect, repair: landing_fix) →
-  #       merge_train_land_after_rebase)
+  #       try(merge_train_land_after_rebase) ...)
   #
   # assemble validates the train members; build rebases/merges them into a
   # single integration branch in topological order; prepare installs deps;
@@ -21,10 +21,14 @@ module Workflows
   # the merge API call), it raises BaseMoved with failure_code
   # "merge_train_base_moved". The Try node inserts merge_train_rebase (tries a
   # mechanical git-rebase of the integration branch onto the new base tip), a
-  # fresh grader loop, and merge_train_land_after_rebase. If the incremental
-  # rebase conflicts, merge_train_rebase fails with "rebuild required" and
-  # MergeTrainFailureHandler falls back to a full merge_train rebuild.
+  # fresh grader loop, and another guarded land step. If the base keeps moving,
+  # the guarded land step repeats the same recovery path up to a bounded budget.
+  # If the incremental rebase conflicts, merge_train_rebase fails with "rebuild
+  # required" and MergeTrainFailureHandler falls back to a full merge_train
+  # rebuild.
   class MergeTrain < Base
+    BASE_MOVE_RECOVERY_ATTEMPTS = 3
+
     def self.trigger_kind = "merge_train"
 
     def self.queue_name = :merges
@@ -41,13 +45,15 @@ module Workflows
       without_skipped_prepare(job, chain)
     end
 
-    def self.merge_train_land_with_rebase_recovery
-      Workflows::Try.new(:merge_train_land).on_failure(
+    def self.merge_train_land_with_rebase_recovery(step_kind = :merge_train_land, remaining_attempts: BASE_MOVE_RECOVERY_ATTEMPTS)
+      return step_kind if remaining_attempts <= 0
+
+      Workflows::Try.new(step_kind).on_failure(
         Steps::MergeTrainLand::BaseMoved::FAILURE_CODE,
         [
           :merge_train_rebase,
           landing_grader_retry_loop,
-          :merge_train_land_after_rebase
+          merge_train_land_with_rebase_recovery(:merge_train_land_after_rebase, remaining_attempts: remaining_attempts - 1)
         ]
       )
     end

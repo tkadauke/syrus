@@ -1216,12 +1216,44 @@ RSpec.describe StepDispatcher do
         [ "merge_train_land_after_rebase", 5, 1, nil ]
       ])
       expect(land.reload.next_step).to eq(try_workflow.steps.find_by!(kind: "merge_train_rebase"))
-      expect(try_workflow.steps.find_by!(kind: "merge_train_land_after_rebase").next_step).to be_nil
+      retry_land = try_workflow.steps.find_by!(kind: "merge_train_land_after_rebase")
+      expect(retry_land.next_step).to be_nil
+      expect(retry_land.details).to include("try_id" => "try-merge-train-land-after-rebase")
       expect(try_workflow.steps.find_by!(kind: "merge_train_rebase").runs.last.trigger_kind).to eq("merge_train")
       expect(land.details).to include(
         "try_branch_expanded" => true,
         "try_branch_failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE
       )
+    end
+
+    it "expands the merge_train_land_after_rebase failure branch when the base moves again" do
+      try_workflow = workflow_with_try_merge_train_land_branch
+      land = try_workflow.steps.find_by!(kind: "merge_train_land")
+      land.update!(details: land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
+      described_class.fail_from(land)
+
+      retry_land = try_workflow.steps.find_by!(kind: "merge_train_land_after_rebase")
+      retry_land.update!(details: retry_land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
+
+      expect {
+        described_class.fail_from(retry_land)
+      }.to change { try_workflow.steps.count }.by(4)
+        .and change { Run.count }.by(1)
+
+      expect(try_workflow.reload.steps.order(:position).pluck(:kind)).to eq(%w[
+        merge_train_build
+        merge_train_land
+        merge_train_rebase
+        grader_fanout
+        grader_collect
+        merge_train_land_after_rebase
+        merge_train_rebase
+        grader_fanout
+        grader_collect
+        merge_train_land_after_rebase
+      ])
+      expect(retry_land.reload.next_step.kind).to eq("merge_train_rebase")
+      expect(try_workflow.steps.order(:position).last.kind).to eq("merge_train_land_after_rebase")
     end
 
     it "expands a Try failure branch before the continuation step" do
@@ -1867,7 +1899,24 @@ RSpec.describe StepDispatcher do
                 "check" => %w[ grader_fanout grader_collect ],
                 "repair_first" => false
               },
-              { "type" => "step", "kind" => "merge_train_land_after_rebase" }
+              {
+                "type" => "try",
+                "id" => "try-merge-train-land-after-rebase",
+                "step" => "merge_train_land_after_rebase",
+                "on_failure" => {
+                  Steps::MergeTrainLand::BaseMoved::FAILURE_CODE => [
+                    { "type" => "step", "kind" => "merge_train_rebase" },
+                    {
+                      "type" => "retry_until",
+                      "max_iterations" => 2,
+                      "repair" => %w[ landing_fix ],
+                      "check" => %w[ grader_fanout grader_collect ],
+                      "repair_first" => false
+                    },
+                    { "type" => "step", "kind" => "merge_train_land_after_rebase" }
+                  ]
+                }
+              }
             ]
           }
         }

@@ -1040,12 +1040,14 @@ class StepDispatcher
       loop_id = %w[ loop retry_until ].include?(node["type"]) ? SecureRandom.uuid : nil
 
       step_kinds.map do |kind|
+        details = node["type"] == "try" ? { "try_id" => node["id"] } : {}
         step = Step.create!(
           workflow: @workflow,
           kind: kind,
           position: position,
           iteration: 1,
-          loop_id: loop_id
+          loop_id: loop_id,
+          details: details
         )
         position += 1
         step
@@ -1065,6 +1067,8 @@ class StepDispatcher
       else
         Array(node["check"]).map(&:to_s)
       end
+    when "try"
+      [ node.fetch("step") ]
     else
       raise ArgumentError, "unsupported workflow branch node: #{node.inspect}"
     end

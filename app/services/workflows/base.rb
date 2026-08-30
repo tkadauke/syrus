@@ -20,8 +20,8 @@ module Workflows
     #     steps :implement, :summarize, :pr_open
     #   end
     # Control nodes are allowed as top-level nodes only, except that a
-    # Workflows::Try failure branch may declare its own RetryUntil/Loop
-    # recovery segment:
+    # Workflows::Try failure branch may declare its own recovery segment
+    # with RetryUntil/Loop/Try nodes:
     #   steps :prepare,
     #         Workflows::Loop.new(max_iterations: 5, steps: [:implement, :grade]),
     #         :summarize
@@ -268,13 +268,7 @@ module Workflows
     def self.validate_control_node!(node)
       if node.is_a?(Workflows::Try)
         node.failure_branches.each_value do |branch|
-          branch.each do |branch_node|
-            if branch_node.is_a?(Workflows::Try)
-              raise ArgumentError, "nested workflow try nodes are not supported"
-            end
-
-            validate_control_node!(branch_node) if branch_node.is_a?(Workflows::Loop) || branch_node.is_a?(Workflows::RetryUntil)
-          end
+          branch.each { |branch_node| validate_control_node!(branch_node) if branch_node.respond_to?(:to_chain_template) }
         end
       else
         nested = control_node_steps(node).any? do |step|
@@ -311,13 +305,7 @@ module Workflows
       position = 0
       nodes.flat_map do |node|
         if node.is_a?(Workflows::Try)
-          step = Step.create!(
-            workflow: workflow,
-            kind: node.step_kind,
-            position: position,
-            iteration: 1,
-            details: { "try_id" => node.id }
-          )
+          step = materialize_try_step!(workflow, node, position)
           position += 1
           step
         elsif node.is_a?(Workflows::Loop) || node.is_a?(Workflows::RetryUntil)
@@ -344,6 +332,16 @@ module Workflows
           step
         end
       end
+    end
+
+    def self.materialize_try_step!(workflow, node, position)
+      Step.create!(
+        workflow: workflow,
+        kind: node.step_kind,
+        position: position,
+        iteration: 1,
+        details: { "try_id" => node.id }
+      )
     end
   end
 end
