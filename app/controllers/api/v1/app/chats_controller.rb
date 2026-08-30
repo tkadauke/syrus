@@ -1529,7 +1529,7 @@ module Api
             turn_in_flight: chat_session.turn_in_flight?,
             agent_busy: chat_session.agent_busy?,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
-            active_goal: PerformanceLogging.phase("chat_json.active_goal", chat_id: chat_session.id) { chat_goal_json(chat_session.active_goal) },
+            active_goal: PerformanceLogging.phase("chat_json.active_goal", chat_id: chat_session.id) { chat_goal_json(chat_session.latest_goal) },
             suggested_next_step: chat_session.suggested_next_step,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,

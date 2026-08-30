@@ -65,6 +65,10 @@ class ChatSession < ApplicationRecord
           -> { non_terminal.order(created_at: :desc, id: :desc) },
           class_name: "ChatGoal",
           inverse_of: :chat_session
+  has_one :latest_goal,
+          -> { newest_first },
+          class_name: "ChatGoal",
+          inverse_of: :chat_session
   has_many :bookmarks,
            -> { where(chat_messages: { deleted_at: nil }).order("chat_messages.created_at ASC", "chat_messages.id ASC", "chat_bookmarks.id ASC") },
            through: :messages,

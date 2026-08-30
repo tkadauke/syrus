@@ -119,6 +119,15 @@ describe("GoalControls", () => {
     expect(screen.getByText("Draft only")).toBeInTheDocument()
   })
 
+  it("renders terminal goal statuses from refreshed payloads", () => {
+    renderGoalControls(payload({ active_goal: goal({ status: "blocked", terminal_reason: "needs_operator" }) }))
+
+    expect(screen.getByTestId("active-goal-strip")).toHaveTextContent("Blocked")
+    expect(screen.getByText("needs_operator")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Edit goal" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Stop goal" })).toBeDisabled()
+  })
+
   it("pauses, resumes, and stops a goal from visible controls", async () => {
     const fetchSpy = vi.spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse({ ...payload(), message: "Goal paused." }))

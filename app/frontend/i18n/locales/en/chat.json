@@ -245,8 +245,6 @@
   "goal_pause": "Pause goal",
   "goal_resume": "Resume goal",
   "goal_stop": "Stop goal",
-  "goal_active_region": "Active goal",
-  "goal_controls_agent_active": "Goal controls are disabled while the agent is active.",
   "goal_missing": "Active goal was not found.",
   "goal_action_error": "Goal action failed.",
   "goal_action_disabled_agent_active": "Wait for the current agent turn to finish.",

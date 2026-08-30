@@ -80,7 +80,7 @@ module ChatIndexPayload
         turn_in_flight: chat_session.turn_in_flight?,
         agent_busy: context.fetch(:agent_busy_ids).include?(chat_session.id),
         stop_requested_at: chat_session.stop_requested_at&.iso8601,
-        active_goal: chat_goal_json(context.fetch(:active_goals).fetch(chat_session.id, nil)),
+        active_goal: chat_goal_json(context.fetch(:latest_goals).fetch(chat_session.id, nil)),
         suggested_next_step: chat_session.suggested_next_step,
         cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
         cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
@@ -117,7 +117,7 @@ module ChatIndexPayload
       pending_proposal_counts: chat_index_pending_proposal_counts(ids),
       scratchpad_counts: ids.empty? ? {} : ChatScratchpadItem.where(chat_session_id: ids).group(:chat_session_id).count,
       provider_availability: providers.to_h { |provider| [ provider, ::App::ProviderAvailability.for_user(Current.user, provider) ] },
-      active_goals: ids.empty? ? {} : ChatGoal.non_terminal.where(chat_session_id: ids).index_by(&:chat_session_id),
+      latest_goals: latest_goals_by_chat_id(ids),
       chat_provider_options: chat_provider_options(nil),
       available_chat_models: providers.to_h do |provider|
         representative = chat_sessions.find { |chat_session| chat_session.effective_chat_provider == provider }
@@ -138,6 +138,15 @@ module ChatIndexPayload
         proposal_counts.fetch(chat_session_id, 0) + pending_action_counts.fetch(chat_session_id, 0)
       ]
     end
+  end
+
+  def latest_goals_by_chat_id(chat_session_ids)
+    return {} if chat_session_ids.empty?
+
+    latest_goal_ids = ChatGoal.where(chat_session_id: chat_session_ids)
+                              .group(:chat_session_id)
+                              .select("MAX(id)")
+    ChatGoal.where(id: latest_goal_ids).index_by(&:chat_session_id)
   end
 
   def paginated_chat_index_group(scope, before_chat: nil)

@@ -123,7 +123,7 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(parse_body.dig("active_goal", "mode_snapshot", "repository_id")).to eq(other_repository.id)
   end
 
-  it "pauses, resumes, stops, and clears the active goal payload" do
+  it "pauses, resumes, stops, and returns the stopped goal payload" do
     goal = chat.chat_goals.create!(prompt: "Keep going")
 
     post "/api/v1/app/chats/#{chat.id}/goal/pause"
@@ -141,7 +141,7 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
 
     post "/api/v1/app/chats/#{chat.id}/goal/stop", params: { reason: "operator_stopped" }
     expect(response).to have_http_status(:ok)
-    expect(parse_body["active_goal"]).to be_nil
+    expect(parse_body["active_goal"]).to include("id" => goal.id, "status" => "cancelled", "terminal_reason" => "operator_stopped")
     expect(goal.reload).to have_attributes(status: "cancelled", terminal_reason: "operator_stopped")
   end
 
@@ -150,12 +150,14 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     post "/api/v1/app/chats/#{chat.id}/goal/complete", params: { reason: "success" }
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body["active_goal"]).to include("id" => complete_goal.id, "status" => "completed", "terminal_reason" => "success")
     expect(complete_goal.reload).to have_attributes(status: "completed", terminal_reason: "success")
 
     blocked_goal = chat.chat_goals.create!(prompt: "Try again")
     post "/api/v1/app/chats/#{chat.id}/goal/block", params: { reason: "needs_credentials", details: { "provider" => "github" } }
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body["active_goal"]).to include("id" => blocked_goal.id, "status" => "blocked", "terminal_reason" => "needs_credentials")
     expect(blocked_goal.reload).to have_attributes(status: "blocked", terminal_reason: "needs_credentials")
     expect(blocked_goal.terminal_details).to eq("provider" => "github")
   end
@@ -199,6 +201,25 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(response).to have_http_status(:ok)
     serialized = parse_body.fetch("groups").flat_map { |group| group.fetch("chats") }.find { |row| row["id"] == chat.id }
     expect(serialized.dig("active_goal", "id")).to eq(goal.id)
+  end
+
+  it "returns the latest terminal goal JSON in show and index payloads" do
+    goal = chat.chat_goals.create!(prompt: "Make progress")
+    goal.block!(reason: "needs_operator")
+
+    get "/api/v1/app/chats/#{chat.id}/goal"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["active_goal"]).to include("id" => goal.id, "status" => "blocked", "terminal_reason" => "needs_operator")
+
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "active_goal")).to include("id" => goal.id, "status" => "blocked")
+    expect(parse_body.dig("active_goal")).to include("id" => goal.id, "status" => "blocked")
+
+    get "/api/v1/app/chats"
+    expect(response).to have_http_status(:ok)
+    serialized = parse_body.fetch("groups").flat_map { |group| group.fetch("chats") }.find { |row| row["id"] == chat.id }
+    expect(serialized.dig("active_goal")).to include("id" => goal.id, "status" => "blocked")
   end
 
   it "does not expose another user's chat goal" do
