@@ -48,7 +48,10 @@ class LocalDaemonSession < ApplicationRecord
     chat_session.update!(
       daemon_connected: true,
       daemon_repo: repo,
-      daemon_branch: branch
+      daemon_branch: branch,
+      local_daemon_state: "connected",
+      local_daemon_repo: repo,
+      local_daemon_branch: branch
     )
     chat_session.broadcast_daemon_status("connected", repo: repo, branch: branch)
   end
@@ -57,7 +60,12 @@ class LocalDaemonSession < ApplicationRecord
     return if disconnected?
 
     update!(disconnected_at: Time.current)
-    chat_session.update!(daemon_connected: false)
+    chat_session.update!(
+      daemon_connected: false,
+      local_daemon_state: "disconnected",
+      local_daemon_repo: nil,
+      local_daemon_branch: nil
+    )
     chat_session.broadcast_daemon_status("disconnected")
   end
 

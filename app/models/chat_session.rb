@@ -436,11 +436,12 @@ class ChatSession < ApplicationRecord
 
   def broadcast_daemon_status(status, repo: nil, branch: nil)
     payload = {
-      action: "update_daemon_status",
-      daemon_connected: daemon_connected?,
-      daemon_status: status,
-      daemon_repo: repo || daemon_repo,
-      daemon_branch: branch || daemon_branch
+      action: "update_header",
+      chat: {
+        local_daemon_state: status,
+        local_daemon_repo: status == "connected" ? (repo || local_daemon_repo) : nil,
+        local_daemon_branch: status == "connected" ? (branch || local_daemon_branch) : nil
+      }
     }
     broadcast_to_participants(
       type: "updated",

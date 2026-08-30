@@ -59,13 +59,23 @@ RSpec.describe LocalDaemonSession, type: :model do
       expect(session.daemon_branch).to eq("main")
       expect(chat.reload.daemon_connected).to be true
       expect(chat.daemon_repo).to eq("owner/repo")
+      expect(chat.local_daemon_state).to eq("connected")
+      expect(chat.local_daemon_repo).to eq("owner/repo")
+      expect(chat.local_daemon_branch).to eq("main")
 
       expect(events).to include(a_hash_including(
         type: "updated",
         resource: "chat",
         id: chat.id,
         changed: [ "daemon" ],
-        payload: a_hash_including(daemon_status: "connected")
+        payload: {
+          action: "update_header",
+          chat: {
+            local_daemon_state: "connected",
+            local_daemon_repo: "owner/repo",
+            local_daemon_branch: "main"
+          }
+        }
       ))
     end
   end
@@ -82,9 +92,19 @@ RSpec.describe LocalDaemonSession, type: :model do
 
       expect(session.reload.disconnected_at).not_to be_nil
       expect(chat.reload.daemon_connected).to be false
+      expect(chat.local_daemon_state).to eq("disconnected")
+      expect(chat.local_daemon_repo).to be_nil
+      expect(chat.local_daemon_branch).to be_nil
 
       expect(events).to include(a_hash_including(
-        payload: a_hash_including(daemon_status: "disconnected")
+        payload: {
+          action: "update_header",
+          chat: {
+            local_daemon_state: "disconnected",
+            local_daemon_repo: nil,
+            local_daemon_branch: nil
+          }
+        }
       ))
     end
 

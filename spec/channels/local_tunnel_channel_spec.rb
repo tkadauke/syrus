@@ -93,6 +93,9 @@ RSpec.describe LocalTunnelChannel, type: :channel do
       expect(daemon_session.reload.daemon_repo).to eq("owner/repo")
       expect(daemon_session.reload.daemon_branch).to eq("feat")
       expect(chat.reload.daemon_connected).to be true
+      expect(chat.local_daemon_state).to eq("connected")
+      expect(chat.local_daemon_repo).to eq("owner/repo")
+      expect(chat.local_daemon_branch).to eq("feat")
     end
 
     it "transmits a connected frame on connect message" do
