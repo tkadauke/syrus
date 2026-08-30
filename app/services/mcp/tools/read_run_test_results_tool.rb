@@ -46,8 +46,8 @@ module Mcp::Tools
           payload = TestInsights::RunResults.for_run(
             run: run,
             grader_name: grader_name,
-            include_slow_cases: truthy?(include_slow_cases),
-            include_suites: truthy?(include_suites),
+            include_slow_cases: truthy?(include_slow_cases, default: false),
+            include_suites: truthy?(include_suites, default: false),
             case_limit: case_limit
           )
 
