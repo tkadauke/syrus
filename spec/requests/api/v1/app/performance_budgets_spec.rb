@@ -72,10 +72,18 @@ RSpec.describe "App API structural performance budgets", type: :request do
 
   it "keeps repository detail payloads bounded" do
     30.times do |index|
-      job = Factories.job(repository: repository, issue_number: index + 1, issue_title: "Repository job #{index}")
-      job.update!(state: index.even? ? "implemented" : "queued")
-      job.latest_workflow.update!(state: index.even? ? "succeeded" : "running")
-      job.current_run.update!(state: index.even? ? "succeeded" : "running")
+      state = index.even? ? "implemented" : "queued"
+      run_state = index.even? ? "succeeded" : "running"
+      job = Factories.job_record(
+        repository: repository,
+        owner_user: user,
+        issue_number: index + 1,
+        issue_title: "Repository job #{index}",
+        state: state
+      )
+      workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", state: run_state)
+      step = workflow.steps.create!(kind: "prepare", position: 0, state: workflow.state)
+      step.runs.create!(job: job, user: user, trigger_kind: "initial", state: run_state)
     end
 
     metrics = capture_performance_budget do
