@@ -1110,7 +1110,7 @@ RSpec.describe Job do
       it "creates a JobApproval without approving when policy is not yet met" do
         repository = Factories.repository(review_policy: "two_person")
         owner = Factories.user
-        job = Factories.job(user: owner, repository: repository, owner_user: owner)
+        job = Factories.job_record(user: owner, repository: repository, owner_user: owner)
         job.update!(state: "implemented")
         non_owner = Factories.user
 
@@ -1979,7 +1979,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "is false for non-external_pr jobs" do
-      job = Factories.job(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository)
       expect(job.external_pr_ingest_blocked?).to be false
     end
 
@@ -3042,7 +3042,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     let(:repository) { Factories.repository(user: user) }
 
     it "enqueues UpstreamExportDispatchJob when the job transitions into approved" do
-      job = Factories.job(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository)
       job.update!(state: "implemented")
 
       expect {
@@ -3051,7 +3051,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "does not enqueue UpstreamExportDispatchJob for unrelated state transitions" do
-      job = Factories.job(user: user, repository: repository)
+      job = Factories.job_record(user: user, repository: repository)
 
       expect {
         job.update!(state: "implemented")

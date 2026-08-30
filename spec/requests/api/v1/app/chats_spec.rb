@@ -3398,7 +3398,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     old_dependency = ChatProposal.create!(chat_session: chat, slug: "old-api", title: "Old API", body: "Old dependency.")
     new_dependency = ChatProposal.create!(chat_session: chat, slug: "new-api", title: "New API", body: "New dependency.")
     ChatProposalDependency.create!(proposal: proposal, depends_on: old_dependency)
-    job_dependency = Factories.job(repository: repository, issue_title: "Existing Job")
+    job_dependency = Factories.job_record(repository: repository, issue_title: "Existing Job")
     epic_dependency = Factories.epic(user: user, repository: repository, title: "Existing Epic")
     chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
 
@@ -5225,7 +5225,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "does not scan old tool results forever for stale unanchored pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    job = Factories.job(repository: repository)
+    job = Factories.job_record(repository: repository)
     action = chat.pending_actions.create!(
       action: "check_job_mergeability",
       payload: { "job_id" => job.id },

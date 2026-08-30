@@ -1556,9 +1556,9 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "returns a nullable cost until a job has a billed run" do
-      unbilled = Factories.job(repository: repo, owner_user: user, issue_number: 1, issue_title: "Wait in queue")
-      billed = Factories.job(repository: repo, owner_user: user, issue_number: 2, issue_title: "Spend carefully")
-      billed.initial_run.update!(cost_usd: 0.12)
+      unbilled = Factories.job_record(repository: repo, owner_user: user, issue_number: 1, issue_title: "Wait in queue")
+      billed = Factories.job_record(repository: repo, owner_user: user, issue_number: 2, issue_title: "Spend carefully")
+      Run.create!(job: billed, trigger_kind: "initial", cost_usd: 0.12)
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
 
@@ -1986,8 +1986,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     it "approves selected implemented jobs and reports auto-merge skips" do
       repo.update!(auto_merge_enabled: true)
       disabled_repo = Factories.repository(user: user, owner: "acme", name: "lib", auto_merge_enabled: false)
-      enabled = Factories.job(repository: repo, issue_number: 10)
-      disabled = Factories.job(repository: disabled_repo, issue_number: 11)
+      enabled = Factories.job_record(repository: repo, issue_number: 10)
+      disabled = Factories.job_record(repository: disabled_repo, issue_number: 11)
       enabled.update!(state: "implemented")
       disabled.update!(state: "implemented")
       allow(AppEvents).to receive(:broadcast)
@@ -2009,7 +2009,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
       installation = Factories.installation(user: user, account_login: "acme")
       repo.update!(auto_merge_enabled: true, installation: installation)
-      job = Factories.job(repository: repo, issue_number: 10, pr_number: 660)
+      job = Factories.job_record(repository: repo, issue_number: 10, pr_number: 660)
       job.update!(state: "implemented")
       client = instance_double(GithubClient)
       allow(AppEvents).to receive(:broadcast)
@@ -2048,8 +2048,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "commits reviewed approvals and skips rejected choices" do
-      approved = Factories.job(repository: repo, issue_number: 1)
-      skipped = Factories.job(repository: repo, issue_number: 2)
+      approved = Factories.job_record(repository: repo, issue_number: 1)
+      skipped = Factories.job_record(repository: repo, issue_number: 2)
       approved.update!(state: "implemented")
       skipped.update!(state: "implemented")
       allow(AppEvents).to receive(:broadcast)
