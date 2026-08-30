@@ -44,18 +44,12 @@ module Workflows
 
       if grader_failure?(workflow)
         GraderChatReporter.report_failure(workflow: workflow, chat: chat, enqueue_agent_turn: false) if chat
-        if workflow.job.may_mark_failed?
-          workflow.job.mark_failed!
-          workflow.job.save!
-        end
+        mark_failed_and_clear_chat_link!(workflow.job)
       else
         # Non-grader failure (e.g. prepare failed). propagate_fail_to_job!
         # was suppressed, so drive the job to :failed manually so the
         # operator has the normal Retry path.
-        if workflow.job.may_mark_failed?
-          workflow.job.mark_failed!
-          workflow.job.save!
-        end
+        mark_failed_and_clear_chat_link!(workflow.job)
       end
     rescue StandardError => e
       Rails.logger.warn("[LocalModeHandoff] after_fail raised for workflow #{workflow.id}: #{e.class}: #{e.message}")
@@ -63,6 +57,12 @@ module Workflows
 
     def self.grader_failure?(workflow)
       workflow.steps.where(kind: "grader_collect", state: "failed").exists?
+    end
+
+    def self.mark_failed_and_clear_chat_link!(job)
+      job.linked_chat_id = nil if job.linked_chat_id.present?
+      job.mark_failed! if job.may_mark_failed?
+      job.save! if job.changed?
     end
   end
 end
