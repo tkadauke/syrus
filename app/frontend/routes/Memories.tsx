@@ -179,7 +179,7 @@ function MemoryRowView({ memory, payload, showOwner, showDeleted, onNotice }: { 
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
         <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <button className="text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
+          <button className="text-xs text-brand-emphasis underline hover:no-underline" onClick={() => setViewing(true)} type="button">
             {t('memories.see_more')}
           </button>
           {memory.changed && memory.permissions.can_manage ? (
@@ -274,7 +274,7 @@ function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: (
             <SectionHeading id={`memory-content-modal-title-${memory.id}`}>{t('memories.modal_content')}</SectionHeading>
             <button
               aria-label={t("common:close")}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               onClick={onClose}
               type="button"
             >
@@ -317,7 +317,7 @@ function MemoryHistoryModal({ memory, onClose }: { memory: MemoryRow; onClose: (
             <SectionHeading id={`memory-history-modal-title-${memory.id}`}>{t('memories.history_title')}</SectionHeading>
             <button
               aria-label={t("common:close")}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               onClick={onClose}
               type="button"
             >
@@ -460,7 +460,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
             <SectionHeading id="memory-modal-title">{title}</SectionHeading>
             <button
               aria-label={t("common:close")}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               onClick={onClose}
               type="button"
             >
