@@ -3,9 +3,20 @@ set -euo pipefail
 
 export RAILS_ENV="${RAILS_ENV:-test}"
 export COVERAGE="${COVERAGE:-false}"
-export PARALLEL_TEST_PROCESSORS="${RSPEC_PROCESSES:-8}"
+if [ -n "${RSPEC_PROCESSES:-}" ]; then
+  export PARALLEL_TEST_PROCESSORS="$RSPEC_PROCESSES"
+else
+  detected_processors="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8)"
+  if [ "$detected_processors" -gt 12 ]; then
+    detected_processors=12
+  elif [ "$detected_processors" -lt 1 ]; then
+    detected_processors=8
+  fi
+  export PARALLEL_TEST_PROCESSORS="$detected_processors"
+fi
 export RSPEC_JSON_DIR="${RSPEC_JSON_DIR:-.syrus/rspec-json}"
 export RSPEC_JUNIT_DIR="${RSPEC_JUNIT_DIR:-.syrus/rspec-junit}"
+export RSPEC_RUNTIME_LOG="${RSPEC_RUNTIME_LOG:-.syrus/parallel_runtime_rspec.log}"
 # Merged destination. Must match the `junit_output:` key of the rspec grader
 # in .syrus.yml, which is what Steps::Grader ingests for test insights.
 export RSPEC_JUNIT_OUTPUT="${RSPEC_JUNIT_OUTPUT:-.syrus/grade-output/rspec-junit.xml}"
@@ -79,17 +90,40 @@ if [ "$#" -eq 0 ]; then
   bundle exec parallel_rspec \
     -n "$PARALLEL_TEST_PROCESSORS" \
     --quiet \
+    --runtime-log "$RSPEC_RUNTIME_LOG" \
     --exec-args bin/rspec-worker \
     spec plugins
 else
   bundle exec parallel_rspec \
     -n "$PARALLEL_TEST_PROCESSORS" \
     --quiet \
+    --runtime-log "$RSPEC_RUNTIME_LOG" \
     --exec-args bin/rspec-worker \
     "$@"
 fi
 status="$?"
 set -e
+
+ruby -rjson -rfileutils -e '
+  json_dir, runtime_log = ARGV
+  by_file = Hash.new(0.0)
+  Dir[File.join(json_dir, "rspec-*.json")].each do |path|
+    JSON.parse(File.read(path)).fetch("examples", []).each do |example|
+      file = example["file_path"].to_s.sub(%r{\A\./}, "")
+      next if file.empty?
+
+      by_file[file] += example.fetch("run_time", 0).to_f
+    end
+  end
+
+  exit if by_file.empty?
+
+  FileUtils.mkdir_p(File.dirname(runtime_log))
+  File.write(
+    runtime_log,
+    by_file.sort_by { |file, time| [ -time, file ] }.map { |file, time| "#{file}:#{time}" }.join("\n") + "\n"
+  )
+' "$RSPEC_JSON_DIR" "$RSPEC_RUNTIME_LOG"
 
 ruby -rjson -e '
   files = Dir[File.join(ARGV.fetch(0), "rspec-*.json")]

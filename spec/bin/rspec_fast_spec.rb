@@ -33,7 +33,7 @@ RSpec.describe "bin/rspec-fast" do
       BASH
 
       stdout, stderr, status = Open3.capture3(
-        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME") },
+        { "PATH" => "#{bin_dir}:#{ENV.fetch("PATH")}", "HOME" => ENV.fetch("HOME"), "RSPEC_PROCESSES" => "8" },
         "bash",
         File.join(bin_dir, "rspec-fast"),
         "spec/models/job_spec.rb",
@@ -45,7 +45,7 @@ RSpec.describe "bin/rspec-fast" do
       expect(File.read(log_path).lines.map(&:chomp)).to eq([
         "rails RAILS_ENV=test args=db:test:prepare",
         "bundle-exec command=rake RUN_CI_ONLY_SPECS=false args=rake parallel:prepare",
-        "bundle-exec command=parallel_rspec RUN_CI_ONLY_SPECS=false args=parallel_rspec -n 8 --quiet --exec-args bin/rspec-worker spec/models/job_spec.rb"
+        "bundle-exec command=parallel_rspec RUN_CI_ONLY_SPECS=false args=parallel_rspec -n 8 --quiet --runtime-log .syrus/parallel_runtime_rspec.log --exec-args bin/rspec-worker spec/models/job_spec.rb"
       ])
     end
   end
