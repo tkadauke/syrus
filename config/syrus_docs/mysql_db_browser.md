@@ -149,10 +149,16 @@ Each `MysqlConnection` carries its own `agentic_access_enabled` opt-in
 (surfaced as a checkbox on the connection create/edit form, default `false`),
 independent of the plugin's own enable/disable toggle. When set,
 that specific connection becomes queryable by workflow and chat agents
-through four MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
+through five MCP tools exposed via `mcp_tool_set`/`chat_mcp_tool_set`
 (`MysqlDbBrowser::WorkflowToolSet` / `MysqlDbBrowser::ChatToolSet`,
 `plugins/mysql_db_browser/app/services/mysql_db_browser/{workflow,chat}_tool_set.rb`):
 
+- `mysql_db_browser_list_connections` - lists configured DB Browser
+  connections using safe metadata only: `id`, `label`, `default_database`,
+  `agentic_access_enabled`, `allow_writes`, `created_at`, and `updated_at`.
+  It deliberately omits host, port, username, credentials, and password
+  presence. Agents should call this first to discover the correct
+  `mysql_connection_id` before using any schema or query tool.
 - `mysql_db_browser_list_databases` / `mysql_db_browser_list_tables` /
   `mysql_db_browser_describe_table` - thin MCP wrappers around
   `SchemaInspector#databases`/`#tables`/`#table`, the same schema-browse path
@@ -173,8 +179,8 @@ time, before any call happens (see `Mcp::Sidecar.plugin_tools_for` /
 `.plugin_workflow_tools_for`). So `available_for?`/`available_for_context?`
 only decide whether the tool set appears in the manifest at all (plugin
 enabled, `WORKFLOW_IMPLEMENT` role for workflow runs, and at least one
-`MysqlConnection` with `agentic_access_enabled: true` so an agent isn't
-handed useless tools); the actual per-connection authorization happens inside
+configured `MysqlConnection` so an agent can inspect safe connection
+metadata); the actual per-connection authorization happens inside
 each tool's own `#call`, via `MysqlDbBrowser::AgenticAccess.connection!(id)` -
 it resolves the `mysql_connection_id` named in that call's params and raises
 unless that specific row has `agentic_access_enabled: true`, mirroring
@@ -188,10 +194,13 @@ Query tab and the Content tab (the latter via `#execute_select`, which yields
 the connected client so the caller can build the final SQL with the same
 escaper before running it). Guardrails, mirroring `AdminMysql::Inspector`:
 
-- **Read-only by default.** A statement is accepted unmodified only if it
-  matches `/\A(SELECT|WITH)\b/i`; anything else (INSERT/UPDATE/DELETE/DDL/...)
-  is rejected with `403 write_not_allowed` unless the connection's
-  `allow_writes` is `true`. The check runs before opening a connection.
+- **Read-only by default.** A statement is accepted unmodified only if it is
+  a read query or safe diagnostic/metadata statement: `SELECT`, `WITH`,
+  `SHOW`, `DESCRIBE`/`DESC`, or `EXPLAIN` for SELECT/CTE/table/DML plans.
+  `EXPLAIN ANALYZE` is allowed only for read statements because MySQL executes
+  the statement while collecting runtime plan data. Anything else is rejected
+  with `403 write_not_allowed` unless the connection's `allow_writes` is
+  `true`. The check runs before opening a connection.
 - **Statement-timeout hint** - literal `SELECT` statements get
   `SELECT /*+ MAX_EXECUTION_TIME(5000) */ ...` prepended (skipped for `WITH`
   CTEs, since the hint must immediately follow `SELECT`).

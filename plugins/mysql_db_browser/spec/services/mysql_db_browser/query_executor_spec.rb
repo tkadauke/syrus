@@ -136,6 +136,53 @@ RSpec.describe MysqlDbBrowser::QueryExecutor do
       executor.execute("WITH t AS (SELECT 1) SELECT * FROM t", user: user)
       expect(client).to have_received(:query).with("WITH t AS (SELECT 1) SELECT * FROM t", any_args)
     end
+
+    it "treats SHOW and DESCRIBE statements as read-only diagnostics" do
+      client = fake_client(rows: [ { "Name" => "users" } ])
+      stub_client_factory(client)
+      executor = described_class.new(connection)
+
+      show_payload = executor.execute("SHOW TABLES", user: user)
+      describe_payload = executor.execute("DESCRIBE users", user: user)
+
+      expect(show_payload[:read_only]).to be(true)
+      expect(describe_payload[:read_only]).to be(true)
+      expect(client).to have_received(:query).with("SHOW TABLES", any_args)
+      expect(client).to have_received(:query).with("DESCRIBE users", any_args)
+    end
+
+    it "treats EXPLAIN diagnostics as read-only and audits them without requiring write access" do
+      client = fake_client(rows: [ { "select_type" => "SIMPLE", "table" => "users" } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("EXPLAIN SELECT * FROM users", user: user)
+
+      expect(payload[:read_only]).to be(true)
+      expect(client).to have_received(:query).with("EXPLAIN SELECT * FROM users", any_args)
+
+      audit = MysqlQueryAudit.last
+      expect(audit.statement).to eq("EXPLAIN SELECT * FROM users")
+      expect(audit.read_only).to be(true)
+      expect(audit.success).to be(true)
+    end
+
+    it "allows EXPLAIN ANALYZE for read statements but still rejects unrelated non-read statements" do
+      client = fake_client(rows: [ { "EXPLAIN" => "-> Table scan on users" } ])
+      stub_client_factory(client)
+
+      payload = described_class.new(connection).execute("EXPLAIN ANALYZE SELECT * FROM users", user: user)
+
+      expect(payload[:read_only]).to be(true)
+      expect(client).to have_received(:query).with("EXPLAIN ANALYZE SELECT * FROM users", any_args)
+
+      expect {
+        described_class.new(connection).execute("EXPLAIN CONNECTION 12", user: user)
+      }.to raise_error(described_class::WriteNotAllowed)
+
+      expect {
+        described_class.new(connection).execute("EXPLAIN ANALYZE UPDATE users SET name = 'x'", user: user)
+      }.to raise_error(described_class::WriteNotAllowed)
+    end
   end
 
   describe "#execute_select" do

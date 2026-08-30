@@ -9,6 +9,7 @@ module MysqlDbBrowser
   # agent names a mysql_connection_id.
   class ChatToolSet
     TOOL_CLASSES = [
+      ListConnectionsTool,
       ListDatabasesTool,
       ListTablesTool,
       DescribeTableTool,
@@ -16,7 +17,7 @@ module MysqlDbBrowser
     ].freeze
 
     def self.available_for?(_chat_session, tier:)
-      MysqlDbBrowser.enabled? && %i[essential deferred].include?(tier.to_sym) && MysqlConnection.where(agentic_access_enabled: true).exists?
+      MysqlDbBrowser.enabled? && %i[essential deferred].include?(tier.to_sym) && MysqlConnection.exists?
     end
 
     def self.tool_definitions(tier:)
