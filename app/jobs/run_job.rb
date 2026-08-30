@@ -60,6 +60,8 @@ class RunJob < ApplicationJob
   AGENT_CONCURRENCY_RETRY_DELAY = 15.seconds
 
   def perform(run_id)
+    Thread.current[:syrus_current_queue_role] = queue_name.to_s
+
     if AppSetting.runs_paused?
       Rails.logger.info("[RunJob] runs paused — deferring Run ##{run_id} by #{RUNS_PAUSED_RETRY_DELAY}")
       defer_run(run_id, RUNS_PAUSED_RETRY_DELAY)
@@ -112,6 +114,7 @@ class RunJob < ApplicationJob
     Signal.trap("TERM", prior_trap) if prior_trap
     Thread.current[:syrus_current_run] = nil
     Thread.current[:syrus_in_run_job] = nil
+    Thread.current[:syrus_current_queue_role] = nil
   end
 
   private

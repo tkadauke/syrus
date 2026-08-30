@@ -14,7 +14,8 @@ RSpec.describe Timeline::WorkflowWaterfallQuery do
       WorkflowActivity.record!(event_type: "workflow_started", source: "spec", workflow: workflow, message: "spec")
     end
     WorkflowActivityEvent.where(workflow_id: workflow.id, event_type: "workflow_started")
-      .update_all(hostname: "worker-a", pid: 555)
+      .update_all(hostname: "worker-a", pid: 555, queue_role: "runs")
+    workflow.update!(worker_storage_key: "storage-a")
 
     prepare_step = workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded", started_at: 20.minutes.ago, finished_at: 19.minutes.ago)
     implement_step = workflow.steps.create!(kind: "implement", position: 1, state: "running", started_at: 19.minutes.ago)
@@ -25,9 +26,9 @@ RSpec.describe Timeline::WorkflowWaterfallQuery do
 
     result = described_class.call(workflow_id: workflow.id)
 
-    expect(result[:workflow]).to include(id: workflow.id, job_id: job.id, hostname: "worker-a", pid: 555)
+    expect(result[:workflow]).to include(id: workflow.id, job_id: job.id, worker_storage_key: "storage-a", queue_role: "runs", hostname: "worker-a", pid: 555)
     expect(result[:steps].map { |step| step[:id] }).to eq([ prepare_step.id, implement_step.id ])
-    expect(result[:steps].first).to include(kind: "prepare", status: "succeeded", hostname: "worker-a", pid: 555)
+    expect(result[:steps].first).to include(kind: "prepare", status: "succeeded", worker_storage_key: "storage-a", queue_role: "runs", hostname: "worker-a", pid: 555)
 
     implement_payload = result[:steps].second
     expect(implement_payload[:runs]).to contain_exactly(

@@ -49,6 +49,18 @@ RSpec.describe RunJob, "step-dispatch path" do
     expect(s_implement.state).to eq("succeeded")
   end
 
+  it "captures and clears the Solid Queue role on workflow activity events" do
+    run = StepDispatcher.start_workflow(workflow)
+
+    WorkflowActivity.synchronously do
+      described_class.perform_now(run.id)
+    end
+
+    started_event = WorkflowActivityEvent.find_by!(event_type: "run_started", run_id: run.id)
+    expect(started_event.queue_role).to eq("runs")
+    expect(Thread.current[:syrus_current_queue_role]).to be_nil
+  end
+
   it "transitions Workflow to running and drives the chain through to succeeded in one perform" do
     # With inline-chain dispatch, RunJob.perform doesn't bounce
     # back through SQ between steps — it loops over the chain in

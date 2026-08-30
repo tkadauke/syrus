@@ -2619,6 +2619,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_120000) do
     t.json "metadata", null: false
     t.datetime "occurred_at", null: false
     t.integer "pid"
+    t.string "queue_role"
     t.string "reason_key"
     t.integer "repository_id"
     t.integer "run_id"
