@@ -706,8 +706,8 @@ describe("chat compose drafts", () => {
 
 describe("chat main container width", () => {
   it("stretches the chat main element to fill its flex column instead of sizing to content", async () => {
-    // Regression guard: this <main> is `mx-auto max-w-[96rem]` with no
-    // explicit width, inside AppChromeV2's `flex flex-col` page wrapper.
+    // Regression guard: this <main> needs an explicit width inside
+    // AppChromeV2's `flex flex-col` page wrapper.
     // Auto side margins on a flex item cancel the default cross-axis
     // stretch and fall back to content-based (fit-content) sizing instead —
     // fine on desktop, where fit-content and stretch happen to agree, but
@@ -722,6 +722,7 @@ describe("chat main container width", () => {
 
     const main = await screen.findByRole("main", { name: "Chat" })
     expect(main.className).toContain("w-full")
+    expect(main.className).not.toContain("max-w-[96rem]")
   })
 })
 
@@ -3613,10 +3614,10 @@ describe("floating composer positioning", () => {
     // test chose. What jsdom CAN verify is the actual mechanism the "no
     // overlap" guarantee depends on: with both edges pinned to the
     // `position: relative` ancestor via `left`/`right` (mobile) and
-    // `sm:left-14`/`sm:right-14` (desktop), CSS guarantees the rendered box
+    // `sm:left-2`/`sm:right-2` (desktop), CSS guarantees the rendered box
     // can never exceed that ancestor's own border box — `max-w-*` can only
     // ever shrink it from there, never grow past it. A regression here
-    // (losing the `sm:left-14`/`sm:right-14` inset, switching `absolute` to
+    // (losing the `sm:left-2`/`sm:right-2` inset, switching `absolute` to
     // `fixed`, or reintroducing an unbounded width) is exactly the kind of
     // change that would let the pill escape its ancestor and overlap the
     // panel again.
@@ -3630,23 +3631,18 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).not.toMatch(/(?:^|\s)fixed(?:\s|$)/)
     expect(composeForm.className).toContain("left-[max(0.5rem,env(safe-area-inset-left))]")
     expect(composeForm.className).toContain("right-[max(0.5rem,env(safe-area-inset-right))]")
-    expect(composeForm.className).toContain("sm:left-14")
-    expect(composeForm.className).toContain("sm:right-14")
+    expect(composeForm.className).toContain("sm:left-2")
+    expect(composeForm.className).toContain("sm:right-2")
+    expect(composeForm.className).toContain("sm:bottom-2")
+    expect(composeForm.className).not.toContain("sm:left-14")
+    expect(composeForm.className).not.toContain("sm:right-14")
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
   })
 
-  // Regression coverage for JOB-3820: the composer must be inset at least as
-  // much as the message stream's own cards, so chat history reads
-  // equal-or-wider, never narrower, than the composer. Comparing raw
-  // utility values (rather than rendered pixels, which jsdom can't produce)
-  // is the only signal available here, but it's the same signal the two
-  // components' real margins are built from — and it was verified against
-  // a real browser's layout engine (offsets on an absolutely positioned box
-  // are measured from its containing block's padding edge, i.e. flush with
-  // the ancestor's border, NOT the ancestor's own padding box) before
-  // picking the threshold below.
-  it("insets the composer at least as much as the message stream's own cards", async () => {
+  // Regression coverage for the tight split layout: the composer should hug
+  // the chat panel instead of adding its own wide horizontal gutter.
+  it("keeps the floating composer inset small so it tracks the chat panel edges", async () => {
     mockChatRouteFetch(chatPayload())
     renderRoute()
 
@@ -3654,21 +3650,10 @@ describe("floating composer positioning", () => {
     const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
     expect(composeForm).not.toBeNull()
 
-    // The composer's `left`/`right` are measured from ChatColumn's border
-    // (an absolutely positioned box ignores a `position: relative`
-    // ancestor's own padding), while the message stream's cards are normal-
-    // flow children and DO get both ChatColumn's `sm:px-8` (2rem/32px) and
-    // the stream's own `sm:p-4` (1rem/16px) — 48px of real inset from
-    // ChatColumn's border. So the composer's own left/right offsets must
-    // cover that full 48px themselves: Tailwind's `12` spacing step is
-    // exactly 3rem/48px, so anything at or past `sm:left-12`/`sm:right-12`
-    // clears the cards' true inset.
-    const leftMatch = composeForm.className.match(/(?:^|\s)sm:left-(\d+)(?:\s|$)/)
-    const rightMatch = composeForm.className.match(/(?:^|\s)sm:right-(\d+)(?:\s|$)/)
-    expect(leftMatch).not.toBeNull()
-    expect(rightMatch).not.toBeNull()
-    expect(Number(leftMatch?.[1])).toBeGreaterThanOrEqual(12)
-    expect(Number(rightMatch?.[1])).toBeGreaterThanOrEqual(12)
+    expect(composeForm.className).toContain("sm:left-2")
+    expect(composeForm.className).toContain("sm:right-2")
+    expect(composeForm.className).not.toContain("sm:left-14")
+    expect(composeForm.className).not.toContain("sm:right-14")
   })
 
   it.each([
@@ -3694,11 +3679,12 @@ describe("floating composer positioning", () => {
 
     expect(composeForm.className).toContain("absolute")
     expect(chatColumn.className).toContain("relative")
-    expect(chatColumn.className).toContain("sm:px-8")
-    expect(composeForm.className).toContain("sm:right-14")
+    expect(chatColumn.className).not.toContain("sm:px-8")
+    expect(composeForm.className).toContain("sm:right-2")
+    expect(splitGrid.style.gridTemplateColumns).toContain("0.25rem")
     expect(composeForm.className).not.toMatch(/(?:^|\s)(?:fixed|w-screen|w-full|right-0)(?:\s|$)/)
 
-    const expectedChatColumnRight = viewportWidth - 8 - workspaceWidth
+    const expectedChatColumnRight = viewportWidth - 4 - workspaceWidth
     const composerRight = desktopComposerRightEdge(composeForm, chatColumn, viewportWidth, workspaceWidth)
 
     expect(composerRight).toBeLessThanOrEqual(expectedChatColumnRight)
@@ -3737,7 +3723,7 @@ function desktopComposerRightEdge(composer: HTMLElement, chatColumn: HTMLElement
   const rightMatch = composer.className.match(/(?:^|\s)sm:right-(\d+)(?:\s|$)/)
   if (!rightMatch) return viewportWidth
 
-  return viewportWidth - 8 - workspaceWidth - tailwindSpacingPx(Number(rightMatch[1]))
+  return viewportWidth - 4 - workspaceWidth - tailwindSpacingPx(Number(rightMatch[1]))
 }
 
 function tailwindSpacingPx(step: number) {
@@ -3802,12 +3788,9 @@ describe("floating composer height tracking", () => {
     expect(form).not.toBeNull()
     expect(observedElements).toContain(form)
 
-    let ancestor: HTMLElement | null = form.parentElement
-    while (ancestor && !ancestor.contains(messageStream)) {
-      ancestor = ancestor.parentElement
-    }
-    expect(ancestor).not.toBeNull()
-    const columnAncestor = ancestor as HTMLElement
+    const columnAncestor = messageStream.closest("section") as HTMLElement | null
+    expect(columnAncestor).not.toBeNull()
+    if (!columnAncestor) throw new Error("expected chat column ancestor")
 
     await waitFor(() => {
       expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
@@ -3849,11 +3832,10 @@ describe("floating composer height tracking", () => {
 
     const messageStream = await screen.findByTestId("chat-message-stream")
     const form = document.querySelector('[data-tour="chat-compose"] form') as HTMLFormElement
-    let ancestor: HTMLElement | null = form.parentElement
-    while (ancestor && !ancestor.contains(messageStream)) {
-      ancestor = ancestor.parentElement
-    }
-    const columnAncestor = ancestor as HTMLElement
+    expect(form).not.toBeNull()
+    const columnAncestor = messageStream.closest("section") as HTMLElement | null
+    expect(columnAncestor).not.toBeNull()
+    if (!columnAncestor) throw new Error("expected chat column ancestor")
 
     await waitFor(() => {
       expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
