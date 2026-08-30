@@ -1100,6 +1100,7 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
   const agentActive = isAgentActive(payload)
   const busyTitle = agentActive ? t("goal_controls_disabled_agent_active") : undefined
   const disabled = agentActive
+  const canMutateGoal = goal.status === "active" || goal.status === "paused"
   const mutateGoal = useMutation({
     mutationFn: (action: "pause" | "resume" | "stop") => {
       if (action === "pause") return pauseChatGoal(payload.chat.id)
@@ -1131,7 +1132,7 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
           {goal.completion_condition ? <p className="mt-0.5 break-words text-xs text-gray-600 dark:text-gray-400">{t("goal_completion_prefix", { condition: goal.completion_condition })}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <GoalIconButton disabled={disabled || mutateGoal.isPending} label={t("goal_edit")} title={busyTitle || t("goal_edit")} onClick={() => setEditOpen(true)}>
+          <GoalIconButton disabled={disabled || mutateGoal.isPending || !canMutateGoal} label={t("goal_edit")} title={busyTitle || t("goal_edit")} onClick={() => setEditOpen(true)}>
             <PencilIcon className="h-4 w-4" />
           </GoalIconButton>
           {goal.status === "paused" ? (
@@ -1143,7 +1144,7 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
               <PauseIcon />
             </GoalIconButton>
           )}
-          <GoalIconButton disabled={disabled || mutateGoal.isPending || !["active", "paused"].includes(goal.status)} label={t("goal_stop")} title={busyTitle || t("goal_stop")} onClick={() => mutateGoal.mutate("stop")}>
+          <GoalIconButton disabled={disabled || mutateGoal.isPending || !canMutateGoal} label={t("goal_stop")} title={busyTitle || t("goal_stop")} onClick={() => mutateGoal.mutate("stop")}>
             <StopIcon />
           </GoalIconButton>
         </div>

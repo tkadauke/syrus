@@ -117,13 +117,21 @@ module ChatIndexPayload
       pending_proposal_counts: chat_index_pending_proposal_counts(ids),
       scratchpad_counts: ids.empty? ? {} : ChatScratchpadItem.where(chat_session_id: ids).group(:chat_session_id).count,
       provider_availability: providers.to_h { |provider| [ provider, ::App::ProviderAvailability.for_user(Current.user, provider) ] },
-      active_goals: ids.empty? ? {} : ChatGoal.non_terminal.where(chat_session_id: ids).index_by(&:chat_session_id),
+      active_goals: visible_chat_goals_for(ids),
       chat_provider_options: chat_provider_options(nil),
       available_chat_models: providers.to_h do |provider|
         representative = chat_sessions.find { |chat_session| chat_session.effective_chat_provider == provider }
         [ provider, representative ? available_chat_models_for(representative) : [] ]
       end
     }
+  end
+
+  def visible_chat_goals_for(chat_session_ids)
+    return {} if chat_session_ids.empty?
+
+    ChatGoal.where(chat_session_id: chat_session_ids).newest_first.group_by(&:chat_session_id).transform_values do |goals|
+      goals.find(&:non_terminal?) || goals.first
+    end
   end
 
   def chat_index_pending_proposal_counts(chat_session_ids)

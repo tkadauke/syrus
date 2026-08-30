@@ -2,7 +2,7 @@ module ChatGoalActions
   def show_goal
     chat_session = find_chat_session
 
-    render json: { active_goal: chat_goal_json(chat_session.active_goal) }
+    render json: { active_goal: chat_goal_json(visible_chat_goal(chat_session)) }
   end
 
   def upsert_goal

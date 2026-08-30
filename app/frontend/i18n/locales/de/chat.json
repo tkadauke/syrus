@@ -91,6 +91,8 @@
   "goal_update_error": "Ziel konnte nicht aktualisiert werden.",
   "goal_controls_disabled_agent_active": "Ziel-Steuerelemente sind deaktiviert, während der Agent aktiv ist.",
   "goal_command_usage": "Verwendung: /goal <Ziel>, /goal edit <Ziel>, /goal pause, /goal resume oder /goal stop",
+  "goal_provenance_label": "Ziel",
+  "goal_provenance_value": "Ziel #{{id}}",
   "clear_confirm": "Nachrichtenverlauf dieses Chats löschen?",
   "clear": "Löschen",
   "cancel": "Abbrechen",
