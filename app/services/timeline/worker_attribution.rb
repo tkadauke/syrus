@@ -53,7 +53,9 @@ module Timeline
         .where.not(hostname: nil)
         .order(:occurred_at, :id)
         .group_by(&:workflow_id)
-        .transform_values(&:first)
+        .transform_values do |events|
+          events.find { |event| event.queue_role.present? } || events.first
+        end
     end
 
     def spawned_process_by_workflow

@@ -453,6 +453,7 @@ describe("WorkerTimeline macro view", () => {
     renderTimeline()
 
     expect(await screen.findByText("runs")).toBeInTheDocument()
+    expect(screen.getAllByText("runs ·")).toHaveLength(2)
     expect(screen.getByText("2/3")).toBeInTheDocument()
     expect(screen.getByText("3/3")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "JOB-61 · initial" })).toBeInTheDocument()
