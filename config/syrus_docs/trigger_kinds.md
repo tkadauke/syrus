@@ -6,7 +6,7 @@ Every `Workflow` has a `trigger_kind` that identifies what the attempt is for an
 
 **When it fires:** A new GitHub issue receives the trigger label (or a `direct` or `cron` Job is created).
 
-**Step chain:** `prepare → adversarial_review_loop? → retry_until(implement, graders) → coverage_analyze? → summarize → test_plan → pr_open`
+**Step chain:** `prepare → implement → adversarial_review_loop? → visual_review_loop? → retry_until(format/generate/graders, repair: implement) → coverage_analyze? → dependency_audit → summarize → test_plan → pr_open`
 
 The primary workflow: explores the repo, writes code, runs graders, and opens a PR.
 
@@ -97,7 +97,7 @@ below for what happens to PRs deferred this way once main recovers.
 
 **When it fires:** Operator triggers a retry of a failed Job from the UI or admin API.
 
-**Step chain:** Same as `initial` (`prepare → retry_until(implement, graders) → summarize → test_plan → pr_open`).
+**Step chain:** Same quality gates as `initial`, but with `implement` inside the adversarial review loop when configured: `prepare → adversarial_review_loop? → visual_review_loop? → retry_until(implement, format/generate/graders) → coverage_analyze? → dependency_audit → summarize → test_plan → pr_open`.
 
 Starts the implementation from scratch on the existing branch.
 

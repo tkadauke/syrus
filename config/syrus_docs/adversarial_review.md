@@ -19,7 +19,7 @@ Each `adversarial_review` call: a fresh agent (in a new session) reads the issue
 
 The loop runs for at most the configured number of rounds. After it exits (by approval or by exhausting the budget), the grader chain runs on the final committed state. In `initial` that grader chain is itself check-first — see [`workflow_steps.md`](workflow_steps.md) — so it doesn't re-implement again before grading; it only adds a repair `implement` back in if a grader iteration actually fails.
 
-In the feedback workflows (`pr_comment`, `chat_feedback`), the agent step (`respond`) has no top-level run to review first, so the loop keeps its original uniform shape instead: `respond → adversarial_review → respond → adversarial_review → ...`, with `respond` on every iteration including the first.
+In `retry`, the agent step (`implement`) has no separate top-level run before the loop, so it uses the uniform shape instead: `implement → adversarial_review → implement → adversarial_review → ...`, with `implement` on every iteration including the first. The feedback workflows (`pr_comment`, `chat_feedback`, `external_pr_feedback`) use the same uniform loop shape with `respond` in place of `implement`.
 
 ## Verdicts
 
@@ -76,7 +76,17 @@ The adversarial reviewer resumes its session from the previous `adversarial_revi
 
 ## Which workflows include adversarial review
 
-Adversarial review runs in `initial`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` workflows when rounds > 0. It is not currently wired into `retry`. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
+Adversarial review runs in `initial`, `retry`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` workflows when rounds > 0. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
+
+### Retry workflow
+
+When adversarial review is enabled for a retry workflow, the loop runs before visual review and the grader retry chain:
+
+```
+implement → adversarial_review → ... → visual_review? → graders
+```
+
+Unlike `initial`, retry has no top-level `implement` step before the adversarial review loop. The first loop iteration therefore starts with `implement`, then runs `adversarial_review` against that diff.
 
 ### Feedback workflows (pr_comment, chat_feedback, external_pr_feedback)
 

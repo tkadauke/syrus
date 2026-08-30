@@ -238,10 +238,11 @@ iteration 1 is `adversarial_review` alone, reviewing that top-level
 `implement` with another review. The final iteration (once the review budget
 is exhausted) is a repair `implement` only, with no trailing review — there's
 no iteration left to act on further feedback, so running the reviewer again
-would just be a no-op. In the feedback workflows (`pr_comment`,
-`chat_feedback`) the loop keeps its original uniform `[respond,
-adversarial_review]` shape instead, since `respond` has no equivalent
-top-level step to review first.
+would just be a no-op. In `retry`, the loop keeps the uniform `[implement,
+adversarial_review]` shape instead, since retry has no separate top-level
+`implement` step before adversarial review. Feedback workflows (`pr_comment`,
+`chat_feedback`, `external_pr_feedback`) use the same uniform shape with
+`respond` in place of `implement`.
 
 ### visual_review
 
