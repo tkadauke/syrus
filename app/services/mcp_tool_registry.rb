@@ -336,6 +336,7 @@ class McpToolRegistry
         workflow(Mcp::Tools::ReadTestInsightTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadJobTestResultsTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadRunTestResultsTool, required_roles: workflow_roles),
+        workflow(Mcp::Tools::CompareTestRuntimeTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
