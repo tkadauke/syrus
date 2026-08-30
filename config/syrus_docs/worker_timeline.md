@@ -1,8 +1,9 @@
 # Worker Timeline
 
 The `worker_timeline` plugin (`plugins/worker_timeline/`) visualizes
-overlapping Syrus activity as a multi-lane timeline: one lane per worker
-process (hostname+pid), with Job/Workflow spans over time. It is a
+overlapping Syrus activity as a multi-lane timeline: one lane per durable
+worker process role (`worker_storage_key` + `queue_role`), with Job/Workflow
+spans over time. It is a
 self-contained Rails engine plugin, installed but disabled by default
 (`default_enabled: false`, `disableable: true`, category `observability`).
 As with `mysql_db_browser`, the plugin's own `PluginRecord.enabled` toggle
@@ -18,7 +19,7 @@ reachable by clicking a macro-view Workflow span).
 
 ## Data sources
 
-The plugin adds no new instrumentation. It reads:
+The plugin reads:
 
 - `WorkflowActivityEvent` / `SpawnedProcess` / `InstanceVersion` (worker
   attribution — see `Timeline::WorkerAttribution`).
@@ -29,6 +30,17 @@ The plugin adds no new instrumentation. It reads:
   (`available: false`) rather than fabricating one. Shaping this into JSON
   (iso8601-encoding the Time fields) lives in `Timeline::BlockedExplanation`,
   shared by both query services below.
+
+`WorkflowActivityEvent` now captures `queue_role` for `RunJob` executions,
+which lets the macro query distinguish separate worker processes that share
+one storage volume, such as `runs` and `merges`. `Workflow#worker_storage_key`
+provides the durable storage/pod identity. `hostname` and `pid` stay on each
+span as point-in-time attributes for tooltips and restart markers, but they
+are no longer the primary lane key when both durable fields are available.
+Rows that predate `queue_role`, lack `worker_storage_key`, or come from
+non-`RunJob` activity still fall back to legacy `hostname` + `pid` lane
+grouping. The backend does not allocate per-thread slots; the frontend packs
+overlapping spans inside a lane from timestamps.
 
 `app/services/timeline/macro_query.rb` (`Timeline::MacroQuery`) is the
 underlying macro query service, and
@@ -70,10 +82,15 @@ the same query services for the browser:
   `within_last` the last 3 hours with no other filters applied, i.e. every
   worker lane and every workflow in that window. The response echoes back
   `filter` (the applied tree) and `filter_schema` alongside `range`/
-  `lanes`/`pending`.
+  `lanes`/`pending`. Each lane includes `key`, `worker_storage_key`,
+  `queue_role`, representative `hostname`/`pid`, `instance`, and `spans`;
+  each span includes its own `worker_storage_key`, `queue_role`,
+  `hostname`, and `pid` along with Workflow timing/status fields.
 - `GET /api/v1/app/admin/worker_timeline/workflow` — `?id=<workflow_id>`,
   the Step/Run waterfall for one Workflow (wraps
-  `Timeline::WorkflowWaterfallQuery`).
+  `Timeline::WorkflowWaterfallQuery`). The workflow and each Step payload
+  include the resolved `worker_storage_key`, `queue_role`, `hostname`, and
+  `pid`.
 
 `Timeline::MacroQueryFilter` is intentionally not a `Filters::Registry`
 subject: `Timeline::MacroQuery` isn't a single AR relation a
