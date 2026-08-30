@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe LocalDiffChannel, type: :channel do
   let(:user) { Factories.user }
+  let(:chat_session) { ChatSession.create!(user: user, mode: "local") }
 
   before do
     stub_connection current_user: user
@@ -12,51 +13,70 @@ RSpec.describe LocalDiffChannel, type: :channel do
     feature.update!(category: "Labs", name: "Local Mode", enabled: true)
   end
 
+  def create_daemon_session(chat: chat_session, connected: true)
+    LocalDaemonSession.create!(
+      chat_session: chat,
+      user: chat.user,
+      disconnected_at: connected ? nil : 1.minute.ago
+    )
+  end
+
   it "rejects subscriptions when the local_mode feature is disabled" do
+    subscribe(chat_id: chat_session.id)
+
+    expect(subscription).to be_rejected
+  end
+
+  it "rejects subscriptions without a chat id" do
+    enable_local_mode
+
     subscribe
 
     expect(subscription).to be_rejected
   end
 
-  it "confirms subscriptions when the local_mode feature is enabled" do
+  it "rejects subscriptions for another user's chat" do
     enable_local_mode
+    other_chat = ChatSession.create!(user: Factories.user, mode: "local")
 
-    subscribe
+    subscribe(chat_id: other_chat.id)
 
-    expect(subscription).to be_confirmed
+    expect(subscription).to be_rejected
   end
 
-  it "streams from the user's local diff channel key" do
+  it "streams from the chat-scoped local diff channel key" do
     enable_local_mode
+    create_daemon_session
+    allow(Mcp::Tools::LocalToolDispatch).to receive(:call).and_return(Mcp::Tools.success(diff: ""))
 
-    subscribe
+    subscribe(chat_id: chat_session.id)
 
-    expect(subscription).to have_stream_from("local_diff:#{user.id}")
+    expect(subscription).to be_confirmed
+    expect(subscription).to have_stream_from("local_diff:#{user.id}:#{chat_session.id}")
   end
 
   context "with an active subscription and local_mode enabled" do
     before { enable_local_mode }
 
     describe "on subscribe" do
-      it "broadcasts a git_diff tool_call to the tunnel stream when daemon is connected" do
-        LocalTunnelSession.create!(
-          user: user,
-          repo_slug: "acme/widget",
-          branch: "main",
-          status: "connected",
-          connected_at: 5.minutes.ago
-        )
+      it "dispatches git_diff through the current chat's local daemon session" do
+        create_daemon_session
+        expect(Mcp::Tools::LocalToolDispatch).to receive(:call)
+          .with("git_diff", {}, chat_session: chat_session)
+          .and_return(Mcp::Tools.success(diff: "diff --git a/foo.rb b/foo.rb\n"))
 
-        expect(ActionCable.server).to receive(:broadcast).with(
-          "local_tunnel:#{user.id}",
-          hash_including(type: "tool_call", tool: "git_diff")
-        )
+        subscribe(chat_id: chat_session.id)
 
-        subscribe
+        expect(transmissions.last).to include(
+          "type" => "diff_result",
+          "diff" => "diff --git a/foo.rb b/foo.rb\n",
+          "mode" => "head",
+          "error" => nil
+        )
       end
 
       it "transmits not_connected when no daemon session is active" do
-        subscribe
+        subscribe(chat_id: chat_session.id)
 
         expect(transmissions.last).to include(
           "type" => "diff_result",
@@ -68,89 +88,60 @@ RSpec.describe LocalDiffChannel, type: :channel do
     end
 
     describe "receive (refresh request)" do
-      it "broadcasts a git_diff tool_call for head mode" do
-        LocalTunnelSession.create!(
-          user: user,
-          repo_slug: "acme/widget",
-          branch: "main",
-          status: "connected",
-          connected_at: 5.minutes.ago
-        )
-
-        subscribe
-
-        expect(ActionCable.server).to receive(:broadcast).with(
-          "local_tunnel:#{user.id}",
-          hash_including(type: "tool_call", tool: "git_diff")
-        )
-
-        perform :receive, { "mode" => "head" }
+      before do
+        create_daemon_session
+        allow(Mcp::Tools::LocalToolDispatch).to receive(:call).and_return(Mcp::Tools.success(diff: ""))
+        subscribe(chat_id: chat_session.id)
+        transmissions.clear
       end
 
-      it "broadcasts a git_diff_staged tool_call for staged mode" do
-        LocalTunnelSession.create!(
-          user: user,
-          repo_slug: "acme/widget",
-          branch: "main",
-          status: "connected",
-          connected_at: 5.minutes.ago
-        )
+      it "dispatches git_diff for head mode" do
+        expect(Mcp::Tools::LocalToolDispatch).to receive(:call)
+          .with("git_diff", {}, chat_session: chat_session)
+          .and_return(Mcp::Tools.success(diff: "head diff"))
 
-        subscribe
+        perform :receive, { "mode" => "head" }
 
-        expect(ActionCable.server).to receive(:broadcast).with(
-          "local_tunnel:#{user.id}",
-          hash_including(type: "tool_call", tool: "git_diff_staged")
-        )
+        expect(transmissions.last).to include("diff" => "head diff", "mode" => "head", "error" => nil)
+      end
+
+      it "dispatches git_diff_staged for staged mode" do
+        expect(Mcp::Tools::LocalToolDispatch).to receive(:call)
+          .with("git_diff_staged", {}, chat_session: chat_session)
+          .and_return(Mcp::Tools.success(diff: "staged diff"))
 
         perform :receive, { "mode" => "staged" }
+
+        expect(transmissions.last).to include("diff" => "staged diff", "mode" => "staged", "error" => nil)
       end
 
       it "defaults to head mode for unknown mode values" do
-        LocalTunnelSession.create!(
-          user: user,
-          repo_slug: "acme/widget",
-          branch: "main",
-          status: "connected",
-          connected_at: 5.minutes.ago
-        )
-
-        subscribe
-
-        expect(ActionCable.server).to receive(:broadcast).with(
-          "local_tunnel:#{user.id}",
-          hash_including(type: "tool_call", tool: "git_diff")
-        )
+        expect(Mcp::Tools::LocalToolDispatch).to receive(:call)
+          .with("git_diff", {}, chat_session: chat_session)
+          .and_return(Mcp::Tools.success(diff: "head diff"))
 
         perform :receive, { "mode" => "unknown_mode" }
+
+        expect(transmissions.last).to include("diff" => "head diff", "mode" => "head", "error" => nil)
       end
 
-      it "transmits not_connected when no daemon session is active" do
-        subscribe
+      it "transmits dispatcher errors" do
+        expect(Mcp::Tools::LocalToolDispatch).to receive(:call)
+          .with("git_diff_staged", {}, chat_session: chat_session)
+          .and_return(Mcp::Tools.tool_error("boom"))
 
         perform :receive, { "mode" => "staged" }
 
-        expect(transmissions.last).to include(
-          "type" => "diff_result",
-          "diff" => nil,
-          "mode" => "staged",
-          "error" => "not_connected"
-        )
+        expect(transmissions.last).to include("diff" => nil, "mode" => "staged", "error" => "boom")
       end
+    end
 
-      it "ignores paused sessions (not connected)" do
-        LocalTunnelSession.create!(
-          user: user,
-          repo_slug: "acme/widget",
-          branch: "main",
-          status: "paused",
-          connected_at: 10.minutes.ago
-        )
+    it "ignores disconnected daemon sessions" do
+      create_daemon_session(connected: false)
 
-        subscribe
+      subscribe(chat_id: chat_session.id)
 
-        expect(transmissions.last).to include("error" => "not_connected")
-      end
+      expect(transmissions.last).to include("error" => "not_connected")
     end
   end
 end

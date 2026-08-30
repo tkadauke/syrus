@@ -181,7 +181,7 @@ export function ChatWorkspacePanel({
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
-        {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel /> : null}
+        {activeTab === "diff" && localDiffTabVisible(payload) ? <LocalDiffPanel chatId={payload.chat.id} /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
         {isPluginTab(activeTab) ? <PluginWorkspaceTabPanel activeTab={activeTab} payload={payload} /> : null}
       </div>
@@ -781,14 +781,14 @@ type LocalDiffState = {
   error: string | null
 }
 
-function LocalDiffPanel() {
+function LocalDiffPanel({ chatId }: { chatId: number }) {
   const { t } = useT("chat")
   const [state, setState] = useState<LocalDiffState>({ diff: null, mode: "head", loading: true, error: null })
   const subscriptionRef = useRef<Subscription | null>(null)
 
   useEffect(() => {
     const sub = createConsumer().subscriptions.create(
-      { channel: "LocalDiffChannel" },
+      { channel: "LocalDiffChannel", chat_id: chatId },
       {
         connected() {
           // Initial diff requested automatically by channel on subscribe.
@@ -802,7 +802,7 @@ function LocalDiffPanel() {
     )
     subscriptionRef.current = sub
     return () => sub.unsubscribe()
-  }, [])
+  }, [chatId])
 
   function refresh(mode: DiffMode) {
     setState((s) => ({ ...s, loading: true, error: null }))
