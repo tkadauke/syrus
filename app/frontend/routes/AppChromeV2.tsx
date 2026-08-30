@@ -16,6 +16,7 @@ import { dashboardApiSearch, dashboardChromeSearch, dashboardSubjectFromPath, fe
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
+import { fetchSmartFolderNavigation } from "../api/smartFolders"
 import { fetchTerminalSessions } from "../api/terminal"
 import { fetchThemes } from "../api/themes"
 import { useT } from "../hooks/useT"
@@ -26,6 +27,7 @@ import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/b
 import { BuildBadge } from "../components/BuildBadge"
 import { Button } from "../components/Button"
 import { CloseIcon } from "../components/CloseIcon"
+import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
@@ -124,13 +126,16 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     id: item.id,
     label: item.label,
     to: `${prefix}${item.to}`,
+    rawTo: item.to,
     active: sidebarNavItemActive(item, normalizedPath),
     icon: item.icon,
+    smartFolderApiPath: item.smartFolderApiPath,
+    smartFolderSubject: item.smartFolderSubject,
     ...(item.id === "terminal" ? { badge: terminalSessionCount } : {})
   })), [mergedSidebarNavItems, normalizedPath, prefix, terminalSessionCount])
-  const navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }> = useMemo(() => (
+  const navItems: SidebarNavItem[] = useMemo(() => (
     user ? [
-      ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, active: normalizedPath === "/onboarding", icon: <SetupIcon /> }] : []),
+      ...(inOnboarding ? [{ id: "setup", label: t("nav:setup"), to: `${prefix}/onboarding`, rawTo: "/onboarding", active: normalizedPath === "/onboarding", icon: <SetupIcon />, smartFolderApiPath: null, smartFolderSubject: null }] : []),
       ...(tabsHidden ? [] : (() => {
         const items = [...primaryNavItems]
         if (legacyEpicsVisible) {
@@ -139,8 +144,11 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             id: "legacy_epics",
             label: t("nav:epics"),
             to: `${prefix}/dashboard/epics`,
+            rawTo: "/dashboard/epics",
             active: normalizedPath.startsWith("/dashboard/epics"),
-            icon: <EpicIcon />
+            icon: <EpicIcon />,
+            smartFolderApiPath: null,
+            smartFolderSubject: null
           })
         }
         return items
@@ -682,7 +690,7 @@ function SidebarContent({
   csrfToken?: string
   dashboardSubnavEnabled: boolean
   featureFlags: Record<string, boolean>
-  navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
+  navItems: SidebarNavItem[]
   onCloseDrawer: () => void
   onNotice: (message: string | null) => void
   onOpenBugReport: () => void
@@ -696,8 +704,8 @@ function SidebarContent({
   user: BootstrapPayload["current_user"] | undefined
 }) {
   const { t } = useTranslation("nav")
-  const dashboardActive = navItems.some((item) => item.id === "dashboard" && item.active)
-  const [dashboardNavOpen, setDashboardNavOpen] = useState(dashboardActive)
+  const activeSubnavItem = navItems.find((item) => item.active && itemHasSubnav(item, dashboardSubnavEnabled))
+  const [openSubnavItemId, setOpenSubnavItemId] = useState<string | null>(activeSubnavItem?.id ?? null)
   // "setup" (onboarding-only) is excluded from drag reordering; only the
   // plugin-extensible primary nav below it is reorderable.
   const setupItem = navItems.find((item) => item.id === "setup")
@@ -708,8 +716,8 @@ function SidebarContent({
   const [draggingNavItemId, setDraggingNavItemId] = useState<string | null>(null)
 
   useEffect(() => {
-    setDashboardNavOpen(dashboardActive)
-  }, [dashboardActive])
+    if (activeSubnavItem) setOpenSubnavItemId(activeSubnavItem.id)
+  }, [activeSubnavItem?.id])
 
   useEffect(() => {
     // Skip while a drag is in progress: resyncing here would snap the live
@@ -720,20 +728,20 @@ function SidebarContent({
     orderedNavItemsRef.current = reorderableNavItems
   }, [reorderableNavItems])
 
-  function handlePrimaryNavClick(item: { id: string; active: boolean }, event: MouseEvent<HTMLAnchorElement>) {
-    if (item.id === "dashboard" && dashboardSubnavEnabled) {
+  function handlePrimaryNavClick(item: SidebarNavItem, event: MouseEvent<HTMLAnchorElement>) {
+    if (itemHasSubnav(item, dashboardSubnavEnabled)) {
       if (item.active) {
         event.preventDefault()
-        setDashboardNavOpen((open) => !open)
+        setOpenSubnavItemId((current) => current === item.id ? null : item.id)
         return
       }
 
-      setDashboardNavOpen(true)
+      setOpenSubnavItemId(item.id)
       onCloseDrawer()
       return
     }
 
-    setDashboardNavOpen(false)
+    setOpenSubnavItemId(null)
     onCloseDrawer()
   }
 
@@ -854,7 +862,9 @@ function SidebarContent({
                   <GripIcon />
                 </div>
                 {item.id === "dashboard" && dashboardSubnavEnabled ? (
-                  <SidebarDashboardNav expanded={dashboardNavOpen} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                  <SidebarDashboardNav expanded={openSubnavItemId === item.id} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
+                ) : item.smartFolderApiPath && item.smartFolderSubject ? (
+                  <SidebarPluginSmartFolderNav expanded={openSubnavItemId === item.id} item={item} prefix={prefix} />
                 ) : null}
               </div>
             ))}
@@ -878,6 +888,22 @@ function SidebarContent({
       </div>
     </div>
   )
+}
+
+type SidebarNavItem = {
+  id: string
+  label: string
+  to: string
+  rawTo: string
+  active: boolean
+  icon: ReactNode
+  badge?: number
+  smartFolderApiPath?: string | null
+  smartFolderSubject?: string | null
+}
+
+function itemHasSubnav(item: SidebarNavItem, dashboardSubnavEnabled = true) {
+  return (item.id === "dashboard" && dashboardSubnavEnabled) || Boolean(item.smartFolderApiPath && item.smartFolderSubject)
 }
 
 function isCoarsePointer() {
@@ -1028,6 +1054,51 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
         <div className="space-y-3 pl-7 pt-1">
           {showSubjects ? <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={payload} prefix={prefix} /> : null}
           <DashboardSmartFolderNav payload={smartFolderPayload} prefix={prefix} search={location.search} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boolean; item: SidebarNavItem; prefix: string }) {
+  const location = useLocation()
+  const queryClient = useQueryClient()
+  const isActivePage = item.active
+  const search = location.search
+  const payload = useQuery({
+    queryKey: ["sidebar", "smart_folders", item.id, search],
+    queryFn: () => fetchSmartFolderNavigation(item.smartFolderApiPath!, search),
+    enabled: isActivePage,
+    placeholderData: (previousData) => previousData
+  })
+  const inertAttributes = expanded ? {} : { inert: "" }
+
+  if (!payload.data) return null
+
+  return (
+    <div
+      {...inertAttributes}
+      aria-hidden={!expanded}
+      className={`grid overflow-hidden transition-[grid-template-rows,margin-top] duration-200 ease-out ${expanded ? "grid-rows-[1fr] mt-1" : "grid-rows-[0fr]"}`}
+    >
+      <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
+        <div className="space-y-3 pl-7 pt-1">
+          <AdminSmartFolderNav
+            activeFolderId={payload.data.active_smart_folder_id}
+            allLabel={`All ${item.label.toLowerCase()}`}
+            allPath={item.rawTo}
+            allowSaveWithoutActiveFolder
+            ariaLabel={`${item.label} smart folders`}
+            currentFilter={payload.data.filter}
+            folders={payload.data.smart_folders}
+            heading="Folders"
+            onMutationSuccess={() => {
+              void queryClient.invalidateQueries({ queryKey: ["sidebar", "smart_folders", item.id] })
+            }}
+            prefix={prefix}
+            queryKey={["sidebar", "smart_folders", item.id]}
+            subjectType={item.smartFolderSubject || undefined}
+          />
         </div>
       </div>
     </div>

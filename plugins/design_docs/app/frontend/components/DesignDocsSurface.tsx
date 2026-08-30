@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useRef, useState, type ChangeEvent } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
+import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
+import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
@@ -35,12 +37,13 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
   const id = params.id
+  const search = location.search
   const [selectedId, setSelectedId] = useState<string | number | null>(id || null)
   const effectiveId = id || selectedId
   const queryClient = useQueryClient()
   const indexQuery = useQuery({
-    queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId)] : ["design_docs"],
-    queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId) : fetchDesignDocs()
+    queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId), search] : ["design_docs", search],
+    queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search)
   })
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
@@ -52,11 +55,12 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
     queryFn: fetchRepositories,
     staleTime: 60_000
   })
-  const [filters, setFilters] = useState({ repository: mode === "repository" && repositoryId ? String(repositoryId) : "all", owner: "all", state: "all", visibility: "all", updated: "all" })
   const [notice, setNotice] = useState<string | null>(null)
-  const docs = useMemo(() => filterDocs(indexQuery.data?.design_docs ?? [], filters, chatId, designDocIds), [chatId, designDocIds, filters, indexQuery.data])
+  const docs = useMemo(() => scopeDocs(indexQuery.data?.design_docs ?? [], chatId, designDocIds), [chatId, designDocIds, indexQuery.data])
   const selectedDoc = detailQuery.data?.design_doc ?? null
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
+  const currentFilter = indexQuery.data?.filter ?? { and: [] }
+  const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
 
   const createMutation = useMutation({
     mutationFn: () => createDesignDoc({
@@ -89,15 +93,40 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
         </Button>
       </header>
       {notice ? <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{notice}</div> : null}
-      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : "lg:grid-cols-[20rem_minmax(0,1fr)]"}`}>
+      {mode === "chat" ? null : (
+        <div data-testid="design-docs-filter-bar">
+          <FilterBar
+            filter={currentFilter}
+            filterSchema={indexQuery.data?.filter_schema ?? []}
+            pathname={location.pathname}
+            search={search}
+            suggestionSearch={{ surface: "dashboard", subject: "design_doc" }}
+          />
+        </div>
+      )}
+      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]"}`}>
+        {mode === "chat" ? null : (
+          <AdminSmartFolderNav
+            activeFolderId={activeSmartFolderId}
+            allLabel="All design docs"
+            allPath="/design_docs"
+            allowSaveWithoutActiveFolder
+            ariaLabel="Design Docs smart folders"
+            currentFilter={currentFilter}
+            folders={indexQuery.data?.smart_folders ?? []}
+            heading="Folders"
+            onMutationSuccess={() => {
+              void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
+            }}
+            prefix={prefix}
+            queryKey={["design_docs"]}
+            subjectType="design_doc"
+          />
+        )}
         <DesignDocList
           docs={docs}
-          filters={filters}
           loading={indexQuery.isPending}
-          mode={mode}
-          repositoryOptions={repositoryOptions}
           selectedId={effectiveId}
-          setFilters={setFilters}
           onSelect={(docId) => mode === "chat" ? setSelectedId(docId) : navigate(`${prefix}/design_docs/${docId}`)}
         />
         <section className="min-w-0">
@@ -123,49 +152,14 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   )
 }
 
-function DesignDocList({ docs, filters, loading, mode, repositoryOptions, selectedId, setFilters, onSelect }: {
+function DesignDocList({ docs, loading, selectedId, onSelect }: {
   docs: DesignDocSummary[]
-  filters: { repository: string; owner: string; state: string; visibility: string; updated: string }
   loading: boolean
-  mode: SurfaceMode
-  repositoryOptions: Array<{ id: number; slug: string }>
   selectedId: string | number | null
-  setFilters: (filters: { repository: string; owner: string; state: string; visibility: string; updated: string }) => void
   onSelect: (id: number) => void
 }) {
-  const owners = Array.from(new Set(docs.map((doc) => doc.owner?.name).filter(Boolean))).sort()
   return (
     <aside className="min-w-0 space-y-3">
-      <div className="grid gap-2 rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-        {mode === "repository" ? null : (
-          <Select aria-label="Repository filter" value={filters.repository} onChange={(event) => setFilters({ ...filters, repository: event.target.value })}>
-            <option value="all">All repositories</option>
-            {repositoryOptions.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
-          </Select>
-        )}
-        <Select aria-label="Owner filter" value={filters.owner} onChange={(event) => setFilters({ ...filters, owner: event.target.value })}>
-          <option value="all">All owners</option>
-          {owners.map((owner) => <option key={owner} value={owner}>{owner}</option>)}
-        </Select>
-        <div className="grid grid-cols-2 gap-2">
-          <Select aria-label="State filter" value={filters.state} onChange={(event) => setFilters({ ...filters, state: event.target.value })}>
-            <option value="all">All states</option>
-            <option value="draft">Draft</option>
-            <option value="accepted">Accepted</option>
-            <option value="archived">Archived</option>
-          </Select>
-          <Select aria-label="Visibility filter" value={filters.visibility} onChange={(event) => setFilters({ ...filters, visibility: event.target.value })}>
-            <option value="all">All visibility</option>
-            <option value="public">Public</option>
-            <option value="private">Private</option>
-          </Select>
-        </div>
-        <Select aria-label="Recently updated filter" value={filters.updated} onChange={(event) => setFilters({ ...filters, updated: event.target.value })}>
-          <option value="all">Any update time</option>
-          <option value="7">Updated in 7 days</option>
-          <option value="30">Updated in 30 days</option>
-        </Select>
-      </div>
       <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         {loading ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">Loading design docs...</div> : null}
         {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
@@ -475,18 +469,20 @@ function StatusLabel({ value }: { value: string }) {
   return <span className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:text-gray-300">{value}</span>
 }
 
-function filterDocs(docs: DesignDocSummary[], filters: { repository: string; owner: string; state: string; visibility: string; updated: string }, chatId?: number, designDocIds: number[] = []) {
-  const cutoff = filters.updated === "all" ? null : Date.now() - Number(filters.updated) * 24 * 60 * 60 * 1000
+function scopeDocs(docs: DesignDocSummary[], chatId?: number, designDocIds: number[] = []) {
   const scopedIds = new Set(designDocIds.map(String))
   return docs.filter((doc) => {
     if (chatId && doc.origin_chat_session_id !== chatId && !scopedIds.has(String(doc.id))) return false
-    if (filters.repository !== "all" && !doc.repository_ids.map(String).includes(filters.repository)) return false
-    if (filters.owner !== "all" && doc.owner?.name !== filters.owner) return false
-    if (filters.state !== "all" && doc.state !== filters.state) return false
-    if (filters.visibility !== "all" && doc.visibility !== filters.visibility) return false
-    if (cutoff && new Date(doc.updated_at).getTime() < cutoff) return false
     return true
   })
+}
+
+function smartFolderIdFromSearch(search: string) {
+  const raw = new URLSearchParams(search).get("smart_folder_id")
+  if (!raw) return null
+
+  const id = Number(raw)
+  return Number.isInteger(id) ? id : null
 }
 
 function anchorPayload(selection: SelectionRange) {

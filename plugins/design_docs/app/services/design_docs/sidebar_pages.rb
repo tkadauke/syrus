@@ -11,6 +11,8 @@ module DesignDocs
           paths: [ "/design_docs" ],
           component: "design_docs/DesignDocs",
           icon: "document",
+          smart_folder_api_path: "/api/v1/app/design_docs",
+          smart_folder_subject: DesignDocs::SmartFolders::SUBJECT,
           order: 38
         }
       ]

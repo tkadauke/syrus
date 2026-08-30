@@ -4,7 +4,7 @@ class FilterUsage < ApplicationRecord
   belongs_to :user
 
   validates :surface, presence: true, inclusion: { in: SURFACES }
-  validates :subject, presence: true, inclusion: { in: SmartFolder::SUBJECT_TYPES }
+  validates :subject, presence: true, inclusion: { in: ->(_) { SmartFolder.subject_types } }
   validates :fingerprint, presence: true
   validates :filter_node, presence: true
   validates :label, presence: true

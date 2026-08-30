@@ -143,16 +143,45 @@ class SmartFolder < ApplicationRecord
     "spawned_process" => SPAWNED_PROCESS_BUILTINS
   }.freeze
 
-  VISIBILITY_BY_SUBJECT_AND_NAME = BUILTINS_BY_SUBJECT.transform_values do |definitions|
-    definitions.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }
-  end.freeze
+  @registered_subjects = {}
 
-  KEY_BY_SUBJECT_AND_NAME = BUILTINS_BY_SUBJECT.transform_values do |definitions|
-    definitions.to_h { |d| [ d.fetch(:name), d.fetch(:key) ] }
-  end.freeze
+  def self.register_subject!(subject, builtins: [], path: nil, label: nil)
+    @registered_subjects[subject.to_s] = {
+      builtins: Array(builtins).freeze,
+      path: path,
+      label: label
+    }.freeze
+  end
+
+  def self.registered_subjects
+    @registered_subjects
+  end
+
+  def self.subject_types
+    (SUBJECT_TYPES + registered_subjects.keys).uniq
+  end
+
+  def self.builtins_by_subject
+    BUILTINS_BY_SUBJECT.merge(registered_subjects.transform_values { |definition| definition.fetch(:builtins) })
+  end
+
+  def self.builtins_for_subject(subject)
+    builtins_by_subject.fetch(subject.to_s)
+  end
+
+  def self.path_for_subject(subject, **query)
+    path = registered_subjects.dig(subject.to_s, :path)
+    return path.call(**query) if path.respond_to?(:call)
+
+    nil
+  end
+
+  def self.label_for_subject(subject)
+    registered_subjects.dig(subject.to_s, :label) || subject.to_s.humanize
+  end
 
   def self.builtin_key_for(subject_type, name)
-    KEY_BY_SUBJECT_AND_NAME.dig(subject_type.to_s, name)
+    builtins_by_subject.fetch(subject_type.to_s, []).find { |definition| definition.fetch(:name) == name }&.fetch(:key)
   end
 
   EPIC_BUILTIN_DEFINITIONS = EPIC_BUILTINS
@@ -172,11 +201,9 @@ class SmartFolder < ApplicationRecord
   after_initialize :seed_defaults, if: :new_record?
 
   enum :kind, { builtin: "builtin", user_defined: "user_defined" }, validate: true
-  enum :subject_type, SUBJECT_TYPES.index_with(&:itself), validate: true
-
   validates :name, presence: true
   validates :kind, presence: true, inclusion: { in: KINDS }
-  validates :subject_type, presence: true, inclusion: { in: SUBJECT_TYPES }
+  validates :subject_type, presence: true, inclusion: { in: ->(_) { SmartFolder.subject_types } }
   validates :filter, presence: true
   validates :name, uniqueness: { scope: [ :user_id, :subject_type ] }
   validate :builtin_owner_and_user_defined_owner
@@ -187,14 +214,14 @@ class SmartFolder < ApplicationRecord
   scope :built_in_sidebar_order, -> { builtin.where(user_id: nil).order(:position, :id) }
 
   def self.ensure_builtins!
-    BUILTINS_BY_SUBJECT.each do |subject, definitions|
+    builtins_by_subject.each do |subject, definitions|
       ensure_builtin_set!(subject, definitions)
     end
   end
 
   def self.ensure_builtins_for_subject!(subject)
     subject = subject.to_s
-    ensure_builtin_set!(subject, BUILTINS_BY_SUBJECT.fetch(subject))
+    ensure_builtin_set!(subject, builtins_for_subject(subject))
   end
 
   def self.ensure_epic_builtins!
@@ -275,7 +302,7 @@ class SmartFolder < ApplicationRecord
   def visibility
     return :user_defined unless builtin?
 
-    VISIBILITY_BY_SUBJECT_AND_NAME.fetch(subject_type, {})[name] || :on_demand
+    self.class.builtins_by_subject.fetch(subject_type, []).find { |definition| definition.fetch(:name) == name }&.fetch(:visibility) || :on_demand
   end
 
   # Returns the attention-preset value for this folder if its filter
@@ -300,7 +327,7 @@ class SmartFolder < ApplicationRecord
 
   def builtin_key
     return nil unless builtin?
-    BUILTINS_BY_SUBJECT.fetch(subject_type, []).find { |d| d[:name] == name }&.fetch(:key)&.to_s
+    self.class.builtins_by_subject.fetch(subject_type, []).find { |d| d[:name] == name }&.fetch(:key)&.to_s
   end
 
   private

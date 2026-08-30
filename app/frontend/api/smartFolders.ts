@@ -1,4 +1,5 @@
-import { deleteJson, patchJson, postJson } from "./client"
+import { deleteJson, getJson, patchJson, postJson } from "./client"
+import type { AdminSmartFolder } from "./adminSmartFolders"
 
 export type SmartFolderRow = {
   id: number
@@ -47,4 +48,14 @@ export function createSmartFolder(values: SmartFolderCreateInput) {
 
 export function deleteSmartFolder(id: number) {
   return deleteJson<SmartFolderMutationPayload>(`/api/v1/app/smart_folders/${id}`)
+}
+
+export type SmartFolderNavigationPayload = {
+  active_smart_folder_id: number | null
+  filter: Record<string, unknown>
+  smart_folders: AdminSmartFolder[]
+}
+
+export function fetchSmartFolderNavigation(apiPath: string, search = "") {
+  return getJson<SmartFolderNavigationPayload>(`${apiPath}${search}`)
 }

@@ -100,6 +100,23 @@ const secondDocDetail = {
   suggestions: []
 }
 
+const indexPayload = {
+  active_smart_folder_id: null,
+  filter: { and: [] },
+  filter_schema: [
+    { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
+    { field: "owner_user_id", label: "Owner", bucket: "enum", operators: ["is"], values: [{ value: "me", label: "Me" }] },
+    { field: "state", label: "State", bucket: "enum", operators: ["is"], values: [{ value: "draft", label: "Draft" }, { value: "accepted", label: "Accepted" }, { value: "archived", label: "Archived" }] },
+    { field: "visibility", label: "Visibility", bucket: "enum", operators: ["is"], values: [{ value: "private", label: "Private" }, { value: "public", label: "Public" }] },
+    { field: "updated_at", label: "Updated", bucket: "date", operators: ["within_last"] }
+  ],
+  smart_folders: [
+    { id: 11, name: "My docs", i18n_key: "design_docs_mine", position: 0, kind: "builtin", subject_type: "design_doc", visibility: "always", count: 1, active: false, filter: { and: [{ field: "owner_user_id", op: "is", value: "me" }] }, path: "/design_docs?smart_folder_id=11" },
+    { id: 12, name: "Saved docs", position: 1, kind: "user_defined", subject_type: "design_doc", visibility: "user_defined", count: 1, active: false, filter: { and: [{ field: "state", op: "is", value: "draft" }] }, path: "/design_docs?smart_folder_id=12" }
+  ],
+  design_docs: [docDetail, secondDocDetail]
+}
+
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -117,28 +134,29 @@ function renderSurface(path = "/design_docs") {
 function mockFetch() {
   return vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const path = String(input)
+    const url = new URL(path, "http://test.host")
     if (path === "/api/v1/app/repositories") {
       return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
     }
-    if (path === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
-      return jsonResponse({ design_docs: [docDetail, secondDocDetail] })
+    if (url.pathname === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
+      return jsonResponse(indexPayload)
     }
-    if (path === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
+    if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: docDetail })
     }
-    if (path === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
+    if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
     }
-    if (path === "/api/v1/app/design_docs/1/comments") {
+    if (url.pathname === "/api/v1/app/design_docs/1/comments") {
       return jsonResponse({ design_doc: { ...docDetail, open_threads_count: 2 }, message: "Comment created." }, 201)
     }
-    if (path === "/api/v1/app/design_docs/1/threads/7/resolve") {
+    if (url.pathname === "/api/v1/app/design_docs/1/threads/7/resolve") {
       return jsonResponse({ thread: { ...docDetail.threads[0], state: "resolved" }, message: "Comment thread resolved." })
     }
-    if (path === "/api/v1/app/design_docs/1/suggestions/9/accept") {
+    if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
     }
-    if (path === "/api/v1/app/design_docs/1/versions") {
+    if (url.pathname === "/api/v1/app/design_docs/1/versions") {
       return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Alpha beta gamma", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
     }
     return jsonResponse({ error: { message: `Unhandled ${path}` } }, 404)
@@ -155,7 +173,11 @@ describe("DesignDocsSurface", () => {
     renderSurface()
 
     expect(await screen.findByRole("heading", { name: "Design Docs" })).toBeInTheDocument()
-    expect(screen.getByRole("combobox", { name: "Repository filter" })).toBeInTheDocument()
+    expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+    expect(screen.queryByRole("combobox", { name: "Repository filter" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /My docs/ })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Saved docs/ })).toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
