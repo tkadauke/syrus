@@ -167,12 +167,7 @@ class McpToolPolicy
   def chat_tools
     return chat_evaluator_tools if @context.role == AgentRole::CHAT_EVALUATOR
 
-    tools = chat_base_tools
-    tools = apply_admin_filter(tools)
-    tools = apply_agent_insights_filter(tools)
-    tools = apply_walkthrough_filter(tools)
-    tools = apply_coding_filter(tools)
-    tools = apply_local_mode_filter(tools)
+    tools = McpToolRegistry.tools_for_context(@context, surface: :chat)
     tools = apply_supervisor_filter(tools)
     tools
   end
