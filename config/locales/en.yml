@@ -30,6 +30,10 @@
 en:
   hello: "Hello world"
 
+  errors:
+    messages:
+      inclusion: "is not included in the list"
+
   # Mailer content — subject uses Rails auto-lookup (<mailer_name>.<action>.subject)
   # view body content uses ERB lazy-lookup (same scope as subject)
   passwords_mailer:
