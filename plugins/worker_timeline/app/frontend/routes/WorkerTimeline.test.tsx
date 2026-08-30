@@ -14,6 +14,16 @@ function filterSchema() {
     { field: "epic_id", label: "Epic", bucket: "fk", operators: [ "is" ], typeahead: true },
     { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
     {
+      field: "job_type",
+      label: "Job type",
+      bucket: "enum",
+      operators: [ "is_one_of" ],
+      values: [
+        { value: "user", label: "User" },
+        { value: "system", label: "Infrastructure" }
+      ]
+    },
+    {
       field: "status",
       label: "Status",
       bucket: "enum",
@@ -253,6 +263,21 @@ describe("WorkerTimeline macro view", () => {
 
     await waitFor(() => {
       expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] })
+    })
+  })
+
+  it("refetches with the selected job type filter", async () => {
+    const calls = setupFetchMock()
+    renderTimeline()
+
+    await screen.findByText("runs")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Job type list" }))
+    fireEvent.click(screen.getByRole("button", { name: "Infrastructure" }))
+
+    await waitFor(() => {
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "job_type", op: "is_one_of", value: [ "system" ] } ] })
     })
   })
 

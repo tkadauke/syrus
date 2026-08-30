@@ -95,16 +95,18 @@ RSpec.describe Timeline::MacroQuery do
     expect(idle_lane[:instance]).to include(hostname: "worker-idle")
   end
 
-  it "filters by repository_id, epic_id, job_id, hostname, and status" do
+  it "filters by repository_id, epic_id, job_id, hostname, status, and job_type" do
     other_repository = Factories.repository(user: user)
     other_job = Factories.job_record(user: user, repository: other_repository, state: "running")
     epic = Factories.epic(user: user, repository: repository)
     epic_job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
+    infrastructure_job = Factories.job_record(user: user, repository: repository, state: "running", kind: "main_grader", issue_number: nil)
 
     matching = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
     wrong_repo = Workflow.create!(job: other_job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
     wrong_status = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago, worker_hostname: "worker-x")
     epic_matching = Workflow.create!(job: epic_job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
+    infrastructure = Workflow.create!(job: infrastructure_job, trigger_kind: "main_grader", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
 
     by_repo = described_class.call(from: 1.hour.ago, to: Time.current, repository_id: repository.id)
     span_ids = by_repo[:lanes].flat_map { |lane| lane[:spans].map { |span| span[:workflow_id] } }
@@ -122,6 +124,15 @@ RSpec.describe Timeline::MacroQuery do
 
     by_hostname = described_class.call(from: 1.hour.ago, to: Time.current, hostname: "worker-x")
     expect(by_hostname[:lanes].map { |lane| lane[:hostname] }.uniq).to eq([ "worker-x" ])
+
+    by_infrastructure_type = described_class.call(from: 1.hour.ago, to: Time.current, job_type: "system")
+    expect(by_infrastructure_type[:lanes].flat_map { |lane| lane[:spans].map { |span| span[:workflow_id] } }).to contain_exactly(infrastructure.id)
+
+    by_infrastructure_alias = described_class.call(from: 1.hour.ago, to: Time.current, job_type: "infra")
+    expect(by_infrastructure_alias[:lanes].flat_map { |lane| lane[:spans].map { |span| span[:workflow_id] } }).to contain_exactly(infrastructure.id)
+
+    by_user_type = described_class.call(from: 1.hour.ago, to: Time.current, job_type: "user")
+    expect(by_user_type[:lanes].flat_map { |lane| lane[:spans].map { |span| span[:workflow_id] } }).to contain_exactly(matching.id, wrong_repo.id, wrong_status.id, epic_matching.id)
   end
 
   it "excludes workflows that have not started and reports them separately under pending, with blocked-reason explanation" do

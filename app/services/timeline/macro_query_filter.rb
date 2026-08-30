@@ -2,7 +2,7 @@ module Timeline
   # Parses the worker-timeline macro view's shared FilterBar query-tree
   # (`?q=` base64-JSON, same wire format as the dashboard/admin filter
   # bars -- see Filters::QueryParam) into the discrete
-  # repository_id/epic_id/hostname/status/from/to arguments MacroQuery
+  # repository_id/epic_id/hostname/status/job_type/from/to arguments MacroQuery
   # already accepts, and builds the `filter_schema` payload the shared
   # FilterBar component (app/frontend/components/FilterBar.tsx) renders
   # against.
@@ -17,6 +17,10 @@ module Timeline
   # nested in an OR group or wrapped in NOT are ignored.
   class MacroQueryFilter
     STATUSES = %w[ queued running succeeded failed cancelled ].freeze
+    JOB_TYPES = [
+      { "value" => "user", "label" => "User" },
+      { "value" => "system", "label" => "Infrastructure" }
+    ].freeze
 
     # No "window" chip applied -> every worker lane and every workflow
     # from the last 3 hours (issue default; independent of
@@ -29,6 +33,7 @@ module Timeline
         { "field" => "repository_id", "label" => "Repository", "bucket" => "fk", "operators" => %w[ is ], "typeahead" => true },
         { "field" => "epic_id", "label" => "Epic", "bucket" => "fk", "operators" => %w[ is ], "typeahead" => true },
         { "field" => "hostname", "label" => "Hostname", "bucket" => "fk", "operators" => %w[ is ], "typeahead" => true },
+        { "field" => "job_type", "label" => "Job type", "bucket" => "enum", "operators" => %w[ is_one_of ], "values" => JOB_TYPES },
         { "field" => "status", "label" => "Status", "bucket" => "enum", "operators" => %w[ is_one_of ], "values" => STATUSES.map { |status| { "value" => status, "label" => status.capitalize } } },
         { "field" => "window", "label" => "Time window", "bucket" => "date", "operators" => %w[ within_last between ] }
       ]
@@ -60,6 +65,10 @@ module Timeline
 
     def status
       Array(chip_value("status"))
+    end
+
+    def job_type
+      Array(chip_value("job_type"))
     end
 
     # Never returns nil, even for a malformed chip (unparsable "between"
