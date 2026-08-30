@@ -92,7 +92,9 @@ module DesignDocs
       provides: {
         sidebar_page:  DesignDocs::SidebarPages,
         repo_page_tab: DesignDocs::RepoPageTabs,
-        workspace_tab: DesignDocs::WorkspaceTabs
+        workspace_tab: DesignDocs::WorkspaceTabs,
+        chat_mcp_tool_set: DesignDocs::ChatToolSet,
+        mcp_tool_set: DesignDocs::WorkflowToolSet
       }
     )
   end
