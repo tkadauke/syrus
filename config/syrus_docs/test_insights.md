@@ -138,6 +138,33 @@ results without an N+1.
   result. Search results link directly to the repository Tests tab history
   page for that identity.
 
+## MCP tools
+
+Chat and workflow agents can inspect repository-level Test Insights through
+read-only MCP tools:
+
+- `list_repository_test_insights(repository:, repository_id:, filter:, sort:,
+  direction:, query:, grader_name:, limit:, lookback:, filters:)` returns
+  durable `TestIdentity` rows for a repository the caller can access. Workflow
+  agents can omit `repository`/`repository_id` to default to their current
+  Run's repository. `filter` accepts `recently_seen`, `failing`, `flaky`, and
+  `slow`; `category` is accepted as an alias. `sort` accepts `last_seen`,
+  `last_failed`, `last_duration`, and `failure_rate`. For slow-test
+  investigations, use `sort: "last_duration"` with `direction: "desc"` so the
+  list is ranked by each identity's latest recorded duration. The response
+  includes suite/name/file, last status and timestamps, last duration, recent
+  pass/failure counts, failure rate, average duration, reasons, and latest
+  run/job references.
+- `read_test_insight(test_identity_id:, history_limit:, include_failures:)`
+  returns one `TestIdentity`, recent execution history, duration points,
+  related grader/run/job references, and bounded failure
+  message/backtrace/output snippets. Use the list tool first to discover a
+  `test_identity_id`.
+
+Both tools enforce repository visibility at the tool boundary. Workflow
+sidecars are restricted to the current Run's repository; chat sidecars use the
+same repository visibility rules as the app.
+
 ## Configuring this for another repository
 
 1. Confirm the test runner can produce results in a format a registered
