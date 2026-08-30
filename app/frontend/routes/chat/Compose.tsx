@@ -1435,23 +1435,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       }
       <div
         className={floating
-          // Offsets on an absolutely positioned box are measured from its
-          // containing block's *padding edge* (i.e. flush with the
-          // ancestor's border), not its content edge — an abs-positioned
-          // child ignores/overlaps a `position: relative` ancestor's own
-          // padding by default. That means `sm:inset-x-0` sat flush with
-          // ChatColumn's true border, not its `sm:px-8` (2rem) padding box
-          // as it looked like it would, while the message stream's cards
-          // (normal-flow children) DO get ChatColumn's `sm:px-8` plus the
-          // stream's own `sm:p-4` — 2rem + 1rem = 3rem (48px) of real
-          // inset. So the composer needs its `left`/`right` offsets to
-          // cover that whole 48px themselves, not just the extra bit on
-          // top of `sm:px-8` — verified in a real browser (not just
-          // Tailwind class names) with a standalone reproduction of this
-          // exact box structure. `sm:left-14`/`sm:right-14` (3.5rem/56px)
-          // clears the cards' 48px with room to spare, so chat history
-          // reads wider than the composer instead of narrower.
-          ? "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:left-14 sm:right-14 sm:bottom-4"
+          // Keep the floating composer visually tied to the chat panel edges.
+          // The surrounding desktop split now supplies only a narrow resize
+          // divider, so the composer should not add the old wide side gutters.
+          ? "absolute left-[max(0.5rem,env(safe-area-inset-left))] right-[max(0.5rem,env(safe-area-inset-right))] bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 sm:left-2 sm:right-2 sm:bottom-2"
           : undefined}
         data-tour="chat-compose"
       >
