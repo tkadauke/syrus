@@ -785,6 +785,8 @@ RSpec.describe LandingQueueProcessor do
     ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
     landing.start_landing!
     landing.save!
+    workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing)
+    workflow.work_unit.update!(state: "running")
 
     expect(described_class.call).to be_nil
     expect(ready.reload).to be_approved
@@ -1547,6 +1549,8 @@ RSpec.describe LandingQueueProcessor do
         landing_hotfix.save!
 
         other_hotfix = track_job(repo, issue_number: 2, approved_at: 1.minute.ago, delivery_track: "hotfix")
+        workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_hotfix)
+        workflow.work_unit.update!(state: "running")
 
         expect(described_class.call).to be_nil
         expect(other_hotfix.reload).to be_approved
