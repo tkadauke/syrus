@@ -38,6 +38,7 @@ RSpec.describe Steps::UpstreamExportPublish do
   context "opening a new PR (canonical has a configured intake/development branch)" do
     before do
       stub_policy(target_branch: "develop")
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 900))
     end
 
@@ -103,6 +104,7 @@ RSpec.describe Steps::UpstreamExportPublish do
   context "when canonical uses strict main (no configured development track)" do
     it "opens the PR against the branch DeliveryPolicy resolved" do
       stub_policy(target_branch: "main")
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 901))
 
       handler.call

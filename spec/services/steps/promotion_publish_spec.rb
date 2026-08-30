@@ -74,6 +74,7 @@ RSpec.describe Steps::PromotionPublish do
   describe "mode: auto_pr" do
     before do
       allow(git).to receive(:run).with("push", "https://push.example/repo.git", "HEAD:refs/heads/#{branch_name}", chdir: "/tmp/workspace")
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 501))
     end
 
@@ -129,6 +130,7 @@ RSpec.describe Steps::PromotionPublish do
     before do
       stub_policy(mode: "manual_pr", approval_required: false)
       allow(git).to receive(:run).with("push", "https://push.example/repo.git", "HEAD:refs/heads/#{branch_name}", chdir: "/tmp/workspace")
+      allow(client).to receive(:open_pull_request_for_head).and_return(nil)
       allow(client).to receive(:create_pull_request).and_return(OpenStruct.new(number: 777))
       allow(client).to receive(:merge_pull_request)
     end
