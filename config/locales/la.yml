@@ -1,6 +1,10 @@
 la:
   hello: "Salve munde"
 
+  errors:
+    messages:
+      inclusion: "non est in indice valorum permissorum"
+
   passwords_mailer:
     reset:
       subject: "Tessera tua renovanda est"
