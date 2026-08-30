@@ -3,7 +3,7 @@ module MysqlDbBrowser
     include Syrus::Plugin::McpToolSet
 
     def self.available_for?(_repository)
-      MysqlDbBrowser.enabled? && MysqlConnection.where(agentic_access_enabled: true).exists?
+      MysqlDbBrowser.enabled? && MysqlConnection.exists?
     end
 
     def self.available_for_context?(context)
