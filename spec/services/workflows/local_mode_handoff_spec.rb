@@ -104,7 +104,12 @@ RSpec.describe Workflows::LocalModeHandoff do
         expect(job.reload).to be_failed
       end
 
-      it "does not restore linked_chat_id" do
+      it "clears linked_chat_id so the failed job is not chat-owned for repair" do
+        described_class.after_fail(workflow)
+        expect(job.reload.linked_chat_id).to be_nil
+      end
+
+      it "does not restore linked_chat_id when it was already cleared" do
         job.update!(linked_chat_id: nil)
         described_class.after_fail(workflow)
         expect(job.reload.linked_chat_id).to be_nil
@@ -136,6 +141,11 @@ RSpec.describe Workflows::LocalModeHandoff do
       it "propagates the failure to the job (mark_failed!)" do
         described_class.after_fail(workflow)
         expect(job.reload).to be_failed
+      end
+
+      it "clears linked_chat_id so the failed job can use the normal Retry path" do
+        described_class.after_fail(workflow)
+        expect(job.reload.linked_chat_id).to be_nil
       end
 
       it "does not post to the linked chat" do
