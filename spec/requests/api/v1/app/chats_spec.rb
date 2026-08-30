@@ -4690,7 +4690,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["pending_actions"]).to be_empty
   end
 
-  it "includes title, description, and repository resource for unanchored submit_coding_changes pending actions" do
+  it "includes title, submitted description, and repository resource for unanchored submit_coding_changes pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     action = chat.pending_actions.create!(
@@ -4715,8 +4715,9 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       )
     )
     detail = parse_body["pending_actions"].first["detail"]
-    expect(detail).to include("**Branch:** syrus/chat-42-handoff-7")
-    expect(detail).to include("Implemented a dark mode toggle in the settings panel.")
+    expect(detail).to eq("Implemented a dark mode toggle in the settings panel.")
+    expect(detail).not_to include("**Branch:**")
+    expect(detail).not_to include("coding_handoff")
   end
 
   it "confirms supervisor retry_job pending actions for user-owned Jobs through the app API" do
