@@ -240,6 +240,7 @@ module Filters
         "repository_id" => "Filters::Chips::WorkerTimeline::RepositoryId",
         "epic_id"       => "Filters::Chips::WorkerTimeline::EpicId",
         "hostname"      => "Filters::Chips::WorkerTimeline::Hostname",
+        "job_type"      => "Filters::Chips::WorkerTimeline::JobType",
         "status"        => "Filters::Chips::WorkerTimeline::Status",
         "window"        => "Filters::Chips::WorkerTimeline::Window"
       }

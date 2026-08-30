@@ -37,15 +37,18 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
 
       other_repository = Factories.repository(user: admin)
       other_job = Factories.job_record(user: admin, repository: other_repository, state: "running")
+      infrastructure_job = Factories.job_record(user: admin, repository: repository, state: "running", kind: "main_grader", issue_number: nil)
 
       matching = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
       Workflow.create!(job: other_job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
+      Workflow.create!(job: infrastructure_job, trigger_kind: "main_grader", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
 
       q = Filters::QueryParam.encode(
         "and" => [
           { "field" => "repository_id", "op" => "is", "value" => repository.id },
           { "field" => "hostname", "op" => "is", "value" => "worker-x" },
-          { "field" => "status", "op" => "is_one_of", "value" => [ "running" ] }
+          { "field" => "status", "op" => "is_one_of", "value" => [ "running" ] },
+          { "field" => "job_type", "op" => "is_one_of", "value" => [ "user" ] }
         ]
       )
 
@@ -101,7 +104,7 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(
-        %w[ repository_id epic_id hostname status window ]
+        %w[ repository_id epic_id hostname job_type status window ]
       )
     end
   end

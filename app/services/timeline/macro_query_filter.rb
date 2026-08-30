@@ -2,8 +2,10 @@ module Timeline
   # Parses the worker-timeline macro view's shared FilterBar query-tree
   # (`?q=` base64-JSON, same wire format as the dashboard/admin filter
   # bars -- see Filters::QueryParam) into the discrete
-  # repository_id/epic_id/hostname/status/from/to arguments MacroQuery
-  # already accepts.
+  # repository_id/epic_id/hostname/status/job_type/from/to arguments MacroQuery
+  # already accepts, and builds the `filter_schema` payload the shared
+  # FilterBar component (app/frontend/components/FilterBar.tsx) renders
+  # against.
   #
   # MacroQuery isn't a single AR relation a Filters::Compiler chip can
   # `.where` against (spans come from Workflow, pending from a second
@@ -50,6 +52,10 @@ module Timeline
 
     def status
       Array(chip_value("status"))
+    end
+
+    def job_type
+      Array(chip_value("job_type"))
     end
 
     # Never returns nil, even for a malformed chip (unparsable "between"

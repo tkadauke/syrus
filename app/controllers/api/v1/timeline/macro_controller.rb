@@ -13,7 +13,8 @@ module Api
             epic_id: params[:epic_id],
             job_id: params[:job_id],
             hostname: params[:hostname],
-            status: params[:status]
+            status: params[:status],
+            job_type: params[:job_type]
           )
         end
       end
