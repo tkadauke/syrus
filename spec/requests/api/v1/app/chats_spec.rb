@@ -4873,8 +4873,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "confirms and rejects pending actions through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    job_to_cancel = Factories.job(repository: repository)
-    job_to_keep = Factories.job(repository: repository, issue_number: 43)
+    job_to_cancel = Factories.job_record(repository: repository)
+    job_to_keep = Factories.job_record(repository: repository, issue_number: 43)
     confirm_action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job_to_cancel.id })
     reject_action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job_to_keep.id })
 
@@ -4908,7 +4908,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "lets the operator dismiss a failed pending action through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    job = Factories.job(repository: repository)
+    job = Factories.job_record(repository: repository)
     action = chat.pending_actions.create!(
       action: "cancel_job",
       state: "failed",
@@ -5173,7 +5173,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   it "repairs and emits tool-call anchors for check_job_mergeability pending actions" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-    job = Factories.job(repository: repository)
+    job = Factories.job_record(repository: repository)
     action = chat.pending_actions.create!(
       action: "check_job_mergeability",
       payload: { "job_id" => job.id }
@@ -5283,8 +5283,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     chat.proposals.create!(slug: "map-auth", title: "Map auth", body: "Map it.")
     chat.proposals.create!(slug: "confirmed-auth", title: "Confirmed auth", body: "Done.", state: "confirmed")
-    chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job(repository: repository).id })
-    chat.pending_actions.create!(action: "retry_job", state: "queued", payload: { "job_id" => Factories.job(repository: repository, issue_number: 44).id })
+    chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
+    chat.pending_actions.create!(action: "retry_job", state: "queued", payload: { "job_id" => Factories.job_record(repository: repository, issue_number: 44).id })
 
     get "/api/v1/app/chats/#{chat.id}"
 
@@ -5296,7 +5296,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     chat.proposals.create!(slug: "map-auth", title: "Map auth", body: "Map it.")
     chat.proposals.create!(slug: "confirmed-auth", title: "Confirmed auth", body: "Done.", state: "confirmed")
-    chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job(repository: repository).id })
+    chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job_record(repository: repository).id })
 
     get "/api/v1/app/chats/#{chat.id}"
 

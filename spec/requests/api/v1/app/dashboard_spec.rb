@@ -1967,10 +1967,10 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "closes selected open jobs without mutating another user's job" do
-      mine = Factories.job(repository: repo, issue_number: 1)
+      mine = Factories.job_record(repository: repo, issue_number: 1)
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
-      theirs = Factories.job(repository: other_repo, issue_number: 2)
+      theirs = Factories.job_record(repository: other_repo, issue_number: 2)
       allow(AppEvents).to receive(:broadcast)
 
       post "/api/v1/app/dashboard/jobs/bulk",
@@ -2072,8 +2072,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "applies an existing tag to selected jobs" do
-      first = Factories.job(repository: repo, issue_number: 1)
-      second = Factories.job(repository: repo, issue_number: 2)
+      first = Factories.job_record(repository: repo, issue_number: 1)
+      second = Factories.job_record(repository: repo, issue_number: 2)
       tag = Factories.tag(user: user, name: "epic:tags", color: "indigo")
       allow(AppEvents).to receive(:broadcast)
 
@@ -2089,8 +2089,8 @@ RSpec.describe "App API dashboard commands", type: :request do
     end
 
     it "claims selected jobs for the current user" do
-      first = Factories.job(repository: repo, issue_number: 1)
-      second = Factories.job(repository: repo, issue_number: 2)
+      first = Factories.job_record(repository: repo, issue_number: 1)
+      second = Factories.job_record(repository: repo, issue_number: 2)
       allow(AppEvents).to receive(:broadcast)
 
       post "/api/v1/app/dashboard/jobs/bulk",
@@ -2146,8 +2146,8 @@ RSpec.describe "App API dashboard commands", type: :request do
 
     it "releases only the current user's selected claims" do
       teammate = Factories.user(email_address: "teammate@example.com")
-      mine = Factories.job(repository: repo, issue_number: 1, claimed_by_user: user, claimed_at: Time.current)
-      theirs = Factories.job(repository: repo, issue_number: 2, claimed_by_user: teammate, claimed_at: Time.current)
+      mine = Factories.job_record(repository: repo, issue_number: 1, claimed_by_user: user, claimed_at: Time.current)
+      theirs = Factories.job_record(repository: repo, issue_number: 2, claimed_by_user: teammate, claimed_at: Time.current)
       allow(AppEvents).to receive(:broadcast)
 
       post "/api/v1/app/dashboard/jobs/bulk",
