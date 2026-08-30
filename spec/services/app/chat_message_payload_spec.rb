@@ -443,7 +443,7 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:label)).to eq("Add dark mode toggle")
   end
 
-  it "includes branch, steps, and description in detail for submit_coding_changes pending actions" do
+  it "uses only the submitted description as detail for submit_coding_changes pending actions" do
     action = chat.pending_actions.create!(
       action: "submit_coding_changes",
       requested_by: "agent",
@@ -458,12 +458,10 @@ RSpec.describe App::ChatMessagePayload do
 
     payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
 
-    expect(payload.fetch(:detail)).to include("**Branch:** syrus/chat-42-handoff-7")
-    expect(payload.fetch(:detail)).to include("Push branch to GitHub using server-side credentials")
-    expect(payload.fetch(:detail)).to include("Create a new direct Job")
-    expect(payload.fetch(:detail)).to include("`coding_handoff` workflow")
-    expect(payload.fetch(:detail)).to include("---")
-    expect(payload.fetch(:detail)).to include("Implemented a dark mode toggle in the settings panel.")
+    expect(payload.fetch(:detail)).to eq("Implemented a dark mode toggle in the settings panel.")
+    expect(payload.fetch(:detail)).not_to include("**Branch:**")
+    expect(payload.fetch(:detail)).not_to include("Push branch to GitHub using server-side credentials")
+    expect(payload.fetch(:detail)).not_to include("`coding_handoff` workflow")
   end
 
   it "includes repository slug and path as resource fields for submit_coding_changes pending actions" do
