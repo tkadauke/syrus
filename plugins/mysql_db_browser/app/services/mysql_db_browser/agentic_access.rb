@@ -13,6 +13,30 @@ module MysqlDbBrowser
     class ConnectionNotFound < StandardError; end
     class AccessDisabled < StandardError; end
 
+    SAFE_METADATA_FIELDS = %i[
+      id
+      label
+      default_database
+      agentic_access_enabled
+      allow_writes
+      created_at
+      updated_at
+    ].freeze
+
+    def self.safe_connection_metadata
+      MysqlConnection.order(:label, :id).map do |connection|
+        {
+          id: connection.id,
+          label: connection.label,
+          default_database: connection.default_database,
+          agentic_access_enabled: connection.agentic_access_enabled,
+          allow_writes: connection.allow_writes,
+          created_at: connection.created_at.iso8601,
+          updated_at: connection.updated_at.iso8601
+        }.slice(*SAFE_METADATA_FIELDS)
+      end
+    end
+
     def self.connection!(id)
       connection = MysqlConnection.find_by(id: id)
       raise ConnectionNotFound, "MySQL connection #{id.inspect} was not found." unless connection
