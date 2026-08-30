@@ -87,6 +87,7 @@ module Mcp::Tools
             query: result.query,
             grader_name: grader_name.to_s.presence,
             lookback: normalize_filters(filters, lookback)[:lookback] || TestInsights::Query::DEFAULT_LOOKBACK,
+            summary_window: result.summary_window,
             limit: result.limit,
             tests: result.tests
           )
