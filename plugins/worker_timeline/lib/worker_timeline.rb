@@ -39,7 +39,7 @@ module WorkerTimeline
       }
     )
 
-    WorkerTimeline::FilterRegistration.register!
+    WorkerTimeline::FilterRegistration.register! if enabled?
   end
 
   def self.enabled?

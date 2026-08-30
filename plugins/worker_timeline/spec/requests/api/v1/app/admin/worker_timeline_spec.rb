@@ -10,6 +10,11 @@ RSpec.describe "API: /api/v1/app/admin/worker_timeline", type: :request do
 
   def enable_plugin!
     PluginRecord.find_by!(name: "worker_timeline").update!(enabled: true)
+    PluginLifecycleJob.perform_now("worker_timeline", "on_enable")
+  end
+
+  after do
+    WorkerTimeline::FilterRegistration.unregister!
   end
 
   describe "GET /macro" do

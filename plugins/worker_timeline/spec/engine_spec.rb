@@ -14,23 +14,33 @@ RSpec.describe WorkerTimeline::Engine do
     )
   end
 
-  it "registers the worker timeline filter subject and usage surface from the plugin" do
+  it "does not register worker timeline filter metadata while disabled" do
+    expect { Filters.subject_for(:worker_timeline) }.to raise_error(ArgumentError, "unknown subject: worker_timeline")
+    expect(FilterUsage.surfaces).not_to include("worker_timeline")
+    expect(FilterUsage.subjects).not_to include("worker_timeline")
+  end
+
+  it "registers the worker timeline filter subject and usage surface when enabled" do
+    PluginLifecycleJob.perform_now("worker_timeline", "on_enable")
+
     subject = Filters.subject_for(:worker_timeline)
 
     expect(subject.model).to eq(Workflow)
     expect(subject.fields).to eq(%w[repository_id epic_id hostname status window])
     expect(FilterUsage.surfaces).to include("worker_timeline")
     expect(FilterUsage.subjects).to include("worker_timeline")
+  ensure
+    WorkerTimeline::FilterRegistration.unregister!
   end
 
   it "unregisters worker timeline filter metadata on plugin disable" do
+    PluginLifecycleJob.perform_now("worker_timeline", "on_enable")
+
     PluginLifecycleJob.perform_now("worker_timeline", "on_disable")
 
     expect { Filters.subject_for(:worker_timeline) }.to raise_error(ArgumentError, "unknown subject: worker_timeline")
     expect(FilterUsage.surfaces).not_to include("worker_timeline")
     expect(FilterUsage.subjects).not_to include("worker_timeline")
-  ensure
-    WorkerTimeline::FilterRegistration.register!
   end
 
   it "registers the Worker Timeline sidebar page provider even before the plugin is enabled" do
