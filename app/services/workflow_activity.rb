@@ -24,6 +24,7 @@ class WorkflowActivity
       "app_revision" => SyrusVersion.current,
       "hostname" => SyrusVersion.hostname,
       "pid" => Process.pid,
+      "queue_role" => Thread.current[:syrus_current_queue_role],
       "repository_id" => repository&.id,
       "epic_id" => epic&.id,
       "job_id" => job&.id,

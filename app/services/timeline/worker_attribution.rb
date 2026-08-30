@@ -1,12 +1,14 @@
 module Timeline
-  # Resolves the (hostname, pid) of the worker process that ran each given
+  # Resolves the worker identity that ran each given
   # Workflow, in a single fallback chain shared by Timeline::MacroQuery
   # (many workflows at once) and Timeline::WorkflowWaterfallQuery (one
   # workflow): the earliest WorkflowActivityEvent tied to the workflow is
-  # the primary source (it carries the actual Process.pid recorded at the
-  # moment of the state transition); a SpawnedProcess row is the fallback
-  # once WorkflowActivityEvent's 14-day retention has expired; and
-  # Workflow#worker_hostname (hostname only, no pid) is the last resort.
+  # the primary source (it carries queue_role and the actual Process.pid
+  # recorded at the moment of the state transition); a SpawnedProcess row is
+  # the fallback once WorkflowActivityEvent's 14-day retention has expired;
+  # and Workflow#worker_hostname (hostname only, no pid) is the last resort.
+  # Workflow#worker_storage_key is kept separately because it is workflow
+  # state, not point-in-time event/process state.
   class WorkerAttribution
     def self.for_workflows(workflows) = new(workflows).call
 
@@ -26,14 +28,23 @@ module Timeline
       event = activity_event_by_workflow[workflow.id]
       process = spawned_process_by_workflow[workflow.id]
       if event
-        { hostname: event.hostname, pid: event.pid }
+        attribution_hash(workflow: workflow, hostname: event.hostname, pid: event.pid, queue_role: event.queue_role)
       elsif process
-        { hostname: process.hostname, pid: process.pid }
+        attribution_hash(workflow: workflow, hostname: process.hostname, pid: process.pid)
       elsif workflow.worker_hostname.present?
-        { hostname: workflow.worker_hostname, pid: nil }
+        attribution_hash(workflow: workflow, hostname: workflow.worker_hostname, pid: nil)
       else
-        { hostname: nil, pid: nil }
+        attribution_hash(workflow: workflow, hostname: nil, pid: nil)
       end
+    end
+
+    def attribution_hash(workflow:, hostname:, pid:, queue_role: nil)
+      {
+        worker_storage_key: workflow.worker_storage_key,
+        queue_role: queue_role,
+        hostname: hostname,
+        pid: pid
+      }
     end
 
     def activity_event_by_workflow
