@@ -110,6 +110,20 @@ the chat's ordinary tool-call trace, immediately after the slash-command
 message — the same provenance requirement as the Job/Run detail view below,
 so a shadowed skill is never a silent debugging trap in chat either.
 
+## Goal slash commands
+
+`/goal <objective>` starts or replaces the active chat goal objective.
+`/goal edit <objective>` updates it, `/goal pause` pauses it, `/goal resume`
+resumes it and queues a goal continuation, and `/goal stop` cancels it. These
+are first-class system commands: the React composer calls the goal API, and
+the backend message endpoint also intercepts raw `/goal ...` text before it
+can be sent to the model as prose.
+
+Active goal turns include goal context in `ChatTurnJob#prompt_for`, and chat
+agents may call `mark_goal_completed(reason, details?)` or
+`mark_goal_blocked(reason, details?)` to terminate the loop. MCP does not
+expose pause/resume/stop controls to agents.
+
 ## Provenance on the Job/Run detail view
 
 Once a skill Job runs, the Run detail view shows which tier actually
