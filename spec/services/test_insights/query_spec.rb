@@ -85,6 +85,53 @@ RSpec.describe TestInsights::Query do
     expect(result.tests.map { |test| test.fetch(:id) }).to eq([ slower.id, faster.id ])
   end
 
+  it "sorts repository-wide slow tests by persisted p95 runtime summaries" do
+    fast = create_identity!(name: "fast", attrs: { last_seen_at: 2.minutes.ago })
+    slow = create_identity!(name: "slow", attrs: { last_seen_at: 1.minute.ago })
+    TestIdentityRuntimeSummary.create!(
+      repository: repository,
+      test_identity: fast,
+      grader_name: TestIdentityRuntimeSummary::ALL_GRADERS,
+      window: TestIdentityRuntimeSummary::RECENT_100_WINDOW,
+      sample_count: 8,
+      avg_duration_ms: 200,
+      p50_duration_ms: 180,
+      p95_duration_ms: 300,
+      min_duration_ms: 100,
+      max_duration_ms: 320,
+      last_observed_at: 2.minutes.ago
+    )
+    TestIdentityRuntimeSummary.create!(
+      repository: repository,
+      test_identity: slow,
+      grader_name: TestIdentityRuntimeSummary::ALL_GRADERS,
+      window: TestIdentityRuntimeSummary::RECENT_100_WINDOW,
+      sample_count: 8,
+      avg_duration_ms: 1_400,
+      p50_duration_ms: 1_200,
+      p95_duration_ms: 2_500,
+      min_duration_ms: 800,
+      max_duration_ms: 2_700,
+      last_observed_at: 1.minute.ago
+    )
+
+    result = described_class.call(
+      user: user,
+      repository: repository,
+      sort: "p95_duration",
+      direction: "desc"
+    )
+
+    expect(result.summary_window).to eq(TestIdentityRuntimeSummary::RECENT_100_WINDOW)
+    expect(result.tests.map { |test| test.fetch(:id) }).to eq([ slow.id, fast.id ])
+    expect(result.tests.first.fetch(:runtime_summary)).to include(
+      sample_count: 8,
+      avg_duration_ms: 1_400,
+      p50_duration_ms: 1_200,
+      p95_duration_ms: 2_500
+    )
+  end
+
   it "filters by text query, last_failed, and last_seen summary columns" do
     matching = create_identity!(
       name: "needle failure",
@@ -215,5 +262,58 @@ RSpec.describe TestInsights::Query do
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
     expect(sql_before_test_case_lookup).to all(match(/"test_identity_id"|`test_identity_id`/))
+  end
+
+  it "does not scan repository-wide test cases for p95 runtime rankings" do
+    identity = create_identity!(name: "summarized", attrs: { last_seen_at: 1.minute.ago })
+    TestIdentityRuntimeSummary.create!(
+      repository: repository,
+      test_identity: identity,
+      grader_name: TestIdentityRuntimeSummary::ALL_GRADERS,
+      window: TestIdentityRuntimeSummary::RECENT_100_WINDOW,
+      sample_count: 3,
+      avg_duration_ms: 200,
+      p50_duration_ms: 180,
+      p95_duration_ms: 300
+    )
+
+    test_case_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      test_case_selects << sql if sql.match?(/FROM "?test_cases"?/i)
+    end
+
+    described_class.call(user: user, repository: repository, sort: "p95_duration", direction: "desc")
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+
+    expect(test_case_selects).to all(match(/"test_identity_id"|`test_identity_id`/))
+  end
+
+  it "uses the summary join instead of raw case filtering for grader-scoped p95 rankings" do
+    identity = create_identity!(name: "jest summarized", attrs: { last_seen_at: 1.minute.ago })
+    TestIdentityRuntimeSummary.create!(
+      repository: repository,
+      test_identity: identity,
+      grader_name: "jest",
+      window: TestIdentityRuntimeSummary::RECENT_100_WINDOW,
+      sample_count: 3,
+      avg_duration_ms: 200,
+      p50_duration_ms: 180,
+      p95_duration_ms: 300
+    )
+
+    test_case_selects = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      test_case_selects << sql if sql.match?(/FROM "?test_cases"?/i)
+    end
+
+    result = described_class.call(user: user, repository: repository, grader_name: "jest", sort: "p95_duration", direction: "desc")
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+
+    expect(result.tests.map { |test| test.fetch(:id) }).to eq([ identity.id ])
+    expect(test_case_selects).to all(match(/"test_identity_id"|`test_identity_id`/))
   end
 end
