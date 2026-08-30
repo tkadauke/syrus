@@ -443,7 +443,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
 
   create_table "chat_proposals", force: :cascade do |t|
     t.text "body", null: false
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.integer "chat_session_id", null: false
     t.integer "child_position"
     t.datetime "confirmed_at"
@@ -892,7 +892,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
   create_table "epics", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.datetime "claimed_at"
     t.datetime "created_at", null: false
     t.text "description"
@@ -1239,7 +1239,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
     t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
-    t.integer "chat_goal_id"
+    t.bigint "chat_goal_id"
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
