@@ -229,13 +229,13 @@ workspace reclaim, then clears the chat link.
 
 **When it fires:** An operator confirms a handoff from a Local Mode chat session (labs feature `local_mode`).
 
-**Step chain:** When no PR exists: `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`. When a PR already exists (taken-over implemented Job): `prepare → grader_fanout → grader_collect → summarize_amend → try(push)`.
+**Step chain:** When no PR exists: `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open`. When a PR already exists (taken-over implemented Job): `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)`.
 
 Requires operator confirmation before the workflow dispatches. The linked chat
 stays attached while graders run and is cleared only after the local-mode
 handoff succeeds.
 
-**On grader failure:** The workflow does not propagate failure to the Job via the normal `propagate_fail_to_job!` path. Instead, `after_fail` reverts the Job to `:coding` so the operator can fix the issues and re-run `complete_implement_step`. If a linked chat session exists, the grader failure report is posted there to trigger an agent turn. This makes the "fix → `complete_implement_step` again" cycle documented in coding mode's system prompt work correctly.
+**On grader failure:** Graders run inside a retry loop repaired by `local_mode_handoff_fix`, so workflow agents own repair instead of the originating Local Mode chat. If the retry budget is exhausted, `after_fail` posts a passive grader report to the linked chat when one is still available and marks the Job failed so the normal Retry path is available. It does not enqueue or promote a chat-agent turn, and it does not return the Job to `:coding`.
 
 **On non-grader failure** (e.g. `prepare` failed): `after_fail` drives the Job to `:failed` manually so the operator has the normal Retry path.
 

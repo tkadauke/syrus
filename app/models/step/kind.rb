@@ -183,6 +183,7 @@ class Step
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "landing_fix",        handler: "LandingFix",         label: "Final fix",                  style: "bg-blue-100 text-blue-700",   agentic: true),
       Entry.new(kind: "coding_handoff_fix", handler: "CodingHandoffFix",   label: "Repair handoff",            style: "bg-blue-100 text-blue-700",   agentic: true),
+      Entry.new(kind: "local_mode_handoff_fix", handler: "LocalModeHandoffFix", label: "Repair handoff",        style: "bg-blue-100 text-blue-700",   agentic: true),
       Entry.new(kind: "auto_merge",         handler: "AutoMerge",          label: "Auto-merge",                 style: "bg-green-100 text-green-700", agentic: false,
                 repair_semantics: :publication,
                 reconcile_strategy: :auto_merge),

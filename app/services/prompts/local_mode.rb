@@ -79,9 +79,12 @@ module Prompts
            explicitly asked for handoff. For new Jobs without an existing PR, also
            pass `branch_name: "<branch>"`.
         4. `complete_implement_step` creates an operator confirmation action. The
-           graders and PR workflow do not start until the operator confirms it.
-        5. Grader feedback will arrive as a follow-up chat message. Continue debugging
-           if graders fail.
+           graders and PR workflow do not start until the operator confirms it. The
+           coding lock stays linked while the handoff runs so passive status can
+           return to this chat.
+        5. If graders fail, workflow agents own repair and retry. Grader feedback may
+           arrive as a passive status message, but do not resume debugging unless the
+           operator explicitly asks you to.
 
         If no linked Job is specified, the operator manages commit and push themselves.
 
