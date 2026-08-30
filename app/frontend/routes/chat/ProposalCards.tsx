@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { cancelPendingAction, confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
+import { cancelPendingAction, confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult, type GoalProvenance } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -353,7 +353,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} prefix={prefix} />}
         </>
       }
       footer={
@@ -698,7 +698,7 @@ function ProposalResultLink({ path, prefix, children }: { path: string | null; p
   return <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(path, prefix)}>{children}</Link>
 }
 
-function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
+function ProposalMeta({ proposal, prefix }: { proposal: ChatProposal; prefix: string }) {
   const { t } = useT("chat")
   return (
     <dl className="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2 dark:text-gray-300">
@@ -708,7 +708,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
         <dd>{(proposal.dependency_slugs || []).length > 0 ? <PillList values={proposal.dependency_slugs || []} /> : t("none")}</dd>
       </div>
       {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">{t("target_epic")}</dt><dd>{proposal.target_epic_label}</dd></div> : null}
-      {proposal.goal_provenance ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">Goal</dt><dd title={proposal.goal_provenance.prompt_snapshot.prompt || undefined}>Goal #{proposal.goal_provenance.chat_goal_id}</dd></div> : null}
+      {proposal.goal_provenance ? <ProposalGoalProvenance goal={proposal.goal_provenance} materializedLabel={proposal.materialized_label} materializedPath={proposal.materialized_path} prefix={prefix} /> : null}
     </dl>
   )
 }
@@ -728,7 +728,7 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
-            {child.goal_provenance ? <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>Goal #{child.goal_provenance.chat_goal_id}</div> : null}
+            {child.goal_provenance ? <ChildGoalProvenance child={child} goal={child.goal_provenance} prefix={prefix} /> : null}
             {child.proposed && parentProposed ? (
               <div className="mt-3">
                 <button
@@ -746,4 +746,41 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
       ))}
     </div>
   )
+}
+
+function ProposalGoalProvenance({ goal, materializedLabel, materializedPath, prefix }: { goal: GoalProvenance; materializedLabel?: string | null; materializedPath?: string | null; prefix: string }) {
+  return (
+    <div>
+      <dt className="font-medium text-gray-500 dark:text-gray-400">Goal provenance</dt>
+      <dd className="flex flex-wrap items-center gap-1" title={goal.prompt_snapshot.prompt || undefined}>
+        <span className="rounded bg-brand/10 px-2 py-0.5 font-medium text-brand">Goal #{goal.chat_goal_id}</span>
+        {materializedLabel && materializedPath ? (
+          <Link className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 hover:text-brand dark:bg-gray-800 dark:text-gray-200" to={withRoutePrefix(materializedPath, prefix)}>
+            {materializedLabel}
+          </Link>
+        ) : null}
+      </dd>
+    </div>
+  )
+}
+
+function ChildGoalProvenance({ child, goal, prefix }: { child: ChatProposalChild; goal: GoalProvenance; prefix: string }) {
+  const materialized = childMaterializedLink(child)
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400" title={goal.prompt_snapshot.prompt || undefined}>
+      <span className="rounded bg-brand/10 px-2 py-0.5 font-medium text-brand">Goal #{goal.chat_goal_id}</span>
+      {materialized ? (
+        <Link className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 hover:text-brand dark:bg-gray-800 dark:text-gray-200" to={withRoutePrefix(materialized.path, prefix)}>
+          {materialized.label}
+        </Link>
+      ) : null}
+    </div>
+  )
+}
+
+function childMaterializedLink(child: ChatProposalChild) {
+  const dependency = child.dependency_details?.find((detail) => detail.materialized_label && detail.materialized_path)
+  if (!dependency?.materialized_label || !dependency.materialized_path) return null
+
+  return { label: dependency.materialized_label, path: dependency.materialized_path }
 }

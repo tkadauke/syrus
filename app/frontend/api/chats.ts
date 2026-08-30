@@ -211,6 +211,15 @@ export type ChatGoal = {
   updated_at: string
 }
 
+export type ChatGoalInput = {
+  prompt?: string
+  completion_condition?: string | null
+  approval_policy?: ChatGoal["approval_policy"]
+  auto_file_proposals?: boolean
+  auto_submit_jobs?: boolean
+  repository_id?: number | null
+}
+
 export type ChatProposalUpdateInput = {
   title: string
   body: string
@@ -902,11 +911,11 @@ export function updateChatEffort(id: number | string, effort: string | null) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_effort: effort ?? "" } })
 }
 
-export function upsertChatGoal(chatId: number | string, goal: { prompt: string }) {
+export function upsertChatGoal(chatId: number | string, goal: ChatGoalInput & { prompt: string }) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal`, { goal })
 }
 
-export function patchChatGoal(chatId: number | string, goal: { prompt?: string; completion_condition?: string | null }) {
+export function patchChatGoal(chatId: number | string, goal: ChatGoalInput) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${chatId}/goal`, { goal })
 }
 

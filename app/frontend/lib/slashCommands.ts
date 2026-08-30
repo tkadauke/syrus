@@ -71,6 +71,10 @@ export const slashCommands = [
   { name: "/share", kind: "system", args: [], description: "Copy a shareable link to this chat" },
   { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "Schedule a chat message to send later." },
   { name: "/goal", kind: "system", args: [{ name: "action/objective", required: false }], description: "Start, edit, pause, resume, or stop the active goal." },
+  { name: "/goal-edit", kind: "system", args: [{ name: "objective", required: true }], description: "Edit the active goal objective." },
+  { name: "/goal-pause", kind: "system", args: [], description: "Pause the active goal." },
+  { name: "/goal-resume", kind: "system", args: [], description: "Resume the paused goal." },
+  { name: "/goal-stop", kind: "system", args: [], description: "Stop the active goal.", requiresConfirmation: true },
   {
     name: "/jobs",
     kind: "system",

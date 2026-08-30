@@ -106,6 +106,7 @@ import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
+import { GoalControls } from "./chat/GoalControls"
 import { ThemePreviewModal } from "./chat/ThemePreviewModal"
 import { routePrefix } from "../lib/routing"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
@@ -1066,6 +1067,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       {payload.local_mode_enabled && payload.chat.mode === "local" ? (
         <LocalDaemonBanner payload={payload} />
       ) : null}
+      <GoalControls payload={payload} queryKey={queryKey} onNotice={onNotice} />
       {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
@@ -1178,4 +1180,3 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
     </section>
   )
 }
-

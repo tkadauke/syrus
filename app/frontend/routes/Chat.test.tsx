@@ -5246,6 +5246,148 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
   }
 }
 
+function chatGoal(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 12,
+    chat_session_id: 8,
+    user_id: 1,
+    repository_id: 3,
+    prompt: "Plan the release train",
+    completion_condition: "Every follow-up is drafted",
+    mode_snapshot: { mode: "planning", repository_id: 3 },
+    status: "active",
+    approval_policy: "manual",
+    auto_file_proposals: false,
+    auto_submit_jobs: false,
+    iteration_count: 1,
+    terminal_at: null,
+    terminal_reason: null,
+    terminal_details: null,
+    created_at: "2026-08-29T12:00:00Z",
+    updated_at: "2026-08-29T12:00:00Z",
+    ...overrides
+  }
+}
+
+describe("active goal UI", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("renders an active goal strip with explicit planning policy", async () => {
+    const goal = chatGoal()
+    mockChatRouteFetch(chatPayload({ chat: { active_goal: goal } }, { active_goal: goal }))
+    renderRoute()
+
+    const strip = await screen.findByTestId("active-goal-strip")
+    expect(within(strip).getByText("Active")).toBeInTheDocument()
+    expect(within(strip).getByText("Plan the release train")).toBeInTheDocument()
+    expect(within(strip).getByText("Draft only")).toBeInTheDocument()
+    expect(within(strip).getByRole("button", { name: "Pause goal" })).toBeEnabled()
+    expect(within(strip).getByRole("button", { name: "Resume goal" })).toBeDisabled()
+  })
+
+  it("edits the goal prompt, completion condition, and planning automation policy in a modal", async () => {
+    const goal = chatGoal()
+    const updatedGoal = chatGoal({ prompt: "Plan the billing launch", completion_condition: "Jobs are filed", auto_file_proposals: true })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/goal" && init?.method === "PATCH") return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: updatedGoal } }, { active_goal: updatedGoal })))
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: goal } }, { active_goal: goal })))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit goal" })
+    fireEvent.change(within(dialog).getByLabelText("Goal prompt"), { target: { value: "Plan the billing launch" } })
+    fireEvent.change(within(dialog).getByLabelText("Completion condition"), { target: { value: "Jobs are filed" } })
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Allow the goal loop to continue automatically/ }))
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Auto-file proposed Jobs and Epics/ }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find((call) => String(call[0]) === "/api/v1/app/chats/8/goal" && (call[1] as RequestInit | undefined)?.method === "PATCH")
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String((patchCall?.[1] as RequestInit).body))).toMatchObject({
+        goal: {
+          prompt: "Plan the billing launch",
+          completion_condition: "Jobs are filed",
+          approval_policy: "auto",
+          auto_file_proposals: true,
+          auto_submit_jobs: false
+        }
+      })
+    })
+    expect(await screen.findByText("Plan the billing launch")).toBeInTheDocument()
+    expect(screen.getByText("Auto-file allowed")).toBeInTheDocument()
+  })
+
+  it("uses coding-mode labels for job submission policy", async () => {
+    const goal = chatGoal({ mode_snapshot: { mode: "coding", repository_id: 3 }, auto_submit_jobs: true })
+    mockChatRouteFetch(chatPayload({ chat: { active_goal: goal, mode: "coding" } }, { active_goal: goal, coding_mode_enabled: true }))
+    renderRoute()
+
+    expect(await screen.findByText("Auto-submit allowed")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Edit goal" }))
+    expect(screen.getByRole("radio", { name: /Auto-submit generated Jobs and handoffs/ })).toBeInTheDocument()
+    expect(screen.queryByRole("radio", { name: /Auto-file proposed Jobs and Epics/ })).not.toBeInTheDocument()
+  })
+
+  it("pauses, resumes, and stops from visible controls", async () => {
+    const activeGoal = chatGoal()
+    const pausedGoal = chatGoal({ status: "paused" })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/goal/pause" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: pausedGoal } }, { active_goal: pausedGoal })))
+      if (path === "/api/v1/app/chats/8/goal/resume" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: activeGoal } }, { active_goal: activeGoal })))
+      if (path === "/api/v1/app/chats/8/goal/stop" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: null } }, { active_goal: null })))
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: activeGoal } }, { active_goal: activeGoal })))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Pause goal" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/goal/pause", expect.objectContaining({ method: "POST" })))
+    expect(await screen.findByText("Paused")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume goal" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/goal/resume", expect.objectContaining({ method: "POST" })))
+
+    fireEvent.click(await screen.findByRole("button", { name: "Stop goal" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/goal/stop", expect.objectContaining({ method: "POST" })))
+    expect(await screen.findByText("Stopped")).toBeInTheDocument()
+  })
+
+  it("disables goal controls while the agent is active", async () => {
+    const goal = chatGoal()
+    mockChatRouteFetch(chatPayload({ chat: { active_goal: goal } }, { active_goal: goal, agent_busy: true }))
+    renderRoute()
+
+    expect(await screen.findByText("Goal controls are disabled while the agent is active.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Pause goal" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Edit goal" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Stop goal" })).toBeDisabled()
+  })
+
+  it("handles goal slash commands without sending a normal chat message", async () => {
+    const goal = chatGoal()
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/goal/pause" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: chatGoal({ status: "paused" }) } }, { active_goal: chatGoal({ status: "paused" }) })))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") return Promise.resolve(jsonResponse(chatPayload()))
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { active_goal: goal } }, { active_goal: goal })))
+    })
+    renderRoute()
+
+    await submitSlashCommand("/goal pause")
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/goal/pause", expect.objectContaining({ method: "POST" })))
+    expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit | undefined)?.method === "POST")).toBe(false)
+  })
+})
+
 describe("chat mode selector in toolbar", () => {
   beforeEach(() => {
     window.localStorage.clear()

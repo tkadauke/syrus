@@ -3,9 +3,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { PendingActionCard } from "./ProposalCards"
-import type { ChatPendingAction } from "../../api/chats"
+import { PendingActionCard, ProposalCard } from "./ProposalCards"
+import type { ChatPendingAction, ChatProposal } from "../../api/chats"
 import type { ChatQueryKey } from "./constants"
+
+vi.mock("../../api/bootstrap", () => ({
+  fetchBootstrap: vi.fn(() => Promise.resolve({ current_user: { role: "operator", admin: false } }))
+}))
 
 function pendingAction(overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
   return {
@@ -23,6 +27,46 @@ function pendingAction(overrides: Partial<ChatPendingAction> = {}): ChatPendingA
   }
 }
 
+function proposal(overrides: Partial<ChatProposal> = {}): ChatProposal {
+  return {
+    id: 81,
+    kind: "job",
+    kind_label: "Job",
+    state: "confirmed",
+    state_label: "Confirmed",
+    title: "Add goal UI",
+    slug: "add-goal-ui",
+    body: "Show active goals in chat.",
+    proposed: false,
+    resolved: true,
+    epic_bundle: false,
+    scoped_repository_slug: "tkadauke/syrus",
+    dependency_slugs: [],
+    dependencies: [],
+    has_dependencies: false,
+    target_epic_id: null,
+    target_epic_label: null,
+    app_update_path: "/api/v1/app/chats/122/proposals/81",
+    app_confirm_path: "/api/v1/app/chats/122/proposals/81/confirm",
+    app_reject_path: "/api/v1/app/chats/122/proposals/81/reject",
+    materialized_label: "JOB-3878",
+    materialized_path: "/jobs/3878",
+    materialized: { kind: "job", job_id: 3878, job_title: "Add goal UI", job_state: "open" },
+    goal_provenance: {
+      chat_goal_id: 77,
+      prompt_snapshot: {
+        prompt: "Finish the goal-mode UI",
+        completion_condition: "All controls are visible",
+        mode_snapshot: { mode: "planning" },
+        approval_policy: "manual",
+        auto_file_proposals: false,
+        auto_submit_jobs: false
+      }
+    },
+    ...overrides
+  }
+}
+
 function renderCard(action: ChatPendingAction, onNotice = vi.fn()) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -35,6 +79,18 @@ function renderCard(action: ChatPendingAction, onNotice = vi.fn()) {
     </MemoryRouter>
   )
   return { onNotice }
+}
+
+function renderProposalCard(nextProposal: ChatProposal) {
+  const queryKey: ChatQueryKey = ["chats", "122", ""]
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <ProposalCard onNotice={() => {}} prefix="" proposal={nextProposal} queryKey={queryKey} />
+      </QueryClientProvider>
+    </MemoryRouter>
+  )
 }
 
 describe("PendingActionCard", () => {
@@ -56,5 +112,18 @@ describe("PendingActionCard", () => {
     renderCard(pendingAction({ state: "pending" }))
 
     expect(screen.queryByRole("button", { name: "Dismiss failed action" })).not.toBeInTheDocument()
+  })
+})
+
+describe("ProposalCard goal provenance", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows the originating goal and linked materialized Job chip", () => {
+    renderProposalCard(proposal())
+
+    expect(screen.getByText("Goal provenance")).toBeInTheDocument()
+    expect(screen.getByText("Goal #77").closest("dd")).toHaveAttribute("title", "Finish the goal-mode UI")
+    const links = screen.getAllByRole("link", { name: "JOB-3878" })
+    expect(links.some((link) => link.getAttribute("href") === "/jobs/3878")).toBe(true)
   })
 })

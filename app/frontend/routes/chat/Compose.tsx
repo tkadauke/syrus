@@ -714,10 +714,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
-    if (command.name === "/goal") {
-      const parsed = parseGoalCommandArgs(argsText)
+    if (command.name === "/goal" || command.name === "/goal-edit" || command.name === "/goal-pause" || command.name === "/goal-resume" || command.name === "/goal-stop") {
+      const parsed = parseGoalCommandArgs(command.name, argsText)
       if (!parsed) {
-        onNotice("Usage: /goal <objective>, /goal edit <objective>, /goal pause, /goal resume, or /goal stop")
+        onNotice("Usage: /goal <objective>, /goal edit <objective>, /goal pause, /goal resume, /goal stop, or the matching /goal-* shortcut")
         return
       }
 
@@ -739,7 +739,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setText("")
   }
 
-  function parseGoalCommandArgs(argsText: string): ChatSystemCommandAction | null {
+  function parseGoalCommandArgs(commandName: SlashCommand["name"], argsText: string): ChatSystemCommandAction | null {
+    if (commandName === "/goal-pause") return { kind: "goal", action: "pause" }
+    if (commandName === "/goal-resume") return { kind: "goal", action: "resume" }
+    if (commandName === "/goal-stop") return { kind: "goal", action: "stop" }
+    if (commandName === "/goal-edit") {
+      const prompt = argsText.trim()
+      return prompt ? { kind: "goal", action: "edit", prompt } : null
+    }
+
     const trimmed = argsText.trim()
     if (!trimmed) return payload.active_goal || payload.chat.active_goal ? { kind: "goal", action: "resume" } : null
 

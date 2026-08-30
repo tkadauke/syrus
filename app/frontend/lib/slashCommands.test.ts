@@ -28,7 +28,11 @@ describe("slashCommands", () => {
     "/clear-canvas",
     "/approve",
     "/schedule",
-    "/goal"
+    "/goal",
+    "/goal-edit",
+    "/goal-pause",
+    "/goal-resume",
+    "/goal-stop"
   ]
 
   it("registers /propose as a guided wizard skill command", () => {
@@ -128,6 +132,20 @@ describe("slashCommands", () => {
     expect(match?.command.args).toEqual([{ name: "action/objective", required: false }])
     expect(match?.argsText).toBe("pause")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[action/objective]")
+  })
+
+  it("registers direct goal lifecycle shortcuts for the command palette", () => {
+    expect(filterSlashCommands("goal").map((command) => command.name)).toEqual(expect.arrayContaining([
+      "/goal",
+      "/goal-edit",
+      "/goal-pause",
+      "/goal-resume",
+      "/goal-stop"
+    ]))
+    expect(findSlashCommand("/goal-pause")?.command.kind).toBe("system")
+    expect(findSlashCommand("/goal-resume")?.command.kind).toBe("system")
+    expect(findSlashCommand("/goal-stop")?.command.requiresConfirmation).toBe(true)
+    expect(findSlashCommand("/goal-edit revise the migration plan")?.argsText).toBe("revise the migration plan")
   })
 
   it("keeps agent-backed commands as skill commands", () => {
