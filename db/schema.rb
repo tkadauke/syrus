@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2394,6 +2394,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
     t.index ["repository_id"], name: "index_test_identities_on_repository_id"
   end
 
+  create_table "test_identity_runtime_summaries", force: :cascade do |t|
+    t.integer "avg_duration_ms"
+    t.datetime "created_at", null: false
+    t.string "grader_name", limit: 128, null: false
+    t.datetime "last_observed_at"
+    t.integer "max_duration_ms"
+    t.integer "min_duration_ms"
+    t.integer "p50_duration_ms"
+    t.integer "p95_duration_ms"
+    t.integer "repository_id", null: false
+    t.integer "sample_count", default: 0, null: false
+    t.integer "test_identity_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "window", limit: 32, null: false
+    t.index ["repository_id", "grader_name", "window", "avg_duration_ms", "test_identity_id"], name: "idx_test_runtime_summary_avg"
+    t.index ["repository_id", "grader_name", "window", "p95_duration_ms", "test_identity_id"], name: "idx_test_runtime_summary_p95"
+    t.index ["repository_id"], name: "index_test_identity_runtime_summaries_on_repository_id"
+    t.index ["test_identity_id", "grader_name", "window"], name: "idx_test_runtime_summary_identity_grader_window", unique: true
+    t.index ["test_identity_id"], name: "index_test_identity_runtime_summaries_on_test_identity_id"
+  end
+
   create_table "test_runs", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "duration_ms"
@@ -2851,4 +2872,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_151000) do
   add_foreign_key "design_docs", "users", column: "owner_user_id"
   add_foreign_key "epics", "chat_goals"
   add_foreign_key "jobs", "chat_goals"
+  add_foreign_key "test_identity_runtime_summaries", "repositories"
+  add_foreign_key "test_identity_runtime_summaries", "test_identities"
 end

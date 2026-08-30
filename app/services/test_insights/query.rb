@@ -9,7 +9,7 @@ module TestInsights
     DEFAULT_SLOW_THRESHOLD_MS = 1_000
     DEFAULT_LOOKBACK = TestIdentity::LIST_LOOKBACK
 
-    Result = Struct.new(:repository, :category, :sort, :direction, :query, :limit, :tests, keyword_init: true)
+    Result = Struct.new(:repository, :category, :sort, :direction, :query, :limit, :summary_window, :tests, keyword_init: true)
 
     class << self
       def call(...) = new(...).call
@@ -34,7 +34,8 @@ module TestInsights
       scope = @category.apply(repository.test_identities)
       scope = scope.search_by_name(@query) if @query.present?
       scope = @filters.apply_summary_filters(scope)
-      scope = apply_grader_filter(scope, repository)
+      scope = apply_grader_filter(scope, repository) unless @sort.runtime_summary?
+      scope = @sort.apply_runtime_summary_join(scope, summary_grader_name) if @sort.runtime_summary?
 
       identities =
         if @sort.requires_in_memory_failure_rate?
@@ -58,6 +59,7 @@ module TestInsights
         direction: @direction.name,
         query: @query,
         limit: @limit,
+        summary_window: TestIdentityRuntimeSummary::RECENT_100_WINDOW,
         tests: tests
       )
     end
@@ -137,7 +139,13 @@ module TestInsights
         .index_by(&:test_identity_id)
     end
 
+    def summary_grader_name
+      @grader_name || TestIdentityRuntimeSummary::ALL_GRADERS
+    end
+
     def test_identity_json(identity, latest_case, stats)
+      runtime_summary = identity_runtime_summary(identity)
+
       {
         id: identity.id,
         type: "TestIdentity",
@@ -155,11 +163,29 @@ module TestInsights
         passed_count: stats.fetch(:passed_count),
         failure_rate: stats.fetch(:failure_rate).round(4),
         avg_duration_ms: stats.fetch(:avg_duration_ms),
+        runtime_summary: runtime_summary,
         interesting_reasons: identity.interesting_reasons(stats: stats),
         links: {
           app_path: repository_path(identity.repository, tab: "tests", test_id: identity.id)
         },
         latest: latest_case_json(latest_case)
+      }
+    end
+
+    def identity_runtime_summary(identity)
+      return nil unless identity.respond_to?(:runtime_sample_count)
+      return nil if identity.runtime_sample_count.nil?
+
+      {
+        window: TestIdentityRuntimeSummary::RECENT_100_WINDOW,
+        grader_name: @grader_name,
+        sample_count: identity.runtime_sample_count,
+        avg_duration_ms: identity.runtime_avg_duration_ms,
+        p50_duration_ms: identity.runtime_p50_duration_ms,
+        p95_duration_ms: identity.runtime_p95_duration_ms,
+        min_duration_ms: identity.runtime_min_duration_ms,
+        max_duration_ms: identity.runtime_max_duration_ms,
+        last_observed_at: iso8601(identity.runtime_last_observed_at)
       }
     end
 
@@ -302,6 +328,8 @@ module TestInsights
       end
 
       def requires_in_memory_failure_rate? = false
+      def runtime_summary? = false
+      def apply_runtime_summary_join(scope, _grader_name) = scope
     end
 
     class ColumnSort < Sort
@@ -322,10 +350,58 @@ module TestInsights
       def requires_in_memory_failure_rate? = true
     end
 
+    class RuntimeSummarySort < Sort
+      SUMMARY_COLUMNS = %w[
+        sample_count
+        avg_duration_ms
+        p50_duration_ms
+        p95_duration_ms
+        min_duration_ms
+        max_duration_ms
+        last_observed_at
+      ].freeze
+
+      def initialize(name, column)
+        super(name)
+        @column = column
+      end
+
+      def runtime_summary? = true
+
+      def apply(scope, direction)
+        scope.order(
+          Arel.sql("runtime_sort_value #{direction.name.upcase}"),
+          Arel.sql("test_identities.last_seen_at #{direction.name.upcase}"),
+          Arel.sql("test_identities.id #{direction.name.upcase}")
+        )
+      end
+
+      def apply_runtime_summary_join(scope, grader_name)
+        connection = TestIdentity.connection
+        quoted_grader = connection.quote(grader_name)
+        quoted_window = connection.quote(TestIdentityRuntimeSummary::RECENT_100_WINDOW)
+        summary_selects = SUMMARY_COLUMNS.map do |column|
+          "test_identity_runtime_summaries.#{column} AS runtime_#{column}"
+        end
+
+        scope
+          .joins(<<~SQL.squish)
+            INNER JOIN test_identity_runtime_summaries
+              ON test_identity_runtime_summaries.test_identity_id = test_identities.id
+             AND test_identity_runtime_summaries.grader_name = #{quoted_grader}
+             AND test_identity_runtime_summaries.window = #{quoted_window}
+          SQL
+          .select("test_identities.*", "test_identity_runtime_summaries.#{@column} AS runtime_sort_value", *summary_selects)
+      end
+    end
+
     Sort.register("last_seen", ColumnSort.new("last_seen", [ :last_seen_at ]))
     Sort.register("last_failed", ColumnSort.new("last_failed", [ :last_failed_at ]))
     Sort.register("last_duration", ColumnSort.new("last_duration", [ :last_duration_ms, :last_seen_at ]))
     Sort.register("failure_rate", FailureRateSort.new)
+    Sort.register("avg_duration", RuntimeSummarySort.new("avg_duration", "avg_duration_ms"))
+    Sort.register("p50_duration", RuntimeSummarySort.new("p50_duration", "p50_duration_ms"))
+    Sort.register("p95_duration", RuntimeSummarySort.new("p95_duration", "p95_duration_ms"))
 
     class Filters
       attr_reader :lookback

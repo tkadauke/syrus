@@ -60,7 +60,7 @@ RSpec.describe Mcp::Sidecar do
       expect(tool_names).to contain_exactly(
         *%w[read_live_state read_run_worker_health read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern start_preview stop_preview read_preview_log submit_summary submit_test_plan submit_review_plan submit_artifact submit_visual_artifact list_design_docs read_design_doc
             list_repository_test_insights read_test_insight
-            read_job_test_results read_run_test_results
+            read_job_test_results read_run_test_results compare_test_runtime
             browser_navigate browser_click browser_fill browser_snapshot browser_screenshot browser_wait_for browser_close]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
@@ -86,6 +86,7 @@ RSpec.describe Mcp::Sidecar do
         "read_test_insight",
         "read_job_test_results",
         "read_run_test_results",
+        "compare_test_runtime",
         "submit_insight",
         "list_insights",
         "read_insight"
