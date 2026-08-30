@@ -44,6 +44,33 @@ RSpec.describe "Test Insight MCP tools" do
     ).tap { identity.refresh_summary! }
   end
 
+  def create_test_run!(run:, grader_name: "rspec", total_count: 1, passed_count: 1, failed_count: 0, skipped_count: 0, error_count: 0, duration_ms: 100)
+    TestRun.create!(
+      run: run,
+      repository: run.job.repository,
+      grader_name: grader_name,
+      total_count: total_count,
+      passed_count: passed_count,
+      failed_count: failed_count,
+      skipped_count: skipped_count,
+      error_count: error_count,
+      duration_ms: duration_ms
+    )
+  end
+
+  def create_test_case!(test_run:, name: "example", suite_name: "Suite", status: "passed", duration_ms: 50, failure_message: nil, output: nil)
+    TestCase.create!(
+      test_run: test_run,
+      repository: test_run.repository,
+      suite_name: suite_name,
+      name: name,
+      status: status,
+      duration_ms: duration_ms,
+      failure_message: failure_message,
+      output: output
+    )
+  end
+
   def payload_from(response)
     JSON.parse(response.content.first[:text], symbolize_names: true)
   end
@@ -179,6 +206,93 @@ RSpec.describe "Test Insight MCP tools" do
         server_context: { chat_session: chat_session },
         test_identity_id: foreign_identity.id
       )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("not_authorized")
+    end
+  end
+
+  describe Mcp::Tools::ReadJobTestResultsTool do
+    it "returns empty results for a visible job with no ingested tests" do
+      job = Factories.job(user: user, repository: repository)
+
+      response = described_class.call(server_context: { chat_session: chat_session }, job_id: job.slug)
+
+      expect(response).not_to be_error
+      expect(payload_from(response)).to include(job_id: job.id, workflow_id: nil, test_runs: [])
+    end
+
+    it "returns compact failed cases from the latest workflow with ingested tests" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      test_run = create_test_run!(run: run, total_count: 2, passed_count: 1, failed_count: 1)
+      failed_case = create_test_case!(test_run: test_run, name: "fails", status: "failed", failure_message: "bad", output: "x" * 3.kilobytes)
+      create_test_case!(test_run: test_run, name: "passes")
+
+      response = described_class.call(server_context: { chat_session: chat_session }, job_id: job.id, case_limit: 5)
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload).to include(job_id: job.id, workflow_id: run.workflow_id)
+      expect(payload.dig(:test_runs, 0)).to include(grader_name: "rspec", total_count: 2, failed_count: 1, run_id: run.id)
+      expect(payload.dig(:test_runs, 0, :failed_error_cases, 0)).to include(id: failed_case.id, status: "failed", name: "fails")
+      expect(payload.dig(:test_runs, 0, :failed_error_cases, 0, :failure, :output, :truncated)).to be(true)
+      expect(payload.dig(:test_runs, 0)).not_to have_key(:suites)
+    end
+
+    it "can include slow cases and full suite grouping for multi-grader results" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      rspec = create_test_run!(run: run, grader_name: "rspec", total_count: 1, passed_count: 1)
+      jest = create_test_run!(run: run, grader_name: "jest", total_count: 1, passed_count: 1, duration_ms: 500)
+      create_test_case!(test_run: rspec, name: "ruby", duration_ms: 200)
+      create_test_case!(test_run: jest, name: "js", duration_ms: 500)
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        job_id: job.id,
+        include_slow_cases: true,
+        include_suites: true
+      )
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.fetch(:test_runs).map { |test_run| test_run.fetch(:grader_name) }).to eq(%w[jest rspec])
+      expect(payload.dig(:test_runs, 0, :slow_cases, 0, :name)).to eq("js")
+      expect(payload.dig(:test_runs, 0, :suites, 0, :test_cases, 0, :name)).to eq("js")
+      expect(payload.fetch(:truncation)).to include(suites_included: true, slow_cases_returned: 2)
+    end
+
+    it "rejects jobs outside the caller's visibility" do
+      foreign_job = Factories.job(user: Factories.user, repository: Factories.repository)
+
+      response = described_class.call(server_context: { chat_session: chat_session }, job_id: foreign_job.id)
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("not_authorized")
+    end
+  end
+
+  describe Mcp::Tools::ReadRunTestResultsTool do
+    it "returns only the requested grader for a visible run" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      create_test_run!(run: run, grader_name: "rspec")
+      create_test_run!(run: run, grader_name: "jest")
+
+      response = described_class.call(server_context: { chat_session: chat_session }, run_id: "RUN-#{run.id}", grader_name: "jest")
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload).to include(job_id: job.id, workflow_id: run.workflow_id, run_id: run.id, grader_name: "jest")
+      expect(payload.fetch(:test_runs).map { |test_run| test_run.fetch(:grader_name) }).to eq([ "jest" ])
+    end
+
+    it "limits workflow agents to runs in their repository" do
+      context_run = Factories.job(user: user, repository: repository).initial_run
+      foreign_run = Factories.job(user: user, repository: Factories.repository(user: user)).initial_run
+
+      response = described_class.call(server_context: { run_id: context_run.id }, run_id: foreign_run.id)
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("not_authorized")
