@@ -3,7 +3,7 @@ require "tmpdir"
 
 RSpec.describe Steps::PreflightGraderFanout do
   let(:job)      { Factories.job }
-  let(:workflow) { job.workflows.last }
+  let(:workflow) { Workflow.create!(job: job, trigger_kind: "main_branch_repair") }
 
   let(:collect_step) do
     Step.create!(
@@ -162,9 +162,26 @@ RSpec.describe Steps::PreflightGraderFanout do
 
     details = workflow.steps.find_by!(kind: "preflight_grader").details
     expect(details["command"]).to eq("bin/rspec")
-    expect(details["phase"]).to eq("landing")
+    expect(details["phase"]).to eq("ci")
     expect(details).not_to have_key("fast_command")
     expect(details).not_to have_key("fast_variant")
+  end
+
+  it "resolves the :ci phase (not :landing) so a grader scoped to landing-only is excluded" do
+    write_grade_config(<<~YAML)
+      grade:
+        - name: rspec-ci
+          run: bin/rspec-ci
+          phases: [ci]
+        - name: rspec
+          run: bin/rspec
+          phases: [landing]
+    YAML
+
+    handler.call
+
+    names = workflow.steps.where(kind: "preflight_grader").order(:position).map { |s| s.details["name"] }
+    expect(names).to eq(%w[rspec-ci])
   end
 
   it "records grade_plan_source in workflow artifacts" do

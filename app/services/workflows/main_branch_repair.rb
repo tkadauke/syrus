@@ -39,9 +39,12 @@ module Workflows
     # and landing; PollPullRequestJob calls MainHealthChangedService.repair_landed!
     # when the PR merges.
     #
-    # Preflight path (graders passed → no fix needed): update grader_health
-    # to healthy, notify MainHealthChangedService of the transition so landing
-    # can resume, and close the anchor job.
+    # Preflight path (graders passed → no fix needed): the preflight graders
+    # now run the :ci phase plan (see Steps::PreflightGraderFanout), the same
+    # set of graders that mark ci_health broken, so a preflight pass is
+    # conclusive evidence for both signals — update grader_health AND
+    # ci_health to healthy, notify MainHealthChangedService of the transition
+    # so landing can resume, and close the anchor job.
     def self.after_success(workflow)
       artifacts = workflow.class.where(id: workflow.id).pick(:artifacts) || workflow.artifacts || {}
       return unless artifacts["preflight_passed"]
@@ -51,8 +54,9 @@ module Workflows
       was_landing_paused = repository.landing_paused?
       sha = repository.last_health_checked_sha.to_s.presence
 
-      updates = { grader_health: "healthy" }
+      updates = { grader_health: "healthy", ci_health: "healthy" }
       updates[:last_graded_sha] = sha if sha
+      updates[:last_ci_evaluated_sha] = sha if sha
       repository.update!(updates)
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
