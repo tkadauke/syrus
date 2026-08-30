@@ -1,10 +1,11 @@
 # Worker Timeline
 
 Worker Timeline visualizes overlapping Syrus activity as a multi-lane
-timeline: one lane per worker process (hostname+pid), with Job/Workflow
-spans over time. It's meant to answer "what was taking a long time" and
-"what was this blocked on before it could start" at a glance, across jobs,
-epics, and repositories.
+timeline: one lane per durable worker process role (`worker_storage_key` +
+`queue_role`), with Job/Workflow spans over time. Hostname and pid remain
+available on each span for "where did this run" tooltips and restart markers.
+It's meant to answer "what was taking a long time" and "what was this blocked
+on before it could start" at a glance, across jobs, epics, and repositories.
 
 ## What It Adds
 
@@ -21,10 +22,14 @@ epics, and repositories.
   Workflow was waiting on, reusing the same blocked-reason data as the
   macro view.
 
-This plugin only reads existing data (`WorkflowActivityEvent`,
-`SpawnedProcess`, `InstanceVersion`, and Workflow/Step/Run timestamps via
-`Timeline::MacroQuery`) — enabling it does not change scheduling, grading, or
-job behavior.
+This plugin reads `WorkflowActivityEvent`, `SpawnedProcess`,
+`InstanceVersion`, and Workflow/Step/Run timestamps via
+`Timeline::MacroQuery`. `WorkflowActivityEvent#queue_role` is captured for
+`RunJob` executions so lanes survive hostname changes and still distinguish
+process roles like `runs` and `merges` on the same storage volume. Older or
+unattributed rows fall back to legacy hostname+pid grouping. Enabling the
+plugin does not change scheduling, grading, job behavior, or add thread-slot
+instrumentation.
 
 ## When To Enable
 
