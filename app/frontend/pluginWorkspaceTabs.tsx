@@ -1,5 +1,5 @@
 import { lazy, type ComponentType } from "react"
-import type { ChatPayload } from "./api/chats"
+import type { ChatPayload, ChatWorkspaceTab } from "./api/chats"
 
 // Discovers plugin-supplied chat workspace tab components, the same
 // import.meta.glob-based convention pluginAdminPages.tsx uses for admin
@@ -13,6 +13,7 @@ import type { ChatPayload } from "./api/chats"
 // receives the chat's payload as a prop instead of fetching by route param.
 export type PluginWorkspaceTabProps = {
   payload: ChatPayload
+  tab?: ChatWorkspaceTab
 }
 
 type PluginModule = {

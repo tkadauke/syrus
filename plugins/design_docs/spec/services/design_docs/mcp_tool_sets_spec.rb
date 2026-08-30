@@ -220,4 +220,59 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(doc.repositories).to contain_exactly(repository)
     expect(doc.current_version).to have_attributes(actor_kind: "agent", actor_user: nil)
   end
+
+  it "covers the collaborative doc flow through owner review and read-only workflow agent access" do
+    second_repository = Factories.repository(user: owner, owner: "acme", name: "mobile")
+    chat_session.chat_attachments.create!(attachable: second_repository)
+    server = chat_server
+
+    response = call_tool(
+      server,
+      "propose_design_doc",
+      title: "Checkout RFC",
+      markdown: "Alpha beta gamma",
+      visibility: "private",
+      repository_ids: [ repository.id, second_repository.id ],
+      collaborator_user_ids: [ collaborator.id ],
+      change_summary: "Initial draft"
+    )
+    expect(response.dig(:result, :isError)).to be_falsey
+
+    doc = DesignDocs::DesignDoc.last
+    expect(response_payload(response).fetch(:doc_ref)).to eq(doc.display_id)
+    expect(doc.repositories.map(&:slug)).to contain_exactly("acme/mobile", "acme/widgets")
+    expect(doc.collaborator_users).to contain_exactly(collaborator)
+
+    comment = DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" },
+      actor_kind: "user"
+    ).comment
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc.reload,
+      user: collaborator,
+      attributes: {
+        start_offset: 11,
+        end_offset: 16,
+        original_markdown: "gamma",
+        proposed_markdown: "delta",
+        change_summary: "Use the revised term"
+      },
+      actor_kind: "user"
+    ).suggestion
+
+    accepted = DesignDocs::ReviewSuggestion.accept(suggestion: suggestion, user: owner)
+    expect(accepted.applied).to be(true)
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Alpha beta delta")
+    expect(comment.thread.reload.state).to eq("open")
+    expect(doc.versions.order(:version_number).pluck(:change_summary)).to include("Initial draft", "Use the revised term")
+
+    run = workflow_run
+    server = workflow_server(run)
+    expect(tool_names(server)).to contain_exactly("list_design_docs", "read_design_doc")
+
+    read_response = call_tool(server, "read_design_doc", doc_ref: doc.display_id)
+    expect(response_payload(read_response).dig(:design_doc, :rendered_markdown)).to eq("Alpha beta delta")
+  end
 end
