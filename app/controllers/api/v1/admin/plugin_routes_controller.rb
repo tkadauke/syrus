@@ -9,6 +9,8 @@ module Api
           unless route
             disabled_route = PluginRouteResolver.find_disabled(request, controller_prefix: "api/v1/admin/")
             if disabled_route
+              return render_legacy_plugin_disabled(disabled_route.plugin_name) if legacy_plugin_disabled_code(disabled_route.plugin_name)
+
               return render_error("plugin_disabled", "The #{disabled_route.plugin_name} plugin is disabled.", status: :not_found)
             end
 

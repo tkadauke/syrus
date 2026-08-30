@@ -3,6 +3,19 @@ module PluginRouteDispatch
 
   private
 
+  LEGACY_PLUGIN_DISABLED_CODES = {
+    "syrus_dev" => "syrus_dev_plugin_disabled",
+    "tailscale" => "tailscale_plugin_disabled"
+  }.freeze
+
+  def legacy_plugin_disabled_code(plugin_name)
+    LEGACY_PLUGIN_DISABLED_CODES[plugin_name]
+  end
+
+  def render_legacy_plugin_disabled(plugin_name)
+    render json: { error: legacy_plugin_disabled_code(plugin_name) }, status: :not_found
+  end
+
   def dispatch_plugin_route!(route)
     controller_path, action_name = route.controller.split("#", 2)
     raise ActionController::RoutingError, "Invalid plugin route target" if controller_path.blank? || action_name.blank?
