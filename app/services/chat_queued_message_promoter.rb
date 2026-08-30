@@ -20,7 +20,7 @@ class ChatQueuedMessagePromoter
       queued_message = chat.queued_messages.first
       return false unless queued_message
 
-      turn_triggered = chat.should_trigger_agent?(queued_message.content["text"])
+      turn_triggered = chat.should_trigger_agent?(queued_message.text)
       user_message = chat.messages.create!(role: "user", content: queued_message.content, skip_turn_trigger: !turn_triggered)
       queued_message.update!(delivered_at: Time.current)
       chat.update!(

@@ -409,6 +409,7 @@ export type ChatAgentQuestionAnswer = string | string[]
 export type ChatQueuedMessage = {
   id: number
   text: string
+  attachments?: ChatDraftAttachment[]
   created_at: string | null
   app_update_path: string
   app_delete_path: string
@@ -417,8 +418,26 @@ export type ChatQueuedMessage = {
 export type ChatScratchpadItem = {
   id: number
   content: string
+  text?: string
+  attachments?: ChatDraftAttachment[]
   app_update_path: string
   app_delete_path: string
+}
+
+export type ChatDraftAttachment = {
+  name: string
+  mime_type: string
+  data: string
+}
+
+export type ChatDraftMessage = {
+  text: string
+  attachments?: ChatDraftAttachment[]
+}
+
+type ChatDraftMessageInput = {
+  text: string
+  attachments?: Array<ChatMessageAttachmentInput | ChatDraftAttachment>
 }
 
 export type ChatAttachmentRow = {
@@ -992,6 +1011,10 @@ export function enqueueChatMessage(path: string, text: string, attachments: Chat
   return postJson<ChatPayload>(path, chatMessagePayload(text, attachments))
 }
 
+export function enqueueChatDraftMessage(path: string, draft: ChatDraftMessage) {
+  return postJson<ChatPayload>(path, chatMessagePayload(draft.text, draft.attachments || []))
+}
+
 export function scheduleChatMessage(path: string, input: { body: string; fireAt: string }) {
   return postJson<{ id: number; body: string; fire_at: string; message: string }>(path, {
     scheduled_message: {
@@ -1009,8 +1032,9 @@ export function deleteQueuedChatMessage(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
-export function createScratchpadItem(chatId: string | number, content: string) {
-  return postJson<ChatPayload>(`/api/v1/app/chats/${chatId}/scratchpad_items`, { scratchpad_item: { content } })
+export function createScratchpadItem(chatId: string | number, content: string | ChatDraftMessageInput, attachments: ChatMessageAttachmentInput[] = []) {
+  const draft = draftMessageInput(content, attachments)
+  return postJson<ChatPayload>(`/api/v1/app/chats/${chatId}/scratchpad_items`, { scratchpad_item: draftMessagePayload(draft.text, draft.attachments || []) })
 }
 
 export function updateScratchpadItem(path: string, content: string) {
@@ -1030,21 +1054,48 @@ export function stopChat(path: string) {
 }
 
 
-function chatMessagePayload(text: string, attachments: ChatMessageAttachmentInput[]) {
+function chatMessagePayload(text: string, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>) {
   const chatMessage: {
     text: string
     attachments?: Array<{ name: string; mime_type: string; data: string }>
   } = { text }
 
   if (attachments.length > 0) {
-    chatMessage.attachments = attachments.map((attachment) => ({
-      name: attachment.name,
-      mime_type: attachment.mimeType,
-      data: attachment.dataUrl.replace(/^data:[^;]+;base64,/, "")
-    }))
+    chatMessage.attachments = attachments.map(attachmentPayload)
   }
 
   return { chat_message: chatMessage }
+}
+
+function draftMessageInput(content: string | ChatDraftMessageInput, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>): ChatDraftMessageInput {
+  return typeof content === "string" ? { text: content, attachments } : content
+}
+
+function draftMessagePayload(text: string, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>) {
+  const scratchpadItem: {
+    content: string
+    attachments?: Array<{ name: string; mime_type: string; data: string }>
+  } = { content: text }
+
+  if (attachments.length > 0) scratchpadItem.attachments = attachments.map(attachmentPayload)
+
+  return scratchpadItem
+}
+
+function attachmentPayload(attachment: ChatMessageAttachmentInput | ChatDraftAttachment) {
+  if ("mimeType" in attachment) {
+    return {
+      name: attachment.name,
+      mime_type: attachment.mimeType,
+      data: attachment.dataUrl.replace(/^data:[^;]+;base64,/, "")
+    }
+  }
+
+  return {
+    name: attachment.name,
+    mime_type: attachment.mime_type,
+    data: attachment.data.replace(/^data:[^;]+;base64,/, "")
+  }
 }
 
 export function createChatBookmark(path: string, messageId: number, label: string) {

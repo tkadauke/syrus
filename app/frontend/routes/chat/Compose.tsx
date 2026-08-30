@@ -10,7 +10,7 @@ import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationS
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatGoal, patchChatWhiteboard, pauseChatGoal, rejectChatProposal, renameChat, resumeChatGoal, scheduleChatMessage, sendChatMessage, shareChat, stopChat, stopChatGoal, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, upsertChatGoal, type ChatBranchPayload, type ChatCreatedPayload, type ChatDraftMessage, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -336,12 +336,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   })
   const stash = useMutation({
-    mutationFn: (content?: string) => createScratchpadItem(chatId, content ?? text),
+    mutationFn: (content?: string) => createScratchpadItem(chatId, content ?? text, content == null ? attachments : []),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
+      setAttachments([])
+      setAttachmentError(null)
     }
   })
+  const canStashDraft = text.trim().length > 0 || attachments.length > 0
   const commandPaletteOpen = commandQuery != null
     && matchingCommands.length > 0
     && !send.isPending
@@ -1175,7 +1178,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
-    if (event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && text.trim().length > 0) {
+    if (event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && canStashDraft && attachmentError == null) {
       event.preventDefault()
       stash.mutate(undefined)
       return
@@ -1511,8 +1514,13 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             queryKey={queryKey}
             reorderPath={payload.paths.app_scratchpad_reorder_path}
             text={text}
+            attachments={attachments}
             onDismiss={() => setScratchpadOpen(false)}
-            onLoadToInput={updateText}
+            onLoadToInput={(draft) => {
+              updateText(draft.text)
+              setAttachments(composeAttachmentsFromDraft(draft))
+              setAttachmentError(null)
+            }}
           />
           {pendingConfirmation ? (
             <SlashCommandConfirmation
@@ -1737,11 +1745,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             >
               {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
             </button>
-            {text.trim().length > 0 ? (
+            {canStashDraft ? (
               <button
                 aria-label={t("scratchpad_stash")}
                 className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-                disabled={stash.isPending}
+                disabled={stash.isPending || attachmentError != null}
                 onClick={() => stash.mutate(undefined)}
                 title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
                 type="button"
@@ -2642,6 +2650,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
   const search = queryKey[2]
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(message.text)
+  const messageDraft: ChatDraftMessage = { text: message.text, attachments: message.attachments || [] }
   const update = useMutation({
     mutationFn: () => updateQueuedChatMessage(appendSearch(message.app_update_path, search), draft),
     onSuccess: (updated) => {
@@ -2655,7 +2664,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
   })
   const stash = useMutation({
     mutationFn: async () => {
-      const afterCreate = await createScratchpadItem(chatId, message.text)
+      const afterCreate = await createScratchpadItem(chatId, messageDraft)
       queryClient.setQueryData(queryKey, afterCreate)
       return deleteQueuedChatMessage(appendSearch(message.app_delete_path, search))
     },
@@ -2678,7 +2687,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
         />
         <div className="mt-2 flex justify-end gap-2">
           <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">{t("cancel")}</Button>
-          <Button disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} size="sm" variant="primary">{t("save")}</Button>
+          <Button disabled={update.isPending || (draft.trim().length === 0 && (message.attachments || []).length === 0)} onClick={() => update.mutate()} size="sm" variant="primary">{t("save")}</Button>
         </div>
       </div>
     )
@@ -2689,7 +2698,8 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
       <div className="flex items-start gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-800">
         <span className="mt-0.5 shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{position}</span>
         <button className="min-w-0 flex-1 text-left text-sm text-gray-700 hover:text-brand dark:text-gray-200" onClick={() => setEditing(true)} type="button">
-          <span className="line-clamp-2 whitespace-pre-wrap break-words">{message.text}</span>
+          <span className="line-clamp-2 whitespace-pre-wrap break-words">{message.text || t("attachment_only_draft")}</span>
+          <DraftAttachmentIndicator attachments={message.attachments || []} />
         </button>
         <button
           aria-label={t("scratchpad_stash")}
@@ -2718,6 +2728,37 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
       {stash.isError ? <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(stash.error, "Could not move to scratch pad.")}</div> : null}
     </div>
   )
+}
+
+function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessage["attachments"] }) {
+  if (!attachments || attachments.length === 0) return null
+
+  const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
+  const label = imageCount === attachments.length
+    ? `${attachments.length} image${attachments.length === 1 ? "" : "s"}`
+    : `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+
+  return (
+    <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+      <span aria-hidden="true">+</span>
+      <span className="truncate">{label}</span>
+    </span>
+  )
+}
+
+function composeAttachmentsFromDraft(draft: ChatDraftMessage): ChatComposeAttachment[] {
+  return (draft.attachments || []).map((attachment) => ({
+    name: attachment.name,
+    mimeType: attachment.mime_type,
+    dataUrl: attachment.data.startsWith("data:") ? attachment.data : `data:${attachment.mime_type};base64,${attachment.data}`,
+    size: approximateBase64Bytes(attachment.data)
+  }))
+}
+
+function approximateBase64Bytes(data: string) {
+  const base64 = data.replace(/^data:[^;]+;base64,/, "")
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0
+  return Math.max(0, Math.ceil((base64.length * 3) / 4) - padding)
 }
 
 function autosizeChatTextarea(textarea: HTMLTextAreaElement) {
