@@ -29,7 +29,7 @@ import {
 type SurfaceMode = "index" | "repository" | "chat"
 type SelectionRange = { start: number; end: number; text: string }
 
-export function DesignDocsSurface({ chatId, compact = false, mode, repositoryId }: { chatId?: number; compact?: boolean; mode: SurfaceMode; repositoryId?: string | number }) {
+export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode, repositoryId }: { chatId?: number; compact?: boolean; designDocIds?: number[]; mode: SurfaceMode; repositoryId?: string | number }) {
   const params = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -54,7 +54,7 @@ export function DesignDocsSurface({ chatId, compact = false, mode, repositoryId 
   })
   const [filters, setFilters] = useState({ repository: mode === "repository" && repositoryId ? String(repositoryId) : "all", owner: "all", state: "all", visibility: "all", updated: "all" })
   const [notice, setNotice] = useState<string | null>(null)
-  const docs = useMemo(() => filterDocs(indexQuery.data?.design_docs ?? [], filters, chatId), [chatId, filters, indexQuery.data])
+  const docs = useMemo(() => filterDocs(indexQuery.data?.design_docs ?? [], filters, chatId, designDocIds), [chatId, designDocIds, filters, indexQuery.data])
   const selectedDoc = detailQuery.data?.design_doc ?? null
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
 
@@ -475,10 +475,11 @@ function StatusLabel({ value }: { value: string }) {
   return <span className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:text-gray-300">{value}</span>
 }
 
-function filterDocs(docs: DesignDocSummary[], filters: { repository: string; owner: string; state: string; visibility: string; updated: string }, chatId?: number) {
+function filterDocs(docs: DesignDocSummary[], filters: { repository: string; owner: string; state: string; visibility: string; updated: string }, chatId?: number, designDocIds: number[] = []) {
   const cutoff = filters.updated === "all" ? null : Date.now() - Number(filters.updated) * 24 * 60 * 60 * 1000
+  const scopedIds = new Set(designDocIds.map(String))
   return docs.filter((doc) => {
-    if (chatId && doc.origin_chat_session_id !== chatId) return false
+    if (chatId && doc.origin_chat_session_id !== chatId && !scopedIds.has(String(doc.id))) return false
     if (filters.repository !== "all" && !doc.repository_ids.map(String).includes(filters.repository)) return false
     if (filters.owner !== "all" && doc.owner?.name !== filters.owner) return false
     if (filters.state !== "all" && doc.state !== filters.state) return false

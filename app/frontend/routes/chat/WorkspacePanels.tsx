@@ -200,7 +200,7 @@ function PluginWorkspaceTabPanel({ activeTab, payload }: { activeTab: WorkspaceT
 
   return (
     <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
-      <Component payload={payload} />
+      <Component payload={payload} tab={pluginTab} />
     </Suspense>
   )
 }

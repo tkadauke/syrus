@@ -520,6 +520,7 @@ export type ChatWorkspaceTab = {
   component: string
   order: number
   closable?: boolean
+  data?: Record<string, unknown>
 }
 
 export type CodingFilesPayload = {

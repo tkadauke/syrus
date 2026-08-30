@@ -25,7 +25,9 @@ class WorkspaceTabsPayload
 
   def tabs_for(provider)
     PerformanceLogging.plugin_call(extension_point: :workspace_tab, provider: provider, operation: :workspace_tabs) do
-      Array(provider.workspace_tabs).map { |tab| tab_payload(tab) }
+      method = provider.method(:workspace_tabs)
+      tabs = method.arity.zero? ? provider.workspace_tabs : provider.workspace_tabs(@chat_session)
+      Array(tabs).map { |tab| tab_payload(tab) }
     end
   end
 
@@ -39,6 +41,7 @@ class WorkspaceTabsPayload
       order: tab[:order].to_i
     }
     payload[:closable] = true if ActiveModel::Type::Boolean.new.cast(tab[:closable])
+    payload[:data] = tab[:data] if tab.key?(:data)
     payload
   end
 end
