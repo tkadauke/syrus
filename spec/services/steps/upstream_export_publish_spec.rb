@@ -20,6 +20,7 @@ RSpec.describe Steps::UpstreamExportPublish do
 
   before do
     allow(GithubClient).to receive(:for).with(repository: canonical, user: user).and_return(client)
+    allow(client).to receive(:open_pull_request_for_head).and_return(nil)
   end
 
   it "raises StepFailed when the repository has no in-instance upstream_repository" do

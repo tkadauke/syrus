@@ -49,6 +49,10 @@ RSpec.describe RunJob, :ci_only do
       status: 201, headers: { "Content-Type" => "application/json" },
       body: { number: 123, html_url: "https://github.com/acme/widgets/pull/123" }.to_json
     )
+    stub_request(:get, %r{\Ahttps://api\.github\.com/repos/acme/widgets/pulls(\?.*)?\z}).to_return(
+      status: 200, headers: { "Content-Type" => "application/json" },
+      body: [].to_json
+    )
     stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/123").with(query: hash_including({})).to_return(
       status: 200, headers: { "Content-Type" => "application/json" },
       body: { number: 123, state: "open", merged: false, body: "Existing PR body" }.to_json
@@ -702,7 +706,7 @@ RSpec.describe RunJob, :ci_only do
   end
 
   def default_agent_runner(workspace_path:, **_)
-    current = Run.last
+    current = Thread.current[:syrus_current_run]
     file = File.join(workspace_path, "feature.rb")
     case current.step.kind
     when "implement", "landing_fix", "manual"
