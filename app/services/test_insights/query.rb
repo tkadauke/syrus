@@ -36,13 +36,16 @@ module TestInsights
 
       identities =
         if @sort.requires_in_memory_failure_rate?
-          failure_rate_sorted_identities(scope)
+          candidates = failure_rate_candidates(scope)
+          @stats_by_identity_id = recent_stats_by_identity_id(candidates)
+          failure_rate_sorted_identities(candidates)
         else
           @sort.apply(scope, @direction).limit(identity_candidate_limit).to_a
         end
 
+      @stats_by_identity_id = recent_stats_by_identity_id(identities)
       latest_cases = latest_cases_by_identity_id(identities)
-      tests = identities.map { |identity| test_identity_json(identity, latest_cases[identity.id]) }
+      tests = identities.map { |identity| test_identity_json(identity, latest_cases[identity.id], @stats_by_identity_id.fetch(identity.id)) }
 
       tests = @filters.apply_failure_rate_filters(tests).first(@limit)
 
@@ -80,10 +83,13 @@ module TestInsights
       value.clamp(1, MAX_LIMIT)
     end
 
-    def failure_rate_sorted_identities(scope)
-      candidates = scope.order(last_failed_at: @direction.desc? ? :desc : :asc, last_seen_at: :desc, id: :desc).limit(identity_candidate_limit).to_a
+    def failure_rate_candidates(scope)
+      scope.order(last_failed_at: @direction.desc? ? :desc : :asc, last_seen_at: :desc, id: :desc).limit(identity_candidate_limit).to_a
+    end
+
+    def failure_rate_sorted_identities(candidates)
       candidates
-        .sort_by { |identity| failure_rate_sort_key(identity) }
+        .sort_by { |identity| failure_rate_sort_key(identity, @stats_by_identity_id.fetch(identity.id)) }
     end
 
     def identity_candidate_limit
@@ -92,10 +98,17 @@ module TestInsights
       [ @limit * FAILURE_RATE_CANDIDATE_MULTIPLIER, MAX_FAILURE_RATE_CANDIDATES ].min
     end
 
-    def failure_rate_sort_key(identity)
-      stats = identity.recent_stats(lookback: @filters.lookback)
+    def failure_rate_sort_key(identity, stats)
       rate = stats.fetch(:failure_rate)
       @direction.desc? ? [ -rate, -stats.fetch(:failed_count), identity.name ] : [ rate, stats.fetch(:failed_count), identity.name ]
+    end
+
+    def recent_stats_by_identity_id(identities)
+      existing = @stats_by_identity_id || {}
+      missing = identities.reject { |identity| existing.key?(identity.id) }
+      return existing if missing.empty?
+
+      existing.merge(RecentStats.load(missing, lookback: @filters.lookback))
     end
 
     def latest_cases_by_identity_id(identities)
@@ -110,8 +123,7 @@ module TestInsights
         .index_by(&:test_identity_id)
     end
 
-    def test_identity_json(identity, latest_case)
-      stats = identity.recent_stats(lookback: @filters.lookback)
+    def test_identity_json(identity, latest_case, stats)
       {
         id: identity.id,
         type: "TestIdentity",
@@ -306,7 +318,7 @@ module TestInsights
 
       def initialize(filters)
         @filters = (filters || {}).to_h.with_indifferent_access
-        @lookback = integer_filter(:lookback, default: DEFAULT_LOOKBACK).clamp(1, 100)
+        @lookback = (integer_filter(:lookback, default: DEFAULT_LOOKBACK) || DEFAULT_LOOKBACK).clamp(1, 100)
       end
 
       def apply_summary_filters(scope)
@@ -369,6 +381,57 @@ module TestInsights
         Time.zone.parse(value.to_s)
       rescue ArgumentError
         nil
+      end
+    end
+
+    class RecentStats
+      EMPTY_STATS = {
+        total_count: 0,
+        failed_count: 0,
+        passed_count: 0,
+        failure_rate: 0.0,
+        avg_duration_ms: nil
+      }.freeze
+
+      def self.load(identities, lookback:)
+        ids = identities.map(&:id)
+        stats_by_id = ids.index_with { EMPTY_STATS.dup }
+        return stats_by_id if ids.empty?
+
+        ranked_cases = TestCase
+          .where(test_identity_id: ids)
+          .select(
+            "test_cases.test_identity_id",
+            "test_cases.status",
+            "test_cases.duration_ms",
+            "ROW_NUMBER() OVER (PARTITION BY test_cases.test_identity_id ORDER BY test_cases.created_at DESC, test_cases.id DESC) AS syrus_recent_rank"
+          )
+
+        rows = TestCase
+          .from("(#{ranked_cases.to_sql}) test_cases")
+          .where("syrus_recent_rank <= ?", lookback)
+          .pluck(:test_identity_id, :status, :duration_ms)
+
+        rows.group_by(&:first).each do |identity_id, grouped_rows|
+          stats_by_id[identity_id] = stats_for(grouped_rows)
+        end
+
+        stats_by_id
+      end
+
+      def self.stats_for(rows)
+        total = rows.size
+        failed = rows.count { |_identity_id, status, _duration| status == "failed" || status == "error" }
+        passed = rows.count { |_identity_id, status, _duration| status == "passed" }
+        durations = rows.filter_map { |_identity_id, _status, duration| duration }
+
+        {
+          total_count: total,
+          failed_count: failed,
+          passed_count: passed,
+          failure_rate: total.positive? ? (failed.to_f / total) : 0.0,
+          avg_duration_ms: durations.any? ? (durations.sum.to_f / durations.size).round : nil
+        }
       end
     end
   end
