@@ -710,12 +710,12 @@ function ImagePreviewPanel({ entryPath, rawEntryUrl }: { entryPath: string; rawE
         <button aria-label={t("preview_image_zoom_out")} className={secondaryButton()} onClick={() => zoomBy(-0.25)} type="button">-</button>
         <button aria-label={t("preview_image_zoom_in")} className={secondaryButton()} onClick={() => zoomBy(0.25)} type="button">+</button>
         <button className={secondaryButton()} onClick={() => { setFit(false); setZoom(1) }} type="button">{t("preview_image_actual")}</button>
-        <select aria-label={t("preview_image_background")} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" value={background} onChange={(event) => setBackground(event.target.value as keyof typeof imageBackgroundClasses)}>
+        <Select aria-label={t("preview_image_background")} className="text-xs" fullWidth={false} value={background} onChange={(event) => setBackground(event.target.value as keyof typeof imageBackgroundClasses)}>
           <option value="checkerboard">{t("preview_image_background_checkerboard")}</option>
           <option value="white">{t("preview_image_background_white")}</option>
           <option value="dark">{t("preview_image_background_dark")}</option>
           <option value="neutral">{t("preview_image_background_neutral")}</option>
-        </select>
+        </Select>
         <a className={secondaryButton()} href={rawEntryUrl} rel="noopener noreferrer" target="_blank">{t("preview_open_raw")}</a>
       </div>
       <div className={`min-h-0 flex-1 overflow-auto ${imageBackgroundClasses[background]}`}>
