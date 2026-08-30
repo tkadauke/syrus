@@ -9,19 +9,27 @@ module ChatGoalActions
     chat_session = find_chat_session
 
     goal = nil
+    publish_start = false
     chat_session.with_lock do
       goal = chat_session.active_goal
       goal_attrs = chat_goal_attributes(chat_session, existing_goal: goal)
       next if performed?
 
       if goal
+        was_paused = goal.paused?
         goal.update!(goal_attrs)
-        goal.resume! if goal.paused?
+        if goal.paused?
+          goal.resume!
+          publish_start = was_paused
+        end
       else
         goal = chat_session.chat_goals.create!(goal_attrs.merge(user: chat_session.user))
+        publish_start = true
       end
     end
     return if performed?
+
+    ChatGoalWakeup.publish_start!(goal) if publish_start
 
     render json: chat_payload(chat_session.reload, message: "Goal updated.")
   rescue ActiveRecord::RecordInvalid => e
