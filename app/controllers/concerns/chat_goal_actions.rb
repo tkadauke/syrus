@@ -35,7 +35,10 @@ module ChatGoalActions
   end
 
   def resume_goal
-    mutate_goal!("Goal resumed.") { |goal| goal.resume! }
+    mutate_goal!("Goal resumed.") do |goal|
+      goal.resume!
+      ChatGoalWakeup.publish_control!(goal, action: "resume")
+    end
   end
 
   def stop_goal

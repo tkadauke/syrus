@@ -130,9 +130,14 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "status")).to eq("paused")
 
-    post "/api/v1/app/chats/#{chat.id}/goal/resume"
+    clear_enqueued_jobs
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/goal/resume"
+    }.to change(ChatMessage, :count).by(1)
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "status")).to eq("active")
+    expect(chat.messages.last.content).to include("source" => "goal_continuation")
+    expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
 
     post "/api/v1/app/chats/#{chat.id}/goal/stop", params: { reason: "operator_stopped" }
     expect(response).to have_http_status(:ok)
