@@ -143,6 +143,8 @@ class McpToolRegistry
         chat(Mcp::Tools::RenameChatTool, mutation: true),
         chat(Mcp::Tools::SuggestNextStepTool, mutation: true),
         chat(Mcp::Tools::AskUserQuestionTool, mutation: true),
+        chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true),
+        chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true),
         chat(Mcp::Tools::ResetWorkspaceTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         chat(Mcp::Tools::CompleteImplementStepTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         chat(Mcp::Tools::SubmitCodingChangesTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),

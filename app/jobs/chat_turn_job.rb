@@ -142,6 +142,7 @@ class ChatTurnJob < ApplicationJob
   def finalize_turn!
     return unless @chat
 
+    ChatGoalIterationAuditor.after_turn!(chat_session: @chat, user_message: @user_message)
     clear_stop_request_and_broadcast_controls!
     ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat)
   end
@@ -210,25 +211,26 @@ class ChatTurnJob < ApplicationJob
 
   def prompt_for(parent_session_id, user_text:)
     snapshot = AgentEnvironmentSnapshot.for_chat(repository: @chat.repository, chat_session: @chat)
+    goal_context = Prompts::ChatGoalContext.new(chat_session: @chat, current_message: @user_message).to_s
     return proposal_outcome_prompt(snapshot: snapshot, user_text: user_text) if proposal_outcome_message?
 
     if @skill_invocation
-      return [ snapshot, system_guidance(parent_session_id), (chat_history_fallback if parent_session_id.present?), skill_invocation_text ]
+      return [ snapshot, system_guidance(parent_session_id), goal_context, (chat_history_fallback if parent_session_id.present?), skill_invocation_text ]
         .compact.join("\n\n---\n\n")
     end
 
     walkthrough_text = walkthrough_orientation(user_note: user_text)
     if walkthrough_text
-      return [ snapshot, system_guidance(parent_session_id), (chat_history_fallback if parent_session_id.present?), walkthrough_text ]
+      return [ snapshot, system_guidance(parent_session_id), goal_context, (chat_history_fallback if parent_session_id.present?), walkthrough_text ]
         .compact.join("\n\n---\n\n")
     end
 
     if parent_session_id.present?
       elaboration_guidance = Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).elaboration_guidance
-      return [ snapshot, elaboration_guidance.presence, coding_mode_guidance, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
+      return [ snapshot, elaboration_guidance.presence, coding_mode_guidance, goal_context, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
     end
 
-    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, user_text ].compact.join("\n\n")
+    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, goal_context, user_text ].compact.join("\n\n")
   end
 
   # A walkthrough-video message triggers the FIRST-CLASS handoff: rather than

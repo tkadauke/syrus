@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat) { ChatSession.create!(user: user, repository: repository, mode: "planning") }
@@ -41,6 +43,42 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "id")).to eq(active_goal["id"])
+  end
+
+  it "handles /goal as a backend system command instead of sending it to the agent" do
+    clear_enqueued_jobs
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "/goal plan the billing launch" } }
+    }.to change(ChatGoal, :count).by(1)
+    expect(ChatMessage.count).to eq(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("active_goal", "prompt")).to eq("plan the billing launch")
+    expect(ChatTurnJob).not_to have_been_enqueued
+  end
+
+  it "records a goal wake event when a goal-linked proposal is confirmed" do
+    clear_enqueued_jobs
+    goal = chat.chat_goals.create!(prompt: "Plan billing")
+    proposal = chat.proposals.create!(
+      repository: repository,
+      chat_goal: goal,
+      slug: "billing-job",
+      title: "Billing job",
+      body: "Do the billing work.",
+      kind: "job"
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    event = chat.scoped_events.last
+    expect(event).to have_attributes(source_kind: "goal_proposal_confirmed", proposal_id: proposal.id)
+    expect(chat.reload).to be_turn_in_flight
+    expect(chat.chat_queued_messages.pending.last.content).to include("source" => "goal_continuation")
   end
 
   it "updates an existing active goal instead of creating a second one" do

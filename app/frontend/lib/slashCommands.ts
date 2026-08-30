@@ -70,6 +70,7 @@ export const slashCommands = [
   { name: "/scratch", kind: "system", args: [{ name: "text", required: false }], description: "Stash text to the scratch pad, or open the scratch pad panel." },
   { name: "/share", kind: "system", args: [], description: "Copy a shareable link to this chat" },
   { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "Schedule a chat message to send later." },
+  { name: "/goal", kind: "system", args: [{ name: "action/objective", required: false }], description: "Start, edit, pause, resume, or stop the active goal." },
   {
     name: "/jobs",
     kind: "system",
