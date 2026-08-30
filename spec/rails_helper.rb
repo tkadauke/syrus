@@ -81,12 +81,6 @@ RSpec.configure do |config|
     # run's logs start numbering above 0.
     JobLog.clear_sequence_cache!
     Steps::AutoMerge.mergeability_settle_delay = 0
-    # Stub the GitHub API call made by RepoAdversarialReviewPlan#resolve so
-    # that specs using Factories.job (which instantiates an Initial workflow)
-    # don't silently rely on rescue StandardError catching a WebMock error.
-    # Specs that need adversarial review enabled override this in a local before.
-    allow(RepoAdversarialReviewPlan).to receive(:for_job)
-      .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
   end
 
   config.after do
