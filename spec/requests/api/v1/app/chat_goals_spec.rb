@@ -81,6 +81,41 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(chat.chat_queued_messages.pending.last.content).to include("source" => "goal_continuation")
   end
 
+  it "records a goal wake event when a goal-linked Epic bundle is confirmed" do
+    clear_enqueued_jobs
+    goal = chat.chat_goals.create!(prompt: "Plan billing")
+    proposal = chat.proposals.create!(
+      repository: repository,
+      chat_goal: goal,
+      slug: "billing-epic",
+      title: "Billing epic",
+      body: "Coordinate the billing work.",
+      kind: "epic"
+    )
+    proposal.child_proposals.create!(
+      chat_session: chat,
+      repository: repository,
+      chat_goal: goal,
+      slug: "billing-job",
+      title: "Billing job",
+      body: "Do the billing work.",
+      kind: "job"
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    event = chat.scoped_events.last
+    expect(event).to have_attributes(source_kind: "goal_proposal_confirmed", proposal_id: proposal.id)
+    expect(event.payload.dig("work_state", "materialized")).to include(
+      a_string_matching(/\AJOB-\d+:/),
+      a_string_matching(/\AEPIC-\d+:/)
+    )
+    expect(chat.chat_queued_messages.pending.last.content).to include("source" => "goal_continuation")
+  end
+
   it "updates an existing active goal instead of creating a second one" do
     chat.chat_goals.create!(
       prompt: "Old prompt",

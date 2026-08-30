@@ -1400,9 +1400,17 @@ module Api
           goal = proposal.chat_goal
           return unless goal&.active?
 
+          jobs = result.respond_to?(:jobs) ? Array(result.jobs) : []
+          epics = if result.respond_to?(:epics)
+            Array(result.epics)
+          elsif result.respond_to?(:epic)
+            Array(result.epic)
+          else
+            []
+          end
           materialized = [
-            *Array(result.jobs).map { |job| "#{job.slug}:#{job.state}" },
-            *Array(result.epics).map { |epic| "#{epic.slug}:#{epic.state}" }
+            *jobs.map { |job| "#{job.slug}:#{job.state}" },
+            *epics.map { |epic| "#{epic.slug}:#{epic.state}" }
           ]
           ChatGoalWakeup.publish_work_event!(
             goal: goal,
