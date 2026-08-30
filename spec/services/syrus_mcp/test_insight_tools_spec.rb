@@ -240,6 +240,26 @@ RSpec.describe "Test Insight MCP tools" do
       expect(payload.dig(:test_runs, 0)).not_to have_key(:suites)
     end
 
+    it "keeps explicit null boolean options compact by default" do
+      job = Factories.job(user: user, repository: repository)
+      run = job.initial_run
+      test_run = create_test_run!(run: run, total_count: 1, passed_count: 1)
+      create_test_case!(test_run: test_run, name: "passes")
+
+      response = described_class.call(
+        server_context: { chat_session: chat_session },
+        job_id: job.id,
+        include_slow_cases: nil,
+        include_suites: nil
+      )
+
+      expect(response).not_to be_error
+      payload = payload_from(response)
+      expect(payload.dig(:test_runs, 0)).not_to have_key(:slow_cases)
+      expect(payload.dig(:test_runs, 0)).not_to have_key(:suites)
+      expect(payload.fetch(:truncation)).to include(slow_cases_returned: 0, slow_cases_omitted: 1, suites_included: false)
+    end
+
     it "can include slow cases and full suite grouping for multi-grader results" do
       job = Factories.job(user: user, repository: repository)
       run = job.initial_run
