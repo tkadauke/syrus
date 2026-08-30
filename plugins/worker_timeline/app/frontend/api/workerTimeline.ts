@@ -1,4 +1,4 @@
-import { getJson } from "@app/api/client"
+import { getJson, postJson } from "@app/api/client"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type WorkerTimelineBlockedInfo = {
@@ -104,10 +104,26 @@ export type WorkerTimelineWaterfallPayload = {
   steps: WorkerTimelineWaterfallStep[]
 }
 
+export type WorkerTimelineFilterUsageInput = {
+  filter: Record<string, unknown>
+}
+
+export type WorkerTimelineFilterUsagePayload = {
+  recorded: boolean
+}
+
 export function fetchWorkerTimelineMacro(search = "") {
   return getJson<WorkerTimelineMacroPayload>(`/api/v1/app/admin/worker_timeline/macro${search}`)
 }
 
 export function fetchWorkerTimelineWorkflow(workflowId: string) {
   return getJson<WorkerTimelineWaterfallPayload>(`/api/v1/app/admin/worker_timeline/workflow?id=${encodeURIComponent(workflowId)}`)
+}
+
+export function recordWorkerTimelineFilterUsage(input: WorkerTimelineFilterUsageInput) {
+  return postJson<WorkerTimelineFilterUsagePayload>("/api/v1/app/filters/usage", {
+    surface: "worker_timeline",
+    subject: "worker_timeline",
+    filter: input.filter
+  })
 }

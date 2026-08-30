@@ -1,10 +1,11 @@
 class FilterUsage < ApplicationRecord
-  SURFACES = %w[dashboard].freeze
+  SURFACES = %w[dashboard worker_timeline].freeze
+  SUBJECTS = (SmartFolder::SUBJECT_TYPES + %w[worker_timeline]).freeze
 
   belongs_to :user
 
   validates :surface, presence: true, inclusion: { in: SURFACES }
-  validates :subject, presence: true, inclusion: { in: SmartFolder::SUBJECT_TYPES }
+  validates :subject, presence: true, inclusion: { in: SUBJECTS }
   validates :fingerprint, presence: true
   validates :filter_node, presence: true
   validates :label, presence: true

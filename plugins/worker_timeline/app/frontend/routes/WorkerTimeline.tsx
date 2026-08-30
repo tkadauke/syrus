@@ -5,7 +5,7 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
-import { fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
+import { fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, recordWorkerTimelineFilterUsage, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
 import { TimelineLanes } from "../components/TimelineLanes"
 import { WorkflowWaterfall } from "../components/WorkflowWaterfall"
 
@@ -41,7 +41,16 @@ export function WorkerTimelineMacroView() {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("description")}</p>
       </header>
 
-      <FilterBar filter={macro.data?.filter ?? null} filterSchema={macro.data?.filter_schema ?? []} pathname={location.pathname} search={location.search} />
+      <FilterBar
+        filter={macro.data?.filter ?? null}
+        filterSchema={macro.data?.filter_schema ?? []}
+        onFilterApplied={(tree) => {
+          void recordWorkerTimelineFilterUsage({ filter: tree as Record<string, unknown> }).catch(() => {})
+        }}
+        pathname={location.pathname}
+        search={location.search}
+        suggestionSearch={{ surface: "worker_timeline", subject: "worker_timeline" }}
+      />
 
       {macro.isPending ? <p className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</p> : null}
       {macro.isError ? <p className="p-6 text-sm text-red-700 dark:text-red-300">{errorMessage(macro.error, t("error_loading"))}</p> : null}
