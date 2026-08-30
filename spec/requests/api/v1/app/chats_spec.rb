@@ -2177,17 +2177,20 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "404s when relay address is blank (relay not yet started)" do
+    it "returns 503 and queues a relay refresh when relay address is blank" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
 
-      get "/api/v1/app/chats/#{chat.id}/coding_files"
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_files"
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("chat")
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
     end
 
-    it "404s when the relay connection is refused" do
+    it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
@@ -2196,9 +2199,11 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
         .with(query: hash_including("session_id" => chat.id.to_s))
         .to_raise(Errno::ECONNREFUSED)
 
-      get "/api/v1/app/chats/#{chat.id}/coding_files"
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_files"
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("chat")
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:service_unavailable)
       expect(chat.reload.coding_relay_address).to be_nil
       expect(chat.coding_relay_token).to be_nil
     end
@@ -2258,17 +2263,20 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "returns 404 when relay address is blank" do
+    it "returns 503 and queues a relay refresh when relay address is blank" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
 
-      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("chat")
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
     end
 
-    it "returns 404 when the relay connection is refused" do
+    it "returns 503, clears stale credentials, and queues a refresh when the relay connection is refused" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
         coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
@@ -2277,9 +2285,13 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
         .with(query: hash_including("session_id" => chat.id.to_s))
         .to_raise(Errno::ECONNREFUSED)
 
-      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
+      }.to have_enqueued_job(ChatCodingRelayRefreshJob).with(chat.id).on_queue("chat")
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:service_unavailable)
+      expect(chat.reload.coding_relay_address).to be_nil
+      expect(chat.coding_relay_token).to be_nil
     end
 
     it "404s when the coding_mode feature flag is off" do
@@ -2427,6 +2439,41 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(response).to have_http_status(:content_too_large)
       expect(response.body).to include("too large")
+    end
+  end
+
+  describe "GET /syrus-home/.syrus/chat-workspaces/:id/repositories/:owner/:repo/*path" do
+    it "redirects leaked absolute workspace file links through the authenticated raw source proxy" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+
+      get "/syrus-home/.syrus/chat-workspaces/#{chat.id}/repositories/#{repository.owner}/#{repository.name}/spec/services/main_health_changed_service_spec.rb:982"
+
+      expect(response).to redirect_to(
+        "/api/v1/app/chats/#{chat.id}/source_file/raw?path=spec%2Fservices%2Fmain_health_changed_service_spec.rb"
+      )
+    end
+
+    it "rejects leaked workspace file links for another user's chat" do
+      other_user = Factories.user
+      sign_in_as(other_user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+
+      get "/syrus-home/.syrus/chat-workspaces/#{chat.id}/repositories/#{repository.owner}/#{repository.name}/README.md"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "rejects leaked workspace file links when the repository slug does not match the chat" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+
+      get "/syrus-home/.syrus/chat-workspaces/#{chat.id}/repositories/other/repo/README.md"
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 

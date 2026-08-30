@@ -198,11 +198,22 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       it "does not write relay credentials when relay_address is nil" do
         ChatWorkspaceRelay.relay_address = nil
+        allow(ChatWorkspaceRelay).to receive(:ensure_running!).and_return(nil)
 
         described_class.ensure_coding_checkout!(chat_session, repository)
 
         expect(chat_session.reload.coding_relay_address).to be_nil
         expect(chat_session.reload.coding_relay_token).to be_nil
+      end
+
+      it "starts the relay lazily before writing relay credentials" do
+        ChatWorkspaceRelay.relay_address = nil
+        allow(ChatWorkspaceRelay).to receive(:ensure_running!).and_return("127.0.0.1:9285")
+
+        described_class.ensure_coding_checkout!(chat_session, repository)
+
+        expect(chat_session.reload.coding_relay_address).to eq("127.0.0.1:9285")
+        expect(chat_session.coding_relay_token).to be_present
       end
 
       it "re-writes relay credentials after a reclaim cleared them" do

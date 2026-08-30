@@ -65,6 +65,17 @@ RSpec.describe ChatWorkspacePrepareJob do
     expect(chat_session.coding_checkout_prepare_finished_at).to be_present
   end
 
+  it "refreshes relay credentials after a successful prepare" do
+    chat_session.update!(repository: repository)
+    make_checkout_path
+    plan = RepoPrepPlan::Result.new(commands: [], source: ".syrus.yml", note: "opted out")
+    allow(RepoPrepPlan).to receive(:for).and_return(plan)
+
+    expect(ChatWorkspace).to receive(:refresh_relay_credentials!).with(chat_session, repository)
+
+    described_class.perform_now(chat_session.id, repository.id)
+  end
+
   it "runs each prep command with a scrubbed env, bash wrapper, and 10-minute timeout" do
     path = make_checkout_path
     plan = RepoPrepPlan::Result.new(commands: [ "bundle install" ], source: ".syrus.yml", note: nil)

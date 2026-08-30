@@ -1073,8 +1073,15 @@ module Api
           relay_params = {}
           relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
 
-          result = proxy_to_coding_relay(chat_session, "files", params: relay_params)
-          unless result
+          relay_response = proxy_to_coding_relay_response(chat_session, "files", params: relay_params)
+          if relay_response.nil?
+            schedule_coding_relay_refresh!(chat_session)
+            render_error("relay_unavailable", "Coding checkout relay is unavailable; refresh is queued.", status: :service_unavailable)
+            return
+          end
+
+          status, result = relay_response
+          unless status == 200
             render_error("not_found", "Coding checkout not available.", status: :not_found)
             return
           end
@@ -1099,8 +1106,15 @@ module Api
             return
           end
 
-          result = proxy_to_coding_relay(chat_session, "commits")
-          unless result
+          relay_response = proxy_to_coding_relay_response(chat_session, "commits")
+          if relay_response.nil?
+            schedule_coding_relay_refresh!(chat_session)
+            render_error("relay_unavailable", "Coding checkout relay is unavailable; refresh is queued.", status: :service_unavailable)
+            return
+          end
+
+          status, result = relay_response
+          unless status == 200
             render_error("not_found", "Coding checkout not available.", status: :not_found)
             return
           end
@@ -1134,8 +1148,15 @@ module Api
           relay_params = { path: file_path }
           relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
 
-          result = proxy_to_coding_relay(chat_session, "file", params: relay_params)
-          if result.nil?
+          relay_response = proxy_to_coding_relay_response(chat_session, "file", params: relay_params)
+          if relay_response.nil?
+            schedule_coding_relay_refresh!(chat_session)
+            render_error("relay_unavailable", "Coding checkout relay is unavailable; refresh is queued.", status: :service_unavailable)
+            return
+          end
+
+          status, result = relay_response
+          unless status == 200
             render_error("not_found", "File not found in coding checkout.", status: :not_found)
             return
           end
@@ -1178,7 +1199,7 @@ module Api
           end
 
           response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
-          render_source_file_response(response, missing_message: "File not found in attached repository.")
+          render_source_file_response(chat_session, response, missing_message: "File not found in attached repository.")
         end
 
         def source_file_raw
@@ -1193,6 +1214,7 @@ module Api
 
           relay_response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
           if relay_response.nil?
+            schedule_coding_relay_refresh!(chat_session)
             render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
             return
           end
@@ -1213,6 +1235,24 @@ module Api
               disposition: "inline",
               filename: File.basename(file_path)
           end
+        end
+
+        def workspace_file_raw
+          chat_session = find_chat_session
+          repository = chat_session.repository
+          unless repository && repository.owner == params[:owner].to_s && repository.name == params[:repo].to_s
+            render_error("not_found", "File not found in attached repository.", status: :not_found)
+            return
+          end
+
+          file_path, = split_workspace_path_and_line(params[:path].to_s)
+          if file_path.blank?
+            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            return
+          end
+
+          redirect_to "/api/v1/app/chats/#{chat_session.id}/source_file/raw?path=#{ERB::Util.url_encode(file_path)}",
+            allow_other_host: false
         end
 
         def search_proposals
@@ -1276,6 +1316,7 @@ module Api
           end
 
           if chat_session.coding_relay_address.blank? || chat_session.coding_relay_token.blank?
+            schedule_coding_relay_refresh!(chat_session)
             render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
             return false
           end
@@ -1283,8 +1324,9 @@ module Api
           true
         end
 
-        def render_source_file_response(relay_response, missing_message:)
+        def render_source_file_response(chat_session, relay_response, missing_message:)
           if relay_response.nil?
+            schedule_coding_relay_refresh!(chat_session)
             render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
             return
           end
@@ -1333,6 +1375,25 @@ module Api
 
         def clear_stale_coding_relay!(chat_session)
           chat_session.update_columns(coding_relay_address: nil, coding_relay_token: nil)
+        end
+
+        def schedule_coding_relay_refresh!(chat_session)
+          return if chat_session.repository_id.blank?
+
+          cache_key = "chat-coding-relay-refresh/#{chat_session.id}"
+          return if Rails.cache.read(cache_key)
+
+          Rails.cache.write(cache_key, true, expires_in: 15.seconds)
+          ChatCodingRelayRefreshJob.perform_later(chat_session.id)
+        rescue StandardError => e
+          Rails.logger.warn("[ChatsController] could not enqueue coding relay refresh for chat #{chat_session.id}: #{e.class}: #{e.message}")
+        end
+
+        def split_workspace_path_and_line(path)
+          match = path.match(/\A(?<file>.+):(?<line>\d+)\z/)
+          return [ match[:file].to_s, match[:line] ] if match
+
+          [ path, nil ]
         end
 
 

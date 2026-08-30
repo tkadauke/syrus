@@ -11,6 +11,11 @@ Rails.application.routes.draw do
   get "credentials", to: "spa#show", as: :credentials_settings
   get "credentials/edit", to: "spa#show", as: :edit_credentials
   get "setup", to: "spa#show", as: :setup
+  get "syrus-home/.syrus/chat-workspaces/:id/repositories/:owner/:repo/*path",
+    to: "api/v1/app/chats#workspace_file_raw",
+    constraints: { id: /\d+/ },
+    format: false,
+    as: :chat_workspace_file_raw
 
   # Admin REST API. Token-based auth (per-user), JSON only.
   # See docs/plans/complete/admin-diagnostics.md for the endpoint plan.

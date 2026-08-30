@@ -77,6 +77,10 @@ class ChatWorkspace
     new(chat_session).ensure_coding_checkout!(repository)
   end
 
+  def self.refresh_relay_credentials!(chat_session, repository)
+    new(chat_session).refresh_relay_credentials!(repository)
+  end
+
   # Returns true if the coding checkout path has uncommitted changes.
   # Uses git status --porcelain; returns false on any error (e.g. checkout
   # not yet initialized).
@@ -406,6 +410,17 @@ class ChatWorkspace
     @chat_session.update_columns(coding_checkout_branch: branch)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     enqueue_prepare!(repository)
+    write_relay_credentials!
+    path
+  end
+
+  def refresh_relay_credentials!(repository)
+    return nil unless @chat_session.repository_id == repository.id
+
+    path = self.class.repo_path_for(@chat_session, repository)
+    return nil unless path.join(".git").directory?
+
+    ensure_root!
     write_relay_credentials!
     path
   end
@@ -901,7 +916,7 @@ class ChatWorkspace
   end
 
   def write_relay_credentials!
-    relay_address = ChatWorkspaceRelay.relay_address
+    relay_address = ChatWorkspaceRelay.ensure_running! || ChatWorkspaceRelay.relay_address
     return if relay_address.blank?
     return if @chat_session.coding_relay_address == relay_address && @chat_session.coding_relay_token.present?
 

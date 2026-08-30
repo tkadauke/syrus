@@ -72,6 +72,17 @@ class ChatWorkspaceRelay
       end
     end
 
+    def ensure_running!
+      return relay_address if relay_address.present?
+      return nil unless SyrusVersion.server_process? && SyrusVersion.role == "worker"
+
+      start!
+      relay_address
+    rescue StandardError => e
+      Rails.logger.warn("[ChatWorkspaceRelay] could not start workspace relay: #{e.class}: #{e.message}")
+      nil
+    end
+
     def stop!
       MUTEX.synchronize do
         @server&.close

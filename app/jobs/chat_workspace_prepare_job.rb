@@ -30,6 +30,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
     if plan.commands.empty?
       Rails.logger.info("[ChatWorkspacePrepareJob] no commands to run; skipping")
+      refresh_relay_credentials!(chat_session, repository)
       mark_prepare_succeeded!(chat_session)
       return
     end
@@ -50,6 +51,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
     end
 
     Rails.logger.info("[ChatWorkspacePrepareJob] all commands completed successfully")
+    refresh_relay_credentials!(chat_session, repository)
     mark_prepare_succeeded!(chat_session)
   rescue StandardError => e
     mark_prepare_failed!(chat_session, "#{e.class}: #{e.message}") if defined?(chat_session) && chat_session
@@ -82,6 +84,12 @@ class ChatWorkspacePrepareJob < ApplicationJob
       coding_checkout_prepare_failure: nil,
       updated_at: Time.current
     )
+  end
+
+  def refresh_relay_credentials!(chat_session, repository)
+    ChatWorkspace.refresh_relay_credentials!(chat_session, repository)
+  rescue StandardError => e
+    Rails.logger.warn("[ChatWorkspacePrepareJob] relay credential refresh failed: #{e.class}: #{e.message}")
   end
 
   def mark_prepare_succeeded!(chat_session)
