@@ -91,6 +91,8 @@
   "goal_update_error": "Goal could not be updated.",
   "goal_controls_disabled_agent_active": "Goal controls are disabled while the agent is active.",
   "goal_command_usage": "Usage: /goal <objective>, /goal edit <objective>, /goal pause, /goal resume, or /goal stop",
+  "goal_provenance_label": "Goal",
+  "goal_provenance_value": "Goal #{{id}}",
   "clear_confirm": "Clear this chat's message history?",
   "clear": "Clear",
   "cancel": "Cancel",

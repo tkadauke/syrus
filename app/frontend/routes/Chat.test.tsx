@@ -5310,6 +5310,8 @@ describe("active goal strip", () => {
       expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/resume" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
       expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/goal/stop" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
     })
+    expect(await screen.findByText("Stopped")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Edit goal" })).toBeDisabled()
   })
 
   it("updates prompt, completion condition, and planning automation from the edit modal", async () => {

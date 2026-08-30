@@ -123,7 +123,7 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(parse_body.dig("active_goal", "mode_snapshot", "repository_id")).to eq(other_repository.id)
   end
 
-  it "pauses, resumes, stops, and clears the active goal payload" do
+  it "pauses, resumes, stops, and returns the stopped goal payload" do
     goal = chat.chat_goals.create!(prompt: "Keep going")
 
     post "/api/v1/app/chats/#{chat.id}/goal/pause"
@@ -141,7 +141,7 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
 
     post "/api/v1/app/chats/#{chat.id}/goal/stop", params: { reason: "operator_stopped" }
     expect(response).to have_http_status(:ok)
-    expect(parse_body["active_goal"]).to be_nil
+    expect(parse_body["active_goal"]).to include("status" => "cancelled", "terminal_reason" => "operator_stopped")
     expect(goal.reload).to have_attributes(status: "cancelled", terminal_reason: "operator_stopped")
   end
 
@@ -199,6 +199,24 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect(response).to have_http_status(:ok)
     serialized = parse_body.fetch("groups").flat_map { |group| group.fetch("chats") }.find { |row| row["id"] == chat.id }
     expect(serialized.dig("active_goal", "id")).to eq(goal.id)
+  end
+
+  it "returns the latest terminal goal when no goal is active" do
+    goal = chat.chat_goals.create!(prompt: "Make progress")
+    goal.block!(reason: "needs_credentials")
+
+    get "/api/v1/app/chats/#{chat.id}/goal"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["active_goal"]).to include(
+      "id" => goal.id,
+      "status" => "blocked",
+      "terminal_reason" => "needs_credentials"
+    )
+
+    get "/api/v1/app/chats"
+    expect(response).to have_http_status(:ok)
+    serialized = parse_body.fetch("groups").flat_map { |group| group.fetch("chats") }.find { |row| row["id"] == chat.id }
+    expect(serialized["active_goal"]).to include("id" => goal.id, "status" => "blocked")
   end
 
   it "does not expose another user's chat goal" do

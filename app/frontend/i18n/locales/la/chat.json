@@ -91,6 +91,8 @@
   "goal_update_error": "Propositum mutari non potuit.",
   "goal_controls_disabled_agent_active": "Instrumenta propositi debilitata sunt dum agens activum est.",
   "goal_command_usage": "Usus: /goal <propositum>, /goal edit <propositum>, /goal pause, /goal resume, vel /goal stop",
+  "goal_provenance_label": "Propositum",
+  "goal_provenance_value": "Propositum #{{id}}",
   "clear_confirm": "Historiam nuntiorum huius colloquii delere?",
   "clear": "Delere",
   "cancel": "Omittere",
