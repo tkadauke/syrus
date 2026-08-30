@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe Timeline::MacroQueryFilter do
+  around do |example|
+    WorkerTimeline::FilterRegistration.register!
+    example.run
+  ensure
+    WorkerTimeline::FilterRegistration.unregister!
+  end
+
   def encode(tree) = Filters::QueryParam.encode(tree)
 
   describe ".schema" do
