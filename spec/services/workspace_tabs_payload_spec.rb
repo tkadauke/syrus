@@ -21,12 +21,14 @@ RSpec.describe WorkspaceTabsPayload do
     described_class.new(chat_session).as_json.reject { |tab| tab[:id] == "whiteboard_tools.canvas" }
   end
 
-  def make_provider(id:, label: id.to_s, order: 0, available: true, label_key: nil)
+  def make_provider(id:, label: id.to_s, order: 0, available: true, label_key: nil, data: nil, with_chat: false)
     Class.new do
       include Syrus::Plugin::WorkspaceTab
 
-      define_singleton_method(:workspace_tabs) do
-        [ { id: id, label: label, label_key: label_key, component: "plugin/#{id}", order: order } ]
+      define_singleton_method(:workspace_tabs) do |*args|
+        payload = { id: id, label: label, label_key: label_key, component: "plugin/#{id}", order: order }
+        payload[:data] = with_chat ? { chat_id: args.first.id } : data if data || with_chat
+        [ payload ]
       end
 
       define_singleton_method(:available_for?) { |_chat_session| available }
@@ -74,5 +76,12 @@ RSpec.describe WorkspaceTabsPayload do
     PluginRecord.find_by!(name: "disabled_wt_plugin").update!(enabled: false)
 
     expect(other_tabs(chat_session)).to eq([])
+  end
+
+  it "passes the chat session to providers and preserves optional tab data" do
+    provider = make_provider(id: "my_plugin.contextual", with_chat: true)
+    Syrus::PluginRegistry.register(name: "contextual_wt_plugin", version: "1.0.0", provides: { workspace_tab: provider })
+
+    expect(other_tabs(chat_session).first).to include(data: { chat_id: chat_session.id })
   end
 end
