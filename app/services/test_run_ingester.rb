@@ -39,6 +39,7 @@ class TestRunIngester
 
     touched_test_identity_ids.uniq!
     TestIdentity.refresh_many!(touched_test_identity_ids)
+    TestIdentityRuntimeSummary.refresh_many!(touched_test_identity_ids)
     TestIdentitySearchIndex.upsert_many(TestIdentity.includes(:repository).where(id: touched_test_identity_ids))
     test_run
   end

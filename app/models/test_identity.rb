@@ -10,6 +10,7 @@ class TestIdentity < ApplicationRecord
 
   belongs_to :repository
   has_many :test_cases, dependent: :nullify
+  has_many :test_identity_runtime_summaries, dependent: :destroy
 
   validates :name, :suite_name, :fingerprint, presence: true
   validates :fingerprint, uniqueness: { scope: :repository_id }

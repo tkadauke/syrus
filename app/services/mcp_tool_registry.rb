@@ -231,6 +231,7 @@ class McpToolRegistry
         chat(Mcp::Tools::ReadTestInsightTool, tier: :deferred),
         chat(Mcp::Tools::ReadJobTestResultsTool, tier: :deferred),
         chat(Mcp::Tools::ReadRunTestResultsTool, tier: :deferred),
+        chat(Mcp::Tools::CompareTestRuntimeTool, tier: :deferred),
         chat(Mcp::Tools::UnapproveJobTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::RemoveJobFromEpicTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::StartEpicTool, tier: :deferred, mutation: true),
