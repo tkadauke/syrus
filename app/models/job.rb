@@ -625,6 +625,7 @@ class Job < ApplicationRecord
 
   after_update_commit :rebase_stack_children_after_successful_parent_close, if: :saved_change_to_stack_parent_resolved_terminal?
   after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
+  after_update_commit :publish_goal_implemented_event, if: :saved_change_to_implemented?
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
@@ -637,10 +638,12 @@ class Job < ApplicationRecord
   after_update_commit :enqueue_urgent_job_closed, if: :saved_change_to_closed_urgent_job?
   after_update_commit :start_dependent_jobs_after_successful_close, if: :saved_change_to_successful_closed_dependency?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
+  after_update_commit :publish_goal_approved_event, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
   after_update_commit :poll_pr_checks_after_approval, if: :saved_change_to_approved?
   after_update_commit :dispatch_upstream_export_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
+  after_update_commit :publish_goal_closed_event, if: :saved_change_to_closed?
   after_update_commit :enqueue_search_index_after_update
   after_update_commit :broadcast_app_job_updated
 
@@ -1672,6 +1675,39 @@ class Job < ApplicationRecord
 
   def enqueue_landing_queue_processor
     LandingQueueProcessorJob.perform_later
+  end
+
+  def publish_goal_implemented_event
+    publish_goal_work_event!("job_implemented", "Job implemented", "#{slug} reached implemented.")
+  end
+
+  def publish_goal_approved_event
+    publish_goal_work_event!("job_approved", "Job approved", "#{slug} was approved.")
+  end
+
+  def publish_goal_closed_event
+    publish_goal_work_event!("job_closed", "Job closed", "#{slug} closed with #{closure_reason.presence || 'no closure reason'}.")
+  end
+
+  def publish_goal_work_event!(kind, subject, summary)
+    return unless chat_goal&.active?
+
+    ChatGoalWakeup.publish_work_event!(
+      goal: chat_goal,
+      kind: kind,
+      subject: subject,
+      summary: summary,
+      repository: repository,
+      job: self,
+      work_state: {
+        "job_id" => id,
+        "job_slug" => slug,
+        "state" => state,
+        "pr_number" => pr_number,
+        "closure_reason" => closure_reason
+      }.compact,
+      dedupe_key: "goal:#{chat_goal_id}:job:#{id}:#{kind}:#{updated_at.to_i}"
+    )
   end
 
   def rebase_stack_children_after_successful_parent_close

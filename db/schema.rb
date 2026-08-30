@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_143000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_150000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -275,8 +275,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_143000) do
     t.boolean "auto_submit_jobs", default: false, null: false
     t.integer "chat_session_id", null: false
     t.text "completion_condition"
+    t.integer "consecutive_blocked_events", default: 0, null: false
+    t.integer "consecutive_no_op_iterations", default: 0, null: false
     t.datetime "created_at", null: false
     t.integer "iteration_count", default: 0, null: false
+    t.string "last_blocked_signature"
+    t.string "last_iteration_signature"
     t.json "mode_snapshot", null: false
     t.text "prompt", null: false
     t.integer "repository_id"

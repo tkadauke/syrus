@@ -4,6 +4,8 @@ class ChatGoal < ApplicationRecord
   NON_TERMINAL_STATUSES = (STATUSES - TERMINAL_STATUSES).freeze
   APPROVAL_POLICIES = %w[manual auto].freeze
   ACTIVE_SLOT = "active".freeze
+  MAX_CONSECUTIVE_NO_OP_ITERATIONS = 3
+  MAX_CONSECUTIVE_BLOCKED_EVENTS = 3
 
   belongs_to :chat_session, inverse_of: :chat_goals
   belongs_to :user
@@ -56,6 +58,46 @@ class ChatGoal < ApplicationRecord
 
   def resumable?
     active? || paused?
+  end
+
+  def prompt_snapshot
+    ChatProposal.goal_prompt_snapshot_for(self)
+  end
+
+  def reset_loop_safeguards!
+    update!(
+      consecutive_no_op_iterations: 0,
+      consecutive_blocked_events: 0,
+      last_blocked_signature: nil,
+      last_iteration_signature: nil
+    )
+  end
+
+  def record_progress!(signature:)
+    update!(
+      consecutive_no_op_iterations: 0,
+      consecutive_blocked_events: 0,
+      last_blocked_signature: nil,
+      last_iteration_signature: signature
+    )
+  end
+
+  def record_no_op_iteration!(signature:)
+    count = last_iteration_signature == signature ? consecutive_no_op_iterations.to_i + 1 : 1
+    update!(
+      consecutive_no_op_iterations: count,
+      last_iteration_signature: signature
+    )
+    count
+  end
+
+  def record_blocked_event!(signature:)
+    count = last_blocked_signature == signature ? consecutive_blocked_events.to_i + 1 : 1
+    update!(
+      consecutive_blocked_events: count,
+      last_blocked_signature: signature
+    )
+    count
   end
 
   def start!
