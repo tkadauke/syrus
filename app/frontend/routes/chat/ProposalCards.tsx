@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { cancelPendingAction, confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
+import { cancelPendingAction, confirmChatProposal, confirmPendingAction, fetchChatMedia, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMediaPayload, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatPreviewPanel, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Input } from "../../components/Input"
@@ -18,7 +18,7 @@ import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
-import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
+import { appendSearch, primaryButton, secondaryButton, snapshotKindLabel, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { pendingActionBadgeLabel, pendingActionKey, pendingActionResourceTitle, pendingActionResourceUrl, pendingActionTerminalLabel } from "./pendingActionDisplay"
 import type { DependencyPill, EditableProposal } from "./proposalDisplay"
 import { PencilIcon } from "./icons"
@@ -47,6 +47,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [jobDeps, setJobDeps] = useState<DependencyPill[]>((proposal.depends_on_job_ids || []).map((id) => ({ key: String(id), label: `JOB-${id}` })))
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
   const [targetEpicId, setTargetEpicId] = useState<number | null>(proposal.target_epic_id ?? null)
+  const [mediaIds, setMediaIds] = useState<string[]>(proposal.media_ids || [])
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -54,6 +55,13 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [jobResults, setJobResults] = useState<ChatJobDependencySearchResult[]>([])
   const [epicResults, setEpicResults] = useState<ChatEpicDependencySearchResult[]>([])
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
+  const payload = queryClient.getQueryData<ChatPayload>(queryKey)
+  const media = useQuery({
+    queryKey: ["chat_media", String(chatId)],
+    queryFn: () => fetchChatMedia(chatId),
+    enabled: String(chatId).length > 0
+  })
+  const availableMediaItems = proposalMediaItems(availableProposalMediaRefs(media.data, payload?.preview_panels || []), media.data, payload?.preview_panels || [])
   const searchProposals = useCallback((query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }), [chatId, proposal.id])
   const searchJobs = useCallback((query: string, signal: AbortSignal) => searchChatJobs(query, { signal }), [])
   const searchEpics = useCallback((query: string, signal: AbortSignal) => searchChatEpics(query, { signal }), [])
@@ -62,6 +70,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     !sameValues(proposalDeps.map((dep) => dep.key), initialProposalDependencyPills(proposal).map((dep) => dep.key)) ||
     !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
     !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
+    !sameValues(mediaIds, proposal.media_ids || []) ||
     targetEpicId !== (proposal.target_epic_id ?? null)
 
   useEffect(() => {
@@ -86,6 +95,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
       dependency_slugs: proposalDeps.map((dep) => dep.key),
       depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
       depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+      media_ids: mediaIds,
       target_epic_id: targetEpicId
     }),
     onSuccess: (updated) => {
@@ -201,6 +211,12 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 setSelected={setEpicDeps}
               />
             </div>
+            <ProposalMediaPicker
+              availableItems={availableMediaItems}
+              loading={media.isPending}
+              selectedRefs={mediaIds}
+              setSelectedRefs={setMediaIds}
+            />
           </div>
           <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
             <button className={secondaryButton()} onClick={onClose} type="button">{t("cancel")}</button>
@@ -317,6 +333,12 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
   const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
   const childJobCount = proposal.children?.length || 0
   const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
+  const media = useQuery({
+    queryKey: ["chat_media", String(queryKey[1])],
+    queryFn: () => fetchChatMedia(queryKey[1]),
+    enabled: proposalHasMedia(proposal)
+  })
+  const payload = queryClient.getQueryData<ChatPayload>(queryKey)
   const currentUser = bootstrap.data?.current_user
   const showConfirmAndStart = proposal.epic_bundle && (currentUser?.role === "developer" || currentUser?.admin === true)
   const proposalAction = useMutation({
@@ -353,12 +375,13 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} media={media.data} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} previewPanels={payload?.preview_panels || []} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
       footer={
         <>
           <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
+          <ProposalMediaTiles media={media.data} mediaIds={proposal.media_ids || []} previewPanels={payload?.preview_panels || []} />
           {proposal.proposed ? (
             <div className="mt-4 flex flex-nowrap gap-2 overflow-hidden" data-testid="proposal-action-footer">
               <button
@@ -441,6 +464,158 @@ function ProposalEditButton({ label, onClick }: { label: string; onClick: (event
       <PencilIcon className="h-4 w-4" />
     </button>
   )
+}
+
+function proposalHasMedia(proposal: ChatProposal) {
+  return (proposal.media_ids || []).length > 0 ||
+    (proposal.children || []).some((child) => (child.media_ids || []).length > 0)
+}
+
+type ProposalMediaKind = "snapshot" | "chat_image" | "preview_panel_version"
+
+type ProposalMediaItem = {
+  ref: string
+  kind: ProposalMediaKind
+  label: string
+  detail: string
+}
+
+function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMediaPayload; mediaIds: string[]; previewPanels: ChatPreviewPanel[] }) {
+  const items = proposalMediaItems(mediaIds, media, previewPanels)
+  if (items.length === 0) return null
+
+  return (
+    <div className="mt-4 flex flex-wrap gap-2" data-testid="proposal-media-tiles">
+      {items.map((item) => (
+        <ProposalMediaTile item={item} key={item.ref} />
+      ))}
+    </div>
+  )
+}
+
+function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelectedRefs }: { availableItems: ProposalMediaItem[]; loading: boolean; selectedRefs: string[]; setSelectedRefs: (refs: string[]) => void }) {
+  const selectedItems = proposalMediaItems(selectedRefs, {
+    snapshots: [],
+    chat_images: [],
+    typed_artifacts: [],
+    whiteboard_has_unsaved_content: false
+  }, []).map((item) => availableItems.find((available) => available.ref === item.ref) || item)
+  const selectedSet = new Set(selectedRefs)
+  const selectableItems = availableItems.filter((item) => !selectedSet.has(item.ref))
+
+  return (
+    <div>
+      <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Attached media</div>
+      {selectedItems.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selectedItems.map((item) => (
+            <div className="relative" key={item.ref}>
+              <ProposalMediaTile item={item} />
+              <button
+                aria-label={`Remove ${item.label}`}
+                className="absolute -right-1.5 -top-1.5 rounded-full border border-gray-200 bg-white p-0.5 text-gray-500 shadow-sm hover:border-red-200 hover:text-red-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-red-800 dark:hover:text-red-300"
+                onClick={() => setSelectedRefs(selectedRefs.filter((ref) => ref !== item.ref))}
+                type="button"
+              >
+                <CloseIcon className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">No media attached.</p>
+      )}
+      {selectableItems.length > 0 ? (
+        <div className="mt-3">
+          <div className="mb-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Available</div>
+          <div className="flex flex-wrap gap-2">
+            {selectableItems.map((item) => (
+              <button
+                aria-label={`Attach ${item.label}`}
+                className="text-left"
+                key={item.ref}
+                onClick={() => setSelectedRefs([...selectedRefs, item.ref])}
+                type="button"
+              >
+                <ProposalMediaTile item={item} interactive />
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : loading ? (
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Loading media...</p>
+      ) : null}
+    </div>
+  )
+}
+
+function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaItem; interactive?: boolean }) {
+  const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
+  return (
+    <div className={`flex h-16 w-32 min-w-0 items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white text-xs font-semibold text-gray-500 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true">
+        {mediaKindShortLabel(item.kind)}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-xs font-medium text-gray-800 dark:text-gray-100">{item.label}</div>
+        <div className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">{item.detail}</div>
+      </div>
+    </div>
+  )
+}
+
+function proposalMediaItems(mediaIds: string[], media: ChatMediaPayload | undefined, previewPanels: ChatPreviewPanel[]) {
+  return mediaIds.map((ref) => proposalMediaItem(ref, media, previewPanels))
+}
+
+function availableProposalMediaRefs(media: ChatMediaPayload | undefined, previewPanels: ChatPreviewPanel[]) {
+  return [
+    ...(media?.snapshots || []).map((snapshot) => `snapshot:${snapshot.id}`),
+    ...(media?.chat_images || []).map((image) => `chat_image:${image.id}`),
+    ...previewPanels.flatMap((panel) => panel.versions.map((version) => `preview_panel_version:${version.id}`))
+  ]
+}
+
+function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, previewPanels: ChatPreviewPanel[]): ProposalMediaItem {
+  const [kind, rawId] = ref.split(":") as [ProposalMediaKind | undefined, string | undefined]
+  const id = Number(rawId)
+  if (kind === "snapshot") {
+    const snapshot = media?.snapshots.find((candidate) => candidate.id === id)
+    return {
+      ref,
+      kind,
+      label: snapshot ? truncateSnapshotName(snapshot.name || "Snapshot") : ref,
+      detail: snapshot ? snapshotKindLabel(snapshot.snapshot_kind) : "Whiteboard snapshot"
+    }
+  }
+
+  if (kind === "chat_image") {
+    const image = media?.chat_images.find((candidate) => candidate.id === id)
+    return {
+      ref,
+      kind,
+      label: image?.title || image?.filename || ref,
+      detail: image?.content_type || "Chat image"
+    }
+  }
+
+  if (kind === "preview_panel_version") {
+    const match = previewPanels.flatMap((panel) => panel.versions.map((version) => ({ panel, version }))).find(({ version }) => version.id === id)
+    return {
+      ref,
+      kind,
+      label: match?.panel.title || ref,
+      detail: "Preview mockup"
+    }
+  }
+
+  return { ref, kind: "chat_image", label: ref, detail: "Media" }
+}
+
+function mediaKindShortLabel(kind: ProposalMediaKind) {
+  if (kind === "snapshot") return "WB"
+  if (kind === "preview_panel_version") return "PV"
+  return "IMG"
 }
 
 export function PendingActionCard({ pendingAction, queryKey, onNotice, onSelectMessage }: { pendingAction: ChatPendingActionInline | ChatPendingAction; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage?: (messageId: number) => void }) {
@@ -713,7 +888,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({ children, media, parentProposed, mutation, prefix, previewPanels, onEdit }: { children: ChatProposalChild[]; media?: ChatMediaPayload; parentProposed: boolean; mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>; prefix: string; previewPanels: ChatPreviewPanel[]; onEdit: (child: ChatProposalChild) => void }) {
   const { t } = useT("chat")
 
   if (children.length === 0) return null
@@ -731,6 +906,7 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
             {child.goal_provenance ? <div className="mt-2 text-xs text-gray-500 dark:text-gray-400" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>{t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}</div> : null}
+            <ProposalMediaTiles media={media} mediaIds={child.media_ids || []} previewPanels={previewPanels} />
             {child.proposed && parentProposed ? (
               <div className="mt-3">
                 <button

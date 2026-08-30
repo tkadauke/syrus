@@ -319,6 +319,7 @@ module App
         depends_on_job_ids: proposal.depends_on_job_ids || [],
         depends_on_epic_ids: proposal.depends_on_epic_ids || [],
         goal_provenance: App::GoalProvenancePayload.for(proposal),
+        media_ids: proposal.media_ids || [],
         dependency_details: dependency_records.map { |dependency| child_dependency_json(proposal, dependency) },
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject"
