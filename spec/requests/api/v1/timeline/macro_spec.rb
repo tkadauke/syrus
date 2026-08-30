@@ -43,6 +43,21 @@ RSpec.describe "API: /api/v1/timeline/macro", type: :request do
     expect(body.fetch("lanes").map { |lane| lane.fetch("hostname") }.uniq).to eq([ "worker-x" ])
   end
 
+  it "returns lanes filtered by job_type, accepting infra as a system alias" do
+    infrastructure_job = Factories.job_record(user: admin, repository: repository, state: "running", kind: "main_grader", issue_number: nil)
+
+    Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-x")
+    infrastructure = Workflow.create!(job: infrastructure_job, trigger_kind: "main_grader", state: "running", started_at: 10.minutes.ago, worker_hostname: "worker-y")
+
+    get "/api/v1/timeline/macro",
+        params: { job_type: "infra" },
+        headers: auth
+
+    expect(response).to have_http_status(:ok)
+    span_workflow_ids = response.parsed_body.fetch("lanes").flat_map { |lane| lane.fetch("spans") }.map { |span| span.fetch("workflow_id") }
+    expect(span_workflow_ids).to eq([ infrastructure.id ])
+  end
+
   it "reuses WorkUnits::StartBlock for a currently-blocked pending workflow" do
     queued_job = Factories.job_record(user: admin, repository: repository, state: "queued")
     queued_workflow = WorkUnits::Launcher.instantiate(kind: "initial", job: queued_job)

@@ -19,8 +19,6 @@ module Timeline
       "system" => "system",
       "user" => "user"
     }.freeze
-    SYSTEM_JOB_KINDS = %w[ main_grader agent_insight deploy ].freeze
-    USER_JOB_KINDS = (Job::KINDS - SYSTEM_JOB_KINDS).freeze
 
     def self.call(**kwargs) = new(**kwargs).call
 
@@ -169,8 +167,8 @@ module Timeline
 
     def job_type_kinds
       {
-        "system" => SYSTEM_JOB_KINDS,
-        "user" => USER_JOB_KINDS
+        "system" => Job::INFRASTRUCTURE_KINDS,
+        "user" => Job::USER_FACING_KINDS
       }.values_at(*job_type_filter).flatten.uniq
     end
 
