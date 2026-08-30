@@ -62,7 +62,7 @@ RSpec.describe Mcp::Tools::SearchJobsTool do
   end
 
   it "caps limit at 50" do
-    55.times { |i| Factories.job(repository: repository, issue_title: "Need road #{i}", issue_number: 100 + i) }
+    55.times { |i| Factories.job_record(repository: repository, issue_title: "Need road #{i}", issue_number: 100 + i) }
 
     response = call_tool(query: "road", limit: 100)
 
