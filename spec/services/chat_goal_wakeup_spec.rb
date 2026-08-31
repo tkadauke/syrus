@@ -102,14 +102,16 @@ RSpec.describe ChatGoalWakeup, type: :service do
     expect(ChatTurnJob).not_to have_been_enqueued
   end
 
-  it "publishes wakeups from goal-linked Job implementation, approval, and close boundaries" do
+  it "publishes wakeups only when a goal-linked Job closes" do
     job = Factories.job_record(user: user, repository: repository, state: "queued", chat_goal: goal, issue_number: 12)
 
     expect {
       job.update!(state: "implemented")
       job.update!(state: "approved")
       job.update!(state: "closed", closure_reason: "pr_merged")
-    }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(3)
+    }.to change(ChatScopedEvent.where(chat_session: chat), :count).by(1)
+
+    expect(chat.scoped_events.last.source_kind).to eq("goal_job_closed")
   end
 
   it "publishes wakeups when a goal-linked Epic completes" do

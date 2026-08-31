@@ -69,6 +69,10 @@ RSpec.describe ChatProposalFiler do
         prompt: "Generate work from this goal"
       )
       job_proposal = proposal(slug: "goal-job", title: "Goal Job")
+      job_proposal.update!(
+        chat_goal: goal,
+        goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
+      )
 
       described_class.new(user: user, repository: repository).file!([ job_proposal ])
 
@@ -251,6 +255,10 @@ RSpec.describe ChatProposalFiler do
         prompt: "Bundle work from this goal"
       )
       epic_proposal = proposal(slug: "goal-epic", title: "Goal Epic", kind: "epic")
+      epic_proposal.update!(
+        chat_goal: goal,
+        goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
+      )
 
       result = described_class.new(user: user, repository: repository).file!([ epic_proposal ])
 

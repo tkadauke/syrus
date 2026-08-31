@@ -6,7 +6,26 @@ RSpec.describe ChatProposal do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   describe "goal provenance" do
-    it "stamps proposals created while a goal is active with an immutable prompt snapshot" do
+    it "does not silently stamp proposals created while a goal is active" do
+      ChatGoal.create!(
+        chat_session: chat_session,
+        user: user,
+        repository: repository,
+        prompt: "Ship goal mode"
+      )
+
+      proposal = chat_session.proposals.create!(
+        slug: "ordinary-proposal",
+        title: "Ordinary proposal",
+        body: "Do the thing.",
+        kind: "job"
+      )
+
+      expect(proposal.chat_goal).to be_nil
+      expect(proposal.goal_prompt_snapshot).to be_nil
+    end
+
+    it "stamps explicitly goal-linked proposals with an immutable prompt snapshot" do
       goal = ChatGoal.create!(
         chat_session: chat_session,
         user: user,
@@ -21,7 +40,8 @@ RSpec.describe ChatProposal do
         slug: "goal-proposal",
         title: "Goal proposal",
         body: "Do the thing.",
-        kind: "job"
+        kind: "job",
+        chat_goal: goal
       )
       goal.update!(prompt: "Edited later")
       proposal.update!(state: "rejected", rejected_at: Time.current)
