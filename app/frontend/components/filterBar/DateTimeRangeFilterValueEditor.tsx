@@ -1,3 +1,4 @@
+import { Button } from "../Button"
 import { Input } from "../Input"
 import { Select } from "../Select"
 import { useT } from "../../hooks/useT"
@@ -37,14 +38,15 @@ export function DateTimeRangeFilterValueEditor({ chip, meta, onChange }: { chip:
         <div className={filterLabelClass()}>{t("filter_bar.presets", { defaultValue: "Presets" })}</div>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {PRESETS.map((preset) => (
-            <button
-              className="rounded border border-gray-300 px-2 py-1 text-xs font-medium normal-case text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            <Button
               key={preset.key}
               onClick={() => applyPreset(preset)}
+              size="sm"
               type="button"
+              variant="secondary"
             >
               {t(`filter_bar.date_preset.${preset.key}`, { defaultValue: preset.label })}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
