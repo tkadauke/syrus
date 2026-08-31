@@ -8,6 +8,7 @@ RSpec.describe BroadcastsJobProgress do
 
   before do
     allow(AppUserChannel).to receive(:broadcast_to)
+    BroadcastsJobProgress::HIGH_CHURN_BROADCAST_DEADLINES.clear
   end
 
   it "broadcasts a job update when a Workflow is created" do
@@ -76,6 +77,40 @@ RSpec.describe BroadcastsJobProgress do
     run.update!(last_heartbeat_at: Time.current)
 
     expect(AppUserChannel).not_to have_received(:broadcast_to)
+  end
+
+  it "debounces high-churn Run telemetry updates without delaying state changes" do
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    step = Step.create!(workflow: workflow, kind: "implement", position: 0)
+    run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "running")
+    RSpec::Mocks.space.proxy_for(AppUserChannel).reset
+    allow(AppUserChannel).to receive(:broadcast_to)
+
+    run.update!(agent_turns: 1)
+    run.update!(input_tokens: 100)
+
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "job.updated",
+        "resource" => "job",
+        "id" => job.id,
+        "changed" => include("run.updated", "agent_turns")
+      )
+    ).once
+
+    run.succeed!
+    run.save!
+
+    expect(AppUserChannel).to have_received(:broadcast_to).with(
+      user,
+      hash_including(
+        "type" => "job.updated",
+        "resource" => "job",
+        "id" => job.id,
+        "changed" => include("run.updated", "state", "finished_at")
+      )
+    )
   end
 
   describe "chat session broadcasts" do
