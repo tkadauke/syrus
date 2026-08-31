@@ -296,6 +296,11 @@ class WorkflowWorkspace
       return
     end
 
+    if base_revision?
+      checkout_base_revision!
+      return
+    end
+
     if @job.main_grader?
       checkout_main_sha!
       return
@@ -507,6 +512,16 @@ class WorkflowWorkspace
   # Job with a live branch today, so their setup must not change.
   def commit_sha_revision?
     @workflow.trigger_kind == "deploy" && @job.closed? && @job.landed_sha.present?
+  end
+
+  def base_revision?
+    @workflow.trigger_kind == "visual_diff"
+  end
+
+  def checkout_base_revision!
+    fetch_upstream_base! if base_on_upstream_default?
+    base_sha = @git.run("merge-base", base_ref, "HEAD", chdir: path.to_s).strip
+    @git.run("checkout", base_sha, chdir: path.to_s)
   end
 
   # The default-branch clone above is non-shallow, so a merge commit that

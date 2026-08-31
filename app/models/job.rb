@@ -229,6 +229,10 @@ class Job < ApplicationRecord
     (implemented? || approved?) && !active_runtime_work?
   end
 
+  def visual_diff_runnable?
+    (implemented? || approved? || landing?) && !active_runtime_work?
+  end
+
   def active_runtime_work?
     WorkUnits::TerminalWorkflowSync.for_job(self)
 
@@ -664,6 +668,7 @@ class Job < ApplicationRecord
   after_update_commit :refresh_dependent_epics_after_successful_close, if: :saved_change_to_successful_closed_dependency?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
+  after_update_commit :cancel_deferred_visual_diff_work_after_approval, if: :saved_change_to_approved?
   after_update_commit :poll_pr_checks_after_approval, if: :saved_change_to_approved?
   after_update_commit :dispatch_upstream_export_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
@@ -1098,6 +1103,23 @@ class Job < ApplicationRecord
         next if intent.work_units.where(state: WorkIntents::TerminalUnitSync::ACTIVE_UNIT_STATES).exists?
 
         intent.cancel!
+      end
+  end
+
+  def cancel_deferred_visual_diff_work_after_approval
+    workflows
+      .where(trigger_kind: "visual_diff", state: Workflow::TriggerKind::ACTIVE_STATES)
+      .find_each do |workflow|
+        next unless workflow.artifact("visual_diff_source") == VisualDiffSubmission::AUTOMATIC_SOURCE
+
+        WorkUnits::WorkflowCancellation.cancel!(
+          workflow,
+          reason: "visual_diff_obsolete",
+          artifacts: {
+            "cancelled_reason" => "visual_diff_obsolete",
+            "visual_diff_cancelled_at" => Time.current.iso8601
+          }
+        )
       end
   end
 
