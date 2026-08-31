@@ -55,7 +55,28 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
-  it "returns active goal provenance for direct Job proposals" do
+  it "does not attach active goal provenance by default" do
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Draft traceable work"
+    )
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Unrelated follow-up",
+      description: "Do not stamp this proposal."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Unrelated follow-up")
+    payload = response_payload(response)
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.chat_goal).to be_nil
+    expect(payload[:goal_provenance]).to be_nil
+  end
+
+  it "returns active goal provenance when requested for direct Job proposals" do
     goal = ChatGoal.create!(
       chat_session: chat_session,
       user: user,
@@ -66,7 +87,8 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     response = call_tool(
       repo: repository.slug,
       title: "Trace provenance",
-      description: "Stamp this proposal."
+      description: "Stamp this proposal.",
+      for_active_goal: true
     )
 
     proposal = chat_session.proposals.find_by!(title: "Trace provenance")
@@ -77,6 +99,19 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       chat_goal_id: goal.id,
       prompt_snapshot: include(prompt: "Draft traceable work")
     )
+  end
+
+  it "rejects active goal provenance when no goal is active" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Trace provenance",
+      description: "Stamp this proposal.",
+      for_active_goal: true
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("requires an active Chat Goal")
+    expect(chat_session.proposals.find_by(title: "Trace provenance")).to be_nil
   end
 
   it "rejects a Job proposed into a non-empty existing Epic without chaining onto its Jobs" do
