@@ -13,6 +13,10 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     job.runs.find_by!(trigger_kind: "initial")
   end
 
+  def encode_filter(tree)
+    Filters::QueryParam.encode(tree.deep_stringify_keys)
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/insights/spending"
 
@@ -45,6 +49,19 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body.dig("scope", "admin")).to eq(true)
+      expect(body.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(%w[
+        created_at
+        repository_id
+        user_id
+        agent_provider
+        trigger_kind
+        epic_id
+      ])
+      expect(body.fetch("filter")).to eq(
+        "and" => [
+          { "field" => "created_at", "op" => "between", "value" => [ "2026-06-01T00:00:00Z", "2026-06-05T23:59:59Z" ] }
+        ]
+      )
       expect(body.dig("totals", "lifetime_usd")).to eq(4.5)
       expect(body.dig("totals", "workflow_lifetime_usd")).to eq(3.75)
       expect(body.dig("totals", "chat_lifetime_usd")).to eq(0.75)
@@ -162,6 +179,47 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
       { "date" => "2026-06-02", "total_usd" => 0.4 }
     )
+  end
+
+  it "filters the whole spending report with the shared filter q param" do
+    travel_to Time.zone.local(2026, 7, 1, 12, 0, 0) do
+      admin = Factories.user(admin: true, email_address: "admin@example.com")
+      included_user = Factories.user(email_address: "included@example.com")
+      other_user = Factories.user(email_address: "other@example.com")
+      repo = Factories.repository(user: included_user, owner: "acme", name: "widgets")
+      other_repo = Factories.repository(user: other_user, owner: "acme", name: "other")
+      included = Factories.job(user: included_user, repository: repo, issue_number: 303, agent_provider: "codex")
+      excluded_user_job = Factories.job(user: other_user, repository: repo, issue_number: 304, agent_provider: "codex")
+      excluded_repo_job = Factories.job(user: included_user, repository: other_repo, issue_number: 305, agent_provider: "codex")
+      initial_run(included).update!(agent_provider: "codex")
+      initial_run(excluded_user_job).update!(agent_provider: "codex")
+      initial_run(excluded_repo_job).update!(agent_provider: "codex")
+      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      set_run_cost(initial_run(excluded_user_job), 0.60, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      set_run_cost(initial_run(excluded_repo_job), 0.80, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+
+      q = encode_filter(
+        and: [
+          { field: "created_at", op: "between", value: [ "2026-06-01T00:00:00Z", "2026-06-05T23:59:59Z" ] },
+          { field: "repository_id", op: "is", value: repo.id },
+          { field: "user_id", op: "is", value: included_user.id },
+          { field: "agent_provider", op: "is", value: "codex" }
+        ]
+      )
+
+      sign_in_as(admin)
+      get "/api/v1/app/insights/spending", params: { q: q }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("filters", "start_date")).to eq("2026-06-01")
+      expect(body.dig("filters", "end_date")).to eq("2026-06-05")
+      expect(body.dig("filters", "agent_provider")).to eq("codex")
+      expect(body.dig("totals", "lifetime_usd")).to eq(0.4)
+      expect(body.dig("breakdowns", "users")).to contain_exactly(include("label" => "included@example.com", "total_usd" => 0.4))
+      expect(body.dig("breakdowns", "repositories")).to contain_exactly(include("label" => "acme/widgets", "total_usd" => 0.4))
+      expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(included).id, "cost_usd" => 0.4))
+    end
   end
 
   it "ignores unsupported agent provider filters" do

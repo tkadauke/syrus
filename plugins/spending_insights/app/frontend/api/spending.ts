@@ -1,4 +1,5 @@
 import { getJson } from "@app/api/client"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type SpendingBreakdownRow = {
   id: number
@@ -35,6 +36,8 @@ export type SpendingPayload = {
       label: string
     }>
   }
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
   totals: {
     week_usd: number
     month_usd: number

@@ -17,6 +17,17 @@ function basePayload(overrides: Record<string, unknown> = {}) {
       agent_provider: null,
       agent_providers: []
     },
+    filter: {
+      and: [
+        { field: "created_at", op: "between", value: ["2026-04-29T00:00:00Z", "2026-07-28T23:59:59Z"] }
+      ]
+    },
+    filter_schema: [
+      { field: "created_at", label: "Datetime", bucket: "date", operators: ["between", "within_last"], date_precision: "datetime" },
+      { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
+      { field: "user_id", label: "User", bucket: "fk", operators: ["is"], typeahead: true },
+      { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is"], values: [{ value: "codex", label: "Codex" }] }
+    ],
     totals: {
       week_usd: 0,
       month_usd: 0,

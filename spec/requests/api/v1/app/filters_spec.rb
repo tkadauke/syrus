@@ -164,10 +164,28 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(parse_body["options"].map { |row| row["value"] }).to contain_exactly(owned_epic.id, other_epic.id)
   end
 
+  it "returns user_id typeahead options scoped by role" do
+    admin = Factories.user(admin: true, email_address: "admin@example.com", name: "Admin User")
+    other_user = Factories.user(email_address: "operator@example.com", name: "Operator User")
+
+    sign_in_as(other_user)
+    get "/api/v1/app/filters/fk_options", params: { field: "user_id", q: "user" }
+    expect(parse_body["options"]).to contain_exactly(
+      { "value" => other_user.id, "label" => "Operator User" }
+    )
+
+    sign_in_as(admin)
+    get "/api/v1/app/filters/fk_options", params: { field: "user_id", q: "user" }
+    expect(parse_body["options"]).to contain_exactly(
+      { "value" => admin.id, "label" => "Admin User" },
+      { "value" => other_user.id, "label" => "Operator User" }
+    )
+  end
+
   it "returns a structured error for unknown fields" do
     sign_in_as(Factories.user)
 
-    get "/api/v1/app/filters/fk_options", params: { field: "user_id" }
+    get "/api/v1/app/filters/fk_options", params: { field: "unknown_field" }
 
     expect(response).to have_http_status(:bad_request)
     expect(parse_body.dig("error", "code")).to eq("unknown_field")

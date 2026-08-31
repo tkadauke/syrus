@@ -275,6 +275,18 @@ module Filters
         "created_at" => "Filters::Chips::CreatedAt",
         "updated_at" => "Filters::Chips::UpdatedAt"
       }
+    ),
+    spending_report: Subject.new(
+      name: :spending_report,
+      model: Run,
+      chips: {
+        "created_at"     => "Filters::Chips::Spending::CreatedAt",
+        "repository_id"  => "Filters::Chips::Spending::RepositoryId",
+        "user_id"        => "Filters::Chips::Spending::UserId",
+        "agent_provider" => "Filters::Chips::Spending::AgentProvider",
+        "trigger_kind"   => "Filters::Chips::Spending::TriggerKind",
+        "epic_id"        => "Filters::Chips::Spending::EpicId"
+      }
     )
   }.freeze
 

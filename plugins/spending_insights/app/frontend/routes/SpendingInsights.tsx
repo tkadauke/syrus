@@ -1,11 +1,12 @@
 import { withRoutePrefix } from "@app/lib/routing"
 import { formatCurrency } from "@app/lib/format"
 import { useQuery } from "@tanstack/react-query"
-import { useMemo, useState, type FormEvent } from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useMemo, useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { fetchSpending, type SpendingBreakdownRow, type SpendingPayload, type SpendingTriggerRow } from "../api/spending"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
+import { FilterBar } from "@app/components/FilterBar"
 
 type SortKey = "label" | "jobs_count" | "total_usd" | "average_job_usd" | "last_30_days_usd" | "runs_count" | "average_usd"
 type SortState = { key: SortKey; direction: "asc" | "desc" }
@@ -38,14 +39,22 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
 
   return (
     <main aria-label={t("spending.aria_insights")} className="mx-auto max-w-[96rem] space-y-5 p-6">
-      <header className="flex flex-col gap-4 border-b border-gray-200 dark:border-gray-700 pb-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("spending.eyebrow")}</p>
           <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("spending.title")}</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("spending.scope_range", { scope: payload.scope.admin ? t("spending.scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
         </div>
-        <DateRangeForm pathname={pathname} search={search} payload={payload} />
       </header>
+
+      <FilterBar
+        filter={payload.filter}
+        filterSchema={payload.filter_schema}
+        legacyFilterKeys={["start_date", "end_date", "repository_id", "epic_id", "agent_provider"]}
+        pathname={pathname}
+        search={search}
+        suggestionSearch={{ surface: "spending", subject: "spending_report" }}
+      />
 
       <section aria-label={t("spending.totals_aria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Metric title={t("spending.metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("spending.context_workflow_runs")} />
@@ -72,54 +81,6 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
 
       <TopRunsTable payload={payload} prefix={prefix} />
     </main>
-  )
-}
-
-function DateRangeForm({ pathname, search, payload }: { pathname: string; search: string; payload: SpendingPayload }) {
-  const { t } = useT("common")
-  const navigate = useNavigate()
-  const params = new URLSearchParams(search)
-  const [startDate, setStartDate] = useState(params.get("start_date") || payload.filters.start_date)
-  const [endDate, setEndDate] = useState(params.get("end_date") || payload.filters.end_date)
-  const [agentProvider, setAgentProvider] = useState(params.get("agent_provider") || payload.filters.agent_provider || "")
-  const showAgentProvider = payload.filters.agent_providers.length > 1
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const next = new URLSearchParams(search)
-    next.set("start_date", startDate)
-    next.set("end_date", endDate)
-    if (agentProvider) {
-      next.set("agent_provider", agentProvider)
-    } else {
-      next.delete("agent_provider")
-    }
-    navigate(`${pathname}?${next.toString()}`)
-  }
-
-  return (
-    <form className="flex flex-wrap items-end gap-3" onSubmit={submit}>
-      <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
-        {t("spending.form_start")}
-        <input className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-      </label>
-      <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
-        {t("spending.form_end")}
-        <input className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-      </label>
-      {showAgentProvider ? (
-        <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-400">
-          {t("spending.form_model")}
-          <select className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100" value={agentProvider} onChange={(event) => setAgentProvider(event.target.value)}>
-            <option value="">{t("spending.form_all_models")}</option>
-            {payload.filters.agent_providers.map((provider) => (
-              <option key={provider.value} value={provider.value}>{provider.label}</option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      <button className="rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700" type="submit">{t("spending.form_apply")}</button>
-    </form>
   )
 }
 

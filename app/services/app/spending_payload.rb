@@ -8,12 +8,10 @@ module App
       @user = user
       @params = params
       @today = Time.zone.today
-      @start_date = parse_date(params[:start_date]) || (@today - DEFAULT_WINDOW_DAYS.days)
-      @end_date = parse_date(params[:end_date]) || @today
-      @start_date, @end_date = @end_date, @start_date if @start_date > @end_date
-      @repository_id = params[:repository_id].presence
-      @epic_id = params[:epic_id].presence
-      @agent_provider = parse_agent_provider(params[:agent_provider])
+      @filter = App::SpendingFilter.from_params(params, user: user)
+      @start_time, @end_time = @filter.date_range
+      @start_date = @start_time.to_date
+      @end_date = @end_time.to_date
     end
 
     def as_json(*)
@@ -29,14 +27,16 @@ module App
             trigger_kinds: PerformanceLogging.phase("spending.breakdown.trigger_kinds") { trigger_kind_breakdown }
           },
           top_runs: PerformanceLogging.phase("spending.top_runs") { top_runs },
-          trend: PerformanceLogging.phase("spending.trend") { trend }
+          trend: PerformanceLogging.phase("spending.trend") { trend },
+          filter_schema: App::SpendingFilter.schema(user: user),
+          filter: filter.to_h
         }
       end
     end
 
     private
 
-    attr_reader :user, :start_date, :end_date, :today, :agent_provider, :repository_id, :epic_id
+    attr_reader :user, :params, :start_date, :end_date, :today, :filter, :start_time, :end_time
 
     def scope_json
       {
@@ -51,9 +51,9 @@ module App
         start_date: start_date.iso8601,
         end_date: end_date.iso8601,
         default_window_days: DEFAULT_WINDOW_DAYS,
-        agent_provider: agent_provider,
-        repository_id: repository_id&.to_i,
-        epic_id: epic_id&.to_i,
+        agent_provider: selected_agent_provider,
+        repository_id: legacy_param_id(:repository_id),
+        epic_id: legacy_param_id(:epic_id),
         agent_providers: available_agent_providers
       }
     end
@@ -91,8 +91,6 @@ module App
 
     def scoped_runs
       relation = Run.where.not(cost_usd: nil)
-      relation = relation.joins(:job).where(jobs: { repository_id: repository_id }) if repository_id.present?
-      relation = relation.joins(:job).where(jobs: { epic_id: epic_id }) if epic_id.present?
       return relation if user.admin?
 
       relation.where(user_id: user.id)
@@ -100,48 +98,53 @@ module App
 
     def scoped_jobs
       relation = Job.all
-      relation = relation.where(repository_id: repository_id) if repository_id.present?
-      relation = relation.where(epic_id: epic_id) if epic_id.present?
       return relation if user.admin?
 
       relation.where(user_id: user.id)
     end
 
     def scoped_chat_sessions
-      return ChatSession.none if repository_id.present? || epic_id.present?
+      return ChatSession.none if run_only_filter_present?
 
       relation = ChatSession.where.not(cumulative_cost_usd: nil)
+      if user.admin? && (filtered_user_id = selected_user_id)
+        relation = relation.where(user_id: filtered_user_id)
+      end
       return relation if user.admin?
 
       relation.where(user_id: user.id)
     end
 
     def provider_scoped_runs
-      return scoped_runs if agent_provider.blank?
-
-      scoped_runs.where(agent_provider: agent_provider)
+      filtered_runs_relation
     end
 
     def provider_scoped_chat_sessions
-      return scoped_chat_sessions if agent_provider.blank? || agent_provider == "claude"
+      provider = selected_agent_provider
+      return scoped_chat_sessions if provider.blank? || provider == "claude"
 
       scoped_chat_sessions.none
     end
 
     def filtered_runs
-      runs_in_window(start_date, end_date)
+      filtered_runs_relation
     end
 
     def runs_in_window(first_date, last_date)
-      provider_scoped_runs.where(created_at: first_date.beginning_of_day..last_date.end_of_day)
+      filtered_runs_relation.where(created_at: first_date.beginning_of_day..last_date.end_of_day)
     end
 
     def jobs_with_windowed_run_cost(first_date, last_date)
+      run_scope = runs_in_window(first_date, last_date)
       scoped_jobs
+        .where(id: run_scope.select(:job_id))
         .joins(:runs)
         .where.not(runs: { cost_usd: nil })
         .where(runs: { created_at: first_date.beginning_of_day..last_date.end_of_day })
-        .then { |relation| agent_provider.present? ? relation.where(runs: { agent_provider: agent_provider }) : relation }
+    end
+
+    def filtered_runs_relation
+      @filtered_runs_relation ||= filter.apply(scoped_runs)
     end
 
     def available_agent_providers
@@ -326,7 +329,8 @@ module App
 
     def trend
       range_start = [ start_date, end_date - (TREND_LIMIT_DAYS - 1).days ].max
-      sums = runs_in_window(range_start, end_date)
+      sums = filtered_runs_relation
+             .where(created_at: range_start.beginning_of_day..end_time)
              .group(date_bucket_sql)
              .sum(:cost_usd)
 
@@ -354,24 +358,30 @@ module App
       "COALESCE(SUM(CASE WHEN runs.created_at BETWEEN #{start_sql} AND #{end_sql} THEN runs.cost_usd ELSE 0 END), 0)"
     end
 
-    def parse_date(value)
-      return if value.blank?
-
-      Date.iso8601(value.to_s)
-    rescue ArgumentError
-      nil
-    end
-
-    def parse_agent_provider(value)
-      provider = value.to_s.presence
-      return if provider.blank?
-      return provider if User.agent_providers.include?(provider) && available_agent_providers.any? { |option| option[:value] == provider }
-
-      nil
-    end
-
     def decimal_to_float(value)
       value.to_d.to_f
+    end
+
+    def selected_agent_provider
+      top_level_chip_value("agent_provider")
+    end
+
+    def selected_user_id
+      Integer(top_level_chip_value("user_id"), exception: false)
+    end
+
+    def run_only_filter_present?
+      top_level_chip_value("repository_id").present? ||
+        top_level_chip_value("epic_id").present? ||
+        top_level_chip_value("trigger_kind").present?
+    end
+
+    def legacy_param_id(key)
+      params[key].presence&.to_i
+    end
+
+    def top_level_chip_value(field)
+      filter.to_h.fetch("and", []).find { |node| node["field"] == field && node["op"] == "is" }&.fetch("value", nil)
     end
 
     def average(total, count)

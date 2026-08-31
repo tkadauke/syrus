@@ -2990,6 +2990,17 @@ describe("App", () => {
               { value: "codex", label: "Codex" }
             ]
           },
+          filter: {
+            and: [
+              { field: "created_at", op: "between", value: ["2026-06-01T00:00:00Z", "2026-06-05T23:59:59Z"] }
+            ]
+          },
+          filter_schema: [
+            { field: "created_at", label: "Datetime", bucket: "date", operators: ["between", "within_last"], date_precision: "datetime" },
+            { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
+            { field: "user_id", label: "User", bucket: "fk", operators: ["is"], typeahead: true },
+            { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is"], values: [{ value: "claude", label: "Claude Code" }, { value: "codex", label: "Codex" }] }
+          ],
           totals: {
             week_usd: 3.75,
             month_usd: 3.75,
@@ -3044,11 +3055,8 @@ describe("App", () => {
     expect(repositoryLink).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(repositoryLink).toHaveClass("block", "truncate")
     expect(screen.getByRole("img", { name: "Daily spend" })).toBeInTheDocument()
-    fireEvent.change(screen.getByRole("combobox", { name: "Model" }), { target: { value: "codex" } })
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }))
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insights/spending?start_date=2026-06-01&end_date=2026-06-05&agent_provider=codex", expect.objectContaining({ credentials: "same-origin" }))
-    })
+    expect(screen.getByRole("button", { name: /Datetime .* 2026-06-01/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
   })
 
   it("persists the selected dashboard view when the view toggle is clicked", async () => {
