@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { ChatMessageItem, ChatRenderItem } from "../../api/chats"
 import { isLowPrioritySystemMessage } from "./messageDisplay"
-import { skillInvocationFromContent, systemMessage } from "./systemMessages"
+import { goalContinuationFromContent, skillInvocationFromContent, systemMessage } from "./systemMessages"
 
 function systemText(text: string): ChatMessageItem {
   return {
@@ -48,6 +48,43 @@ describe("skillInvocationFromContent", () => {
   it("returns a warning-toned message for unknown_skill and invalid_args markers", () => {
     expect(skillInvocationFromContent({ skill_invocation: { status: "unknown_skill" } }, "No skill named `/dead-code-sweep`.")).toMatchObject({ tone: "warning" })
     expect(skillInvocationFromContent({ skill_invocation: { status: "invalid_args" } }, "`/investigate` needs valid arguments.")).toMatchObject({ tone: "warning" })
+  })
+})
+
+describe("goalContinuationFromContent", () => {
+  it("renders goal continuation markers as compact goal system messages", () => {
+    const result = goalContinuationFromContent(
+      {
+        text: "Goal resumed. Continuing...",
+        internal_prompt: "Continue the active goal after this goal-linked work boundary.\n\nEvent:\n{...}",
+        source: "goal_continuation",
+        goal_continuation: true
+      },
+      "Goal resumed. Continuing..."
+    )
+
+    expect(result).toEqual({
+      tone: "neutral",
+      label: "Goal",
+      body: "Goal resumed. Continuing..."
+    })
+  })
+
+  it("does not leak the hidden prompt through systemMessage", () => {
+    const message = systemMessageItem({
+      text: "Goal continuation started.",
+      content: {
+        text: "Goal continuation started.",
+        internal_prompt: "Continue the active goal after this goal-linked work boundary.",
+        source: "goal_continuation",
+        goal_continuation: true
+      }
+    })
+
+    expect(systemMessage(message)).toMatchObject({
+      label: "Goal",
+      body: "Goal continuation started."
+    })
   })
 })
 

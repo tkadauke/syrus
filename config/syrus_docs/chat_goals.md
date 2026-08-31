@@ -10,8 +10,11 @@ repeated no-op or blocked iterations.
 `/goal <objective>` starts or replaces the active goal objective for the chat.
 `/goal edit <objective>` edits the active goal. `/goal pause`, `/goal resume`,
 and `/goal stop` call the same backend goal lifecycle used by the app API, not a
-prompt sent to the model. `resume` records a goal control event and queues a
-continuation turn when the chat is idle.
+prompt sent to the model. Starting a new goal, or resuming a paused goal through
+the start/upsert path, records a `goal_started` event and queues a continuation
+turn when the chat is idle. `resume` records a goal control event and queues a
+continuation turn when the chat is idle. Editing an already-active goal does not
+queue another continuation.
 
 The backend also intercepts raw `/goal ...` messages in
 `Api::V1::App::ChatsController#message`, so API callers that bypass the React
@@ -25,11 +28,19 @@ Goal wakeups use `ChatScopedEvent.record!` for dedupe and provenance and
 concurrency gate; goal code does not start a second chat turn when another one
 is in flight.
 
-Goal events are published for goal-linked proposal confirmation, goal-linked
-Job implementation/approval/close boundaries, and goal-linked Epic completion
-or blocked archival. The queued continuation prompt includes the active goal,
-completion condition, mode snapshot, policy fields, iteration number, recent
-provenance-linked proposals/Jobs/Epics, and the triggering scoped event.
+Goal events are published for goal start/resume boundaries, goal-linked proposal
+confirmation, goal-linked Job implementation/approval/close boundaries, and
+goal-linked Epic completion or blocked archival. Goal continuation queued
+messages carry a compact transcript `text` such as `Goal continuation started.`
+or `Goal resumed. Continuing...`, and are promoted as `system` chat messages so
+the operator sees a control message rather than an operator-authored user
+bubble. The full agent instruction is stored separately as `internal_prompt` on
+the message content for audit and for `ChatTurnJob#prompt_for`. For a goal start,
+that internal prompt tells the agent to begin work immediately under the active
+goal; later boundary prompts tell it to continue after the linked work event.
+Each internal prompt includes the active goal, completion condition, mode
+snapshot, policy fields, iteration number, recent provenance-linked
+proposals/Jobs/Epics, and the triggering scoped event.
 
 ## Agent tools
 

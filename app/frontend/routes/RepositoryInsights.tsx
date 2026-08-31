@@ -311,7 +311,7 @@ function SuggestionCard({
               )}
               {suggestion.state === "accepted" && suggestion.created_job && (
                 <Link
-                  className="text-xs text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
+                  className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
                   to={suggestion.created_job.job_path}
                 >
                   {suggestion.created_job.slug}
@@ -429,7 +429,7 @@ function SuggestionCard({
                             <td className="py-1 pr-4 align-top">
                               {ev.job_path ? (
                                 <Link
-                                  className="text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
+                                  className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
                                   to={ev.job_path}
                                 >
                                   #{ev.job_id}

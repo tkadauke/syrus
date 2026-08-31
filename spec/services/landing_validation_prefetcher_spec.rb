@@ -113,6 +113,23 @@ RSpec.describe LandingValidationPrefetcher do
     expect(WorkUnits::Launcher).not_to have_received(:start!)
   end
 
+  it "does not prefetch an epicless job bundle while epicless bundling is disabled" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    Feature.find_or_create_by!(slug: "epicless_job_bundling") do |feature|
+      feature.category = "Labs"
+      feature.name = "Epicless Job bundling"
+    end.update!(enabled: false)
+    second = approved_job(issue_number: 3, approved_at: 30.seconds.ago)
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.to change { Workflow.where(trigger_kind: "landing_validation", job: candidate).count }.by(1)
+      .and change { Workflow.where(trigger_kind: "merge_train_validation", job: second).count }.by(0)
+
+    prefetch = Workflow.where(trigger_kind: "landing_validation", job: candidate).last
+    expect(prefetch.artifacts["prefetch_landing_unit_kind"]).to eq("job")
+  end
+
   it "dispatches a merge_train_validation workflow for the next eligible Epic landing unit" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
     AppSetting.current.update!(merge_train_enabled: true)

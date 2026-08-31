@@ -158,7 +158,7 @@ function RepositoryTable({
           <tr key={repository.id}>
             <td className="px-4 py-3">
               <div className="font-mono">
-                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
+                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(repository.repository_path, prefix)}>{repository.slug}</Link>
               </div>
               {repository.upstream_slug ? (
                 <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -226,7 +226,7 @@ function ArchivedRepositories({
             </td>
             <td className="px-4 py-3 text-right">
               <button
-                className="text-blue-600 dark:text-blue-400 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
+                className="text-brand dark:text-brand-emphasis underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
                 disabled={disabled}
                 onClick={() => onUnarchive(repository)}
                 type="button"

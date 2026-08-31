@@ -3,6 +3,17 @@ require "json"
 class ChatGoalWakeup
   SOURCE_KIND_PREFIX = "goal_".freeze
 
+  def self.publish_start!(goal)
+    goal.reload
+    new(goal: goal).publish!(
+      kind: "goal_started",
+      subject: "Goal started",
+      summary: "Goal #{goal.id} was started.",
+      dedupe_key: "goal:#{goal.id}:start:#{goal.updated_at.utc.iso8601(6)}",
+      work_state: { "action" => "start" }
+    )
+  end
+
   def self.publish_control!(goal, action:)
     new(goal: goal).publish!(
       kind: "goal_#{action}",
@@ -101,7 +112,8 @@ class ChatGoalWakeup
     @goal.increment!(:iteration_count)
     @chat_session.chat_queued_messages.create!(
       content: {
-        "text" => continuation_prompt(event),
+        "text" => continuation_display_text(event),
+        "internal_prompt" => continuation_prompt(event),
         "requested_by" => "goal",
         "source" => "goal_continuation",
         "goal_continuation" => true,
@@ -113,12 +125,29 @@ class ChatGoalWakeup
     ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
   end
 
+  def continuation_display_text(event)
+    return "Goal resumed. Continuing..." if event.payload.dig("work_state", "action") == "resume"
+
+    "Goal continuation started."
+  end
+
   def blocked_boundary?(event)
     text = [ event.source_kind, event.payload["summary"], event.payload.dig("work_state", "state") ].compact.join(" ")
     text.match?(/blocked|failed|cancelled|closed_without_merge|archived/i)
   end
 
   def continuation_prompt(event)
+    if event.source_kind == "goal_started"
+      return <<~PROMPT.strip
+        Begin work immediately under the newly active goal.
+
+        Event:
+        #{JSON.pretty_generate(event.payload)}
+
+        Decide the first useful step toward the goal and take it now. If the goal is already complete, call mark_goal_completed. If progress is blocked and you cannot continue without operator input or an external change, call mark_goal_blocked with a concise reason. Otherwise continue working under the goal policy.
+      PROMPT
+    end
+
     <<~PROMPT.strip
       Continue the active goal after this goal-linked work boundary.
 

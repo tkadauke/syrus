@@ -27,7 +27,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
 
   return (
     <div className="min-w-[200px] rounded border border-gray-300 bg-white text-sm shadow-sm">
-      <div className="rounded-t bg-terracotta-700 px-3 py-1.5 font-mono font-semibold text-white">
+      <div className="rounded-t bg-brand-emphasis px-3 py-1.5 font-mono font-semibold text-white">
         {table.name}
       </div>
       <table className="w-full border-collapse">
@@ -39,7 +39,7 @@ function ErdTableBox({ table }: { table: ErdTable }) {
                 <td className="px-3 py-0.5 font-mono text-gray-800">
                   {col.name}
                   {isFkSource && (
-                    <span className="ml-1 text-terracotta-600" title="foreign key">
+                    <span className="ml-1 text-brand" title="foreign key">
                       ↗
                     </span>
                   )}

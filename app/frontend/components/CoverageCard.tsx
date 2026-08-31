@@ -94,7 +94,7 @@ export function CoverageCard({ coverage }: CoverageCardProps) {
       {sortedFiles.length > 0 ? (
         <div className="mt-3">
           <button
-            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+            className="text-sm text-brand hover:underline dark:text-brand-emphasis"
             onClick={() => setFilesExpanded((v) => !v)}
             type="button"
           >

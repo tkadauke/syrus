@@ -256,7 +256,7 @@ module WorkDefinitions
       return super if train_id.blank?
 
       train = ::MergeTrain.includes(:members).find_by(id: train_id)
-      return super unless train
+      return super unless train&.epic_id.present?
 
       train.members.includes(:job).order(:position).map(&:job)
     end

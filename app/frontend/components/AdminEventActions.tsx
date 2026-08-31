@@ -40,7 +40,7 @@ export function AdminEventActions({ actions, eventId, eventType, onToggleDetails
       </Button>
       {(actions || []).map((action) => (
         <button
-          className="rounded border border-terracotta-300 px-2.5 py-1 text-xs font-medium text-terracotta-700 hover:bg-terracotta-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-terracotta-700 dark:text-terracotta-200 dark:hover:bg-terracotta-950"
+          className="rounded border border-brand/30 px-2.5 py-1 text-xs font-medium text-brand-emphasis hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand/40 dark:text-brand-emphasis dark:hover:bg-brand/10"
           disabled={filing || Boolean(filedJobId || filedIssueUrl)}
           key={action.id}
           onClick={() => void runAction(action)}

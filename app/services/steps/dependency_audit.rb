@@ -78,7 +78,7 @@ module Steps
         run: run,
         workflow: workflow,
         on_output_chunk: ->(chunk) {
-          append_output_tail(tail, chunk)
+          append_output_tail(tail, chunk, max_bytes: OUTPUT_TAIL_BYTES)
           log(chunk, kind: "system")
         }
       ).run
@@ -96,16 +96,6 @@ module Steps
 
     def ecosystem_name(provider)
       provider.to_s.split("::").first
-    end
-
-    def append_output_tail(tail, chunk)
-      tail << chunk.to_s
-      overflow = tail.bytesize - OUTPUT_TAIL_BYTES
-      tail.replace(tail.safe_byteslice(-OUTPUT_TAIL_BYTES, OUTPUT_TAIL_BYTES)) if overflow.positive?
-    end
-
-    def compact_output_tail(tail)
-      tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
     end
 
     def store_artifact!(results)

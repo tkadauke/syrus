@@ -20,17 +20,31 @@ class ChatQueuedMessagePromoter
       queued_message = chat.queued_messages.first
       return false unless queued_message
 
-      turn_triggered = chat.should_trigger_agent?(queued_message.text)
-      user_message = chat.messages.create!(role: "user", content: queued_message.content, skip_turn_trigger: !turn_triggered)
+      promoted_role = queued_message.promoted_role
+      turn_triggered = turn_triggered?(chat, queued_message)
+      user_message = chat.messages.create!(
+        role: promoted_role,
+        content: queued_message.promoted_content,
+        skip_turn_trigger: promoted_role == "user" && !turn_triggered
+      )
       queued_message.update!(delivered_at: Time.current)
       chat.update!(
         last_message_at: Time.current,
-        title: chat.title.presence
+        title: chat.title.presence,
+        turn_in_flight: turn_triggered
       )
       chat.pin_chat_provider!
     end
 
     ChatTurnJob.perform_later(@chat_session.id, user_message.id) if turn_triggered
     true
+  end
+
+  private
+
+  def turn_triggered?(chat, queued_message)
+    return true if queued_message.promoted_role == "system"
+
+    chat.should_trigger_agent?(queued_message.text)
   end
 end

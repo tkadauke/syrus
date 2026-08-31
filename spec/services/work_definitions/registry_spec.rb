@@ -338,6 +338,21 @@ RSpec.describe WorkDefinitions do
     expect(definition.members_for(job: second, artifacts: { "merge_train_id" => train.id })).to eq([ first, second ])
   end
 
+  it "falls back to the triggering job when a merge train artifact is missing or not epic-backed" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository)
+    epic_member = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 101)
+    bundle_member = Factories.job_record(user: user, repository: repository, issue_number: 102)
+    bundle_train = MergeTrain.create!(repository: repository, base_branch: "main", priority: "medium")
+    MergeTrainMember.create!(merge_train: bundle_train, job: bundle_member, position: 0)
+
+    definition = described_class.for("merge_train")
+
+    expect(definition.members_for(job: epic_member, artifacts: { "merge_train_id" => 0 })).to eq([ epic_member ])
+    expect(definition.members_for(job: epic_member, artifacts: { "merge_train_id" => bundle_train.id })).to eq([ epic_member ])
+  end
+
   it "resolves epicless job bundle members from the train artifact through the definition" do
     user = Factories.user
     repository = Factories.repository(user: user)
@@ -353,6 +368,20 @@ RSpec.describe WorkDefinitions do
     expect(definition.workflow_trigger_kind).to eq("merge_train")
     expect(definition.scope_for(job: second, artifacts: { "merge_train_id" => train.id })).to have_attributes(type: "repository", id: repository.id)
     expect(definition.members_for(job: second, artifacts: { "merge_train_id" => train.id })).to eq([ first, second ])
+  end
+
+  it "falls back to the triggering job when a job bundle artifact points at an epic train" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository)
+    bundle_member = Factories.job_record(user: user, repository: repository, issue_number: 101)
+    epic_member = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 102)
+    epic_train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "main")
+    MergeTrainMember.create!(merge_train: epic_train, job: epic_member, position: 0)
+
+    definition = described_class.for("job_bundle")
+
+    expect(definition.members_for(job: bundle_member, artifacts: { "merge_train_id" => epic_train.id })).to eq([ bundle_member ])
   end
 
   it "resolves merge train validation members from the prefetch artifact through the definition" do

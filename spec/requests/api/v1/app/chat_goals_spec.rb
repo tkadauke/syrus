@@ -18,6 +18,8 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
   before { sign_in_as(user) }
 
   it "creates and reads an active goal" do
+    clear_enqueued_jobs
+
     put "/api/v1/app/chats/#{chat.id}/goal", params: {
       goal: {
         prompt: "Plan the billing launch",
@@ -38,6 +40,27 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
       "auto_submit_jobs" => false
     )
     expect(active_goal["mode_snapshot"]).to include("mode" => "planning", "repository_id" => repository.id)
+    message = chat.reload.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Begin work immediately under the newly active goal.")
+    expect(message.content).to include(
+      "source" => "goal_continuation",
+      "goal_continuation" => true,
+      "chat_goal_id" => active_goal["id"]
+    )
+    expect(chat.scoped_events.last).to have_attributes(source_kind: "goal_started")
+    expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    transcript_message = parse_body.fetch("messages").last
+    expect(transcript_message).to include(
+      "role" => "system",
+      "text" => "Goal continuation started."
+    )
+    expect(transcript_message.dig("content", "internal_prompt")).to include("Begin work immediately under the newly active goal.")
+    expect(transcript_message["text"]).not_to include("Event:")
 
     get "/api/v1/app/chats/#{chat.id}/goal"
 
@@ -51,11 +74,20 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     expect {
       post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "/goal plan the billing launch" } }
     }.to change(ChatGoal, :count).by(1)
-    expect(ChatMessage.count).to eq(0)
+      .and change(ChatMessage, :count).by(1)
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "prompt")).to eq("plan the billing launch")
-    expect(ChatTurnJob).not_to have_been_enqueued
+    message = chat.reload.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Begin work immediately under the newly active goal.")
+    expect(message.content).to include(
+      "source" => "goal_continuation",
+      "chat_goal_id" => chat.active_goal.id
+    )
+    expect(chat.messages.last.content["text"]).not_to eq("/goal plan the billing launch")
+    expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end
 
   it "records a goal wake event when a goal-linked proposal is confirmed" do
@@ -123,8 +155,11 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
       approval_policy: "manual",
       auto_file_proposals: true
     )
+    clear_enqueued_jobs
 
-    patch "/api/v1/app/chats/#{chat.id}/goal", params: { goal: { prompt: "New prompt" } }
+    expect {
+      patch "/api/v1/app/chats/#{chat.id}/goal", params: { goal: { prompt: "New prompt" } }
+    }.not_to change(ChatMessage, :count)
 
     expect(response).to have_http_status(:ok)
     expect(chat.chat_goals.count).to eq(1)
@@ -134,6 +169,31 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
       "approval_policy" => "manual",
       "auto_file_proposals" => true
     )
+    expect(ChatTurnJob).not_to have_been_enqueued
+    expect(ChatScopedEvent.where(chat_session: chat, source_kind: "goal_started")).to be_empty
+  end
+
+  it "wakes the chat when upsert resumes a paused goal" do
+    goal = chat.chat_goals.create!(prompt: "Old prompt")
+    goal.pause!
+    clear_enqueued_jobs
+
+    expect {
+      patch "/api/v1/app/chats/#{chat.id}/goal", params: { goal: { prompt: "New prompt" } }
+    }.to change(ChatMessage, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(goal.reload).to be_active
+    message = chat.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Begin work immediately under the newly active goal.")
+    expect(message.content).to include(
+      "source" => "goal_continuation",
+      "chat_goal_id" => goal.id
+    )
+    expect(ChatScopedEvent.where(chat_session: chat, source_kind: "goal_started").count).to eq(1)
+    expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end
 
   it "allows partial updates without requiring prompt" do
@@ -171,7 +231,11 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     }.to change(ChatMessage, :count).by(1)
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "status")).to eq("active")
-    expect(chat.messages.last.content).to include("source" => "goal_continuation")
+    message = chat.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content).to include("source" => "goal_continuation")
+    expect(message.content["text"]).to eq("Goal resumed. Continuing...")
+    expect(message.content["internal_prompt"]).to include('"action": "resume"')
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
 
     post "/api/v1/app/chats/#{chat.id}/goal/stop", params: { reason: "operator_stopped" }

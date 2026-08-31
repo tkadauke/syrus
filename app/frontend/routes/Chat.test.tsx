@@ -5615,10 +5615,33 @@ describe("active goal strip", () => {
     renderRoute()
 
     const strip = await screen.findByTestId("active-goal-strip")
+    const goalText = within(strip).getByTestId("active-goal-text")
+    const expandButton = within(strip).getByRole("button", { name: "Expand goal" })
+
     expect(within(strip).getByText("Active")).toBeInTheDocument()
     expect(within(strip).getByText("Keep filing aqueduct cleanup work")).toBeInTheDocument()
     expect(within(strip).getByText("Done when: All risky segments have Jobs")).toBeInTheDocument()
     expect(within(strip).getByText("Draft proposals only")).toBeInTheDocument()
+    expect(goalText).toHaveClass("line-clamp-1", "overflow-hidden")
+    expect(expandButton).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it("expands the goal text without taking more than a quarter of the viewport", async () => {
+    mockChatRouteFetch(chatPayload({}, { active_goal: chatGoal({
+      prompt: "Keep filing aqueduct cleanup work across every remaining frontend surface that still has direct color classes.",
+      completion_condition: "All risky segments have Jobs and the audit is scrollable on mobile."
+    }) }))
+    renderRoute()
+
+    const strip = await screen.findByTestId("active-goal-strip")
+    const goalText = within(strip).getByTestId("active-goal-text")
+    const expandButton = within(strip).getByRole("button", { name: "Expand goal" })
+
+    fireEvent.click(expandButton)
+
+    expect(within(strip).getByRole("button", { name: "Collapse goal" })).toHaveAttribute("aria-expanded", "true")
+    expect(goalText).toHaveClass("max-h-[25vh]", "overflow-y-auto")
+    expect(goalText).not.toHaveClass("line-clamp-1")
   })
 
   it("pauses, resumes, and stops from visible controls", async () => {
