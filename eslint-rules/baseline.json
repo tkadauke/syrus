@@ -1,1 +1,20 @@
-{}
+{
+  "no-raw-button-classes": {
+    "plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx": 2,
+    "plugins/git_history/app/frontend/repo_tabs/GitHistory.tsx": 1,
+    "plugins/mysql_db_browser/app/frontend/components/MysqlLiveTab.tsx": 1,
+    "plugins/mysql_db_browser/app/frontend/components/MysqlPickerDropdown.tsx": 1,
+    "plugins/mysql_db_browser/app/frontend/components/MysqlQueryBuilderTab.tsx": 2,
+    "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx": 4,
+    "plugins/syrus_dev/app/frontend/routes/AdminOperationalLogs.tsx": 1,
+    "plugins/syrus_dev/app/frontend/routes/AdminPerformance.tsx": 3,
+    "plugins/whiteboard_tools/app/frontend/workspaceTabs/WhiteboardTab.tsx": 1
+  },
+  "no-raw-form-elements": {
+    "plugins/admin_mysql/app/frontend/routes/AdminMysql.tsx": 1,
+    "plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx": 1,
+    "plugins/mysql_db_browser/app/frontend/components/MysqlQueryBuilderTab.tsx": 3,
+    "plugins/mysql_db_browser/app/frontend/routes/MysqlConnections.tsx": 8,
+    "plugins/spending_insights/app/frontend/routes/SpendingInsights.tsx": 3
+  }
+}
