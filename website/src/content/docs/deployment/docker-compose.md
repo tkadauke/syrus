@@ -76,6 +76,7 @@ are optional; without them the behavior above is unchanged.
 | `--skip-runtime-install` | Never install Homebrew/OrbStack. An installed-but-stopped runtime is still started; with no runtime at all the script exits 10. |
 | `--image REF` | Pin `SYRUS_IMAGE` to a specific tag. The pin is persisted into `.env` so later plain `docker compose up` runs use the same tag. |
 | `--port N` | First install only: serve on this port instead of 3000 (sets `SYRUS_PORT` and `SYRUS_APP_HOST` during `.env` generation). |
+| `--allow-fresh-data` | Proceed even when this install's data volume is found on a *different* Docker context (exit 21). Say this only when a second, independent, empty instance is the goal. |
 
 `step` events carry an `id` from this fixed sequence: `runtime_check`,
 `runtime_install`, `runtime_start`, `compose_resolve`, `env_check`,
@@ -94,6 +95,7 @@ parsing text:
 | `11` | A runtime exists but its daemon never became ready. |
 | `12` | Docker Compose is not available. |
 | `20` | The `syrus_syrus-data` volume exists but `.env` is missing — the encryption-key guard. Restore the original `.env` or wipe with `docker compose down -v`. |
+| `21` | This install has an `.env`, but its `syrus_syrus-data` volume lives on a **different Docker context** — the wrong-daemon guard. See [When Syrus looks empty after an update](#when-syrus-looks-empty-after-an-update). Override with `--allow-fresh-data`. |
 | `30` | Image pull failed for a network or other unclassified reason, and no local copy of the image exists. |
 | `31` | The registry denied the pull and no local copy exists. The installer already handles the most common cause itself — a **stale saved Docker login** (docker sends any stored `ghcr.io` credentials with every pull, and an expired token is rejected even for public images) — by running `docker logout` for the registry and retrying, once per run. A `31` that persists means the package is private, the tag is unpublished, the registry genuinely requires a login, or Docker's credential helper is broken — check `~/.docker/config.json` for a stale `credsStore`/`credHelpers` entry. |
 | `32` | The image tag does not exist in the registry and no local copy exists. |
@@ -116,6 +118,59 @@ at the repo root) and later point an automated install at a different
 `--target-dir`, the guard exits 20 because the data volume exists but that
 directory has no `.env` — copy your original `.env` into the target
 directory to adopt the existing installation.
+
+### When Syrus looks empty after an update
+
+If an update or reinstall drops you at `/onboarding` with every Job, Epic and
+chat apparently gone, **your data is almost certainly still there.** The usual
+cause is that a second container runtime took over the active Docker context.
+
+OrbStack, Docker Desktop and Colima each claim `currentContext` in
+`~/.docker/config.json` when they start. Compose follows that context, so a
+newly launched runtime sends the installer to a daemon that has none of your
+state. It finds no volume and no network, creates both from scratch, migrates
+a blank database, and hands you a pristine instance sitting beside the real
+one. Nothing is deleted — the two just live in different VMs.
+
+The installer now stops with exit `21` when it can see your volume on another
+context, and names it. To check by hand:
+
+```bash
+docker context ls                     # which contexts exist; * marks the active one
+docker context use colima             # switch to the one that owns your data
+docker volume ls | grep syrus-data    # confirm the volume is here
+```
+
+Then re-run the update, or bring the stack up directly:
+
+```bash
+cd ~/.syrus/local && docker compose -p syrus up -d
+```
+
+Confirm you have your data back before doing anything else:
+
+```bash
+docker exec syrus-web-1 sqlite3 /home/rails/.syrus/db/production.sqlite3 \
+  "select count(*) from jobs"
+```
+
+Back up before any upgrade that migrates a database you care about. The
+SQLite file and the `.env` must be kept **together** — the `.env` holds the
+Active Record encryption keys, and either one alone is useless:
+
+```bash
+docker exec syrus-web-1 sqlite3 /home/rails/.syrus/db/production.sqlite3 \
+  ".backup /tmp/backup.sqlite3"
+docker cp syrus-web-1:/tmp/backup.sqlite3 ./production.sqlite3
+cp ~/.syrus/local/.env ./env-backup
+```
+
+When the volume is missing and *no* other context has it either, the installer
+only warns and continues — that case is ambiguous (a first install that died
+after writing `.env`, or a deliberate `docker compose down -v` wipe), and
+refusing would make a half-finished install unrecoverable. If you see
+`starting empty` in the installer output and did not expect it, stop and check
+whether the runtime holding your data is actually running.
 
 ## Build or customize the image
 

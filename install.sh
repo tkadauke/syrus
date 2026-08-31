@@ -37,10 +37,15 @@
 #                           repository polling paused (SYRUS_BOOT_POLLING_PAUSED).
 #                           A test stack uses this so it does not race production
 #                           to file Jobs; unpause later from the admin console.
+#   --allow-fresh-data      proceed even when this install's data volume is found
+#                           on a different Docker context (exit 21). Say this only
+#                           when a second, independent EMPTY instance is the goal.
 #
 # Exit codes: 0 ok · 2 usage · 10 no runtime (with --skip-runtime-install) ·
 # 11 daemon never became ready · 12 no compose · 20 data volume exists but .env
-# is missing (encryption-key guard) · 30 image pull failed (network/other) ·
+# is missing (encryption-key guard) · 21 the data volume belongs to a different
+# Docker context (wrong-daemon guard; --allow-fresh-data overrides) ·
+# 30 image pull failed (network/other) ·
 # 31 image pull denied (private package / unpublished tag / not logged in) ·
 # 32 image tag not found in the registry · 40 compose up failed · 41 health
 # check timed out · 1 anything else
@@ -205,6 +210,26 @@ ensure_docker_runtime() {
   emit_step runtime_start ok
 }
 
+# Best-effort: name the Docker contexts OTHER than the active one whose daemon
+# holds <volume>. Purely to make the wrong-daemon error actionable — every
+# failure mode here (old CLI with no `context` verb, a stopped daemon, garbage
+# output) degrades to "no names", never to a wrong verdict.
+contexts_holding_volume() { # contexts_holding_volume <volume>
+  local volume="$1" current name found=""
+  command -v docker >/dev/null 2>&1 || return 0
+  current="$(docker context show 2>/dev/null || true)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if [ "$name" != "$current" ] \
+       && docker --context "$name" volume inspect "$volume" >/dev/null 2>&1; then
+      found="${found:+$found }$name"
+    fi
+  done <<EOF
+$(docker context ls --format '{{.Name}}' 2>/dev/null || true)
+EOF
+  printf '%s' "$found"
+}
+
 MODE=""
 START_AFTER=0
 NON_INTERACTIVE=0
@@ -214,6 +239,7 @@ IMAGE_OVERRIDE=""
 PORT_OVERRIDE=""
 PROJECT_OVERRIDE=""
 PAUSE_POLLING=0
+ALLOW_FRESH_DATA=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -246,6 +272,7 @@ while [ $# -gt 0 ]; do
       esac
       PROJECT_OVERRIDE="$2"; shift ;;
     --pause-polling)        PAUSE_POLLING=1 ;;
+    --allow-fresh-data)     ALLOW_FRESH_DATA=1 ;;
     --help|-h) awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0"; exit 0 ;;
     *) die "Unknown flag: $1 (try --help)" 2 ;;
   esac
@@ -275,8 +302,8 @@ fi
 if [ "$MODE" = "bare-metal" ]; then
   if [ "$JSON" = "1" ] || [ -n "$TARGET_DIR" ] || [ "$SKIP_RUNTIME_INSTALL" = "1" ] \
      || [ -n "$IMAGE_OVERRIDE" ] || [ -n "$PORT_OVERRIDE" ] || [ -n "$PROJECT_OVERRIDE" ] \
-     || [ "$PAUSE_POLLING" = "1" ]; then
-    die "--json/--target-dir/--skip-runtime-install/--image/--port/--project/--pause-polling only apply to --docker" 2
+     || [ "$PAUSE_POLLING" = "1" ] || [ "$ALLOW_FRESH_DATA" = "1" ]; then
+    die "--json/--target-dir/--skip-runtime-install/--image/--port/--allow-fresh-data/--project/--pause-polling only apply to --docker" 2
   fi
 fi
 
@@ -342,6 +369,42 @@ run_docker() {
     echo "  - Wipe the old data and start clean:" >&2
     echo "      docker compose -p $PROJECT down -v && ./install.sh --docker --project $PROJECT   (or docker-compose ...)" >&2
     die "a data volume ($DATA_VOLUME) exists but .env is missing (see above)" 20
+  fi
+  # The mirror of that guard, and the more dangerous direction: an .env with no
+  # data volume on THIS daemon. The usual cause is a second container runtime
+  # (OrbStack, Docker Desktop, Colima) claiming `currentContext` on launch —
+  # compose then finds no volume AND no network, builds a pristine empty
+  # instance beside the real one, migrates a blank DB, and drops the operator
+  # at /onboarding thinking every Job, Epic and chat is gone.
+  #
+  # Only a POSITIVE sighting of the volume on another context is fatal. A
+  # missing volume on its own is ambiguous and routinely legitimate — a first
+  # install that died after writing .env, or a deliberate `down -v` wipe — and
+  # hard-failing those would make a half-finished install unrecoverable. So
+  # evidence stops the run; absence of evidence only warns.
+  if [ -f .env ] && ! docker volume inspect "$DATA_VOLUME" >/dev/null 2>&1; then
+    other_contexts="$(contexts_holding_volume "$DATA_VOLUME")"
+    if [ -n "$other_contexts" ] && [ "$ALLOW_FRESH_DATA" != "1" ]; then
+      active_context="$(docker context show 2>/dev/null || true)"
+      echo "Error: your Syrus data volume ($DATA_VOLUME) is on a different Docker" >&2
+      echo "daemon. Active context: ${active_context:-unknown}; the volume lives on:" >&2
+      echo "  $other_contexts" >&2
+      echo "Continuing would migrate a blank database and hand you an empty" >&2
+      echo "instance beside your real one. Point at the right daemon and re-run:" >&2
+      for c in $other_contexts; do
+        echo "      docker context use $c" >&2
+      done
+      echo "If you really do want a second, independent instance on this daemon," >&2
+      echo "re-run with --allow-fresh-data." >&2
+      die "data volume ($DATA_VOLUME) belongs to another Docker context: $other_contexts" 21
+    fi
+    # No other daemon on this machine claims it. Could be a legitimate fresh
+    # start; could also be the runtime that owns the data simply not running.
+    # Proceed, but never silently — an empty instance must be an announcement.
+    info "Note: .env exists but no data volume ($DATA_VOLUME) was found on this daemon."
+    info "      Starting with an EMPTY database. If you expected existing data, stop"
+    info "      now and check that the runtime holding it is running (docker context ls)."
+    emit_log env "no data volume ($DATA_VOLUME) for an existing .env; starting empty"
   fi
   emit_step env_check ok
 

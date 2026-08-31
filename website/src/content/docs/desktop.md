@@ -126,6 +126,21 @@ your original `.env` (it copies the file, never moves it). See the
 [Docker Compose](/docs/deployment/docker-compose#driving-the-installer-from-automation)
 page for the underlying installer contract.
 
+## If your data looks gone after an update
+
+Almost always it is not. OrbStack, Docker Desktop and Colima each take over the
+active Docker context when they launch, and the backend update follows that
+context — so a runtime you started for something else can send the update to a
+daemon that holds none of your state. It builds an empty instance beside your
+real one and the app opens on onboarding.
+
+Run `docker context ls` and look at which context is starred. If your data lives
+on another one, `docker context use <name>` and update again. The installer now
+stops with exit `21` and names the context when it can see your volume elsewhere.
+Full recovery steps, including how to back the database up first, are on the
+[Docker Compose](/docs/deployment/docker-compose#when-syrus-looks-empty-after-an-update)
+page.
+
 ## Starting over
 
 **Syrus → Run Setup Again…** forgets the app's backend configuration and

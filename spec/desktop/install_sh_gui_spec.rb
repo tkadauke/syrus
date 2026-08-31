@@ -31,13 +31,32 @@ RSpec.describe "install.sh GUI interface", :ci_only do
   # `compose --progress=json pull`, so the compose case skips leading flags
   # before dispatching on the subcommand, like real compose does. Every
   # invocation is appended to <dir>/calls.log for argument assertions.
-  def write_docker_stub(dir, volume_exists:, pull_ok: false, local_image: false, pull_error: "stub: pull refused")
+  def write_docker_stub(dir, volume_exists:, pull_ok: false, local_image: false,
+                        pull_error: "stub: pull refused",
+                        contexts: [], current_context: "", volume_contexts: [])
     stub = File.join(dir, "docker")
+    context_lines = contexts.map { |c| "#{c}\n" }.join
+    holders = volume_contexts.join(" ")
     File.write(stub, <<~SH)
       #!/bin/bash
       echo "$*" >> "#{File.join(dir, "calls.log")}"
+      # `docker --context <name> volume inspect …` — the wrong-daemon guard probes
+      # other daemons this way, so the stub answers per-context like the real CLI.
+      if [ "$1" = "--context" ]; then
+        probed="$2"; shift 2
+        if [ "$1" = "volume" ]; then
+          case " #{holders} " in *" $probed "*) exit 0 ;; *) exit 1 ;; esac
+        fi
+        exit 0
+      fi
       case "$1" in
         info) exit 0 ;;
+        context)
+          case "$2" in
+            show) printf '%s\n' "#{current_context}" ;;
+            ls)   printf '%s' "#{context_lines}" ;;
+          esac
+          exit 0 ;;
         volume) exit #{volume_exists ? 0 : 1} ;;
         image) exit #{local_image ? 0 : 1} ;;
         logout) exit 0 ;;
@@ -104,7 +123,7 @@ RSpec.describe "install.sh GUI interface", :ci_only do
 
   it "classifies every failure with a distinct exit code" do
     expect(script_text).to include('die "No container runtime found. Install OrbStack')
-    [10, 11, 12, 20, 30, 40, 41].each do |code|
+    [10, 11, 12, 20, 21, 30, 40, 41].each do |code|
       expect(script_text).to match(/ #{code}$/), "expected a die call with exit code #{code}"
     end
   end
@@ -162,6 +181,156 @@ RSpec.describe "install.sh GUI interface", :ci_only do
         expect(err).to include("undecryptable")
         expect(File.exist?(File.join(target, ".env"))).to be(false)
       end
+    end
+  end
+
+  # The wrong-daemon guard. A second container runtime (OrbStack, Docker
+  # Desktop, Colima) claims `currentContext` when it launches; compose then runs
+  # against a daemon that has none of this install's state, silently builds an
+  # empty instance beside the real one, and the operator concludes their data is
+  # gone. These examples pin the evidence-based contract: a POSITIVE sighting of
+  # the volume on another context aborts; mere absence only warns.
+  describe "wrong-daemon guard" do
+    def run_guard(stub_dir, target, *extra, **stub_opts)
+      write_docker_stub(stub_dir, **stub_opts)
+      # An adopted .env is what makes this an "install ran before" case. Pin a
+      # port nothing listens on so the health poll can't accidentally succeed
+      # against a real Syrus the developer happens to be running on 3000.
+      File.write(File.join(target, ".env"), "SECRET_KEY_BASE=abc123\nSYRUS_PORT=39997\n")
+      run_install(
+        "--docker", "--json", "--non-interactive", "--skip-runtime-install",
+        "--target-dir", target, *extra, stub_dir: stub_dir
+      )
+    end
+
+    it "aborts with exit 21 when the data volume lives on another Docker context" do
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          out, err, status = run_guard(
+            stub_dir, target,
+            volume_exists: false, current_context: "orbstack",
+            contexts: %w[colima default desktop-linux orbstack],
+            volume_contexts: %w[colima]
+          )
+
+          expect(status.exitstatus).to eq(21)
+          events = parse_events(out)
+          expect(events.last).to include("event" => "error", "code" => 21, "step" => "env_check")
+          expect(events.last["message"]).to include("colima")
+          # The message has to be actionable: name the active context, name the
+          # daemon that actually holds the data, and give the exact fix.
+          expect(err).to include("Active context: orbstack")
+          expect(err).to include("docker context use colima")
+          # Crucially, it must stop BEFORE touching the stack.
+          step_ids = events.select { |e| e["event"] == "step" }.map { |e| e["id"] }
+          expect(step_ids).not_to include("stack_up", "image_pull")
+        end
+      end
+    end
+
+    it "reports every other context holding the volume, not just the first" do
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          _out, err, status = run_guard(
+            stub_dir, target,
+            volume_exists: false, current_context: "orbstack",
+            contexts: %w[colima desktop-linux orbstack],
+            volume_contexts: %w[colima desktop-linux]
+          )
+
+          expect(status.exitstatus).to eq(21)
+          expect(err).to include("docker context use colima")
+          expect(err).to include("docker context use desktop-linux")
+        end
+      end
+    end
+
+    it "never probes the active context for the volume it just failed to find" do
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          run_guard(
+            stub_dir, target,
+            volume_exists: false, current_context: "orbstack",
+            contexts: %w[colima orbstack], volume_contexts: %w[colima]
+          )
+
+          probes = stub_calls(stub_dir).grep(/\A--context /)
+          expect(probes).to include(a_string_matching(/\A--context colima volume inspect/))
+          expect(probes).not_to include(a_string_matching(/\A--context orbstack /))
+        end
+      end
+    end
+
+    it "warns but proceeds when no other daemon claims the volume" do
+      # A first install that died after writing .env, or a deliberate `down -v`
+      # wipe, both land here. Hard-failing would make them unrecoverable, so
+      # absence of evidence must not abort — but it must never be silent either.
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          out, _err, status = run_guard(
+            stub_dir, target, "--image", "syrus-backend:built-here",
+            volume_exists: false, local_image: true,
+            current_context: "colima", contexts: %w[colima], volume_contexts: []
+          )
+
+          # Runs on past env_check all the way to the health poll (exit 41),
+          # proving the guard did not abort the install.
+          expect(status.exitstatus).to eq(41)
+          events = parse_events(out)
+          expect(events).to include(
+            hash_including(
+              "event" => "log", "stream" => "env",
+              "line" => a_string_matching(/no data volume .* for an existing \.env; starting empty/)
+            )
+          )
+          step_ids = events.select { |e| e["event"] == "step" }.map { |e| e["id"] }
+          expect(step_ids).to include("env_check", "stack_up")
+        end
+      end
+    end
+
+    it "lets --allow-fresh-data override a positive sighting on another context" do
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          out, _err, status = run_guard(
+            stub_dir, target, "--allow-fresh-data",
+            "--image", "syrus-backend:built-here",
+            volume_exists: false, local_image: true,
+            current_context: "orbstack", contexts: %w[colima orbstack],
+            volume_contexts: %w[colima]
+          )
+
+          expect(status.exitstatus).to eq(41)
+          step_ids = parse_events(out).select { |e| e["event"] == "step" }.map { |e| e["id"] }
+          expect(step_ids).to include("stack_up")
+        end
+      end
+    end
+
+    it "stays out of the way on the ordinary update path, where the volume is present" do
+      # The regression that matters most: every routine backend update has an
+      # .env AND its volume. The guard must not probe, warn, or abort there.
+      Dir.mktmpdir do |stub_dir|
+        Dir.mktmpdir do |target|
+          out, _err, status = run_guard(
+            stub_dir, target, "--image", "syrus-backend:built-here",
+            volume_exists: true, local_image: true,
+            current_context: "colima", contexts: %w[colima orbstack],
+            volume_contexts: %w[orbstack]
+          )
+
+          expect(status.exitstatus).to eq(41)
+          events = parse_events(out)
+          expect(events.map { |e| e["line"] }.compact.join("\n")).not_to include("starting empty")
+          expect(stub_calls(stub_dir).grep(/\A--context /)).to be_empty
+        end
+      end
+    end
+
+    it "is rejected on the bare-metal path like every other docker-only flag" do
+      _out, err, status = run_install("--bare-metal", "--allow-fresh-data")
+      expect(status.exitstatus).to eq(2)
+      expect(err).to include("only apply to --docker")
     end
   end
 
