@@ -15,7 +15,7 @@ module Admin
     def call
       payload = {
         job: job_payload,
-        stuck: stuck_items.any?,
+        stuck: stuck_items.any? || epic_release_state_drift?,
         issues: issues_payload,
         stuck_list: stuck_list_payload,
         current_intent: current_intent_payload,
@@ -281,6 +281,7 @@ module Admin
         redundant_transitive_dependencies: redundant_transitive_dependency_payloads(direct),
         stack_resolution: stack_resolution_payload,
         selected_stack_parent: selected_stack_parent_payload,
+        epic_release_state_drift: epic_release_state_drift_payload,
         effective_base_branch: job.effective_base_branch,
         pr_base_mismatch: pr_base_mismatch_payload
       }
@@ -537,6 +538,14 @@ module Admin
         )
       end
       return action("inspect_logs", "Latest failure evidence points at grader logs.", run_id: grader_failure_run_id(payload)) if grader_failure_run_id(payload)
+      if (drift = payload.dig(:dependencies, :epic_release_state_drift))
+        return action(
+          "release_epic_block",
+          "Epic #{drift[:epic_slug]} is in progress with satisfied dependencies, but its first child is still blocked with no active child workflow.",
+          epic_id: drift[:epic_id],
+          job_id: drift[:job_id]
+        )
+      end
       return action("manual_intervention", "Dependency graph has unresolved, redundant, or multiple leaf blockers.") if dependency_intervention_needed?(payload)
       return action("retry_job", "The latest workflow failed and no narrower repair action was detected.", workflow_id: job.latest_workflow&.id) if job.latest_workflow&.failed? || job.failed?
       return action("wait", "The Job has active queued or running workflow work.") if payload.dig(:workflows, :active).present?
@@ -582,6 +591,39 @@ module Admin
           workflow[:run_count].to_i.zero? &&
           workflow[:start_blocked_reason].present?
       end
+    end
+
+    def epic_release_state_drift_payload
+      return unless epic_release_state_drift?
+
+      {
+        epic_id: job.epic_id,
+        epic_slug: job.epic.slug,
+        job_id: job.id,
+        first_child_job_id: first_epic_child_job&.id,
+        active_child_workflow: false
+      }
+    end
+
+    def epic_release_state_drift?
+      return false unless job.blocked_by_epic?
+      return false unless job.epic&.in_progress?
+      return false unless job.epic.releases_jobs_for_execution?
+      return false unless first_epic_child_job&.id == job.id
+
+      !active_epic_child_workflows?
+    end
+
+    def first_epic_child_job
+      @first_epic_child_job ||= job.epic&.jobs&.order(:id)&.first
+    end
+
+    def active_epic_child_workflows?
+      return false unless job.epic_id
+
+      Workflow
+        .where(job_id: job.epic.jobs.select(:id), state: %w[queued running])
+        .exists?
     end
 
     def action(kind, reason, **extra)

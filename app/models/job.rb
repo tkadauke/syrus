@@ -662,6 +662,7 @@ class Job < ApplicationRecord
   after_update_commit :ensure_main_branch_repair_after_close, if: :saved_change_to_closed_main_branch_repair?
   after_update_commit :enqueue_urgent_job_closed, if: :saved_change_to_closed_urgent_job?
   after_update_commit :start_dependent_jobs_after_successful_close, if: :saved_change_to_successful_closed_dependency?
+  after_update_commit :refresh_dependent_epics_after_successful_close, if: :saved_change_to_successful_closed_dependency?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :publish_goal_approved_event, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
@@ -1282,6 +1283,12 @@ class Job < ApplicationRecord
 
   def start_dependent_jobs_after_successful_close
     start_dependent_jobs_if_ready
+  end
+
+  def refresh_dependent_epics_after_successful_close
+    EpicDependency.where(depends_on_job_id: id).includes(:epic).find_each do |dependency|
+      dependency.epic&.refresh_auto_state!
+    end
   end
 
   def start_dependent_jobs_if_ready
