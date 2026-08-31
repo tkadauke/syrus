@@ -227,7 +227,12 @@ RSpec.describe TestInsights::Query do
 
     expect(result.tests.size).to eq(6)
     expect(test_case_selects.size).to be <= 4
-    expect(test_case_selects.join("\n").scan(/ROW_NUMBER\(\) OVER/).size).to eq(1)
+    # Assert on each batch loader's own window-function alias rather than
+    # counting ROW_NUMBER globally: several unrelated readers rank test_cases
+    # the same way, so a global count silently turns into a tripwire for code
+    # that has nothing to do with this query's batching.
+    expect(test_case_selects.count { |sql| sql.include?("syrus_recent_rank") }).to eq(1)
+    expect(test_case_selects.count { |sql| sql.include?("syrus_latest_case_rank") }).to eq(1)
   end
 
   it "clamps limits and returns stable ids and links for related records" do
