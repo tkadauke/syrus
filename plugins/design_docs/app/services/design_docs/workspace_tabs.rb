@@ -47,7 +47,10 @@ module DesignDocs
     end
 
     def self.referenced_design_doc_ids(chat_session)
-      chat_session.messages.active.find_each.with_object([]) do |message, ids|
+      chat_session.messages
+                  .active
+                  .where("CAST(content AS CHAR) LIKE ?", "%DOC-%")
+                  .find_each.with_object([]) do |message, ids|
         extract_doc_refs(message.content).each { |id| ids << id }
       end.uniq
     end

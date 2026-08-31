@@ -35,6 +35,18 @@ RSpec.describe DesignDocs::WorkspaceTabs do
     expect(described_class.workspace_tabs(chat_session).first.dig(:data, :attached_design_doc_ids)).to eq([ doc.id ])
   end
 
+  it "does not parse unrelated chat messages while looking for DOC references" do
+    doc = DesignDoc.create!(owner_user: user, title: "Referenced", markdown: "Body", visibility: "private")
+    chat_session.messages.create!(role: "user", content: { "text" => "A large message without references" })
+    chat_session.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Discuss #{doc.display_id}" } ])
+
+    allow(described_class).to receive(:extract_doc_refs).and_call_original
+
+    expect(described_class.referenced_design_doc_ids(chat_session)).to eq([ doc.id ])
+    expect(described_class).not_to have_received(:extract_doc_refs).with({ "text" => "A large message without references" })
+    expect(described_class).to have_received(:extract_doc_refs).with([ { "type" => "text", "text" => "Discuss #{doc.display_id}" } ])
+  end
+
   it "is hidden when the chat has no visible design docs" do
     expect(described_class.available_for?(chat_session)).to be(false)
   end
