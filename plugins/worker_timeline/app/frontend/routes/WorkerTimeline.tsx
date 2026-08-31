@@ -5,6 +5,8 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { FilterBar } from "@app/components/FilterBar"
+import { CopyableSlug } from "@app/components/CopyableSlug"
+import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { fetchWorkerTimelineMacro, fetchWorkerTimelineWorkflow, recordWorkerTimelineFilterUsage, type WorkerTimelineMacroPayload } from "../api/workerTimeline"
 import { TimelineLanes } from "../components/TimelineLanes"
 import { WorkflowWaterfall } from "../components/WorkflowWaterfall"
@@ -56,17 +58,17 @@ export function WorkerTimelineMacroView() {
       {macro.isError ? <p className="p-6 text-sm text-red-700 dark:text-red-300">{errorMessage(macro.error, t("error_loading"))}</p> : null}
       {macro.data ? <TimelineLanes onSelectWorkflow={handleSelectWorkflow} payload={macro.data} /> : null}
 
-      {macro.data ? <PendingList onSelectWorkflow={handleSelectWorkflow} pending={macro.data.pending} /> : null}
+      {macro.data ? <PendingList pending={macro.data.pending} prefix={prefix} /> : null}
     </main>
   )
 }
 
 function PendingList({
   pending,
-  onSelectWorkflow
+  prefix
 }: {
   pending: WorkerTimelineMacroPayload["pending"]
-  onSelectWorkflow: (workflowId: number) => void
+  prefix: string
 }) {
   const { t } = useT("worker_timeline")
   if (pending.length === 0) return null
@@ -75,19 +77,38 @@ function PendingList({
     <section aria-label={t("pending_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("pending_heading")}</h2>
       <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800 text-sm">
-        {pending.map((entry) => (
-          <li className="flex items-center justify-between gap-3 py-2" key={entry.workflow_id}>
-            <button className="text-left text-blue-700 dark:text-blue-300 underline hover:no-underline" onClick={() => onSelectWorkflow(entry.workflow_id)} type="button">
-              {entry.label}
-            </button>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {entry.blocked.available ? t("blocked_reason_line", { reason: entry.blocked.blocked_reason }) : t("no_blocker_data")}
-            </span>
-          </li>
-        ))}
+        {pending.map((entry) => {
+          const label = pendingLabelParts(entry)
+
+          return (
+            <li className="flex items-center justify-between gap-3 py-2" key={entry.workflow_id}>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <SlugHoverCard id={entry.job_id} kind="job">
+                  <CopyableSlug className="text-xs" slug={label.jobSlug} />
+                </SlugHoverCard>
+                <span className="text-gray-400 dark:text-gray-500" aria-hidden="true">·</span>
+                <Link className="truncate text-left text-blue-700 underline hover:no-underline dark:text-blue-300" to={withRoutePrefix(`/worker_timeline/workflow?id=${entry.workflow_id}`, prefix)}>
+                  {label.triggerKind}
+                </Link>
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {entry.blocked.available ? t("blocked_reason_line", { reason: entry.blocked.blocked_reason }) : t("no_blocker_data")}
+              </span>
+            </li>
+          )
+        })}
       </ul>
     </section>
   )
+}
+
+function pendingLabelParts(entry: WorkerTimelineMacroPayload["pending"][number]) {
+  const [jobSlug, triggerKind] = entry.label.split(" · ")
+
+  return {
+    jobSlug: jobSlug || `JOB-${entry.job_id}`,
+    triggerKind: triggerKind || entry.label
+  }
 }
 
 function WorkerTimelineWorkflowDetail() {

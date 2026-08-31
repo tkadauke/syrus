@@ -344,6 +344,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
   // required, but a payload without it crashes the whole Summary tab through
   // the route error boundary rather than just hiding one panel.
   const typedArtifacts = payload.typed_artifacts ?? []
+  const showUnsatisfiedDependencies = payload.job.state !== "landing" && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
@@ -385,7 +386,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
       <PrChecksBanner payload={payload} />
       <AdmissionBudgetPanel payload={payload} />
       <RetryStatePanel payload={payload} />
-      {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
+      {showUnsatisfiedDependencies ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[62%_38%]">
         <div className="min-w-0 space-y-4">

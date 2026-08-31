@@ -226,6 +226,12 @@ function renderTimeline(initialPath = "/worker_timeline") {
 }
 
 describe("WorkerTimeline macro view", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -343,6 +349,35 @@ describe("WorkerTimeline macro view", () => {
     expect(screen.queryByRole("button", { name: /Repository is/ })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Status is/ })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
+  })
+
+  it("renders pending job slugs as copyable controls and trigger kinds as separate workflow links", async () => {
+    setupFetchMock({
+      pending: [
+        {
+          workflow_id: 577,
+          job_id: 77,
+          label: "JOB-77 · initial",
+          job_title: "Queue the aqueduct repair",
+          created_at: "2026-01-01T00:00:00Z",
+          blocked: { blocked_reason: "main_branch_health", blocked_since: "2026-01-01T00:00:00Z", blocked_details: {}, next_check_at: null, available: true, historical: false }
+        }
+      ]
+    })
+    renderTimeline()
+
+    await screen.findByText("Waiting to start")
+
+    const copyButton = screen.getByRole("button", { name: "Copy JOB-77 to clipboard" })
+    expect(copyButton).toHaveTextContent("JOB-77")
+    expect(screen.queryByRole("button", { name: "JOB-77 · initial" })).not.toBeInTheDocument()
+
+    fireEvent.click(copyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-77")
+
+    fireEvent.click(screen.getByRole("link", { name: "initial" }))
+
+    expect(await screen.findByText("prepare · iteration 1")).toBeInTheDocument()
   })
 
   it("shows a tooltip with the job/workflow id, duration, and blocked reason on hover", async () => {

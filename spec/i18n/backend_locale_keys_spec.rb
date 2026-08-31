@@ -25,6 +25,7 @@ RSpec.describe "Backend locale keys", type: :unit do
       users.welcome_admin
       users.welcome
       application.admin_required
+      errors.messages.inclusion
       api.base.unauthorized
       api.base.admin_required
       api.base.sign_in_required
@@ -124,7 +125,7 @@ RSpec.describe "Backend locale keys", type: :unit do
     context "locale: #{locale}" do
       it "has all required string keys" do
         missing = required_keys.reject do |key|
-          I18n.t(key, locale: locale).present?
+          I18n.t(key, locale: locale, raise: true).present?
         rescue I18n::MissingTranslationData
           false
         end
@@ -135,8 +136,8 @@ RSpec.describe "Backend locale keys", type: :unit do
       it "has all required pluralized keys" do
         extra = { provider: "Claude", error: "test" }
         missing = pluralized_keys.reject do |key|
-          I18n.t(key, locale: locale, count: 1, **extra).present? &&
-            I18n.t(key, locale: locale, count: 2, **extra).present?
+          I18n.t(key, locale: locale, count: 1, raise: true, **extra).present? &&
+            I18n.t(key, locale: locale, count: 2, raise: true, **extra).present?
         rescue I18n::MissingTranslationData
           false
         end
@@ -165,5 +166,16 @@ RSpec.describe "Backend locale keys", type: :unit do
     expect(I18n.t("api.repositories.bulk_delegated", count: 5)).to eq("5 issues delegated to Syrus.")
     expect(I18n.t("api.repositories.bulk_closed", count: 1)).to eq("1 issue closed.")
     expect(I18n.t("api.repositories.bulk_closed", count: 3)).to eq("3 issues closed.")
+  end
+
+  it "localizes German inclusion validation errors for user agent providers" do
+    message = I18n.with_locale(:de) do
+      user = User.new(email_address: "user@example.com", password: "supersecret", agent_provider: "oracle")
+      user.validate
+      user.errors.full_messages_for(:agent_provider).first
+    end
+
+    expect(message).to include("ist kein gültiger Wert")
+    expect(message).not_to include("Translation missing")
   end
 end
