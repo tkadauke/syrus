@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_130000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_131000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1348,6 +1348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_130000) do
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["grace_period_expires_at"], name: "index_jobs_on_grace_period_expires_at"
     t.index ["input_source_id"], name: "index_jobs_on_input_source_id"
+    t.index ["repository_id", "finished_at", "id", "landed_sha"], name: "idx_jobs_deployment_stage_poll"
     t.index ["landing_blocker_override_key"], name: "index_jobs_on_landing_blocker_override_key"
     t.index ["landing_blocker_override_requested_by_user_id"], name: "index_jobs_on_landing_blocker_override_requested_by_user_id"
     t.index ["landing_queue_cached_at", "state"], name: "index_jobs_on_landing_queue_cached_at_and_state"

@@ -32,17 +32,14 @@ class PollRepositoryDeploymentStagesJob < ApplicationJob
 
   def jobs_with_missing_stage(repository, stages)
     stage_names = stages.map(&:name)
+    missing_stage_sql = stage_names
+      .map { "NOT EXISTS (SELECT 1 FROM job_deployment_stage_statuses WHERE job_deployment_stage_statuses.job_id = jobs.id AND job_deployment_stage_statuses.stage_name = ?)" }
+      .join(" OR ")
 
     repository.jobs
       .where.not(landed_sha: [ nil, "" ])
       .where("jobs.finished_at IS NULL OR jobs.finished_at >= ?", LOOKBACK.ago)
-      .left_joins(:deployment_stage_statuses)
-      .group("jobs.id")
-      .having(
-        "COUNT(DISTINCT CASE WHEN job_deployment_stage_statuses.stage_name IN (?) THEN job_deployment_stage_statuses.stage_name END) < ?",
-        stage_names,
-        stage_names.size
-      )
+      .where(missing_stage_sql, *stage_names)
       .order(finished_at: :desc, id: :desc)
       .limit(MAX_JOBS_PER_POLL)
       .to_a
