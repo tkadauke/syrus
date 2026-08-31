@@ -90,12 +90,27 @@ internals gated by `AppSetting.show_work_unit_debug?`.
 - `stack_rebase` — maintenance Run that rebases a dependent PR stack
   branch-by-branch, force-pushes each updated branch, then resumes
   landing for approved stack Jobs.
+- `promotion` / `hotfix_sync` / `upstream_export` — delivery-track ref
+  movement: promote a track source branch to its target, sync hotfixes back
+  from release to development, or export an approved Job branch upstream.
 - `coding_handoff` — triggered after a coding-mode chat session commits
   and hands off via `complete_implement_step` (existing Job) or
   `submit_coding_changes` (creates a new direct Job); requires operator
   confirmation before dispatching. On grader pass, opens the PR and
-  notifies the linked chat. On grader failure, reverts the Job to `:coding`
-  so the agent can fix and re-run.
+  notifies the linked chat. Grader failures are repaired by
+  `coding_handoff_fix`; terminal failure posts a passive chat report and
+  marks the Job failed for the normal Retry path.
+- `local_mode_handoff` — triggered after an operator confirms a Local Mode
+  handoff. Graders run in a workflow-owned retry loop repaired by
+  `local_mode_handoff_fix`; exhausted grader failures post a passive chat
+  report and leave the Job failed for the normal Retry path.
+- `landing_validation` / `merge_train_validation` — speculative,
+  non-publishing prevalidation for the next landing candidate when enabled.
+- `manual_visual_review` — on-demand visual QA over an already-implemented
+  Job branch; records the review without looping back into implementation.
+- `main_grader` / `main_branch_repair` / `agent_insight` / `deploy` —
+  infrastructure/operations workflows for default-branch health, read-only
+  insight generation, and configured deploy commands.
 
 ### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
@@ -113,15 +128,27 @@ initial:     prepare → implement → [loop(adversarial_review first, then impl
 pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → format → generate → graders) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
+retry:       prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → format → generate → graders) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
+landing_validation: speculative_landing_build → prepare → graders
 merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
-coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open → review_plan
+merge_train_validation: speculative_merge_train_build → prepare → graders
+coding_handoff: prepare → retry_until(graders, repair: coding_handoff_fix) → summarize → test_plan → pr_open → review_plan
+local_mode_handoff: prepare → retry_until(graders, repair: local_mode_handoff_fix) → summarize/test_plan/pr_open or summarize_amend/try(push)
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
+external_pr_merge: mergeability_preflight → prepare → graders[/landing_fix] → external_pr_merge
+external_pr_feedback: prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → summarize_amend → try(push)
 skill:       prepare → run_skill → retry_until(run_skill → graders) → summarize → pr_open
+promotion:   promotion_assemble → prepare → promotion_repair → retry_until(graders, repair: promotion_repair) → promotion_publish
+hotfix_sync: hotfix_sync_assemble → prepare → hotfix_sync_repair → retry_until(graders, repair: hotfix_sync_repair) → hotfix_sync_publish
+upstream_export: upstream_export_publish
+main_grader: prepare → grader_fanout → grader_collect
+main_branch_repair: prepare → preflight_graders → retry_until(implement → graders) → summarize → test_plan → pr_open
+agent_insight: [prepare] → agent_insight_run → auto_close
+deploy:      prepare → deploy
 ```
 
 `[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository. `dependency_audit` (and, in feedback workflows, `dependency_audit_pr_comment`) is always present in these chains but self-skips at runtime unless the PR diff touched a lockfile a registered `:dependency_audit_command` plugin owns. In `initial`/`retry`/`pr_comment`/`chat_feedback`, the grader retry loop is likewise conditional at the step level: `format`, `generate`, and the `grader_fanout`/`grader_collect` check phase are only materialized when the repository's `.syrus.yml` configures `formatters:`, `generated:`, or `grade:` respectively (`RepoGradeLoopPlan`, resolved pre-clone the same way as the adversarial/visual review plans) — none of the three is configured by default, so a freshly onboarded repo gets a bare `implement`/`respond` step (or, in `initial`, nothing extra — the top-level `implement` already covers it) with no grade loop at all. As soon as any one of them is configured, the whole loop materializes together (the agent step, whichever of `format`/`generate` apply, and `grader_fanout`/`grader_collect`) — there is no way to retry without a check phase. This conditional gating is scoped to those four autofix-enabled chains; `ci_failure`, `skill`, `main_branch_repair`, and `external_pr_feedback` always materialize their grader check unconditionally since grading is the entire point of those repair loops.
@@ -268,8 +295,8 @@ Key steps:
   loop (findings carry forward but no re-implement needed); `needs_work` keeps
   the loop going for another `implement`/`respond` iteration. The reviewer's
   workspace changes are discarded — it is read-only. Runs in feedback
-  workflows (`pr_comment`, `chat_feedback`) and `initial`; not currently wired
-  into `retry`; skipped in `ci_failure`, `auto_merge`, and maintenance
+  workflows (`pr_comment`, `chat_feedback`), `initial`, and `retry`; skipped
+  in `ci_failure`, `auto_merge`, and maintenance
   workflows. `.syrus.yml` accepts an optional `criteria` array in the
   `adversarial_review` block to inject repository-specific checklist items
   into the reviewer prompt (additive — the default checklist still runs).
@@ -330,7 +357,7 @@ Key steps:
   the handler; `fail_policy: :advance` on the `Step::Kind` entry is a
   declarative backstop for the same guarantee.
 
-**MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
+**MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by the agent CLI over stdio
 via a per-step `mcp.json` tempfile. Tools available to workflow agents:
 `read_live_state(detail)` — read-only Job/Workflow/Run/queue snapshot;
 `read_memory`, `write_memory`, `delete_memory`, `search_memories`,
@@ -341,6 +368,11 @@ via a per-step `mcp.json` tempfile. Tools available to workflow agents:
 samples correlated with a Run, including grader command spans when recorded;
 treat process command details from this tool as potentially sensitive and
 summarize rather than pasting raw tokens or auth-bearing commands;
+`list_repository_test_insights`, `read_test_insight`,
+`read_job_test_results`, `read_run_test_results`, and
+`compare_test_runtime` — read-only Test Insights access for bounded flaky,
+failing, and slow-test investigation; prefer these over scraping transcripts
+when structured test data exists;
 `read_performance_diagnostics` — sanitized current/all-revision performance
 summaries, available only to implement agents working on `tkadauke/syrus` or a
 registered fork;
@@ -541,6 +573,19 @@ both create a pending action that requires operator confirmation before
 the `coding_handoff` Workflow is dispatched. While a chat turn is busy,
 follow-up user messages are stored as `ChatQueuedMessage`s and delivered
 sequentially after the current turn finishes.
+
+In **Local Mode**, `complete_implement_step` also creates a pending action
+that the operator must confirm before dispatch. After confirmation, the
+`local_mode_handoff` workflow owns grader repair through
+`local_mode_handoff_fix`; failed grader repair reports back passively instead
+of promoting the linked chat into another agent turn.
+
+Planning-mode preview mockups use the `preview_tools` plugin MCP tools:
+open a panel with `show_preview`, write or patch files in that panel's
+scratch directory with `write_preview_file` / `edit_preview_file`, then call
+`show_preview` again with the same `panel_id` to publish. Preview panel
+versions can be attached to proposed Jobs as `preview_panel_version:<id>` so
+implementation agents receive the source files, not just a screenshot.
 
 Supervisor chat is a feature-gated admin control room
 (`admin_supervisor_chat`). It is one pinned, durable chat per admin with no
