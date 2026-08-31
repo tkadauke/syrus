@@ -90,6 +90,34 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }).to include("My docs", "Recently updated")
   end
 
+  it "does not render duplicate built-in smart folders when stale duplicates exist" do
+    cache_store = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache_store)
+    create_design_doc(title: "Owner only")
+    sign_in_as(owner)
+
+    SmartFolder.ensure_builtins_for_subject!("design_doc")
+    my_docs = SmartFolder.builtins(:design_doc).find_by!(name: "My docs")
+    SmartFolder.insert_all!([
+      {
+        name: my_docs.name,
+        kind: my_docs.kind,
+        subject_type: my_docs.subject_type,
+        filter: my_docs.filter,
+        position: my_docs.position + 1,
+        user_id: nil,
+        created_at: Time.current,
+        updated_at: Time.current
+      }
+    ])
+
+    get "/api/v1/app/design_docs"
+
+    expect(response).to have_http_status(:ok)
+    folder_names = parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }
+    expect(folder_names.count("My docs")).to eq(1)
+  end
+
   it "filters design docs from a smart folder and routes saved folders back to Design Docs" do
     own_doc = create_design_doc(title: "Owned draft")
     public_doc = create_design_doc(title: "Accepted public", visibility: "public", state: "accepted")
