@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_124000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_125000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1797,6 +1797,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_124000) do
     t.index ["user_id", "provider", "source", "observed_at", "id"], name: "idx_provider_evidence_user_provider_source_recent"
     t.index ["user_id", "provider", "status", "observed_at", "id"], name: "idx_provider_evidence_user_provider_status_recent"
     t.index ["user_id", "provider", "status", "observed_at"], name: "idx_provider_evidence_user_provider_status_observed"
+    t.index ["user_id", "provider", "status", "repair_status", "observed_at", "id"], name: "idx_provider_evidence_user_status_repair_recent"
     t.index ["user_id"], name: "index_provider_availability_evidences_on_user_id"
   end
 
