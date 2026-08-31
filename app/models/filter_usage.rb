@@ -1,11 +1,15 @@
 class FilterUsage < ApplicationRecord
   SURFACES = %w[dashboard worker_timeline].freeze
-  SUBJECTS = (SmartFolder::SUBJECT_TYPES + %w[worker_timeline]).freeze
+  EXTRA_SUBJECTS = %w[worker_timeline].freeze
+
+  def self.subjects
+    (SmartFolder.subject_types + EXTRA_SUBJECTS).uniq
+  end
 
   belongs_to :user
 
   validates :surface, presence: true, inclusion: { in: SURFACES }
-  validates :subject, presence: true, inclusion: { in: ->(_) { SmartFolder.subject_types + %w[worker_timeline] } }
+  validates :subject, presence: true, inclusion: { in: ->(_) { FilterUsage.subjects } }
   validates :fingerprint, presence: true
   validates :filter_node, presence: true
   validates :label, presence: true
