@@ -265,6 +265,11 @@ duplicating storage. A ref that no longer resolves (the snapshot, image, or
 preview panel version was deleted, or belongs to a different chat session) is
 skipped rather than failing the whole request.
 
+`propose_job` and `propose_epic_with_jobs` also accept `for_active_goal`.
+It defaults to false. Set it true only when the proposed work directly advances
+the chat's active goal; unrelated or opportunistic follow-up proposals should
+remain unlinked so their later Job state changes do not wake the goal loop.
+
 Because `Document::MAX_ATTACHMENTS_PER_JOB` caps attachments per Job, repeated
 feedback rounds that each attach media can eventually hit the cap. Refs that
 would exceed it are skipped (existing attachments are never evicted) and the

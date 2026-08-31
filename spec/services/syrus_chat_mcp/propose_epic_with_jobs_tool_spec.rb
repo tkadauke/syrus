@@ -70,7 +70,42 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
-  it "returns active goal provenance for bundled Epic and child Job proposals" do
+  it "does not attach active goal provenance to bundled Epic and child Job proposals by default" do
+    ChatGoal.create!(
+      chat_session: chat_session,
+      user: user,
+      repository: repository,
+      prompt: "Draft a traceable bundle"
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "ordinary-bundle",
+        title: "Ordinary bundle",
+        description: "No goal provenance.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "ordinary-child",
+          target_repo: repository.slug,
+          title: "Ordinary child",
+          description: "No child provenance."
+        }
+      ]
+    )
+
+    payload = response_payload(response)
+    proposal = chat_session.proposals.find_by!(slug: "ordinary-bundle")
+    child = chat_session.proposals.find_by!(slug: "ordinary-child")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.chat_goal).to be_nil
+    expect(child.chat_goal).to be_nil
+    expect(payload[:goal_provenance]).to be_nil
+    expect(payload[:child_jobs].sole[:goal_provenance]).to be_nil
+  end
+
+  it "returns active goal provenance when requested for bundled Epic and child Job proposals" do
     goal = ChatGoal.create!(
       chat_session: chat_session,
       user: user,
@@ -92,7 +127,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
           title: "Trace child",
           description: "Keep child provenance."
         }
-      ]
+      ],
+      for_active_goal: true
     )
 
     payload = response_payload(response)
@@ -106,6 +142,30 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       chat_goal_id: goal.id,
       prompt_snapshot: include(prompt: "Draft a traceable bundle")
     )
+  end
+
+  it "rejects active goal provenance when no goal is active" do
+    response = call_tool(
+      epic: {
+        slug: "traceable-bundle",
+        title: "Traceable bundle",
+        description: "Keep goal provenance.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "trace-child",
+          target_repo: repository.slug,
+          title: "Trace child",
+          description: "Keep child provenance."
+        }
+      ],
+      for_active_goal: true
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("requires an active Chat Goal")
+    expect(chat_session.proposals.find_by(slug: "traceable-bundle")).to be_nil
   end
 
   it "creates a grouped child Job proposal card for an existing Epic" do

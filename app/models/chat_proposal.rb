@@ -266,10 +266,10 @@ class ChatProposal < ApplicationRecord
   end
 
   def stamp_goal_provenance
-    return if chat_goal_id.present? || goal_prompt_snapshot.present?
+    return if goal_prompt_snapshot.present?
 
-    goal = chat_session&.active_goal
-    return unless goal&.active?
+    goal = chat_goal
+    return unless goal
 
     self.chat_goal = goal
     self.goal_prompt_snapshot = self.class.goal_prompt_snapshot_for(goal)

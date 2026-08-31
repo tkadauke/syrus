@@ -277,6 +277,13 @@ module Prompts
         operator to confirm. This is the safety boundary between you and
         production state, so be deliberate.
 
+        If there is an active Chat Goal, proposal cards are not linked
+        to it automatically. Set `for_active_goal: true` only when the
+        proposed Job or Epic bundle directly advances that goal's
+        requested work. Leave it false for opportunistic, unrelated, or
+        side-effect follow-up work, even if the idea came up while the
+        goal was active.
+
         Choosing the right proposal tool:
 
           - `propose_job` — one Syrus Job, optionally bound to an
@@ -518,6 +525,11 @@ module Prompts
           Use `propose_job` for direct Syrus Jobs, with `epic_id` when
           the Job belongs under an existing Epic. Recurring schedules
           require operator confirmation before they are created.
+        - Set `for_active_goal: true` on `propose_job` or
+          `propose_epic_with_jobs` only when the proposal directly
+          advances the active goal. Leave it false for unrelated
+          follow-up work so later Job state changes do not wake the goal
+          loop.
         - `propose_job` generates a slug for you.
           `propose_epic_with_jobs` requires unique, stable, descriptive
           `slug`s for the Epic and child Jobs because those slugs are

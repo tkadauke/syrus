@@ -41,6 +41,10 @@ module Mcp::Tools
       between paragraphs, lists, and code fences. Do not write literal
       backslash-n sequences (`\\n`) into the description; those are plain
       text and will render as one long unreadable line.
+      Set for_active_goal=true only when this proposed Job is directly in
+      service of the currently active goal. Leave it false for opportunistic
+      or unrelated follow-up work so that Job state changes do not wake the
+      goal loop.
     DESC
 
     input_schema(
@@ -56,13 +60,14 @@ module Mcp::Tools
           type: "array",
           items: { type: "string" },
           description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), pass chat image IDs as \"chat_image:123\", or pass a preview panel's current version id as \"preview_panel_version:42\" to hand the implementing agent that mockup's source files. Omit if no media is relevant."
-        }
+        },
+        for_active_goal: { type: "boolean", description: "Set true only when this proposal directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [])
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [], for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -74,6 +79,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("repository not found") unless repository
         return Mcp::Tools.invalid("title is required") if title.empty?
         return Mcp::Tools.invalid("description is required") if description.empty?
+        goal_attrs = goal_provenance_attributes(chat_session, for_active_goal)
+        return Mcp::Tools.invalid("for_active_goal requires an active Chat Goal") if goal_attrs == false
 
         target_epic = target_epic_for(chat_session, repository, epic_id)
         return Mcp::Tools.invalid("epic_id was not found in #{repository.slug}") if epic_id.present? && !target_epic
@@ -120,7 +127,8 @@ module Mcp::Tools
             kind: "job",
             depends_on_epic_ids: depends_on_epic_ids,
             depends_on_job_ids: depends_on_job_ids,
-            media_ids: Array(media)
+            media_ids: Array(media),
+            **goal_attrs
           )
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
@@ -135,6 +143,23 @@ module Mcp::Tools
       end
 
       private
+
+      def goal_provenance_attributes(chat_session, for_active_goal)
+        unless ActiveModel::Type::Boolean.new.cast(for_active_goal)
+          return {
+            chat_goal: nil,
+            goal_prompt_snapshot: nil
+          }
+        end
+
+        goal = chat_session.active_goal
+        return false unless goal&.active?
+
+        {
+          chat_goal: goal,
+          goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
+        }
+      end
 
       # Folds the not-yet-persisted proposal in as a synthetic node alongside
       # the target Epic's existing Jobs (and their same-epic JobDependency
