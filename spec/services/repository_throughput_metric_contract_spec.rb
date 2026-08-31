@@ -681,20 +681,27 @@ RSpec.describe RepositoryThroughputMetricContract do
     output_run_queries = queries.select do |sql|
       normalized = sql.downcase
       normalized.include?("from \"runs\"") &&
-        normalized.include?("inner join \"steps\"") &&
-        normalized.include?("\"steps\".\"kind\"")
+        normalized.include?("\"runs\".\"step_id\"") &&
+        normalized.include?("\"runs\".\"finished_at\"")
     end
 
     expect(output_run_queries.size).to eq(1)
   end
 
   describe "window prefiltering" do
+    before do
+      job = Factories.job_record(user: user, repository: repository, created_at: now - 40.minutes)
+      workflow = workflow_for(job, trigger_kind: "initial")
+      step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
+      run_for(job, step, head_sha: "a" * 40, step_agent_diff: "+small\n")
+    end
+
     def output_run_sql
       captured_sql { call }.find do |sql|
         normalized = sql.downcase
         normalized.include?("from \"runs\"") &&
-          normalized.include?("inner join \"steps\"") &&
-          normalized.include?("\"steps\".\"kind\"")
+          normalized.include?("\"runs\".\"step_id\"") &&
+          normalized.include?("\"runs\".\"finished_at\"")
       end
     end
 
@@ -712,12 +719,11 @@ RSpec.describe RepositoryThroughputMetricContract do
       expect(where_clause).not_to include(" OR ")
     end
 
-    it "is served by the state/finished_at index rather than scanning runs" do
+    it "is served by the step/state/finished_at index rather than scanning succeeded runs globally" do
       contract = described_class.new(repository: repository, now: now)
-      relation = Run.joins(step: { workflow: :job })
-        .where(jobs: { repository_id: repository.id })
-        .where(steps: { kind: described_class::OUTPUT_STEP_KINDS })
-        .where(state: "succeeded")
+      workflow = workflow_for(Factories.job_record(user: user, repository: repository), trigger_kind: "initial")
+      step = step_for(workflow, kind: "implement")
+      relation = Run.where(step_id: step.id, state: "succeeded")
         .where(contract.send(:window_condition, :runs, :finished_at))
 
       plan = ActiveRecord::Base.connection
@@ -725,8 +731,15 @@ RSpec.describe RepositoryThroughputMetricContract do
                                .map { |row| row["detail"] }
       runs_step = plan.find { |detail| detail.include?("runs") }
 
-      expect(runs_step).to include("idx_runs_state_finished_at")
+      expect(runs_step).to include("idx_runs_step_state_finished_for_throughput")
+      expect(runs_step).to include("step_id")
       expect(runs_step).to include("finished_at")
+    end
+
+    it "does not join wide runs back through steps and jobs for output metrics" do
+      sql = output_run_sql
+
+      expect(sql.downcase).not_to include("join")
     end
 
     # `SELECT runs.*` pulled `prompt`, and touching diff text columns here made
