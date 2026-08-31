@@ -448,6 +448,25 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(payload.fetch(:workflows_pagination)).to include(total_workflows: 51)
     end
 
+    it "reuses the workflow total for the badge and pagination" do
+      job = Factories.job_record(user: user, repository: repo)
+      3.times do
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+        Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      end
+
+      queries = capture_sql do
+        payload = payload_for(job)
+        expect(payload.dig(:job, :workflows_count)).to eq(3)
+        expect(payload.dig(:workflows_pagination, :total_workflows)).to eq(3)
+      end
+
+      workflow_count_queries = queries.select do |sql|
+        sql.match?(/\ASELECT COUNT\(\*\) FROM [`"]workflows[`"] WHERE [`"]workflows[`"]\.[`"]job_id[`"] = /i)
+      end
+      expect(workflow_count_queries.size).to eq(1)
+    end
+
     it "includes generic WorkflowWarning rows on the owning step, redacted" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial")
