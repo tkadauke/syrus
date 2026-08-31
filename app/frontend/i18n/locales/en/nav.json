@@ -150,6 +150,7 @@
     "search_value_placeholder": "Search...",
     "amount": "Amount",
     "unit": "Unit",
+    "presets": "Presets",
     "from": "From",
     "to": "To",
     "min": "Min",
@@ -171,13 +172,14 @@
       "contains_any": "contains any",
       "contains_all": "contains all",
       "contains_none": "contains none",
+      "matches": "matches",
       "is_true": "is true",
       "is_false": "is false",
       "is_set": "is set",
       "is_unset": "is unset",
       "between": "between",
       "within_last": "within last",
-      "more_than_ago": "more than ago"
+      "more_than_ago": "more than"
     },
     "time_unit": {
       "minutes": "minutes",
@@ -185,6 +187,15 @@
       "days": "days",
       "weeks": "weeks",
       "months": "months"
+    },
+    "date_preset": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "last_24_hours": "Last 24 hours",
+      "last_7_days": "Last 7 days",
+      "last_30_days": "Last 30 days",
+      "this_week": "This week",
+      "this_month": "This month"
     },
     "bucket": {
       "enum": "list",

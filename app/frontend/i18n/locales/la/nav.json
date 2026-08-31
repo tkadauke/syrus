@@ -150,6 +150,7 @@
     "search_value_placeholder": "Quaere...",
     "amount": "Numerus",
     "unit": "Unitas",
+    "presets": "Praeposita",
     "from": "Ab",
     "to": "Ad",
     "min": "Minimum",
@@ -171,6 +172,7 @@
       "contains_any": "continet aliquod",
       "contains_all": "continet omnia",
       "contains_none": "continet nullum",
+      "matches": "congruit",
       "is_true": "est verum",
       "is_false": "est falsum",
       "is_set": "est positum",
@@ -185,6 +187,15 @@
       "days": "dies",
       "weeks": "hebdomades",
       "months": "menses"
+    },
+    "date_preset": {
+      "today": "Hodie",
+      "yesterday": "Heri",
+      "last_24_hours": "Ultimae 24 horae",
+      "last_7_days": "Ultimi 7 dies",
+      "last_30_days": "Ultimi 30 dies",
+      "this_week": "Haec hebdomas",
+      "this_month": "Hic mensis"
     },
     "bucket": {
       "enum": "catalogus",

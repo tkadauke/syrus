@@ -164,12 +164,35 @@ export function formatFilterValue(
   }: { unsetLabel?: string; agoLabel?: string; translateUnit?: (unit: string) => string } = {}
 ) {
   if (chip.value === null || chip.value === undefined || chip.value === "") return unsetLabel
+  if (meta?.bucket === "date") return formatDateFilterValue(chip, unsetLabel, agoLabel, translateUnit)
   if (Array.isArray(chip.value)) return chip.value.length > 0 ? chip.value.map((value) => labelForOption(value, meta)).join(", ") : unsetLabel
   if (isObjectValue(chip.value)) {
     if ("n" in chip.value && "unit" in chip.value) return `${chip.value.n} ${translateUnit(String(chip.value.unit || ""))}${chip.op === "more_than_ago" ? ` ${agoLabel}` : ""}`
     return JSON.stringify(chip.value)
   }
   return labelForOption(chip.value, meta)
+}
+
+export function formatDateFilterValue(chip: FilterChip, unsetLabel = "(unset)", agoLabel = "ago", translateUnit: (unit: string) => string = (u) => u) {
+  if (Array.isArray(chip.value)) {
+    const [from, to] = chip.value
+    const fromLabel = formatDateLiteral(from)
+    const toLabel = formatDateLiteral(to)
+    if (fromLabel && toLabel) return `${fromLabel} - ${toLabel}`
+    return fromLabel || toLabel || unsetLabel
+  }
+
+  if (isObjectValue(chip.value) && "n" in chip.value && "unit" in chip.value) {
+    return `${chip.value.n} ${translateUnit(String(chip.value.unit || ""))}${chip.op === "more_than_ago" ? ` ${agoLabel}` : ""}`
+  }
+
+  return formatDateLiteral(chip.value) || unsetLabel
+}
+
+function formatDateLiteral(value: unknown) {
+  const raw = String(value ?? "").trim()
+  if (!raw) return ""
+  return raw.replace(/Z$/, "").replace("T", " ").slice(0, raw.includes("T") ? 16 : 10)
 }
 
 export function useFormattedFilterValue(chip: FilterChip, meta: FilterSchemaField | null) {

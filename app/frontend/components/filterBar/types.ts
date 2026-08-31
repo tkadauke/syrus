@@ -14,6 +14,8 @@ export type FilterSchemaField = {
   operators: string[]
   values?: Array<FilterOption | string>
   typeahead?: boolean
+  full_text_suggestions?: boolean
+  date_precision?: "date" | "datetime"
   expansions?: Record<string, unknown>
 }
 

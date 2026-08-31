@@ -79,6 +79,31 @@ operators who intentionally want a full implementation retry.
 
 **Data source:** `GET /api/v1/app/jobs/graph` and `GET /api/v1/app/epics/graph`. Both endpoints accept the same filter params as the corresponding index endpoints (`repo`, `state`, `q`, `smart_folder_id`) and return `{ nodes, edges }` scoped to `accessible_to(Current.user)`.
 
+## Shared FilterBar primitives
+
+FilterBar-backed surfaces use `Filters::Schema` metadata to expose reusable
+filter behavior instead of per-page search boxes. Text chips can opt in to
+typed-query suggestions with `full_text_suggestions`; when the add-filter menu
+has at least two typed characters, `/api/v1/app/filters/suggestions` can
+synthesize ordinary AST chip nodes such as `{ "field": "title", "op":
+"matches", "value": "queue" }`. These suggestions work in the same `q=`
+base64url filter tree as manually added chips and can be saved in
+SmartFolders.
+
+The `matches` operator is separate from `StringColumn`'s `contains` operator.
+`Filters::Chips::FullTextStringColumn` is the reusable search-style text base;
+until a subject has a database-specific full-text implementation, it uses a
+documented cross-database LIKE fallback so development/test SQLite and
+production adapters have the same baseline behavior.
+
+Date chips expose `date_precision` metadata. The shared datetime range editor
+preserves existing AST value shapes: absolute ranges still use `between:
+[from, to]`, relative ranges use `within_last: { n, unit }` and
+`more_than_ago: { n, unit }`, and single-sided filters keep their scalar date
+or datetime value. The editor adds common presets including today, yesterday,
+last 24 hours, last 7 days, last 30 days, this week, and this month; datetime
+fields render time-of-day controls, while date-only fields render date inputs.
+
 ## View preference persistence
 
 The selected view is persisted per `[subject, smart_folder_id]` pair and restored on next load. Preferences are stored via `User#update_dashboard_folder_preferences!` and resolved by `DashboardPayload#folder_pref_view`. All three view values (`list`, `kanban`, `dependencies`) are valid persisted values.

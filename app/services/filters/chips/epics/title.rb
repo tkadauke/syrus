@@ -1,7 +1,7 @@
 module Filters
   module Chips
     module Epics
-      class Title < StringColumn
+      class Title < FullTextStringColumn
         filter_name "title"
         label "Title"
         column :title

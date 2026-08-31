@@ -43,6 +43,22 @@ const filterSchema: FilterSchemaField[] = [
     bucket: "fk",
     operators: ["is", "is_one_of"],
     typeahead: true
+  },
+  {
+    field: "created_at",
+    label: "Created",
+    bucket: "date",
+    operators: ["before", "after", "between", "within_last", "more_than_ago"],
+    values: [],
+    date_precision: "datetime"
+  },
+  {
+    field: "due_on",
+    label: "Due",
+    bucket: "date",
+    operators: ["before", "after", "between", "within_last", "more_than_ago"],
+    values: [],
+    date_precision: "date"
   }
 ]
 
@@ -65,6 +81,7 @@ function decodedFilterFromLocation() {
 
 describe("FilterBar", () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -444,6 +461,115 @@ describe("FilterBar", () => {
     })
   })
 
+  it("renders and updates saved absolute datetime ranges", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "created_at", op: "between", value: ["2026-05-01T08:30:00Z", "2026-05-02T17:45:00Z"] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Created between 2026-05-01 08:30 - 2026-05-02 17:45" }))
+    const from = screen.getByLabelText("From") as HTMLInputElement
+    const to = screen.getByLabelText("To") as HTMLInputElement
+
+    expect(from.type).toBe("datetime-local")
+    expect(from.value).toBe("2026-05-01T08:30")
+    expect(to.value).toBe("2026-05-02T17:45")
+
+    fireEvent.change(from, { target: { value: "2026-05-03T09:15" } })
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "created_at", op: "between", value: ["2026-05-03T09:15", "2026-05-02T17:45:00Z"] }]
+      })
+    })
+  })
+
+  it("renders and updates saved relative date ranges", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "created_at", op: "more_than_ago", value: { n: 7, unit: "days" } }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Created more than 7 days ago" }))
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "14" } })
+    fireEvent.change(screen.getByLabelText("Unit"), { target: { value: "weeks" } })
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "created_at", op: "more_than_ago", value: { n: 14, unit: "weeks" } }]
+      })
+    })
+    expect(screen.getByRole("button", { name: "Created more than 14 weeks ago" })).toBeInTheDocument()
+  })
+
+  it("applies datetime range presets without changing the AST shape", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date("2026-08-31T10:20:00"))
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "created_at", op: "after", value: "2026-08-01T00:00" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Created after 2026-08-01 00:00" }))
+    fireEvent.click(screen.getByRole("button", { name: "Today" }))
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "created_at", op: "between", value: ["2026-08-31T00:00", "2026-08-31T23:59"] }]
+      })
+    })
+
+    vi.useRealTimers()
+  })
+
+  it("uses date precision for date-only fields", async () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "due_on", op: "between", value: ["2026-05-01", "2026-05-31"] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+        <LocationProbe />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Due between 2026-05-01 - 2026-05-31" }))
+    const from = screen.getByLabelText("From") as HTMLInputElement
+
+    expect(from.type).toBe("date")
+    fireEvent.change(from, { target: { value: "2026-05-02" } })
+
+    await waitFor(() => {
+      expect(decodedFilterFromLocation()).toEqual({
+        and: [{ field: "due_on", op: "between", value: ["2026-05-02", "2026-05-31"] }]
+      })
+    })
+  })
+
   it("hydrates FK filter chip labels from saved filter ids", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const url = new URL(String(input), "http://example.test")
@@ -593,6 +719,7 @@ describe("FilterBar", () => {
 
 describe("FilterBar keyboard navigation", () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -630,7 +757,7 @@ describe("FilterBar keyboard navigation", () => {
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
       fireEvent.keyDown(screen.getByPlaceholderText("Search filters..."), { key: "ArrowUp" })
 
-      expect(screen.getByRole("button", { name: "Repository reference" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
+      expect(screen.getByRole("button", { name: "Due date" })).toHaveClass("bg-gray-50", "dark:bg-gray-800")
       expect(screen.getByRole("button", { name: "State list" })).not.toHaveClass("bg-gray-50")
     })
 
@@ -1007,4 +1134,3 @@ describe("FilterBar German locale", () => {
     expect(screen.getByRole("button", { name: "Repository Referenz" })).toBeInTheDocument()
   })
 })
-

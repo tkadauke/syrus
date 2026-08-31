@@ -20,7 +20,7 @@ module Filters
     def call
       return [] if query.blank?
 
-      candidates = frequent_suggestions + value_suggestions
+      candidates = frequent_suggestions + text_search_suggestions + value_suggestions
       deduplicate(candidates)
         .sort_by { |candidate| [ -candidate.fetch(:score), candidate.fetch(:label).downcase ] }
         .first(limit)
@@ -68,6 +68,22 @@ module Filters
         else
           static_value_suggestions(meta)
         end
+      end
+    end
+
+    def text_search_suggestions
+      schema.filter_map do |meta|
+        next unless meta["full_text_suggestions"]
+        next unless meta.fetch("operators").include?("matches")
+
+        filter = { "field" => meta.fetch("field"), "op" => "matches", "value" => query }
+        candidate(
+          id: "text-#{fingerprint(filter)}",
+          label: %(#{meta.fetch("label")} matches "#{query}"),
+          filter: filter,
+          source: "text",
+          score: 650
+        )
       end
     end
 
@@ -160,9 +176,21 @@ module Filters
     end
 
     def active_fingerprints
-      @active_fingerprints ||= top_level_nodes(active_tree).filter_map do |node|
+      @active_fingerprints ||= top_level_nodes(active_tree).flat_map do |node|
         normalized = normalized_node(node)
-        fingerprint(normalized) if normalized
+        normalized ? descendant_nodes(normalized).map { |descendant| fingerprint(descendant) } : []
+      end.uniq
+    end
+
+    def descendant_nodes(node)
+      if node["or"].is_a?(Array)
+        [ node ] + node.fetch("or").flat_map { |child| descendant_nodes(child) }
+      elsif node["and"].is_a?(Array)
+        [ node ] + node.fetch("and").flat_map { |child| descendant_nodes(child) }
+      elsif node["not"].is_a?(Hash)
+        [ node ] + descendant_nodes(node.fetch("not"))
+      else
+        [ node ]
       end
     end
 
