@@ -18,13 +18,14 @@ module Api
           default_limit = query.present? ? DEFAULT_SEARCH_LIMIT : DEFAULT_INTERESTING_LIMIT
           limit = params.fetch(:limit, default_limit).to_i.clamp(1, MAX_LIMIT)
           tests = TestIdentity.interesting_for_repository(repository, query: query.presence, limit: limit)
+          stats_by_identity_id = TestInsights::RecentStats.load(tests, lookback: TestIdentity::LIST_LOOKBACK)
 
           render json: {
             repository: repository_json(repository),
             tabs: repository_tabs_json(repository),
             query: query,
             limit: limit,
-            tests: tests.map { |test_identity| test_identity_json(test_identity) }
+            tests: tests.map { |test_identity| test_identity_json(test_identity, stats: stats_by_identity_id.fetch(test_identity.id)) }
           }
         end
 
@@ -77,8 +78,8 @@ module Api
           }
         end
 
-        def test_identity_json(test_identity)
-          stats = test_identity.recent_stats
+        def test_identity_json(test_identity, stats: nil)
+          stats ||= test_identity.recent_stats
           {
             id: test_identity.id,
             suite_name: test_identity.suite_name,
