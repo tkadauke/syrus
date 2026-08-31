@@ -427,23 +427,33 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       grader_health: "healthy"
     )
     repository.update!(landing_paused: true)
-    failed = Factories.job(repository: repository, issue_number: 1, issue_title: "Fix forum")
-    failed.update!(state: "failed")
-    failed.current_run.update!(state: "failed", finished_at: Time.current)
-    failed.latest_workflow.update!(
+    failed = Factories.job_with_run(
+      repository: repository,
+      issue_number: 1,
+      issue_title: "Fix forum",
       state: "failed",
-      failure_count: 3,
-      artifacts: { "failure_classification" => "agent_timeout", "auto_retry_exhausted" => true }
+      workflow_attrs: { state: "failed", failure_count: 3, artifacts: { "failure_classification" => "agent_timeout", "auto_retry_exhausted" => true } },
+      step_attrs: { state: "failed" },
+      run_attrs: { state: "failed", finished_at: Time.current }
     )
-    running = Factories.job(repository: repository, issue_number: 2, issue_title: "Survey aqueduct")
-    running.current_run.update!(state: "running", started_at: Time.current)
-    queued = Factories.job(repository: repository, issue_number: 3, issue_title: "Polish marble")
-    queued.current_run.update!(state: "queued")
-    historical_failure = Factories.job(repository: repository, issue_number: 4, issue_title: "Finished after a failure")
-    historical_failure.update!(state: "implemented")
-    historical_failure.current_run.update!(state: "failed", finished_at: Time.current)
+    running = Factories.job_with_run(
+      repository: repository,
+      issue_number: 2,
+      issue_title: "Survey aqueduct",
+      workflow_attrs: { state: "running" },
+      step_attrs: { state: "running" },
+      run_attrs: { state: "running", started_at: Time.current }
+    )
+    queued = Factories.job_with_run(repository: repository, issue_number: 3, issue_title: "Polish marble")
+    historical_failure = Factories.job_with_run(
+      repository: repository,
+      issue_number: 4,
+      issue_title: "Finished after a failure",
+      state: "implemented",
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
     other_repository = Factories.repository(user: user, owner: "acme", name: "other")
-    Factories.job(repository: other_repository, issue_number: 99, issue_title: "Private")
+    Factories.job_record(repository: other_repository, issue_number: 99, issue_title: "Private")
 
     get "/api/v1/app/repositories/#{repository.id}"
 
@@ -517,9 +527,13 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   it "uses WorkUnit-owned active work when serializing repository detail retry state" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    member = Factories.job(repository: repository, issue_number: 1, issue_title: "Member work")
-    owner = Factories.job(repository: repository, issue_number: 2, issue_title: "Owner work")
-    member.current_run.update!(state: "failed", finished_at: Time.current)
+    member = Factories.job_with_run(
+      repository: repository,
+      issue_number: 1,
+      issue_title: "Member work",
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
+    owner = Factories.job_with_run(repository: repository, issue_number: 2, issue_title: "Owner work")
     attach_active_work_unit(owner_job: owner, member_job: member)
 
     get "/api/v1/app/repositories/#{repository.id}"
@@ -1220,14 +1234,23 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   it "retries failed jobs through the app API" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
-    failed_a = Factories.job(repository: repository, issue_number: 1)
-    failed_b = Factories.job(repository: repository, issue_number: 2)
-    succeeded = Factories.job(repository: repository, issue_number: 3)
-    failed_a.update!(state: "failed")
-    failed_b.update!(state: "failed")
-    failed_a.current_run.update!(state: "failed", finished_at: Time.current)
-    failed_b.current_run.update!(state: "failed", finished_at: Time.current)
-    succeeded.current_run.update!(state: "succeeded", finished_at: Time.current)
+    failed_a = Factories.job_with_run(
+      repository: repository,
+      issue_number: 1,
+      state: "failed",
+      workflow_attrs: { state: "failed" },
+      step_attrs: { state: "failed" },
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
+    failed_b = Factories.job_with_run(
+      repository: repository,
+      issue_number: 2,
+      state: "failed",
+      workflow_attrs: { state: "failed" },
+      step_attrs: { state: "failed" },
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
+    Factories.job_with_run(repository: repository, issue_number: 3, run_attrs: { state: "succeeded", finished_at: Time.current })
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
@@ -1305,7 +1328,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   it "rejects retrying when there are no failed jobs" do
     sign_in_as(user)
     repository = Factories.repository(user: user)
-    Factories.job(repository: repository)
+    Factories.job_record(repository: repository)
 
     expect {
       post "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs"
@@ -1318,9 +1341,14 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
   it "does not retry failed jobs that are owned by active WorkUnits" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
-    failed = Factories.job(repository: repository, issue_number: 1)
-    failed.update!(state: "failed")
-    failed.current_run.update!(state: "failed", finished_at: Time.current)
+    failed = Factories.job_with_run(
+      repository: repository,
+      issue_number: 1,
+      state: "failed",
+      workflow_attrs: { state: "failed" },
+      step_attrs: { state: "failed" },
+      run_attrs: { state: "failed", finished_at: Time.current }
+    )
     attach_active_work_unit(owner_job: failed, member_job: failed, kind: "manual_visual_review")
 
     expect {

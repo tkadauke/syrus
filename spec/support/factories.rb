@@ -101,6 +101,43 @@ module Factories
     job
   end
 
+  # Creates a lightweight Job with the minimal Workflow/Step/Run graph used by
+  # serializers and request specs. This avoids the full WorkUnits launcher and
+  # workflow-template callback chain when a spec only needs `current_run`,
+  # `latest_workflow`, or a mutable Run row.
+  def job_with_run(**attrs)
+    workflow_attrs = attrs.delete(:workflow_attrs) || {}
+    step_attrs = attrs.delete(:step_attrs) || {}
+    run_attrs = attrs.delete(:run_attrs) || {}
+    job = job_record(**attrs)
+    workflow = Workflow.create!({
+      job: job,
+      user: job.user,
+      trigger_kind: run_attrs[:trigger_kind] || workflow_attrs[:trigger_kind] || "initial",
+      agent_provider: job.agent_provider,
+      priority: job.priority,
+      state: workflow_attrs.fetch(:state, "queued")
+    }.merge(workflow_attrs.except(:trigger_kind, :state)))
+    step = Step.create!({
+      workflow: workflow,
+      kind: step_attrs.fetch(:kind, "implement"),
+      position: step_attrs.fetch(:position, 0),
+      state: step_attrs.fetch(:state, "queued")
+    }.merge(step_attrs.except(:kind, :position, :state)))
+    run_state = run_attrs.fetch(:state, "queued")
+    run = Run.create!({
+      job: job,
+      step: step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "skipped"
+    }.merge(run_attrs.except(:state)))
+    run.update_columns(state: run_state, created_at: run.created_at, updated_at: Time.current) if run_state != "skipped"
+    job.association(:workflows).reset
+    job.association(:runs).reset
+    job
+  end
+
   def job_pin(**attrs)
     pin_user = attrs[:user]
     pinned_job = attrs[:job] || job(repository: repository(user: pin_user || user))

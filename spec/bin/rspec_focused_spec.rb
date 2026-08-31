@@ -5,7 +5,7 @@ require "tmpdir"
 require "fileutils"
 require "spec_helper"
 
-RSpec.describe "bin/rspec-focused" do
+RSpec.describe "bin/rspec-focused", :ci_only do
   let(:root) { File.expand_path("../..", __dir__) }
   let(:script) { File.join(root, "bin/rspec-focused") }
 

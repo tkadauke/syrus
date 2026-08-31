@@ -5,7 +5,7 @@ require "rexml/document"
 require "tmpdir"
 require "spec_helper"
 
-RSpec.describe "bin/rspec-fast" do
+RSpec.describe "bin/rspec-fast", :ci_only do
   let(:root) { File.expand_path("../..", __dir__) }
   let(:script) { File.join(root, "bin/rspec-fast") }
 
