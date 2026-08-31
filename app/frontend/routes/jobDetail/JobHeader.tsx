@@ -215,6 +215,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   }
   if (actions.can_retry_pr_ingestion) available.push({ key: "retry_pr_ingestion", label: t("retry_pr_ingestion"), input: { method: "post", path: paths.app_retry_pr_ingestion_path, confirm: t("confirm_retry_pr_ingestion") }, tone: "primary" })
   if (actions.can_run_visual_review) available.push({ key: "run_visual_review", label: t("run_visual_review"), input: { method: "post", path: paths.app_visual_review_path }, tone: "secondary" })
+  if (actions.can_run_visual_diff) available.push({ key: "run_visual_diff", label: t("run_visual_diff"), input: { method: "post", path: paths.app_visual_diff_path }, tone: "secondary" })
   if (actions.retry_failed_step_action) available.push({ key: "retry_failed_step", label: actions.retry_failed_step_action.label, input: { method: "post", path: actions.retry_failed_step_action.path }, tone: "primary" })
   if (actions.retry_implementation_action) available.push({ key: "retry_implementation", label: actions.retry_implementation_action.label, input: { method: "post", path: actions.retry_implementation_action.path }, tone: "primary" })
   if (actions.retry_implementation_action) available.push({ key: "retry_feedback", label: t("retry_with_feedback"), input: { method: "post", path: actions.retry_implementation_action.path }, tone: "secondary" })

@@ -94,7 +94,7 @@ module WorkUnits
       return if gate_result.reason == WorkUnits::Gates::ManualPause::REASON
 
       wait_until = gate_result.retry_at
-      priority = workflow.job.solid_queue_priority
+      priority = workflow.solid_queue_priority
       if wait_until&.future?
         WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait_until: wait_until, priority: priority)
       else

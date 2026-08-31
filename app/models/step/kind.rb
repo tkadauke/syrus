@@ -101,6 +101,8 @@ class Step
                 required_mcp_tools: %w[submit_adversarial_review]),
       Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
                 required_mcp_tools: %w[submit_visual_review]),
+      Entry.new(kind: "visual_diff",        handler: "VisualDiff",        label: "Before/after visual comparison", style: "bg-pink-50 text-pink-700", agentic: true,
+                required_mcp_tools: %w[submit_visual_artifact]),
       Entry.new(kind: "summarize",          handler: "Summarize",          label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
                 required_mcp_tools: %w[submit_summary]),
       Entry.new(kind: "test_plan",          handler: "TestPlan",           label: "Test plan",                  style: "bg-sky-100 text-sky-700",     agentic: true,

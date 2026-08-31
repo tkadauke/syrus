@@ -108,6 +108,10 @@ class Workflow < ApplicationRecord
     WorkDefinitions.epic_wide_kinds.include?(trigger_kind)
   end
 
+  def solid_queue_priority
+    Workflow::TriggerKind.template_for(trigger_kind).solid_queue_priority(self)
+  end
+
   def enforce_job_workflow_runaway_limits_on_create!
     job.enforce_workflow_runaway_limits!(created_workflow: self)
   end

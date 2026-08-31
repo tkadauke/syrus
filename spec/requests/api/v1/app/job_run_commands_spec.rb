@@ -281,6 +281,56 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("error", "message")).to include("not configured")
   end
 
+  it "queues a manual before/after visual comparison workflow" do
+    stub_visual_review_plan(enabled: true)
+    finish_initial_workflow!(job)
+    job.update_columns(state: "implemented")
+    Workflow.create!(
+      job: job,
+      trigger_kind: "manual_visual_review",
+      state: "succeeded",
+      artifacts: {
+        "visual_review_iterations" => [
+          {
+            "iteration" => 1,
+            "verdict" => "approved",
+            "critique" => "Looks fine.",
+            "artifacts" => [
+              {
+                "type" => "visual_review_screenshot_run_1_1",
+                "title" => "Dashboard",
+                "image_url" => "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot_run_1_1"
+              }
+            ]
+          }
+        ]
+      }
+    )
+
+    expect {
+      post app_job_path("/visual_diff"), as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "visual_diff").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    workflow = job.workflows.where(trigger_kind: "visual_diff").last
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Before/after comparison enqueued.")
+    expect(parse_body.dig("workflow", "id")).to eq(workflow.id)
+  end
+
+  it "rejects a manual before/after comparison when no after screenshots exist" do
+    stub_visual_review_plan(enabled: true)
+    finish_initial_workflow!(job)
+    job.update_columns(state: "implemented")
+
+    expect {
+      post app_job_path("/visual_diff"), as: :json
+    }.not_to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("No visual review screenshots")
+  end
+
   it "resumes a failed run using its captured agent session" do
     failed_run = job.initial_run
     failed_run.start!

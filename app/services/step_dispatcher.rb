@@ -49,7 +49,7 @@ class StepDispatcher
             "blocking_trigger_kind" => blocking_workflow.trigger_kind
           }
         )
-        WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.job.solid_queue_priority)
+        WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: START_BLOCKED_BACKOFF, priority: workflow.solid_queue_priority)
         warn_if_stuck_queued(workflow, "#{EPIC_WIDE_BLOCK_REASON}: #{blocking_workflow.slug}")
       end
       return
@@ -139,7 +139,7 @@ class StepDispatcher
         backoff: [ backoff, START_BLOCKED_BACKOFF.to_i ].max.seconds,
         details: provider_pause.details
       )
-      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait_until: provider_pause.retry_at, priority: workflow.job.solid_queue_priority)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait_until: provider_pause.retry_at, priority: workflow.solid_queue_priority)
       schedule_landing_queue_recheck!(workflow, [ provider_pause.retry_at - Time.current, START_BLOCKED_BACKOFF.to_i ].max.seconds) if workflow.landing_workflow?
       warn_if_stuck_queued(workflow, "#{PROVIDER_AVAILABILITY_BLOCK_REASON}: #{provider_pause.reason}")
       return
@@ -174,7 +174,7 @@ class StepDispatcher
         backoff: backoff,
         details: admission.artifact
       )
-      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: backoff, priority: workflow.job.solid_queue_priority)
+      WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: backoff, priority: workflow.solid_queue_priority)
       warn_if_stuck_queued(workflow, "#{reason}: #{admission.reason}")
       return
     end
@@ -438,7 +438,7 @@ class StepDispatcher
     artifacts["start_blocked_details"] = details if details.present?
     workflow.update!(artifacts: artifacts)
     record_work_unit_blocked!(workflow, reason, blocked_until: now + backoff, details: details)
-    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: backoff, priority: workflow.job.solid_queue_priority)
+    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: backoff, priority: workflow.solid_queue_priority)
     schedule_landing_queue_recheck!(workflow, backoff)
     nil
   end
@@ -535,7 +535,7 @@ class StepDispatcher
       details: details
     )
     append_provider_availability_deferral_log!(workflow, step, provider_pause)
-    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait_until: provider_pause.retry_at, priority: workflow.job.solid_queue_priority)
+    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait_until: provider_pause.retry_at, priority: workflow.solid_queue_priority)
     true
   end
 
@@ -575,7 +575,7 @@ class StepDispatcher
     pause_reason = hard_pause ? PAUSE_REASON_RESOURCE_SAFETY : PAUSE_REASON_ADMISSION
     record_pause!(workflow, pause_reason, backoff: backoff, details: details)
     append_phase_deferral_log!(workflow, step, admission)
-    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait: backoff, priority: workflow.job.solid_queue_priority)
+    WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, step.id, wait: backoff, priority: workflow.solid_queue_priority)
     true
   end
 
