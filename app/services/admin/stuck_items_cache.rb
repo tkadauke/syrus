@@ -29,11 +29,14 @@ module Admin
         )
       end
 
-      def write(items:, captured_at: Time.current)
+      def write(items:, captured_at: Time.current, force: false)
         snapshot = {
           "items" => Array(items),
           "captured_at" => captured_at&.iso8601
         }
+        existing = read
+        return existing if !force && !existing.stale? && existing.items == snapshot.fetch("items")
+
         Rails.cache.write(CACHE_KEY, snapshot, expires_in: CACHE_TTL)
         Snapshot.new(items: snapshot.fetch("items"), captured_at: parse_time(snapshot["captured_at"]))
       end

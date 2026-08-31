@@ -189,7 +189,7 @@ module Admin
       cached = cached_stuck_snapshot
       return cached unless stuck_refresh_requested? || cached.stale?
 
-      ::Admin::StuckItemsCache.write(items: stuck_items, captured_at: Time.current)
+      ::Admin::StuckItemsCache.write(items: stuck_items, captured_at: Time.current, force: stuck_refresh_requested?)
     end
 
     def stuck_refresh_requested?
