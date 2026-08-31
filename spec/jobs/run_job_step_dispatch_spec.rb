@@ -4,7 +4,7 @@ require "rails_helper"
 # out to claude / git in these tests — the handler invocations
 # themselves are exercised by the dedicated handler specs (and
 # end-to-end via the existing run_job_spec for the legacy path).
-RSpec.describe RunJob, "step-dispatch path" do
+RSpec.describe RunJob, "step-dispatch path", :ci_only do
   let(:job)      { Factories.job(issue_number: 42) }
   let!(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
   let!(:s_implement) { Step.create!(workflow: workflow, kind: "implement", position: 0) }

@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::Respond do
+RSpec.describe Steps::Respond, :ci_only do
   let(:user)     { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user) }
   let(:job)      { Factories.job(repository: repository) }

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "App API dashboard commands", type: :request do
+RSpec.describe "App API dashboard commands", :ci_only, type: :request do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 

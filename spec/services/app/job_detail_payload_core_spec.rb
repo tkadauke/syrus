@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe App::JobDetailPayload do
+RSpec.describe App::JobDetailPayload, :ci_only do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }
 

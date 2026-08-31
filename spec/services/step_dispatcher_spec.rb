@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe StepDispatcher do
+RSpec.describe StepDispatcher, :ci_only do
   include ActiveJob::TestHelper
 
   let(:job) { Factories.job }

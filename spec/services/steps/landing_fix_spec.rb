@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::LandingFix do
+RSpec.describe Steps::LandingFix, :ci_only do
   let(:user)       { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job)        { Factories.job(repository: repository, issue_number: 42, pr_number: 17, branch_name: "syrus/issue-42-1") }

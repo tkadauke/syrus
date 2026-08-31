@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe "API: /api/v1/app/chats", type: :request do
+RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 

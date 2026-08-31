@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe WorkEngine::Reconciler do
+RSpec.describe WorkEngine::Reconciler, :ci_only do
   include ActiveJob::TestHelper
 
   let(:job) { Factories.job(agent_provider: "claude") }

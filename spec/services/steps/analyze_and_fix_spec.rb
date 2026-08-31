@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::AnalyzeAndFix do
+RSpec.describe Steps::AnalyzeAndFix, :ci_only do
   let(:user)       { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user) }
   let(:job)        { Factories.job(repository: repository, pr_number: 17, branch_name: "syrus/issue-42-1") }

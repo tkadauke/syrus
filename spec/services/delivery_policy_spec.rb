@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe DeliveryPolicy do
+RSpec.describe DeliveryPolicy, :ci_only do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, default_branch: "main") }
 
