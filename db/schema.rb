@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_121000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2371,6 +2371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_120000) do
     t.bigint "test_run_id", null: false
     t.datetime "updated_at", null: false
     t.index ["test_identity_id", "created_at", "id"], name: "idx_test_cases_identity_created_id"
+    t.index ["test_identity_id", "duration_ms", "created_at", "id"], name: "idx_test_cases_identity_duration_created_id"
     t.index ["test_identity_id", "status", "created_at"], name: "idx_test_cases_identity_status_created"
     t.index ["test_run_id", "status", "suite_name", "name"], name: "idx_test_cases_run_status_case"
   end
