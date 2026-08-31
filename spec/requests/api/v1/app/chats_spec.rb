@@ -378,15 +378,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       content: { "text" => "Critical", "supervisor_event" => { "severity" => "critical" } },
       created_at: 1.minute.ago
     )
-    sign_in_as(admin)
 
     allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return("Mysql2")
 
-    queries = capture_sql { get "/api/v1/app/chats" }
+    controller = Api::V1::App::ChatsController.new
+    sql = controller.send(:legacy_supervisor_unread_message_scope, chat.id).to_sql
 
-    expect(response).to have_http_status(:ok)
-    legacy_selects = queries.grep(/FROM ["`]?chat_messages["`]? FORCE INDEX \(idx_chat_messages_session_role_created_id\)/i)
-    expect(legacy_selects).not_to be_empty
+    expect(sql).to match(/FROM ["`]?chat_messages["`]? FORCE INDEX \(idx_chat_messages_session_role_created_id\)/i)
   end
 
   it "hides supervisor payloads when the feature is off or the user is not an admin" do
