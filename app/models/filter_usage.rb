@@ -1,5 +1,5 @@
 class FilterUsage < ApplicationRecord
-  SURFACES = %w[dashboard worker_timeline].freeze
+  SURFACES = %w[dashboard memories worker_timeline].freeze
   EXTRA_SUBJECTS = %w[worker_timeline].freeze
 
   def self.subjects

@@ -98,6 +98,7 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
             legacyFilterKeys={["scope", "kind", "published", "search", "repository_id"]}
             pathname={location.pathname}
             search={location.search}
+            suggestionSearch={{ surface: "memories", subject: "memory" }}
           />
           <div className="flex shrink-0 gap-2">
             <Button onClick={toggleDeletedView} variant="secondary">

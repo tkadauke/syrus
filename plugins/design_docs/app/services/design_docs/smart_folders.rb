@@ -17,6 +17,8 @@ module DesignDocs
       "state" => "Filters::Chips::DesignDocs::State",
       "visibility" => "Filters::Chips::DesignDocs::Visibility",
       "title" => "Filters::Chips::DesignDocs::Title",
+      "content" => "Filters::Chips::DesignDocs::Content",
+      "created_at" => "Filters::Chips::CreatedAt",
       "updated_at" => "Filters::Chips::UpdatedAt",
       "open_comments" => "Filters::Chips::DesignDocs::OpenComments",
       "pending_suggestions" => "Filters::Chips::DesignDocs::PendingSuggestions"

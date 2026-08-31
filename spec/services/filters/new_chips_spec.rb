@@ -23,6 +23,13 @@ RSpec.describe "Filters::Chips (new primitives)" do
       expect(run(field: "title", op: "contains", value: "aqueduct")).to contain_exactly(match)
     end
 
+    it "title matches uses the documented full-text fallback" do
+      match = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Restore the aqueduct")
+      Factories.job_record(repository: repo, issue_number: 2, issue_title: "Build the forum")
+
+      expect(run(field: "title", op: "matches", value: "aqueduct")).to contain_exactly(match)
+    end
+
     it "quotes the LIKE escape literal through the active adapter" do
       allow(Job.connection).to receive(:quote).and_call_original
       allow(Job.connection).to receive(:quote).with("\\").and_return("'\\\\'")
