@@ -1,8 +1,8 @@
 class CreateTestIdentityRuntimeSummaries < ActiveRecord::Migration[8.1]
   def change
     create_table :test_identity_runtime_summaries do |t|
-      t.references :repository, null: false, foreign_key: true
-      t.references :test_identity, null: false, foreign_key: true
+      t.references :repository, null: false, foreign_key: false
+      t.references :test_identity, null: false, foreign_key: false
       t.string :grader_name, limit: 128, null: false
       t.string :window, limit: 32, null: false
       t.integer :sample_count, null: false, default: 0
