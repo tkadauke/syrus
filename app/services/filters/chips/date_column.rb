@@ -14,6 +14,7 @@ module Filters
     class DateColumn < Base
       bucket :date
       operators :before, :after, :between, :within_last, :more_than_ago, :is_set, :is_unset
+      date_precision :datetime
 
       UNITS = {
         "minutes" => 1.minute,

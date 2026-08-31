@@ -71,6 +71,18 @@ module Filters
           return @typeahead if defined?(@typeahead)
           superclass.respond_to?(:typeahead) ? superclass.typeahead : false
         end
+
+        def full_text_suggestions(enabled = nil)
+          @full_text_suggestions = enabled unless enabled.nil?
+          return @full_text_suggestions if defined?(@full_text_suggestions)
+          superclass.respond_to?(:full_text_suggestions) ? superclass.full_text_suggestions : false
+        end
+
+        def date_precision(value = nil)
+          @date_precision = value.to_s if value
+          return @date_precision if defined?(@date_precision)
+          superclass.respond_to?(:date_precision) ? superclass.date_precision : nil
+        end
       end
 
       def initialize(scope:, op:, value:, user: nil)

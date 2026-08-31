@@ -86,7 +86,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).to contain_exactly("Public linked", "Private shared")
-    expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "owner_user_id", "state", "visibility", "updated_at")
+    expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "owner_user_id", "state", "visibility", "title", "content", "created_at", "updated_at")
     expect(parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }).to include("My docs", "Recently updated")
   end
 
@@ -116,6 +116,21 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:ok)
     folder_names = parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }
     expect(folder_names.count("My docs")).to eq(1)
+  end
+
+  it "filters design docs by content through the shared FilterBar AST" do
+    matching = create_design_doc(title: "Matching", markdown: "Operational queue health")
+    create_design_doc(title: "Other", markdown: "Release notes")
+    sign_in_as(owner)
+
+    q = Base64.urlsafe_encode64(
+      JSON.generate("and" => [ { "field" => "content", "op" => "matches", "value" => "queue health" } ]),
+      padding: false
+    )
+    get "/api/v1/app/design_docs", params: { q: q }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ matching.id ])
   end
 
   it "filters design docs from a smart folder and routes saved folders back to Design Docs" do

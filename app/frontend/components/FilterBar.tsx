@@ -6,9 +6,10 @@ import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { Input } from "./Input"
 import { Select } from "./Select"
+import { DateTimeRangeFilterValueEditor } from "./filterBar/DateTimeRangeFilterValueEditor"
 
 import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./filterBar/types"
-import { clearFiltersLink, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isObjectValue, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
+import { clearFiltersLink, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
 export { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren } from "./filterBar/helpers"
 export type { FilterChip, FilterGroup, FilterLinkBuilder, FilterNode, FilterOption, FilterSchemaField, FilterSuggestion, FilterTree } from "./filterBar/types"
 
@@ -485,7 +486,7 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
     )
   }
 
-  if (meta.bucket === "date") return <DateFilterValueEditor chip={chip} onChange={onChange} />
+  if (meta.bucket === "date") return <DateTimeRangeFilterValueEditor chip={chip} meta={meta} onChange={onChange} />
   if (meta.bucket === "number") return <NumberFilterValueEditor chip={chip} onChange={onChange} />
 
   return <TextFilterValueEditor chip={chip} meta={meta} onChange={onChange} />
@@ -726,51 +727,6 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
   )
 }
 
-function DateFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange: (chip: FilterChip) => void }) {
-  const { t } = useT("nav")
-
-  if (chip.op === "within_last" || chip.op === "more_than_ago") {
-    const value = isObjectValue(chip.value) ? chip.value : { n: 7, unit: "days" }
-    return (
-      <div className="flex items-end gap-2">
-        <label className={filterLabelClass()} htmlFor="filter-date-amount">
-          {t("filter_bar.amount")}
-          <Input className="mt-1 w-20" fullWidth={false} id="filter-date-amount" min="0" onChange={(event) => onChange({ ...chip, value: { ...value, n: Number(event.target.value || 0) } })} type="number" value={Number(value.n || 0)} />
-        </label>
-        <label className={filterLabelClass()} htmlFor="filter-date-unit">
-          {t("filter_bar.unit")}
-          <Select className="mt-1" fullWidth={false} id="filter-date-unit" onChange={(event) => onChange({ ...chip, value: { ...value, unit: event.target.value } })} value={String(value.unit || "days")}>
-            {["minutes", "hours", "days", "weeks", "months"].map((unit) => <option key={unit} value={unit}>{t(`filter_bar.time_unit.${unit}`)}</option>)}
-          </Select>
-        </label>
-      </div>
-    )
-  }
-
-  if (chip.op === "between") {
-    const value = Array.isArray(chip.value) ? chip.value : ["", ""]
-    return (
-      <div className="flex items-end gap-2">
-        <label className={filterLabelClass()} htmlFor="filter-date-from">
-          {t("filter_bar.from")}
-          <Input className="mt-1" fullWidth={false} id="filter-date-from" onChange={(event) => onChange({ ...chip, value: [event.target.value, value[1] || ""] })} type="date" value={String(value[0] || "").slice(0, 10)} />
-        </label>
-        <label className={filterLabelClass()} htmlFor="filter-date-to">
-          {t("filter_bar.to")}
-          <Input className="mt-1" fullWidth={false} id="filter-date-to" onChange={(event) => onChange({ ...chip, value: [value[0] || "", event.target.value] })} type="date" value={String(value[1] || "").slice(0, 10)} />
-        </label>
-      </div>
-    )
-  }
-
-  return (
-    <label className={filterLabelClass()} htmlFor="filter-date-value">
-      {t("filter_bar.value")}
-      <Input className="mt-1" fullWidth={false} id="filter-date-value" onChange={(event) => onChange({ ...chip, value: event.target.value })} type="date" value={String(chip.value || "").slice(0, 10)} />
-    </label>
-  )
-}
-
 function NumberFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange: (chip: FilterChip) => void }) {
   const { t } = useT("nav")
 
@@ -797,4 +753,3 @@ function NumberFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChang
     </label>
   )
 }
-

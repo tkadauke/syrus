@@ -1,10 +1,10 @@
 module Filters
   module Chips
-    module Memories
+    module DesignDocs
       class Content < FullTextStringColumn
         filter_name "content"
         label "Content"
-        column :content
+        column :markdown
       end
     end
   end

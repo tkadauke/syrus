@@ -34,16 +34,18 @@ RSpec.describe Filters::Schema do
       schema = described_class.chip_for("title")
       expect(schema["bucket"]).to eq("string")
       expect(schema["operators"]).to include(
-        "contains", "does_not_contain",
+        "matches", "contains", "does_not_contain",
         "starts_with", "ends_with",
         "equals", "is_set"
       )
+      expect(schema["full_text_suggestions"]).to eq(true)
     end
 
     it "inherits date operators from DateColumn base" do
       schema = described_class.chip_for("created_at")
       expect(schema["bucket"]).to eq("date")
       expect(schema["operators"]).to be_present
+      expect(schema["date_precision"]).to eq("datetime")
     end
 
     it "inherits number operators from NumberColumn base" do

@@ -33,6 +33,8 @@ module Filters
             chip.values
         meta["values"] = humanize_values(v)
       end
+      meta["full_text_suggestions"] = true if chip.respond_to?(:full_text_suggestions) && chip.full_text_suggestions
+      meta["date_precision"] = chip.date_precision if chip.respond_to?(:date_precision) && chip.date_precision.present?
       meta["expansions"] = chip.expansions if chip.respond_to?(:expansions)
       meta
     end
