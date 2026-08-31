@@ -604,6 +604,40 @@ RSpec.describe Epic do
     expect(epic.reload).to be_in_progress
   end
 
+  it "releases blocked child Jobs when an in-progress Epic's Job dependency completes" do
+    prerequisite = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 41,
+      state: "approved"
+    )
+    epic = described_class.create!(user: user, repository: repository, title: "Dependent", state: "in_progress")
+    EpicDependency.create!(epic: epic, depends_on_job: prerequisite, derived: false)
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Downstream work",
+      issue_body: "Do the downstream work",
+      state: "blocked_by_epic"
+    )
+
+    expect(job.workflows).to be_empty
+    expect(epic.reload).not_to be_releases_jobs_for_execution
+
+    expect {
+      prerequisite.update!(closure_reason: "pr_merged")
+      prerequisite.close!
+    }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
+      .and change { job.workflows.count }.by(1)
+      .and change { job.runs.count }.by(1)
+
+    expect(epic.reload).to be_in_progress
+    expect(job.workflows.first.trigger_kind).to eq("initial")
+  end
+
   it "does not release child Jobs when starting an Epic with unsatisfied EpicDependency records" do
     blocker = described_class.create!(user: user, repository: repository, title: "Blocker", state: "in_progress")
     epic = described_class.create!(user: user, repository: repository, title: "Gated", state: "in_progress")
