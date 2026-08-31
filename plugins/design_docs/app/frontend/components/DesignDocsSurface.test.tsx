@@ -192,7 +192,7 @@ function mockFetch() {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/versions") {
-      return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Alpha beta gamma", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
+      return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
     }
     return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
   })
@@ -241,8 +241,8 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
     expect(screen.getByText("Threads")).toBeInTheDocument()
     expect(screen.getByText("Suggestions")).toBeInTheDocument()
-    expect(screen.getByText("Controls")).toBeInTheDocument()
-    expect(screen.getByText("Versions")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
   })
 
   it("shows smart folders and filters in a mobile disclosure", async () => {
@@ -301,7 +301,61 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("textbox", { name: "Design doc title" })).toHaveValue("Billing design")
   })
 
-  it("reviews suggestions and opens version history", async () => {
+  it("switches editor tabs without losing unsaved local edits", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const markdownTab = await screen.findByRole("tab", { name: "Markdown" })
+    const wysiwygTab = screen.getByRole("tab", { name: "WYSIWYG" })
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
+
+    expect(markdownTab).toHaveAttribute("aria-selected", "true")
+    fireEvent.change(markdownEditor, { target: { value: "Unsaved **local** edits" } })
+    fireEvent.click(wysiwygTab)
+
+    expect(wysiwygTab).toHaveAttribute("aria-selected", "true")
+    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    expect(wysiwygEditor).toHaveTextContent("Unsaved local edits")
+    expect(wysiwygEditor).not.toHaveTextContent("**local**")
+
+    wysiwygEditor.textContent = "Edited from WYSIWYG"
+    fireEvent.input(wysiwygEditor)
+    fireEvent.click(markdownTab)
+
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from WYSIWYG")
+  })
+
+  it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(titleBar).getByRole("textbox", { name: "Design doc title" })).toHaveValue("Checkout design")
+    expect(within(titleBar).getByText("DOC-1")).toBeInTheDocument()
+    expect(within(titleBar).getByText("private")).toBeInTheDocument()
+    expect(within(titleBar).getByText("draft")).toBeInTheDocument()
+    expect(within(titleBar).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(titleBar).getByRole("button", { name: "Add repository" })).toBeInTheDocument()
+    expect(within(titleBar).getByRole("button", { name: "Share" })).toBeInTheDocument()
+    expect(within(titleBar).getByRole("combobox", { name: "Version selection" })).toHaveClass("ml-auto")
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Add repository" }))
+    expect(within(titleBar).getByRole("listbox", { name: "Repository associations" })).toBeInTheDocument()
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
+    expect(within(titleBar).getByRole("combobox", { name: "Share visibility" })).toBeInTheDocument()
+    expect(within(titleBar).getByRole("textbox", { name: "Collaborator user IDs" })).toHaveValue("2")
+
+    const versionSelect = within(titleBar).getByRole("combobox", { name: "Version selection" })
+    fireEvent.focus(versionSelect)
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
+    await within(titleBar).findByRole("option", { name: "v1 - Initial" })
+    fireEvent.change(versionSelect, { target: { value: "1" } })
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
+  })
+
+  it("reviews suggestions and exposes version history from the title bar", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
@@ -309,9 +363,9 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
-    fireEvent.click(within(screen.getByText("Versions").closest("div")!).getByRole("button", { name: "Show" }))
+    fireEvent.focus(screen.getByRole("combobox", { name: "Version selection" }))
 
-    expect(await screen.findByText("Version 1")).toBeInTheDocument()
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
   })
 
   it("keeps the editor layout responsive with fixed grid constraints", async () => {
@@ -321,5 +375,6 @@ describe("DesignDocsSurface", () => {
     await screen.findByRole("textbox", { name: "Markdown editor" })
     expect(container.querySelector(".min-h-\\[36rem\\]")).not.toBeNull()
     expect(container.querySelector(".xl\\:grid-cols-\\[minmax\\(0\\,1fr\\)_22rem\\]")).not.toBeNull()
+    expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull()
   })
 })
