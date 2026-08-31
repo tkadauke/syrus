@@ -194,6 +194,7 @@ module WorkEngine
       issues.concat(classify_job_workflow_drift)
       issues.concat(classify_failed_jobs_with_active_repair_work)
       issues.concat(classify_landing_work_job_state_drift)
+      issues.concat(classify_releasable_epic_blocked_jobs)
       issues.concat(classify_jobs_without_active_runtime_work)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
       issues.concat(classify_queued_jobs_cancelled_with_active_start_block)
@@ -1688,6 +1689,34 @@ module WorkEngine
             workflow_trigger_kinds: workflows.map(&:trigger_kind).uniq
           },
           explanation: "#{job_label(job)} has active landing work but is marked #{job.state}, so it is invisible to landing lifecycle handling."
+        )
+      end
+    end
+
+    def classify_releasable_epic_blocked_jobs
+      jobs.filter_map do |job|
+        next unless job.blocked_by_epic?
+        next unless job.epic&.releases_jobs_for_execution?
+        next unless job.dependencies_satisfied_for_execution?
+        next if active_runtime_work_for_job?(job)
+
+        latest = latest_workflow_for_job(job)
+        issue(
+          kind: :releasable_epic_blocked_job,
+          severity: :warning,
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest&.id ]),
+          safe_to_auto_repair: job.may_release_epic_block?,
+          recommended_repair_action: "release_epic_blocked_job",
+          evidence: {
+            job_state: job.state,
+            epic_id: job.epic_id,
+            epic_state: job.epic&.state,
+            epic_releases_jobs_for_execution: true,
+            latest_workflow_id: latest&.id,
+            latest_workflow_state: latest&.state,
+            unsatisfied_dependencies: []
+          },
+          explanation: "#{job_label(job)} is still blocked by #{job.epic.slug}, but the Epic and Job dependencies are ready."
         )
       end
     end

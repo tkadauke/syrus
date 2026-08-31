@@ -1380,6 +1380,30 @@ module WorkEngine
         end
       end
 
+      class ReleaseEpicBlockedJob < Base
+        def perform
+          job = target_job
+          return skipped("Job no longer exists") unless job
+          return skipped("#{job_label(job)} is #{job.state}, not blocked_by_epic") unless job.blocked_by_epic?
+          return skipped("#{job_label(job)} has no Epic") unless job.epic
+          return skipped("#{job.epic.slug} is not releasing child Jobs") unless job.epic.releases_jobs_for_execution?
+          return skipped("#{job_label(job)} dependencies are still blocked") unless job.dependencies_satisfied_for_execution?
+          return skipped("#{job_label(job)} cannot release its Epic block") unless job.may_release_epic_block?
+          return skipped("#{job_label(job)} already has active runtime work") if active_runtime_work_for_job?(job)
+
+          with_transition_reason do
+            WorkIntents::JobWakeup.call(job)
+          end
+
+          job.reload
+          if job.blocked_by_epic?
+            skipped("#{job_label(job)} remained blocked_by_epic after wakeup")
+          else
+            success("released stale Epic block for #{job_label(job)}")
+          end
+        end
+      end
+
       class ReconcileJobState < Base
         def perform
           job = target_job

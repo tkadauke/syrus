@@ -3432,6 +3432,37 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
   end
 
+  it "releases an Epic-blocked child job once the Epic is in progress and dependencies are satisfied" do
+    epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+    parent = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 501, state: "approved", pr_number: 501)
+    child = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 502, state: "blocked_by_epic")
+    JobDependency.create!(job: child, depends_on_job: parent, source: "manual")
+
+    result = reconcile_and_execute(job_id: child.id)
+
+    issue = kind(result, :releasable_epic_blocked_job)
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "release_epic_blocked_job"
+    )
+    expect(plan(result, :release_epic_blocked_job)).to have_attributes(auto_executable: true, target_id: child.id)
+    expect(child.reload).to be_queued
+    expect(child.workflows.where.not(state: "cancelled")).to exist
+  end
+
+  it "does not release an Epic-blocked child job while job dependencies remain unsatisfied" do
+    epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+    parent = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 503, state: "running")
+    child = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 504, state: "blocked_by_epic")
+    JobDependency.create!(job: child, depends_on_job: parent, source: "manual")
+
+    result = reconcile_and_execute(job_id: child.id)
+
+    expect(kind(result, :releasable_epic_blocked_job)).to be_nil
+    expect(child.reload).to be_blocked_by_epic
+    expect(child.workflows).to be_empty
+  end
+
   it "repairs a stale WorkUnit-only dependency start block by unblocking it and starting the workflow" do
     run.destroy!
     workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)

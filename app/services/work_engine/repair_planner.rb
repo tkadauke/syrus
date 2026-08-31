@@ -908,6 +908,22 @@ module WorkEngine
         end
       end
 
+      class ReleasableEpicBlockedJob < Base
+        def plan
+          automatic_plan(
+            "release_epic_blocked_job",
+            primary_job,
+            "The Epic is already releasing work and this Job's dependencies are satisfied, so the stale epic block can be cleared through the normal Job wakeup path.",
+            execution_steps: [ "WorkIntents::JobWakeup.call" ],
+            preconditions: {
+              job_state: "blocked_by_epic",
+              epic_releases_jobs_for_execution: true,
+              unsatisfied_dependencies: []
+            }
+          )
+        end
+      end
+
       class JobWithoutActiveRuntimeWork < Base
         def plan
           operator_plan(
