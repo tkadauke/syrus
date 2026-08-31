@@ -47,12 +47,12 @@ RSpec.describe App::ProviderAvailability do
     run
   end
 
-  it "forces the latest-provider-run index on MySQL" do
+  it "forces the state-aware latest-provider-run index on MySQL" do
     availability = described_class.new(user: user, provider: "codex", now: now)
 
     allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return("Mysql2")
 
-    expect(availability.send(:provider_run_scope_for_latest).to_sql).to include("FORCE INDEX (idx_runs_provider_latest_finished)")
+    expect(availability.send(:provider_run_scope_for_latest).to_sql).to include("FORCE INDEX (idx_runs_user_provider_state_recent)")
   end
 
   it "marks only the exhausted provider for the current user" do

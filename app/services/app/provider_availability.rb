@@ -337,7 +337,7 @@ module App
       scope = provider_run_scope
       return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
 
-      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (idx_runs_provider_latest_finished)"))
+      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (idx_runs_user_provider_state_recent)"))
     end
 
     def usage_limit?(run, text)
