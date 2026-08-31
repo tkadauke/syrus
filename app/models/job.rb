@@ -630,6 +630,8 @@ class Job < ApplicationRecord
   # `after:` lambda.
   after_save :refresh_epic_auto_state,
              if: -> { epic_id.present? && (saved_change_to_state? || saved_change_to_validity? || saved_change_to_epic_id? || saved_change_to_closure_reason?) }
+  after_save :refresh_dependent_epic_auto_states,
+             if: -> { (saved_change_to_state? || saved_change_to_closure_reason?) && EpicDependency.where(depends_on_job_id: id).exists? }
   after_commit :reopen_recent_closed_epic, if: :saved_change_to_epic_id?
   after_commit :suggest_stale_closed_epic_assignment, if: :stale_closed_epic_assignment?
 
@@ -1648,6 +1650,16 @@ class Job < ApplicationRecord
 
   def refresh_epic_auto_state
     epic&.refresh_auto_state!
+  end
+
+  def refresh_dependent_epic_auto_states
+    Epic
+      .joins(:dependencies)
+      .where(epic_dependencies: { depends_on_job_id: id })
+      .find_each do |dependent_epic|
+        dependent_epic.dependencies.reload
+        dependent_epic.refresh_auto_state!
+      end
   end
 
   def issue_number_blank_for_cron

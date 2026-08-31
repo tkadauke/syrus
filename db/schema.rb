@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -900,6 +900,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
     t.string "epic_dependency_policy", default: "linear", null: false
     t.string "github_issue_url"
     t.json "goal_prompt_snapshot"
+    t.datetime "implementation_start_requested_at"
+    t.integer "implementation_start_requested_by_user_id"
     t.integer "number", null: false
     t.integer "owner_id"
     t.integer "owner_user_id"
@@ -914,6 +916,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
     t.index ["chat_goal_id", "created_at"], name: "index_epics_on_chat_goal_id_and_created_at"
     t.index ["chat_goal_id"], name: "index_epics_on_chat_goal_id"
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
+    t.index ["implementation_start_requested_by_user_id"], name: "index_epics_on_implementation_start_requested_by_user_id"
     t.index ["number"], name: "index_epics_on_number", unique: true
     t.index ["owner_id"], name: "index_epics_on_owner_id"
     t.index ["owner_user_id"], name: "index_epics_on_owner_user_id"
@@ -2871,6 +2874,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_120000) do
   add_foreign_key "design_docs", "design_doc_versions", column: "current_version_id"
   add_foreign_key "design_docs", "users", column: "owner_user_id"
   add_foreign_key "epics", "chat_goals"
+  add_foreign_key "epics", "users", column: "implementation_start_requested_by_user_id"
   add_foreign_key "jobs", "chat_goals"
   add_foreign_key "test_identity_runtime_summaries", "repositories"
   add_foreign_key "test_identity_runtime_summaries", "test_identities"

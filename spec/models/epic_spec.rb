@@ -897,6 +897,85 @@ RSpec.describe Epic do
       expect(epic.reload).to be_in_progress
     end
 
+    it "remembers a dependency-blocked start request and replays it when the dependency Epic completes" do
+      blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "in_progress")
+      blocker_job = Factories.job_record(user: user, repository: repository, issue_number: 19, epic: blocker, state: "approved")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "ready")
+      child = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Downstream work",
+        issue_body: "Do the downstream work",
+        state: "blocked_by_epic"
+      )
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      expect {
+        expect(epic.start_implementing_or_request!(actor: user)).to eq(:requested)
+      }.not_to change(Run, :count)
+
+      expect(epic.reload).to be_ready
+      expect(epic.implementation_start_requested_at).to be_present
+      expect(epic.implementation_start_requested_by_user).to eq(user)
+      expect(child.reload).to be_blocked_by_epic
+
+      expect {
+        blocker_job.update!(closure_reason: "pr_merged")
+        blocker_job.close!
+      }.to change { epic.reload.state }.from("ready").to("in_progress")
+        .and change { child.reload.state }.from("blocked_by_epic").to("queued")
+        .and change { child.workflows.count }.by(1)
+        .and change { child.runs.count }.by(1)
+
+      expect(epic.implementation_start_requested_at).to be_nil
+      expect(epic.implementation_start_requested_by_user).to be_nil
+      expect(epic.owner_user).to eq(user)
+      expect(child.workflows.first.trigger_kind).to eq("initial")
+    end
+
+    it "does not remember start requests when unfinished dependencies are not the only blocker" do
+      blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "in_progress")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      unconfirmed = Factories.job_record(user: user, repository: repository, issue_number: 21, state: "triaging")
+      unconfirmed.update_columns(epic_id: epic.id)
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      expect {
+        epic.start_implementing_or_request!(actor: user)
+      }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies/)
+
+      expect(epic.reload.implementation_start_requested_at).to be_nil
+      expect(epic.implementation_start_requested_by_user).to be_nil
+    end
+
+    it "replays a remembered start when an Epic's Job dependency completes" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 19, state: "approved")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "ready")
+      child = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        kind: "direct",
+        issue_number: nil,
+        issue_title: "Downstream work",
+        issue_body: "Do the downstream work",
+        state: "blocked_by_epic"
+      )
+      epic.dependencies.create!(depends_on_job: prerequisite)
+
+      expect(epic.start_implementing_or_request!(actor: user)).to eq(:requested)
+
+      expect {
+        prerequisite.update!(closure_reason: "pr_merged")
+        prerequisite.close!
+      }.to change { epic.reload.state }.from("ready").to("in_progress")
+        .and change { child.reload.state }.from("blocked_by_epic").to("queued")
+        .and change { child.runs.count }.by(1)
+    end
+
     it "refuses a backlog Epic whose child Jobs are still awaiting confirmation" do
       epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
       # Attach the triaging child without firing Job callbacks: the factory's

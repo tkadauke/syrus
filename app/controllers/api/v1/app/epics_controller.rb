@@ -654,9 +654,8 @@ module Api
         # the Epic row is already saved, so a non-startable Epic (e.g. product
         # owner actor) degrades to a plain create instead of failing the request.
         def start_created_epic!(epic)
-          return false unless epic.may_start_implementing?(actor: Current.user)
+          return false unless epic.start_implementing_or_request!(actor: Current.user) == :started
 
-          epic.start_implementing!(actor: Current.user)
           auto_claim_started_epic!(epic, "in_progress")
           true
         rescue Epic::NotStartable

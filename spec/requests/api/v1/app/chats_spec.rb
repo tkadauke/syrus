@@ -4571,6 +4571,41 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(confirmation_message.content.fetch("text")).to include("The Epic was started; ready child Jobs are dispatching.")
   end
 
+  it "confirms an Epic proposal and remembers start intent when an Epic dependency is unfinished" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    blocker = Epic.create!(user: user, repository: repository, title: "Pave the road first", state: "in_progress")
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository,
+      epic_depends_on_tokens: JSON.generate([ "epic:#{blocker.id}" ])
+    )
+    child = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
+    }.not_to change(Run, :count)
+
+    expect(response).to have_http_status(:ok)
+    epic = proposal.reload.epic
+    expect(epic).to be_ready
+    expect(epic.implementation_start_requested_at).to be_present
+    expect(epic.implementation_start_requested_by_user).to eq(user)
+    expect(child.reload.job).to be_blocked_by_epic
+    expect(parse_body["message"]).to eq("Proposal confirmed and filed as #{epic.slug}.")
+    confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
+    expect(confirmation_message.content.fetch("text")).not_to include("The Epic was started")
+  end
+
   it "confirms the proposal even when the best-effort Epic start raises unexpectedly" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

@@ -16,10 +16,8 @@ module ChatProposalOutcome
     epic = result.respond_to?(:epic) ? result.epic : nil
     return false unless epic
     return true if epic.in_progress?
-    return false unless epic.may_start_implementing?(actor: Current.user)
 
-    epic.start_implementing!(actor: Current.user)
-    true
+    epic.start_implementing_or_request!(actor: Current.user) == :started
   rescue Epic::NotStartable
     false
   rescue StandardError => e

@@ -24,6 +24,7 @@ class Epic < ApplicationRecord
   belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics
   belongs_to :repository
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics
+  belongs_to :implementation_start_requested_by_user, class_name: "User", optional: true
   has_many :jobs, dependent: :nullify
   has_many :chat_proposals, dependent: :nullify
   has_many :versions, class_name: "EpicVersion", dependent: :destroy, inverse_of: :epic
@@ -349,6 +350,8 @@ class Epic < ApplicationRecord
   end
 
   def refresh_auto_state!
+    return true if replay_requested_implementation_start_if_ready!
+
     if backlog? && may_auto_ready?
       auto_ready!
     elsif in_progress?
@@ -436,9 +439,20 @@ class Epic < ApplicationRecord
         claim!(epic_advancement_actor(actor) || user, force: true) unless claimed?
         override_state!("in_progress", actor: actor)
       end
+
+      clear_requested_implementation_start!
     end
 
     true
+  end
+
+  def start_implementing_or_request!(actor: nil)
+    :started if start_implementing!(actor: actor)
+  rescue NotStartable
+    raise unless may_request_implementation_start_after_dependencies?(actor: actor)
+
+    request_implementation_start!(actor: actor)
+    :requested
   end
 
   # Operator-facing display names of unfinished dependencies, used by the
@@ -556,6 +570,52 @@ class Epic < ApplicationRecord
     return I18n.t("api.epics.start_children_unconfirmed") if backlog? && jobs.exists? && !child_jobs_confirmed?
 
     I18n.t("api.epics.not_startable", state: state)
+  end
+
+  def may_request_implementation_start_after_dependencies?(actor: nil)
+    return false unless backlog? || ready?
+    return false if dependencies_done?
+    return false unless actor_can_advance?(actor: actor)
+
+    actor_user = epic_advancement_actor(actor)
+    return false unless actor_user
+    return false if claimed? && !claimed_by?(actor_user)
+    return false if backlog? && jobs.exists? && !child_jobs_confirmed?
+
+    true
+  end
+
+  def request_implementation_start!(actor:)
+    actor_user = epic_advancement_actor(actor)
+    raise NotStartable, start_implementing_block_reason(actor) unless may_request_implementation_start_after_dependencies?(actor: actor_user)
+
+    update!(
+      implementation_start_requested_at: Time.current,
+      implementation_start_requested_by_user: actor_user
+    )
+  end
+
+  def replay_requested_implementation_start_if_ready!
+    return false unless implementation_start_requested_at.present?
+    return false unless backlog? || ready?
+    return false unless implementation_start_requested_by_user
+    return false unless may_start_implementing?(actor: implementation_start_requested_by_user)
+
+    start_implementing!(actor: implementation_start_requested_by_user)
+    true
+  end
+
+  def clear_requested_implementation_start!
+    return if implementation_start_requested_at.blank? && implementation_start_requested_by_user_id.blank?
+
+    self.implementation_start_requested_at = nil
+    self.implementation_start_requested_by_user = nil
+    return unless persisted?
+
+    update_columns(
+      implementation_start_requested_at: nil,
+      implementation_start_requested_by_user_id: nil
+    )
   end
 
   def override_done_at(target_state)
