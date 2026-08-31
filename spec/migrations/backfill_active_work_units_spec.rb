@@ -1,7 +1,7 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260825123000_backfill_active_work_units")
 
-RSpec.describe BackfillActiveWorkUnits do
+RSpec.describe BackfillActiveWorkUnits, :ci_only do
   let(:migration) { described_class.new }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }

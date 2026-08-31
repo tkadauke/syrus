@@ -47,7 +47,7 @@ RSpec.describe Steps::Respond do
     allow_any_instance_of(GithubClient).to receive(:fetch_issue).and_return(issue)
   end
 
-  it "uses the shared agentic change path to commit and capture the diff" do
+  it "uses the shared agentic change path to commit and capture the diff", :ci_only do
     expect(handler).to receive(:commit_agent_changes)
       .with(a_string_starting_with("Address feedback: #{job.slug}:"))
     expect(handler).to receive(:assert_branch_history_intact!)

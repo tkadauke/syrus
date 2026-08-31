@@ -86,7 +86,7 @@ RSpec.describe PreviewWorkspace do
     end
   end
 
-  describe "revision selection" do
+  describe "revision selection", :ci_only do
     # Real git repo (not the file-copying stub above) so merge-base
     # resolution is exercised against genuine history instead of a fake.
     def init_source_repo

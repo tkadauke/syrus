@@ -1,7 +1,7 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260730133058_add_external_pr_unique_index_to_jobs")
 
-RSpec.describe AddExternalPrUniqueIndexToJobs do
+RSpec.describe AddExternalPrUniqueIndexToJobs, :ci_only do
   let(:migration) { described_class.new }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }

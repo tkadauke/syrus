@@ -1,7 +1,7 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260827135000_expire_malformed_chat_agent_questions")
 
-RSpec.describe ExpireMalformedChatAgentQuestions do
+RSpec.describe ExpireMalformedChatAgentQuestions, :ci_only do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

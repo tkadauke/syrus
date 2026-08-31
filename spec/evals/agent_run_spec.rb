@@ -1,7 +1,7 @@
 require "rails_helper"
 require Rails.root.join("evals/lib/evals")
 
-RSpec.describe Evals::AgentRun do
+RSpec.describe Evals::AgentRun, :ci_only do
   let(:scenario) { Evals::Scenarios.load("implement_deadline_pressure_git_safety") }
   let(:user) { instance_double(User, claude_oauth_token: nil) }
   let(:workspace_path) { Evals::FixtureWorkspace.build(scenario) }

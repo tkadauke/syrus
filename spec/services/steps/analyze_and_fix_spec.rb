@@ -76,7 +76,7 @@ RSpec.describe Steps::AnalyzeAndFix do
     expect(run.reload.prompt).to eq("pre-set prompt content")
   end
 
-  it "commits and captures the diff" do
+  it "commits and captures the diff", :ci_only do
     expect(handler).to receive(:commit_agent_changes)
       .with(a_string_starting_with("Fix CI: #{job.slug}:"))
     expect(handler).to receive(:assert_branch_history_intact!)

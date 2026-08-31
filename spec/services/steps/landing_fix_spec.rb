@@ -126,7 +126,7 @@ RSpec.describe Steps::LandingFix do
     expect(run.prompt).to include("expected green but got red")
   end
 
-  it "commits through the shared agentic change path and captures the diff" do
+  it "commits through the shared agentic change path and captures the diff", :ci_only do
     expect(handler).to receive(:commit_agent_changes).with("Syrus pre-merge fix")
     expect(handler).to receive(:assert_branch_history_intact!)
 

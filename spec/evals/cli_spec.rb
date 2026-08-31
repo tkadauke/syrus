@@ -1,7 +1,7 @@
 require "rails_helper"
 require Rails.root.join("evals/lib/evals")
 
-RSpec.describe Evals::CLI do
+RSpec.describe Evals::CLI, :ci_only do
   let(:results_path) { Rails.root.join("tmp/evals_cli_spec_#{SecureRandom.hex(4)}.jsonl").to_s }
 
   after do

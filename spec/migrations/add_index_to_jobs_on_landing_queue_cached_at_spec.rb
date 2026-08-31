@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "AddIndexToJobsOnLandingQueueCachedAt" do
+RSpec.describe "AddIndexToJobsOnLandingQueueCachedAt", :ci_only do
   it "adds an index covering LandingQueueProcessor#clear_stale_snapshot!'s global sweep" do
     expect(
       ActiveRecord::Base.connection.index_exists?(

@@ -1,7 +1,7 @@
 require "rails_helper"
 require Rails.root.join("evals/lib/evals")
 
-RSpec.describe Evals::FixtureWorkspace do
+RSpec.describe Evals::FixtureWorkspace, :ci_only do
   around do |example|
     @paths_to_clean = []
     example.run
