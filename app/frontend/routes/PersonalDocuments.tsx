@@ -183,7 +183,7 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
   if (document.kind === "google_doc" && document.google_doc_url) {
     return (
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-blue-700 dark:text-blue-300">{document.google_doc_url}</div>
+        <div className="truncate text-sm font-medium text-brand dark:text-brand-emphasis">{document.google_doc_url}</div>
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {t('personal_documents.google_doc')}
         </div>

@@ -92,7 +92,7 @@ export function TerminalRoute() {
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist" aria-label={t("terminal.sessions")}>
             {sessions.map((session) => (
               <div
-                className={`group inline-flex h-9 min-w-0 max-w-64 items-center gap-2 rounded border px-2 text-sm ${activeSession?.id === session.id ? "border-blue-500 bg-blue-950 text-white" : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600 hover:bg-gray-800"}`}
+                className={`group inline-flex h-9 min-w-0 max-w-64 items-center gap-2 rounded border px-2 text-sm ${activeSession?.id === session.id ? "border-brand bg-brand text-on-brand" : "border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600 hover:bg-gray-800"}`}
                 key={session.id}
               >
                 <button
@@ -123,7 +123,7 @@ export function TerminalRoute() {
             <button
               aria-expanded={workspacePickerOpen}
               aria-haspopup="menu"
-              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-700 bg-gray-900 text-lg font-semibold text-gray-100 hover:border-blue-500 hover:text-blue-300"
+              className="inline-flex h-9 w-9 items-center justify-center rounded border border-gray-700 bg-gray-900 text-lg font-semibold text-gray-100 hover:border-brand hover:text-brand-emphasis"
               onClick={() => setWorkspacePickerOpen((open) => !open)}
               type="button"
             >

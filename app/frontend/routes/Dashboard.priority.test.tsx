@@ -299,11 +299,11 @@ describe("priority column rendering", () => {
     expect(pill.closest("[data-status-pill]")?.className).toContain("amber")
   })
 
-  it("renders a blue pill for low-priority jobs", () => {
+  it("renders an info pill for low-priority jobs", () => {
     renderTable([ jobItem(3, "low") ])
     const pill = screen.getByText("low")
     expect(pill.closest("[data-status-pill]")).not.toBeNull()
-    expect(pill.closest("[data-status-pill]")?.className).toContain("blue")
+    expect(pill.closest("[data-status-pill]")?.className).toContain("text-info")
   })
 
   it("renders no pill for medium-priority jobs", () => {

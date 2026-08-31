@@ -437,7 +437,7 @@ export function LegacyEpicsBanner({ className = "" }: { className?: string }) {
   const { t } = useT("dashboard")
 
   return (
-    <div className={`${className} rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200`} role="status">
+    <div className={`${className} rounded border border-info/30 bg-info/10 px-4 py-3 text-sm text-info`} role="status">
       {t("legacy_epics_banner")}
     </div>
   )
@@ -616,7 +616,7 @@ function SubjectTabs({ pathname, payload, prefix, className = "inline-flex w-max
     <nav aria-label={t("subjects")} className={className}>
       {subjects.map((subject) => (
         <Link
-          className={`px-3 py-1.5 font-medium ${activeSubject === subject.key ? "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-500" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`px-3 py-1.5 font-medium ${activeSubject === subject.key ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           key={subject.key}
           to={withRoutePrefix(subject.path, prefix)}
         >

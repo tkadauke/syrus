@@ -25,8 +25,8 @@ const filters: Array<{ key: SearchFilter; label: string }> = [
 
 const typeStyles: Record<SearchResultType, { border: string; badge: string; label: string }> = {
   job: {
-    border: "border-l-blue-500",
-    badge: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:ring-blue-800",
+    border: "border-l-info",
+    badge: "bg-info/10 text-info ring-info/30",
     label: "Job"
   },
   epic: {
@@ -129,7 +129,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
             {result.state ? <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{result.state.replace(/_/g, " ")}</span> : null}
           </div>
           <SectionHeading className="mt-2">
-            <Link className="break-words hover:text-blue-700 hover:underline dark:hover:text-blue-300" to={withRoutePrefix(result.path, prefix)}>
+            <Link className="break-words hover:text-brand hover:underline dark:hover:text-brand-emphasis" to={withRoutePrefix(result.path, prefix)}>
               {result.title || "Untitled"}
             </Link>
           </SectionHeading>
@@ -165,7 +165,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
     <div className="mt-3">
       <button
         aria-expanded={expanded}
-        className="inline-flex items-center gap-1 rounded text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
+        className="inline-flex items-center gap-1 rounded text-sm font-medium text-brand hover:text-brand-emphasis hover:underline dark:text-brand-emphasis"
         onClick={() => setExpanded((current) => !current)}
         type="button"
       >
@@ -254,7 +254,7 @@ const searchFilterLink: FilterLinkBuilder = (pathname, search, updates) => {
 }
 
 function filterChipClass(active: boolean) {
-  return `rounded-full px-3 py-1 text-sm font-medium ${active ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"}`
+  return `rounded-full px-3 py-1 text-sm font-medium ${active ? "bg-brand text-on-brand" : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"}`
 }
 
 function sanitizeSnippet(html: string) {

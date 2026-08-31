@@ -40,7 +40,7 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
         <CopyableSlug className="text-xs" slug={`PR #${prNumber}`} />
         <a
           aria-label={`Open PR #${prNumber} on GitHub`}
-          className="text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400"
+          className="text-gray-400 hover:text-brand dark:text-gray-500 dark:hover:text-brand-emphasis"
           href={prUrl}
           rel="noopener noreferrer"
           target="_blank"
