@@ -82,7 +82,7 @@ module App
 
     def run_cost_totals
       @run_cost_totals ||= begin
-        week, month, lifetime = provider_scoped_runs.pick(
+        week, month, lifetime = filtered_runs.pick(
           Arel.sql(cost_sum_between_sql(today.beginning_of_week.beginning_of_day, today.end_of_day)),
           Arel.sql(cost_sum_between_sql(today.beginning_of_month.beginning_of_day, today.end_of_day)),
           Arel.sql("COALESCE(SUM(runs.cost_usd), 0)")
@@ -104,7 +104,7 @@ module App
     end
 
     def scoped_jobs
-      Job.where(id: scoped_runs.select(:job_id))
+      Job.where(id: filtered_runs.select(:job_id))
     end
 
     def scoped_chat_sessions
@@ -140,7 +140,7 @@ module App
     def jobs_with_windowed_run_cost(first_date, last_date)
       scoped_jobs
         .joins(:runs)
-        .where(runs: { id: scoped_runs.select(:id) })
+        .where(runs: { id: filtered_runs.select(:id) })
         .where(runs: { created_at: first_date.beginning_of_day..last_date.end_of_day })
     end
 

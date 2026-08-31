@@ -104,6 +104,13 @@ or datetime value. The editor adds common presets including today, yesterday,
 last 24 hours, last 7 days, last 30 days, this week, and this month; datetime
 fields render time-of-day controls, while date-only fields render date inputs.
 
+The spending insights page is a FilterBar-backed surface without SmartFolders.
+Its `spending_report` subject filters `Run` spending by repository, user,
+datetime, agent provider, trigger kind, and epic. The page keeps the historical
+90-day default by injecting a positive top-level `created_at between ...` chip
+when the URL does not provide one; negated or OR date expressions are combined
+with that default window instead of being used as the chart bounds.
+
 ## View preference persistence
 
 The selected view is persisted per `[subject, smart_folder_id]` pair and restored on next load. Preferences are stored via `User#update_dashboard_folder_preferences!` and resolved by `DashboardPayload#folder_pref_view`. All three view values (`list`, `kanban`, `dependencies`) are valid persisted values.

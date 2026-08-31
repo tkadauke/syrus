@@ -238,6 +238,41 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     end
   end
 
+  it "keeps sections consistent when datetime is negated in a FilterBar query" do
+    travel_to Time.zone.local(2026, 7, 1, 12, 0, 0) do
+      user = Factories.user(email_address: "mine@example.com")
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      excluded = Factories.job(user: user, repository: repo, issue_number: 303)
+      included = Factories.job(user: user, repository: repo, issue_number: 304)
+      set_run_cost(initial_run(excluded), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      set_run_cost(initial_run(included), 0.60, created_at: Time.zone.parse("2026-06-10 12:00:00"))
+
+      sign_in_as(user)
+      get "/api/v1/app/insights/spending", params: {
+        q: filter_query(
+          "and" => [
+            { "not" => { "field" => "created_at", "op" => "between", "value" => [ "2026-06-01", "2026-06-05" ] } }
+          ]
+        )
+      }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("filter", "and")).to include(
+        { "field" => "created_at", "op" => "between", "value" => [ "2026-04-02", "2026-07-01" ] },
+        { "not" => { "field" => "created_at", "op" => "between", "value" => [ "2026-06-01", "2026-06-05" ] } }
+      )
+      expect(body.dig("filters", "start_date")).to eq("2026-04-02")
+      expect(body.dig("filters", "end_date")).to eq("2026-07-01")
+      expect(body.dig("totals", "lifetime_usd")).to eq(0.6)
+      expect(body.dig("breakdowns", "repositories")).to contain_exactly(include("label" => "acme/widgets", "total_usd" => 0.6))
+      expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(included).id, "cost_usd" => 0.6))
+      expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
+        { "date" => "2026-06-10", "total_usd" => 0.6 }
+      )
+    end
+  end
+
   it "ignores unsupported agent provider filters" do
     user = Factories.user(email_address: "mine@example.com")
     job = Factories.job(user: user, repository: Factories.repository(user: user), issue_number: 303, agent_provider: "claude")
