@@ -466,9 +466,9 @@ module TestInsights
       def time_filter(key)
         value = @filters[key]
         return nil if value.blank?
-        return value if value.respond_to?(:to_time)
+        return value.to_time if value.respond_to?(:to_time) && !value.is_a?(String)
 
-        Time.zone.parse(value.to_s)
+        Time.zone.parse(value.to_s)&.to_time
       rescue ArgumentError
         nil
       end
