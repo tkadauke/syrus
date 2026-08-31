@@ -13,6 +13,19 @@ module Mcp
     CHAT_CODING_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_CODING) }.map(&:tool).freeze
     CHAT_LOCAL_MODE_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_LOCAL) }.map(&:tool).freeze
 
+    module StdioToolDispatch
+      def call(*args, server_context: nil, **kwargs, &block)
+        super(*args, server_context: server_context, **kwargs, &block)
+      rescue StandardError => e
+        Mcp::Sidecar.record_stdio_tool_exception(
+          tool_name: McpToolRegistry.tool_name_for(self),
+          server_context: server_context,
+          exception: e
+        )
+        raise
+      end
+    end
+
     def self.chat(session_id:, current_message_id: nil, tier: :essential, server_name: nil)
       tier = tier.to_sym
       default_name = tier == :deferred ? CHAT_DEFERRED_SERVER : CHAT_ESSENTIAL_SERVER
@@ -155,6 +168,55 @@ module Mcp
       tool
     end
 
+    def self.wrap_stdio_tool_dispatch(tool)
+      tool.singleton_class.prepend(StdioToolDispatch) unless tool.singleton_class < StdioToolDispatch
+      tool
+    end
+
+    def self.record_stdio_tool_exception(tool_name:, server_context:, exception:)
+      return if server_context.blank?
+      return if server_context.respond_to?(:[]) && server_context[:identity].present?
+
+      backtrace_excerpt = McpToolUsageRecorder.cleaned_backtrace_excerpt(exception)
+      content = { message: exception.message }
+
+      Tools.with_database_connection do
+        if (chat_session = server_context[:chat_session])
+          McpToolUsageRecorder.record_chat_tool_result(
+            chat_session: chat_session,
+            tool_name: tool_name,
+            content: content,
+            error: true,
+            provider: chat_session.effective_chat_provider,
+            sidecar_mode: "stdio",
+            error_class: exception.class.name,
+            backtrace_excerpt: backtrace_excerpt
+          )
+        elsif (run = stdio_run_from_context(server_context))
+          McpToolUsageRecorder.record_workflow_tool_result(
+            run: run,
+            tool_name: tool_name,
+            content: content,
+            error: true,
+            sidecar_mode: "stdio",
+            error_class: exception.class.name,
+            backtrace_excerpt: backtrace_excerpt
+          )
+        end
+      end
+    rescue StandardError => record_error
+      Rails.logger.warn("[Mcp::Sidecar] stdio tool exception recording failed: #{record_error.class}: #{record_error.message}")
+    end
+
+    def self.stdio_run_from_context(server_context)
+      run = server_context[:run]
+      return run if run
+
+      run_id = server_context[:run_id] || server_context["run_id"]
+      Run.find_by(id: run_id) if run_id.present?
+    end
+    private_class_method :stdio_run_from_context
+
     def self.chat_context(chat_session, current_message_id:, evaluator: false, scoped_event_id: nil, evaluator_session_id: nil)
       current_message = if current_message_id.present?
         chat_session.messages.find_by(id: current_message_id)
@@ -186,7 +248,7 @@ module Mcp
         context,
         "[mcp_sidecar] build starting server=#{@server_name} pid=#{Process.pid}"
       )
-      tools = @tools.call
+      tools = @tools.call.map { |tool| self.class.wrap_stdio_tool_dispatch(tool) }
       context = @server_context.call
       @built_server_context = context
       duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round

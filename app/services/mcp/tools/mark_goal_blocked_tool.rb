@@ -21,7 +21,7 @@ module Mcp::Tools
     class << self
       def call(reason:, server_context:, details: nil)
         chat_session = server_context.fetch(:chat_session)
-        goal = chat_session.active_goal
+        goal = Mcp::Tools.fresh_active_goal(chat_session)
         return Mcp::Tools.invalid("active goal not found") unless goal
         return Mcp::Tools.invalid("goal is not active") unless goal.active?
 

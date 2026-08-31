@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_132000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_133000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1512,6 +1512,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_132000) do
     t.datetime "updated_at", null: false
     t.integer "user_id"
     t.integer "workflow_id"
+    t.text "backtrace_excerpt"
     t.index ["chat_session_id", "tool_use_id"], name: "index_mcp_tool_usages_on_chat_session_id_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_mcp_tool_usages_on_chat_session_id"
     t.index ["created_at"], name: "index_mcp_tool_usages_on_created_at"
