@@ -24,7 +24,7 @@ class ProcessRunner
   TERM_GRACE_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
   KILL_POLL_INTERVAL_SECONDS = 1
-  SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 30
+  SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 60
   SYNC_STDIN_BYTES = 32 * 1024
   # Live process resource samples are useful for the admin UI, but the JSON
   # update is a hot write on long-running agent/grader processes. Persist
