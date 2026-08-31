@@ -67,6 +67,8 @@
   "goal_policy_auto_file_short": "Auto-file proposals",
   "goal_policy_draft_jobs_short": "Draft jobs only",
   "goal_policy_auto_submit_short": "Auto-submit jobs",
+  "goal_expand": "Expand goal",
+  "goal_collapse": "Collapse goal",
   "goal_edit": "Edit goal",
   "goal_pause": "Pause goal",
   "goal_resume": "Resume goal",

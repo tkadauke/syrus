@@ -67,6 +67,8 @@
   "goal_policy_auto_file_short": "Vorschläge automatisch anlegen",
   "goal_policy_draft_jobs_short": "Nur Jobs entwerfen",
   "goal_policy_auto_submit_short": "Jobs automatisch einreichen",
+  "goal_expand": "Ziel erweitern",
+  "goal_collapse": "Ziel einklappen",
   "goal_edit": "Ziel bearbeiten",
   "goal_pause": "Ziel pausieren",
   "goal_resume": "Ziel fortsetzen",
