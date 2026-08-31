@@ -47,7 +47,16 @@ class LandingValidationPrefetcher
 
   attr_reader :workflow, :job, :git
 
-  TargetUnit = Data.define(:kind, :key, :jobs, :artifacts, :parent_work_unit) do
+  class TargetUnit
+    attr_reader :key, :jobs, :artifacts, :parent_work_unit
+
+    def initialize(key:, jobs:, artifacts:, parent_work_unit:)
+      @key = key
+      @jobs = jobs
+      @artifacts = artifacts
+      @parent_work_unit = parent_work_unit
+    end
+
     def instantiate(seed_artifacts)
       WorkUnits::Launcher.instantiate(
         kind: work_definition_kind,
@@ -58,39 +67,18 @@ class LandingValidationPrefetcher
     end
 
     def still_eligible?
-      case kind
-      when "job"
-        job = jobs.first
-        job.approved? &&
-          !job.external_pr? &&
-          job.pr_number.present? &&
-          !WorkUnits::Ownership.active_for_job_kind?(job, landing_validation_child_kinds)
-      when "merge_train"
-        jobs.all?(&:approved?) &&
-          jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
-          WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for("merge_train")).empty?
-      when "job_bundle"
-        jobs.all?(&:approved?) &&
-          jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
-          WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for("job_bundle")).empty?
-      else
-        false
-      end
+      raise NotImplementedError
     end
 
     private
 
     def work_definition_kind
-      parent_kind =
-        case kind
-        when "merge_train", "job_bundle"
-          kind
-        else
-          "auto_merge"
-        end
+      WorkDefinitions.landing_validation_child_kind_for(parent_work_definition_kind) ||
+        raise(WorkDefinitions::Error, "no landing validation child definition for #{parent_work_definition_kind}")
+    end
 
-      WorkDefinitions.landing_validation_child_kind_for(parent_kind) ||
-        raise(WorkDefinitions::Error, "no landing validation child definition for #{kind}")
+    def parent_work_definition_kind
+      raise NotImplementedError
     end
 
     def landing_validation_child_kinds
@@ -100,6 +88,44 @@ class LandingValidationPrefetcher
     def workflow_job
       jobs.last
     end
+  end
+
+  class OrdinaryTarget < TargetUnit
+    def still_eligible?
+      job = jobs.first
+      job.approved? &&
+        !job.external_pr? &&
+        job.pr_number.present? &&
+        !WorkUnits::Ownership.active_for_job_kind?(job, landing_validation_child_kinds)
+    end
+
+    private
+
+    def parent_work_definition_kind = "auto_merge"
+  end
+
+  class MergeTrainTarget < TargetUnit
+    def still_eligible?
+      jobs.all?(&:approved?) &&
+        jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
+        WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for(parent_work_definition_kind)).empty?
+    end
+
+    private
+
+    def parent_work_definition_kind = "merge_train"
+  end
+
+  class JobBundleTarget < TargetUnit
+    def still_eligible?
+      jobs.all?(&:approved?) &&
+        jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
+        WorkUnits::Ownership.active_job_ids(jobs.map(&:id), kinds: WorkDefinitions.family_kinds_for(parent_work_definition_kind)).empty?
+    end
+
+    private
+
+    def parent_work_definition_kind = "job_bundle"
   end
 
   def next_landing_unit
@@ -117,21 +143,22 @@ class LandingValidationPrefetcher
   def target_for(unit)
     return if unit.blocker_jobs.any?
 
-    if epic_merge_train_unit?(unit) && AppSetting.merge_train_enabled?
-      merge_train_target(unit)
-    elsif job_bundle_unit?(unit)
-      job_bundle_target(unit)
-    else
-      ordinary_target(unit)
-    end
+    target_builders.filter_map { |builder| builder.call(unit) }.first
+  end
+
+  def target_builders
+    [
+      method(:merge_train_target),
+      method(:job_bundle_target),
+      method(:ordinary_target)
+    ]
   end
 
   def ordinary_target(unit)
     candidate = unit.jobs.find { |unit_job| ordinary_auto_merge_candidate?(unit_job) }
     return unless candidate
 
-    TargetUnit.new(
-      kind: "job",
+    OrdinaryTarget.new(
       key: unit.key,
       jobs: [ candidate ],
       parent_work_unit: workflow.work_unit,
@@ -152,8 +179,7 @@ class LandingValidationPrefetcher
     return unless result.ready?
     return unless result.job_ids == unit.job_ids
 
-    TargetUnit.new(
-      kind: "merge_train",
+    MergeTrainTarget.new(
       key: unit.key,
       jobs: result.members,
       parent_work_unit: workflow.work_unit,
@@ -187,6 +213,7 @@ class LandingValidationPrefetcher
   end
 
   def job_bundle_target(unit)
+    return unless job_bundle_unit?(unit)
     return unless unit.jobs.all? { |member| ordinary_job_bundle_member?(member) }
     return if WorkUnits::Ownership.active_job_ids(unit.job_ids, kinds: WorkDefinitions.family_kinds_for("job_bundle")).any?
 
@@ -195,8 +222,7 @@ class LandingValidationPrefetcher
     return unless result.ready?
     return unless (unit.job_ids - result.job_ids).empty?
 
-    TargetUnit.new(
-      kind: "job_bundle",
+    JobBundleTarget.new(
       key: unit.key,
       jobs: result.members,
       parent_work_unit: workflow.work_unit,

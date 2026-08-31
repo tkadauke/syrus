@@ -3,7 +3,49 @@ class RetryWorkflowEnqueuer
     def success? = workflow.present?
   end
 
-  PROVIDER_VALIDATORS = %i[configured retry_alternate none].freeze
+  class ProviderValidation
+    MODES = {
+      configured: "RetryWorkflowEnqueuer::ProviderValidation::Configured",
+      retry_alternate: "RetryWorkflowEnqueuer::ProviderValidation::RetryAlternate",
+      none: "RetryWorkflowEnqueuer::ProviderValidation::None"
+    }.freeze
+
+    def self.for(mode)
+      MODES.fetch(mode.to_sym).constantize
+    rescue KeyError
+      raise ArgumentError, "unknown retry provider validation: #{mode.inspect}"
+    end
+
+    def initialize(job)
+      @job = job
+    end
+
+    def agent_provider_allowed?(_agent_provider)
+      raise NotImplementedError
+    end
+
+    private
+
+    attr_reader :job
+  end
+
+  class ProviderValidation::Configured < ProviderValidation
+    def agent_provider_allowed?(agent_provider)
+      job.user.agent_provider_configured?(agent_provider)
+    end
+  end
+
+  class ProviderValidation::RetryAlternate < ProviderValidation
+    def agent_provider_allowed?(agent_provider)
+      job.retry_with_agent_providers.include?(agent_provider)
+    end
+  end
+
+  class ProviderValidation::None < ProviderValidation
+    def agent_provider_allowed?(_agent_provider)
+      true
+    end
+  end
 
   def self.call(...) = new(...).call
 
@@ -11,12 +53,11 @@ class RetryWorkflowEnqueuer
     @job = job
     @agent_provider = agent_provider.to_s.presence
     @artifacts = artifacts
-    @provider_validation = provider_validation.to_sym
+    @provider_validation = ProviderValidation.for(provider_validation).new(job)
     @automatic = automatic
   end
 
   def call
-    validate_provider_validation!
     return failure("Runaway protection active — clear by retrying manually.") if automatic? && job.runaway_protection.present?
 
     eligibility = RetryWorkflowEligibility.call(job: job)
@@ -55,23 +96,10 @@ class RetryWorkflowEnqueuer
 
   attr_reader :job, :agent_provider, :artifacts, :provider_validation
 
-  def validate_provider_validation!
-    return if PROVIDER_VALIDATORS.include?(provider_validation)
-
-    raise ArgumentError, "unknown retry provider validation: #{provider_validation.inspect}"
-  end
-
   def agent_provider_allowed?
     return true if agent_provider.blank?
 
-    case provider_validation
-    when :configured
-      job.user.agent_provider_configured?(agent_provider)
-    when :retry_alternate
-      job.retry_with_agent_providers.include?(agent_provider)
-    when :none
-      true
-    end
+    provider_validation.agent_provider_allowed?(agent_provider)
   end
 
   def automatic?
