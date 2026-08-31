@@ -4,10 +4,11 @@ module WorkUnits
       REASON = "ci_repair_safety"
       RETRY_DELAY = 5.minutes
 
-      def self.call(work_unit, **) = new(work_unit).call
+      def self.call(work_unit, **context) = new(work_unit, step: context[:step]).call
 
-      def initialize(work_unit)
+      def initialize(work_unit, step: nil)
         @work_unit = work_unit
+        @step = step
       end
 
       def call
@@ -15,6 +16,7 @@ module WorkUnits
         return GateResult.pass unless workflow
         return GateResult.pass unless job
         return GateResult.pass if job.main_branch_repair?
+        return GateResult.pass if resumed_past_launch_gate?
 
         return block("base_sha_unknown") if base_sha.blank?
         return block("branch_behind_base", "commits_behind_base" => job.commits_behind_base) if job.commits_behind_base.to_i.positive?
@@ -34,7 +36,7 @@ module WorkUnits
 
       private
 
-      attr_reader :work_unit
+      attr_reader :work_unit, :step
 
       def workflow
         @workflow ||= work_unit.workflow
@@ -68,6 +70,13 @@ module WorkUnits
 
       def require_clean_base_health?
         job.repository&.main_branch_health_enabled?
+      end
+
+      def resumed_past_launch_gate?
+        return false unless step
+
+        first_step = workflow.first_step
+        first_step && step.id != first_step.id
       end
 
       def active_duplicate_for_base

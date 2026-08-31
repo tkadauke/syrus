@@ -32,6 +32,10 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
     unit
   end
 
+  def step_for(workflow, kind:, position:)
+    Step.create!(workflow: workflow, kind: kind, position: position)
+  end
+
   before do
     repository.update!(
       last_health_checked_sha: base_sha,
@@ -72,6 +76,21 @@ RSpec.describe WorkUnits::Gates::CiRepairSafety do
 
     expect(result).to be_blocked
     expect(result.details).to include("kind" => "base_not_known_healthy", "base_sha" => base_sha)
+  end
+
+  it "does not re-apply launch-only base safety to later deferred phases" do
+    repository.update!(main_branch_health_enabled: true, last_health_checked_sha: "older")
+    unit = ci_unit_for(job, state: "running")
+    workflow = unit.workflow
+    step_for(workflow, kind: "prepare", position: 0)
+    summarize = step_for(workflow, kind: "summarize", position: 2)
+
+    launch_result = described_class.call(unit, step: workflow.first_step)
+    resume_result = described_class.call(unit, step: summarize)
+
+    expect(launch_result).to be_blocked
+    expect(launch_result.details).to include("kind" => "base_not_known_healthy")
+    expect(resume_result).to be_pass
   end
 
   it "does not require healthy base evidence when main-branch health checking is disabled" do
