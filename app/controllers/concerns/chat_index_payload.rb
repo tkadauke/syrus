@@ -287,7 +287,7 @@ module ChatIndexPayload
     unread_events = chat_session.scoped_events
     unread_events = unread_events.where("created_at > ?", last_read_at) if last_read_at.present?
 
-    legacy_unread_messages = chat_session.messages.where(role: "system")
+    legacy_unread_messages = legacy_supervisor_unread_message_scope(chat_session.id)
     legacy_unread_messages = legacy_unread_messages.where("created_at > ?", last_read_at) if last_read_at.present?
 
     severity_rank = { "info" => 0, "warning" => 1, "critical" => 2 }
@@ -312,5 +312,12 @@ module ChatIndexPayload
       supervisor_unread_count: unread_count,
       supervisor_unread_severity: severities.max_by { |severity| severity_rank.fetch(severity) }
     }
+  end
+
+  def legacy_supervisor_unread_message_scope(chat_session_id)
+    scope = ChatMessage.where(chat_session_id: chat_session_id, role: "system")
+    return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
+
+    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_session_role_created_id)"))
   end
 end

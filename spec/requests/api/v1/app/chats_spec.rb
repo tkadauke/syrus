@@ -368,6 +368,27 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(scoped_event_selects.grep(/SELECT\s+["`]?chat_scoped_events["`]?\.\*/i)).to be_empty
   end
 
+  it "forces the role-created index for MySQL supervisor legacy unread messages" do
+    set_supervisor_feature(true)
+    admin = Factories.user(admin: true)
+    chat = SupervisorChat.ensure_for!(admin)
+    chat.update!(last_read_at: 10.minutes.ago)
+    chat.messages.create!(
+      role: "system",
+      content: { "text" => "Critical", "supervisor_event" => { "severity" => "critical" } },
+      created_at: 1.minute.ago
+    )
+    sign_in_as(admin)
+
+    allow(ActiveRecord::Base.connection).to receive(:adapter_name).and_return("Mysql2")
+
+    queries = capture_sql { get "/api/v1/app/chats" }
+
+    expect(response).to have_http_status(:ok)
+    legacy_selects = queries.grep(/FROM ["`]?chat_messages["`]? FORCE INDEX \(idx_chat_messages_session_role_created_id\)/i)
+    expect(legacy_selects).not_to be_empty
+  end
+
   it "hides supervisor payloads when the feature is off or the user is not an admin" do
     set_supervisor_feature(false)
     admin = Factories.user(admin: true)
