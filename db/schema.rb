@@ -392,6 +392,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_132000) do
     t.integer "user_id", null: false
     t.index ["chat_session_id", "user_id"], name: "index_chat_participants_on_chat_session_id_and_user_id", unique: true
     t.index ["chat_session_id"], name: "index_chat_participants_on_chat_session_id"
+    t.index ["user_id", "chat_session_id"], name: "idx_chat_participants_user_session"
     t.index ["user_id"], name: "index_chat_participants_on_user_id"
   end
 
@@ -586,6 +587,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_132000) do
     t.index ["share_token"], name: "index_chat_sessions_on_share_token", unique: true
     t.index ["turn_in_flight", "last_message_at"], name: "idx_chat_sessions_stale_turns"
     t.index ["user_id", "cumulative_cost_usd"], name: "idx_chat_sessions_spending_user_cost"
+    t.index ["user_id", "deleted_at", "hidden_at", "system_kind", "pinned", "last_message_at", "created_at", "id"], name: "idx_chat_sessions_active_index_order"
     t.index ["user_id", "hidden_at", "system_kind", "pinned", "last_message_at", "created_at", "id"], name: "idx_chat_sessions_index_order"
     t.index ["user_id", "hidden_at"], name: "index_chat_sessions_on_user_id_and_hidden_at"
     t.index ["user_id", "system_kind"], name: "index_chat_sessions_on_user_id_and_system_kind", unique: true
