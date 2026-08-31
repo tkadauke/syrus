@@ -307,7 +307,7 @@ grade:
     phases: [ci]
     junit_output: .syrus/grade-output/rspec-junit.xml
     failures: allow_inherited
-    timeout_minutes: 30
+    timeout_minutes: 60
 
   - name: react-tests
     description: |

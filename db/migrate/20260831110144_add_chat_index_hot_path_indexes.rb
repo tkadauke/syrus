@@ -7,12 +7,12 @@ class AddChatIndexHotPathIndexes < ActiveRecord::Migration[8.1]
         name: "idx_chat_sessions_active_index_order"
     end
 
-    if table_exists?(:chat_participants)
-      unless index_exists?(:chat_participants, [ :user_id, :chat_session_id ], name: "idx_chat_participants_user_session")
-        add_index :chat_participants,
-          [ :user_id, :chat_session_id ],
-          name: "idx_chat_participants_user_session"
-      end
+    if table_exists?(:chat_participants) && !index_exists?(:chat_participants,
+      [ :user_id, :chat_session_id ],
+      name: "idx_chat_participants_user_session")
+      add_index :chat_participants,
+        [ :user_id, :chat_session_id ],
+        name: "idx_chat_participants_user_session"
     end
   end
 
