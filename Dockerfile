@@ -32,8 +32,8 @@ WORKDIR /rails
 #     timestamps Gemini flags, so the analysis chat turn can illustrate each
 #     issue (VideoWalkthroughFrameExtractor).
 ARG NODE_MAJOR=22
-ARG CLAUDE_CODE_VERSION=2.1.226
-ARG CODEX_CLI_VERSION=0.147.0
+ARG CLAUDE_CODE_VERSION=2.1.251
+ARG CODEX_CLI_VERSION=0.151.0
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update -qq && \
@@ -137,7 +137,7 @@ RUN SYRUS_APP_HOST=syrus.invalid \
 FROM base AS whisper-build
 
 ARG SYRUS_SKIP_WHISPER_BUILD=0
-ARG WHISPER_CPP_VERSION=v1.9.2
+ARG WHISPER_CPP_VERSION=v1.9.3
 ARG WHISPER_CPP_MODEL=ggml-base.en.bin
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
