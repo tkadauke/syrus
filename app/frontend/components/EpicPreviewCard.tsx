@@ -103,7 +103,7 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
         </ul>
       )}
       {!compact && (
-        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${id}`}>
+        <Link className="text-xs text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${id}`}>
           {t("preview_see_more")}
         </Link>
       )}

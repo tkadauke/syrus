@@ -98,7 +98,7 @@ function TeamsTable({ teams }: { teams: AdminTeamRow[] }) {
           {teams.map((team) => (
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-800" key={team.id}>
               <td className="px-4 py-2">
-                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`/admin/teams/${team.id}`}>{team.name}</Link>
+                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`/admin/teams/${team.id}`}>{team.name}</Link>
               </td>
               <td className="px-4 py-2">{team.member_count}</td>
               <td className="px-4 py-2">{team.repository_count}</td>
@@ -159,7 +159,7 @@ export function AdminTeamDetailRoute() {
   return (
     <main aria-label={t("teams.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
+        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to="/admin/teams">{t("teams.heading")}</Link>
         <PageHeading className="mt-2">{team.data?.team.name || `Team #${id}`}</PageHeading>
       </header>
 

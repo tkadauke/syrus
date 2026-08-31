@@ -110,9 +110,9 @@ function StuckTable({ items, pagination, prefix }: { items: StuckItem[]; paginat
                 <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{item.age_label}</td>
                 <td className="space-x-3 px-4 py-2 text-right text-xs">
                   {item.workflow_path ? (
-                    <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.workflow_path, prefix)}>{item.workflow_slug || "Workflow"}</Link>
+                    <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(item.workflow_path, prefix)}>{item.workflow_slug || "Workflow"}</Link>
                   ) : null}
-                  {item.job_id ? <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
+                  {item.job_id ? <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
                   {item.run_id && item.has_transcript ? (
                     <Link className="text-indigo-600 dark:text-indigo-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>Transcript</Link>
                   ) : null}

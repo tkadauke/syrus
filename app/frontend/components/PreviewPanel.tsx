@@ -455,7 +455,7 @@ function DeployControls({
   const state = deploy?.state
   const deployButton = canDeploy ? (
     <button
-      className="rounded border border-terracotta-600 px-3 py-1.5 text-xs font-medium text-terracotta-700 hover:bg-terracotta-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-terracotta-500 dark:text-terracotta-400 dark:hover:bg-gray-800"
+      className="rounded border border-brand px-3 py-1.5 text-xs font-medium text-brand-emphasis hover:bg-brand/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-emphasis dark:text-brand-emphasis dark:hover:bg-gray-800"
       disabled={isPending}
       onClick={onDeploy}
       type="button"

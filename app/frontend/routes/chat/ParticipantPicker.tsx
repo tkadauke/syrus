@@ -73,7 +73,7 @@ export function ParticipantPickerModal({
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="participant-picker-title">{title}</h2>
           <button
             aria-label={t("cancel")}
-            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             onClick={onCancel}
             type="button"
           >
@@ -101,7 +101,7 @@ export function ParticipantPickerModal({
                 return (
                   <button
                     aria-selected={selected}
-                    className={`flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm ${selected ? "bg-blue-50 dark:bg-blue-950" : "hover:bg-gray-50 dark:hover:bg-gray-800"}`}
+                    className={`flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm ${selected ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800"}`}
                     key={user.id}
                     onClick={() => toggleUser(user.id)}
                     role="option"

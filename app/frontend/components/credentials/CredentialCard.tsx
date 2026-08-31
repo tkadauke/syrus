@@ -207,7 +207,7 @@ function secondaryButtonClass() {
 }
 
 function primaryButtonClass() {
-  return "rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-700 disabled:cursor-not-allowed disabled:opacity-60"
+  return "rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-emphasis disabled:cursor-not-allowed disabled:opacity-60"
 }
 
 
@@ -384,7 +384,7 @@ export function ClaudeCredentialCard({ payload, onNotice }: CardProps) {
               <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
                 {t('account_settings.claude_token_help', { command: "claude setup-token", env: "CLAUDE_CODE_OAUTH_TOKEN" })}{" "}
                 <a
-                  className="font-medium text-terracotta-700 dark:text-terracotta-300 underline hover:text-terracotta-600"
+                  className="font-medium text-brand-emphasis underline hover:text-brand dark:text-brand-emphasis"
                   href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token"
                   rel="noreferrer"
                   target="_blank"
@@ -827,7 +827,7 @@ export function GeminiCredentialCard({ payload, onNotice }: CardProps) {
         <>
           {t('credential_cards.gemini_description')}{" "}
           <a
-            className="font-medium text-terracotta-700 dark:text-terracotta-300 underline hover:text-terracotta-600"
+            className="font-medium text-brand-emphasis underline hover:text-brand dark:text-brand-emphasis"
             href="https://aistudio.google.com/apikey"
             rel="noreferrer"
             target="_blank"

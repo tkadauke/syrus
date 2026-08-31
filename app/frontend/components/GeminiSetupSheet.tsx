@@ -154,7 +154,7 @@ export function GeminiSetupSheet({
       <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{labels.intro}</p>
 
       <button
-        className="mt-3 text-sm font-medium text-terracotta-700 underline hover:text-terracotta-800 dark:text-terracotta-300"
+        className="mt-3 text-sm font-medium text-brand-emphasis underline hover:text-brand dark:text-brand-emphasis"
         onClick={() => openInNewTab("https://aistudio.google.com/apikey")}
         type="button"
       >
