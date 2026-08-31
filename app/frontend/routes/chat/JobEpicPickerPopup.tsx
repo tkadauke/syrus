@@ -155,7 +155,7 @@ export function JobEpicPickerPopup({
             return (
               <button
                 aria-selected={active}
-                className={`flex w-full items-baseline gap-3 px-3 py-2 text-left text-sm ${active ? "bg-blue-50 dark:bg-blue-950" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
+                className={`flex w-full items-baseline gap-3 px-3 py-2 text-left text-sm ${active ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-900"}`}
                 key={item.id}
                 onClick={() => onSelect(String(item.id))}
                 onMouseDown={(event) => event.preventDefault()}

@@ -49,7 +49,7 @@ export function ValidationStages<K extends string>({
 export function StageIcon({ status }: { status: StageStatus }) {
   if (status === "running") {
     return (
-      <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-terracotta-500 border-t-transparent" />
+      <span aria-hidden="true" className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
     )
   }
   if (status === "ok") {

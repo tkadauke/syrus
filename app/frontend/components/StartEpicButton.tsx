@@ -29,7 +29,7 @@ export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal
   if (!statePath) return null
   const epicState = started ? "in_progress" : proposal.materialized_epic_state
   if (epicState && !STARTABLE_EPIC_STATES.includes(epicState)) {
-    return <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{t("epic_start.in_progress")}</span>
+    return <span className="text-xs font-medium text-info">{t("epic_start.in_progress")}</span>
   }
   if (!currentUser?.admin && currentUser?.role !== "developer") return null
 

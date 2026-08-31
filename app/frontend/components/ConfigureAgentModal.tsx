@@ -54,7 +54,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
             </div>
             <button
               aria-label={t('configure_agent.close')}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
               onClick={onClose}
               type="button"
             >
@@ -184,6 +184,6 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
 function tabClass(active: boolean) {
   const base = "px-4 py-2 text-sm font-medium -mb-px border-b-2"
   return active
-    ? `${base} border-blue-600 text-blue-700 dark:text-blue-300`
+    ? `${base} border-brand text-brand dark:text-brand-emphasis`
     : `${base} border-transparent text-gray-500 dark:text-gray-400`
 }

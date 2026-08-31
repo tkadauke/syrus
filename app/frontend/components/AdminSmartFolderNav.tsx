@@ -177,7 +177,7 @@ export function AdminSmartFolderNav({
         {filtersDiffer && activeFolder ? (
           <div className="space-y-2 px-2 pt-2">
             <button
-              className="w-full rounded border border-blue-200 bg-blue-50 px-2 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950 dark:disabled:border-gray-700 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
+              className="w-full rounded border border-brand/40 bg-brand/10 px-2 py-1.5 text-sm font-medium text-brand hover:bg-brand/20 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400 dark:border-brand/40 dark:bg-brand/10 dark:text-brand-emphasis dark:hover:bg-brand/20 dark:disabled:border-gray-700 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
               disabled={updateFolder.isPending}
               onClick={() => updateFolder.mutate()}
               type="button"
@@ -400,12 +400,12 @@ function SmartFolderLink({
 
 function FolderCount({ active, count }: { active: boolean; count: number }) {
   return (
-    <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"}`}>{count}</span>
+    <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"}`}>{count}</span>
   )
 }
 
 function folderClass(active: boolean) {
-  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${active ? "bg-blue-50 dark:bg-blue-950/40 font-medium text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-800"}`
+  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-800"}`
 }
 
 function menuItemClass(extra = "") {

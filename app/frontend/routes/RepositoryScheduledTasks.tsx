@@ -105,7 +105,7 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
               {payload.tasks.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3">
-                    <Link className="font-medium text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
+                    <Link className="font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
                     <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{task.schedule_label || t("scheduled_tasks.none")}</td>
@@ -152,7 +152,7 @@ function StatePill({ state }: { state: string }) {
     scheduled: "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300",
     paused: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
     auto_paused: "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300",
-    fired: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+    fired: "bg-info/10 text-info"
   }
   return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
 }

@@ -99,7 +99,7 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
     <article className="py-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <SectionHeading>
-          <Link className="hover:text-blue-700 dark:hover:text-blue-300" to={`/chats/${result.chat_session_id}`}>{result.chat_title}</Link>
+          <Link className="hover:text-brand dark:hover:text-brand-emphasis" to={`/chats/${result.chat_session_id}`}>{result.chat_title}</Link>
         </SectionHeading>
         <span className="text-sm text-gray-500 dark:text-gray-400"><RelativeTimestamp value={result.top_matches[0]?.created_at} /></span>
       </div>

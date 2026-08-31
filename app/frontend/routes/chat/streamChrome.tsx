@@ -94,11 +94,11 @@ export function AgentActivityIndicator({ running }: { running: boolean }) {
 
   return (
     <div aria-label={phrase.english} aria-live="polite" className="flex justify-start" role="status">
-      <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200">
+      <div className="inline-flex items-center gap-2 rounded-full border border-info/20 bg-info/10 px-3 py-1.5 text-xs font-medium text-info shadow-sm dark:border-info/30 dark:bg-info/10 dark:text-info">
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
             <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 dark:bg-blue-300"
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-info"
               key={index}
               style={{ animationDelay: `${index * 140}ms` }}
             />

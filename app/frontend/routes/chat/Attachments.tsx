@@ -278,7 +278,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
       <div className="space-y-0 border-t border-gray-100 dark:border-gray-800">
         {attachmentResults.length > 0 ? attachmentResults.map((record) => (
           <button
-            className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200 dark:disabled:text-gray-600"
+            className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-brand/10 hover:text-brand disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-brand/10 dark:hover:text-brand-emphasis dark:disabled:text-gray-600"
             disabled={add.isPending}
             key={`${record.type}-${record.id}`}
             onClick={() => add.mutate(record)}

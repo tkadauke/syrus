@@ -14,7 +14,7 @@ function jobBorderClass(job: ChatJobStatusJobItem): string {
   const s = job.active_workflow?.state || job.state
   if (s === "pr_merged" || s === "external_pr_merged" || s === "no_changes") return "border-l-emerald-500"
   if (s === "implemented" || s === "approved" || s === "landing") return "border-l-amber-400"
-  if (s === "open" || s === "coding" || s === "queued" || s === "running") return "border-l-blue-500"
+  if (s === "open" || s === "coding" || s === "queued" || s === "running") return "border-l-info"
   return "border-l-gray-300"
 }
 
@@ -74,7 +74,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
             ) : null}
             {job.pr_number && job.pr_url ? (
               <a
-                className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                className="text-xs text-brand hover:underline dark:text-brand-emphasis"
                 href={job.pr_url}
                 onClick={(e) => e.stopPropagation()}
                 rel="noreferrer"
