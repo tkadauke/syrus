@@ -111,13 +111,12 @@ adversarial_review:
 grade:
   - name: migration-collisions
     description: |
-      Rejects migrations whose YYYYMMDDHHMMSS timestamps collide with
-      main or with each other. Hand-rolled timestamps silently corrupt
-      dev DBs (db:migrate skips colliding versions) and crash production
-      deploys with "table already exists." Always create migrations
-      via `bin/rails generate migration <Name>` so the timestamp is
-      fresh at file-creation time.
-    run: bin/check-migration-collisions
+      Rejects duplicate YYYYMMDDHHMMSS migration timestamps within each
+      database namespace across the visible tree. The primary namespace
+      includes app and plugin db/migrate paths; db/*_migrate paths are
+      separate namespaces. Hand-rolled timestamps silently corrupt dev
+      DBs and crash production deploys with "table already exists."
+    run: bin/check-migration-collisions --all
     phases: [review, landing, ci]
     timeout_minutes: 1
 
@@ -125,10 +124,10 @@ grade:
     description: |
       Catches non-idempotent migration patterns (bare `add_column`,
       `remove_column`, `add_reference`, `add_index` without
-      `_exists?` guards) and MySQL-8 JSON-default footguns on
-      migrations touched by this branch. Production deploys retry
-      partial migrations; without guards the retry crashes with
-      "Duplicate column" or "table already exists."
+      `_exists?` guards), integer foreign-key columns, post-policy
+      database-level foreign keys, and MySQL-8 JSON-default footguns on
+      migrations touched by this branch. Syrus intentionally uses indexed
+      bigint/reference columns without DB-level FK constraints.
     run: bin/check-migrations
     phases: [review, landing, ci]
     timeout_minutes: 1
