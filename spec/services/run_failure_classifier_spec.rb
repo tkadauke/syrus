@@ -668,6 +668,20 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(classification.classification).to eq("validation_or_user_error")
   end
 
+  it "classifies GitHub no-commits PR-open failures as retryable checkpoint publication loss" do
+    run.step.update!(kind: "pr_open")
+    run.update!(state: "failed")
+    diagnostic(
+      "Octokit::UnprocessableEntity",
+      "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-3972"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("pr_open_no_commits_between")
+    expect(result.retryable).to eq(true)
+  end
+
   it "classifies unmatched application exceptions as application errors" do
     run.update!(state: "failed")
     diagnostic("NoMethodError", "undefined method `call' for nil")

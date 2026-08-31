@@ -5095,6 +5095,35 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("publication")
   end
 
+  it "refreshes stale validation classifications for pr_open no-commits failures into retryable checkpoint recovery" do
+    step.update_columns(kind: "pr_open", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    run.create_run_diagnostic!(
+      error_class: "Octokit::UnprocessableEntity",
+      error_message: "POST https://api.github.com/repos/tkadauke/syrus/pulls: 422 - Validation Failed: No commits between main and syrus/direct-3972"
+    )
+    RunFailureClassification.create!(
+      run: run,
+      classification: "validation_or_user_error",
+      retryable: false,
+      confidence: 0.75,
+      reason: "old classifier treated GitHub 422 as user validation",
+      diagnostic_summary: "Octokit::UnprocessableEntity: No commits between main and syrus/direct-3972",
+      classified_at: 1.hour.ago
+    )
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :retry_workflow)
+
+    expect(kind(result, :retryable_run_failure)).to be_present
+    expect(repair_plan).to be_present
+    expect(run.reload.run_failure_classification).to have_attributes(
+      classification: "pr_open_no_commits_between",
+      retryable: true
+    )
+  end
+
   it "does not escalate stale pr_open divergence after a newer workflow published the same branch" do
     job.update!(pr_number: 77, branch_name: "syrus/direct-#{job.id}")
     step.update_columns(kind: "pr_open", state: "failed", finished_at: Time.current)

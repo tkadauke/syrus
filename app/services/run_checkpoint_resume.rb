@@ -50,9 +50,11 @@ class RunCheckpointResume
   def source_workflow
     job.workflows
        .where(state: "failed")
-       .where.not(cleaned_up_at: nil)
        .order(created_at: :desc, id: :desc)
-       .first
+       .detect do |workflow|
+         failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
+         failed_step && safe_failed_step?(failed_step) && checkpoint_before(failed_step).present?
+       end
   end
 
   def safe_failed_step?(step)

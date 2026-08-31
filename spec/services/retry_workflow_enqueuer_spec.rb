@@ -46,7 +46,7 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
-  it "resumes from a durable checkpoint when a downstream failed workflow workspace was cleaned up" do
+  it "resumes from a durable checkpoint when a downstream failed workflow has not been cleaned up yet" do
     failed_job = Factories.job_record(user: user, repository: repository, state: "failed", agent_provider: "claude")
     failed_workflow = Workflow.create!(
       job: failed_job,
@@ -54,7 +54,6 @@ RSpec.describe RetryWorkflowEnqueuer do
       trigger_kind: "initial",
       agent_provider: "claude",
       state: "failed",
-      cleaned_up_at: 1.minute.ago,
       artifacts: { "pr_title" => "Existing title" }
     )
     implement = Step.create!(workflow: failed_workflow, kind: "implement", position: 1, state: "succeeded", finished_at: 2.minutes.ago)

@@ -76,6 +76,13 @@ class RunFailureClassifier
       result("agent_invocation_too_large", 0.90, false, "The agent command line exceeded the OS argument-size limit (the prompt is too large to pass on argv; it must be sent over stdin).")
     when auth_or_config?
       result("provider_auth_or_config", 0.80, false, "The provider authentication or configuration was invalid.")
+    when pr_open_no_commits_between?
+      result(
+        "pr_open_no_commits_between",
+        0.90,
+        true,
+        "GitHub rejected PR creation because the pushed branch had no commits against base; retry from the last mutation checkpoint before PR publication."
+      )
     when validation_or_user_error?
       result("validation_or_user_error", 0.75, false, "The run failed on validation or user-supplied input.")
     when provider_transient?
@@ -231,6 +238,12 @@ class RunFailureClassifier
   def validation_or_user_error?
     diagnostic&.error_class.to_s.match?(/ActiveRecord::RecordInvalid|ActiveModel::ValidationError|ArgumentError|URI::InvalidURIError/) ||
       text_match?(/validation_failed|record invalid|invalid params|invalid input|cannot be blank|must be present|bad request|unprocessable|pending migration|ActiveRecord::PendingMigrationError/i)
+  end
+
+  def pr_open_no_commits_between?
+    run.step&.kind.to_s == "pr_open" &&
+      diagnostic&.error_class.to_s.match?(/Octokit::UnprocessableEntity/) &&
+      text_match?(/No commits between/i)
   end
 
   def provider_transient?

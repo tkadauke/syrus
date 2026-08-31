@@ -2967,6 +2967,7 @@ module WorkEngine
       classification = run.run_failure_classification
       return RunFailureClassifier.persist!(run) if classification.nil?
       return RunFailureClassifier.persist!(run) if stale_server_error_classification?(run, classification)
+      return RunFailureClassifier.persist!(run) if stale_pr_open_no_commits_classification?(run, classification)
       return classification unless provider_delayed_classification?(classification)
       return classification if trusted_provider_delay_classification?(run, classification)
 
@@ -2979,6 +2980,18 @@ module WorkEngine
     def stale_server_error_classification?(run, classification)
       classification.classification == "application_error" &&
         run.agent_outcome.to_s == "server_error"
+    end
+
+    def stale_pr_open_no_commits_classification?(run, classification)
+      return false unless classification.classification == "validation_or_user_error"
+      return false unless run.step&.kind.to_s == "pr_open"
+
+      [
+        run.run_diagnostic&.error_class,
+        run.run_diagnostic&.error_message,
+        run.run_diagnostic&.error_backtrace,
+        classification.diagnostic_summary
+      ].compact.join("\n").match?(/No commits between/i)
     end
 
     def provider_delayed_classification?(classification)
