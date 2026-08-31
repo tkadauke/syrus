@@ -259,7 +259,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
         <SidebarContent
           csrfToken={data?.csrf_token}
-          dashboardSubnavEnabled={true}
+          dashboardSubnavEnabled={isDesktopSidebarViewport}
           featureFlags={data?.feature_flags ?? {}}
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
@@ -863,7 +863,7 @@ function SidebarContent({
                 </div>
                 {item.id === "dashboard" && dashboardSubnavEnabled ? (
                   <SidebarDashboardNav expanded={openSubnavItemId === item.id} onCloseDrawer={onCloseDrawer} prefix={prefix} showSubjects={showDashboardSidebarSubjects} />
-                ) : item.smartFolderApiPath && item.smartFolderSubject ? (
+                ) : dashboardSubnavEnabled && item.smartFolderApiPath && item.smartFolderSubject ? (
                   <SidebarPluginSmartFolderNav expanded={openSubnavItemId === item.id} item={item} prefix={prefix} />
                 ) : null}
               </div>
