@@ -39,6 +39,18 @@ owners can see their docs, explicit collaborators can see private docs, and
 public docs are visible to users who can access at least one associated
 repository.
 
+## Editor UI
+
+The plugin-owned editor uses a full-width document title bar above the document
+surface. The title bar contains the editable title, canonical `DOC-<id>`
+identity, visibility and state indicators, repository associations with a `+`
+picker, a `Share` popover for visibility and explicit collaborators, and a
+far-right version dropdown. The body editor uses `Markdown` and `WYSIWYG` tabs
+over the same unsaved canonical Markdown draft instead of an adjacent
+edit/preview split. Selecting a version from the title-bar dropdown loads that
+version's Markdown into the current draft; it is not persisted until the user
+saves.
+
 The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
 app adds bundled plugin migration paths at boot, and the shared Rails schema
 dump remains in `db/schema.rb`.
