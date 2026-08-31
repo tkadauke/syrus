@@ -31,11 +31,17 @@ export function isLowPrioritySystemMessage(item: ChatRenderItem) {
   return item.type === "message" &&
     item.role === "system" &&
     !isProposalOutcomeSystemMessage(item) &&
+    !isGoalContinuationSystemMessage(item) &&
     ["neutral", "success"].includes(item.system?.tone || "neutral")
 }
 
 export function isProposalOutcomeSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
   return contentRecord(item.content)?.source === "proposal_notification"
+}
+
+export function isGoalContinuationSystemMessage(item: Extract<ChatRenderItem, { type: "message" }>) {
+  const content = contentRecord(item.content)
+  return content?.source === "goal_continuation" || content?.goal_continuation === true
 }
 
 export function isAgentActive(payload: ChatPayload) {

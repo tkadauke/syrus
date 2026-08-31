@@ -111,6 +111,28 @@ RSpec.describe ChatTurnJob do
     expect(Thread.current[:syrus_current_chat_session]).to be_nil
   end
 
+  it "uses the hidden internal prompt for goal continuation system messages" do
+    message = chat.messages.create!(
+      role: "system",
+      content: {
+        "text" => "Goal continuation started.",
+        "internal_prompt" => "Continue with the full goal event payload.",
+        "source" => "goal_continuation",
+        "goal_continuation" => true
+      }
+    )
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(received[:prompt]).to include("Continue with the full goal event payload.")
+    expect(received[:prompt]).not_to include("Goal continuation started.")
+  end
+
   it "clears the chat session thread-local even when the turn raises" do
     ChatTurnJob.agent_runner = ->(**_) { raise StandardError, "boom" }
 

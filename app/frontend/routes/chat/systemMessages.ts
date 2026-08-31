@@ -29,6 +29,9 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const skillInvocation = skillInvocationFromContent(message.content, text)
   if (skillInvocation) return skillInvocation
 
+  const goalContinuation = goalContinuationFromContent(message.content, text)
+  if (goalContinuation) return goalContinuation
+
   const mcpHealth = mcpHealthFromContent(message.content)
   if (mcpHealth.length > 0) return structuredMcpMessage(mcpHealth)
 
@@ -58,6 +61,13 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   }
 
   return { tone: "neutral", label: "System", body: text }
+}
+
+export function goalContinuationFromContent(content: unknown, text: string): ChatSystemMessage | null {
+  const record = contentRecord(content)
+  if (record?.source !== "goal_continuation" && record?.goal_continuation !== true) return null
+
+  return { tone: "neutral", label: "Goal", body: text || "Goal continuation started." }
 }
 
 export function providerErrorFromContent(content: unknown): ChatSystemMessage | null {
