@@ -143,6 +143,9 @@ RSpec.describe McpToolUsageRecorder do
       expect(usage.error).to eq(true)
       expect(usage.error_class).to eq("McpInvocationContext::Expired")
       expect(usage.error_message_summary).to eq("invocation token expired")
+      expect(usage.backtrace_excerpt).to be_present
+      expect(usage.backtrace_excerpt.bytesize).to be <= McpToolUsageRecorder::BACKTRACE_MAX_BYTES
+      expect(usage.backtrace_excerpt.lines.count).to be <= McpToolUsageRecorder::BACKTRACE_FRAME_LIMIT
     end
 
     it "records without a chat_session when the invocation context never resolved one" do
@@ -154,5 +157,23 @@ RSpec.describe McpToolUsageRecorder do
       expect(usage.chat_session_id).to be_nil
       expect(usage.status).to eq("failed")
     end
+  end
+
+  it "passes error_class and backtrace excerpts through transcript result recorders when provided" do
+    run = Factories.job.initial_run
+
+    described_class.record_workflow_tool_result(
+      run: run,
+      tool_name: "syrus-mcp-sidecar.read_live_state",
+      tool_use_id: "toolu_err",
+      content: { "message" => "Internal error" },
+      error: true,
+      error_class: "RuntimeError",
+      backtrace_excerpt: "app/services/mcp/tools/read_live_state_tool.rb:12"
+    )
+
+    usage = McpToolUsage.sole
+    expect(usage.error_class).to eq("RuntimeError")
+    expect(usage.backtrace_excerpt).to eq("app/services/mcp/tools/read_live_state_tool.rb:12")
   end
 end

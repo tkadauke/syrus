@@ -18,6 +18,20 @@ RSpec.describe "goal MCP tools" do
     expect(chat.messages.last.content).to include("source" => "goal_loop", "chat_goal_id" => goal.id)
   end
 
+  it "reloads a memoized active goal before checking active state" do
+    goal = chat.chat_goals.create!(prompt: "Finish the plan", status: "paused")
+    expect(chat.active_goal).to be_paused
+    ChatGoal.where(id: goal.id).update_all(status: "active", updated_at: Time.current)
+
+    response = Mcp::Tools::MarkGoalCompletedTool.call(
+      reason: "plan_is_ready",
+      server_context: server_context
+    )
+
+    expect(response).not_to be_error
+    expect(goal.reload).to have_attributes(status: "completed", terminal_reason: "plan_is_ready")
+  end
+
   it "lets the agent block the active goal with a reason" do
     goal = chat.chat_goals.create!(prompt: "Finish the plan")
 

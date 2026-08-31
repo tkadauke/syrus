@@ -66,6 +66,11 @@ module Mcp
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(error: "not_authorized") } ], error: true)
       end
 
+      def fresh_active_goal(chat_session)
+        chat_session.association(:active_goal).reload
+        chat_session.active_goal
+      end
+
       def tool_error(reason)
         MCP::Tool::Response.new([ { type: "text", text: reason } ], error: true)
       end
