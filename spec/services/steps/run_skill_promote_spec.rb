@@ -17,7 +17,7 @@ require "open3"
 # a diff Syrus can hand to summarize/pr_open, and a conflict leaves the
 # target branch untouched and produces no diff for Syrus to publish, rather
 # than a corrupted or force-pushed history.
-RSpec.describe Steps::RunSkill, "with the repo-local promote skill" do
+RSpec.describe Steps::RunSkill, "with the repo-local promote skill", :ci_only do
   let(:promote_resolution) do
     path = Rails.root.join(".syrus/skills/promote/SKILL.md")
     Skills::Resolution.new(

@@ -16,7 +16,7 @@ require "open3"
 # instructions describe (already in sync, clean cherry-pick, conflict,
 # max_commits bounding), standing in for a compliant agent, then assert
 # Steps::RunSkill's deterministic side of the contract holds.
-RSpec.describe Steps::RunSkill, "with the repo-local backport-hotfixes skill" do
+RSpec.describe Steps::RunSkill, "with the repo-local backport-hotfixes skill", :ci_only do
   let(:backport_resolution) do
     path = Rails.root.join(".syrus/skills/backport-hotfixes/SKILL.md")
     Skills::Resolution.new(
