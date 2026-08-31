@@ -5900,6 +5900,17 @@ describe("LocalDaemonBanner", () => {
     await screen.findByText("syrus local --chat 8 --token secret-token")
   })
 
+  it("hides the pairing command on mobile and directs the user to connect from their computer", async () => {
+    mockMobileViewport()
+    const { createCalls } = mockLocalChatFetch()
+    renderRoute()
+
+    await screen.findByText("Open this chat on your computer and connect the daemon from your repository.")
+    expect(screen.queryByText(/syrus local/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Copy command" })).not.toBeInTheDocument()
+    expect(createCalls()).toBe(0)
+  })
+
   it("only requests a pairing session once", async () => {
     const { createCalls } = mockLocalChatFetch()
     renderRoute()
@@ -5947,6 +5958,42 @@ describe("LocalDaemonBanner", () => {
     await screen.findByText("Local daemon disconnected — waiting to reconnect.")
     expect(await screen.findByText("syrus local --chat 8 --token reconnect-token")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy command" })).toBeInTheDocument()
+  })
+
+  it("hides the reconnect command on mobile and directs the user to reconnect from their computer", async () => {
+    mockMobileViewport()
+    let createCalls = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/local_daemon_session" && init?.method === "POST") {
+        createCalls += 1
+        return Promise.resolve(jsonResponse({
+          daemon_session: {
+            id: 1,
+            chat_session_id: 8,
+            connected: false,
+            daemon_repo: null,
+            daemon_branch: null,
+            last_heartbeat_at: null,
+            auth_token: "reconnect-token"
+          }
+        }, 201))
+      }
+      return Promise.resolve(jsonResponse({
+        ...chatPayload({ chat: { mode: "local", local_daemon_state: "disconnected" } }),
+        local_mode_enabled: true
+      }))
+    })
+    renderRoute()
+
+    await screen.findByText("Local daemon disconnected — waiting to reconnect.")
+    expect(screen.getByText("Open this chat on your computer and reconnect the daemon from your repository.")).toBeInTheDocument()
+    expect(screen.queryByText(/syrus local/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Copy command" })).not.toBeInTheDocument()
+    expect(createCalls).toBe(0)
   })
 
   it("does not render a banner once the daemon is connected", async () => {
