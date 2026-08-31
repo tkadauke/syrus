@@ -8053,7 +8053,7 @@ describe("App", () => {
       expect(within(scheduledTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
       expect(within(scheduledTabs).queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
       expect(within(scheduledTabs).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/app-shell/repositories/3/documents")
-      expect(within(scheduledTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveClass("border-blue-600")
+      expect(within(scheduledTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveClass("border-brand")
       expect(screen.getByRole("heading", { level: 1, name: "acme/widgets" })).toHaveClass("text-2xl", "font-mono")
       expect(await screen.findByText("Daily review")).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "New scheduled task" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks/new")
@@ -8690,7 +8690,7 @@ describe("App", () => {
     expect(within(repositoryTabs).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/repositories/3")
     expect(within(repositoryTabs).getByRole("link", { name: "GitHub Issues" })).toHaveAttribute("href", "/app-shell/repositories/3?tab=github_issues")
     expect(within(repositoryTabs).queryByRole("link", { name: "Context" })).not.toBeInTheDocument()
-    expect(within(repositoryTabs).getByRole("link", { name: "Documents" })).toHaveClass("border-blue-600")
+    expect(within(repositoryTabs).getByRole("link", { name: "Documents" })).toHaveClass("border-brand")
     expect(within(repositoryTabs).getByRole("link", { name: "Scheduled Tasks" })).toHaveAttribute("href", "/app-shell/repositories/3/scheduled_tasks")
     const description = screen.getByText("Supporting documents available to agent runs for this repository.")
     expect(Boolean(repositoryTabs.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
@@ -16708,7 +16708,7 @@ function objectOverrides(value: unknown): Record<string, unknown> {
 function expectRunningPill(label: HTMLElement) {
   const pill = label.closest("[data-status-pill='true']")
 
-  expect(pill).toHaveClass("bg-blue-50", "text-blue-700")
+  expect(pill).toHaveClass("bg-info/10", "text-info")
   expect(pill?.querySelector("[data-running-spinner='true']")).toHaveClass("animate-spin")
 }
 

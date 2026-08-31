@@ -256,7 +256,7 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
       <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{document.title}</div>
       <div className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
         {document.kind === "google_doc" && document.google_doc_url ? (
-          <span className="text-blue-600 dark:text-blue-400 underline">{document.google_doc_url}</span>
+          <span className="text-brand dark:text-brand-emphasis underline">{document.google_doc_url}</span>
         ) : (
           <span>
             {document.filename || (
@@ -296,7 +296,7 @@ function RepositoryDocumentsError({ error }: { error: Error }) {
 
 
 function primaryButton() {
-  return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+  return "rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
 }
 
 

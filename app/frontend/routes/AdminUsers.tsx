@@ -103,7 +103,7 @@ export function AdminUserDetailRoute() {
   return (
     <main aria-label={t("users.aria_detail")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <Link className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
+        <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={basePath}>{t("users.heading")}</Link>
         <PageHeading className="mt-2">{user.data?.display_name || `User #${id}`}</PageHeading>
       </header>
 
@@ -138,7 +138,7 @@ function UsersTable({ users, basePath }: { users: AdminUserRow[]; basePath: stri
           {users.map((user) => (
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-800" key={user.id}>
               <td className="px-4 py-2">
-                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${user.id}`}>{user.display_name}</Link>
+                <Link className="text-brand dark:text-brand-emphasis underline hover:no-underline" to={`${basePath}/${user.id}`}>{user.display_name}</Link>
                 {user.display_name !== user.email_address ? <div className="text-xs text-gray-500 dark:text-gray-400">{user.email_address}</div> : null}
               </td>
               <td className="px-4 py-2">{user.github_handle ? `@${user.github_handle}` : "-"}</td>
