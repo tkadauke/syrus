@@ -17,7 +17,7 @@ module App
       q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
       url_tree = build_tree_from_url_params(params)
       trees = [ q_tree, url_tree ].compact
-      trees.unshift(default_tree) unless trees.any? { |tree| tree_fields(tree).include?("created_at") }
+      trees.unshift(default_tree) unless trees.any? { |tree| positive_top_level_fields(tree).include?("created_at") }
       tree = trees.reduce { |acc, next_tree| merge_and(acc, next_tree) }
 
       new(tree, user: user)
@@ -45,7 +45,7 @@ module App
     end
 
     def exact_value(field)
-      chips.select { |chip| chip.field == field && chip.op.to_sym == :is }.last&.value
+      positive_top_level_chips.select { |chip| chip.field == field && chip.op.to_sym == :is }.last&.value
     end
 
     private
@@ -54,13 +54,24 @@ module App
 
     def bounds
       @bounds ||= begin
-        dates = chips.select { |chip| chip.field == "created_at" }.filter_map { |chip| dates_for(chip) }
+        dates = positive_top_level_chips.select { |chip| chip.field == "created_at" }.filter_map { |chip| dates_for(chip) }
         {
           start_date: dates.map(&:first).compact.max || default_start_date,
           end_date: dates.map(&:last).compact.min || default_end_date
         }.then do |range|
           range[:start_date] > range[:end_date] ? { start_date: range[:end_date], end_date: range[:start_date] } : range
         end
+      end
+    end
+
+    def positive_top_level_chips
+      case @ast
+      when Filters::Ast::Chip
+        [ @ast ]
+      when Filters::Ast::AndNode
+        @ast.children.grep(Filters::Ast::Chip)
+      else
+        []
       end
     end
 
@@ -117,26 +128,24 @@ module App
     end
     private_class_method :parse_date
 
-    def self.tree_fields(tree)
-      Filters::Ast.parse(tree).then { |ast| collect_fields(ast) }
+    def self.positive_top_level_fields(tree)
+      Filters::Ast.parse(tree).then { |ast| positive_top_level_chips(ast).map(&:field) }
     rescue ArgumentError
       []
     end
-    private_class_method :tree_fields
+    private_class_method :positive_top_level_fields
 
-    def self.collect_fields(node)
-      case node
+    def self.positive_top_level_chips(ast)
+      case ast
       when Filters::Ast::Chip
-        [ node.field ]
-      when Filters::Ast::AndNode, Filters::Ast::OrNode
-        node.children.flat_map { |child| collect_fields(child) }
-      when Filters::Ast::NotNode
-        collect_fields(node.child)
+        [ ast ]
+      when Filters::Ast::AndNode
+        ast.children.grep(Filters::Ast::Chip)
       else
         []
       end
     end
-    private_class_method :collect_fields
+    private_class_method :positive_top_level_chips
 
     def parse_date(value)
       self.class.send(:parse_date, value)

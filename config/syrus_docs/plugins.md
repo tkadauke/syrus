@@ -1443,6 +1443,10 @@ Bundled plugins:
   and its SPA shell route (`config/routes.rb`'s `insights/spending`) stay in
   core — only the nav entry, the `SpendingInsights.tsx` route component, and
   its `spending.json` locale files (`nav_spending` key) live in the plugin.
+  The page uses the shared FilterBar (`q=` AST) with core-provided
+  `spending_report` schema metadata for repository, user, datetime, agent
+  provider, trigger kind, and epic filters; SmartFolders are intentionally not
+  enabled for this plugin surface.
   Disabling the plugin removes the nav entry and makes `PluginSidebarPageRoute`
   render its "page unavailable" fallback for `/insights/spending`, but does
   not affect the JSON API endpoint itself.
