@@ -10,14 +10,13 @@ export function formatBytes(value: number | null | undefined): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
-// USD cost, always to 4 decimal places — agent costs are frequently fractions
-// of a cent, so 2 decimals rounds distinct runs to the same "$0.00". Use this
-// everywhere a dollar amount is shown.
-export function formatCurrency(value: number): string {
+// USD cost defaults to 4 decimal places because agent costs are frequently
+// fractions of a cent. Summary views can opt into fewer digits.
+export function formatCurrency(value: number, fractionDigits = 4): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
   }).format(value)
 }
