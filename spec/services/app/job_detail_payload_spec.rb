@@ -1202,6 +1202,25 @@ RSpec.describe App::JobDetailPayload do
       expect(payload.dig(:workflows_pagination, :total_workflows)).to eq(1)
     end
 
+    it "reuses the workflow total for the badge and pagination" do
+      job = Factories.job_record(user: user, repository: repo)
+      3.times do
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+        Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      end
+
+      queries = capture_sql do
+        payload = payload_for(job)
+        expect(payload.dig(:job, :workflows_count)).to eq(3)
+        expect(payload.dig(:workflows_pagination, :total_workflows)).to eq(3)
+      end
+
+      workflow_count_queries = queries.select do |sql|
+        sql.match?(/\ASELECT COUNT\(\*\) FROM [`"]workflows[`"] WHERE [`"]workflows[`"]\.[`"]job_id[`"] = /i)
+      end
+      expect(workflow_count_queries.size).to eq(1)
+    end
+
     it "renders step state from the latest run projection while preserving drift diagnostics" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

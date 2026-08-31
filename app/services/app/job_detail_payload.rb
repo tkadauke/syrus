@@ -148,7 +148,7 @@ module App
       approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json }
       active_repair_work = PerformanceLogging.phase("job_detail.job.active_repair_work", job_id: @job.id) { active_repair_work_for_job }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
-      workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { @job.workflows.size }
+      workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { workflow_total_count }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.size }
       prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { payload_prepare_skip_reason }
       start_blocked = PerformanceLogging.phase("job_detail.job.start_blocked", job_id: @job.id) do
@@ -259,6 +259,10 @@ module App
           .select(:id, :job_id, :step_id, :state, :created_at, :finished_at, :updated_at)
           .includes(:run_diagnostic)
           .first
+    end
+
+    def workflow_total_count
+      @workflow_total_count ||= @job.workflows.count
     end
 
     def payload_prepare_skip_reason
