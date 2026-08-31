@@ -4,7 +4,7 @@ RSpec.describe InstanceVersionSupervisor do
   describe ".heartbeat" do
     it "bumps last_heartbeat_at on the supplied instance" do
       sp = InstanceVersion.create!(hostname: "syrus-web-abc", role: "web", version: "abc",
-                                    started_at: 1.minute.ago, last_heartbeat_at: 30.seconds.ago)
+                                    started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
 
       described_class.heartbeat(sp)
 
@@ -21,7 +21,7 @@ RSpec.describe InstanceVersionSupervisor do
       allow(DataRootDiskUsage).to receive(:read).and_return(snapshot)
       allow(WorkerHostHealthSampler).to receive(:record!)
       sp = InstanceVersion.create!(hostname: "syrus-worker-1", role: "worker", version: "abc",
-                                    started_at: 1.minute.ago, last_heartbeat_at: 30.seconds.ago)
+                                    started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
 
       described_class.heartbeat(sp)
 
@@ -71,7 +71,7 @@ RSpec.describe InstanceVersionSupervisor do
 
     it "still writes when the heartbeat is stale enough to refresh" do
       sp = InstanceVersion.create!(hostname: "syrus-web-abc", role: "web", version: "abc",
-                                    started_at: 1.minute.ago, last_heartbeat_at: 45.seconds.ago)
+                                    started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
 
       described_class.heartbeat(sp)
 
@@ -83,7 +83,7 @@ RSpec.describe InstanceVersionSupervisor do
       allow(DataRootDiskUsage).to receive(:read).and_return(nil)
       allow(WorkerHostHealthSampler).to receive(:record!).and_raise(StandardError, "sample failed")
       sp = InstanceVersion.create!(hostname: "syrus-worker-2", role: "worker", version: "abc",
-                                    started_at: 1.minute.ago, last_heartbeat_at: 30.seconds.ago)
+                                    started_at: 2.minutes.ago, last_heartbeat_at: 75.seconds.ago)
 
       expect { described_class.heartbeat(sp) }.not_to raise_error
       expect(sp.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)

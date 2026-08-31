@@ -10,7 +10,7 @@ require "socket"
 # update_all so heartbeats race safely with the recurring reaper,
 # disabled in test env, daemon thread killed on process exit.
 class InstanceVersionSupervisor
-  TICK_INTERVAL_SECONDS = 30
+  TICK_INTERVAL_SECONDS = 60
 
   class << self
     def ensure_running
