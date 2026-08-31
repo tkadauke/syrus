@@ -375,7 +375,7 @@ function SmartFolderLink({
       }}
     >
       <GripIcon floating />
-      <Link aria-label={`${folder.name} ${folder.count}`} className="min-w-0 flex-1 truncate" to={withRoutePrefix(folder.path, prefix)}>
+      <Link aria-label={`${folder.name} ${folder.count}`} className="min-w-0 flex-1 truncate px-2" to={withRoutePrefix(folder.path, prefix)}>
         {folder.name}
       </Link>
       <div className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center">
