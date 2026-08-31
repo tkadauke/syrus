@@ -149,6 +149,19 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(chat.reload.queued_messages_payload).to eq([])
     end
 
+    it "does not expose deferred goal continuations as editable queued drafts" do
+      chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+
+      expect(chat.reload.queued_messages_payload).to eq([])
+    end
+
     it "marks the queued message as delivered after promotion" do
       queued = enqueue_message("deliver me")
 
