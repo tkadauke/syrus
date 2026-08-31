@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-08-24._
+_Last reviewed: 2026-08-31._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -55,10 +55,13 @@ domain concepts. File paths are repo-relative.
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
   `AgentProviders::*`; see [Per-Workflow pipeline](#per-workflow-pipeline))
-- **Plugin system** — `Syrus::PluginRegistry` with fifteen extension points;
+- **Plugin system** — `Syrus::PluginRegistry` with two dozen extension points;
   bundled plugins (claude_agent, codex_agent, github_source, linear_source,
-  rails, syrus_dev, browser, discord, tailscale) ship in `plugins/`;
-  third-party plugins are ordinary Rails Engine gems
+  rails, ruby, javascript, python, go, django, syrus_dev, browser,
+  preview_tools, design_docs, spending_insights, worker_timeline,
+  admin_mysql, mysql_db_browser, git_history, whiteboard_tools,
+  theming_tools, discord, tailscale) ship in `plugins/`; third-party
+  plugins are ordinary Rails Engine gems
 - **Playwright** (via the bundled `browser` plugin's `@playwright/mcp`
   subprocess) drives a headless Chromium browser for the `visual_review`
   agent step and other agentic steps; navigation is hard-restricted to the
@@ -323,7 +326,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `manual` | operator: explicit manual prompt | freeform |
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
 | `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
-| `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips agent implement; runs graders, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
+| `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips the initial agent implement; runs graders with `local_mode_handoff_fix` as bounded agentic repair, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
 | `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue (subject to `AppSetting.max_concurrent_agent_runs` cap) |
 | `agent_insight` | operator or adaptive insight scheduler requests repository analysis | read-only repository inspection; creates `InsightSuggestion` rows through `submit_insight`; auto-closes the anchor Job and does not open a PR |
 | `external_pr_ingest` | `PollExternalOpenPrsJob` creates a new `external_pr` Job | runs graders on the externally-filed PR; same-repo PRs can receive auto-repair and be pushed; fork PRs get a REQUEST_CHANGES review comment on failure |
@@ -909,11 +912,11 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → optional loop(implement → adversarial_review) → optional loop(implement → visual_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open` |
-| `pr_comment` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
-| `chat_feedback` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
+| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(implement → visual_review) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → review_plan` |
+| `pr_comment` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → optional retry_until(respond → format → generate → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
+| `chat_feedback` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → optional retry_until(respond → format → generate → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push)` |
 | `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
-| `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
+| `retry` / `replay` | `initial`-like finish steps, but without the top-level `implement` special case: optional review loops and optional retry loop run the agent step on the first iteration, reusing the existing branch and PR if present |
 | `manual_visual_review` | `prepare → visual_review` — on-demand QA pass triggered by the operator or chat; records a verdict without looping back into implement/respond |
 | `manual` / `resume` | `manual` |
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
@@ -921,7 +924,7 @@ Current Workflow chains:
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
 | `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
 | `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
-| `local_mode_handoff` | `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) or `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no PR yet) |
+| `local_mode_handoff` | `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)` (PR already open) or `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open → review_plan` (no PR yet) |
 | `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
 | `agent_insight` | `prepare → agent_insight_run → auto_close` (read-only analysis; creates `InsightSuggestion` records; anchor Job auto-closes and is excluded from ordinary work queues) |
 | `external_pr_ingest` | same-repo: `prepare → retry_until(repair: landing_fix, check: grader_fanout → grader_collect) → push`; fork: `prepare → grader_fanout → grader_collect` |
@@ -944,9 +947,10 @@ the run. Worker pods mount a shared `mise` cache (see
 [Deployment topology](#deployment-topology)) so repeated installs across
 Workflows reuse downloaded runtimes.
 
-Agentic Steps (`implement`, `adversarial_review`, `respond`,
-`analyze_and_fix`, rebase repair, landing repair, summarize, test_plan,
-and manual) invoke the Workflow's
+Agentic Steps (`implement`, `adversarial_review`, `visual_review`,
+`respond`, `analyze_and_fix`, rebase repair, landing repair,
+`local_mode_handoff_fix`, summarize, test_plan, review_plan, and manual)
+invoke the Workflow's
 configured provider through `AgentProviders::*`. Non-agentic Steps run
 service code: graders, git push/force-push, PR opening, mergeability
 gates, merge API calls, merge-train assembly/landing, and
@@ -961,19 +965,43 @@ immediately: it posts or updates the coverage report as a PR comment
 using the body computed by `coverage_analyze`; a no-op when coverage is
 unconfigured, the plan has `pr_comment: false`, or the Job has no PR.
 
+`initial` always materializes a top-level `implement` Step immediately
+after `prepare`. Optional review and grade loops revise that work; they
+do not decide whether implementation happens. When configured,
+`adversarial_review` uses a `review_first` loop: the first iteration
+reviews the already-produced top-level diff, middle iterations pair a
+repair `implement` with another review, and the final budgeted iteration
+is repair-only because there is no remaining review turn to act on.
+The initial grader retry loop likewise runs check-first: the first pass
+runs configured `format`, `generate`, and grader Steps against the
+existing implementation, and only adds another `implement` Step after a
+failed grader iteration.
+
+For Initial, Retry, `pr_comment`, and `chat_feedback`, the grade loop is
+materialized only when the repository's default-branch `.syrus.yml`
+configures at least one of `formatters:`, `generated:`, or `grade:`.
+With none of those keys configured, Syrus does not create no-op
+format/generate/grader Steps. As soon as any one is configured, the loop
+includes whichever deterministic autofix Steps apply (`format` and/or
+`generate`) plus `grader_fanout`/`grader_collect`; there is no retry
+loop without a check phase. `formatters:` is conservative: no key means
+no formatting, `formatters: []` opts into plugin-provided defaults, an
+array declares explicit diff-scoped commands, and `false`/`off` disables
+both. `generated:` has no plugin default; it only runs explicit,
+diff-scoped generators and skips entries marked `codegen_ignore`.
+
 The optional `adversarial_review` loop applies to Initial, Retry,
 `pr_comment`, and `chat_feedback` Workflows. `RepoAdversarialReviewPlan`
 reads repository configuration from `.syrus.yml` and falls back to
-`AppSetting.adversarial_review_rounds` when appropriate. Each loop
-iteration runs the agentic step (`implement` for initial/retry, `respond`
-for feedback workflows), then an independent reviewer prompt over the
-succeeded diff; the reviewer must call `submit_adversarial_review` with
-`approved` or `needs_work`. The reviewer prompt is framed for the
+`AppSetting.adversarial_review_rounds` when appropriate. The independent
+reviewer prompt reads the preceding succeeded diff; the reviewer must
+call `submit_adversarial_review` with `approved` or `needs_work`. The
+reviewer prompt is framed for the
 workflow kind: feedback reviewers receive the full PR-comment or chat
 feedback context so they can judge whether the agent addressed what was
-asked. The verdict is recorded for audit/future control; today
-`StepDispatcher` runs the configured number of review rounds and feeds
-prior findings into each next implementation iteration before advancing.
+asked. The verdict is recorded for audit/future control; `StepDispatcher`
+uses loop metadata to decide whether to continue with another
+implementation/respond iteration or advance.
 Operators can add an optional `criteria` list to the `adversarial_review`
 block in `.syrus.yml`; when present, the reviewer prompt inserts a "pay
 particular attention" section listing each criterion. Criteria are
@@ -1158,12 +1186,14 @@ What happens to a single labeled issue, from label to merge:
      `Prompts::Initial`.
    - Invokes the selected provider (Claude Code or Codex) with the MCP
      sidecar attached.
-   - Agent works in the `implement` Step: edits files and commits.
+   - Agent works in the top-level `implement` Step: edits files and commits.
    - If adversarial review is configured, an independent
-     `adversarial_review` Step critiques the diff before the normal
+     `adversarial_review` Step critiques that diff before the normal
      grade loop and can request another implementation round.
-   - Grader Steps run configured `.syrus.yml` checks; failures append
-     another bounded repair/check iteration.
+   - If a grade loop is configured, deterministic `format`/`generate`
+     Steps run when applicable, then grader Steps run configured
+     `.syrus.yml` checks; failures append another bounded repair/check
+     iteration.
    - The `coverage_analyze` Step runs after graders pass: it parses
      any coverage artifacts, merges them, stores a `CoverageSnapshot`,
      and evaluates the configured threshold. Skipped when no coverage
@@ -1174,6 +1204,8 @@ What happens to a single labeled issue, from label to merge:
      with reviewer-facing checks; `pr_open` appends them to the PR body.
    - `pr_open` pushes the branch and opens the PR (using Workflow
      artifacts first, then `PrSummarizer`, then templated copy).
+   - If `.syrus.yml` opts into `review_plan: true`, a best-effort
+     `review_plan` Step posts reviewer guidance as a PR comment.
    - Workflow transitions to `succeeded`; Job moves to `implemented`.
 6. **PR is now open**. From this point:
    - `PollPullRequestJob` watches every 5 min for new review comments
@@ -1298,15 +1330,21 @@ can also host a longer-lived preview of a Job's branch for an operator to
 click through in a browser. `PreviewEnvironment` (AASM: `starting` →
 `seeding` → `running` → `stopping` → `stopped`/`failed`) belongs to a `Job`;
 `Job#previewable?` is true once the Job is `implemented`, `approved`, or
-`landing`. `PreviewService` is a long-running poller process that picks up
+`landing`, and remains true for merged Jobs whose landed commit can still
+be cloned. Repositories also expose a job-less "Preview main" action that
+boots the current default branch and stores the environment against the
+repository instead of a Job. `PreviewService` is a long-running poller
+process that picks up
 environments in `starting` state, allocates a free port from
 `SYRUS_PREVIEW_PORT_MIN`/`_MAX` (default 20000–29999), clones the Job's
-branch into `$SYRUS_DATA_ROOT/previews/<environment_id>` via
+branch, landed commit SHA, or repository default branch into
+`$SYRUS_DATA_ROOT/previews/<environment_id>` via
 `PreviewWorkspace.prepare!`, resolves the same `PreviewCommandSource`
 priority order the MCP tool uses (`.syrus.yml` `preview:` block, then a
 registered `:preview_provider` plugin), runs setup/seed commands, spawns the
 app as a `SpawnedProcess(kind: "preview")`, and polls its health-check path
-for up to 120s before marking the environment `running`. Environments carry
+for up to 120s before marking the environment `running` or recording a
+human-readable `error_reason` on failure. Environments carry
 a TTL (`PreviewService::DEFAULT_TTL_MINUTES`, default 10) and are reaped on
 expiry, graceful shutdown, or child-process exit. `PreviewProxyMiddleware`
 sits at the top of the Rack stack, recognizes preview hostnames (e.g.
@@ -1328,7 +1366,7 @@ and installed the same way.
 
 ### Extension points
 
-The registry defines sixteen extension points:
+The registry defines twenty-four extension points:
 
 | Extension point | Purpose |
 |---|---|
@@ -1344,8 +1382,16 @@ The registry defines sixteen extension points:
 | `:test_result_parser` | Parse provider-specific test output (RSpec, pytest, …) |
 | `:coverage_analyzer` | Parse coverage artifacts (lcov, SimpleCov, Cobertura, …) |
 | `:admin_page` | Register admin-only pages with routes and frontend components |
+| `:repo_page_tab` | Register repository-detail tabs with routes/frontend components |
+| `:sidebar_page` | Register primary sidebar pages backed by plugin frontend routes |
+| `:workspace_tab` | Register chat workspace tabs |
 | `:grader_augmentor` | Extract/augment grader output (e.g. structured RSpec JSON failure logging) |
 | `:ci_log_parser` | Claim/parse a CI failure log in a provider-specific format before the built-in `CiLogParser` fallback chain runs; no bundled plugin registers one yet |
+| `:prepare_detector` | Guess safe setup commands from repository files when `.syrus.yml` leaves `prepare` unspecified |
+| `:review_criteria_provider` | Add repository-aware review checklist items to adversarial/visual review prompts |
+| `:autofix_command` | Provide opt-in default formatting commands used when `.syrus.yml` has `formatters: []` |
+| `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |
+| `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
 | `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect (e.g. spawning a daemon), drained most-recently-registered-first on disable — the `tailscale` plugin's `DaemonManager` uses this instead of a hand-written teardown method |
 | `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
 
@@ -1357,9 +1403,23 @@ The registry defines sixteen extension points:
 | `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | enabled |
 | `github_source` | `plugins/github_source` | `:input_source`, `:source_control_provider` | enabled, non-disableable |
 | `linear_source` | `plugins/linear_source` | `:input_source` | disabled by default |
+| `ruby` | `plugins/ruby` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command`, `:affected_test_analyzer` | enabled |
+| `javascript` | `plugins/javascript` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command` | enabled |
+| `python` | `plugins/python` | `:prepare_detector`, `:autofix_command` | enabled |
+| `go` | `plugins/go` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command` | enabled |
+| `django` | `plugins/django` | `:preview_provider` | enabled |
 | `rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer` ×2, `:test_result_parser`, `:coverage_analyzer`, `:prompt_injector`, `:preview_provider` | enabled |
 | `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
 | `browser` | `plugins/browser` | `:mcp_tool_set` (headless-Chromium browser control via a bundled `@playwright/mcp` subprocess), `:artifact_renderer` (image diffs) | enabled |
+| `preview_tools` | `plugins/preview_tools` | `:chat_mcp_tool_set` for preview-panel scratch files | enabled |
+| `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set` | enabled |
+| `spending_insights` | `plugins/spending_insights` | `:sidebar_page` | enabled |
+| `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |
+| `admin_mysql` | `plugins/admin_mysql` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
+| `mysql_db_browser` | `plugins/mysql_db_browser` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
+| `git_history` | `plugins/git_history` | `:repo_page_tab` | enabled |
+| `whiteboard_tools` | `plugins/whiteboard_tools` | `:chat_mcp_tool_set` | enabled |
+| `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | enabled |
 | `discord` | `plugins/discord` | `:platform_delivery` (Gateway websocket DM listener + outbound delivery) | disabled by default |
 | `tailscale` | `plugins/tailscale` | `:callbacks`, `:admin_page` (exposes Syrus on the operator's Tailscale network) | disabled by default |
 
@@ -1391,9 +1451,12 @@ Linear teams for issues and creates Jobs). Each subclass implements
 
 Plugins declare API routes and React frontend components in their
 manifest. `PluginRouteResolver` dispatches matching requests at runtime.
-Frontend components are discovered from
-`plugins/*/app/frontend/routes/*.tsx`; i18n strings from
-`plugins/*/app/frontend/i18n/locales/*/`.
+Frontend components are discovered from plugin route/sidebar/repository/
+workspace-tab manifests under `plugins/*/app/frontend/`; i18n strings
+from `plugins/*/app/frontend/i18n/locales/*/`. `App::SidebarPagesPayload`
+and plugin `:sidebar_page` providers merge enabled plugin pages into the
+primary React sidebar, where user sidebar ordering can persist custom
+navigation order.
 
 ## MCP sidecar
 
@@ -1413,6 +1476,10 @@ agent at it over stdio. Today's tool surface:
   test steps on Workflow artifacts and appends an audit `JobLog` line.
   `pr_open` reads this artifact and adds a Test Plan section to initial
   PR bodies, headed by a copy-pasteable `syrus checkout JOB-<id>` command.
+- `submit_review_plan(items:, summary:)` — records focused reviewer
+  guidance for the optional `review_plan` Step. The Step formats the
+  artifact and posts/upserts a marked PR comment; it is best-effort and
+  never fails the parent Workflow.
 - `submit_adversarial_review(critique:, verdict:)` — records one
   adversarial review iteration on Workflow artifacts. The
   `adversarial_review` Step requires this tool call; the stored
@@ -1446,6 +1513,15 @@ agent at it over stdio. Today's tool surface:
 - `read_run_worker_health(run_id:)` — returns retained worker host
   health samples and grader command spans correlated to a Run window,
   used mainly by insight and diagnostics agents.
+- `list_repository_test_insights(...)` / `read_test_insight(id:)` —
+  expose repository-level Test Insights to workflow agents through an
+  agent-safe query layer.
+- `read_job_test_results(job_id:)` / `read_run_test_results(run_id:)` —
+  return ingested test-result summaries and failures tied to a Job or
+  Run.
+- `compare_test_runtime(...)` — compares current test runtimes against
+  retained `TestIdentityRuntimeSummary` baselines so agents can diagnose
+  likely slowdowns without pasting raw grader logs.
 - `submit_artifact(type:, title:, payload:)` — stores a named, typed
   artifact on the current Workflow's `typed_artifacts` artifact slot.
   `type` is a free-form string identifier (e.g. `rails_schema_erd`,
@@ -1459,6 +1535,11 @@ agent at it over stdio. Today's tool surface:
 - `submit_insight(...)` — available only to `agent_insight_run` roles
   while the `agent_insights` feature is enabled; creates one structured
   `InsightSuggestion` for operator review.
+- `list_insights(...)`, `read_insight(id:)`, `update_insight(...)`,
+  `retire_insight(...)`, `list_recent_workflows(...)`, and
+  `read_insight_run_transcript(...)` — insight-analysis tools available
+  to insight-capable workflow roles for inspecting and maintaining the
+  repository's operational insight set.
 - `submit_visual_review(critique:, verdict:)` — records one visual-review
   iteration (`approved` / `needs_work` / `skipped`) on Workflow artifacts.
   Required by the `visual_review` Step; see
@@ -1481,6 +1562,11 @@ The bundled `browser` plugin adds a `browser_navigate` / `browser_snapshot`
 `@playwright/mcp` stdio subprocess. `browser_navigate` is hard-restricted to
 loopback URLs (`LoopbackGuard`) so an LLM driving a real browser cannot be
 steered at an arbitrary network destination.
+
+The `design_docs` plugin adds workflow-scoped `list_design_docs` and
+`read_design_doc` tools for repository-aware workflow agents when the
+plugin is enabled. Its chat-scoped tool set adds authoring/comment/
+suggestion tools; workflow agents only get read access.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -1536,11 +1622,13 @@ work originates from a chat session:
   daemon connects to `LocalTunnelChannel` (Action Cable), authenticates
   with a per-session token, and receives tool-call dispatches from the
   chat agent. The agent then calls `complete_implement_step` to signal
-  that implementation is done, triggering a `local_mode_handoff`
-  Workflow (graders → summarize → PR open or amend). `LocalDaemonSession`
-  tracks connection state, heartbeat, and the repo/branch the daemon
-  has checked out. The `open_in_local_mode` chat MCP tool lets the agent
-  take over an existing implemented/approved Job for local-mode editing.
+  that implementation is done. That tool creates a pending operator
+  confirmation; only after confirmation does Syrus trigger a
+  `local_mode_handoff` Workflow (graders with `local_mode_handoff_fix`
+  repair → summarize → PR open or amend). `LocalDaemonSession` tracks
+  connection state, heartbeat, and the repo/branch the daemon has
+  checked out. The `open_in_local_mode` chat MCP tool lets the agent take
+  over an existing implemented/approved Job for local-mode editing.
 
 `ChatSession` carries two optional fields that enable additional sharing
 features. `share_token` (unique, nullable) enables read-only access for
@@ -1801,7 +1889,9 @@ Several layers, each catching different failure modes:
   agent provider, manual poll, scheduled tasks.
 - **`/repositories/:id`** — show page: metadata, recent jobs,
   GitHub link, retry failed Jobs with alternate providers, repository
-  throughput metrics, and Agent Insights entry points when enabled.
+  throughput metrics, plugin-provided repository tabs (for example Git
+  History and Design Docs), hosted "Preview main" controls, and Agent
+  Insights entry points when enabled.
 - **`/repositories/:id/insights`** — per-repository
   `InsightSuggestion` review surface, gated by the `agent_insights`
   feature flag.
@@ -1821,7 +1911,7 @@ Several layers, each catching different failure modes:
 - **`/jobs/new`** — operator-created free-form Jobs.
 - **`/chats`** — top-level chat sessions, proposal review,
   attached repository/document context, bookmarks, whiteboard state, MCP
-  health, and queued follow-up messages.
+  health, queued follow-up messages, and plugin-provided workspace tabs.
 - **`/terminal`** — labs terminal surface, gated by the `terminal`
   feature flag. Sessions can attach to a recent Workflow workspace or a
   scratch directory and are backed by worker-side PTYs, not browser-side
@@ -1836,8 +1926,17 @@ Several layers, each catching different failure modes:
   app notification kinds (`job_failed`, `job_implemented`,
   `pr_comment_addressed`, `pr_merged`, `epic_completed`) and
   desktop-native alert toggles for implemented/failed Jobs.
+- **`/design_docs`** and **`/design_docs/:id`** — first-party
+  collaborative Markdown design documents from the `design_docs` plugin,
+  with canonical `DOC-<id>` identifiers, repository links, versions,
+  comments, owner-reviewed suggestions, and smart-folder navigation.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
-  repository, trigger kind, provider, trend, and top Runs.
+  repository, trigger kind, provider, trend, and top Runs. This page is
+  supplied by the default-enabled `spending_insights` sidebar plugin.
+- **`/worker_timeline`** and **`/worker_timeline/workflow`** — optional
+  worker activity timeline plugin surface, disabled by default, with
+  filter chips and suggested-filter typeahead for queue/worker/time/job
+  type slices.
 - **`/admin/insights`** — cross-repository Agent Insights review and
   memory-promotion/removal controls, gated by `agent_insights`.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause,
@@ -1912,6 +2011,12 @@ counts, and notification read state. Dashboard invalidations are
 throttled and deferred while a dashboard fetch is already in flight.
 Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
 between web and worker.
+
+Primary-sidebar navigation is partly plugin-driven. Core nav items live
+in React, while enabled `:sidebar_page` providers are returned by
+`/api/v1/app/sidebar_pages` and merged into the app shell. Users can
+persist drag-and-drop ordering in `User#sidebar_nav_order`; missing or
+newly-enabled plugin pages fall back to provider order.
 
 Tailwind runs in class-based dark mode (`darkMode: "class"`). The Rails
 SPA layout emits `<html class="dark">` for users whose persisted theme is
@@ -2098,10 +2203,11 @@ These belong to `ROADMAP.md`; only their current status is recorded:
   on the worker filesystem; the agent is trusted not to escape.
 - **Public REST / MCP API.** The sidecar is internal-only; there's no
   external auth surface.
-- **Visual graders / agent-authored graders.** Today configured
-  command graders from `.syrus.yml` are first-class Workflow Steps and
-  the initial Workflow can collect an agent-authored reviewer test plan,
-  but richer visual and agent-authored grading remains roadmap.
+- **Agent-authored graders.** Today configured command graders from
+  `.syrus.yml` are first-class Workflow Steps, visual review is a
+  first-class optional agent QA Step, and the initial Workflow can
+  collect an agent-authored reviewer test plan and review-plan comment.
+  Fully general agent-authored grading remains roadmap.
 - **Global rate limiting.** Today only Solid Queue's per-key
   concurrency: per-repo polling, per-Job PR/rebase polling, per-Job
   RunJob serialization. No tenant-wide or process-wide cap.
