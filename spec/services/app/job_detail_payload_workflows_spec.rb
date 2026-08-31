@@ -819,6 +819,24 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(artifacts["coverage"]).not_to have_key("pr_comment_body")
     end
 
+    it "preloads workflow work units for merge-train labels" do
+      job = Factories.job_record(repository: repo)
+
+      2.times do |index|
+        workflow = Workflow.create!(job: job, trigger_kind: "merge_train", state: "running", created_at: index.minutes.ago)
+        Step.create!(workflow: workflow, kind: "merge_train_land", position: 1, state: "queued")
+        attach_work_unit(workflow, member_jobs: [ job ], kind: "job_bundle", state: "running")
+      end
+
+      queries = capture_sql { workflows_payload_for(job) }
+      per_workflow_work_unit_queries = queries.select do |sql|
+        sql.match?(/FROM [`"]?work_units[`"]?/i) &&
+          sql.match?(/[`"]?workflow_id[`"]? =/i)
+      end
+
+      expect(per_workflow_work_unit_queries).to be_empty
+    end
+
     describe "run can_resume" do
       def failed_run_with_session(job, workflow)
         step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "failed")

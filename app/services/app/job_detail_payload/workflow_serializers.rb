@@ -457,10 +457,23 @@ module App
       end
 
       def merge_train_land_label(workflow, after_rebase:)
-        bundle = workflow&.work_unit&.kind == "job_bundle"
+        bundle = workflow_work_unit_for(workflow)&.kind == "job_bundle"
         subject = bundle ? "job bundle" : "Epic"
         suffix = after_rebase ? " after rebase" : ""
         "Land #{subject}#{suffix}"
+      end
+
+      def workflow_work_unit_for(workflow)
+        return nil unless workflow
+
+        workflow_work_units_by_workflow_id[workflow.id]
+      end
+
+      def workflow_work_units_by_workflow_id
+        @workflow_work_units_by_workflow_id ||= begin
+          ids = serialized_workflows.map(&:id)
+          ids.empty? ? {} : WorkUnit.where(workflow_id: ids).index_by(&:workflow_id)
+        end
       end
 
       def step_display_status(step, projection: step_state_projection(step))

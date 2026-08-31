@@ -48,21 +48,41 @@ class RetryWorkflowEligibility
   end
 
   def duplicate_active_retry_workflow?
-    job.active_runtime_workflows.any? do |active_workflow|
-      retry_workflow_attempt?(active_workflow) && active_workflow.id != workflow&.id
+    active_workflows = job.active_runtime_workflows
+    unit_kinds_by_workflow_id = work_unit_kinds_by_workflow_id(active_workflows)
+
+    active_workflows.any? do |active_workflow|
+      retry_workflow_attempt?(
+        active_workflow,
+        work_unit_kind: unit_kinds_by_workflow_id[active_workflow.id]
+      ) && active_workflow.id != workflow&.id
     end
   end
 
   def workflow_superseded?
-    retry_workflow_attempt?(workflow) && workflow.superseded_by_newer_successful_publication?
+    retry_workflow_attempt?(workflow, work_unit_kind: work_unit_kind_for(workflow)) &&
+      workflow.superseded_by_newer_successful_publication?
   end
 
-  def retry_workflow_attempt?(candidate)
+  def retry_workflow_attempt?(candidate, work_unit_kind: nil)
     return false unless candidate
 
-    WorkDefinitions.for(candidate.work_unit&.kind || candidate.trigger_kind).retry_workflow_attempt?
+    WorkDefinitions.for(work_unit_kind || candidate.trigger_kind).retry_workflow_attempt?
   rescue WorkDefinitions::UnknownKind
     false
+  end
+
+  def work_unit_kinds_by_workflow_id(workflows)
+    workflow_ids = workflows.map(&:id).compact
+    return {} if workflow_ids.empty?
+
+    WorkUnit.where(workflow_id: workflow_ids).pluck(:workflow_id, :kind).to_h
+  end
+
+  def work_unit_kind_for(candidate)
+    return nil unless candidate
+
+    WorkUnit.where(workflow_id: candidate.id).pick(:kind)
   end
 
   def pr_ready?

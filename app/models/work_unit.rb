@@ -38,7 +38,7 @@ class WorkUnit < ApplicationRecord
   belongs_to :repository, optional: true
   belongs_to :source_repository, class_name: "Repository", optional: true
   belongs_to :target_repository, class_name: "Repository", optional: true
-  belongs_to :workflow, optional: true
+  belongs_to :workflow, optional: true, inverse_of: :work_unit
   belongs_to :parent_work_unit, class_name: "WorkUnit", optional: true
   belongs_to :preempted_by_work_unit, class_name: "WorkUnit", optional: true
   belongs_to :blocked_by_user, class_name: "User", optional: true
