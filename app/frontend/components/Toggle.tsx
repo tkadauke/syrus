@@ -38,7 +38,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(function Toggle
   if (!label) return button
 
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-text-primary">
+    <label className="flex items-center gap-2 text-sm text-text-primary">
       <span>{label}</span>
       {button}
     </label>
