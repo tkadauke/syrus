@@ -67,6 +67,8 @@
   "goal_policy_auto_file_short": "Proposita sponte creare",
   "goal_policy_draft_jobs_short": "Opera tantum conscribere",
   "goal_policy_auto_submit_short": "Opera sponte submittere",
+  "goal_expand": "Propositum expandere",
+  "goal_collapse": "Propositum contrahere",
   "goal_edit": "Propositum recensere",
   "goal_pause": "Propositum intermittere",
   "goal_resume": "Propositum resumere",
