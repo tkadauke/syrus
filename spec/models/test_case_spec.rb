@@ -309,5 +309,20 @@ RSpec.describe TestCase do
       expect(data[:flaky]).to be(false)
       expect(data[:score]).to eq(0.0)
     end
+
+    it "limits identity-backed history in SQL to the requested lookback" do
+      old_case = create_case(name: "recent", suite_name: "S", status: "passed")
+      2.times { create_case(name: "recent", suite_name: "S", status: "failed") }
+      identity = TestIdentity.ensure_for_cases!(repository: repo, cases: [ old_case ]).values.first
+      TestCase.where(name: "recent", suite_name: "S").update_all(test_identity_id: identity.id)
+
+      tc = build_case(name: "recent", suite_name: "S", test_identity_id: identity.id)
+      result = TestCase.batch_flakiness(repo, [ tc ], lookback: 2)
+
+      data = result[[ "S", "recent" ]]
+      expect(data[:flaky]).to be(false)
+      expect(data[:failed_count]).to eq(2)
+      expect(data[:total_count]).to eq(2)
+    end
   end
 end

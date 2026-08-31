@@ -132,8 +132,20 @@ class TestCase < ApplicationRecord
     cases_by_identity_id = cases.filter_map { |tc| [ tc.test_identity_id, tc ] if tc.test_identity_id }.to_h
     return {} if cases_by_identity_id.empty?
 
-    recent = where(test_identity_id: cases_by_identity_id.keys)
-      .order(:test_identity_id, created_at: :desc, id: :desc)
+    ranked_cases = where(test_identity_id: cases_by_identity_id.keys)
+      .select(
+        "test_cases.test_identity_id",
+        "test_cases.suite_name",
+        "test_cases.name",
+        "test_cases.status",
+        "test_cases.duration_ms",
+        "test_cases.created_at",
+        "ROW_NUMBER() OVER (PARTITION BY test_cases.test_identity_id ORDER BY test_cases.created_at DESC, test_cases.id DESC) AS syrus_flakiness_rank"
+      )
+
+    recent = from(ranked_cases, :test_cases)
+      .where("syrus_flakiness_rank <= ?", lookback)
+      .order(:test_identity_id, created_at: :desc)
       .select(:test_identity_id, :suite_name, :name, :status, :duration_ms, :created_at)
 
     result = {}
