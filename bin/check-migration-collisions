@@ -1,10 +1,11 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ruby
 # Syrus migration-collision grader.
 #
 # Fails the workflow's grade step if a migration on this branch
 # shares its YYYYMMDDHHMMSS timestamp with any migration that
-# already exists on the default branch, OR if two new migrations
-# on this branch share a timestamp with each other.
+# already exists in the same migration namespace on the default
+# branch, OR if two new migrations on this branch share a timestamp
+# within the same namespace. With `--all`, scans the whole tree.
 #
 # Hand-rolled migration timestamps collide across branches and
 # `rails db:migrate` silently skips colliding versions (because
@@ -16,92 +17,144 @@
 #
 # See CLAUDE.md ("Migration timestamps come from the generator").
 
-set -euo pipefail
+# frozen_string_literal: true
 
-# Detect the default branch ref. Prefer origin/HEAD if symbolic-ref
-# is wired; otherwise fall back through the conventional names.
-resolve_default_branch() {
-  local ref
-  ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || ref=""
-  if [ -n "$ref" ] && git rev-parse --verify "origin/$ref" >/dev/null 2>&1; then
-    echo "origin/$ref"
-    return
-  fi
-  for candidate in origin/main origin/master main master; do
-    if git rev-parse --verify "$candidate" >/dev/null 2>&1; then
-      echo "$candidate"
-      return
-    fi
-  done
-  return 1
-}
+require "open3"
+require "pathname"
 
-default_branch=$(resolve_default_branch) || {
-  echo "[migration-collisions] could not locate the default branch ref — skipping check"
+ROOT = Pathname.new(Dir.pwd)
+
+Migration = Struct.new(:path, :version, :namespace, keyword_init: true)
+
+def capture(*args)
+  stdout, _stderr, status = Open3.capture3(*args)
+  return nil unless status.success?
+
+  stdout
+end
+
+def resolve_default_branch
+  origin_head = capture("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+  if origin_head
+    branch = origin_head.strip.sub(%r{\Arefs/remotes/origin/}, "")
+    return "origin/#{branch}" if branch != "" && system("git", "rev-parse", "--verify", "origin/#{branch}", out: File::NULL, err: File::NULL)
+  end
+
+  %w[origin/main origin/master main master].find do |candidate|
+    system("git", "rev-parse", "--verify", candidate, out: File::NULL, err: File::NULL)
+  end
+end
+
+def migration_path?(path)
+  path.match?(%r{\Adb/(?:migrate|[^/]+_migrate)/\d{14}_[^/]*\.rb\z}) ||
+    path.match?(%r{\Aplugins/[^/]+/db/migrate/\d{14}_[^/]*\.rb\z})
+end
+
+def namespace_for(path)
+  case path
+  when %r{\Adb/migrate/}, %r{\Aplugins/[^/]+/db/migrate/}
+    "primary"
+  when %r{\Adb/([^/]+_migrate)/}
+    Regexp.last_match(1)
+  end
+end
+
+def migration_for(path)
+  basename = File.basename(path)
+  match = basename.match(/\A(\d{14})_/)
+  return nil unless match && migration_path?(path)
+
+  Migration.new(path: path, version: match[1], namespace: namespace_for(path))
+end
+
+def all_migrations
+  patterns = [
+    "db/migrate/*.rb",
+    "db/*_migrate/*.rb",
+    "plugins/*/db/migrate/*.rb"
+  ]
+  patterns.flat_map { |pattern| Dir.glob(pattern, base: ROOT.to_s) }
+          .filter_map { |path| migration_for(path) }
+          .sort_by { |migration| [ migration.namespace, migration.version, migration.path ] }
+end
+
+def added_migrations(default_branch)
+  diff = capture("git", "diff", "--name-only", "--diff-filter=A", "#{default_branch}...HEAD") || ""
+  diff.lines.map(&:strip).filter_map { |path| migration_for(path) }
+end
+
+def default_branch_migrations(default_branch)
+  tree = capture("git", "ls-tree", "-r", "--name-only", default_branch) || ""
+  tree.lines.map(&:strip).filter_map { |path| migration_for(path) }
+end
+
+def duplicate_groups(migrations)
+  migrations.group_by { |migration| [ migration.namespace, migration.version ] }
+            .select { |_key, group| group.size > 1 }
+            .sort_by { |(namespace, version), _group| [ namespace, version ] }
+end
+
+def print_duplicate_groups(header, groups)
+  puts header
+  groups.each do |(namespace, version), migrations|
+    puts "  #{namespace}/#{version}:"
+    migrations.map(&:path).sort.each { |path| puts "    #{path}" }
+  end
+  puts
+  puts "Each database migration namespace needs unique versions. The primary namespace includes db/migrate and plugin db/migrate paths; db/*_migrate paths are separate namespaces."
+  puts "Regenerate one colliding file with bin/rails generate migration <Name> so its timestamp is unique."
+end
+
+if ARGV.include?("--all")
+  duplicates = duplicate_groups(all_migrations)
+  if duplicates.any?
+    print_duplicate_groups("[migration-collisions] duplicate migration timestamp(s) found in the migration tree:", duplicates)
+    exit 1
+  end
+
+  puts "[migration-collisions] all migration timestamps are unique within their namespaces"
   exit 0
-}
+end
 
-# Three-dot diff: files added on this branch since it diverged
-# from the default. --diff-filter=A keeps only newly-added paths;
-# renames + modifications would be a false positive here since
-# we're checking for new schema versions. Pathspec is broad and
-# filtered with grep — git's literal pathspec doesn't auto-glob
-# `*.rb`, so listing the directory and matching server-side is
-# both simpler and more portable.
-new_migrations=$(git diff --name-only --diff-filter=A "${default_branch}...HEAD" 2>/dev/null | grep -E '^db/(migrate|[^/]+_migrate)/.*\.rb$' || true)
-
-if [ -z "$new_migrations" ]; then
-  echo "[migration-collisions] no new migrations on this branch — nothing to check"
+default_branch = resolve_default_branch
+unless default_branch
+  puts "[migration-collisions] could not locate the default branch ref - skipping check"
   exit 0
-fi
+end
 
-# Extract YYYYMMDDHHMMSS prefixes — anchor the regex to a 14-digit
-# block followed by an underscore so we don't accidentally match
-# files whose names happen to embed numbers.
-extract_timestamps() {
-  sed -n 's|^.*/\([0-9]\{14\}\)_[^/]*$|\1|p'
-}
+new_migrations = added_migrations(default_branch)
+if new_migrations.empty?
+  puts "[migration-collisions] no new migrations on this branch - nothing to check"
+  exit 0
+end
 
-new_ts=$(echo "$new_migrations" | extract_timestamps | sort)
-unique_new_ts=$(echo "$new_ts" | sort -u)
-
-# 1. Intra-branch duplicates — two new migrations sharing a timestamp.
-intra=$(echo "$new_ts" | uniq -d)
-if [ -n "$intra" ]; then
-  echo "[migration-collisions] two new migrations on this branch share a timestamp:"
-  while IFS= read -r ts; do
-    [ -z "$ts" ] && continue
-    echo "  $ts:"
-    echo "$new_migrations" | grep "/${ts}_" | sed 's/^/    /'
-  done <<<"$intra"
-  echo
-  echo "Regenerate one of them with bin/rails generate migration <Name> so its timestamp is unique."
+intra = duplicate_groups(new_migrations)
+if intra.any?
+  print_duplicate_groups("[migration-collisions] two new migrations on this branch share a timestamp:", intra)
   exit 1
-fi
+end
 
-# 2. Collisions with existing migrations on the default branch.
-existing_migrations=$(git ls-tree -r --name-only "$default_branch" 2>/dev/null | grep -E '^db/(migrate|[^/]+_migrate)/.*\.rb$' || true)
-existing_ts=$(echo "$existing_migrations" | extract_timestamps | sort -u)
-collisions=$(comm -12 <(echo "$unique_new_ts") <(echo "$existing_ts"))
+existing_by_key = default_branch_migrations(default_branch).group_by { |migration| [ migration.namespace, migration.version ] }
+collisions = new_migrations.group_by { |migration| [ migration.namespace, migration.version ] }
+                           .filter_map do |key, migrations|
+  existing = existing_by_key.fetch(key, [])
+  [ key, migrations + existing ] if existing.any?
+end
 
-if [ -n "$collisions" ]; then
-  echo "[migration-collisions] migration timestamp(s) already exist on ${default_branch}:"
-  while IFS= read -r ts; do
-    [ -z "$ts" ] && continue
-    new_file=$(echo "$new_migrations" | grep "/${ts}_" || true)
-    existing_file=$(echo "$existing_migrations" | grep "/${ts}_" || true)
-    echo "  $ts"
-    echo "    new on this branch: $new_file"
-    echo "    already on ${default_branch}: $existing_file"
-  done <<<"$collisions"
-  echo
-  echo "rails db:migrate silently SKIPS migrations whose version is already in"
-  echo "schema_migrations, so a collision leaves a corrupted dev DB and a"
-  echo "missing-table production deploy. Delete the colliding file and"
-  echo "regenerate via 'bin/rails generate migration <Name>' so it gets a"
-  echo "fresh timestamp; then port your migration body onto the new file."
+if collisions.any?
+  puts "[migration-collisions] migration timestamp(s) already exist on #{default_branch}:"
+  collisions.sort_by { |(namespace, version), _migrations| [ namespace, version ] }.each do |(namespace, version), migrations|
+    puts "  #{namespace}/#{version}:"
+    migrations.map(&:path).sort.each { |path| puts "    #{path}" }
+  end
+  puts
+  puts "rails db:migrate silently SKIPS migrations whose version is already in"
+  puts "schema_migrations for that database, so a collision leaves corrupted"
+  puts "dev DBs and missing-table production deploys. Delete the colliding"
+  puts "file and regenerate via 'bin/rails generate migration <Name>' so it"
+  puts "gets a fresh timestamp; then port your migration body onto the new file."
   exit 1
-fi
+end
 
-echo "[migration-collisions] all new migration timestamps are unique against ${default_branch}"
+puts "[migration-collisions] all new migration timestamps are unique within their namespaces against #{default_branch}"
 exit 0
