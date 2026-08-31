@@ -17,6 +17,33 @@ function basePayload(overrides: Record<string, unknown> = {}) {
       agent_provider: null,
       agent_providers: []
     },
+    filter: { and: [{ field: "created_at", op: "between", value: ["2026-04-29", "2026-07-28"] }] },
+    controls: {
+      filter_schema: [
+        {
+          field: "created_at",
+          label: "Datetime",
+          bucket: "date",
+          operators: ["before", "after", "between", "within_last", "more_than_ago"],
+          values: [],
+          date_precision: "date"
+        },
+        {
+          field: "repository_id",
+          label: "Repository",
+          bucket: "fk",
+          operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"],
+          typeahead: true
+        },
+        {
+          field: "user_id",
+          label: "User",
+          bucket: "fk",
+          operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"],
+          typeahead: true
+        }
+      ]
+    },
     totals: {
       week_usd: 0,
       month_usd: 0,
@@ -55,6 +82,13 @@ describe("SpendingInsights scope label translation", () => {
   it("shows 'All users' in English for admins", async () => {
     renderSpending()
     expect(await screen.findByText(/All users/)).toBeInTheDocument()
+  })
+
+  it("renders the shared FilterBar with the default datetime range", async () => {
+    renderSpending()
+
+    expect(await screen.findByRole("button", { name: /Datetime between 2026-04-29 - 2026-07-28/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Add filter/ })).toBeInTheDocument()
   })
 
   it("shows 'Alle Benutzer' in German for admins", async () => {

@@ -1,4 +1,5 @@
 import { getJson } from "@app/api/client"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type SpendingBreakdownRow = {
   id: number
@@ -30,10 +31,18 @@ export type SpendingPayload = {
     end_date: string
     default_window_days: number
     agent_provider: string | null
+    repository_id?: number | null
+    epic_id?: number | null
+    user_id?: number | null
+    trigger_kind?: string | null
     agent_providers: Array<{
       value: string
       label: string
     }>
+  }
+  filter: Record<string, unknown>
+  controls: {
+    filter_schema: FilterSchemaField[]
   }
   totals: {
     week_usd: number

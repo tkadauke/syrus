@@ -1,7 +1,7 @@
 module Filters
   class FkOptionsResolver
     LIMIT = 50
-    FIELDS = %w[ repository_id epic_id parent_job_id job_id tags hostname ].freeze
+    FIELDS = %w[ repository_id epic_id parent_job_id job_id user_id tags hostname ].freeze
 
     UnknownField = Class.new(ArgumentError)
 
@@ -49,6 +49,10 @@ module Filters
       user.jobs
     end
 
+    def user_id_scope
+      user.admin? ? User.all : User.where(id: user.id)
+    end
+
     def tags_scope
       user.tags
     end
@@ -77,6 +81,8 @@ module Filters
         else
           scope.where("jobs.issue_title LIKE ? OR jobs.slug LIKE ?", pattern, pattern)
         end
+      when "user_id"
+        scope.where("users.email_address LIKE ? OR users.name LIKE ?", pattern, pattern)
       when "tags"
         scope.where("tags.name LIKE ?", pattern)
       when "hostname"
@@ -102,6 +108,8 @@ module Filters
         scope.order(:title)
       when "parent_job_id", "job_id"
         scope.order(created_at: :desc)
+      when "user_id"
+        scope.order(:email_address)
       when "tags"
         scope.order(Arel.sql("LOWER(tags.name)"))
       when "hostname"
@@ -126,6 +134,8 @@ module Filters
         Filters::Schema.epic_label(record)
       when "parent_job_id", "job_id"
         [ record.slug, record.issue_title ].compact_blank.join(" - ")
+      when "user_id"
+        record.display_name
       when "tags"
         record.name
       when "hostname"
