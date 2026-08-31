@@ -11,6 +11,7 @@ describe("AdminSmartFolderNav", () => {
     const fetchSpy = mockSmartFolderFetch()
     renderNav({ onMutationSuccess })
 
+    showSavedFolderActions("Saved queue", 3)
     fireEvent.click(screen.getByRole("button", { name: "Manage Saved queue" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Rename" }))
     fireEvent.change(screen.getByLabelText("Rename Saved queue"), { target: { value: "Needs attention" } })
@@ -35,6 +36,7 @@ describe("AdminSmartFolderNav", () => {
     const fetchSpy = mockSmartFolderFetch()
     renderNav({ onMutationSuccess })
 
+    showSavedFolderActions("Saved queue", 3)
     fireEvent.click(screen.getByRole("button", { name: "Manage Saved queue" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Delete" }))
     fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Confirm delete" }))
@@ -54,6 +56,7 @@ describe("AdminSmartFolderNav", () => {
     renderNav()
 
     const savedNav = screen.getByRole("navigation", { name: "Admin queue smart folders saved" })
+    showSavedFolderActions("Saved queue", 3)
     fireEvent.click(screen.getByRole("button", { name: "Manage Saved queue" }))
 
     const menu = screen.getByRole("menu")
@@ -99,6 +102,23 @@ describe("AdminSmartFolderNav", () => {
     expect(screen.queryByRole("button", { name: "Manage Stuck" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Drag Stuck")).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
+  })
+
+  it("swaps saved folder counts for actions only on hover", () => {
+    renderNav()
+
+    const savedLink = screen.getByRole("link", { name: "Saved queue 3" })
+    const savedRow = savedLink.parentElement
+
+    expect(savedRow).not.toBeNull()
+    expect(screen.queryByRole("button", { name: "Manage Saved queue" })).not.toBeInTheDocument()
+    expect(savedRow).toHaveClass("-ml-4", "pl-4")
+    expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "left-0", "opacity-0")
+
+    fireEvent.mouseEnter(savedRow!)
+
+    expect(screen.getByRole("button", { name: "Manage Saved queue" })).toBeInTheDocument()
+    expect(within(savedRow!).queryByText("3")).not.toBeInTheDocument()
   })
 
   it("translates builtin folder names using i18n_key", () => {
@@ -278,6 +298,10 @@ function changedFilter() {
       { field: "queue_name", op: "is", value: "merges" }
     ]
   }
+}
+
+function showSavedFolderActions(name: string, count: number) {
+  fireEvent.mouseEnter(screen.getByRole("link", { name: `${name} ${count}` }).parentElement!)
 }
 
 function mockSmartFolderFetch() {
