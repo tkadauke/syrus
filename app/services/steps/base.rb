@@ -83,6 +83,15 @@ module Steps
       WorkspaceDependencyEnv.for(workspace.path)
     end
 
+    def append_output_tail(tail, chunk, max_bytes:)
+      tail << chunk.to_s
+      tail.replace(tail.safe_byteslice(-max_bytes, max_bytes)) if tail.bytesize > max_bytes
+    end
+
+    def compact_output_tail(tail)
+      tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
+    end
+
     # Best-effort sccache stats snapshot (EPIC-251), called by Prepare and
     # Grader after each shell command they run. Relies on the subclass's own
     # private `env` method (both define one, forwarding

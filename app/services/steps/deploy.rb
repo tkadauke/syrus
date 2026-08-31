@@ -52,7 +52,7 @@ module Steps
         run: run,
         workflow: workflow,
         on_output_chunk: ->(chunk) {
-          append_output_tail(tail, chunk)
+          append_output_tail(tail, chunk, max_bytes: OUTPUT_TAIL_BYTES)
           stream_buffered_chunk(buffer, chunk)
         }
       ).run
@@ -64,12 +64,6 @@ module Steps
       failure = deploy_failure_payload(cmd, result, tail)
       record_deploy_failure!(failure)
       raise StepFailed, deploy_failure_message(failure)
-    end
-
-    def append_output_tail(tail, chunk)
-      tail << chunk.to_s
-      overflow = tail.bytesize - OUTPUT_TAIL_BYTES
-      tail.replace(tail.safe_byteslice(-OUTPUT_TAIL_BYTES, OUTPUT_TAIL_BYTES)) if overflow.positive?
     end
 
     def deploy_failure_payload(cmd, result, tail)
@@ -110,10 +104,6 @@ module Steps
       return message if tail.blank?
 
       "#{message}\nOutput tail:\n#{tail}"
-    end
-
-    def compact_output_tail(tail)
-      tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
     end
 
     def new_log_buffer
