@@ -113,6 +113,7 @@ describe("AdminSmartFolderNav", () => {
     expect(savedRow).not.toBeNull()
     expect(screen.queryByRole("button", { name: "Manage Saved queue" })).not.toBeInTheDocument()
     expect(savedRow).toHaveClass("-ml-4", "pl-4")
+    expect(savedLink).toHaveClass("px-2")
     expect(savedRow!.querySelector("svg")).toHaveClass("absolute", "left-0", "opacity-0")
 
     fireEvent.mouseEnter(savedRow!)
