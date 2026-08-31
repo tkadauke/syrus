@@ -27,6 +27,16 @@ RSpec.describe DesignDocs::WorkspaceTabs do
     )
   end
 
+  it "does not scan chat messages when availability is proven by an originated design doc" do
+    DesignDoc.create!(owner_user: user, origin_chat_session: chat_session, title: "Plan", markdown: "Body", visibility: "private")
+    chat_session.messages.create!(role: "assistant", content: [ { "type" => "text", "text" => "Large unrelated body" } ])
+
+    allow(described_class).to receive(:referenced_design_doc_ids).and_call_original
+
+    expect(described_class.available_for?(chat_session)).to be(true)
+    expect(described_class).not_to have_received(:referenced_design_doc_ids)
+  end
+
   it "is available for visible DOC references mentioned in chat messages" do
     doc = DesignDoc.create!(owner_user: user, title: "Referenced", markdown: "Body", visibility: "private")
     chat_session.messages.create!(role: "user", content: { "text" => "Discuss #{doc.display_id}" })

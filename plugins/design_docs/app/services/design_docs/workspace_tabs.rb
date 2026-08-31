@@ -17,7 +17,9 @@ module DesignDocs
     end
 
     def self.available_for?(chat_session)
-      visible_design_docs_for(chat_session).exists?
+      return false unless chat_session
+
+      originated_design_docs_for(chat_session).exists? || visible_referenced_design_doc_exists?(chat_session)
     end
 
     def self.workspace_data(chat_session)
@@ -42,8 +44,23 @@ module DesignDocs
       visible = DesignDoc.visible_to(chat_session.user)
       referenced_ids = referenced_design_doc_ids(chat_session)
 
-      visible.where(origin_chat_session_id: chat_session.id)
+      visible_originated_design_docs_for(chat_session, visible:)
         .or(visible.where(id: referenced_ids))
+    end
+
+    def self.originated_design_docs_for(chat_session)
+      visible_originated_design_docs_for(chat_session, visible: DesignDoc.visible_to(chat_session.user))
+    end
+
+    def self.visible_originated_design_docs_for(chat_session, visible:)
+      visible.where(origin_chat_session_id: chat_session.id)
+    end
+
+    def self.visible_referenced_design_doc_exists?(chat_session)
+      referenced_ids = referenced_design_doc_ids(chat_session)
+      return false if referenced_ids.empty?
+
+      DesignDoc.visible_to(chat_session.user).where(id: referenced_ids).exists?
     end
 
     def self.referenced_design_doc_ids(chat_session)
