@@ -558,6 +558,46 @@ RSpec.describe App::ProviderAvailability do
     expect(queries).to be_empty
   end
 
+  it "reuses one bounded provider evidence scan for display payloads" do
+    ProviderAvailabilityEvidence.record_codex_success!(
+      user: user,
+      source: "chat_turn_success",
+      model: "gpt-5.5",
+      observed_at: now - 1.minute
+    )
+    ProviderAvailabilityEvidence.record_codex_probe!(
+      user: user,
+      status: "warning",
+      snapshot: { "remaining_percent" => 18.0 },
+      message: "Codex usage has 18% remaining.",
+      observed_at: now
+    )
+    user.update!(
+      codex_usage_status: "warning",
+      codex_usage_observed_at: now,
+      codex_usage_snapshot: { "remaining_percent" => 18.0 }
+    )
+
+    evidence_queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      sql = payload[:sql].to_s
+      evidence_queries << sql if sql.include?("provider_availability_evidences")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.for_user(user, "codex", now: now, cached: false)
+    end
+
+    display_queries = evidence_queries.select do |sql|
+      sql.include?('"provider_availability_evidences"."user_id"') &&
+        sql.include?('"provider_availability_evidences"."provider"') &&
+        !sql.include?('"provider_availability_evidences"."status"') &&
+        !sql.include?('"provider_availability_evidences"."source"') &&
+        sql.match?(/ORDER BY .*observed_at.*DESC.*LIMIT/i)
+    end
+    expect(display_queries.size).to eq(1)
+  end
+
   it "lets the database optimizer choose the provider run index" do
     availability = described_class.new(user: user, provider: "codex", now: now)
 

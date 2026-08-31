@@ -263,24 +263,67 @@ module App
     end
 
     def current_usage_limit_evidence
-      ProviderAvailabilityEvidence
+      usage_limit_evidence_candidates
+        .detect do |evidence|
+          next false if false_positive_codex_evidence?(evidence)
+          next false if usage_evidence_reset_at(evidence)&.<= now
+
+          !suppressed_by_positive_after?(evidence)
+        end
+    end
+
+    def usage_limit_evidence_candidates
+      @usage_limit_evidence_candidates ||= ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "exhausted")
         .unrepaired_for_circuit
         .where("observed_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
         .recent
         .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
-        .detect do |evidence|
-          next false if false_positive_codex_evidence?(evidence)
-          next false if usage_evidence_reset_at(evidence)&.<= now
+        .to_a
+    end
 
-          !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
-            user: user,
-            provider: provider,
-            account_id: evidence.account_id,
-            model: evidence.model,
-            observed_at: evidence.observed_at
-          )
+    def suppressed_by_positive_after?(evidence)
+      positive_evidence_after?(account_id: evidence.account_id, model: evidence.model, observed_at: evidence.observed_at)
+    end
+
+    def positive_evidence_after?(account_id:, model:, observed_at:)
+      if provider == "codex" && ProviderUsageLimit.suspicious_model?(model)
+        return positive_suppression_evidence.any? do |positive|
+          account_matches?(positive, account_id) && positive.observed_at > observed_at
         end
+      end
+
+      normalized_model = model.to_s.strip.presence
+      positive_suppression_evidence.any? do |positive|
+        account_matches?(positive, account_id) &&
+          model_matches?(positive, normalized_model) &&
+          positive.observed_at > observed_at
+      end
+    end
+
+    def positive_suppression_evidence
+      @positive_suppression_evidence ||= begin
+        oldest_candidate_at = usage_limit_evidence_candidates.filter_map(&:observed_at).min
+        if oldest_candidate_at
+          ProviderAvailabilityEvidence
+            .where(user: user, provider: provider)
+            .positive
+            .where("observed_at > ?", oldest_candidate_at)
+            .recent
+            .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
+            .to_a
+        else
+          []
+        end
+      end
+    end
+
+    def account_matches?(evidence, account_id)
+      account_id.blank? || evidence.account_id.blank? || evidence.account_id == account_id.to_s
+    end
+
+    def model_matches?(evidence, model)
+      model.blank? || evidence.model.blank? || evidence.model == model
     end
 
     def false_positive_codex_evidence?(evidence)
@@ -452,25 +495,33 @@ module App
     end
 
     def latest_evidence
-      @latest_evidence ||= latest_displayable_evidence(ProviderAvailabilityEvidence.where(user: user, provider: provider))
+      @latest_evidence ||= latest_displayable_evidence(recent_display_evidence)
     end
 
     def latest_positive_evidence
-      @latest_positive_evidence ||= ProviderAvailabilityEvidence.where(user: user, provider: provider).positive.recent.first
+      @latest_positive_evidence ||= recent_display_evidence.detect(&:positive?)
     end
 
     def latest_negative_evidence
-      @latest_negative_evidence ||= latest_displayable_evidence(ProviderAvailabilityEvidence.where(user: user, provider: provider).negative)
+      @latest_negative_evidence ||= latest_displayable_evidence(recent_display_evidence.select(&:negative?))
     end
 
     def latest_usage_evidence
       @latest_usage_evidence ||= latest_displayable_evidence(
-        ProviderAvailabilityEvidence.where(user: user, provider: provider, source: ProviderAvailabilityEvidence::PROBE_SOURCES)
+        recent_display_evidence.select { |evidence| ProviderAvailabilityEvidence::PROBE_SOURCES.include?(evidence.source) }
       )
     end
 
-    def latest_displayable_evidence(scope)
-      scope.recent.limit(DISPLAY_EVIDENCE_SCAN_LIMIT).detect { |evidence| !false_positive_codex_evidence?(evidence) }
+    def recent_display_evidence
+      @recent_display_evidence ||= ProviderAvailabilityEvidence
+        .where(user: user, provider: provider)
+        .recent
+        .limit(DISPLAY_EVIDENCE_SCAN_LIMIT)
+        .to_a
+    end
+
+    def latest_displayable_evidence(evidence_rows)
+      evidence_rows.detect { |evidence| !false_positive_codex_evidence?(evidence) }
     end
 
     def retry_after_for_usage_signal(signal)
