@@ -20,7 +20,8 @@ module Api
               repository_id: filter.repository_id,
               epic_id: filter.epic_id,
               hostname: filter.hostname,
-              status: filter.status
+              status: filter.status,
+              job_type: filter.job_type
             ).merge(
               filter: filter.to_h,
               filter_schema: ::Timeline::MacroQueryFilter.schema

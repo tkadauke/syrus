@@ -14,6 +14,16 @@ function filterSchema() {
     { field: "epic_id", label: "Epic", bucket: "fk", operators: [ "is" ], typeahead: true },
     { field: "hostname", label: "Hostname", bucket: "fk", operators: [ "is" ], typeahead: true },
     {
+      field: "job_type",
+      label: "Job type",
+      bucket: "enum",
+      operators: [ "is_one_of" ],
+      values: [
+        { value: "user", label: "User" },
+        { value: "system", label: "Infrastructure" }
+      ]
+    },
+    {
       field: "status",
       label: "Status",
       bucket: "enum",
@@ -180,6 +190,21 @@ function setupFetchMock(macroOverrides: Record<string, unknown> = {}, waterfallO
       if (field === "hostname") return Promise.resolve(jsonResponse({ options: [ { value: "worker-b", label: "worker-b" } ] }))
       return Promise.resolve(jsonResponse({ options: [] }))
     }
+    if (url.startsWith("/api/v1/app/filters/suggestions")) {
+      return Promise.resolve(jsonResponse({
+        suggestions: [
+          {
+            id: "value-repository",
+            label: "Repository is tkadauke/syrus",
+            filter: { field: "repository_id", op: "is", value: 2 },
+            source: "value"
+          }
+        ]
+      }))
+    }
+    if (url === "/api/v1/app/filters/usage") {
+      return Promise.resolve(jsonResponse({ recorded: true }))
+    }
 
     return Promise.reject(new Error(`Unexpected fetch: ${url}`))
   }) as typeof window.fetch)
@@ -241,6 +266,28 @@ describe("WorkerTimeline macro view", () => {
     })
   })
 
+  it("offers top-level suggested filters from worker timeline deep search", async () => {
+    const calls = setupFetchMock()
+    renderTimeline()
+
+    await screen.findByText("runs")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "sy" } })
+
+    const suggestion = await screen.findByRole("button", { name: "Repository is tkadauke/syrus" })
+    expect(calls).toContain("/api/v1/app/filters/suggestions?surface=worker_timeline&subject=worker_timeline&q=sy")
+
+    fireEvent.click(suggestion)
+
+    await waitFor(() => {
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "repository_id", op: "is", value: 2 } ] })
+    })
+    await waitFor(() => {
+      expect(calls).toContain("/api/v1/app/filters/usage")
+    })
+  })
+
   it("refetches with the selected status filter", async () => {
     const calls = setupFetchMock()
     renderTimeline()
@@ -253,6 +300,21 @@ describe("WorkerTimeline macro view", () => {
 
     await waitFor(() => {
       expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "status", op: "is_one_of", value: [ "running" ] } ] })
+    })
+  })
+
+  it("refetches with the selected job type filter", async () => {
+    const calls = setupFetchMock()
+    renderTimeline()
+
+    await screen.findByText("runs")
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+    fireEvent.click(screen.getByRole("button", { name: "Job type list" }))
+    fireEvent.click(screen.getByRole("button", { name: "Infrastructure" }))
+
+    await waitFor(() => {
+      expect(latestMacroFilter(calls)).toEqual({ and: [ { field: "job_type", op: "is_one_of", value: [ "system" ] } ] })
     })
   })
 
@@ -416,6 +478,7 @@ describe("WorkerTimeline macro view", () => {
     renderTimeline()
 
     expect(await screen.findByText("runs")).toBeInTheDocument()
+    expect(screen.getAllByText("runs ·")).toHaveLength(2)
     expect(screen.getByText("2/3")).toBeInTheDocument()
     expect(screen.getByText("3/3")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "JOB-61 · initial" })).toBeInTheDocument()

@@ -321,7 +321,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                 </div>
                 <button
                   aria-label={t("bug_report.close")}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-gray-950"
                   onClick={closeDialog}
                   type="button"
                 >
@@ -343,7 +343,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {t("bug_report.field_description")}
                 <textarea
-                  className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand"
                   onChange={(event) => setDescription(event.target.value)}
                   rows={5}
                   value={description}
@@ -421,7 +421,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                         <span className="min-w-0 flex-1 truncate">{file.name}</span>
                         <button
                           aria-label={t("bug_report.attachments_remove", { filename: file.name })}
-                          className="flex-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+                          className="flex-none rounded text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1 dark:hover:text-gray-200"
                           onClick={() => removeAttachment(index)}
                           type="button"
                         >
@@ -595,7 +595,7 @@ function ScreenshotOption({
   selected: boolean
 }) {
   const { t } = useT("common")
-  const borderClass = selected ? "border-blue-600 dark:border-blue-400 ring-2 ring-blue-600 dark:ring-blue-400" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
+  const borderClass = selected ? "border-brand ring-2 ring-brand dark:border-brand-emphasis dark:ring-brand-emphasis" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
 
   return (
     <label className={`flex cursor-pointer flex-col rounded-lg border bg-white dark:bg-gray-900 p-2 ${borderClass}`}>

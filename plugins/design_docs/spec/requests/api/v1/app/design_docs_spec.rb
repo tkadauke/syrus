@@ -86,6 +86,33 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).to contain_exactly("Public linked", "Private shared")
+    expect(parse_body.fetch("filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "owner_user_id", "state", "visibility", "updated_at")
+    expect(parse_body.fetch("smart_folders").map { |folder| folder.fetch("name") }).to include("My docs", "Recently updated")
+  end
+
+  it "filters design docs from a smart folder and routes saved folders back to Design Docs" do
+    own_doc = create_design_doc(title: "Owned draft")
+    public_doc = create_design_doc(title: "Accepted public", visibility: "public", state: "accepted")
+    public_doc.repositories << repository
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    post "/api/v1/app/smart_folders", params: {
+      subject_type: "design_doc",
+      filter: { and: [ { field: "state", op: "is", value: "accepted" } ] }.to_json,
+      smart_folder: { name: "Accepted docs" }
+    }
+
+    expect(response).to have_http_status(:created)
+    folder = collaborator.smart_folders.find_by!(name: "Accepted docs")
+    expect(parse_body.fetch("redirect_to")).to eq("/design_docs?smart_folder_id=#{folder.id}")
+
+    get "/api/v1/app/design_docs", params: { smart_folder_id: folder.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("active_smart_folder_id")).to eq(folder.id)
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).to eq([ "Accepted public" ])
+    expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }).not_to include(own_doc.title)
   end
 
   it "lists visible docs scoped to a repository" do

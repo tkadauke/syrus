@@ -2758,6 +2758,42 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["queued_messages"]).to eq([])
   end
 
+  it "preserves queued message attachments in controls payload and text edits" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.messages.create!(role: "user", content: { "text" => "Start mapping" })
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      pid: 12345,
+      started_at: Time.current
+    )
+    attachment = { name: "shot.png", mime_type: "image/png", data: "abc123" }
+
+    post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "", attachments: [ attachment ] } }
+
+    expect(response).to have_http_status(:ok)
+    queued_message = chat.chat_queued_messages.last
+    expect(queued_message.content).to include("text" => "", "attachments" => [ attachment.stringify_keys ])
+    expect(parse_body["queued_messages"]).to contain_exactly(include(
+      "id" => queued_message.id,
+      "text" => "",
+      "attachments" => [ attachment.stringify_keys ]
+    ))
+
+    patch "/api/v1/app/chats/#{chat.id}/queued_messages/#{queued_message.id}", params: { chat_message: { text: "Please inspect this" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(queued_message.reload.content).to include("text" => "Please inspect this", "attachments" => [ attachment.stringify_keys ])
+    expect(parse_body["queued_messages"]).to contain_exactly(include(
+      "id" => queued_message.id,
+      "text" => "Please inspect this",
+      "attachments" => [ attachment.stringify_keys ]
+    ))
+  end
+
   it "creates, updates, reorders, and destroys scratchpad items" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
@@ -2805,6 +2841,35 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Scratch pad item deleted.")
     expect(parse_body["scratchpad_items"]).to contain_exactly(include("id" => item2.id))
+  end
+
+  it "creates attachment-only scratchpad items and preserves attachments on text-only edits" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+    attachment = { name: "diagram.png", mime_type: "image/png", data: "abc123" }
+
+    post "/api/v1/app/chats/#{chat.id}/scratchpad_items", params: { scratchpad_item: { content: "", attachments: [ attachment ] } }
+
+    expect(response).to have_http_status(:ok)
+    item = chat.scratchpad_items.last
+    expect(item.draft_content.text).to eq("")
+    expect(item.draft_content.attachments).to eq([ attachment.stringify_keys ])
+    expect(parse_body["scratchpad_items"]).to contain_exactly(include(
+      "id" => item.id,
+      "content" => "",
+      "text" => "",
+      "attachments" => [ attachment.stringify_keys ]
+    ))
+
+    patch "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}", params: { scratchpad_item: { content: "Inspect this image" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(item.reload.draft_content.attachments).to eq([ attachment.stringify_keys ])
+    expect(parse_body["scratchpad_items"]).to contain_exactly(include(
+      "id" => item.id,
+      "content" => "Inspect this image",
+      "attachments" => [ attachment.stringify_keys ]
+    ))
   end
 
   it "rejects blank content when creating a scratchpad item" do

@@ -24,7 +24,9 @@ Gated the same way as the rest of the token-based REST admin API
 - `GET /api/v1/timeline/macro` — `Timeline::MacroQuery`. Params:
   `from`/`to` (ISO8601; default window is the last hour),
   `repository_id`, `epic_id`, `job_id`, `hostname`, `status` (Workflow
-  state; accepts a comma-separated list). Returns:
+  state; accepts a comma-separated list), `job_type` (`user` or `system`;
+  accepts comma-separated values, with `infra`/`infrastructure` aliases for
+  `system`). Returns:
   - `lanes`: grouped by durable lane identity when available. Each lane has
     `key`, `worker_storage_key`, `queue_role`, representative `hostname` and
     `pid`, `instance` (the matching `InstanceVersion` row, when found), and

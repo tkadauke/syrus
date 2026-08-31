@@ -13,10 +13,16 @@ module Timeline
   # WorkUnit/admission-block lookup.
   class MacroQuery
     DEFAULT_WINDOW = 1.hour
+    JOB_TYPE_ALIASES = {
+      "infra" => "system",
+      "infrastructure" => "system",
+      "system" => "system",
+      "user" => "user"
+    }.freeze
 
     def self.call(**kwargs) = new(**kwargs).call
 
-    def initialize(from: nil, to: nil, repository_id: nil, epic_id: nil, job_id: nil, hostname: nil, status: nil)
+    def initialize(from: nil, to: nil, repository_id: nil, epic_id: nil, job_id: nil, hostname: nil, status: nil, job_type: nil)
       @to = parse_time(to) || Time.current
       @from = parse_time(from) || (@to - DEFAULT_WINDOW)
       @repository_id = repository_id.presence
@@ -24,6 +30,11 @@ module Timeline
       @job_id = job_id.presence
       @hostname_filter = hostname.presence
       @status_filter = Array(status).flat_map { |value| value.to_s.split(",") }.compact_blank.presence
+      @job_type_filter = Array(job_type)
+        .flat_map { |value| value.to_s.split(",") }
+        .filter_map { |value| JOB_TYPE_ALIASES[value.to_s] }
+        .uniq
+      @job_type_filter = @job_type_filter.presence
     end
 
     def call
@@ -39,7 +50,7 @@ module Timeline
 
     private
 
-    attr_reader :from, :to, :repository_id, :epic_id, :job_id, :hostname_filter, :status_filter
+    attr_reader :from, :to, :repository_id, :epic_id, :job_id, :hostname_filter, :status_filter, :job_type_filter
 
     def lanes_payload
       spans.group_by { |span| span[:lane_key] }.map do |_lane_key, lane_spans|
@@ -126,7 +137,7 @@ module Timeline
           .where("workflows.finished_at IS NULL OR workflows.finished_at > ?", from)
           .includes(:job, :work_unit)
           .order(:started_at)
-        scope = apply_job_filters(scope)
+        scope = apply_filters(scope)
         scope = scope.where(state: status_filter) if status_filter
         scope.to_a
       end
@@ -135,18 +146,30 @@ module Timeline
     def pending_workflows
       @pending_workflows ||= begin
         scope = Workflow.where(started_at: nil, state: "queued").includes(:job, :work_unit).order(:created_at)
-        apply_job_filters(scope).to_a
+        apply_filters(scope).to_a
       end
+    end
+
+    def apply_filters(scope)
+      apply_job_filters(scope)
     end
 
     def apply_job_filters(scope)
       scope = scope.where(job_id: job_id) if job_id
-      if repository_id || epic_id
+      if repository_id || epic_id || job_type_filter
         scope = scope.joins(:job)
         scope = scope.where(jobs: { repository_id: repository_id }) if repository_id
         scope = scope.where(jobs: { epic_id: epic_id }) if epic_id
+        scope = scope.where(jobs: { kind: job_type_kinds }) if job_type_filter
       end
       scope
+    end
+
+    def job_type_kinds
+      {
+        "system" => Job::INFRASTRUCTURE_KINDS,
+        "user" => Job::USER_FACING_KINDS
+      }.values_at(*job_type_filter).flatten.uniq
     end
 
     def label_for(workflow)

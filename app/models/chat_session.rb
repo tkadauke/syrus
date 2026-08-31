@@ -345,9 +345,11 @@ class ChatSession < ApplicationRecord
 
   def queued_messages_payload
     queued_messages.map do |message|
+      draft = message.draft_content
       {
         id: message.id,
-        text: message.text,
+        text: draft.text,
+        attachments: draft.attachments,
         created_at: message.created_at&.iso8601,
         app_update_path: "/api/v1/app/chats/#{id}/queued_messages/#{message.id}",
         app_delete_path: "/api/v1/app/chats/#{id}/queued_messages/#{message.id}"
@@ -357,9 +359,12 @@ class ChatSession < ApplicationRecord
 
   def scratchpad_items_payload
     scratchpad_items.map do |item|
+      draft = item.draft_content
       {
         id: item.id,
-        content: item.content,
+        content: draft.text,
+        text: draft.text,
+        attachments: draft.attachments,
         app_update_path: "/api/v1/app/chats/#{id}/scratchpad_items/#{item.id}",
         app_delete_path: "/api/v1/app/chats/#{id}/scratchpad_items/#{item.id}"
       }

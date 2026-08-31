@@ -180,7 +180,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       {canUpdateFilter && activeFolder ? (
         <div className="space-y-2 px-2 pt-3">
           <button
-            className="w-full rounded border border-blue-300 px-3 py-1.5 text-sm font-medium text-blue-700 break-words hover:bg-blue-50 disabled:border-gray-200 disabled:text-gray-300 dark:border-blue-800 dark:text-blue-200 dark:hover:bg-blue-950 dark:disabled:border-gray-700 dark:disabled:text-gray-600"
+            className="w-full rounded border border-brand/40 px-3 py-1.5 text-sm font-medium text-brand break-words hover:bg-brand/10 disabled:border-gray-200 disabled:text-gray-300 dark:text-brand-emphasis dark:disabled:border-gray-700 dark:disabled:text-gray-600"
             disabled={updateFolder.isPending}
             onClick={() => updateFolder.mutate()}
             type="button"
@@ -367,7 +367,7 @@ function SmartFolderLink({
       <div className="space-y-1">
         <div
           ref={popupRef}
-          className={`relative flex min-w-0 items-center gap-1 rounded ${showDragHandle ? "group -ml-4 cursor-grab pl-4 active:cursor-grabbing" : ""} ${folder.active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+          className={`relative flex min-w-0 items-center gap-1 rounded ${showDragHandle ? "group -ml-4 cursor-grab pl-4 active:cursor-grabbing" : ""} ${folder.active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`}
           draggable={draggable}
           onBlur={handleBlur}
           onDragEnd={onDragEnd}
@@ -506,7 +506,7 @@ function FolderCount({ folder, onSelect, prefix }: { folder: DashboardSmartFolde
         </button>
       ) : null}
       {folder.count == null ? null : (
-        <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
+        <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
       )}
     </div>
   )
@@ -613,5 +613,5 @@ function mergeFilterTrees(baseTree: FilterTree, overrideTree: FilterTree): Filte
 }
 
 function folderClass(active: boolean, withDragHandle = false) {
-  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${withDragHandle ? "group cursor-grab active:cursor-grabbing" : ""} ${active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`
+  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${withDragHandle ? "group cursor-grab active:cursor-grabbing" : ""} ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`
 }

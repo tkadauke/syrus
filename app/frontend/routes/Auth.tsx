@@ -214,8 +214,8 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
     return (
       <div className="space-y-4">
         <PanelMessage tone="success">{t("sign_up.created")}</PanelMessage>
-        <div className="rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 p-4">
-          <p className="text-sm text-blue-800 dark:text-blue-200">{t("sign_up.passkey_nudge")}</p>
+        <div className="rounded border border-brand/30 bg-brand/10 p-4">
+          <p className="text-sm text-brand dark:text-brand-emphasis">{t("sign_up.passkey_nudge")}</p>
           <div className="mt-3 flex gap-2">
             <button
               className={`${authPrimaryButtonClass} text-sm`}
@@ -226,7 +226,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
               {passkeyNudgePending ? t("sign_up.passkey_nudge_adding") : t("sign_up.passkey_nudge_add")}
             </button>
             <button
-              className="rounded border border-blue-300 dark:border-blue-700 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900"
+              className="rounded border border-brand/40 px-3 py-2 text-sm font-medium text-brand hover:bg-brand/10 dark:text-brand-emphasis"
               disabled={passkeyNudgePending}
               onClick={handleDismissNudge}
               type="button"
@@ -449,4 +449,3 @@ export function authRedirectTarget(prefix: string, path: string) {
 function assignWithPrefix(prefix: string, path: string) {
   window.location.assign(authRedirectTarget(prefix, path))
 }
-

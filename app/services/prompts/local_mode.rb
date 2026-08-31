@@ -20,6 +20,14 @@ module Prompts
         this mode — that delegation path is bypassed because you already have direct
         access to the repository.
 
+        Local Mode is intentionally powerful: in theory it can bypass normal Syrus
+        enforcement such as graders, PR automation, the landing queue, and approval
+        gates because it operates in the operator's own checkout with their
+        credentials. That is a feature of Local Mode, not a bug, but every such bypass
+        must be explicit. Do not create or submit Syrus Jobs, commit, push, trigger a
+        handoff, or otherwise move work into automation unless the operator clearly
+        asks for that specific step.
+
         ### Repository context
 
         The daemon registration provides the repository name and current branch. Use
@@ -37,9 +45,9 @@ module Prompts
 
         ### Syrus Job integration tools
 
-        - `open_in_local_mode(job_id)` — take over an existing `implemented` or `approved` Syrus Job for local implementation. Links the Job to this chat and transitions it to `coding` state. Unapproves the Job if it was `approved`.
-        - `create_coding_job(title, body, repository_id?)` — create a new Syrus Job in `coding` state linked to this chat. Use when the operator describes work that does not map to an existing Job.
-        - `complete_implement_step(job_id, branch_name?)` — signal that implementation is done after the daemon has committed and pushed. Triggers graders and releases the coding lock after the handoff succeeds. `branch_name` is required for new Jobs without a PR and replaces the stored branch when supplied on a rerun.
+        - `open_in_local_mode(job_id)` — take over an existing `implemented` or `approved` Syrus Job for local implementation. Links the Job to this chat and transitions it to `coding` state. Unapproves the Job if it was `approved`. Use only when the operator explicitly asks to take over that Job.
+        - `create_coding_job(title, body, repository_id?)` — create a new Syrus Job in `coding` state linked to this chat. Use only when the operator explicitly asks you to create or submit a Job for the local work.
+        - `complete_implement_step(job_id, branch_name?)` — request operator confirmation that implementation is ready to hand off after the daemon has committed and pushed. Once the operator confirms, this triggers graders and releases the coding lock after the handoff succeeds. `branch_name` is required for new Jobs without a PR and replaces the stored branch when supplied on a rerun.
         - `cancel_local_mode(job_id)` — cancel the local coding session. Taken-over Jobs (with an existing PR) return to `implemented`; new Jobs without a PR are closed.
 
         ### Rules
@@ -50,21 +58,33 @@ module Prompts
           requested or that are clearly safe and reversible (e.g. `bundle install`,
           `npm test`, `git log`). Never run destructive commands (e.g.
           `git reset --hard`, `rm -rf`) without explicit operator confirmation.
+        - Never push, force-push, delete branches, rewrite history, or publish local
+          work unless the operator explicitly instructs you to do that action.
+        - Do not create a Syrus Job or call `complete_implement_step` merely because
+          implementation appears done. Wait until the operator asks you to submit or
+          hand off the work.
         - Inspect before writing: use `read_file` or `list_files` to understand the
           current state before creating or modifying files.
         - Run tests after changes to verify correctness: `run_command("bundle exec rspec ...")`
           or the appropriate test command for the repository.
 
-        ### Handoff when done
+        ### Handoff when explicitly requested
 
-        When the operator signals that the implementation is complete:
+        Only perform a Local Mode handoff when the operator explicitly asks you to
+        submit or hand off the implementation:
         1. Use `git_status` to confirm the working tree is clean and changes are committed.
-        2. Use `run_command("git push origin <branch>")` to push to the remote if not done yet.
-        3. Call `complete_implement_step(job_id: <id>)` if a linked Job is specified.
-           For new Jobs without an existing PR, also pass `branch_name: "<branch>"`.
-           This triggers graders (and PR creation if needed) in Syrus. The coding lock stays linked while the handoff runs so grader feedback can return to this chat.
-        4. Grader feedback will arrive as a follow-up chat message. Continue debugging
-           if graders fail.
+        2. Push only if the operator has explicitly instructed you to push. Use
+           `run_command("git push origin <branch>")` for the named branch.
+        3. Call `complete_implement_step(job_id: <id>)` only when the operator has
+           explicitly asked for handoff. For new Jobs without an existing PR, also
+           pass `branch_name: "<branch>"`.
+        4. `complete_implement_step` creates an operator confirmation action. The
+           graders and PR workflow do not start until the operator confirms it. The
+           coding lock stays linked while the handoff runs so passive status can
+           return to this chat.
+        5. If graders fail, workflow agents own repair and retry. Grader feedback may
+           arrive as a passive status message, but do not resume debugging unless the
+           operator explicitly asks you to.
 
         If no linked Job is specified, the operator manages commit and push themselves.
 

@@ -133,7 +133,7 @@ function NotificationsPanel({
       <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
         <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
         <button
-          className="rounded px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-300 dark:hover:bg-blue-950 dark:disabled:text-gray-600"
+          className="rounded px-2 py-1 text-xs font-medium text-brand-emphasis hover:bg-brand/10 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-600"
           disabled={markAll.isPending || notifications.length === 0}
           onClick={() => markAll.mutate()}
           type="button"
@@ -202,7 +202,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
 
   return (
     <div
-      className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 ${jobTarget ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900" : ""} ${read ? "" : "bg-blue-50/50 dark:bg-blue-950/20"}`}
+      className={`flex w-full min-w-0 items-start gap-3 border-b border-gray-100 px-4 py-3 text-left last:border-b-0 ${jobTarget ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900" : ""} ${read ? "" : "bg-brand/10"}`}
       onClick={openNotification}
       onKeyDown={(event) => {
         if (!jobTarget) return
@@ -226,7 +226,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
           {notification.pr_url ? (
             <>
               <a
-                className="font-medium text-blue-700 hover:underline dark:text-blue-300"
+                className="font-medium text-brand-emphasis hover:underline"
                 href={notification.pr_url}
                 onClick={openPullRequest}
                 rel="noopener"
@@ -297,12 +297,12 @@ function KindIcon({ kind }: { kind: string }) {
 function kindIconClass(kind: string) {
   if (kind.includes("failed")) return "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-300"
   if (kind.includes("merged") || kind.includes("completed")) return "bg-green-50 text-green-600 dark:bg-green-950 dark:text-green-300"
-  if (kind.includes("implemented") || kind.includes("addressed")) return "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300"
+  if (kind.includes("implemented") || kind.includes("addressed")) return "bg-brand/10 text-brand-emphasis"
   return "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-300"
 }
 
 function bellButtonClass() {
-  return "relative inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"
+  return "relative inline-flex h-9 w-9 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-brand-emphasis dark:text-gray-300 dark:hover:bg-gray-800"
 }
 
 function NotificationBadge({ children }: { children: ReactNode }) {
@@ -328,4 +328,3 @@ function BackIcon() {
     </svg>
   )
 }
-

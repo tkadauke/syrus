@@ -706,8 +706,8 @@ describe("chat compose drafts", () => {
 
 describe("chat main container width", () => {
   it("stretches the chat main element to fill its flex column instead of sizing to content", async () => {
-    // Regression guard: this <main> is `mx-auto max-w-[96rem]` with no
-    // explicit width, inside AppChromeV2's `flex flex-col` page wrapper.
+    // Regression guard: this <main> needs an explicit width inside
+    // AppChromeV2's `flex flex-col` page wrapper.
     // Auto side margins on a flex item cancel the default cross-axis
     // stretch and fall back to content-based (fit-content) sizing instead —
     // fine on desktop, where fit-content and stretch happen to agree, but
@@ -722,6 +722,7 @@ describe("chat main container width", () => {
 
     const main = await screen.findByRole("main", { name: "Chat" })
     expect(main.className).toContain("w-full")
+    expect(main.className).not.toContain("max-w-[96rem]")
   })
 })
 
@@ -3299,6 +3300,109 @@ describe("scratchpad stash button", () => {
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
   })
 
+  it("stashes composer attachments with the draft and clears attachment chips", async () => {
+    const updatedPayload = {
+      ...chatPayload({
+        scratchpad_items: [{
+          id: 1,
+          content: "Draft idea",
+          text: "Draft idea",
+          attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+        }]
+      }),
+      agent_busy: true
+    }
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "screen.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove screen.png" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("")
+      expect(screen.queryByRole("button", { name: "Remove screen.png" })).not.toBeInTheDocument()
+    })
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
+      scratchpad_item: {
+        content: "Draft idea",
+        attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+      }
+    })
+  })
+
+  it("stashes attachment-only composer drafts", async () => {
+    const updatedPayload = {
+      ...chatPayload({
+        scratchpad_items: [{
+          id: 1,
+          content: "",
+          text: "",
+          attachments: [{ name: "only.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+          app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+          app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+        }]
+      }),
+      agent_busy: true
+    }
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "only.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove only.png" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+      )).toHaveLength(1)
+    })
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
+      scratchpad_item: {
+        content: "",
+        attachments: [{ name: "only.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+      }
+    })
+  })
+
   it("shows 'Stash (Tab)' in the stash button tooltip", async () => {
     mockChatRouteFetch(chatPayload({ chat: { agent_busy: false } }))
     renderRoute()
@@ -3613,10 +3717,10 @@ describe("floating composer positioning", () => {
     // test chose. What jsdom CAN verify is the actual mechanism the "no
     // overlap" guarantee depends on: with both edges pinned to the
     // `position: relative` ancestor via `left`/`right` (mobile) and
-    // `sm:left-14`/`sm:right-14` (desktop), CSS guarantees the rendered box
+    // `sm:left-2`/`sm:right-2` (desktop), CSS guarantees the rendered box
     // can never exceed that ancestor's own border box — `max-w-*` can only
     // ever shrink it from there, never grow past it. A regression here
-    // (losing the `sm:left-14`/`sm:right-14` inset, switching `absolute` to
+    // (losing the `sm:left-2`/`sm:right-2` inset, switching `absolute` to
     // `fixed`, or reintroducing an unbounded width) is exactly the kind of
     // change that would let the pill escape its ancestor and overlap the
     // panel again.
@@ -3630,23 +3734,18 @@ describe("floating composer positioning", () => {
     expect(composeForm.className).not.toMatch(/(?:^|\s)fixed(?:\s|$)/)
     expect(composeForm.className).toContain("left-[max(0.5rem,env(safe-area-inset-left))]")
     expect(composeForm.className).toContain("right-[max(0.5rem,env(safe-area-inset-right))]")
-    expect(composeForm.className).toContain("sm:left-14")
-    expect(composeForm.className).toContain("sm:right-14")
+    expect(composeForm.className).toContain("sm:left-2")
+    expect(composeForm.className).toContain("sm:right-2")
+    expect(composeForm.className).toContain("sm:bottom-2")
+    expect(composeForm.className).not.toContain("sm:left-14")
+    expect(composeForm.className).not.toContain("sm:right-14")
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-screen(?:\s|$)/)
     expect(composeForm.className).not.toMatch(/(?:^|\s)w-full(?:\s|$)/)
   })
 
-  // Regression coverage for JOB-3820: the composer must be inset at least as
-  // much as the message stream's own cards, so chat history reads
-  // equal-or-wider, never narrower, than the composer. Comparing raw
-  // utility values (rather than rendered pixels, which jsdom can't produce)
-  // is the only signal available here, but it's the same signal the two
-  // components' real margins are built from — and it was verified against
-  // a real browser's layout engine (offsets on an absolutely positioned box
-  // are measured from its containing block's padding edge, i.e. flush with
-  // the ancestor's border, NOT the ancestor's own padding box) before
-  // picking the threshold below.
-  it("insets the composer at least as much as the message stream's own cards", async () => {
+  // Regression coverage for the tight split layout: the composer should hug
+  // the chat panel instead of adding its own wide horizontal gutter.
+  it("keeps the floating composer inset small so it tracks the chat panel edges", async () => {
     mockChatRouteFetch(chatPayload())
     renderRoute()
 
@@ -3654,21 +3753,10 @@ describe("floating composer positioning", () => {
     const composeForm = document.querySelector('[data-tour="chat-compose"]') as HTMLElement
     expect(composeForm).not.toBeNull()
 
-    // The composer's `left`/`right` are measured from ChatColumn's border
-    // (an absolutely positioned box ignores a `position: relative`
-    // ancestor's own padding), while the message stream's cards are normal-
-    // flow children and DO get both ChatColumn's `sm:px-8` (2rem/32px) and
-    // the stream's own `sm:p-4` (1rem/16px) — 48px of real inset from
-    // ChatColumn's border. So the composer's own left/right offsets must
-    // cover that full 48px themselves: Tailwind's `12` spacing step is
-    // exactly 3rem/48px, so anything at or past `sm:left-12`/`sm:right-12`
-    // clears the cards' true inset.
-    const leftMatch = composeForm.className.match(/(?:^|\s)sm:left-(\d+)(?:\s|$)/)
-    const rightMatch = composeForm.className.match(/(?:^|\s)sm:right-(\d+)(?:\s|$)/)
-    expect(leftMatch).not.toBeNull()
-    expect(rightMatch).not.toBeNull()
-    expect(Number(leftMatch?.[1])).toBeGreaterThanOrEqual(12)
-    expect(Number(rightMatch?.[1])).toBeGreaterThanOrEqual(12)
+    expect(composeForm.className).toContain("sm:left-2")
+    expect(composeForm.className).toContain("sm:right-2")
+    expect(composeForm.className).not.toContain("sm:left-14")
+    expect(composeForm.className).not.toContain("sm:right-14")
   })
 
   it.each([
@@ -3694,11 +3782,12 @@ describe("floating composer positioning", () => {
 
     expect(composeForm.className).toContain("absolute")
     expect(chatColumn.className).toContain("relative")
-    expect(chatColumn.className).toContain("sm:px-8")
-    expect(composeForm.className).toContain("sm:right-14")
+    expect(chatColumn.className).not.toContain("sm:px-8")
+    expect(composeForm.className).toContain("sm:right-2")
+    expect(splitGrid.style.gridTemplateColumns).toContain("0.25rem")
     expect(composeForm.className).not.toMatch(/(?:^|\s)(?:fixed|w-screen|w-full|right-0)(?:\s|$)/)
 
-    const expectedChatColumnRight = viewportWidth - 8 - workspaceWidth
+    const expectedChatColumnRight = viewportWidth - 4 - workspaceWidth
     const composerRight = desktopComposerRightEdge(composeForm, chatColumn, viewportWidth, workspaceWidth)
 
     expect(composerRight).toBeLessThanOrEqual(expectedChatColumnRight)
@@ -3737,7 +3826,7 @@ function desktopComposerRightEdge(composer: HTMLElement, chatColumn: HTMLElement
   const rightMatch = composer.className.match(/(?:^|\s)sm:right-(\d+)(?:\s|$)/)
   if (!rightMatch) return viewportWidth
 
-  return viewportWidth - 8 - workspaceWidth - tailwindSpacingPx(Number(rightMatch[1]))
+  return viewportWidth - 4 - workspaceWidth - tailwindSpacingPx(Number(rightMatch[1]))
 }
 
 function tailwindSpacingPx(step: number) {
@@ -3802,12 +3891,9 @@ describe("floating composer height tracking", () => {
     expect(form).not.toBeNull()
     expect(observedElements).toContain(form)
 
-    let ancestor: HTMLElement | null = form.parentElement
-    while (ancestor && !ancestor.contains(messageStream)) {
-      ancestor = ancestor.parentElement
-    }
-    expect(ancestor).not.toBeNull()
-    const columnAncestor = ancestor as HTMLElement
+    const columnAncestor = messageStream.closest("section") as HTMLElement | null
+    expect(columnAncestor).not.toBeNull()
+    if (!columnAncestor) throw new Error("expected chat column ancestor")
 
     await waitFor(() => {
       expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
@@ -3849,11 +3935,10 @@ describe("floating composer height tracking", () => {
 
     const messageStream = await screen.findByTestId("chat-message-stream")
     const form = document.querySelector('[data-tour="chat-compose"] form') as HTMLFormElement
-    let ancestor: HTMLElement | null = form.parentElement
-    while (ancestor && !ancestor.contains(messageStream)) {
-      ancestor = ancestor.parentElement
-    }
-    const columnAncestor = ancestor as HTMLElement
+    expect(form).not.toBeNull()
+    const columnAncestor = messageStream.closest("section") as HTMLElement | null
+    expect(columnAncestor).not.toBeNull()
+    if (!columnAncestor) throw new Error("expected chat column ancestor")
 
     await waitFor(() => {
       expect(columnAncestor.style.getPropertyValue("--chat-composer-height")).toBe("240px")
@@ -3954,6 +4039,39 @@ describe("scratchpad panel", () => {
     expect(fetchMock.mock.calls.some((call: unknown[]) =>
       String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
     )).toBe(true)
+  })
+
+  it("loads scratchpad attachments back into the composer", async () => {
+    const afterDeletePayload = chatPayload({ scratchpad_items: [] })
+
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDeletePayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Attachment-only draft")
+    expect(screen.getByText("1 image")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Attachment-only draft"))
+
+    expect(await screen.findByRole("button", { name: "Remove diagram.png" })).toBeInTheDocument()
   })
 
   it("auto-stashes existing text and loads item when textarea has content on load", async () => {
@@ -4191,6 +4309,68 @@ describe("scratchpad panel", () => {
     expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat_message: { text: "Refactor the aqueduct service" } })
   })
 
+  it("moves scratchpad attachments to the queue", async () => {
+    const queuedAttachment = { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }
+    const afterEnqueue = {
+      ...chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [queuedAttachment],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      }),
+      agent_busy: true,
+      queued_messages: [{ id: 20, text: "", attachments: [queuedAttachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/20", app_delete_path: "/api/v1/app/chats/8/queued_messages/20" }]
+    }
+    const afterDelete = chatPayload({ scratchpad_items: [], queued_messages: afterEnqueue.queued_messages })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/queued_messages" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterEnqueue))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDelete))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          {
+            id: 1,
+            content: "",
+            text: "",
+            attachments: [queuedAttachment],
+            app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
+            app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
+          }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Attachment-only draft")
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+      )).toHaveLength(1)
+    })
+    const enqueueCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toEqual({
+      chat_message: { text: "", attachments: [queuedAttachment] }
+    })
+  })
+
   it("does not show the panel when agent is active but scratchpad is empty", async () => {
     mockChatRouteFetch({ ...chatPayload({ scratchpad_items: [] }), agent_busy: true })
     renderRoute()
@@ -4271,6 +4451,54 @@ describe("queued message stash", () => {
       String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Check the forum routes" } })
+  })
+
+  it("moves queued attachments to scratchpad", async () => {
+    const attachment = { name: "queue.png", mime_type: "image/png", data: "cGl4ZWxz" }
+    const afterCreate = chatPayload({
+      queued_messages: [
+        { id: 14, text: "", attachments: [attachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+      ],
+      scratchpad_items: [
+        { id: 5, content: "", text: "", attachments: [attachment], app_update_path: "/api/v1/app/chats/8/scratchpad_items/5", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5" }
+      ]
+    })
+    const afterDelete = chatPayload({ scratchpad_items: afterCreate.scratchpad_items, queued_messages: [] })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterCreate))
+      }
+      if (String(input) === "/api/v1/app/chats/8/queued_messages/14" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDelete))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        queued_messages: [
+          { id: 14, text: "", attachments: [attachment], created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Attachment-only draft")
+    expect(screen.getByText("1 image")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+      )).toHaveLength(1)
+    })
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
+      scratchpad_item: { content: "", attachments: [attachment] }
+    })
   })
 })
 

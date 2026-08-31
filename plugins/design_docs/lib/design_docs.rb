@@ -4,6 +4,8 @@ require "design_docs/engine"
 
 module DesignDocs
   def self.register!
+    DesignDocs::SmartFolders.register!
+
     Syrus::PluginRegistry.register(
       name:            "design_docs",
       display_name:    "Design Docs",

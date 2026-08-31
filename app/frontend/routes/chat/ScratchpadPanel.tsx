@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent } from "react"
 import { useEffect, useRef, useState } from "react"
 import "@excalidraw/excalidraw/index.css"
-import { createScratchpadItem, deleteScratchpadItem, enqueueChatMessage, reorderScratchpadItems, updateScratchpadItem, type ChatScratchpadItem } from "../../api/chats"
+import { createScratchpadItem, deleteScratchpadItem, enqueueChatDraftMessage, reorderScratchpadItems, updateScratchpadItem, type ChatDraftMessage, type ChatMessageAttachmentInput, type ChatScratchpadItem } from "../../api/chats"
 import { Button } from "../../components/Button"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -29,6 +29,7 @@ export function ScratchpadPanel({
   queryKey,
   reorderPath,
   text,
+  attachments,
   onDismiss,
   onLoadToInput
 }: {
@@ -39,8 +40,9 @@ export function ScratchpadPanel({
   queryKey: ChatQueryKey
   reorderPath: string
   text: string
+  attachments: ChatMessageAttachmentInput[]
   onDismiss?: () => void
-  onLoadToInput: (content: string) => void
+  onLoadToInput: (draft: ChatDraftMessage) => void
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -159,6 +161,7 @@ export function ScratchpadPanel({
                   key={item.id}
                   queryKey={queryKey}
                   text={text}
+                  attachments={attachments}
                   onDragEnd={handleDragEnd}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragStart={() => handleDragStart(index)}
@@ -211,6 +214,7 @@ function ScratchpadItemRow({
   chatId,
   dragTarget,
   enqueuePath,
+  attachments,
   isDragging,
   item,
   queryKey,
@@ -224,6 +228,7 @@ function ScratchpadItemRow({
   chatId: string
   dragTarget: boolean
   enqueuePath: string
+  attachments: ChatMessageAttachmentInput[]
   index: number
   isDragging: boolean
   item: ChatScratchpadItem
@@ -233,13 +238,14 @@ function ScratchpadItemRow({
   onDragOver: (e: DragEvent<HTMLDivElement>) => void
   onDragStart: () => void
   onDrop: () => void
-  onLoadToInput: (content: string) => void
+  onLoadToInput: (draft: ChatDraftMessage) => void
 }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.content)
+  const itemDraft: ChatDraftMessage = { text: item.text ?? item.content, attachments: item.attachments || [] }
   const [loadPending, setLoadPending] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -258,7 +264,7 @@ function ScratchpadItemRow({
 
   const queue = useMutation({
     mutationFn: async () => {
-      const afterEnqueue = await enqueueChatMessage(appendSearch(enqueuePath, search), item.content)
+      const afterEnqueue = await enqueueChatDraftMessage(appendSearch(enqueuePath, search), itemDraft)
       queryClient.setQueryData(queryKey, afterEnqueue)
       return deleteScratchpadItem(item.app_delete_path)
     },
@@ -274,13 +280,13 @@ function ScratchpadItemRow({
     setLoadError(null)
     setLoadPending(true)
     try {
-      if (text.trim().length > 0) {
-        const stashed = await createScratchpadItem(chatId, text)
+      if (text.trim().length > 0 || attachments.length > 0) {
+        const stashed = await createScratchpadItem(chatId, text, attachments)
         queryClient.setQueryData(queryKey, stashed)
       }
       const deleted = await deleteScratchpadItem(item.app_delete_path)
       queryClient.setQueryData(queryKey, deleted)
-      onLoadToInput(item.content)
+      onLoadToInput(itemDraft)
     } catch (error) {
       setLoadError(errorMessage(errorAsError(error), "Could not load item."))
     } finally {
@@ -300,7 +306,7 @@ function ScratchpadItemRow({
         />
         <div className="mt-2 flex justify-end gap-2">
           <Button disabled={update.isPending} onClick={() => setEditing(false)} size="sm" variant="secondary">{t("scratchpad_cancel")}</Button>
-          <Button disabled={update.isPending || draft.trim().length === 0} onClick={() => update.mutate()} size="sm" variant="primary">{t("scratchpad_save")}</Button>
+          <Button disabled={update.isPending || (draft.trim().length === 0 && (item.attachments || []).length === 0)} onClick={() => update.mutate()} size="sm" variant="primary">{t("scratchpad_save")}</Button>
         </div>
       </div>
     )
@@ -342,8 +348,9 @@ function ScratchpadItemRow({
             title={t("scratchpad_load")}
             type="button"
           >
-            <span className="line-clamp-2 whitespace-pre-wrap break-words">{item.content}</span>
+            <span className="line-clamp-2 whitespace-pre-wrap break-words">{item.content || t("attachment_only_draft")}</span>
           </button>
+          <DraftAttachmentIndicator attachments={item.attachments || []} />
           {loadError ? <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{loadError}</p> : null}
         </div>
 
@@ -380,5 +387,21 @@ function ScratchpadItemRow({
       </div>
       {queue.isError ? <div className="mt-0.5 text-xs text-red-700 dark:text-red-300">{errorMessage(queue.error, "Could not move to queue.")}</div> : null}
     </div>
+  )
+}
+
+function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessage["attachments"] }) {
+  if (!attachments || attachments.length === 0) return null
+
+  const imageCount = attachments.filter((attachment) => attachment.mime_type.startsWith("image/")).length
+  const label = imageCount === attachments.length
+    ? `${attachments.length} image${attachments.length === 1 ? "" : "s"}`
+    : `${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`
+
+  return (
+    <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+      <span aria-hidden="true">+</span>
+      <span className="truncate">{label}</span>
+    </span>
   )
 }

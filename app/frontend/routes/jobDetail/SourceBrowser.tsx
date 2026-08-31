@@ -301,7 +301,7 @@ function SourceDiffBrowser({
         <div className="max-h-[36rem] overflow-auto border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
           {payload.files.length > 0 ? payload.files.map((file) => (
             <button
-              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 ${selectedFile?.path === file.path ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"}`}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-brand/10 ${selectedFile?.path === file.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
               key={file.path}
               onClick={() => setSelectedPath(file.path)}
               title={`${file.path} (+${file.additions} -${file.deletions})`}
@@ -337,7 +337,7 @@ function SourceDiffStatusBadge({ status }: { status: string }) {
     added: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
     modified: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
     removed: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-200",
-    renamed: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200"
+    renamed: "bg-brand/10 text-brand dark:text-brand-emphasis"
   }
   const labels: Record<string, string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
 
@@ -361,7 +361,7 @@ function SourceTreeRow({
     <>
       {node.file ? (
         <button
-          className={`block w-full truncate py-1.5 pr-3 text-left font-mono text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 ${selectedPath === node.path ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"}`}
+          className={`block w-full truncate py-1.5 pr-3 text-left font-mono text-xs hover:bg-brand/10 ${selectedPath === node.path ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-300"}`}
           key={node.path}
           onClick={() => onSelectPath(node.path)}
           style={{ paddingLeft: `${0.75 + node.path.split("/").length * 0.75}rem` }}
@@ -374,7 +374,7 @@ function SourceTreeRow({
         <button
           aria-expanded={expandedPaths.has(node.path)}
           aria-label={node.name}
-          className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-700 hover:bg-blue-50 dark:text-gray-300 dark:hover:bg-blue-950/40"
+          className="block w-full truncate py-1.5 pr-3 text-left font-mono text-xs font-semibold text-gray-700 hover:bg-brand/10 dark:text-gray-300"
           onClick={() => onToggleDirectory(node.path)}
           style={{ paddingLeft: `${0.75 + Math.max(node.path.split("/").length - 1, 0) * 0.75}rem` }}
           title={node.path}

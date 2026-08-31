@@ -2,18 +2,20 @@ require "mcp"
 
 module Mcp::Tools
   # Called by a Coding Mode or Local Mode chat agent after it has committed and
-  # pushed the implementation. Releases the coding state and kicks off graders.
+  # pushed the implementation. Queues an operator confirmation before graders run.
   class CompleteImplementStepTool < MCP::Tool
     extend JobLifecycleToolSupport
+    extend ProposalToolSupport
 
     tool_name "complete_implement_step"
 
     description <<~DESC
-      Signal that implementation is complete after the chat coding checkout or
-      local daemon has committed and pushed changes to the branch. Triggers the
-      appropriate handoff workflow for Syrus graders (and PR open if needed).
-      Call this only after the working tree is clean and the branch has been
-      pushed to the remote.
+      Request operator confirmation that implementation is complete after the
+      chat coding checkout or local daemon has committed and pushed changes to
+      the branch. The handoff workflow for Syrus graders (and PR open if needed)
+      is not enqueued until the operator confirms the pending action. Call this
+      only after the operator explicitly instructs you to hand off, the working
+      tree is clean, and the branch has been pushed to the remote.
     DESC
 
     input_schema(
@@ -53,28 +55,21 @@ module Mcp::Tools
           return Mcp::Tools.invalid("branch_name is not a valid branch name.")
         end
 
-        ApplicationRecord.transaction do
-          job.branch_name = normalized_branch if normalized_branch.present?
-          if chat_session.local?
-            job.exit_local_mode!
-            job.save!
-          else
-            unless job.complete_coding_handoff!
-              job.errors.add(:base, "could not start coding handoff")
-              raise ActiveRecord::RecordInvalid.new(job)
-            end
-          end
-        end
-
-        work_kind = chat_session.local? ? "local_mode_handoff" : "coding_handoff"
-        workflow = WorkUnits::Launcher.instantiate(kind: work_kind, job: job)
-        WorkUnits::Launcher.start!(workflow)
+        payload = { "job_id" => job.id }
+        payload["branch_name"] = normalized_branch if normalized_branch.present?
+        pending_action = create_pending_action_for_current_message!(
+          server_context,
+          chat_session,
+          action: "complete_implement_step",
+          payload: payload,
+          requested_by: "agent"
+        )
 
         Mcp::Tools.success(
-          job_id: job.id,
-          job_state: job.reload.state,
-          workflow_id: workflow.id,
-          message: "Implementation handed off. Graders and PR workflow enqueued (workflow #{workflow.id})."
+          pending_confirmation_id: pending_action.id,
+          pending_action_id: pending_action.id,
+          state: pending_action.state,
+          message: "Implementation handoff requires operator confirmation."
         )
       rescue ActiveRecord::RecordInvalid => e
         invalid_record(e)

@@ -43,9 +43,15 @@ RSpec.describe FilterUsage, type: :model do
   end
 
   it "accepts all known subject types" do
-    SmartFolder::SUBJECT_TYPES.each do |type|
+    FilterUsage.subjects.each do |type|
       expect(described_class.new(valid_attrs(subject: type, fingerprint: "fp-#{type}"))).to be_valid
     end
+  end
+
+  it "accepts dynamically registered smart folder subjects" do
+    allow(SmartFolder).to receive(:subject_types).and_return(SmartFolder::SUBJECT_TYPES + %w[design_doc])
+
+    expect(described_class.new(valid_attrs(subject: "design_doc"))).to be_valid
   end
 
   it "requires fingerprint" do

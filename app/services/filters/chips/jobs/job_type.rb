@@ -13,8 +13,8 @@ module Filters
         bucket :enum
         operators :is, :is_not
 
-        SYSTEM_KINDS = %w[main_grader agent_insight deploy].freeze
-        USER_KINDS = (Job::KINDS - SYSTEM_KINDS).freeze
+        SYSTEM_KINDS = Job::INFRASTRUCTURE_KINDS
+        USER_KINDS = Job::USER_FACING_KINDS
 
         values "user", "system"
 

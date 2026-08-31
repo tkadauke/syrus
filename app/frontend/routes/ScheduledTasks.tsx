@@ -247,16 +247,16 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
               {tasks.map((task) => (
                 <tr key={task.id}>
                   <td className="px-4 py-3 font-medium">
-                    <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${task.id}`}>{task.name}</Link>
+                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>{task.name}</Link>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
+                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
                   </td>
                   <td className="px-4 py-3 text-xs">{task.schedule_label || t("scheduled_tasks.none")}</td>
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
                   <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} /></td>
                   <td className="px-4 py-3 text-right">
-                    <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${task.id}`}>{t("scheduled_tasks.open")}</Link>
+                    <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>{t("scheduled_tasks.open")}</Link>
                   </td>
                 </tr>
               ))}
@@ -303,7 +303,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
             <StatePill state={payload.task.state} />
           </div>
           <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">
-            <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(payload.task.repository.repository_path, prefix)}>{payload.task.repository.slug}</Link>
+            <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(payload.task.repository.repository_path, prefix)}>{payload.task.repository.slug}</Link>
           </p>
         </div>
         <TaskActions archive={archive} basePath={basePath} command={command} task={payload.task} />
@@ -642,7 +642,7 @@ function StatePill({ state }: { state: string }) {
     scheduled: "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300",
     paused: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
     auto_paused: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    fired: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+    fired: "bg-info/10 text-info"
   }
   return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
 }

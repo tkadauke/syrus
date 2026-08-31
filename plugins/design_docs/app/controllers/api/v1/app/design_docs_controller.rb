@@ -5,7 +5,7 @@ module Api
         before_action :require_design_docs_enabled
 
         def index
-          render json: { design_docs: scoped_design_docs.map { |design_doc| serializer.summary(design_doc) } }
+          render json: design_docs_payload(scoped_design_docs)
         end
 
         def repository_index
@@ -13,10 +13,9 @@ module Api
           design_docs = scoped_design_docs.joins(:design_doc_repositories)
             .where(design_doc_repositories: { repository_id: repository.id })
 
-          render json: {
+          render json: design_docs_payload(design_docs).merge(
             repository: repository_json(repository),
-            design_docs: design_docs.map { |design_doc| serializer.summary(design_doc) }
-          }
+          )
         end
 
         def show
@@ -148,7 +147,44 @@ module Api
         end
 
         def scoped_design_docs
-          policy_scope(DesignDoc).includes(:owner_user, :current_version, :repositories).newest_first
+          filtered_design_docs(policy_scope(DesignDoc))
+            .includes(:owner_user, :current_version, :repositories)
+            .newest_first
+        end
+
+        def design_docs_payload(scope)
+          base_scope = policy_scope(DesignDoc)
+          SmartFolder.ensure_builtins_for_subject!(::DesignDocs::SmartFolders::SUBJECT)
+
+          {
+            active_smart_folder_id: active_smart_folder&.id,
+            filter: current_filter.to_h,
+            filter_schema: ::Filters::Schema.for(subject: ::DesignDocs::SmartFolders::SUBJECT, user: Current.user),
+            smart_folders: ::Admin::SmartFolderNavigation.new(
+              subject: ::DesignDocs::SmartFolders::SUBJECT,
+              user: Current.user,
+              active_folder: active_smart_folder,
+              base_scope: base_scope,
+              filter_class: ::DesignDocs::Filter
+            ).folders,
+            design_docs: scope.map { |design_doc| serializer.summary(design_doc) }
+          }
+        end
+
+        def filtered_design_docs(scope)
+          current_filter.apply(scope)
+        end
+
+        def current_filter
+          @current_filter ||= ::DesignDocs::Filter.from_params(params, smart_folder: active_smart_folder, user: Current.user)
+        end
+
+        def active_smart_folder
+          @active_smart_folder ||= ::Admin::SmartFolderNavigation.active_folder(
+            subject: ::DesignDocs::SmartFolders::SUBJECT,
+            user: Current.user,
+            params: params
+          )
         end
 
         def find_design_doc

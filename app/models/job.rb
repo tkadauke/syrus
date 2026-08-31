@@ -12,6 +12,8 @@ class Job < ApplicationRecord
   include EnqueuesSearchIndex
 
   KINDS = %w[ issue cron direct main_grader agent_insight external_pr deploy ].freeze
+  INFRASTRUCTURE_KINDS = %w[ main_grader agent_insight deploy ].freeze
+  USER_FACING_KINDS = (KINDS - INFRASTRUCTURE_KINDS).freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   DEPLOY_CLOSURE_REASON = "deploy".freeze
   SCHEDULED_TASK_OUTCOMES = {
@@ -538,9 +540,9 @@ class Job < ApplicationRecord
       transitions from: :coding, to: :implemented
     end
 
-    # Reverts a running coding_handoff workflow's job back to :coding
-    # when graders fail. The workflow skips propagate_fail_to_job! so
-    # the job remains :running until this event fires in after_fail.
+    # Legacy transition for returning a running handoff workflow's Job back
+    # to :coding. Worker-owned handoff repair paths now mark terminal grader
+    # failures as failed instead of routing ownership back to chat.
     event :revert_to_coding_mode do
       transitions from: :running, to: :coding
     end

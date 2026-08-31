@@ -112,7 +112,7 @@ function TestList({ error, isError, isFetching, payload, prefix, query }: { erro
           {payload.tests.map((test) => (
             <tr className="text-gray-700 dark:text-gray-300" key={test.id}>
               <td className="max-w-md px-4 py-3">
-                <Link className="font-medium text-blue-700 hover:underline dark:text-blue-300" to={withRoutePrefix(`/repositories/${payload.repository.id}?tab=tests&test_id=${test.id}`, prefix)}>
+                <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}?tab=tests&test_id=${test.id}`, prefix)}>
                   {test.name}
                 </Link>
                 {test.interesting_reasons.length > 0 ? (
@@ -143,7 +143,7 @@ function ReasonBadge({ reason }: { reason: string }) {
     ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
     : reason === "flaky"
       ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300"
-      : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300"
+      : "border-info/30 bg-info/10 text-info"
 
   return <span className={`inline-flex rounded border px-1.5 py-0.5 text-2xs font-medium ${classes}`}>{reason}</span>
 }
@@ -216,7 +216,7 @@ function HistoryRow({ item, prefix }: { item: RepositoryTestHistoryItem; prefix:
       <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
       <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatDuration(item.duration_ms)}</td>
       <td className="px-4 py-3">
-        <Link className="font-medium text-blue-700 hover:underline dark:text-blue-300" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
+        <Link className="font-medium text-brand-emphasis hover:underline" to={withRoutePrefix(item.run.path, prefix)}>{item.run.slug}</Link>
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.job.slug} · {item.grader_name}</div>
       </td>
       <td className="hidden max-w-md truncate px-4 py-3 text-gray-500 dark:text-gray-400 lg:table-cell" title={item.failure_message || ""}>{item.failure_message || "—"}</td>
@@ -347,7 +347,7 @@ function DurationTooltip({ historyItem, point, x, y }: { historyItem?: Repositor
           {historyItem.failure_message ? (
             <div className="mt-1 truncate text-red-600 dark:text-red-300" title={historyItem.failure_message}>{historyItem.failure_message}</div>
           ) : null}
-          <div className="mt-1 font-medium text-blue-700 dark:text-blue-300">Click to open {historyItem.run.slug} →</div>
+          <div className="mt-1 font-medium text-brand-emphasis">Click to open {historyItem.run.slug} →</div>
         </div>
       ) : null}
     </div>

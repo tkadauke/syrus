@@ -233,6 +233,18 @@ module Filters
         "started_at"  => "Filters::Chips::SpawnedProcesses::StartedAt"
       }
     ),
+    worker_timeline: Subject.new(
+      name: :worker_timeline,
+      model: Workflow,
+      chips: {
+        "repository_id" => "Filters::Chips::WorkerTimeline::RepositoryId",
+        "epic_id"       => "Filters::Chips::WorkerTimeline::EpicId",
+        "hostname"      => "Filters::Chips::WorkerTimeline::Hostname",
+        "job_type"      => "Filters::Chips::WorkerTimeline::JobType",
+        "status"        => "Filters::Chips::WorkerTimeline::Status",
+        "window"        => "Filters::Chips::WorkerTimeline::Window"
+      }
+    ),
     memory: Subject.new(
       name: :memory,
       model: ChatMemory,
@@ -266,8 +278,18 @@ module Filters
     )
   }.freeze
 
+  @registered_subjects = {}
+
+  def self.register_subject(name:, model:, chips:)
+    @registered_subjects[name.to_sym] = Subject.new(name: name, model: model, chips: chips)
+  end
+
+  def self.subjects
+    SUBJECTS.merge(@registered_subjects)
+  end
+
   def self.subject(name)
-    SUBJECTS.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
+    subjects.fetch(name.to_sym) { raise ArgumentError, "unknown subject: #{name}" }
   end
 
   def self.subject_for(name)

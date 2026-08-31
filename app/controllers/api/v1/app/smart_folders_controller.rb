@@ -74,7 +74,7 @@ module Api
 
           {
             subject_type: subject_type,
-            subject_label: subject_type.humanize,
+            subject_label: SmartFolder.label_for_subject(subject_type),
             dashboard_path: dashboard_path_for(subject_type),
             smart_folders: folders.map { |folder| smart_folder_json(folder) }
           }
@@ -94,7 +94,7 @@ module Api
         end
 
         def smart_folder_subject
-          params[:subject_type].to_s.presence_in(SmartFolder::SUBJECT_TYPES) || "job"
+          params[:subject_type].to_s.presence_in(SmartFolder.subject_types) || "job"
         end
 
         SUBJECT_DASHBOARD_ROUTE = {
@@ -116,6 +116,9 @@ module Api
         DEFAULT_LEGACY_FILTER = ->(params, _) { Jobs::Filter.from_params(params).to_h }
 
         def dashboard_path_for(subject_type, **query)
+          plugin_path = SmartFolder.path_for_subject(subject_type, **query)
+          return plugin_path if plugin_path.present?
+
           route = SUBJECT_DASHBOARD_ROUTE.fetch(subject_type, :dashboard_jobs_path)
           send(route, query)
         end

@@ -68,16 +68,18 @@ the same query services for the browser:
   (`app/frontend/components/FilterBar.tsx`) uses everywhere else
   (`Filters::QueryParam`/`Filters::Ast`). `Timeline::MacroQueryFilter`
   decodes `q` into the `repository_id`/`epic_id`/`hostname`/`status`/
-  `from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes the
-  `filter_schema` the FilterBar renders against: `repository_id`/
-  `epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
+  `job_type`/`from`/`to` arguments `Timeline::MacroQuery` accepts, and exposes a
+  registry-backed `filter_schema` for the `worker_timeline` subject:
+  `repository_id`/`epic_id`/`hostname` as `fk` (typeahead) fields backed by the existing
   `/api/v1/app/filters/fk_options` resolver (`Filters::FkOptionsResolver`
   serves `repository_id`/`epic_id` unscoped — every repository/epic in
   the instance, not just ones the signed-in admin owns — when the current
   user is an admin, since this is a cross-tenant admin view and every
   visitor is admin-gated already; non-admin callers elsewhere in the app
-  keep the ownership-scoped relation), `status` as a multi-select
-  `enum`, and a `window` `date` field supporting `within_last` (relative)
+  keep the ownership-scoped relation), `status` and `job_type` as
+  multi-select `enum` fields (`job_type` values are `user` and `system`,
+  with the system option labeled "Infrastructure" in the timeline UI), and
+  a `window` `date` field supporting `within_last` (relative)
   and `between` (absolute) — no `q` (no chips at all) defaults to
   `within_last` the last 3 hours with no other filters applied, i.e. every
   worker lane and every workflow in that window. The response echoes back
@@ -92,17 +94,26 @@ the same query services for the browser:
   include the resolved `worker_storage_key`, `queue_role`, `hostname`, and
   `pid`.
 
-`Timeline::MacroQueryFilter` is intentionally not a `Filters::Registry`
-subject: `Timeline::MacroQuery` isn't a single AR relation a
-`Filters::Compiler` chip can `.where` against (spans come from `Workflow`,
-pending from a second `Workflow` scope, idle lanes from `InstanceVersion`,
-and the time window is an overlap test applied across all three, not a
-plain column comparison), so it only understands a flat top-level AND of
-chips — the shape the FilterBar produces for this small, fixed field set.
+`worker_timeline` is a `Filters::Registry` subject so shared FilterBar
+schema serialization, top-level suggestion search, and filter-usage
+recording can use the same infrastructure as Dashboard/Search. The macro
+query still does not compile arbitrary registry chips into one relation:
+`Timeline::MacroQuery` isn't a single AR relation a `Filters::Compiler`
+chip can `.where` against (spans come from `Workflow`, pending from a
+second `Workflow` scope, idle lanes from `InstanceVersion`, and the time
+window is an overlap test applied across all three, not a plain column
+comparison), so `Timeline::MacroQueryFilter` only understands a flat
+top-level AND of chips — the shape the FilterBar produces for this small,
+fixed field set. Worker timeline does not currently expose SmartFolders;
+its registry subject exists for filter metadata and suggestions, not
+saved-folder navigation.
 The separate bearer-token `GET /api/v1/timeline/macro` endpoint (see
-`config/syrus_docs/worker_activity_timeline.md`) is untouched by this and
-keeps its own flat `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/
-`status=`/`from=`/`to=` params and 1-hour default.
+`config/syrus_docs/worker_activity_timeline.md`) keeps its own flat
+`repository_id=`/`epic_id=`/`job_id=`/`hostname=`/`status=`/`job_type=`/
+`from=`/`to=` params and 1-hour default. `job_type=system` filters to
+system/infrastructure Job kinds, `job_type=user` filters to user-facing
+Job kinds, and `job_type=infra`/`job_type=infrastructure` are accepted
+aliases for `system`.
 
 ## Frontend
 
@@ -113,7 +124,7 @@ time axis and `d3-zoom`/`d3-selection` for pan/zoom gesture handling, row
 virtualization (only lanes within the current scroll viewport render their
 span rects), and the app-wide shared `FilterBar` (same component and
 query-tree wiring as `AdminQueue`/`AdminUsers`/`Dashboard`) for repository/
-epic/hostname/status/time-window filtering — the plugin no longer ships its
+epic/hostname/status/job-type/time-window filtering — the plugin no longer ships its
 own filter UI. Hovering a span shows a tooltip with the
 Job/Workflow id and title, duration, and the blocked-reason explanation (or
 a plain "no historical data" message when none survives). Clicking a
@@ -132,3 +143,12 @@ blocked-reason explanation the macro view shows for a pending Workflow. If
 the Workflow itself hasn't started, the waterfall skips the time axis
 entirely (there's no meaningful scale yet) and shows every Step as a
 "not started" marker.
+
+The macro view wires `FilterBar`'s `suggestionSearch` to
+`surface: "worker_timeline", subject: "worker_timeline"` and records
+applied filters through `/api/v1/app/filters/usage` on the same
+surface/subject. Typing free text in the add-filter search before choosing a
+field therefore offers one-click top-level suggested chips for matching
+repositories, epics, and worker hostnames (for example, "Repository is
+tkadauke/syrus") in addition to the per-field typeahead that appears inside
+an already-added FK chip.

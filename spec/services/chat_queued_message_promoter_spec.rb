@@ -57,6 +57,17 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(message.content["text"]).to eq("pending message")
     end
 
+    it "preserves attachments when promoting a queued message" do
+      attachment = { "name" => "shot.png", "mime_type" => "image/png", "data" => "abc123" }
+      chat.chat_queued_messages.create!(content: { "text" => "", "attachments" => [ attachment ] })
+
+      result = described_class.deliver_one_if_idle!(chat)
+
+      expect(result).to be true
+      message = ChatMessage.where(chat_session: chat).last
+      expect(message.content).to include("text" => "", "attachments" => [ attachment ])
+    end
+
     it "marks the queued message as delivered after promotion" do
       queued = enqueue_message("deliver me")
 

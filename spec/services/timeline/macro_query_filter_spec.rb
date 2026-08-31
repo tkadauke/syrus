@@ -4,13 +4,20 @@ RSpec.describe Timeline::MacroQueryFilter do
   def encode(tree) = Filters::QueryParam.encode(tree)
 
   describe ".schema" do
-    it "describes repository_id/epic_id/hostname as fk fields, status as a multi-select enum, and window as a date bucket" do
+    it "describes repository_id/epic_id/hostname as fk fields, job_type/status as multi-select enums, and window as a date bucket" do
       fields = described_class.schema.index_by { |field| field.fetch("field") }
 
-      expect(fields.keys).to contain_exactly("repository_id", "epic_id", "hostname", "status", "window")
+      expect(fields.keys).to contain_exactly("repository_id", "epic_id", "hostname", "job_type", "status", "window")
       expect(fields.fetch("repository_id")).to include("bucket" => "fk", "operators" => %w[ is ], "typeahead" => true)
       expect(fields.fetch("epic_id")).to include("bucket" => "fk", "operators" => %w[ is ], "typeahead" => true)
       expect(fields.fetch("hostname")).to include("bucket" => "fk", "operators" => %w[ is ], "typeahead" => true)
+      expect(fields.fetch("job_type")).to include("bucket" => "enum", "operators" => %w[ is_one_of ])
+      expect(fields.fetch("job_type").fetch("values")).to eq(
+        [
+          { "value" => "user", "label" => "User" },
+          { "value" => "system", "label" => "Infrastructure" }
+        ]
+      )
       expect(fields.fetch("status")).to include("bucket" => "enum", "operators" => %w[ is_one_of ])
       expect(fields.fetch("status").fetch("values")).to eq(
         [
@@ -60,14 +67,15 @@ RSpec.describe Timeline::MacroQueryFilter do
     end
   end
 
-  describe "#repository_id / #epic_id / #hostname / #status" do
+  describe "#repository_id / #epic_id / #hostname / #status / #job_type" do
     it "reads the chip values for the request's q param" do
       tree = {
         "and" => [
           { "field" => "repository_id", "op" => "is", "value" => 7 },
           { "field" => "epic_id", "op" => "is", "value" => 9 },
           { "field" => "hostname", "op" => "is", "value" => "worker-x" },
-          { "field" => "status", "op" => "is_one_of", "value" => %w[ running queued ] }
+          { "field" => "status", "op" => "is_one_of", "value" => %w[ running queued ] },
+          { "field" => "job_type", "op" => "is_one_of", "value" => %w[ user ] }
         ]
       }
       filter = described_class.from_params(ActionController::Parameters.new(q: encode(tree)))
@@ -76,6 +84,7 @@ RSpec.describe Timeline::MacroQueryFilter do
       expect(filter.epic_id).to eq(9)
       expect(filter.hostname).to eq("worker-x")
       expect(filter.status).to eq(%w[ running queued ])
+      expect(filter.job_type).to eq(%w[ user ])
     end
 
     it "returns nil/empty values when no chips are present" do
@@ -85,6 +94,7 @@ RSpec.describe Timeline::MacroQueryFilter do
       expect(filter.epic_id).to be_nil
       expect(filter.hostname).to be_nil
       expect(filter.status).to eq([])
+      expect(filter.job_type).to eq([])
     end
 
     it "ignores chips nested inside an OR group or wrapped in NOT" do

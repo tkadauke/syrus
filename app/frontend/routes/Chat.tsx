@@ -185,7 +185,7 @@ export function ChatRoute() {
   return (
     <main
       aria-label={t("aria_chat")}
-      className="relative mx-auto flex h-full w-full max-w-[96rem] flex-col gap-2 overflow-hidden p-2 sm:gap-6 sm:p-6 lg:[height:100%]"
+      className="relative flex h-full w-full flex-col gap-2 overflow-hidden p-1 sm:gap-2 sm:p-2 lg:[height:100%]"
       style={viewportStyle}
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
@@ -363,7 +363,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   const title = chatDisplayTitle(payload.chat)
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 lg:gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       {!isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -657,7 +657,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
       </div>
       {newMessageCount > 0 ? (
         <button
-          className="absolute left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800 bottom-[max(6rem,calc(var(--chat-composer-height,0px)+1rem))] sm:bottom-[max(7rem,calc(var(--chat-composer-height,0px)+1rem))] dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200"
+          className="absolute left-1/2 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-gray-800 bottom-[max(5.5rem,calc(var(--chat-composer-height,0px)+0.75rem))] sm:bottom-[max(6rem,calc(var(--chat-composer-height,0px)+0.75rem))] dark:bg-gray-100 dark:text-gray-950 dark:hover:bg-gray-200"
           onClick={scrollToBottom}
           type="button"
         >
@@ -861,7 +861,7 @@ function ChatWorkspace({
       style={{
         gridTemplateColumns: panelCollapsed
           ? "minmax(0,1fr) 0 2.5rem"
-          : `minmax(0,1fr) 0.5rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
+          : `minmax(0,1fr) 0.25rem minmax(${CHAT_WORKSPACE_MIN_WIDTH}px,${workspaceWidth}px)`,
         transition: "grid-template-columns 150ms ease"
       }}
     >
@@ -869,7 +869,7 @@ function ChatWorkspace({
       {panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
-          className="hidden cursor-col-resize rounded bg-transparent transition hover:bg-brand/10 focus:bg-brand/10 focus:outline-none lg:block"
+          className="hidden cursor-col-resize rounded-sm bg-transparent transition hover:bg-brand/20 focus:bg-brand/20 focus:outline-none lg:block"
           onMouseDown={beginResize}
           type="button"
         />
@@ -1064,7 +1064,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
 
   return (
     <section
-      className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-2 sm:gap-3 sm:px-8"}`}
+      className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-1 sm:gap-2"}`}
       style={composerHeight != null ? { "--chat-composer-height": `${composerHeight}px` } as CSSProperties : undefined}
     >
       <ChatTour />
@@ -1076,15 +1076,18 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <LocalDaemonBanner payload={payload} />
       ) : null}
       {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
+      {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
+        {!landing ? <Compose key={chatId} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} /> : null}
       </div>
-      <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "shrink-0"}>
-        {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-        <Compose key={chatId} autoFocus={landing} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={!landing} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
-      </div>
+      {landing ? (
+        <div className="w-full max-w-sm sm:max-w-2xl">
+          <Compose key={chatId} autoFocus canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} floating={false} onComposerHeightChange={setComposerHeight} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+        </div>
+      ) : null}
     </section>
   )
 }
