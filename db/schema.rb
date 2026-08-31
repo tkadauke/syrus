@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_121000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_122000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2581,6 +2581,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_121000) do
     t.datetime "wait_until"
     t.index ["idempotency_key"], name: "idx_work_intents_idempotency", unique: true
     t.index ["kind", "state", "repository_id"], name: "idx_work_intents_kind_state_repo"
+    t.index ["repository_id", "scope_type", "state", "scope_id"], name: "idx_work_intents_repo_scope_state_scope_id"
     t.index ["scope_type", "scope_id", "state"], name: "idx_work_intents_scope_state"
     t.index ["superseded_by_work_intent_id"], name: "idx_work_intents_superseded_by"
   end
