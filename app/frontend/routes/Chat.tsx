@@ -1353,6 +1353,7 @@ function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { 
 function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const { t } = useT("chat")
   const { copied, copy } = useCopyToClipboard(2000)
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
   const daemonState = payload.chat.local_daemon_state ?? null
   const chatId = payload.chat.id
@@ -1360,7 +1361,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const sessionQuery = useQuery({
     queryKey: ["local-daemon-session", chatId],
     queryFn: () => createLocalDaemonSession(chatId),
-    enabled: daemonState !== "connected",
+    enabled: daemonState !== "connected" && isDesktop,
     staleTime: Infinity
   })
   const session = sessionQuery.data?.daemon_session
@@ -1379,19 +1380,23 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
     return (
       <section className="rounded border border-amber-200 bg-white p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
         <div className="font-semibold">{t("local_daemon_disconnected_title")}</div>
-        <p className="mt-1">{t("local_daemon_disconnected_body")}</p>
-        <div className="mt-3 flex items-center gap-2">
-          <code className="rounded bg-amber-50 px-2 py-1 font-mono text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100">{command ?? t("local_daemon_command_loading")}</code>
-          <button
-            className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!command}
-            onClick={copyCommand}
-            type="button"
-          >
-            {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
-          </button>
-        </div>
-        {sessionQuery.isError ? <p className="mt-2 text-red-600 dark:text-red-400">{t("local_daemon_session_error")}</p> : null}
+        <p className="mt-1">{t(isDesktop ? "local_daemon_disconnected_body" : "local_daemon_disconnected_mobile_body")}</p>
+        {isDesktop ? (
+          <>
+            <div className="mt-3 flex items-center gap-2">
+              <code className="rounded bg-amber-50 px-2 py-1 font-mono text-xs text-amber-950 dark:bg-amber-900 dark:text-amber-100">{command ?? t("local_daemon_command_loading")}</code>
+              <button
+                className="rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 transition hover:bg-amber-50 hover:text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!command}
+                onClick={copyCommand}
+                type="button"
+              >
+                {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
+              </button>
+            </div>
+            {sessionQuery.isError ? <p className="mt-2 text-red-600 dark:text-red-400">{t("local_daemon_session_error")}</p> : null}
+          </>
+        ) : null}
       </section>
     )
   }
@@ -1399,19 +1404,23 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   return (
     <section className="rounded border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
       <div className="font-semibold">{t("local_daemon_not_connected_title")}</div>
-      <p className="mt-1">{t("local_daemon_not_connected_body")}</p>
-      <div className="mt-3 flex items-center gap-2">
-        <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{command ?? t("local_daemon_command_loading")}</code>
-        <button
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!command}
-          onClick={copyCommand}
-          type="button"
-        >
-          {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
-        </button>
-      </div>
-      {sessionQuery.isError ? <p className="mt-2 text-red-600 dark:text-red-400">{t("local_daemon_session_error")}</p> : null}
+      <p className="mt-1">{t(isDesktop ? "local_daemon_not_connected_body" : "local_daemon_not_connected_mobile_body")}</p>
+      {isDesktop ? (
+        <>
+          <div className="mt-3 flex items-center gap-2">
+            <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{command ?? t("local_daemon_command_loading")}</code>
+            <button
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!command}
+              onClick={copyCommand}
+              type="button"
+            >
+              {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
+            </button>
+          </div>
+          {sessionQuery.isError ? <p className="mt-2 text-red-600 dark:text-red-400">{t("local_daemon_session_error")}</p> : null}
+        </>
+      ) : null}
     </section>
   )
 }
