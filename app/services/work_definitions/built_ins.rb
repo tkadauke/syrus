@@ -373,6 +373,17 @@ module WorkDefinitions
     self.scope = "job"
   end
 
+  class VisualDiff < Base
+    include ManagesOwnJobLifecycle
+    include ResumesFailedSteps
+    include CancelPreemptable
+
+    self.kind = "visual_diff"
+    self.workflow_trigger_kind = "visual_diff"
+    self.runtime_role = "first_class"
+    self.scope = "job"
+  end
+
   class Replay < Base
     include RecoverableCancelledWorkflow
 

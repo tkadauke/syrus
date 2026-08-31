@@ -82,6 +82,7 @@ RSpec.describe WorkDefinitions do
       retry
       checkpoint_resume
       manual_visual_review
+      visual_diff
       manual
       resume
       coding_handoff
@@ -153,6 +154,7 @@ RSpec.describe WorkDefinitions do
       merge_train_validation
       job_bundle_validation
       manual_visual_review
+      visual_diff
     ]
 
     checkpoint_kinds.each do |kind|
@@ -298,7 +300,8 @@ RSpec.describe WorkDefinitions do
       "landing_validation",
       "merge_train_validation",
       "promotion",
-      "hotfix_sync"
+      "hotfix_sync",
+      "visual_diff"
     )
   end
 
@@ -445,7 +448,8 @@ RSpec.describe WorkDefinitions do
       "merge_train_validation",
       "job_bundle_validation",
       "promotion",
-      "hotfix_sync"
+      "hotfix_sync",
+      "visual_diff"
     )
   end
 end

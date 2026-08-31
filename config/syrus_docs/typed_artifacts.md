@@ -143,12 +143,37 @@ Rendered as a two-column before/after diff (`:migration_diff` renderer). Payload
 
 ### `visual_review_screenshot`
 
-Rendered as a single image (`:image_diff` renderer). Payload written by `submit_visual_artifact`:
+Rendered as a single after screenshot (`:image_diff` renderer). Payload written by `submit_visual_artifact`:
 
 ```json
 {
   "content_type": "image/png",
   "byte_size": 48213,
   "image_url": "/api/v1/app/workflows/123/visual_artifact?type=visual_review_screenshot"
+}
+```
+
+### `visual_diff_comparison`
+
+Rendered as a paired before/after visual comparison (`:before_after_visual_diff` renderer). Payload written by the deferred `visual_diff` workflow after it captures merge-base baseline screenshots and pairs them with the PR screenshots from a prior visual-review workflow:
+
+```json
+{
+  "base_revision": "abc123",
+  "base_branch": "main",
+  "head_revision": "syrus/issue-42-123",
+  "pairs": [
+    {
+      "title": "Dashboard",
+      "before": {
+        "title": "Dashboard",
+        "image_url": "/api/v1/app/workflows/124/visual_artifact?type=visual_diff_baseline_screenshot_run_55_1"
+      },
+      "after": {
+        "title": "Dashboard",
+        "image_url": "/api/v1/app/workflows/123/visual_artifact?type=visual_review_screenshot_run_44_1"
+      }
+    }
+  ]
 }
 ```

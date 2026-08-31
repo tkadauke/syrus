@@ -170,6 +170,26 @@ RSpec.describe Job, :ci_only do
     end
   end
 
+  describe "#visual_diff_runnable?" do
+    it "allows implemented, approved, and landing jobs with no active run" do
+      expect(Factories.job_record(state: "implemented")).to be_visual_diff_runnable
+      expect(Factories.job_record(state: "approved")).to be_visual_diff_runnable
+      expect(Factories.job_record(state: "landing")).to be_visual_diff_runnable
+    end
+
+    it "rejects jobs before implementation and closed jobs" do
+      expect(Factories.job_record(state: "running")).not_to be_visual_diff_runnable
+      expect(Factories.job_record(state: "closed", landed_sha: "abc123")).not_to be_visual_diff_runnable
+    end
+
+    it "rejects a job with active runtime work" do
+      job = Factories.job_record(state: "approved")
+      job.runs.create!(trigger_kind: "visual_diff", agent_provider: job.agent_provider)
+
+      expect(job.reload).not_to be_visual_diff_runnable
+    end
+  end
+
   describe "fork base branch (fork -> upstream)" do
     let(:repo_owner) { Factories.user }
     let(:upstream) { Factories.repository(user: repo_owner, owner: "upstream-org", name: "project", default_branch: "main") }

@@ -5,9 +5,9 @@
 export type TypedArtifact = {
   type: string
   title: string
-  payload: SchemaErdPayload | MigrationDiffPayload | ImageDiffPayload | Record<string, unknown>
+  payload: SchemaErdPayload | MigrationDiffPayload | ImageDiffPayload | BeforeAfterVisualDiffPayload | Record<string, unknown>
   created_at: string
-  renderer_type: "erd_diagram" | "migration_diff" | "data_table" | "before_after_diff" | "image_diff" | null
+  renderer_type: "erd_diagram" | "migration_diff" | "data_table" | "before_after_diff" | "before_after_visual_diff" | "image_diff" | null
 }
 
 export type ErdColumn = {
@@ -60,4 +60,23 @@ export type ImageDiffPayload = {
   image_url: string
   content_type?: string
   byte_size?: number
+}
+
+export type BeforeAfterVisualImage = ImageDiffPayload & {
+  type?: string
+  title?: string
+  created_at?: string
+}
+
+export type BeforeAfterVisualDiffPair = {
+  title?: string
+  before: BeforeAfterVisualImage
+  after: BeforeAfterVisualImage
+}
+
+export type BeforeAfterVisualDiffPayload = {
+  base_revision?: string
+  base_branch?: string
+  head_revision?: string
+  pairs: BeforeAfterVisualDiffPair[]
 }

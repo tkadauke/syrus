@@ -21,6 +21,7 @@
   "check_mergeability": "Mergebarkeit prüfen",
   "retry_pr_ingestion": "PR-Übernahme erneut versuchen",
   "run_visual_review": "Visuelle Prüfung ausführen",
+  "run_visual_diff": "Vorher/Nachher-Vergleich ausführen",
   "send_upstream": "Upstream senden",
   "retry": "Erneut versuchen",
   "retry_with_feedback": "Mit Feedback erneut versuchen",

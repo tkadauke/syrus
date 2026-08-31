@@ -1529,6 +1529,8 @@ function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
       return <DataTableRenderer payload={artifact.payload} />
     case "before_after_diff":
       return <BeforeAfterDiffRenderer payload={artifact.payload} />
+    case "before_after_visual_diff":
+      return <BeforeAfterVisualDiffRenderer payload={artifact.payload} />
     case "image_diff":
       return <ImageDiffRenderer payload={artifact.payload} title={artifact.title} />
     default:
@@ -1634,6 +1636,42 @@ function BeforeAfterDiffRenderer({ payload }: { payload: Record<string, unknown>
         <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
         <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
       </div>
+    </div>
+  )
+}
+
+function BeforeAfterVisualDiffRenderer({ payload }: { payload: Record<string, unknown> }) {
+  const pairs = Array.isArray(payload.pairs) ? payload.pairs as Array<{ title?: string; before?: Record<string, unknown>; after?: Record<string, unknown> }> : []
+  if (pairs.length === 0) {
+    return <RawArtifactRenderer payload={payload} />
+  }
+
+  return (
+    <div className="space-y-4">
+      {pairs.map((pair, index) => (
+        <div className="space-y-2" key={`${pair.title || "visual"}-${index}`}>
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{pair.title || `Screenshot ${index + 1}`}</p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <VisualDiffImagePane label="Merge-base / before" image={pair.before} />
+            <VisualDiffImagePane label="PR / after" image={pair.after} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function VisualDiffImagePane({ label, image }: { label: string; image?: Record<string, unknown> }) {
+  const imageUrl = typeof image?.image_url === "string" ? image.image_url : null
+  const title = typeof image?.title === "string" ? image.title : "screenshot"
+  if (!imageUrl) return null
+
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
+      <a href={imageUrl} target="_blank" rel="noreferrer">
+        <img src={imageUrl} alt={`${label}: ${title}`} className="max-w-full rounded border border-gray-200 dark:border-gray-700" />
+      </a>
     </div>
   )
 }

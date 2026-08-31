@@ -153,7 +153,7 @@ allowed.
 
 ## Screenshot artifacts
 
-The reviewer captures "after" screenshots with `submit_visual_artifact`, an
+The reviewer captures PR/head "after" screenshots with `submit_visual_artifact`, an
 image-capable sibling of `submit_artifact`: it accepts either `image_path`
 pointing at a screenshot file inside the workflow workspace (preferred for
 the file path returned by `browser_screenshot`) or `image_base64` when image
@@ -162,6 +162,17 @@ the image as an ActiveStorage blob on the current Workflow, and records a
 `typed_artifacts` entry that the job detail UI's Artifacts tab renders
 through the `:image_diff` renderer so operators can see what the reviewer
 actually tested.
+
+When an approved visual-review iteration records after screenshots, Syrus
+also requests a low-priority `visual_diff` workflow on the same Job. That
+deferred workflow checks out the merge-base for `Job#effective_base_branch`,
+starts the same preview/browser capture flow on that before revision, asks
+the agent to capture matching baseline screenshots, then persists a
+`visual_diff_comparison` typed artifact with `before` (merge-base) and
+`after` (PR/head) images side by side. This work does not block approval or
+landing; automatically queued comparisons are cancelled or skipped once the
+Job has already moved to approval/landing, while operators can still request
+an explicit rerun from the Job detail actions.
 
 ## Manual "Run visual review" trigger
 
@@ -173,12 +184,17 @@ without waiting for a new implementation. The Job detail page exposes a
 active run, gated by the same `RepoVisualReviewPlan` resolution the
 automatic loop uses — the action is unavailable if visual review isn't
 configured/enabled for the repository. This dispatches a standalone
-`manual_visual_review` Workflow (`Workflows::ManualVisualReview`) that runs
-the reviewer alone against whatever is already on the branch. Unlike the
-automatic loop, it does not loop back into `implement`/`respond` on
-`needs_work` — the verdict and critique are recorded on the workflow the
-same way an automatic pass records them, for the operator to read and act
-on manually.
+`manual_visual_review` workflow and does not create before/after comparison
+artifacts by itself. The reviewer runs alone against whatever is already on
+the branch; unlike the automatic loop, it does not loop back into
+`implement`/`respond` on `needs_work`. The verdict and critique are recorded
+on the workflow the same way an automatic pass records them, for the operator
+to read and act on manually.
+
+The Job detail page also exposes a separate "Run before/after comparison"
+action when visual-review screenshots already exist. That dispatches
+`visual_diff` directly for operator inspection rather than changing the
+manual visual-review semantics.
 
 ## Which workflows include visual review
 
