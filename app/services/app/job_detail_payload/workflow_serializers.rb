@@ -286,7 +286,7 @@ module App
       end
 
       def total_workflows
-        @total_workflows ||= PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { workflows_scope.count }
+        PerformanceLogging.phase("job_detail.workflows.total", job_id: @job.id) { workflow_total_count }
       end
 
       def workflows_page
