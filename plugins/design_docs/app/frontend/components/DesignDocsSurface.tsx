@@ -8,7 +8,6 @@ import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { useMediaQuery } from "@app/routes/dashboard/components"
-import { Markdown } from "@app/lib/Markdown"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -31,6 +30,7 @@ import {
 } from "../api/designDocs"
 
 type SurfaceMode = "index" | "repository" | "chat"
+type EditorMode = "markdown" | "wysiwyg"
 type SelectionRange = { start: number; end: number; text: string }
 
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode, repositoryId }: { chatId?: number; compact?: boolean; designDocIds?: number[]; mode: SurfaceMode; repositoryId?: string | number }) {
@@ -211,6 +211,7 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message: string) => void }) {
   const [draft, setDraft] = useState(doc.markdown)
+  const [editorMode, setEditorMode] = useState<EditorMode>("markdown")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
   const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "" })
@@ -218,6 +219,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [suggestionMarkdown, setSuggestionMarkdown] = useState("")
   const [collaborators, setCollaborators] = useState(doc.collaborator_ids.join(", "))
   const [repoIds, setRepoIds] = useState(doc.repository_ids.map(String))
+  const [repositoryPickerOpen, setRepositoryPickerOpen] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const versions = useQuery({
@@ -238,7 +241,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     onSuccess: (payload) => onDocChange(payload.design_doc, payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
   })
   const metadataMutation = useMutation({
-    mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[] }) => updateDesignDoc(doc.id, input),
+    mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[]; collaborator_user_ids?: number[] }) => updateDesignDoc(doc.id, input),
     onSuccess: (payload) => onDocChange(payload.design_doc, "Design doc controls updated.")
   })
   const commentMutation = useMutation({
@@ -272,50 +275,77 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     setSelection({ start, end, text: target.value.slice(start, end) })
   }
 
+  const selectedRepositories = repositories.filter((repository) => repoIds.includes(String(repository.id)))
+
   return (
-    <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
+    <div className="min-w-0 space-y-4">
+      <DesignDocTitleBar
+        collaborators={collaborators}
+        doc={doc}
+        repoIds={repoIds}
+        repositories={repositories}
+        repositoryPickerOpen={repositoryPickerOpen}
+        selectedRepositories={selectedRepositories}
+        setCollaborators={setCollaborators}
+        setRepoIds={setRepoIds}
+        setRepositoryPickerOpen={setRepositoryPickerOpen}
+        setShareOpen={setShareOpen}
+        setTitle={setTitle}
+        shareOpen={shareOpen}
+        title={title}
+        versions={versions.data?.versions ?? []}
+        versionsLoading={versions.isPending}
+        versionsOpen={versionsOpen}
+        onMetadataSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number), collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number) })}
+        onSave={() => saveMutation.mutate()}
+        onVersionsOpen={() => setVersionsOpen(true)}
+        onVisibilityChange={(visibility) => metadataMutation.mutate({ visibility })}
+      />
+      <div className={`grid min-w-0 gap-4 ${mode === "chat" ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
       <section className="min-w-0 space-y-4">
-        <div className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <Input aria-label="Design doc title" value={title} onChange={(event) => setTitle(event.target.value)} />
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {doc.display_id} / v{doc.current_version_number ?? "?"} / {doc.visibility} / {doc.state} / saved <RelativeTimestamp value={doc.updated_at} />
-              </p>
+        <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+            <div aria-label="Editor mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+              {(["markdown", "wysiwyg"] as EditorMode[]).map((candidate) => (
+                <button
+                  aria-selected={editorMode === candidate}
+                  className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+                  key={candidate}
+                  onClick={() => setEditorMode(candidate)}
+                  role="tab"
+                  type="button"
+                >
+                  {candidate === "markdown" ? "Markdown" : "WYSIWYG"}
+                </button>
+              ))}
             </div>
-            <Button disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()} size="sm">Save</Button>
+            <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Change summary" value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-            <Input aria-label="Change summary" placeholder="Change summary" value={summary} onChange={(event) => setSummary(event.target.value)} />
-            <Select aria-label="Visibility" fullWidth={false} value={doc.visibility} onChange={(event) => metadataMutation.mutate({ visibility: event.target.value as "private" | "public" })}>
-              <option value="private">Private</option>
-              <option value="public">Public</option>
-            </Select>
-            <Select aria-label="State" fullWidth={false} value={doc.state} onChange={(event) => metadataMutation.mutate({ state: event.target.value as "draft" | "accepted" | "archived" })}>
-              <option value="draft">Draft</option>
-              <option value="accepted">Accepted</option>
-              <option value="archived">Archived</option>
-            </Select>
-          </div>
-        </div>
-        <div className="grid min-h-[36rem] gap-4 lg:grid-cols-2">
-          <label className="flex min-h-0 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-            <span className="border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">Editor</span>
-            <textarea
-              aria-label="Markdown editor"
-              className="min-h-[30rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-gray-900 outline-none dark:text-gray-100"
-              onBlur={() => updateSelection()}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyUp={() => updateSelection()}
-              onMouseUp={() => updateSelection()}
-              ref={textareaRef}
-              value={draft}
-            />
-          </label>
-          <div className="min-h-0 rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-            <div className="border-b border-gray-200 px-3 py-2 text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">Preview</div>
-            <DocumentPreview doc={doc} markdown={draft} />
-          </div>
+          {editorMode === "markdown" ? (
+            <label className="flex min-h-[36rem] flex-col">
+              <span className="sr-only">Markdown editor</span>
+              <textarea
+                aria-label="Markdown editor"
+                className="min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-gray-900 outline-none dark:text-gray-100"
+                onBlur={() => updateSelection()}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyUp={() => updateSelection()}
+                onMouseUp={() => updateSelection()}
+                ref={textareaRef}
+                value={draft}
+              />
+            </label>
+          ) : (
+            <label className="flex min-h-[36rem] flex-col">
+              <span className="sr-only">WYSIWYG editor</span>
+              <textarea
+                aria-label="WYSIWYG editor"
+                className="chat-prose min-h-[36rem] max-w-none flex-1 resize-y bg-transparent p-4 text-sm leading-6 text-gray-900 outline-none dark:text-gray-100"
+                onChange={(event) => setDraft(event.target.value)}
+                value={draft}
+              />
+            </label>
+          )}
         </div>
         <FloatingComposer
           commentBody={commentBody}
@@ -331,22 +361,119 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       <aside className="space-y-4">
         <ThreadPanel doc={doc} onResolve={(threadId) => resolveMutation.mutate(threadId)} />
         <SuggestionPanel doc={doc} onReview={(id, decision) => reviewMutation.mutate({ id, decision })} />
-        <ControlsPanel collaborators={collaborators} doc={doc} repoIds={repoIds} repositories={repositories} setCollaborators={setCollaborators} setRepoIds={setRepoIds} onSave={() => metadataMutation.mutate({ repository_ids: repoIds.map(Number) })} />
-        <VersionPanel open={versionsOpen} versions={versions.data?.versions ?? []} loading={versions.isPending} onToggle={() => setVersionsOpen(!versionsOpen)} />
       </aside>
+      </div>
     </div>
   )
 }
 
-function DocumentPreview({ doc, markdown }: { doc: DesignDocDetail; markdown: string }) {
-  const anchors = [
-    ...doc.threads.filter((thread) => thread.state === "open").map((thread) => ({ kind: "comment", start: thread.anchor.last_known_start_offset ?? thread.anchor.start_offset, end: thread.anchor.last_known_end_offset ?? thread.anchor.end_offset })),
-    ...doc.suggestions.filter((suggestion) => suggestion.state === "pending").map((suggestion) => ({ kind: "suggestion", start: suggestion.anchor.last_known_start_offset ?? suggestion.anchor.start_offset, end: suggestion.anchor.last_known_end_offset ?? suggestion.anchor.end_offset }))
-  ].filter((anchor): anchor is { kind: string; start: number; end: number } => anchor.start != null && anchor.end != null && anchor.end > anchor.start)
-  const text = stripMarkers(markdown)
-  if (anchors.length === 0) return <Markdown className="max-w-none p-4 text-sm" text={text} />
-
-  return <div className="whitespace-pre-wrap p-4 text-sm leading-6 text-gray-800 dark:text-gray-100">{highlightText(text, anchors)}</div>
+function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, repositoryPickerOpen, selectedRepositories, setCollaborators, setRepoIds, setRepositoryPickerOpen, setShareOpen, setTitle, shareOpen, title, versions, versionsLoading, versionsOpen, onMetadataSave, onSave, onVersionsOpen, onVisibilityChange }: {
+  collaborators: string
+  doc: DesignDocDetail
+  repoIds: string[]
+  repositories: Array<{ id: number; slug: string }>
+  repositoryPickerOpen: boolean
+  selectedRepositories: Array<{ id: number; slug: string }>
+  setCollaborators: (value: string) => void
+  setRepoIds: (value: string[]) => void
+  setRepositoryPickerOpen: (value: boolean) => void
+  setShareOpen: (value: boolean) => void
+  setTitle: (value: string) => void
+  shareOpen: boolean
+  title: string
+  versions: Array<{ id: number; version_number: number; change_summary: string | null; created_at: string }>
+  versionsLoading: boolean
+  versionsOpen: boolean
+  onMetadataSave: () => void
+  onSave: () => void
+  onVersionsOpen: () => void
+  onVisibilityChange: (visibility: "private" | "public") => void
+}) {
+  return (
+    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-[14rem] flex-1">
+          <Input aria-label="Design doc title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <span className="font-medium text-gray-700 dark:text-gray-300">{doc.display_id}</span>
+            <span> / saved <RelativeTimestamp value={doc.updated_at} /></span>
+          </p>
+        </div>
+        <StatusLabel value={doc.visibility} />
+        <StatusLabel value={doc.state} />
+        <div className="relative min-w-0">
+          <div className="flex max-w-full flex-wrap items-center gap-1.5">
+            {selectedRepositories.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">No repositories</span> : null}
+            {selectedRepositories.map((repository) => (
+              <span className="max-w-[11rem] truncate rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300" key={repository.id}>
+                {repository.slug}
+              </span>
+            ))}
+            <Button aria-expanded={repositoryPickerOpen} aria-label="Add repository" className="h-7 w-7" onClick={() => setRepositoryPickerOpen(!repositoryPickerOpen)} size="icon" variant="secondary">
+              <span aria-hidden="true" className="text-base leading-none">+</span>
+            </Button>
+          </div>
+          {repositoryPickerOpen ? (
+            <div className="absolute left-0 z-20 mt-2 w-72 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                Repositories
+                <select
+                  aria-label="Repository associations"
+                  className="mt-1 block min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  multiple
+                  value={repoIds}
+                  onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
+                >
+                  {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
+                </select>
+              </label>
+              <div className="mt-3 flex justify-end">
+                <Button onClick={onMetadataSave} size="sm" variant="secondary">Save repositories</Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="relative">
+          <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button>
+          {shareOpen ? (
+            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+              <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                Visibility
+                <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
+                  <option value="private">Private</option>
+                  <option value="public">Public</option>
+                </Select>
+              </label>
+              <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+                Explicit collaborators
+                <Input aria-label="Collaborator user IDs" className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
+              </label>
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Owner: {doc.owner?.name || doc.owner?.email_address || "Unknown"}</p>
+              <div className="mt-3 flex justify-end">
+                <Button onClick={onMetadataSave} size="sm" variant="secondary">Save sharing</Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <Button onClick={onSave} size="sm">Save</Button>
+        <Select
+          aria-label="Version selection"
+          className="ml-auto max-w-[12rem]"
+          fullWidth={false}
+          onFocus={onVersionsOpen}
+          onMouseDown={onVersionsOpen}
+          value={doc.current_version_number ?? ""}
+          onChange={() => undefined}
+        >
+          <option value={doc.current_version_number ?? ""}>v{doc.current_version_number ?? "?"}</option>
+          {versionsOpen && versionsLoading ? <option value="loading">Loading...</option> : null}
+          {versions.filter((version) => version.version_number !== doc.current_version_number).map((version) => (
+            <option key={version.id} value={version.version_number}>v{version.version_number}{version.change_summary ? ` - ${version.change_summary}` : ""}</option>
+          ))}
+        </Select>
+      </div>
+    </section>
+  )
 }
 
 function FloatingComposer({ commentBody, disabled, selection, setCommentBody, setSuggestionMarkdown, suggestionMarkdown, onComment, onSuggestion }: {
@@ -430,59 +557,6 @@ function SuggestionPanel({ doc, onReview }: { doc: DesignDocDetail; onReview: (i
   )
 }
 
-function ControlsPanel({ collaborators, doc, repoIds, repositories, setCollaborators, setRepoIds, onSave }: {
-  collaborators: string
-  doc: DesignDocDetail
-  repoIds: string[]
-  repositories: Array<{ id: number; slug: string }>
-  setCollaborators: (value: string) => void
-  setRepoIds: (value: string[]) => void
-  onSave: () => void
-}) {
-  return (
-    <Panel>
-      <SectionHeading as="h3">Controls</SectionHeading>
-      <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-        Repositories
-        <select
-          aria-label="Repository associations"
-          className="mt-1 block min-h-24 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-          multiple
-          value={repoIds}
-          onChange={(event) => setRepoIds(Array.from(event.target.selectedOptions).map((option) => option.value))}
-        >
-          {repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.slug}</option>)}
-        </select>
-      </label>
-      <label className="mt-3 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-        Collaborator user IDs
-        <Input className="mt-1" value={collaborators} onChange={(event) => setCollaborators(event.target.value)} />
-      </label>
-      <Button className="mt-3" onClick={onSave} size="sm" variant="secondary">Save controls</Button>
-      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Owner: {doc.owner?.name || doc.owner?.email_address || "Unknown"}</p>
-    </Panel>
-  )
-}
-
-function VersionPanel({ loading, open, versions, onToggle }: { loading: boolean; open: boolean; versions: Array<{ id: number; version_number: number; change_summary: string | null; created_at: string }>; onToggle: () => void }) {
-  return (
-    <Panel>
-      <div className="flex items-center justify-between gap-2">
-        <SectionHeading as="h3">Versions</SectionHeading>
-        <Button onClick={onToggle} size="sm" variant="secondary">{open ? "Hide" : "Show"}</Button>
-      </div>
-      {open && loading ? <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading versions...</p> : null}
-      {open ? versions.map((version) => (
-        <div className="mt-3 rounded border border-gray-200 p-3 text-sm dark:border-gray-700" key={version.id}>
-          <p className="font-medium text-gray-900 dark:text-gray-100">Version {version.version_number}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={version.created_at} /></p>
-          {version.change_summary ? <p className="mt-1 text-gray-600 dark:text-gray-300">{version.change_summary}</p> : null}
-        </div>
-      )) : null}
-    </Panel>
-  )
-}
-
 function Panel({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "error" }) {
   const colors = tone === "error" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
   return <div className={`rounded border p-4 ${colors}`}>{children}</div>
@@ -515,22 +589,4 @@ function anchorPayload(selection: SelectionRange) {
     selected_markdown: selection.text,
     selected_text: selection.text
   }
-}
-
-function stripMarkers(markdown: string) {
-  return markdown.replace(/<!--\s*syrus:(?:range-start|range-end|point)\s+id="[^"]+"\s*-->/g, "")
-}
-
-function highlightText(text: string, anchors: Array<{ kind: string; start: number; end: number }>) {
-  const sorted = [...anchors].sort((a, b) => a.start - b.start)
-  const nodes: React.ReactNode[] = []
-  let cursor = 0
-  sorted.forEach((anchor, index) => {
-    if (anchor.start < cursor) return
-    if (anchor.start > cursor) nodes.push(text.slice(cursor, anchor.start))
-    nodes.push(<mark className={anchor.kind === "suggestion" ? "rounded bg-emerald-100 px-0.5 text-gray-900 dark:bg-emerald-900/60 dark:text-emerald-50" : "rounded bg-amber-100 px-0.5 text-gray-900 dark:bg-amber-900/60 dark:text-amber-50"} key={`${anchor.kind}-${index}`}>{text.slice(anchor.start, anchor.end)}</mark>)
-    cursor = anchor.end
-  })
-  if (cursor < text.length) nodes.push(text.slice(cursor))
-  return nodes
 }
