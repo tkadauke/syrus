@@ -1049,7 +1049,7 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   ```ruby
   def up
     add_column :jobs, :approved_at, :datetime unless column_exists?(:jobs, :approved_at)
-    add_reference :jobs, :approved_by_user, null: true, foreign_key: { to_table: :users } unless column_exists?(:jobs, :approved_by_user_id)
+    add_reference :jobs, :approved_by_user, null: true, index: true unless column_exists?(:jobs, :approved_by_user_id)
     add_index :jobs, :approved_at unless index_exists?(:jobs, :approved_at)
   end
   ```

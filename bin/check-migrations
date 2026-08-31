@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
+
 #
 # Syrus migration linter.
 #
@@ -21,14 +22,21 @@
 #                                      MySQL 8 rejects defaults on JSON columns
 #                                      at deploy time; SQLite (dev) accepts them
 #                                      so this only fires in prod migrations.
+#   - integer_foreign_key_column    — foreign-key-looking columns must be
+#                                      bigint, matching Rails' MySQL primary keys.
+#   - database_foreign_key          — post-policy migrations must not add
+#                                      database-level foreign key constraints.
 
 require "pathname"
 
-ROOT = Pathname.new(File.expand_path("..", __dir__))
+ROOT = Pathname.new(ENV.fetch("SYRUS_MIGRATION_LINT_ROOT", File.expand_path("..", __dir__)))
 MIGRATION_GLOBS = [
   ROOT.join("db/migrate/*.rb"),
-  ROOT.join("db/*_migrate/*.rb")
+  ROOT.join("db/*_migrate/*.rb"),
+  ROOT.join("plugins/*/db/migrate/*.rb")
 ].freeze
+MIGRATION_PATH_PATTERN = %r{\A(?:db/(?:migrate|[^/]+_migrate)|plugins/[^/]+/db/migrate)/.*\.rb\z}
+NO_FK_POLICY_VERSION = "20260820010000"
 
 # Lint only migrations changed on this branch vs the merge base
 # with origin/main (or `--all` to scan every migration). Legacy
@@ -50,7 +58,7 @@ def diff_paths
   diff = `git diff --name-only --diff-filter=AM #{base}...HEAD 2>/dev/null`
   diff.lines
       .map(&:strip)
-      .select { |rel| rel.match?(%r{\Adb/(?:migrate|[^/]+_migrate)/.*\.rb\z}) }
+      .select { |rel| rel.match?(MIGRATION_PATH_PATTERN) }
       .map { |rel| ROOT.join(rel) }
       .select(&:exist?)
       .sort
@@ -156,6 +164,42 @@ rule "mysql_json_default" do |offenses, path, lines|
   end
 end
 
+rule "integer_foreign_key_column" do |offenses, path, lines|
+  lines.each_with_index do |line, i|
+    next unless line.match?(/\badd_column\s+:\w+,\s+:\w*_id,\s+:integer\b/) ||
+                line.match?(/\badd_(?:reference|belongs_to)\s+:\w+,\s+:\w+,\s*[^\n]*\btype:\s+:integer\b/)
+
+    offenses << Offense.new(
+      rule: "integer_foreign_key_column",
+      path: path,
+      line: i + 1,
+      detail: "foreign-key column declared as :integer — Rails/MySQL primary keys are bigint",
+      remediation: "use an indexed :bigint column or default add_reference type without a database foreign key"
+    )
+  end
+end
+
+rule "database_foreign_key" do |offenses, path, lines|
+  next if path.basename.to_s < "#{NO_FK_POLICY_VERSION}_"
+
+  lines.each_with_index do |line, i|
+    detail = if line.match?(/^\s*add_foreign_key\b/)
+      "top-level `add_foreign_key` would create a database-level constraint"
+    elsif line.match?(/\bforeign_key:\s*(?:true|\{)/)
+      "`foreign_key:` would create a database-level constraint"
+    end
+    next unless detail
+
+    offenses << Offense.new(
+      rule: "database_foreign_key",
+      path: path,
+      line: i + 1,
+      detail: "#{detail} — Syrus intentionally disables database-level FKs",
+      remediation: "add an indexed bigint/reference column without a DB constraint; keep referential behavior in application code"
+    )
+  end
+end
+
 # Helper: did a recent line guard this operation? Looks backwards
 # up to LOOKBACK lines for a matching guard pattern; also matches
 # inline `... unless column_exists?(...)` on the same line.
@@ -182,5 +226,5 @@ end
 warn "[check-migrations] #{offenses.size} offense(s) across #{RULES.size} rules in #{paths.size} changed files"
 offenses.each { |o| warn o.render }
 warn ""
-warn "See CLAUDE.md \"Migrations are idempotent\" and \"JSON columns can't have defaults on MySQL 8\""
+warn "See CLAUDE.md \"Migrations are idempotent\", \"Syrus does not add database-level foreign keys\", and \"JSON columns can't have defaults on MySQL 8\""
 exit 1
