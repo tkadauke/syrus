@@ -40,13 +40,27 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
       "auto_submit_jobs" => false
     )
     expect(active_goal["mode_snapshot"]).to include("mode" => "planning", "repository_id" => repository.id)
-    expect(chat.reload.messages.last.content).to include(
+    message = chat.reload.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Begin work immediately under the newly active goal.")
+    expect(message.content).to include(
       "source" => "goal_continuation",
       "goal_continuation" => true,
       "chat_goal_id" => active_goal["id"]
     )
     expect(chat.scoped_events.last).to have_attributes(source_kind: "goal_started")
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    transcript_message = parse_body.fetch("messages").last
+    expect(transcript_message).to include(
+      "role" => "system",
+      "text" => "Goal continuation started."
+    )
+    expect(transcript_message.dig("content", "internal_prompt")).to include("Begin work immediately under the newly active goal.")
+    expect(transcript_message["text"]).not_to include("Event:")
 
     get "/api/v1/app/chats/#{chat.id}/goal"
 
@@ -64,7 +78,11 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "prompt")).to eq("plan the billing launch")
-    expect(chat.reload.messages.last.content).to include(
+    message = chat.reload.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Begin work immediately under the newly active goal.")
+    expect(message.content).to include(
       "source" => "goal_continuation",
       "chat_goal_id" => chat.active_goal.id
     )
@@ -166,7 +184,11 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(goal.reload).to be_active
-    expect(chat.messages.last.content).to include(
+    message = chat.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Begin work immediately under the newly active goal.")
+    expect(message.content).to include(
       "source" => "goal_continuation",
       "chat_goal_id" => goal.id
     )
@@ -209,7 +231,11 @@ RSpec.describe "API: /api/v1/app/chats/:id/goal", type: :request do
     }.to change(ChatMessage, :count).by(1)
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("active_goal", "status")).to eq("active")
-    expect(chat.messages.last.content).to include("source" => "goal_continuation")
+    message = chat.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content).to include("source" => "goal_continuation")
+    expect(message.content["text"]).to eq("Goal resumed. Continuing...")
+    expect(message.content["internal_prompt"]).to include('"action": "resume"')
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
 
     post "/api/v1/app/chats/#{chat.id}/goal/stop", params: { reason: "operator_stopped" }
