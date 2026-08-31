@@ -261,10 +261,13 @@ class ProcessRunner
         nil
       end
     end
-    @spawned_process.update!(pid: pid, pgid: pgid)
     @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
     sample_resource_attribution!
-    @spawned_process.update_column(:resource_attribution, current_resource_attribution)
+    @spawned_process.update!(
+      pid: pid,
+      pgid: pgid,
+      resource_attribution: current_resource_attribution
+    )
     @last_resource_attribution_persisted_at = Time.current
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] failed to record pid #{pid}: #{e.class}: #{e.message}")
