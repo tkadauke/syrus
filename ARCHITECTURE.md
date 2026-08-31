@@ -327,7 +327,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
 | `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
 | `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips the initial agent implement; runs graders with `local_mode_handoff_fix` as bounded agentic repair, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
-| `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue (subject to `AppSetting.max_concurrent_agent_runs` cap) |
+| `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue but is exempt from the `AppSetting.max_concurrent_agent_runs` cap |
 | `agent_insight` | operator or adaptive insight scheduler requests repository analysis | read-only repository inspection; creates `InsightSuggestion` rows through `submit_insight`; auto-closes the anchor Job and does not open a PR |
 | `external_pr_ingest` | `PollExternalOpenPrsJob` creates a new `external_pr` Job | runs graders on the externally-filed PR; same-repo PRs can receive auto-repair and be pushed; fork PRs get a REQUEST_CHANGES review comment on failure |
 | `external_pr_feedback` | `PollExternalPrJob` finds a qualifying comment on a same-repo `external_pr` Job | mirrors `pr_comment` — address feedback on the existing branch, push; fork PRs can't be pushed to, so they get a `needs_attention` state instead of a Workflow |
@@ -984,11 +984,18 @@ With none of those keys configured, Syrus does not create no-op
 format/generate/grader Steps. As soon as any one is configured, the loop
 includes whichever deterministic autofix Steps apply (`format` and/or
 `generate`) plus `grader_fanout`/`grader_collect`; there is no retry
-loop without a check phase. `formatters:` is conservative: no key means
-no formatting, `formatters: []` opts into plugin-provided defaults, an
-array declares explicit diff-scoped commands, and `false`/`off` disables
-both. `generated:` has no plugin default; it only runs explicit,
-diff-scoped generators and skips entries marked `codegen_ignore`.
+loop without a check phase. The planner treats only a non-empty
+`formatters:` array as configuring the `format` Step, only a non-empty
+`generated:` array as configuring the `generate` Step, and only a
+non-empty `grade:` block as configuring the grader check. Inside a
+materialized `format` Step, the handler remains conservative: no
+`formatters:` key means no formatting, an array declares explicit
+diff-scoped commands, and `false`/`off` disables formatting. The handler
+also supports plugin-provided defaults for `formatters: []`, but that
+empty array by itself does not currently cause `RepoGradeLoopPlan` to
+materialize a `format` Step. `generated:` has no plugin default; it only
+runs explicit, diff-scoped generators and skips entries marked
+`codegen_ignore`.
 
 The optional `adversarial_review` loop applies to Initial, Retry,
 `pr_comment`, and `chat_feedback` Workflows. `RepoAdversarialReviewPlan`
@@ -1389,7 +1396,7 @@ The registry defines twenty-four extension points:
 | `:ci_log_parser` | Claim/parse a CI failure log in a provider-specific format before the built-in `CiLogParser` fallback chain runs; no bundled plugin registers one yet |
 | `:prepare_detector` | Guess safe setup commands from repository files when `.syrus.yml` leaves `prepare` unspecified |
 | `:review_criteria_provider` | Add repository-aware review checklist items to adversarial/visual review prompts |
-| `:autofix_command` | Provide opt-in default formatting commands used when `.syrus.yml` has `formatters: []` |
+| `:autofix_command` | Provide handler-level default formatting commands for a materialized `format` Step when `.syrus.yml` has `formatters: []` |
 | `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |
 | `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
 | `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect (e.g. spawning a daemon), drained most-recently-registered-first on disable — the `tailscale` plugin's `DaemonManager` uses this instead of a hand-written teardown method |
