@@ -224,7 +224,7 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
         </td>
         <td className="px-4 py-3">
           <Link
-            className="text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
+            className="text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
             to={withRoutePrefix(suggestion.repository.insights_path, prefix)}
           >
             {suggestion.repository.slug}
@@ -245,7 +245,7 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
             <Link
-              className="text-xs text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
+              className="text-xs text-brand-emphasis underline hover:no-underline dark:text-brand-emphasis"
               to={withRoutePrefix(suggestion.job_path, prefix)}
             >
               {t("view_job")}

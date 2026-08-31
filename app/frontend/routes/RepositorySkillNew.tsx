@@ -161,7 +161,7 @@ export function SkillOption({ skill, selected, onSelect }: { skill: SkillSummary
     <label
       className={`block cursor-pointer rounded border p-3 text-sm ${
         selected
-          ? "border-terracotta-400 bg-terracotta-50 dark:border-terracotta-700 dark:bg-terracotta-950/30"
+          ? "border-brand/40 bg-brand/10 dark:border-brand/40 dark:bg-brand/10"
           : "border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
       }`}
     >
@@ -195,7 +195,7 @@ function SourceBadge({ source, shadowsBuiltIn }: { source: SkillSummary["source"
   const tone = shadowsBuiltIn
     ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
     : isOverride
-      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+      ? "bg-info/10 text-info"
       : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
   return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
 }

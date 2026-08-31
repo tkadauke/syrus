@@ -68,7 +68,7 @@ export function DocumentPreviewModal({ file, onClose }: { file: PreviewableFile;
           </div>
         ) : null}
         <a className={buttonClasses("secondary", "sm")} href={file.rawUrl} rel="noreferrer" target="_blank">{t("document_preview.open_raw")}</a>
-        <button aria-label={t("document_preview.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
+        <button aria-label={t("document_preview.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
           <CloseIcon className="h-4 w-4" />
         </button>
       </header>

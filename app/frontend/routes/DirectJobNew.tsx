@@ -192,7 +192,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {payload.prompt_templates.map((template) => (
               <button
-                className="rounded border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-blue-700 dark:hover:bg-blue-950/40"
+                className="rounded border border-gray-200 bg-white px-3 py-2.5 text-left hover:border-brand/30 hover:bg-brand/10 focus:outline-none focus:ring-2 focus:ring-brand dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand/40 dark:hover:bg-brand/10"
                 key={template.id}
                 onClick={() => applyTemplate(template)}
                 type="button"
@@ -250,7 +250,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </div>
 
         <div
-          className="cursor-pointer rounded border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-700 dark:hover:bg-blue-950/40"
+          className="cursor-pointer rounded border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 transition-colors hover:border-brand/30 hover:bg-brand/10 dark:border-gray-700 dark:text-gray-400 dark:hover:border-brand/40 dark:hover:bg-brand/10"
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
           onDrop={dropFiles}

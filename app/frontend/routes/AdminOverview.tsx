@@ -249,7 +249,7 @@ function ResourceAdmissionRow({ primary, secondary, metric, href, prefix }: { pr
 function ResourceLink({ href, prefix = "", children }: { href?: string; prefix?: string; children: ReactNode }) {
   if (!href) return <span className="font-medium text-gray-900 dark:text-gray-100">{children}</span>
 
-  return <Link className="font-medium text-blue-600 underline hover:no-underline dark:text-blue-300" to={withRoutePrefix(href, prefix)}>{children}</Link>
+  return <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(href, prefix)}>{children}</Link>
 }
 
 function Metric({

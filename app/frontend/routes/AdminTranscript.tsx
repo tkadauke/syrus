@@ -61,7 +61,7 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
             {payload.workflow_trigger_kind ? <> · {payload.workflow_trigger_kind}</> : null}
           </p>
         </div>
-        <a className="text-sm text-blue-600 dark:text-blue-300 underline hover:no-underline" href={`/admin/runs/${payload.run_id}/transcript/download`}>
+        <a className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" href={`/admin/runs/${payload.run_id}/transcript/download`}>
           {t("transcript.download_jsonl")}
         </a>
       </header>
@@ -226,7 +226,7 @@ function TranscriptRenderItemView({ item }: { item: AdminTranscriptRenderItem })
       if (item.kind === "user_prompt") {
         return (
           <div className="flex justify-end">
-            <pre className="max-w-[85%] whitespace-pre-wrap break-words rounded bg-blue-600 px-4 py-2 text-sm leading-normal text-white dark:bg-blue-500"><AnsiText text={item.text} /></pre>
+            <pre className="max-w-[85%] whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand"><AnsiText text={item.text} /></pre>
           </div>
         )
       }

@@ -83,14 +83,14 @@ function BackendUpdateNotice({ update }: { update: SyrusBackendUpdate }) {
       <span aria-hidden="true" className="mt-1.5 block h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
         {percent !== null ? (
           <span
-            className="block h-full rounded-full bg-terracotta-600 transition-[width] duration-300 ease-out"
+            className="block h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
             style={{ width: `${percent}%` }}
           />
         ) : (
           // No percentage known (phase without one, or compose streamed no
           // parseable pull progress): an indeterminate sweep, stilled for
           // reduced-motion users.
-          <span className="block h-full w-1/3 rounded-full bg-terracotta-600/70 motion-safe:animate-progress-indeterminate" />
+          <span className="block h-full w-1/3 rounded-full bg-brand/70 motion-safe:animate-progress-indeterminate" />
         )}
       </span>
     </div>
