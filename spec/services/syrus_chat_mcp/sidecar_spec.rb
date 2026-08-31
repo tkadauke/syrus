@@ -548,6 +548,41 @@ RSpec.describe Mcp::Sidecar do
       expect(sidecar.instance_variable_get(:@server_context).call[:current_message]).to eq(message)
     end
 
+    it "records escaped stdio tool exceptions with class and cleaned backtrace" do
+      raising_tool = Class.new(MCP::Tool) do
+        tool_name "explode_stdio"
+        description "Raise for stdio usage recording."
+        input_schema(properties: {})
+
+        def self.call(server_context:)
+          raise RuntimeError, "boom"
+        end
+      end
+      sidecar = described_class.new(
+        server_name: described_class::CHAT_ESSENTIAL_SERVER,
+        tools: -> { [ raising_tool ] },
+        server_context: -> { { chat_session: chat_session } }
+      )
+      server = sidecar.build_server
+
+      response = call_tool(server, "explode_stdio")
+
+      expect(response[:error]).to be_present
+      usage = McpToolUsage.sole
+      expect(usage).to have_attributes(
+        surface: "chat",
+        normalized_tool_name: "explode_stdio",
+        status: "failed",
+        error: true,
+        error_class: "RuntimeError",
+        sidecar_mode: "stdio",
+        chat_session_id: chat_session.id
+      )
+      expect(usage.error_message_summary).to eq("boom")
+      expect(usage.backtrace_excerpt).to be_present
+      expect(usage.backtrace_excerpt.bytesize).to be <= McpToolUsageRecorder::BACKTRACE_MAX_BYTES
+    end
+
     it "uses the deferred server name for deferred chat tools" do
       sidecar = described_class.chat(session_id: chat_session.id, tier: :deferred)
 
