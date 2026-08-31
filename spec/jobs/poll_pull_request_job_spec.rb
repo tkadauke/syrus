@@ -1182,8 +1182,12 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(repair_job.reload.last_ci_handled_sha).to eq(sha)
     end
 
-    it "does not dispatch a ci_failure workflow while main is known-broken (landing_paused? && main_health_broken?)" do
-      repository.update!(ci_health: "broken", landing_paused: true)
+    it "does not dispatch a ci_failure workflow while main is known-broken and configured to block work" do
+      repository.update!(
+        ci_health: "broken",
+        landing_paused: true,
+        main_branch_repair_blocks_work: true
+      )
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
           html_url: "u", output: { summary: "fail" } }
@@ -1196,6 +1200,35 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
       expect(Run.count).to eq(run_count)
       expect(job.reload.last_ci_handled_sha).to be_nil
+    end
+
+    it "dispatches ci_failure while main is known-broken when main repair does not block work" do
+      repository.update!(
+        ci_health: "broken",
+        grader_health: "broken",
+        landing_paused: true,
+        main_branch_repair_blocks_work: false
+      )
+      MainBranchHealthCheck.create!(
+        repository: repository,
+        sha: base_sha,
+        checked_at: 1.minute.ago,
+        ci_health: "healthy",
+        grader_health: "healthy",
+        source: "ci_poll"
+      )
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "ci_failure").last
+      expect(wf.artifact("base_sha")).to eq(base_sha)
+      expect(job.reload.last_ci_handled_sha).to eq(sha)
     end
 
     it "dispatches ci_failure normally when landing_paused? is true but main health is not broken" do

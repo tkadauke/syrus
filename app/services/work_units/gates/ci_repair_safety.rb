@@ -61,11 +61,16 @@ module WorkUnits
         repository = job.repository
         return false unless repository
 
-        repository.last_health_checked_sha == base_sha &&
+        return true if repository.last_health_checked_sha == base_sha &&
           repository.last_ci_evaluated_sha == base_sha &&
           repository.last_graded_sha == base_sha &&
           repository.ci_health == "healthy" &&
           repository.grader_health == "healthy"
+
+        MainBranchHealthCheck
+          .where(repository: repository, sha: base_sha)
+          .where(ci_health: %w[healthy not_configured], grader_health: "healthy")
+          .exists?
       end
 
       def require_clean_base_health?

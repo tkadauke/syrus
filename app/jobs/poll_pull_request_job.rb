@@ -493,7 +493,10 @@ class PollPullRequestJob < ApplicationJob
   # fixed, same exemption ci_failure_cap_reached? already grants them.
   def main_health_broken?
     return false if @job.main_branch_repair?
-    return false unless @job.repository.landing_paused? && @job.repository.main_health_broken?
+
+    repository = @job.repository
+    return false unless repository.main_branch_repair_blocks_work?
+    return false unless repository.landing_paused? && repository.main_health_broken?
 
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while main branch is broken")
     true
