@@ -60,8 +60,7 @@ module App
                                      .apply(jobs_base_scope)
                                      .where(state: "queued")
                                      .select(:id)
-          queued_job_ids = queued_scope.pluck(:id)
-          WorkUnits::Ownership.blocked_job_ids(queued_job_ids).size
+          WorkUnits::Ownership.blocked_job_count(queued_scope)
         end
       end
 

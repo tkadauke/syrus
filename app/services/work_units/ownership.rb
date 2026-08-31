@@ -167,6 +167,13 @@ module WorkUnits
       blocked_job_ids([ job&.id ], kinds: kinds, include_landing: include_landing).include?(job.id)
     end
 
+    def self.blocked_job_count(job_scope, kinds: nil, include_landing: false)
+      blocked_unit_job_ids_scope(kinds: kinds, include_landing: include_landing)
+        .where(job_id: job_scope)
+        .distinct
+        .count(:job_id)
+    end
+
     def self.blocked_job_ids(job_ids, kinds: nil, include_landing: false)
       ids = Array(job_ids).map(&:to_i).select(&:positive?)
       return Set.new if ids.empty?

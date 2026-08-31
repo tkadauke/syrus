@@ -249,6 +249,42 @@ RSpec.describe WorkUnits::Ownership do
     expect(described_class.all_blocked_job_ids).to include(admission_blocked.id, dependency_blocked.id)
   end
 
+  it "counts blocked jobs from an Active Record scope without materializing ids" do
+    queued_blocked = Factories.job_record(issue_number: 306, state: "queued")
+    running_blocked = Factories.job_record(repository: queued_blocked.repository, issue_number: 307, state: "running")
+    queued_unblocked = Factories.job_record(repository: queued_blocked.repository, issue_number: 308, state: "queued")
+    landing_blocked = Factories.job_record(repository: queued_blocked.repository, issue_number: 309, state: "queued")
+    attach_work_unit(
+      Workflow.create!(job: queued_blocked, trigger_kind: "initial", state: "running"),
+      member_jobs: [ queued_blocked ],
+      kind: "initial",
+      state: "blocked"
+    )
+    attach_work_unit(
+      Workflow.create!(job: running_blocked, trigger_kind: "initial", state: "running"),
+      member_jobs: [ running_blocked ],
+      kind: "initial",
+      state: "blocked"
+    )
+    attach_work_unit(
+      Workflow.create!(job: queued_unblocked, trigger_kind: "initial", state: "running"),
+      member_jobs: [ queued_unblocked ],
+      kind: "initial",
+      state: "running"
+    )
+    attach_work_unit(
+      Workflow.create!(job: landing_blocked, trigger_kind: "auto_merge", state: "running"),
+      member_jobs: [ landing_blocked ],
+      kind: "auto_merge",
+      state: "blocked"
+    )
+
+    queued_scope = Job.where(id: [ queued_blocked.id, running_blocked.id, queued_unblocked.id, landing_blocked.id ], state: "queued").select(:id)
+
+    expect(described_class.blocked_job_count(queued_scope)).to eq(1)
+    expect(described_class.blocked_job_count(queued_scope, include_landing: true)).to eq(2)
+  end
+
   it "returns blocked metadata keyed by job id" do
     job = Factories.job_record(issue_number: 303)
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
