@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatBytes } from "./format"
+import { formatBytes, formatCurrency } from "./format"
 
 describe("formatBytes", () => {
   it("formats B / KB / MB", () => {
@@ -12,5 +12,15 @@ describe("formatBytes", () => {
   it("returns 'unknown size' for null/undefined", () => {
     expect(formatBytes(null)).toBe("unknown size")
     expect(formatBytes(undefined)).toBe("unknown size")
+  })
+})
+
+describe("formatCurrency", () => {
+  it("formats USD with four decimals by default", () => {
+    expect(formatCurrency(1.23456)).toBe("$1.2346")
+  })
+
+  it("accepts an explicit precision", () => {
+    expect(formatCurrency(1.23456, 2)).toBe("$1.23")
   })
 })

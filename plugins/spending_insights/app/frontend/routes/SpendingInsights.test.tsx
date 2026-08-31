@@ -97,4 +97,65 @@ describe("SpendingInsights scope label translation", () => {
     expect(epicLink).toHaveAttribute("title", "EPIC-181 / Improved bug reports: routing, context, attachments, and transcript")
     expect(epicLink.closest("table")).toHaveClass("table-fixed", "w-full")
   })
+
+  it("formats spending amounts to cents", async () => {
+    renderSpending(basePayload({
+      totals: {
+        week_usd: 0,
+        month_usd: 7448.8414,
+        lifetime_usd: 11200.4337,
+        workflow_lifetime_usd: 10198.6794,
+        chat_lifetime_usd: 1001.7542,
+        average_job_30d_usd: 10.8268,
+        average_merged_pr_30d_usd: 12.6657
+      },
+      breakdowns: {
+        epics: [{
+          id: 268,
+          label: "Delivery Tracks",
+          path: "/epics/268",
+          jobs_count: 13,
+          total_usd: 304.2014,
+          average_job_usd: 23.4001,
+          display_number: "EPIC-268"
+        }],
+        users: [{
+          id: 2,
+          label: "operator@example.com",
+          path: "/profiles/2",
+          jobs_count: 1204,
+          total_usd: 10034.0974,
+          average_job_usd: 8.3339,
+          last_30_days_usd: 7442.3273
+        }],
+        repositories: [],
+        trigger_kinds: [{
+          trigger_kind: "initial",
+          jobs_count: 3,
+          runs_count: 4,
+          total_usd: 99.999,
+          average_usd: 24.994
+        }]
+      },
+      top_runs: [{
+        id: 111,
+        cost_usd: 3.4567,
+        trigger_kind: "initial",
+        agent_provider: "codex",
+        created_at: "2026-07-28T12:00:00Z",
+        job: { id: 3977, title: "Spending precision", path: "/jobs/3977" },
+        repository: { id: 1, slug: "tkadauke/syrus", path: "/repositories/1" },
+        epic: null
+      }],
+      trend: [{ date: "2026-07-28", total_usd: 1.2345 }]
+    }))
+
+    expect(await screen.findByText("$7,448.84")).toBeInTheDocument()
+    expect(screen.getByText("Runs $10,198.68 / chats $1,001.75")).toBeInTheDocument()
+    expect(screen.getByText("$304.20")).toBeInTheDocument()
+    expect(screen.getByText("$7,442.33")).toBeInTheDocument()
+    expect(screen.getByText("$100.00")).toBeInTheDocument()
+    expect(screen.getByText("$3.46")).toBeInTheDocument()
+    expect(screen.queryByText(/\$[0-9,.]+\.[0-9]{4}/)).not.toBeInTheDocument()
+  })
 })
