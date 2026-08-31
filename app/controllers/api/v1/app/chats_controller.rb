@@ -1558,11 +1558,19 @@ module Api
           ApplicationRecord.transaction do
             locked_chat = ChatSession.lock.find(chat_session.id)
             locked_queued_message = locked_chat.queued_messages.find(queued_message.id)
-            user_message = locked_chat.messages.create!(role: "user", content: locked_queued_message.content, sender_user_id: Current.user.id, skip_turn_trigger: !trigger_turn)
+            promoted_role = locked_queued_message.promoted_role
+            trigger_turn = true if promoted_role == "system"
+            user_message = locked_chat.messages.create!(
+              role: promoted_role,
+              content: locked_queued_message.promoted_content,
+              sender_user_id: promoted_role == "user" ? Current.user.id : nil,
+              skip_turn_trigger: promoted_role == "user" && !trigger_turn
+            )
             locked_queued_message.update!(delivered_at: Time.current)
             locked_chat.update!(
               last_message_at: Time.current,
-              title: locked_chat.title.presence
+              title: locked_chat.title.presence,
+              turn_in_flight: trigger_turn
             )
             locked_chat.pin_chat_provider!
           end

@@ -1,4 +1,7 @@
 class ChatQueuedMessage < ApplicationRecord
+  INTERNAL_ROLE_KEY = "_role".freeze
+  PROMOTABLE_ROLES = %w[ user system ].freeze
+
   belongs_to :chat_session
 
   after_commit :broadcast_chat_controls
@@ -21,6 +24,21 @@ class ChatQueuedMessage < ApplicationRecord
   # message is blank.
   def carries_media?
     draft_content.media?
+  end
+
+  def promoted_role
+    role = content.is_a?(Hash) ? content[INTERNAL_ROLE_KEY].to_s : ""
+    PROMOTABLE_ROLES.include?(role) ? role : "user"
+  end
+
+  def promoted_content
+    return content unless content.is_a?(Hash)
+
+    content.except(INTERNAL_ROLE_KEY)
+  end
+
+  def visible_queued_draft?
+    promoted_role == "user"
   end
 
   private

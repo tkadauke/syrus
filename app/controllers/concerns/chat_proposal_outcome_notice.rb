@@ -18,7 +18,9 @@ module ChatProposalOutcomeNotice
         # notice that ChatQueuedMessagePromoter will deliver after the turn ends.
         # The content carries the same proposal_outcome source/acknowledgment fields
         # that ChatTurnJob uses to detect and render a lightweight acknowledgment.
-        chat.chat_queued_messages.create!(content: message.content)
+        chat.chat_queued_messages.create!(
+          content: message.content.merge(ChatQueuedMessage::INTERNAL_ROLE_KEY => message.role)
+        )
         deferred = true
       end
 

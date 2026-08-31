@@ -4852,6 +4852,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     queued = chat.chat_queued_messages.pending.order(:created_at, :id).last
     expect(queued).to be_present
     expect(queued.content).to include(expected_outcome_content)
+    expect(queued.content["_role"]).to eq("system")
+    expect(chat.reload.queued_messages_payload).to eq([])
   end
 
   it "enqueues a proposal outcome ChatTurnJob immediately when no agent turn is active" do
