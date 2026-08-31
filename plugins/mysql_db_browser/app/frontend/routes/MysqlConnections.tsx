@@ -116,7 +116,7 @@ function ConnectionCreateForm({ onNotice }: { onNotice: (message: string | null)
         <ConnectionFieldsGrid idPrefix="new-connection" onChange={setValues} passwordRequired values={values} />
         <div className="flex flex-wrap items-center gap-3">
           <button
-            className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={create.isPending}
             type="submit"
           >
@@ -340,7 +340,7 @@ function ConnectionActions({
     <div>
       <div className={`flex flex-wrap items-start gap-2 ${align === "end" ? "justify-end" : ""}`}>
         <button
-          className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500"
+          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90"
           onClick={onBrowse}
           type="button"
         >
@@ -752,7 +752,7 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
       aria-selected={active}
       className={`border-b-2 px-3 py-2 text-sm font-medium ${
         active
-          ? "border-terracotta-600 text-terracotta-700 dark:text-terracotta-300"
+          ? "border-brand text-brand dark:text-brand-emphasis"
           : "border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
       }`}
       onClick={onClick}
@@ -825,7 +825,7 @@ function DatabaseNode({
                       <button
                         className={`block w-full truncate rounded px-2 py-1 text-left text-xs ${
                           selectedTable === table.name
-                            ? "bg-terracotta-50 dark:bg-terracotta-950 font-medium text-terracotta-700 dark:text-terracotta-300"
+                            ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis"
                             : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-900"
                         }`}
                         onClick={() => onSelectTable(table.name)}

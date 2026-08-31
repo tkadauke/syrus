@@ -74,19 +74,27 @@ RSpec.describe ChatEpicProposalMaterializer do
       prompt: "Create a traceable bundle"
     )
     proposal = epic_proposal
+    proposal.update!(
+      chat_goal: goal,
+      goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
+    )
     schema = proposal.child_proposals.create!(
       chat_session: chat_session,
       slug: "schema",
       title: "Schema",
       body: "Persist it.",
-      repository: repository
+      repository: repository,
+      chat_goal: goal,
+      goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
     )
     ui = proposal.child_proposals.create!(
       chat_session: chat_session,
       slug: "ui",
       title: "UI",
       body: "Render it.",
-      repository: repository
+      repository: repository,
+      chat_goal: goal,
+      goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
     )
     depend_on(ui, schema)
 

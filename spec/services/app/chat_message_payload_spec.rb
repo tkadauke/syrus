@@ -129,7 +129,8 @@ RSpec.describe App::ChatMessagePayload do
       slug: "surface-goal",
       title: "Surface goal",
       body: "Expose this.",
-      kind: "job"
+      kind: "job",
+      chat_goal: goal
     )
     message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Job proposal proposed." })
 

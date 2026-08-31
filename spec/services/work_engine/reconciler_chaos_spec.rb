@@ -911,13 +911,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
     end
 
     def active_workflow!(job:, trigger_kind:, step_kind:, age:)
-      workflow = WorkUnits::Launcher.instantiate(
-        kind: trigger_kind,
-        job: job,
-        artifacts: {},
-        agent_provider: job.agent_provider,
-        source_type: "reconciler_chaos_spec"
-      )
+      workflow = instantiate_active_workflow_fixture!(job: job, trigger_kind: trigger_kind)
       unit = workflow.work_unit
       step = workflow.steps.find_by(kind: step_kind) ||
         Step.create!(workflow: workflow, kind: step_kind, position: workflow.steps.maximum(:position).to_i + 1)
@@ -936,6 +930,71 @@ RSpec.describe "Work engine reconciler chaos simulation" do
       step.update_columns(state: "running", started_at: age.ago, updated_at: age.ago)
       trace << "workflow=#{workflow.id}:active trigger=#{trigger_kind} step=#{step.kind} run=#{run.id}"
       workflow
+    end
+
+    def instantiate_active_workflow_fixture!(job:, trigger_kind:)
+      WorkUnits::Launcher.instantiate(
+        kind: trigger_kind,
+        job: job,
+        artifacts: {},
+        agent_provider: job.agent_provider,
+        source_type: "reconciler_chaos_spec"
+      )
+    rescue WorkUnits::Launcher::LockConflict
+      definition = WorkDefinitions.for(trigger_kind)
+      raise unless definition.landing_lock?
+
+      trace << "trigger=#{trigger_kind}:direct_fixture_after_landing_lock_conflict"
+      instantiate_active_landing_workflow_fixture!(job: job, definition: definition)
+    end
+
+    def instantiate_active_landing_workflow_fixture!(job:, definition:)
+      artifacts = {}
+      members = definition.members_for(job: job, artifacts: artifacts)
+      scope = definition.scope_for(job: job, artifacts: artifacts)
+      ref_metadata = definition.ref_metadata_for(job: job, artifacts: artifacts)
+
+      WorkIntent.transaction do
+        intent = WorkIntent.create!(
+          kind: definition.kind,
+          state: "requested",
+          repository: job.repository,
+          scope_type: scope.type,
+          scope_id: scope.id,
+          priority: job.priority,
+          actor: job.user,
+          source_type: "reconciler_chaos_spec",
+          payload_artifacts: artifacts,
+          **ref_metadata.attributes
+        )
+        unit = WorkUnit.create!(
+          work_intent: intent,
+          kind: definition.kind,
+          state: "queued",
+          repository: job.repository,
+          scope_type: scope.type,
+          scope_id: scope.id,
+          **ref_metadata.attributes
+        )
+        workflow = definition.workflow_template.instantiate(
+          job: job,
+          artifacts: artifacts,
+          agent_provider: job.agent_provider
+        )
+        unit.update!(workflow: workflow)
+        members.each_with_index do |member_job, index|
+          unit.work_unit_members.create!(
+            job: member_job,
+            role: index.zero? ? "primary" : "member"
+          )
+        end
+        definition.lock_keys_for(job: job, member_jobs: members, artifacts: artifacts).each do |lock_key|
+          next if WorkUnits::Ownership.active_unit_for_lock_key(lock_key)
+
+          unit.work_unit_locks.create!(lock_key: lock_key)
+        end
+        workflow
+      end
     end
 
     def stale_auto_retry_after_branch_divergence_recovery

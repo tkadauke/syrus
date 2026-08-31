@@ -7,11 +7,13 @@ import { FilterBar } from "@app/components/FilterBar"
 import { Input } from "@app/components/Input"
 import { Select } from "@app/components/Select"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
+import { useMediaQuery } from "@app/routes/dashboard/components"
 import { Markdown } from "@app/lib/Markdown"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix } from "@app/lib/routing"
+import { useT } from "@app/hooks/useT"
 import {
   acceptDesignDocSuggestion,
   createDesignDoc,
@@ -33,6 +35,7 @@ type SelectionRange = { start: number; end: number; text: string }
 
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode, repositoryId }: { chatId?: number; compact?: boolean; designDocIds?: number[]; mode: SurfaceMode; repositoryId?: string | number }) {
   const params = useParams()
+  const { t } = useT("nav")
   const location = useLocation()
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
@@ -61,6 +64,39 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
   const currentFilter = indexQuery.data?.filter ?? { and: [] }
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const showIndexControls = mode !== "chat"
+  const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
+  const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
+  const filterBar = showIndexControls ? (
+    <div data-testid="design-docs-filter-bar">
+      <FilterBar
+        filter={currentFilter}
+        filterSchema={indexQuery.data?.filter_schema ?? []}
+        pathname={location.pathname}
+        search={search}
+        suggestionSearch={{ surface: "dashboard", subject: "design_doc" }}
+      />
+    </div>
+  ) : null
+  const smartFolders = showIndexControls ? (
+    <AdminSmartFolderNav
+      activeFolderId={activeSmartFolderId}
+      allLabel="All design docs"
+      allPath={mode === "repository" ? location.pathname : "/design_docs"}
+      allowSaveWithoutActiveFolder
+      ariaLabel="Design Docs smart folders"
+      currentFilter={currentFilter}
+      folders={indexQuery.data?.smart_folders ?? []}
+      heading="Folders"
+      onMutationSuccess={() => {
+        void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
+      }}
+      prefix={prefix}
+      queryKey={["design_docs"]}
+      subjectType="design_doc"
+    />
+  ) : null
 
   const createMutation = useMutation({
     mutationFn: () => createDesignDoc({
@@ -93,36 +129,23 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
         </Button>
       </header>
       {notice ? <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{notice}</div> : null}
-      {mode === "chat" ? null : (
-        <div data-testid="design-docs-filter-bar">
-          <FilterBar
-            filter={currentFilter}
-            filterSchema={indexQuery.data?.filter_schema ?? []}
-            pathname={location.pathname}
-            search={search}
-            suggestionSearch={{ surface: "dashboard", subject: "design_doc" }}
-          />
+      {isDesktop ? filterBar : showIndexControls ? (
+        <div className="px-0">
+          <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
+              <span>{t("filters_layout.folders_and_filters")}</span>
+              <span className="text-gray-400 group-open:hidden dark:text-gray-500">{t("filters_layout.show")}</span>
+              <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("filters_layout.hide")}</span>
+            </summary>
+            <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
+              {filterBar}
+              {smartFolders}
+            </div>
+          </details>
         </div>
-      )}
-      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]"}`}>
-        {mode === "chat" ? null : (
-          <AdminSmartFolderNav
-            activeFolderId={activeSmartFolderId}
-            allLabel="All design docs"
-            allPath="/design_docs"
-            allowSaveWithoutActiveFolder
-            ariaLabel="Design Docs smart folders"
-            currentFilter={currentFilter}
-            folders={indexQuery.data?.smart_folders ?? []}
-            heading="Folders"
-            onMutationSuccess={() => {
-              void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
-            }}
-            prefix={prefix}
-            queryKey={["design_docs"]}
-            subjectType="design_doc"
-          />
-        )}
+      ) : null}
+      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : showDesktopInlineFolders ? "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]" : "lg:grid-cols-[20rem_minmax(0,1fr)]"}`}>
+        {showDesktopInlineFolders ? smartFolders : null}
         <DesignDocList
           docs={docs}
           loading={indexQuery.isPending}
@@ -165,7 +188,7 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
         {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
         {docs.map((doc) => (
           <button
-            className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-blue-50 dark:bg-blue-950/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
+            className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
             key={doc.id}
             onClick={() => onSelect(doc.id)}
             type="button"

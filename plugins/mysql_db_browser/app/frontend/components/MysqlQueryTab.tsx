@@ -32,7 +32,7 @@ export function MysqlQueryTab({ connectionId }: { connectionId: number }) {
         />
         <div className="mt-2 flex items-center gap-3">
           <button
-            className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-on-brand hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={run.isPending || !sql.trim()}
             type="submit"
           >

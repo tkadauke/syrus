@@ -1,6 +1,6 @@
 import { withRoutePrefix } from "../lib/routing"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import type { DragEvent, FormEvent, KeyboardEvent } from "react"
+import type { DragEvent, FocusEvent, FormEvent, KeyboardEvent } from "react"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
@@ -239,6 +239,7 @@ function SmartFolderLink({
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(folder.name)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionsVisible, setActionsVisible] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -318,6 +319,12 @@ function SmartFolderLink({
     })
   }
 
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setActionsVisible(false)
+    }
+  }
+
   const displayName = folder.i18n_key
     ? t(`smart_folder_names.${folder.i18n_key}`, { defaultValue: folder.name })
     : folder.name
@@ -331,9 +338,11 @@ function SmartFolderLink({
     )
   }
 
+  const showActions = actionsVisible || menuOpen
+
   if (editing) {
     return (
-      <div className={folderClass(folder.active)}>
+      <div className={`relative ${folderClass(folder.active, true)}`}>
         <Input
           aria-label={`Rename ${folder.name}`}
           autoFocus
@@ -344,6 +353,7 @@ function SmartFolderLink({
           onKeyDown={keyRename}
           value={name}
         />
+        <GripIcon floating />
         <FolderCount active={folder.active} count={folder.count} />
       </div>
     )
@@ -351,29 +361,43 @@ function SmartFolderLink({
 
   return (
     <div
-      className={`${folderClass(folder.active)} relative`}
+      className={`relative ${folderClass(folder.active, true)}`}
       draggable={draggable}
+      onBlur={handleBlur}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDragStart={onDragStart}
       onDrop={onDrop}
+      onFocus={() => setActionsVisible(true)}
+      onMouseEnter={() => setActionsVisible(true)}
+      onMouseLeave={() => {
+        if (!menuOpen) setActionsVisible(false)
+      }}
     >
-      <span aria-label={`Drag ${folder.name}`} className="cursor-grab select-none text-xs text-gray-400" role="img">::</span>
-      <Link aria-label={`${folder.name} ${folder.count}`} className="min-w-0 flex-1 truncate" to={withRoutePrefix(folder.path, prefix)}>
+      <GripIcon floating />
+      <Link aria-label={`${folder.name} ${folder.count}`} className="min-w-0 flex-1 truncate px-2" to={withRoutePrefix(folder.path, prefix)}>
         {folder.name}
       </Link>
-      <FolderCount active={folder.active} count={folder.count} />
-      <button
-        ref={buttonRef}
-        aria-expanded={menuOpen}
-        aria-haspopup="menu"
-        aria-label={`Manage ${folder.name}`}
-        className="rounded px-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-100"
-        onClick={toggleMenu}
-        type="button"
-      >
-        ...
-      </button>
+      <div className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center">
+        {showActions ? (
+          <button
+            ref={buttonRef}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label={`Manage ${folder.name}`}
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+            onClick={(event) => {
+              event.stopPropagation()
+              toggleMenu()
+            }}
+            type="button"
+          >
+            ...
+          </button>
+        ) : (
+          <FolderCount active={folder.active} count={folder.count} />
+        )}
+      </div>
       {menuOpen && menuAnchor ? createPortal(
         <div
           ref={menuRef}
@@ -398,14 +422,27 @@ function SmartFolderLink({
   )
 }
 
+function GripIcon({ floating = false }: { floating?: boolean }) {
+  return (
+    <svg aria-hidden="true" className={`${floating ? "pointer-events-none absolute left-0 top-1/2 -translate-y-1/2" : "-ml-1 shrink-0"} size-4 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:text-gray-500`} fill="none" viewBox="0 0 16 16">
+      <circle cx="6" cy="4" fill="currentColor" r="1" />
+      <circle cx="10" cy="4" fill="currentColor" r="1" />
+      <circle cx="6" cy="8" fill="currentColor" r="1" />
+      <circle cx="10" cy="8" fill="currentColor" r="1" />
+      <circle cx="6" cy="12" fill="currentColor" r="1" />
+      <circle cx="10" cy="12" fill="currentColor" r="1" />
+    </svg>
+  )
+}
+
 function FolderCount({ active, count }: { active: boolean; count: number }) {
   return (
     <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${active ? "bg-brand/10 text-brand dark:text-brand-emphasis" : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"}`}>{count}</span>
   )
 }
 
-function folderClass(active: boolean) {
-  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-800"}`
+function folderClass(active: boolean, withFloatingDragHandle = false) {
+  return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${withFloatingDragHandle ? "group -ml-4 cursor-grab pl-4 active:cursor-grabbing" : ""} ${active ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 dark:bg-gray-800"}`
 }
 
 function menuItemClass(extra = "") {

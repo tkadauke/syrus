@@ -44,6 +44,10 @@ module Mcp::Tools
       jobs[].depends_on_epic_ids instead. When an operator says "set the
       dependency" or "remember to wire the dependency," prefer epic.depends_on
       unless you have a specific reason why some sibling jobs should start sooner.
+      Set for_active_goal=true only when this proposed Epic bundle is directly
+      in service of the currently active goal. Leave it false for opportunistic
+      or unrelated follow-up work so that child Job state changes do not wake
+      the goal loop.
     DESC
 
     input_schema(
@@ -83,13 +87,14 @@ module Mcp::Tools
             required: %w[slug title description]
           },
           description: "Child Jobs to create if the Epic proposal is confirmed."
-        }
+        },
+        for_active_goal: { type: "boolean", description: "Set true only when this Epic bundle directly advances the currently active Chat Goal. Defaults to false so unrelated proposals are not silently attributed to the active goal." }
       },
       required: %w[epic jobs]
     )
 
     class << self
-      def call(epic:, jobs:, server_context:)
+      def call(epic:, jobs:, server_context:, for_active_goal: false)
         chat_session = server_context.fetch(:chat_session)
         user = chat_session.user
 
@@ -118,6 +123,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid(validation_error) if validation_error
         dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
         return Mcp::Tools.invalid(dependency_error) if dependency_error
+        goal_attrs = goal_provenance_attributes(chat_session, for_active_goal)
+        return Mcp::Tools.invalid("for_active_goal requires an active Chat Goal") if goal_attrs == false
 
         job_repositories = {}
         normalized_jobs.each do |job|
@@ -130,9 +137,9 @@ module Mcp::Tools
 
         proposal = nil
         ApplicationRecord.transaction do
-          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic)
+          proposal = upsert_epic_proposal(chat_session, epic_repository, normalized_epic, target_epic, goal_attrs)
           replace_epic_dependency_edges(proposal, chat_session, normalized_epic[:depends_on])
-          child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs)
+          child_by_slug = upsert_child_proposals(chat_session, proposal, job_repositories, normalized_jobs, goal_attrs)
           replace_dependency_edges(chat_session, child_by_slug, normalized_jobs)
           chat_session.messages.create!(
             role: "assistant",
@@ -148,6 +155,23 @@ module Mcp::Tools
       end
 
       private
+
+      def goal_provenance_attributes(chat_session, for_active_goal)
+        unless ActiveModel::Type::Boolean.new.cast(for_active_goal)
+          return {
+            chat_goal: nil,
+            goal_prompt_snapshot: nil
+          }
+        end
+
+        goal = chat_session.active_goal
+        return false unless goal&.active?
+
+        {
+          chat_goal: goal,
+          goal_prompt_snapshot: ChatProposal.goal_prompt_snapshot_for(goal)
+        }
+      end
 
       def normalize_hash(value)
         value.to_h.transform_keys(&:to_s)
@@ -343,7 +367,7 @@ module Mcp::Tools
         user.epics.includes(:repository).find_by(id: epic_id)
       end
 
-      def upsert_epic_proposal(chat_session, repository, epic, target_epic)
+      def upsert_epic_proposal(chat_session, repository, epic, target_epic, goal_attrs)
         proposal = chat_session.proposals.find_or_initialize_by(slug: epic[:slug])
         proposal.assign_attributes(
           repository: repository,
@@ -356,13 +380,14 @@ module Mcp::Tools
           depends_on_job_ids: epic[:depends_on_job_ids],
           epic_depends_on_tokens: JSON.generate(epic[:depends_on]),
           state: "proposed",
-          edited_at: proposal.persisted? ? Time.current : nil
+          edited_at: proposal.persisted? ? Time.current : nil,
+          **goal_attrs
         )
         proposal.save!
         proposal
       end
 
-      def upsert_child_proposals(chat_session, parent, repositories_by_slug, jobs)
+      def upsert_child_proposals(chat_session, parent, repositories_by_slug, jobs, goal_attrs)
         child_by_slug = {}
         jobs.each_with_index do |job, index|
           child = chat_session.proposals.find_or_initialize_by(slug: job[:slug])
@@ -382,7 +407,8 @@ module Mcp::Tools
             depends_on_job_ids: job[:depends_on_job_ids],
             media_ids: job[:media_ids],
             state: "proposed",
-            edited_at: child.persisted? ? Time.current : nil
+            edited_at: child.persisted? ? Time.current : nil,
+            **goal_attrs
           )
           child.save!
           child_by_slug[job[:slug]] = child
