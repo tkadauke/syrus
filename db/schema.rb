@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_131000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_31_132000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1361,6 +1361,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_131000) do
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
     t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
+    t.index ["repository_id", "validity", "created_at", "id"], name: "idx_jobs_classifier_candidates"
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "owner_user_id", "kind", "state"], name: "idx_jobs_dashboard_repo_owner_kind_state"
     t.index ["repository_id", "state", "closure_reason", "finished_at"], name: "idx_jobs_repo_state_closure_finished"
