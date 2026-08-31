@@ -344,7 +344,7 @@ class ChatSession < ApplicationRecord
   end
 
   def queued_messages_payload
-    queued_messages.map do |message|
+    queued_messages.select(&:visible_queued_draft?).map do |message|
       draft = message.draft_content
       {
         id: message.id,

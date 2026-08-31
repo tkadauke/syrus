@@ -20,14 +20,18 @@ class ChatQueuedMessagePromoter
       queued_message = chat.queued_messages.first
       return false unless queued_message
 
+      promoted_role = message_role(queued_message)
       turn_triggered = turn_triggered?(chat, queued_message)
-      role = message_role(queued_message)
-      user_message = chat.messages.create!(role: role, content: queued_message.content, skip_turn_trigger: !turn_triggered)
-      chat.update_columns(turn_in_flight: true, last_message_at: user_message.created_at || Time.current) if role == "system" && turn_triggered
+      user_message = chat.messages.create!(
+        role: promoted_role,
+        content: queued_message.promoted_content,
+        skip_turn_trigger: promoted_role == "user" && !turn_triggered
+      )
       queued_message.update!(delivered_at: Time.current)
       chat.update!(
         last_message_at: Time.current,
-        title: chat.title.presence
+        title: chat.title.presence,
+        turn_in_flight: turn_triggered
       )
       chat.pin_chat_provider!
     end
@@ -39,13 +43,15 @@ class ChatQueuedMessagePromoter
   private
 
   def turn_triggered?(chat, queued_message)
-    return true if goal_continuation?(queued_message)
+    return true if message_role(queued_message) == "system"
 
     chat.should_trigger_agent?(queued_message.text)
   end
 
   def message_role(queued_message)
-    goal_continuation?(queued_message) ? "system" : "user"
+    return "system" if goal_continuation?(queued_message)
+
+    queued_message.promoted_role
   end
 
   def goal_continuation?(queued_message)

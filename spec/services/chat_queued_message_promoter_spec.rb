@@ -112,6 +112,43 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(message.content).to include("text" => "", "attachments" => [ attachment ])
     end
 
+    it "promotes deferred system messages with their system role" do
+      chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => "Proposal rejected. \"Clean up\" was discarded.",
+          "source" => "proposal_notification",
+          "acknowledgment" => "Rejected proposal cleanup."
+        }
+      )
+
+      expect {
+        expect(described_class.deliver_one_if_idle!(chat)).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      message = ChatMessage.where(chat_session: chat).last
+      expect(message.role).to eq("system")
+      expect(message.sender_user).to be_nil
+      expect(message.content).to eq(
+        "text" => "Proposal rejected. \"Clean up\" was discarded.",
+        "source" => "proposal_notification",
+        "acknowledgment" => "Rejected proposal cleanup."
+      )
+      expect(chat.reload).to be_turn_in_flight
+    end
+
+    it "does not expose deferred system messages as editable queued drafts" do
+      chat.chat_queued_messages.create!(
+        content: {
+          "_role" => "system",
+          "text" => "Proposal rejected. \"Clean up\" was discarded.",
+          "source" => "proposal_notification"
+        }
+      )
+
+      expect(chat.reload.queued_messages_payload).to eq([])
+    end
+
     it "marks the queued message as delivered after promotion" do
       queued = enqueue_message("deliver me")
 
