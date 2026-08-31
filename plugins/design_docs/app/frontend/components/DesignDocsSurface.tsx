@@ -64,6 +64,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
   const currentFilter = indexQuery.data?.filter ?? { and: [] }
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
+  const docPath = (docId: string | number) => `${prefix}/design_docs/${docId}${search}`
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const showIndexControls = mode !== "chat"
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
@@ -111,7 +112,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
       void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
       setNotice("Design doc created.")
       if (mode === "chat") setSelectedId(payload.design_doc.id)
-      else navigate(`${prefix}/design_docs/${payload.design_doc.id}`)
+      else navigate(docPath(payload.design_doc.id))
     }
   })
 
@@ -150,7 +151,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
           docs={docs}
           loading={indexQuery.isPending}
           selectedId={effectiveId}
-          onSelect={(docId) => mode === "chat" ? setSelectedId(docId) : navigate(`${prefix}/design_docs/${docId}`)}
+          onSelect={(docId) => mode === "chat" ? setSelectedId(docId) : navigate(docPath(docId))}
         />
         <section className="min-w-0">
           {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
