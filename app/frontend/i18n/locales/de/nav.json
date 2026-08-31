@@ -150,6 +150,7 @@
     "search_value_placeholder": "Suchen...",
     "amount": "Anzahl",
     "unit": "Einheit",
+    "presets": "Voreinstellungen",
     "from": "Von",
     "to": "Bis",
     "min": "Min",
@@ -171,6 +172,7 @@
       "contains_any": "enthält eines von",
       "contains_all": "enthält alle",
       "contains_none": "enthält keines von",
+      "matches": "passt zu",
       "is_true": "ist wahr",
       "is_false": "ist falsch",
       "is_set": "ist gesetzt",
@@ -185,6 +187,15 @@
       "days": "Tagen",
       "weeks": "Wochen",
       "months": "Monaten"
+    },
+    "date_preset": {
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "last_24_hours": "Letzte 24 Stunden",
+      "last_7_days": "Letzte 7 Tage",
+      "last_30_days": "Letzte 30 Tage",
+      "this_week": "Diese Woche",
+      "this_month": "Dieser Monat"
     },
     "bucket": {
       "enum": "Liste",
