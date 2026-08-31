@@ -27,6 +27,8 @@ class ChatQueuedMessage < ApplicationRecord
   end
 
   def promoted_role
+    return "system" if goal_continuation?
+
     role = content.is_a?(Hash) ? content[INTERNAL_ROLE_KEY].to_s : ""
     PROMOTABLE_ROLES.include?(role) ? role : "user"
   end
@@ -51,5 +53,9 @@ class ChatQueuedMessage < ApplicationRecord
 
   def broadcast_chat_controls
     chat_session.broadcast_controls
+  end
+
+  def goal_continuation?
+    content.is_a?(Hash) && content["goal_continuation"] == true
   end
 end

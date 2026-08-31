@@ -20,7 +20,7 @@ class ChatQueuedMessagePromoter
       queued_message = chat.queued_messages.first
       return false unless queued_message
 
-      promoted_role = message_role(queued_message)
+      promoted_role = queued_message.promoted_role
       turn_triggered = turn_triggered?(chat, queued_message)
       user_message = chat.messages.create!(
         role: promoted_role,
@@ -43,18 +43,8 @@ class ChatQueuedMessagePromoter
   private
 
   def turn_triggered?(chat, queued_message)
-    return true if message_role(queued_message) == "system"
+    return true if queued_message.promoted_role == "system"
 
     chat.should_trigger_agent?(queued_message.text)
-  end
-
-  def message_role(queued_message)
-    return "system" if goal_continuation?(queued_message)
-
-    queued_message.promoted_role
-  end
-
-  def goal_continuation?(queued_message)
-    queued_message.content.is_a?(Hash) && queued_message.content["goal_continuation"] == true
   end
 end
