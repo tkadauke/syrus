@@ -1,9 +1,9 @@
 class CreateChatGoals < ActiveRecord::Migration[8.1]
   def change
     create_table :chat_goals do |t|
-      t.references :chat_session, null: false, foreign_key: true
-      t.references :user, null: false, foreign_key: true
-      t.references :repository, foreign_key: true
+      t.bigint :chat_session_id, null: false
+      t.bigint :user_id, null: false
+      t.bigint :repository_id
       t.text :prompt, null: false
       t.text :completion_condition
       t.json :mode_snapshot, null: false
@@ -18,8 +18,11 @@ class CreateChatGoals < ActiveRecord::Migration[8.1]
       t.string :active_slot
       t.timestamps
 
+      t.index :chat_session_id
       t.index [ :chat_session_id, :active_slot ], unique: true
       t.index [ :chat_session_id, :status ]
+      t.index :repository_id
+      t.index :user_id
       t.index [ :user_id, :status ]
     end
   end
