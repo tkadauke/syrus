@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { ChatMessageItem } from "../../api/chats"
-import { retryTextByMessageId } from "./messageDisplay"
+import type { ChatMessageItem, ChatRenderItem } from "../../api/chats"
+import { isLowPrioritySystemMessage, retryTextByMessageId } from "./messageDisplay"
 
 function message(overrides: Partial<ChatMessageItem> & { id: number; role: ChatMessageItem["role"] }): ChatMessageItem {
   return {
@@ -10,6 +10,35 @@ function message(overrides: Partial<ChatMessageItem> & { id: number; role: ChatM
     ...overrides
   }
 }
+
+function renderMessage(overrides: Partial<Extract<ChatRenderItem, { type: "message" }> & ChatMessageItem> = {}): Extract<ChatRenderItem, { type: "message" }> {
+  return {
+    type: "message",
+    id: 1,
+    role: "system",
+    text: "",
+    bookmarkable: false,
+    system: { tone: "neutral", label: "System", body: "" },
+    ...overrides
+  }
+}
+
+describe("isLowPrioritySystemMessage", () => {
+  it("does not hide goal continuation control messages by default", () => {
+    const item = renderMessage({
+      text: "Goal continuation started.",
+      content: {
+        text: "Goal continuation started.",
+        internal_prompt: "Continue the active goal after this goal-linked work boundary.",
+        source: "goal_continuation",
+        goal_continuation: true
+      },
+      system: { tone: "neutral", label: "Goal", body: "Goal continuation started." }
+    })
+
+    expect(isLowPrioritySystemMessage(item)).toBe(false)
+  })
+})
 
 describe("retryTextByMessageId", () => {
   it("maps an error system message to the text of the preceding user message", () => {

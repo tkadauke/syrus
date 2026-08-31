@@ -535,11 +535,11 @@ class ChatTurnJob < ApplicationJob
   end
 
   def attachment_context_for(workspace_path)
-    user_text = @user_message.content["text"].to_s
+    user_text = prompt_text_for_agent
     image_paths = []
     file_paths = []
     attachment_notes = []
-    attachments = Array(@user_message.content["attachments"])
+    attachments = @user_message.content.is_a?(Hash) ? Array(@user_message.content["attachments"]) : []
     return { user_text: user_text, image_paths: image_paths, file_paths: file_paths } if attachments.empty?
 
     attachments_dir = Pathname(workspace_path).join("attachments")
@@ -569,6 +569,14 @@ class ChatTurnJob < ApplicationJob
       image_paths: image_paths,
       file_paths: file_paths
     }
+  end
+
+  def prompt_text_for_agent
+    content = @user_message.content
+    return content["internal_prompt"].to_s if content.is_a?(Hash) && content["internal_prompt"].present?
+    return content["text"].to_s if content.is_a?(Hash)
+
+    content.to_s
   end
 
   def image_attachment_note(attachment, path)
