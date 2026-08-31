@@ -39,6 +39,12 @@ import { storeWorkspacePreference } from "./workspaceTabs"
 import { JobEpicPickerPopup } from "./JobEpicPickerPopup"
 import { ScheduleMessageModal } from "./ScheduleMessageModal"
 
+type SubmittedChatDraft = {
+  messageText: string
+  composerText: string
+  attachments: ChatComposeAttachment[]
+}
+
 
 
 
@@ -167,24 +173,44 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     setDraftAttachments(chatId, attachments)
   }, [chatId, attachments])
 
+  function clearComposerDraft() {
+    setText("")
+    setAttachments([])
+    setAttachmentError(null)
+    try {
+      window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
+    } catch (_error) {
+      // Local storage can be unavailable in hardened browser modes.
+    }
+  }
+
+  function sendComposerDraft(composerText: string, messageText = slashCommandPrompt(composerText, slashCommandContext)) {
+    const draft = {
+      messageText,
+      composerText,
+      attachments
+    }
+    clearComposerDraft()
+    setPendingConfirmation(null)
+    send.mutate(draft)
+  }
+
   const send = useMutation({
-    mutationFn: (messageText: string) => agentActive
-      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), messageText, attachments)
-      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), messageText, attachments),
+    mutationFn: (draft: SubmittedChatDraft) => agentActive
+      ? enqueueChatMessage(appendSearch(payload.paths.app_enqueue_message_path, search), draft.messageText, draft.attachments)
+      : sendChatMessage(appendSearch(payload.paths.app_message_path, search), draft.messageText, draft.attachments),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat, { prepend: true })
-      setText("")
-      try {
-        window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
-      } catch (_error) {
-        // Local storage can be unavailable in hardened browser modes.
-      }
-      setAttachments([])
-      setAttachmentError(null)
       setPendingConfirmation(null)
       onNotice(null)
       onMessageSent?.()
+    },
+    onError: (error, draft) => {
+      setText(draft.composerText)
+      setAttachments(draft.attachments)
+      setAttachmentError(null)
+      onNotice(errorMessage(error, "Message could not be sent."))
     }
   })
   const systemAction = useMutation<ChatPayload | ChatCreatedPayload | ChatBranchPayload | ShareChatPayload, Error, ChatSystemAction>({
@@ -413,8 +439,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
 
     onNotice(null)
-    setPendingConfirmation(null)
-    send.mutate(slashCommandPrompt(text, slashCommandContext))
+    sendComposerDraft(text)
   }
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
@@ -466,7 +491,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
     if (command.name === "/diff") {
-      send.mutate(slashCommandPrompt(`/diff ${id}`, slashCommandContext))
+      sendComposerDraft(`/diff ${id}`)
     }
   }
 
@@ -767,7 +792,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
 
-    send.mutate(pendingConfirmation.text)
+    sendComposerDraft(pendingConfirmation.text, pendingConfirmation.text)
   }
 
   function cancelPendingSlashCommand() {

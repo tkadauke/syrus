@@ -702,6 +702,64 @@ describe("chat compose drafts", () => {
       expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Follow the operator chat draft.")
     })
   }, 30000)
+
+  it("clears the composer immediately when a message send starts", async () => {
+    let resolveMessage: ((response: Response) => void) | null = null
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        return messageRequest
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Please investigate the slow turn start." } })
+    expect(textarea).toHaveValue("Please investigate the slow turn start.")
+    await waitFor(() => {
+      expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Please investigate the slow turn start.")
+    })
+
+    const sendButton = screen.getByRole("button", { name: "Send message" })
+    await waitFor(() => expect(sendButton).not.toBeDisabled())
+    fireEvent.click(sendButton)
+
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) =>
+        String(call[0]) === "/api/v1/app/chats/8/message" &&
+        (call[1] as RequestInit)?.method === "POST" &&
+        (call[1] as RequestInit)?.body === JSON.stringify({ chat_message: { text: "Please investigate the slow turn start." } })
+      )).toBe(true)
+    })
+
+    await act(async () => {
+      resolveMessage?.(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 10,
+            role: "user",
+            tool_name: null,
+            content: { text: "Please investigate the slow turn start." },
+            text: "Please investigate the slow turn start.",
+            bookmarkable: true
+          }
+        ]
+      })))
+      await messageRequest
+    })
+  }, 30000)
 })
 
 describe("chat main container width", () => {
