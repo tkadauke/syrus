@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Filters::Chips::Jobs::OwnerUserId do
+RSpec.describe Filters::Chips::Jobs::OwnerUserId, :ci_only do
   let(:user) { Factories.user }
   let(:other_user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets") }

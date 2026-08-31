@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe PollRepositoryJob do
+RSpec.describe PollRepositoryJob, :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) do
     Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus", polling_enabled: true)

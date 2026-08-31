@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Steps::Base do
+RSpec.describe Steps::Base, :ci_only do
   let(:job)      { Factories.job }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
   let(:step)     { Step.create!(workflow: workflow, kind: "implement", position: 0) }

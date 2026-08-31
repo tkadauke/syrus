@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PollForkReviewPrJob do
+RSpec.describe PollForkReviewPrJob, :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:upstream) { Factories.repository(user: user, owner: "upstream-org", name: "widgets") }
   let(:fork_repo) { Factories.repository(user: user, owner: "acme", name: "widgets-fork", feedback_policy: "auto") }

@@ -1965,7 +1965,7 @@ RSpec.describe StepDispatcher, :ci_only do
   end
 end
 
-RSpec.describe StepDispatcher, "phase admission gate" do
+RSpec.describe StepDispatcher, "phase admission gate", :ci_only do
   include ActiveJob::TestHelper
 
   let(:job_model) { Factories.job_record(state: "queued") }
@@ -2208,7 +2208,7 @@ RSpec.describe StepDispatcher, "phase admission gate" do
   end
 end
 
-RSpec.describe StepDispatcher, "urgent_blocking gate" do
+RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
   include ActiveJob::TestHelper
 
   let(:job_model) { Factories.job }
@@ -2376,7 +2376,7 @@ RSpec.describe StepDispatcher, "urgent_blocking gate" do
   end
 end
 
-RSpec.describe StepDispatcher, "main_health queue gate" do
+RSpec.describe StepDispatcher, "main_health queue gate", :ci_only do
   include ActiveJob::TestHelper
 
   let(:job_model) { Factories.job }
@@ -2521,7 +2521,7 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
   end
 end
 
-RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
+RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason", :ci_only do
   include ActiveJob::TestHelper
 
   let(:job_model) { Factories.job }
@@ -2700,7 +2700,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
   end
 end
 
-RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason" do
+RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason", :ci_only do
   include ActiveJob::TestHelper
 
   let(:job_model) { Factories.job }

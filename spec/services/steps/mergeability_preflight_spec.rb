@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe Steps::MergeabilityPreflight do
+RSpec.describe Steps::MergeabilityPreflight, :ci_only do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user(github_token: "ghp_test") }

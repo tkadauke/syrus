@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe ChatTurnJob do
+RSpec.describe ChatTurnJob, :ci_only do
   let(:user) { Factories.user(claude_oauth_token: "oat-test", github_token: "ghp-test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:chat) { ChatSession.create!(repository: repository, user: user) }

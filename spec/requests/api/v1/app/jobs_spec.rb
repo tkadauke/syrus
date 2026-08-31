@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe "App API job detail", type: :request do
+RSpec.describe "App API job detail", :ci_only, type: :request do
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:job) do

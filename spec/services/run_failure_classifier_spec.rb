@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe RunFailureClassifier do
+RSpec.describe RunFailureClassifier, :ci_only do
   let(:job) { Factories.job }
   let(:run) { job.initial_run }
 

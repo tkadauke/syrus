@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Run do
+RSpec.describe Run, :ci_only do
   include ActiveJob::TestHelper
 
   let(:job) { Factories.job }

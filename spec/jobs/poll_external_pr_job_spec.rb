@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PollExternalPrJob do
+RSpec.describe PollExternalPrJob, :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 

@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::Grader do
+RSpec.describe Steps::Grader, :ci_only do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
   let(:step) do

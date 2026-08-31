@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe MainHealthChangedService do
+RSpec.describe MainHealthChangedService, :ci_only do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

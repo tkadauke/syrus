@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
+RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
   let(:admin) { Factories.user(admin: true) }
   let(:non_admin) { admin; Factories.user }  # second user → not admin
   let(:admin_token) { admin.generate_api_token! }

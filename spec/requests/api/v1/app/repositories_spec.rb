@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "API: /api/v1/app/repositories", type: :request do
+RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

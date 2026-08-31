@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe PollRebaseJob do
+RSpec.describe PollRebaseJob, :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
   let(:job) { Factories.job(user: user, repository: repository, issue_number: 42, pr_number: 7, branch_name: "syrus/issue-42-1") }

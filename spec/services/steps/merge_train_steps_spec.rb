@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe "Steps::MergeTrain*" do
+RSpec.describe "Steps::MergeTrain*", :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", auto_merge_enabled: true) }
   let(:epic) { Factories.epic(user: user, repository: repository) }

@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe Steps::AutoMerge do
+RSpec.describe Steps::AutoMerge, :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", auto_merge_enabled: true) }
   let(:job) { Factories.job(user: user, repository: repository, pr_number: 7, branch_name: "syrus/issue-42-1") }

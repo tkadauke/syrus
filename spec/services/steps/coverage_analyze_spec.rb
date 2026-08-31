@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::CoverageAnalyze do
+RSpec.describe Steps::CoverageAnalyze, :ci_only do
   let(:job) { Factories.job }
   let(:workflow) { job.workflows.last }
   let(:step) do

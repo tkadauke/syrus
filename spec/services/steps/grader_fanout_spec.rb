@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe Steps::GraderFanout do
+RSpec.describe Steps::GraderFanout, :ci_only do
   let(:job)      { Factories.job }
   let(:workflow) { job.workflows.last }
   let(:loop_id)  { SecureRandom.uuid }

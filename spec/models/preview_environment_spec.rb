@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe PreviewEnvironment, type: :model do
+RSpec.describe PreviewEnvironment, :ci_only, type: :model do
   let(:job) { Factories.job }
 
   def build_env(**attrs)
