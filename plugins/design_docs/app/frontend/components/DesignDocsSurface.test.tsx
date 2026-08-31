@@ -110,10 +110,15 @@ function renderSurface(path = "/design_docs") {
         <Routes>
           <Route path="/design_docs" element={<DesignDocsSurface mode="index" />} />
           <Route path="/design_docs/:id" element={<DesignDocsSurface mode="index" />} />
+          <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function RepositoryDesignDocsTestRoute() {
+  return <DesignDocsSurface mode="repository" repositoryId={10} />
 }
 
 function indexPayload() {
@@ -166,6 +171,9 @@ function mockFetch() {
       return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
     }
     if (url.pathname === "/api/v1/app/design_docs" && (!init || init.method === undefined)) {
+      return jsonResponse(indexPayload())
+    }
+    if (url.pathname === "/api/v1/app/repositories/10/design_docs" && (!init || init.method === undefined)) {
       return jsonResponse(indexPayload())
     }
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
@@ -248,6 +256,20 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByRole("navigation", { name: "Design Docs smart folders" })).toBeInTheDocument()
     expect(await screen.findByRole("link", { name: "My docs 1" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
+  })
+
+  it("keeps repository-scoped smart folders visible on desktop because the app sidebar does not own them", async () => {
+    mockFetch()
+    renderSurface("/repositories/10/design_docs")
+
+    await screen.findByRole("link", { name: "My docs 1" })
+    const folderNav = screen.getByRole("navigation", { name: "Design Docs smart folders" })
+    const savedFolderNav = screen.getByRole("navigation", { name: "Design Docs smart folders saved" })
+
+    expect(within(folderNav).getByRole("link", { name: "All design docs" })).toHaveAttribute("href", "/repositories/10/design_docs")
+    expect(within(folderNav).getByRole("link", { name: "My docs 1" })).toBeInTheDocument()
+    expect(within(savedFolderNav).getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
+    expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
   })
 
   it("creates and resolves comments from an editor selection", async () => {

@@ -66,6 +66,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const showIndexControls = mode !== "chat"
+  const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
+  const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
   const filterBar = showIndexControls ? (
     <div data-testid="design-docs-filter-bar">
       <FilterBar
@@ -81,7 +83,7 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
     <AdminSmartFolderNav
       activeFolderId={activeSmartFolderId}
       allLabel="All design docs"
-      allPath="/design_docs"
+      allPath={mode === "repository" ? location.pathname : "/design_docs"}
       allowSaveWithoutActiveFolder
       ariaLabel="Design Docs smart folders"
       currentFilter={currentFilter}
@@ -142,7 +144,8 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
           </details>
         </div>
       ) : null}
-      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : "lg:grid-cols-[20rem_minmax(0,1fr)]"}`}>
+      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : showDesktopInlineFolders ? "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]" : "lg:grid-cols-[20rem_minmax(0,1fr)]"}`}>
+        {showDesktopInlineFolders ? smartFolders : null}
         <DesignDocList
           docs={docs}
           loading={indexQuery.isPending}
