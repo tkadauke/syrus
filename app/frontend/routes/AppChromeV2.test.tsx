@@ -463,7 +463,10 @@ describe("AppChromeV2", () => {
     expect(within(folderNav).getByRole("link", { name: "Open comments 3" })).toHaveAttribute("href", "/design_docs?smart_folder_id=11")
 
     const savedFolderNav = screen.getByRole("navigation", { name: "Design Docs smart folders saved" })
-    expect(within(savedFolderNav).getByRole("link", { name: "Team docs 4" })).toHaveAttribute("href", "/design_docs?smart_folder_id=21")
+    const savedFolderLink = within(savedFolderNav).getByRole("link", { name: "Team docs 4" })
+    expect(savedFolderLink).toHaveAttribute("href", "/design_docs?smart_folder_id=21")
+    expect(within(savedFolderNav).queryByRole("button", { name: "Manage Team docs" })).not.toBeInTheDocument()
+    fireEvent.mouseEnter(savedFolderLink.parentElement!)
     expect(within(savedFolderNav).getByRole("button", { name: "Manage Team docs" })).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalled()
   })
