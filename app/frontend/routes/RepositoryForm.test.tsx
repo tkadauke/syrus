@@ -125,6 +125,21 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(pause).not.toBeChecked()
   })
 
+  it("renders repository setting checkboxes as block-level rows", async () => {
+    mockFetch()
+    renderRoute()
+
+    const polling = (await screen.findAllByLabelText("Polling enabled"))[0]
+    const prepare = screen.getByLabelText("Run prepare step on this repository's Workflows")
+    const autoMerge = screen.getByLabelText("Auto-merge approved Syrus PRs")
+
+    for (const checkbox of [polling, prepare, autoMerge]) {
+      const label = checkbox.closest("label")
+      expect(label).toHaveClass("flex")
+      expect(label).not.toHaveClass("inline-flex")
+    }
+  })
+
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
     mockFetch({
       main_branch_health_enabled: false,

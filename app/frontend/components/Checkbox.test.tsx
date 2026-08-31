@@ -15,6 +15,13 @@ describe("Checkbox", () => {
     expect(screen.getByText("Enable feature")).toBeInTheDocument()
   })
 
+  it("uses a block-level flex wrapper for labeled checkboxes", () => {
+    render(<Checkbox label="Enable feature" />)
+    const label = screen.getByText("Enable feature").closest("label")
+    expect(label).toHaveClass("flex")
+    expect(label).not.toHaveClass("inline-flex")
+  })
+
   it("reflects the checked state", () => {
     render(<Checkbox checked label="Enable feature" readOnly />)
     expect(screen.getByRole("checkbox", { name: "Enable feature" })).toBeChecked()
