@@ -8,6 +8,7 @@ import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { GeminiSetupSheet } from "../components/GeminiSetupSheet"
+import { ChevronIcon } from "../components/ChevronIcon"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../components/WalkthroughRecorder"
 import {
   isWalkthroughVideoFile,
@@ -1097,6 +1098,7 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const [goalTextExpanded, setGoalTextExpanded] = useState(false)
   const agentActive = isAgentActive(payload)
   const busyTitle = agentActive ? t("goal_controls_disabled_agent_active") : undefined
   const disabled = agentActive
@@ -1117,10 +1119,11 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
   const effectiveMode = goalMode(goal, payload)
   const statusLabel = goalStatusLabel(goal.status, t)
   const policyLabel = goalPolicyLabel(goal, effectiveMode, t)
+  const goalTextId = `active-goal-text-${goal.id}`
 
   return (
     <section className="flex w-full flex-col gap-3 rounded border border-info/30 bg-info/5 px-3 py-2.5 text-sm text-gray-800 dark:border-info/40 dark:bg-gray-900 dark:text-gray-100" data-testid="active-goal-strip">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${goal.status === "active" ? "bg-emerald-500" : goal.status === "paused" ? "bg-amber-500" : goal.status === "blocked" ? "bg-red-500" : "bg-gray-400"}`} aria-hidden="true" />
@@ -1128,10 +1131,11 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
             <span className="rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">{statusLabel}</span>
             <span className="text-xs text-gray-500 dark:text-gray-400">{policyLabel}</span>
           </div>
-          <p className="mt-1 break-words text-gray-900 dark:text-gray-100">{goal.prompt}</p>
-          {goal.completion_condition ? <p className="mt-0.5 break-words text-xs text-gray-600 dark:text-gray-400">{t("goal_completion_prefix", { condition: goal.completion_condition })}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <GoalIconButton ariaControls={goalTextId} ariaExpanded={goalTextExpanded} disabled={false} label={goalTextExpanded ? t("goal_collapse") : t("goal_expand")} title={goalTextExpanded ? t("goal_collapse") : t("goal_expand")} onClick={() => setGoalTextExpanded((value) => !value)}>
+            <ChevronIcon className={`h-4 w-4 transition-transform ${goalTextExpanded ? "rotate-90" : ""}`} />
+          </GoalIconButton>
           <GoalIconButton disabled={disabled || mutateGoal.isPending || !canMutateGoal} label={t("goal_edit")} title={busyTitle || t("goal_edit")} onClick={() => setEditOpen(true)}>
             <PencilIcon className="h-4 w-4" />
           </GoalIconButton>
@@ -1149,14 +1153,20 @@ function ActiveGoalStrip({ goal, payload, queryKey, onNotice }: { goal: ChatGoal
           </GoalIconButton>
         </div>
       </div>
+      <div id={goalTextId} className={`min-w-0 break-words text-gray-900 dark:text-gray-100 ${goalTextExpanded ? "max-h-[25vh] overflow-y-auto pr-1" : "line-clamp-1 overflow-hidden"}`} data-testid="active-goal-text">
+        <p className="whitespace-pre-wrap">{goal.prompt}</p>
+        {goal.completion_condition ? <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-400">{t("goal_completion_prefix", { condition: goal.completion_condition })}</p> : null}
+      </div>
       {editOpen ? <GoalEditModal goal={goal} payload={payload} queryKey={queryKey} onClose={() => setEditOpen(false)} onNotice={onNotice} /> : null}
     </section>
   )
 }
 
-function GoalIconButton({ children, disabled, label, title, onClick }: { children: ReactNode; disabled: boolean; label: string; title: string; onClick: () => void }) {
+function GoalIconButton({ ariaControls, ariaExpanded, children, disabled, label, title, onClick }: { ariaControls?: string; ariaExpanded?: boolean; children: ReactNode; disabled: boolean; label: string; title: string; onClick: () => void }) {
   return (
     <button
+      aria-controls={ariaControls}
+      aria-expanded={ariaExpanded}
       aria-label={label}
       className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 transition hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
       disabled={disabled}
