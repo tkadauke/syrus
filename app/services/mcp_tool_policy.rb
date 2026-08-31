@@ -141,6 +141,11 @@ class McpToolPolicy
       Mcp::Tools::ListMemoriesTool,
       Mcp::Tools::GetCoverageReportTool,
       Mcp::Tools::ReadRunWorkerHealthTool,
+      Mcp::Tools::ListRepositoryTestInsightsTool,
+      Mcp::Tools::ReadTestInsightTool,
+      Mcp::Tools::ReadJobTestResultsTool,
+      Mcp::Tools::ReadRunTestResultsTool,
+      Mcp::Tools::CompareTestRuntimeTool,
       Mcp::Tools::StartPreviewTool,
       Mcp::Tools::StopPreviewTool,
       Mcp::Tools::ReadPreviewLogTool
@@ -189,6 +194,9 @@ class McpToolPolicy
       Mcp::Tools::ListJobWorkflowsTool,
       Mcp::Tools::ReadWorkflowTool,
       Mcp::Tools::ReadRunTranscriptTool,
+      Mcp::Tools::ReadJobTestResultsTool,
+      Mcp::Tools::ReadRunTestResultsTool,
+      Mcp::Tools::CompareTestRuntimeTool,
       Mcp::Tools::ListOpenIssuesTool,
       Mcp::Tools::ListOpenPrsTool,
       Mcp::Tools::ReadPrTool,
@@ -240,13 +248,30 @@ class McpToolPolicy
   def apply_coding_filter(tools)
     return tools if @context.role == AgentRole::CHAT_CODING && Feature.coding_mode_enabled?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_CODING_TOOLS.include?(tool) }
+    tools.reject do |tool|
+      Mcp::Sidecar::CHAT_CODING_TOOLS.include?(tool) &&
+        !role_specific_tool_allowed_for_current_context?(tool)
+    end
   end
 
   def apply_local_mode_filter(tools)
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
-    tools.reject { |tool| Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS.include?(tool) }
+    tools.reject do |tool|
+      Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS.include?(tool) &&
+        !role_specific_tool_allowed_for_current_context?(tool)
+    end
+  end
+
+  def role_specific_tool_allowed_for_current_context?(tool)
+    entry = McpToolRegistry.entry_for(tool)
+    return false unless entry&.surface == :chat
+    return false unless entry.required_roles.include?(@context.role)
+
+    feature_flag = entry.feature_flags_by_role&.fetch(@context.role, nil) || entry.feature_flag
+    return Feature.public_send("#{feature_flag}_enabled?") if feature_flag
+
+    true
   end
 
   def apply_supervisor_filter(tools)
@@ -262,6 +287,11 @@ class McpToolPolicy
     tools = [
       Mcp::Tools::ReadLiveStateTool,
       Mcp::Tools::ReadRunWorkerHealthTool,
+      Mcp::Tools::ListRepositoryTestInsightsTool,
+      Mcp::Tools::ReadTestInsightTool,
+      Mcp::Tools::ReadJobTestResultsTool,
+      Mcp::Tools::ReadRunTestResultsTool,
+      Mcp::Tools::CompareTestRuntimeTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::WriteMemoryTool,
       Mcp::Tools::SearchMemoriesTool,

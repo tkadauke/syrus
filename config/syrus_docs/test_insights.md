@@ -138,6 +138,78 @@ results without an N+1.
   result. Search results link directly to the repository Tests tab history
   page for that identity.
 
+## MCP tools
+
+Chat and workflow agents can inspect repository-level Test Insights through
+read-only MCP tools:
+
+- `list_repository_test_insights(repository:, repository_id:, filter:, sort:,
+  direction:, query:, grader_name:, limit:, lookback:, filters:)` returns
+  durable `TestIdentity` rows for a repository the caller can access. Workflow
+  agents can omit `repository`/`repository_id` to default to their current
+  Run's repository. `filter` accepts `recently_seen`, `failing`, `flaky`, and
+  `slow`; `category` is accepted as an alias. `sort` accepts `last_seen`,
+  `last_failed`, `last_duration`, `failure_rate`, `avg_duration`,
+  `p50_duration`, and `p95_duration`. For quick slow-test investigations, use
+  `sort: "last_duration"` with `direction: "desc"` so the list is ranked by
+  each identity's latest recorded duration. For less noisy repository-wide
+  runtime ranking, use `sort: "p95_duration"` or `sort: "avg_duration"`; those
+  sorts read persisted `test_identity_runtime_summaries` rows for the bounded
+  `recent_100` window rather than aggregating raw `test_cases` at request time.
+  The response includes suite/name/file, last status and timestamps, last
+  duration, recent pass/failure counts, failure rate, average duration, runtime
+  summary p50/p95/avg/sample count when available, reasons, and latest run/job
+  references.
+- `read_test_insight(test_identity_id:, history_limit:, include_failures:)`
+  returns one `TestIdentity`, recent execution history, duration points,
+  related grader/run/job references, and bounded failure
+  message/backtrace/output snippets. Use the list tool first to discover a
+  `test_identity_id`.
+- `read_job_test_results(job_id:, grader_name:, include_slow_cases:,
+  include_suites:, case_limit:)` returns ingested results for the latest
+  Workflow on that Job with test data, matching the app's Job Tests tab
+  selection semantics. The default response is compact: one summary per
+  `TestRun` with grader name, counts, duration, test run id, Run id, Workflow
+  id, Job id, bounded failed/error cases, per-case flakiness annotations, and
+  truncation metadata. Pass `grader_name` to inspect one grader, and opt into
+  `include_slow_cases` or `include_suites` only when that extra detail is
+  needed.
+- `read_run_test_results(run_id:, grader_name:, include_slow_cases:,
+  include_suites:, case_limit:)` returns the same compact payload for a
+  specific Run. This is the direct Run-level path for investigating one
+  grader execution without reading transcript logs or using app endpoints.
+- `compare_test_runtime(repository:, repository_id:, test_identity_ids:,
+  query:, grader_name:, limit:, baseline_run_id:, comparison_run_id:,
+  baseline_job_id:, comparison_job_id:, baseline_window:, comparison_window:)`
+  compares selected durable identities across exactly two bounded sources. Each
+  side must be one Run id, one Job id, or one explicit time window with
+  `starts_at`/`ends_at` (aliases `from`/`to` and `start`/`end` are accepted).
+  Run sources compare only that Run's ingested test cases and include
+  sanitized worker-health/command-span correlation from the existing
+  `read_run_worker_health` path. Job sources compare the Job's latest Workflow
+  that has Test Insights data. Window sources compare only selected identities
+  in the provided time bounds. The response includes sample count, avg, p50,
+  p95, latest, min, max, observed bounds, and absolute/percent deltas.
+
+These tools enforce repository visibility at the tool boundary. Workflow
+sidecars are restricted to the current Run's repository; chat sidecars use the
+same repository visibility rules as the app.
+
+Safe query boundaries:
+
+- Repository-wide slow-test lists rank candidates from `test_identities` or
+  persisted `test_identity_runtime_summaries`; they must not aggregate all
+  rows in `test_cases` during a request.
+- Per-identity history and comparison reads are bounded by selected
+  `test_identity_id` values, a specific Run/Job workflow, or explicit time
+  windows. Keep `limit` small and prefer passing `test_identity_ids` discovered
+  from `list_repository_test_insights`.
+- To answer "did this change make tests faster?", first compare the relevant
+  identities with `compare_test_runtime` across the before/after Runs or Jobs,
+  then inspect `worker_health` in the same response for host pressure and
+  command spans. If the run was under CPU/IO/memory pressure, treat runtime
+  deltas as infrastructure-correlated until a clean rerun confirms them.
+
 ## Configuring this for another repository
 
 1. Confirm the test runner can produce results in a format a registered

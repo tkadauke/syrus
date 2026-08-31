@@ -188,6 +188,10 @@ RSpec.describe Mcp::Sidecar do
         resume_landing_queue
         read_queue
         list_repositories
+        list_repository_test_insights
+        read_test_insight
+        read_job_test_results
+        read_run_test_results
         list_open_issues
         list_open_prs
         unapprove_job
