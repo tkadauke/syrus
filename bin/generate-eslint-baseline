@@ -2,7 +2,8 @@
 "use strict"
 
 // Regenerates eslint-rules/baseline.json from the current state of
-// app/frontend. Run this after a follow-up job (buttons, forms, etc.)
+// app/frontend and plugin frontends. Run this after a follow-up job
+// (buttons, forms, etc.)
 // migrates a file's raw elements/classes onto the design-system primitives
 // -- its baseline entry shrinks (or drops out entirely once it hits zero),
 // so the ratchet keeps tightening as adoption grows.
@@ -24,7 +25,7 @@ async function main() {
   const { ESLint } = require("eslint")
   const root = path.resolve(__dirname, "..")
   const eslint = new ESLint({ cwd: root })
-  const results = await eslint.lintFiles(["app/frontend/**/*.{ts,tsx}"])
+  const results = await eslint.lintFiles(["app/frontend/**/*.{ts,tsx}", "plugins/*/app/frontend/**/*.{ts,tsx}"])
 
   const baseline = {}
   for (const result of results) {

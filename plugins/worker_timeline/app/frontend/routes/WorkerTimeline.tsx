@@ -87,7 +87,7 @@ function PendingList({
                   <CopyableSlug className="text-xs" slug={label.jobSlug} />
                 </SlugHoverCard>
                 <span className="text-gray-400 dark:text-gray-500" aria-hidden="true">·</span>
-                <Link className="truncate text-left text-blue-700 underline hover:no-underline dark:text-blue-300" to={withRoutePrefix(`/worker_timeline/workflow?id=${entry.workflow_id}`, prefix)}>
+                <Link className="truncate text-left text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(`/worker_timeline/workflow?id=${entry.workflow_id}`, prefix)}>
                   {label.triggerKind}
                 </Link>
               </span>
@@ -127,7 +127,7 @@ function WorkerTimelineWorkflowDetail() {
 
   return (
     <main aria-label={t("detail_aria")} className="mx-auto max-w-5xl space-y-4 p-6">
-      <Link className="text-sm text-blue-700 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix("/worker_timeline", prefix)}>
+      <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix("/worker_timeline", prefix)}>
         {t("back_to_timeline")}
       </Link>
       <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("detail_heading")}</h1>

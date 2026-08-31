@@ -73,7 +73,7 @@ export function MysqlPickerDropdown({
                 aria-selected={option.value === value}
                 className={`flex w-full items-center px-3 py-1.5 text-left text-xs ${
                   option.value === value
-                    ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200"
+                    ? "bg-brand/10 font-medium text-brand dark:text-brand-emphasis"
                     : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                 }`}
                 key={option.value}

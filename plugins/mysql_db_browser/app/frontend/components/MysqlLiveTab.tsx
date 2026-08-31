@@ -35,7 +35,7 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
               aria-selected={query.id === selectedId}
               className={`rounded border px-3 py-1.5 text-sm font-medium ${
                 query.id === selectedId
-                  ? "border-terracotta-600 bg-terracotta-50 text-terracotta-700 dark:border-terracotta-500 dark:bg-terracotta-950 dark:text-terracotta-300"
+                  ? "border-brand bg-brand/10 text-brand dark:border-brand/70 dark:text-brand-emphasis"
                   : "border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
               }`}
               key={query.id}

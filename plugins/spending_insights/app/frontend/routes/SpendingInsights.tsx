@@ -195,7 +195,7 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
               {sorted.map((row) => (
                 <tr key={row.id}>
                   <td className="max-w-0 px-4 py-3">
-                    <Link className="block truncate font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
+                    <Link className="block truncate font-medium text-brand dark:text-brand-emphasis underline hover:no-underline" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
                       {breakdownLabel(row)}
                     </Link>
                   </td>
@@ -276,11 +276,11 @@ function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: s
                     <div className="text-xs text-gray-500 dark:text-gray-400">{humanize(run.trigger_kind)} / {run.agent_provider}</div>
                   </td>
                   <td className="max-w-0 px-4 py-3">
-                    <Link className="block truncate text-blue-700 dark:text-blue-300 underline hover:no-underline" title={run.job.title || `JOB-${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>{run.job.title || `JOB-${run.job.id}`}</Link>
+                    <Link className="block truncate text-brand dark:text-brand-emphasis underline hover:no-underline" title={run.job.title || `JOB-${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>{run.job.title || `JOB-${run.job.id}`}</Link>
                     {run.epic ? <div className="truncate text-xs text-gray-500 dark:text-gray-400" title={`${run.epic.display_number} / ${run.epic.title}`}>{run.epic.display_number} / {run.epic.title}</div> : null}
                   </td>
                   <td className="max-w-0 px-4 py-3">
-                    <Link className="block truncate font-mono text-xs text-blue-700 dark:text-blue-300 underline hover:no-underline" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>{run.repository.slug}</Link>
+                    <Link className="block truncate font-mono text-xs text-brand dark:text-brand-emphasis underline hover:no-underline" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>{run.repository.slug}</Link>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatCurrency(run.cost_usd)}</td>
                 </tr>
