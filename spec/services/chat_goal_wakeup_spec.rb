@@ -27,11 +27,29 @@ RSpec.describe ChatGoalWakeup, type: :service do
       .and change(ChatMessage, :count).by(1)
 
     message = chat.messages.last
+    expect(message.role).to eq("system")
+    expect(message.content["text"]).to eq("Goal continuation started.")
+    expect(message.content["internal_prompt"]).to include("Continue the active goal after this goal-linked work boundary.")
+    expect(message.content["internal_prompt"]).to include('"kind": "goal_job_implemented"')
     expect(message.content).to include(
       "source" => "goal_continuation",
       "goal_continuation" => true,
       "chat_goal_id" => goal.id
     )
+    expect(ChatTurnJob).to have_been_enqueued.with(chat.id, message.id)
+  end
+
+  it "uses a compact resume display text while preserving the internal continuation prompt" do
+    goal.pause!
+    goal.resume!
+
+    described_class.publish_control!(goal, action: "resume")
+
+    message = chat.messages.last
+    expect(message).to have_attributes(role: "system")
+    expect(message.content["text"]).to eq("Goal resumed. Continuing...")
+    expect(message.content["internal_prompt"]).to include("Continue the active goal after this goal-linked work boundary.")
+    expect(message.content["internal_prompt"]).to include('"action": "resume"')
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, message.id)
   end
 

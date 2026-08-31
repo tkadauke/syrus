@@ -57,6 +57,50 @@ RSpec.describe ChatQueuedMessagePromoter do
       expect(message.content["text"]).to eq("pending message")
     end
 
+    it "promotes goal continuations as system messages while still triggering a turn" do
+      chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+
+      expect {
+        result = described_class.deliver_one_if_idle!(chat)
+        expect(result).to be true
+      }.to have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      message = ChatMessage.where(chat_session: chat).last
+      expect(message).to have_attributes(role: "system")
+      expect(message.content).to include(
+        "text" => "Goal continuation started.",
+        "internal_prompt" => "Continue with private goal context.",
+        "source" => "goal_continuation"
+      )
+      expect(chat.reload).to be_turn_in_flight
+    end
+
+    it "triggers goal continuations even in group chats without an explicit mention" do
+      group_chat = ChatSession.create!(user: user, conversation_kind: "group")
+      group_chat.chat_participants.create!(user: Factories.user, role: "member")
+      group_chat.chat_queued_messages.create!(
+        content: {
+          "text" => "Goal continuation started.",
+          "internal_prompt" => "Continue with private goal context.",
+          "source" => "goal_continuation",
+          "goal_continuation" => true
+        }
+      )
+
+      expect {
+        described_class.deliver_one_if_idle!(group_chat)
+      }.to have_enqueued_job(ChatTurnJob)
+
+      expect(ChatMessage.where(chat_session: group_chat).last.role).to eq("system")
+    end
+
     it "preserves attachments when promoting a queued message" do
       attachment = { "name" => "shot.png", "mime_type" => "image/png", "data" => "abc123" }
       chat.chat_queued_messages.create!(content: { "text" => "", "attachments" => [ attachment ] })

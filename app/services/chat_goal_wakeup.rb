@@ -112,7 +112,8 @@ class ChatGoalWakeup
     @goal.increment!(:iteration_count)
     @chat_session.chat_queued_messages.create!(
       content: {
-        "text" => continuation_prompt(event),
+        "text" => continuation_display_text(event),
+        "internal_prompt" => continuation_prompt(event),
         "requested_by" => "goal",
         "source" => "goal_continuation",
         "goal_continuation" => true,
@@ -122,6 +123,12 @@ class ChatGoalWakeup
       }
     )
     ChatQueuedMessagePromoter.deliver_one_if_idle!(@chat_session)
+  end
+
+  def continuation_display_text(event)
+    return "Goal resumed. Continuing..." if event.payload.dig("work_state", "action") == "resume"
+
+    "Goal continuation started."
   end
 
   def blocked_boundary?(event)
