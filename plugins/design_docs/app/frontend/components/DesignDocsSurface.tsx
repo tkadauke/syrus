@@ -185,7 +185,7 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
         {!loading && docs.length === 0 ? <div className="p-4 text-sm text-gray-600 dark:text-gray-400">No visible design docs match these filters.</div> : null}
         {docs.map((doc) => (
           <button
-            className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-blue-50 dark:bg-blue-950/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
+            className={`block w-full border-b border-gray-100 p-3 text-left last:border-b-0 dark:border-gray-800 ${String(selectedId) === String(doc.id) ? "bg-brand/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
             key={doc.id}
             onClick={() => onSelect(doc.id)}
             type="button"

@@ -54,7 +54,7 @@ export function GitHistory() {
   return (
     <main aria-label={t("aria_label")} className="mx-auto max-w-5xl space-y-5 p-6">
       <header className="border-b border-gray-200 pb-4 dark:border-gray-700">
-        <p className="text-xs font-medium uppercase tracking-wide text-terracotta-600 dark:text-terracotta-400">{t("eyebrow")}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-brand dark:text-brand-emphasis">{t("eyebrow")}</p>
         <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("title")}</h1>
       </header>
 
@@ -112,7 +112,7 @@ function EpicGroupRow({ group }: { group: EpicCommitGroup }) {
   if (!headline) return null
 
   return (
-    <li className="border-l-4 border-terracotta-400 dark:border-terracotta-600">
+    <li className="border-l-4 border-brand/70 dark:border-brand">
       <details open>
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
           <CommitContent commit={headline} emphasized />
@@ -136,7 +136,7 @@ function BundleGroupRow({ group }: { group: BundleCommitGroup }) {
   if (!headline) return null
 
   return (
-    <li className="border-l-4 border-terracotta-400 dark:border-terracotta-600">
+    <li className="border-l-4 border-brand/70 dark:border-brand">
       <details open>
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
           <CommitContent commit={headline} emphasized />
@@ -160,7 +160,7 @@ function JobGroupRow({ group }: { group: JobCommitGroup }) {
   if (!headline) return null
 
   return (
-    <li className="border-l-4 border-terracotta-400 dark:border-terracotta-600">
+    <li className="border-l-4 border-brand/70 dark:border-brand">
       <details open>
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
           <CommitContent commit={headline} emphasized />
@@ -182,7 +182,7 @@ function NestedJobGroupRow({ group }: { group: JobCommitGroup }) {
   if (!headline) return null
 
   return (
-    <div className="border-l-2 border-terracotta-200 dark:border-terracotta-800">
+    <div className="border-l-2 border-brand/30 dark:border-brand/50">
       <details open>
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
           <CommitContent commit={headline} emphasized />
@@ -256,10 +256,10 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.job ? (
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${commit.job.id}`}>{commit.job.slug}</Link>
+          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/jobs/${commit.job.id}`}>{commit.job.slug}</Link>
         ) : null}
         {commit.epic ? (
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
+          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
         ) : null}
         {commit.user ? <span>{t("attribution.by", { name: commit.user.display_name })}</span> : null}
         <OriginLink origin={commit.origin} />
@@ -271,10 +271,10 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.epic ? (
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
+          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
         ) : null}
         {(commit.jobs ?? []).map((job) => (
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
+          <Link className="text-brand hover:underline dark:text-brand-emphasis" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
         ))}
       </span>
     )
@@ -284,7 +284,7 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.epic ? (
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
+          <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${commit.epic.id}`}>{commit.epic.slug}</Link>
         ) : null}
       </span>
     )
@@ -295,7 +295,7 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.bundle ? <span>{t("attribution.bundle", { id: commit.bundle.id })}</span> : null}
         {(commit.jobs ?? []).map((job) => (
-          <Link className="text-blue-600 hover:underline dark:text-blue-400" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
+          <Link className="text-brand hover:underline dark:text-brand-emphasis" key={job.id} to={`/jobs/${job.id}`}>{job.slug}</Link>
         ))}
       </span>
     )
@@ -313,7 +313,7 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.pr_url ? (
-          <a className="text-blue-600 hover:underline dark:text-blue-400" href={commit.pr_url} rel="noopener noreferrer" target="_blank">
+          <a className="text-brand hover:underline dark:text-brand-emphasis" href={commit.pr_url} rel="noopener noreferrer" target="_blank">
             {t("attribution.pr", { number: commit.pr_number })}
           </a>
         ) : (
@@ -335,7 +335,7 @@ function OriginLink({ origin }: { origin: GitHistoryOrigin | undefined }) {
   if (origin.type === "chat") {
     if (!origin.chat_session_id) return <span>{t("origin.chat")}</span>
     return (
-      <Link className="text-blue-600 hover:underline dark:text-blue-400" to={`/chats/${origin.chat_session_id}`}>
+      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/chats/${origin.chat_session_id}`}>
         {origin.chat_title || t("origin.chat")}
       </Link>
     )
@@ -349,7 +349,7 @@ function OriginLink({ origin }: { origin: GitHistoryOrigin | undefined }) {
     if (!origin.issue_url) return null
 
     return (
-      <a className="text-blue-600 hover:underline dark:text-blue-400" href={origin.issue_url} rel="noopener noreferrer" target="_blank">
+      <a className="text-brand hover:underline dark:text-brand-emphasis" href={origin.issue_url} rel="noopener noreferrer" target="_blank">
         {t("origin.issue", { number: origin.issue_number })}
       </a>
     )

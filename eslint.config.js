@@ -32,8 +32,8 @@ const basePlugins = {
 module.exports = [
   {
     // Rules 1 & 2 (raw form elements, duplicated button classes) apply
-    // across all of app/frontend, per the issue scope.
-    files: ["app/frontend/**/*.{ts,tsx}"],
+    // across all first-party and plugin frontend code, per the issue scope.
+    files: ["app/frontend/**/*.{ts,tsx}", "plugins/*/app/frontend/**/*.{ts,tsx}"],
     languageOptions: jsxLanguageOptions,
     plugins: basePlugins,
     rules: {
@@ -44,7 +44,12 @@ module.exports = [
   {
     // Rule 3 (legacy blue-*/terracotta-* tokens) is scoped narrower, to
     // routes and components only, per the issue scope.
-    files: ["app/frontend/routes/**/*.{ts,tsx}", "app/frontend/components/**/*.{ts,tsx}"],
+    files: [
+      "app/frontend/routes/**/*.{ts,tsx}",
+      "app/frontend/components/**/*.{ts,tsx}",
+      "plugins/*/app/frontend/routes/**/*.{ts,tsx}",
+      "plugins/*/app/frontend/components/**/*.{ts,tsx}"
+    ],
     languageOptions: jsxLanguageOptions,
     plugins: basePlugins,
     rules: {

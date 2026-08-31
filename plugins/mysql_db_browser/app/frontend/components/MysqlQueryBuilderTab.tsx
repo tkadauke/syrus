@@ -340,7 +340,7 @@ function ModeButton({ active, children, onClick }: { active: boolean; children: 
       aria-pressed={active}
       className={`rounded border px-2.5 py-1 text-xs font-medium ${
         active
-          ? "border-terracotta-600 bg-terracotta-50 text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200"
+          ? "border-brand bg-brand/10 text-brand dark:text-brand-emphasis"
           : "border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
       }`}
       onClick={onClick}

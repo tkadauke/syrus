@@ -25,7 +25,7 @@ module.exports = {
   meta: {
     type: "problem",
     docs: {
-      description: "Forbid new blue-*/terracotta-* Tailwind utility usage in app/frontend/routes and app/frontend/components; use the semantic color tokens instead."
+      description: "Forbid new blue-*/terracotta-* Tailwind utility usage in frontend routes and components; use the semantic color tokens instead."
     },
     schema: [],
     messages: {
