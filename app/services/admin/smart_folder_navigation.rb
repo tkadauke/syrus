@@ -54,10 +54,29 @@ module Admin
     end
 
     def candidate_folders
-      @candidate_folders ||= SmartFolder
+      @candidate_folders ||= deduplicate_builtin_folders(SmartFolder
         .for_subject(subject)
         .where("user_id IS NULL OR user_id = ?", user.id)
         .order(Arel.sql("CASE WHEN user_id IS NULL THEN 0 ELSE 1 END"), :position, :id)
+        .to_a)
+    end
+
+    def deduplicate_builtin_folders(folders)
+      folders
+        .group_by { |folder| builtin_deduplication_key(folder) }
+        .values
+        .flat_map { |group| group.size == 1 ? group : [ canonical_builtin_folder(group) ] }
+        .sort_by { |folder| [ folder.user_id.nil? ? 0 : 1, folder.position, folder.id ] }
+    end
+
+    def builtin_deduplication_key(folder)
+      return [ folder.id ] unless folder.builtin? && folder.user_id.nil?
+
+      [ folder.kind, folder.subject_type, folder.name ]
+    end
+
+    def canonical_builtin_folder(folders)
+      folders.find { |folder| active_folder&.id == folder.id } || folders.max_by(&:id)
     end
 
     def smart_folder_visible?(folder, count)
