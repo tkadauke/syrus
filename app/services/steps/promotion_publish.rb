@@ -21,16 +21,57 @@ module Steps
     def call
       workspace.setup
       policy = DeliveryPolicy.for(repository: repository)
-      mode = policy.promotion_mode
-
-      if mode == "direct"
-        publish_direct!
-      else
-        publish_via_pull_request!(mode: mode, policy: policy)
-      end
+      PublishMode.for(policy.promotion_mode).new(self, policy: policy).publish
     end
 
     private
+
+    class PublishMode
+      MODES = {
+        "direct" => "Steps::PromotionPublish::PublishMode::Direct",
+        "auto_pr" => "Steps::PromotionPublish::PublishMode::AutoPr",
+        "manual_pr" => "Steps::PromotionPublish::PublishMode::ManualPr"
+      }.freeze
+
+      def self.for(mode)
+        MODES.fetch(mode.to_s).constantize
+      end
+
+      def initialize(publisher, policy:)
+        @publisher = publisher
+        @policy = policy
+      end
+
+      private
+
+      attr_reader :publisher, :policy
+
+      def mode
+        policy.promotion_mode
+      end
+    end
+
+    class PublishMode::Direct < PublishMode
+      def publish
+        publisher.send(:publish_direct!)
+      end
+    end
+
+    class PublishMode::AutoPr < PublishMode
+      def publish
+        publisher.send(
+          :publish_via_pull_request!,
+          mode: mode,
+          auto_merge: !policy.requires_operator_approval_for_promotion?
+        )
+      end
+    end
+
+    class PublishMode::ManualPr < PublishMode
+      def publish
+        publisher.send(:publish_via_pull_request!, mode: mode, auto_merge: false)
+      end
+    end
 
     def source_branch
       workflow.artifact("promotion_source_branch")
@@ -56,12 +97,12 @@ module Steps
             "promotion_publish: #{target_branch} moved since this promotion started; refusing to overwrite newer remote work. #{e.message}"
     end
 
-    def publish_via_pull_request!(mode:, policy:)
+    def publish_via_pull_request!(mode:, auto_merge:)
       push_integration_branch!
       pr_number = open_or_update_pr!
       record_promotion_link!(pr_number: pr_number, pr_state: "open")
 
-      if mode == "auto_pr" && !policy.requires_operator_approval_for_promotion?
+      if auto_merge
         merge_pull_request!(pr_number: pr_number)
       else
         log("promotion_publish: opened PR ##{pr_number} for #{source_branch} -> #{target_branch}; awaiting manual merge (mode=#{mode})")

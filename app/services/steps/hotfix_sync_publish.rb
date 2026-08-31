@@ -26,16 +26,53 @@ module Steps
     def call
       workspace.setup
       policy = DeliveryPolicy.for(repository: repository)
-      mode = policy.hotfix_sync_mode
-
-      if mode == "auto"
-        publish_direct!
-      else
-        publish_via_pull_request!(mode: mode)
-      end
+      PublishMode.for(policy.hotfix_sync_mode).new(self, policy: policy).publish
     end
 
     private
+
+    class PublishMode
+      MODES = {
+        "auto" => "Steps::HotfixSyncPublish::PublishMode::Auto",
+        "auto_pr" => "Steps::HotfixSyncPublish::PublishMode::AutoPr",
+        "manual_pr" => "Steps::HotfixSyncPublish::PublishMode::ManualPr"
+      }.freeze
+
+      def self.for(mode)
+        MODES.fetch(mode.to_s).constantize
+      end
+
+      def initialize(publisher, policy:)
+        @publisher = publisher
+        @policy = policy
+      end
+
+      private
+
+      attr_reader :publisher, :policy
+
+      def mode
+        policy.hotfix_sync_mode
+      end
+    end
+
+    class PublishMode::Auto < PublishMode
+      def publish
+        publisher.send(:publish_direct!)
+      end
+    end
+
+    class PublishMode::AutoPr < PublishMode
+      def publish
+        publisher.send(:publish_via_pull_request!, mode: mode, auto_merge: true)
+      end
+    end
+
+    class PublishMode::ManualPr < PublishMode
+      def publish
+        publisher.send(:publish_via_pull_request!, mode: mode, auto_merge: false)
+      end
+    end
 
     def source_branch
       workflow.artifact("hotfix_sync_source_branch")
@@ -61,12 +98,12 @@ module Steps
             "hotfix_sync_publish: #{target_branch} moved since this hotfix sync started; refusing to overwrite newer remote work. #{e.message}"
     end
 
-    def publish_via_pull_request!(mode:)
+    def publish_via_pull_request!(mode:, auto_merge:)
       push_integration_branch!
       pr_number = open_or_update_pr!
       record_hotfix_sync_link!(pr_number: pr_number, pr_state: "open")
 
-      if mode == "auto_pr"
+      if auto_merge
         merge_pull_request!(pr_number: pr_number)
       else
         log("hotfix_sync_publish: opened PR ##{pr_number} for #{source_branch} -> #{target_branch}; awaiting manual merge (mode=#{mode})")
