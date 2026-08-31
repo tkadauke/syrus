@@ -315,6 +315,36 @@ RSpec.describe Admin::StuckJobExplainer do
     )
   end
 
+  it "reports a first child blocked by a release-ready in-progress Epic as state drift" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Released child",
+      state: "blocked_by_epic"
+    )
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload[:stuck]).to be(true)
+    expect(payload.dig(:dependencies, :unsatisfied)).to be_empty
+    expect(payload.dig(:dependencies, :epic_release_state_drift)).to include(
+      epic_id: epic.id,
+      epic_slug: epic.slug,
+      job_id: job.id,
+      first_child_job_id: job.id,
+      active_child_workflow: false
+    )
+    expect(payload.dig(:recommended_action)).to include(
+      action: "release_epic_block",
+      epic_id: epic.id,
+      job_id: job.id
+    )
+  end
+
   def pr_with_base(ref)
     Struct.new(:base).new(Struct.new(:ref).new(ref))
   end
