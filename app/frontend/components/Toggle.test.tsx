@@ -9,6 +9,13 @@ describe("Toggle", () => {
     expect(screen.getByRole("switch", { name: "Auto-merge" })).toBeInTheDocument()
   })
 
+  it("uses a block-level flex wrapper for labeled toggles", () => {
+    render(<Toggle checked={false} label="Auto-merge" onChange={vi.fn()} />)
+    const label = screen.getByText("Auto-merge").closest("label")
+    expect(label).toHaveClass("flex")
+    expect(label).not.toHaveClass("inline-flex")
+  })
+
   it("reflects the checked state via aria-checked", () => {
     render(<Toggle checked label="Auto-merge" onChange={vi.fn()} />)
     expect(screen.getByRole("switch", { name: "Auto-merge" })).toHaveAttribute("aria-checked", "true")

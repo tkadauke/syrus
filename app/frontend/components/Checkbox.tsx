@@ -24,7 +24,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   if (!label) return input
 
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-text-primary">
+    <label className="flex items-center gap-2 text-sm text-text-primary">
       {input}
       <span>{label}</span>
     </label>
