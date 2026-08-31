@@ -5,6 +5,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
 const docDetail = {
   id: 1,
   display_id: "DOC-1",
@@ -188,22 +190,44 @@ function mockFetch() {
   })
 }
 
+function mockMobileViewport() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
 describe("DesignDocsSurface", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
   })
 
-  it("shows the shared filter bar and smart folders, and navigates into the detail editor", async () => {
+  it("shows the shared filter bar without duplicating desktop smart folders, and navigates into the detail editor", async () => {
     mockFetch()
     renderSurface()
 
     expect(await screen.findByRole("heading", { name: "Design Docs" })).toBeInTheDocument()
-    expect(await screen.findByRole("link", { name: "My docs 1" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /Checkout design/ })).toBeInTheDocument()
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /\+ Add filter/ })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /\+ Add filter/ })).toBeInTheDocument()
     expect(screen.queryByRole("combobox", { name: "Repository filter" })).not.toBeInTheDocument()
-    expect(screen.getByRole("navigation", { name: "Design Docs smart folders" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
@@ -211,6 +235,19 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByText("Suggestions")).toBeInTheDocument()
     expect(screen.getByText("Controls")).toBeInTheDocument()
     expect(screen.getByText("Versions")).toBeInTheDocument()
+  })
+
+  it("shows smart folders and filters in a mobile disclosure", async () => {
+    mockMobileViewport()
+    mockFetch()
+    renderSurface()
+
+    fireEvent.click(await screen.findByText("Folders and filters"))
+
+    expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
+    expect(screen.getByRole("navigation", { name: "Design Docs smart folders" })).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "My docs 1" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Accepted docs 1" })).toBeInTheDocument()
   })
 
   it("creates and resolves comments from an editor selection", async () => {

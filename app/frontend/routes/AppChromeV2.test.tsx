@@ -468,6 +468,58 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("does not render plugin smart folders in the mobile sidebar drawer", async () => {
+    const restoreMatchMedia = mockNarrowViewport()
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({
+          pages: [{
+            id: "design_docs",
+            label: "Design Docs",
+            label_key: null,
+            path: "/design_docs",
+            paths: ["/design_docs"],
+            order: 25,
+            component: "DesignDocs",
+            icon: "document",
+            smart_folder_api_path: "/api/v1/app/design_docs",
+            smart_folder_subject: "design_doc"
+          }]
+        }))
+      }
+
+      if (url.pathname === "/api/v1/app/design_docs") {
+        return Promise.reject(new Error("Mobile sidebar should not fetch plugin smart folders."))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    try {
+      renderAppChrome(<div>Design Docs</div>, {
+        initialEntries: ["/design_docs?smart_folder_id=21"]
+      })
+
+      fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }))
+
+      await waitFor(() => expect(screen.getAllByRole("link", { name: "Design Docs" }).length).toBeGreaterThan(0))
+      const designDocLinks = screen.getAllByRole("link", { name: "Design Docs" })
+      fireEvent.click(designDocLinks[designDocLinks.length - 1])
+
+      await waitFor(() => expect(document.querySelector(".fixed.inset-0.z-40")).not.toBeInTheDocument())
+      expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+      expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/api/v1/app/design_docs"))).toBe(false)
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
   it("highlights the clicked sidebar dashboard tab immediately, before the new subject's data finishes loading", async () => {
     let resolveEpicsFetch: (value: Response) => void = () => {}
     vi.spyOn(window, "fetch").mockImplementation((input) => {
