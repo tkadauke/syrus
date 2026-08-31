@@ -4,6 +4,8 @@ class ProviderCircuitBreaker
   USAGE_LIMIT_WINDOW = 24.hours
   USAGE_LIMIT_OPEN_FOR = 24.hours
   READ_CACHE_TTL = 30.seconds
+  USAGE_LIMIT_EVIDENCE_SCAN_LIMIT = 100
+  USAGE_LIMIT_FAILED_RUN_SCAN_LIMIT = 50
   MIN_FAILURES = 5
   MIN_UNRELATED_JOBS = 3
   REPEAT_SIGNATURE_THRESHOLD = 3
@@ -255,6 +257,7 @@ class ProviderCircuitBreaker
       .unrepaired_for_circuit
       .where("observed_at >= ?", now - USAGE_LIMIT_WINDOW)
       .recent
+      .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
       .detect do |evidence|
         next false if false_positive_codex_evidence?(evidence)
 
@@ -286,6 +289,7 @@ class ProviderCircuitBreaker
     relation
       .includes(:run_diagnostic, :run_failure_classification, :step)
       .order(finished_at: :desc, updated_at: :desc)
+      .limit(USAGE_LIMIT_FAILED_RUN_SCAN_LIMIT)
   end
 
   def restrict_to_usage_limit_candidates(relation)

@@ -1,6 +1,8 @@
 module App
   class ProviderAvailability
     CACHE_TTL = 10.minutes
+    DISPLAY_EVIDENCE_SCAN_LIMIT = 50
+    USAGE_LIMIT_EVIDENCE_SCAN_LIMIT = 100
     @cache_mutex = Mutex.new
     @process_cache = {}
 
@@ -266,6 +268,7 @@ module App
         .unrepaired_for_circuit
         .where("observed_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
         .recent
+        .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
         .detect do |evidence|
           next false if false_positive_codex_evidence?(evidence)
           next false if usage_evidence_reset_at(evidence)&.<= now
@@ -467,7 +470,7 @@ module App
     end
 
     def latest_displayable_evidence(scope)
-      scope.recent.detect { |evidence| !false_positive_codex_evidence?(evidence) }
+      scope.recent.limit(DISPLAY_EVIDENCE_SCAN_LIMIT).detect { |evidence| !false_positive_codex_evidence?(evidence) }
     end
 
     def retry_after_for_usage_signal(signal)
