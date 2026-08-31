@@ -23,6 +23,8 @@ module Steps
         capture_mcp_sidecar_stderr
         raise StepFailed, "agent didn't call submit_visual_review"
       end
+
+      VisualDiffSubmission.enqueue_deferred_for_visual_review(workflow)
     end
 
     private

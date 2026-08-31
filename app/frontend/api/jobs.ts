@@ -710,6 +710,7 @@ export type JobActions = {
   can_start_preview: boolean
   can_deploy: boolean
   can_run_visual_review: boolean
+  can_run_visual_diff: boolean
   can_request_changes: boolean
   can_send_job_upstream: boolean
   send_job_upstream_blocked_reason?: string | null
@@ -828,6 +829,7 @@ export type JobPaths = {
   app_preview_logs_path: string
   app_deploy_path: string
   app_visual_review_path: string
+  app_visual_diff_path: string
   app_request_changes_path: string
   app_ref_movement_actions_path: string
   admin_resource_admission_path: string

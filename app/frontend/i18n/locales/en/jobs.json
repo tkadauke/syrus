@@ -21,6 +21,7 @@
   "check_mergeability": "Check mergeability",
   "retry_pr_ingestion": "Retry PR ingestion",
   "run_visual_review": "Run visual review",
+  "run_visual_diff": "Run before/after comparison",
   "send_upstream": "Send upstream",
   "retry": "Retry",
   "retry_with_feedback": "Retry with feedback",

@@ -249,7 +249,7 @@ class Run < ApplicationRecord
   end
 
   def solid_queue_priority
-    workflow ? workflow_template_class.solid_queue_priority(workflow) : job.solid_queue_priority
+    workflow ? workflow.solid_queue_priority : job.solid_queue_priority
   end
 
   private

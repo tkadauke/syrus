@@ -1844,6 +1844,33 @@ describe("ArtifactsTab", () => {
     expect(image.closest("a")).toHaveAttribute("href", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
   })
 
+  it("renders before_after_visual_diff: linked before and after screenshots", () => {
+    renderArtifactsTab([{
+      type: "visual_diff_comparison",
+      title: "Before/after visual comparison",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "before_after_visual_diff",
+      payload: {
+        pairs: [{
+          title: "Dashboard",
+          before: {
+            title: "Dashboard",
+            image_url: "/api/v1/app/workflows/2/visual_artifact?type=before"
+          },
+          after: {
+            title: "Dashboard",
+            image_url: "/api/v1/app/workflows/1/visual_artifact?type=after"
+          }
+        }]
+      }
+    }])
+
+    expect(screen.getByText("Merge-base / before")).toBeInTheDocument()
+    expect(screen.getByText("PR / after")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Merge-base / before: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/2/visual_artifact?type=before")
+    expect(screen.getByRole("img", { name: "PR / after: Dashboard" })).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=after")
+  })
+
   it("falls back to raw JSON for image_diff artifacts with no image_url", () => {
     renderArtifactsTab([{
       type: "visual_review_screenshot",
@@ -2272,6 +2299,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_start_preview: false,
       can_deploy: false,
       can_run_visual_review: false,
+      can_run_visual_diff: false,
       can_request_changes: false,
       can_send_job_upstream: false,
       linked_chat_id: null,
@@ -2316,6 +2344,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_preview_logs_path: "/api/v1/app/jobs/1/preview/logs",
       app_deploy_path: "/api/v1/app/jobs/1/deploy",
       app_visual_review_path: "/api/v1/app/jobs/1/visual_review",
+      app_visual_diff_path: "/api/v1/app/jobs/1/visual_diff",
       app_request_changes_path: "/api/v1/app/jobs/1/request_changes",
       app_ref_movement_actions_path: "/api/v1/app/jobs/1/ref_movement_actions",
       admin_resource_admission_path: "/admin/resource_admission"
