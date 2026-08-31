@@ -9,6 +9,7 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 
 type SortKey = "label" | "jobs_count" | "total_usd" | "average_job_usd" | "last_30_days_usd" | "runs_count" | "average_usd"
 type SortState = { key: SortKey; direction: "asc" | "desc" }
+const formatSpendingCurrency = (value: number) => formatCurrency(value, 2)
 
 export function SpendingInsightsRoute() {
   const { t } = useT("common")
@@ -47,11 +48,11 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
       </header>
 
       <section aria-label={t("spending.totals_aria")} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric title={t("spending.metric_week")} value={formatCurrency(payload.totals.week_usd)} context={t("spending.context_workflow_runs")} />
-        <Metric title={t("spending.metric_month")} value={formatCurrency(payload.totals.month_usd)} context={t("spending.context_workflow_runs")} />
-        <Metric title={t("spending.metric_lifetime")} value={formatCurrency(payload.totals.lifetime_usd)} context={t("spending.context_runs_chats", { runs: formatCurrency(payload.totals.workflow_lifetime_usd), chats: formatCurrency(payload.totals.chat_lifetime_usd) })} />
-        <Metric title={t("spending.metric_avg_job")} value={formatCurrency(payload.totals.average_job_30d_usd)} context={t("spending.context_last_30_days")} />
-        <Metric title={t("spending.metric_avg_merged_pr")} value={formatCurrency(payload.totals.average_merged_pr_30d_usd)} context={t("spending.context_last_30_days")} />
+        <Metric title={t("spending.metric_week")} value={formatSpendingCurrency(payload.totals.week_usd)} context={t("spending.context_workflow_runs")} />
+        <Metric title={t("spending.metric_month")} value={formatSpendingCurrency(payload.totals.month_usd)} context={t("spending.context_workflow_runs")} />
+        <Metric title={t("spending.metric_lifetime")} value={formatSpendingCurrency(payload.totals.lifetime_usd)} context={t("spending.context_runs_chats", { runs: formatSpendingCurrency(payload.totals.workflow_lifetime_usd), chats: formatSpendingCurrency(payload.totals.chat_lifetime_usd) })} />
+        <Metric title={t("spending.metric_avg_job")} value={formatSpendingCurrency(payload.totals.average_job_30d_usd)} context={t("spending.context_last_30_days")} />
+        <Metric title={t("spending.metric_avg_merged_pr")} value={formatSpendingCurrency(payload.totals.average_merged_pr_30d_usd)} context={t("spending.context_last_30_days")} />
       </section>
 
       <section aria-label={t("spending.trend_aria")} className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
@@ -157,7 +158,7 @@ function TrendChart({ points }: { points: SpendingPayload["trend"] }) {
               x={index * 7 + 1}
               y={160 - barHeight}
             >
-              <title>{point.date}: {formatCurrency(point.total_usd)}</title>
+              <title>{point.date}: {formatSpendingCurrency(point.total_usd)}</title>
             </rect>
           )
         })}
@@ -200,8 +201,8 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.jobs_count}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatCurrency(row.total_usd)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(row.total_usd)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatSpendingCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}</td>
                 </tr>
               ))}
             </tbody>
@@ -235,8 +236,8 @@ function TriggerTable({ rows }: { rows: SpendingTriggerRow[] }) {
               <tr key={row.trigger_kind}>
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{humanize(row.trigger_kind)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.runs_count}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatCurrency(row.total_usd)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatCurrency(row.average_usd)}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(row.total_usd)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatSpendingCurrency(row.average_usd)}</td>
               </tr>
             ))}
           </tbody>
@@ -282,7 +283,7 @@ function TopRunsTable({ payload, prefix }: { payload: SpendingPayload; prefix: s
                   <td className="max-w-0 px-4 py-3">
                     <Link className="block truncate font-mono text-xs text-blue-700 dark:text-blue-300 underline hover:no-underline" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>{run.repository.slug}</Link>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatCurrency(run.cost_usd)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatSpendingCurrency(run.cost_usd)}</td>
                 </tr>
               ))}
             </tbody>
