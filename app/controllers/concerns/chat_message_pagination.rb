@@ -4,9 +4,10 @@
 # These build the keyset-paginated message window (latest page, or the page
 # before a cursor id) and serialize messages through the shared payload
 # builder. On MySQL they force the (session_id, id) cursor index so keyset
-# pagination stays on the intended plan. They read only the chat session's
-# messages, so they mix straight back in with no behavior change. Kept private
-# on include.
+# pagination stays on the intended plan. Active payload reads force the
+# (session_id, deleted_at, id) index so soft-deleted rows don't pollute large
+# chat scans. They read only the chat session's messages, so they mix straight
+# back in with no behavior change. Kept private on include.
 module ChatMessagePagination
   private
 
@@ -35,7 +36,7 @@ module ChatMessagePagination
   end
 
   def force_chat_message_cursor_index(scope)
-    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (index_chat_messages_on_session_id_and_id)"))
+    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_active_tail)"))
   end
 
   def mysql_adapter?

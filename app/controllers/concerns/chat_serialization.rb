@@ -327,7 +327,7 @@ module ChatSerialization
     scope = ChatMessage.active.where(chat_session_id: chat_session_id)
     return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
 
-    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (index_chat_messages_on_session_id_and_id)"))
+    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_active_tail)"))
   end
 
   def hidden_chat_json(chat_session)

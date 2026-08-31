@@ -3322,7 +3322,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["messages"].first).not_to have_key("html")
   end
 
-  it "forces the cursor index for MySQL chat message pagination" do
+  it "forces the active-tail index for MySQL chat message pagination" do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     controller = Api::V1::App::ChatsController.new
 
@@ -3330,7 +3330,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     sql = controller.send(:message_scope, chat).where("id < ?", 123).order(id: :desc).limit(31).to_sql
 
-    expect(sql).to include("FORCE INDEX (index_chat_messages_on_session_id_and_id)")
+    expect(sql).to include("FORCE INDEX (idx_chat_messages_active_tail)")
+    expect(sql).to include("\"chat_messages\".\"deleted_at\" IS NULL")
   end
 
   it "keeps proposal bodies as text instead of pre-rendered HTML" do
