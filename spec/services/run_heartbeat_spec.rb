@@ -17,6 +17,15 @@ RSpec.describe RunHeartbeat do
     expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:00Z"))
   end
 
+  it "uses a coarse default cadence so long-running runs do not hot-write MySQL" do
+    run = create_running_run(last_heartbeat_at: Time.zone.parse("2026-08-20T12:00:00Z"))
+
+    expect(described_class.touch(run, now: Time.zone.parse("2026-08-20T12:00:29Z"))).to be false
+    expect(described_class.touch(run, now: Time.zone.parse("2026-08-20T12:00:31Z"))).to be true
+
+    expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:31Z"))
+  end
+
   it "can force a heartbeat even inside the throttle interval" do
     run = create_running_run(last_heartbeat_at: Time.zone.parse("2026-08-20T12:00:00Z"))
 
@@ -28,11 +37,11 @@ RSpec.describe RunHeartbeat do
   it "skips the write when the database row was already refreshed by another process" do
     run = create_running_run(last_heartbeat_at: Time.zone.parse("2026-08-20T12:00:00Z"))
     stale_copy = Run.find(run.id)
-    run.update_columns(last_heartbeat_at: Time.zone.parse("2026-08-20T12:00:09Z"))
+    run.update_columns(last_heartbeat_at: Time.zone.parse("2026-08-20T12:00:29Z"))
 
-    expect(described_class.touch(stale_copy, now: Time.zone.parse("2026-08-20T12:00:10Z"))).to be false
+    expect(described_class.touch(stale_copy, now: Time.zone.parse("2026-08-20T12:00:30Z"))).to be false
 
-    expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:09Z"))
+    expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:29Z"))
   end
 
   def create_running_run(last_heartbeat_at:)

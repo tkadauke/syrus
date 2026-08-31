@@ -1,5 +1,5 @@
 class RunHeartbeat
-  DEFAULT_INTERVAL = 10.seconds
+  DEFAULT_INTERVAL = 30.seconds
 
   def self.touch(run, now: Time.current, interval: DEFAULT_INTERVAL, force: false)
     return false unless run&.running?
