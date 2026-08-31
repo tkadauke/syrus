@@ -245,7 +245,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <PageHeading className="break-words">{title}</PageHeading>
-        {mode === "edit" && payload.repository.repository_path ? <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+        {mode === "edit" && payload.repository.repository_path ? <Link className="text-sm text-brand dark:text-brand-emphasis underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
           {t('repository_form.back')}
         </Link> : null}
       </header>

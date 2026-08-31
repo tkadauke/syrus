@@ -70,7 +70,7 @@ export function StartBlockedReasonPill({
         {t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason })}
       </TonePill>
       {diagnosticsPath && reason === "workflow_admission_budget" ? (
-        <a className="text-xs text-blue-600 hover:underline dark:text-blue-400" href={diagnosticsPath}>
+        <a className="text-xs text-brand hover:underline dark:text-brand-emphasis" href={diagnosticsPath}>
           {t("common:admission_diagnostics_link")}
         </a>
       ) : null}

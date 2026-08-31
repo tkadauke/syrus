@@ -76,7 +76,7 @@ export function ScheduleMessageModal({
           <label className="block">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Message</span>
             <textarea
-              className="mt-1 block min-h-28 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              className="mt-1 block min-h-28 w-full resize-y rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand focus:ring-brand dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               onChange={(event) => setBody(event.target.value)}
               value={body}
             />

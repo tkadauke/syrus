@@ -52,7 +52,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
         </div>
       )}
       {!compact && (
-        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${id}`}>
+        <Link className="text-xs text-brand hover:underline dark:text-brand-emphasis" to={`/jobs/${id}`}>
           {t("preview_see_more")}
         </Link>
       )}

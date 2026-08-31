@@ -9,7 +9,7 @@ export type PillTone = "red" | "green" | "blue" | "gray" | "amber"
 // hand-rolling their own bg/text/ring literals.
 export const PILL_TONE_CLASSES: Record<PillTone, string> = {
   amber: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800",
-  blue: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:ring-blue-800",
+  blue: "bg-info/10 text-info ring-info/30",
   gray: "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700",
   green: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800",
   red: "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800"
@@ -80,7 +80,7 @@ function RunningSpinner() {
   return (
     <span
       aria-hidden="true"
-      className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700 dark:border-blue-800 dark:border-t-blue-200"
+      className="h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-info/30 border-t-info dark:border-info/30 dark:border-t-info"
       data-running-spinner="true"
     />
   )

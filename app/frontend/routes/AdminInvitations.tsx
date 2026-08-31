@@ -148,7 +148,7 @@ function InvitationRow({ invitation, onNotice }: { invitation: AdminInvitation; 
       <td className="max-w-xl px-4 py-3 font-mono text-xs">
         <button
           aria-label={`Copy signup link for ${invitation.email_address}`}
-          className="group inline-flex items-center gap-1 break-all text-left text-blue-600 dark:text-blue-300 underline hover:no-underline cursor-copy"
+          className="group inline-flex items-center gap-1 break-all text-left text-brand dark:text-brand-emphasis underline hover:no-underline cursor-copy"
           onClick={copyUrl}
           type="button"
         >

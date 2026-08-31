@@ -77,7 +77,7 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
     <>
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <PageHeading>{mode === "new" ? t("new_epic") : t("edit_epic")}</PageHeading>
-        {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-blue-600 underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>{t("back_to_epic")}</Link> : null}
+        {mode === "edit" && payload.epic.epic_path ? <Link className="text-sm text-brand underline hover:no-underline" to={withRoutePrefix(payload.epic.epic_path, prefix)}>{t("back_to_epic")}</Link> : null}
       </header>
 
       {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("save_error"))}</PanelMessage> : null}
