@@ -657,6 +657,46 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
   })
 
+  it("hides the dependency blocked panel while the job is landing", () => {
+    const dependency = {
+      id: 12,
+      source: "parsed",
+      manual: false,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_epic: null,
+      depends_on_job: {
+        id: 3934,
+        kind: "issue",
+        state: "landing",
+        summary_state: "landing",
+        repository_slug: "tkadauke/syrus",
+        issue_number: 3934,
+        issue_title: "Landing dependency",
+        branch_name: null,
+        pr_number: 3934,
+        job_path: "/jobs/3934"
+      }
+    }
+
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "landing", summary_state: "landing" },
+      landing_queue_entry: {
+        position: 10,
+        blocked_reason: null,
+        waiting_for_jobs: []
+      },
+      dependencies: [dependency],
+      unsatisfied_dependencies: [dependency]
+    }))
+
+    expect(screen.getByText("In landing queue: position #10")).toBeInTheDocument()
+    expect(screen.queryByText("Blocked on:")).not.toBeInTheDocument()
+    expect(screen.queryByText("Blocked on 1 dependency:")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Override and force-run" })).not.toBeInTheDocument()
+  })
+
   it("renders epic dependency rows with a link to the epic and a remove button", () => {
     const epicDependency = {
       id: 20,
