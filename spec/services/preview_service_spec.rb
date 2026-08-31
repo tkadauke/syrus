@@ -551,6 +551,46 @@ RSpec.describe PreviewService do
     end
   end
 
+  describe "child heartbeats" do
+    it "only writes liveness heartbeats for stale preview process rows" do
+      service = described_class.new
+      env = create_env(state: "running", port: 28009)
+      now = Time.zone.parse("2026-08-20T12:00:00Z")
+      process = SpawnedProcess.create!(
+        kind: "preview",
+        command: "bin/rails server",
+        hostname: "preview-host",
+        started_at: 2.minutes.ago,
+        last_chunk_at: now - (PreviewService::CHILD_HEARTBEAT_INTERVAL_SECONDS - 1).seconds
+      )
+      service.instance_variable_get(:@children)[env.id] =
+        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28009, spawned_process_id: process.id)
+
+      travel_to(now) { service.send(:heartbeat_children!) }
+
+      expect(process.reload.last_chunk_at).to eq(now - (PreviewService::CHILD_HEARTBEAT_INTERVAL_SECONDS - 1).seconds)
+    end
+
+    it "refreshes stale preview process rows" do
+      service = described_class.new
+      env = create_env(state: "running", port: 28009)
+      now = Time.zone.parse("2026-08-20T12:00:00Z")
+      process = SpawnedProcess.create!(
+        kind: "preview",
+        command: "bin/rails server",
+        hostname: "preview-host",
+        started_at: 2.minutes.ago,
+        last_chunk_at: now - (PreviewService::CHILD_HEARTBEAT_INTERVAL_SECONDS + 1).seconds
+      )
+      service.instance_variable_get(:@children)[env.id] =
+        PreviewService::ChildProcess.new(pid: 99_999, environment_id: env.id, port: 28009, spawned_process_id: process.id)
+
+      travel_to(now) { service.send(:heartbeat_children!) }
+
+      expect(process.reload.last_chunk_at).to eq(now)
+    end
+  end
+
   describe "spawned process reconciliation" do
     it "fails startup immediately when the child exits before health check passes" do
       service = described_class.new

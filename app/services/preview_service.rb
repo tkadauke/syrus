@@ -26,6 +26,7 @@ class PreviewService
   HEALTH_CHECK_TIMEOUT_SECONDS = 120
   HEALTH_CHECK_RETRY_INTERVAL_SECONDS = 2
   GRACEFUL_SHUTDOWN_TIMEOUT_SECONDS = 10
+  CHILD_HEARTBEAT_INTERVAL_SECONDS = ProcessRunner::SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS
 
   ChildProcess = Struct.new(:pid, :environment_id, :port, :spawned_process_id, keyword_init: true)
 
@@ -376,7 +377,11 @@ class PreviewService
     ids = @mutex.synchronize { @children.values.filter_map(&:spawned_process_id) }
     return if ids.empty?
 
-    SpawnedProcess.where(id: ids, finished_at: nil).update_all(last_chunk_at: Time.current, updated_at: Time.current)
+    now = Time.current
+    SpawnedProcess
+      .where(id: ids, finished_at: nil)
+      .where("last_chunk_at IS NULL OR last_chunk_at < ?", now - CHILD_HEARTBEAT_INTERVAL_SECONDS.seconds)
+      .update_all(last_chunk_at: now, updated_at: now)
   end
 
   def honor_kill_requests!
