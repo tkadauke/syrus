@@ -13,6 +13,10 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     job.runs.find_by!(trigger_kind: "initial")
   end
 
+  def filter_query(tree)
+    Filters::QueryParam.encode(tree)
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/insights/spending"
 
@@ -37,7 +41,7 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       admin_job.update_columns(state: "closed", closure_reason: "pr_merged", epic_id: epic.id)
       set_run_cost(initial_run(admin_job), 1.25, created_at: Time.zone.parse("2026-06-03 12:00:00"))
       set_run_cost(initial_run(other_job), 2.50, created_at: Time.zone.parse("2026-06-04 12:00:00"))
-      ChatSession.create!(user: admin, cumulative_cost_usd: 0.75)
+      ChatSession.create!(user: admin, cumulative_cost_usd: 0.75, created_at: Time.zone.parse("2026-06-04 12:00:00"))
 
       sign_in_as(admin)
       get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }
@@ -45,6 +49,10 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body.dig("scope", "admin")).to eq(true)
+      expect(body.dig("filter", "and")).to contain_exactly(
+        { "field" => "created_at", "op" => "between", "value" => [ "2026-06-01", "2026-06-05" ] }
+      )
+      expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("repository_id", "user_id", "created_at", "agent_provider", "trigger_kind", "epic_id")
       expect(body.dig("totals", "lifetime_usd")).to eq(4.5)
       expect(body.dig("totals", "workflow_lifetime_usd")).to eq(3.75)
       expect(body.dig("totals", "chat_lifetime_usd")).to eq(0.75)
@@ -162,6 +170,72 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     expect(body.fetch("trend").select { |point| point["total_usd"].positive? }).to contain_exactly(
       { "date" => "2026-06-02", "total_usd" => 0.4 }
     )
+  end
+
+  it "applies FilterBar query filters across the whole spending payload" do
+    travel_to Time.zone.local(2026, 7, 1, 12, 0, 0) do
+      admin = Factories.user(admin: true, email_address: "admin@example.com")
+      included_user = Factories.user(email_address: "included@example.com")
+      excluded_user = Factories.user(email_address: "excluded@example.com")
+      repo = Factories.repository(user: included_user, owner: "acme", name: "widgets")
+      other_repo = Factories.repository(user: excluded_user, owner: "acme", name: "other")
+      included = Factories.job(user: included_user, repository: repo, issue_number: 303)
+      excluded_repo = Factories.job(user: included_user, repository: other_repo, issue_number: 304)
+      excluded_user_job = Factories.job(user: excluded_user, repository: repo, issue_number: 305)
+      initial_run(included).update!(agent_provider: "codex")
+      initial_run(excluded_repo).update!(agent_provider: "codex")
+      initial_run(excluded_user_job).update!(agent_provider: "codex")
+      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      set_run_cost(initial_run(excluded_repo), 0.60, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      set_run_cost(initial_run(excluded_user_job), 0.80, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      ChatSession.create!(user: included_user, cumulative_cost_usd: 0.25, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+
+      q = filter_query(
+        "and" => [
+          { "field" => "created_at", "op" => "between", "value" => [ "2026-06-01", "2026-06-05" ] },
+          { "field" => "repository_id", "op" => "is", "value" => repo.id },
+          { "field" => "user_id", "op" => "is", "value" => included_user.id },
+          { "field" => "agent_provider", "op" => "is", "value" => "codex" }
+        ]
+      )
+
+      sign_in_as(admin)
+      get "/api/v1/app/insights/spending", params: { q: q }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("filters", "repository_id")).to eq(repo.id)
+      expect(body.dig("filters", "user_id")).to eq(included_user.id)
+      expect(body.dig("filters", "agent_provider")).to eq("codex")
+      expect(body.dig("totals", "lifetime_usd")).to eq(0.4)
+      expect(body.dig("breakdowns", "repositories")).to contain_exactly(include("label" => "acme/widgets", "total_usd" => 0.4))
+      expect(body.dig("breakdowns", "users")).to contain_exactly(include("label" => "included@example.com", "total_usd" => 0.4))
+      expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(included).id, "cost_usd" => 0.4))
+    end
+  end
+
+  it "keeps the default date window when FilterBar query filters omit datetime" do
+    travel_to Time.zone.local(2026, 7, 1, 12, 0, 0) do
+      user = Factories.user(email_address: "mine@example.com")
+      repo = Factories.repository(user: user, owner: "acme", name: "widgets")
+      included = Factories.job(user: user, repository: repo, issue_number: 303)
+      old = Factories.job(user: user, repository: repo, issue_number: 304)
+      set_run_cost(initial_run(included), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+      set_run_cost(initial_run(old), 9.99, created_at: Time.zone.parse("2026-01-02 12:00:00"))
+
+      sign_in_as(user)
+      get "/api/v1/app/insights/spending", params: {
+        q: filter_query("and" => [ { "field" => "repository_id", "op" => "is", "value" => repo.id } ])
+      }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("filter", "and")).to include(
+        { "field" => "created_at", "op" => "between", "value" => [ "2026-04-02", "2026-07-01" ] },
+        { "field" => "repository_id", "op" => "is", "value" => repo.id }
+      )
+      expect(body.dig("totals", "lifetime_usd")).to eq(0.4)
+    end
   end
 
   it "ignores unsupported agent provider filters" do

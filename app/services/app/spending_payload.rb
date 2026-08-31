@@ -1,6 +1,6 @@
 module App
   class SpendingPayload
-    DEFAULT_WINDOW_DAYS = 90
+    DEFAULT_WINDOW_DAYS = App::SpendingFilter::DEFAULT_WINDOW_DAYS
     TOP_RUN_LIMIT = 10
     TREND_LIMIT_DAYS = 370
 
@@ -8,19 +8,18 @@ module App
       @user = user
       @params = params
       @today = Time.zone.today
-      @start_date = parse_date(params[:start_date]) || (@today - DEFAULT_WINDOW_DAYS.days)
-      @end_date = parse_date(params[:end_date]) || @today
-      @start_date, @end_date = @end_date, @start_date if @start_date > @end_date
-      @repository_id = params[:repository_id].presence
-      @epic_id = params[:epic_id].presence
-      @agent_provider = parse_agent_provider(params[:agent_provider])
+      @filter = App::SpendingFilter.from_params(params, user: user)
+      @start_date = @filter.start_date
+      @end_date = @filter.end_date
     end
 
     def as_json(*)
       PerformanceLogging.phase("spending_payload", admin: user.admin?) do
         {
           scope: scope_json,
+          filter: filter.to_h,
           filters: filters_json,
+          controls: controls_json,
           totals: PerformanceLogging.phase("spending.totals") { totals_json },
           breakdowns: {
             epics: PerformanceLogging.phase("spending.breakdown.epics") { epic_breakdown },
@@ -36,7 +35,7 @@ module App
 
     private
 
-    attr_reader :user, :start_date, :end_date, :today, :agent_provider, :repository_id, :epic_id
+    attr_reader :user, :start_date, :end_date, :today, :filter
 
     def scope_json
       {
@@ -51,10 +50,18 @@ module App
         start_date: start_date.iso8601,
         end_date: end_date.iso8601,
         default_window_days: DEFAULT_WINDOW_DAYS,
-        agent_provider: agent_provider,
-        repository_id: repository_id&.to_i,
-        epic_id: epic_id&.to_i,
+        agent_provider: filter_value("agent_provider"),
+        repository_id: filter_value("repository_id")&.to_i,
+        epic_id: filter_value("epic_id")&.to_i,
+        user_id: filter_value("user_id")&.to_i,
+        trigger_kind: filter_value("trigger_kind"),
         agent_providers: available_agent_providers
+      }
+    end
+
+    def controls_json
+      {
+        filter_schema: Filters::Schema.for(subject: :spending_report, user: user)
       }
     end
 
@@ -91,39 +98,33 @@ module App
 
     def scoped_runs
       relation = Run.where.not(cost_usd: nil)
-      relation = relation.joins(:job).where(jobs: { repository_id: repository_id }) if repository_id.present?
-      relation = relation.joins(:job).where(jobs: { epic_id: epic_id }) if epic_id.present?
-      return relation if user.admin?
+      relation = relation.where(user_id: user.id) unless user.admin?
 
-      relation.where(user_id: user.id)
+      filter.apply(relation)
     end
 
     def scoped_jobs
-      relation = Job.all
-      relation = relation.where(repository_id: repository_id) if repository_id.present?
-      relation = relation.where(epic_id: epic_id) if epic_id.present?
-      return relation if user.admin?
-
-      relation.where(user_id: user.id)
+      Job.where(id: scoped_runs.select(:job_id))
     end
 
     def scoped_chat_sessions
-      return ChatSession.none if repository_id.present? || epic_id.present?
+      return ChatSession.none if run_only_filter?
 
       relation = ChatSession.where.not(cumulative_cost_usd: nil)
+      relation = relation.where(created_at: start_date.beginning_of_day..end_date.end_of_day)
+      relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 
       relation.where(user_id: user.id)
     end
 
     def provider_scoped_runs
-      return scoped_runs if agent_provider.blank?
-
-      scoped_runs.where(agent_provider: agent_provider)
+      scoped_runs
     end
 
     def provider_scoped_chat_sessions
-      return scoped_chat_sessions if agent_provider.blank? || agent_provider == "claude"
+      provider = filter_value("agent_provider")
+      return scoped_chat_sessions if provider.blank? || provider == "claude"
 
       scoped_chat_sessions.none
     end
@@ -139,14 +140,13 @@ module App
     def jobs_with_windowed_run_cost(first_date, last_date)
       scoped_jobs
         .joins(:runs)
-        .where.not(runs: { cost_usd: nil })
+        .where(runs: { id: scoped_runs.select(:id) })
         .where(runs: { created_at: first_date.beginning_of_day..last_date.end_of_day })
-        .then { |relation| agent_provider.present? ? relation.where(runs: { agent_provider: agent_provider }) : relation }
     end
 
     def available_agent_providers
       @available_agent_providers ||= begin
-        providers = scoped_runs.distinct.pluck(:agent_provider).compact
+        providers = base_accessible_runs.distinct.pluck(:agent_provider).compact
         providers << "claude" if scoped_chat_sessions.where("cumulative_cost_usd > 0").exists?
         User.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
           { value: provider, label: App::Presentation.agent_provider_label(provider) }
@@ -362,12 +362,23 @@ module App
       nil
     end
 
-    def parse_agent_provider(value)
-      provider = value.to_s.presence
-      return if provider.blank?
-      return provider if User.agent_providers.include?(provider) && available_agent_providers.any? { |option| option[:value] == provider }
+    def base_accessible_runs
+      relation = Run.where.not(cost_usd: nil)
+      return relation if user.admin?
 
-      nil
+      relation.where(user_id: user.id)
+    end
+
+    def filter_value(field)
+      filter.exact_value(field)
+    end
+
+    def run_only_filter?
+      (filter_fields - %w[created_at agent_provider user_id]).any?
+    end
+
+    def filter_fields
+      filter.fields
     end
 
     def decimal_to_float(value)
