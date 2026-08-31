@@ -48,9 +48,11 @@ class TestIdentityRuntimeSummary < ApplicationRecord
 
     def summary_rows(identities, grader_names)
       now = Time.current
+      rows_by_scope = bounded_duration_rows_by_scope(identities.keys, grader_names)
+
       identities.flat_map do |identity_id, repository_id|
         grader_names.filter_map do |grader_name|
-          rows = bounded_duration_rows(identity_id, grader_name: grader_name)
+          rows = rows_by_scope.fetch([ identity_id, grader_name ], [])
           summary_row(
             repository_id: repository_id,
             test_identity_id: identity_id,
@@ -83,22 +85,55 @@ class TestIdentityRuntimeSummary < ApplicationRecord
       }
     end
 
-    def bounded_duration_rows(identity_id, grader_name:)
-      scope = TestCase
-        .joins(:test_run)
-        .where(test_identity_id: identity_id)
-        .where.not(duration_ms: nil)
-      scope = scope.where(test_runs: { grader_name: grader_name }) unless grader_name == ALL_GRADERS
+    def bounded_duration_rows_by_scope(identity_ids, grader_names)
+      result = Hash.new { |hash, key| hash[key] = [] }
+      load_all_grader_duration_rows(result, identity_ids) if grader_names.include?(ALL_GRADERS)
 
-      scope
-        .order(created_at: :desc, id: :desc)
-        .limit(WINDOW_SIZE)
-        .pluck(:duration_ms, :created_at)
-        .map do |duration_ms, created_at|
-          {
-            duration_ms: duration_ms,
-            created_at: created_at
-          }
+      named_graders = grader_names - [ ALL_GRADERS ]
+      load_named_grader_duration_rows(result, identity_ids, named_graders) if named_graders.any?
+
+      result
+    end
+
+    def load_all_grader_duration_rows(result, identity_ids)
+      ranked_cases = TestCase
+        .where(test_identity_id: identity_ids)
+        .where.not(duration_ms: nil)
+        .select(
+          "test_cases.test_identity_id",
+          "test_cases.duration_ms",
+          "test_cases.created_at",
+          "ROW_NUMBER() OVER (PARTITION BY test_cases.test_identity_id ORDER BY test_cases.created_at DESC, test_cases.id DESC) AS syrus_runtime_rank"
+        )
+
+      TestCase
+        .from("(#{ranked_cases.to_sql}) syrus_runtime_cases")
+        .where("syrus_runtime_rank <= ?", WINDOW_SIZE)
+        .pluck(:test_identity_id, :duration_ms, :created_at)
+        .each do |identity_id, duration_ms, created_at|
+          result[[ identity_id, ALL_GRADERS ]] << { duration_ms: duration_ms, created_at: created_at }
+        end
+    end
+
+    def load_named_grader_duration_rows(result, identity_ids, grader_names)
+      ranked_cases = TestCase
+        .joins(:test_run)
+        .where(test_identity_id: identity_ids, test_runs: { grader_name: grader_names })
+        .where.not(duration_ms: nil)
+        .select(
+          "test_cases.test_identity_id",
+          "test_runs.grader_name",
+          "test_cases.duration_ms",
+          "test_cases.created_at",
+          "ROW_NUMBER() OVER (PARTITION BY test_cases.test_identity_id, test_runs.grader_name ORDER BY test_cases.created_at DESC, test_cases.id DESC) AS syrus_runtime_rank"
+        )
+
+      TestCase
+        .from("(#{ranked_cases.to_sql}) syrus_runtime_cases")
+        .where("syrus_runtime_rank <= ?", WINDOW_SIZE)
+        .pluck(:test_identity_id, :grader_name, :duration_ms, :created_at)
+        .each do |identity_id, grader_name, duration_ms, created_at|
+          result[[ identity_id, grader_name ]] << { duration_ms: duration_ms, created_at: created_at }
         end
     end
 

@@ -55,7 +55,7 @@ RSpec.describe TestIdentityRuntimeSummary do
     expect(all_summary.avg_duration_ms).to eq(280)
   end
 
-  it "uses bounded indexed lookups when refreshing touched identities for one grader" do
+  it "uses bounded bulk lookups when refreshing touched identities for one grader" do
     rspec = create_test_run!(grader_name: "rspec")
     3.times { |index| create_case!(test_run: rspec, duration_ms: 100 + index, created_at: index.minutes.ago) }
 
@@ -69,8 +69,8 @@ RSpec.describe TestIdentityRuntimeSummary do
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
 
-    expect(selects).not_to include(match(/ROW_NUMBER\(\) OVER/i))
-    expect(selects).to all(match(/"test_identity_id" =|`test_identity_id` =/))
-    expect(selects).to all(match(/LIMIT/i))
+    expect(selects.size).to be <= 2
+    expect(selects).to all(match(/syrus_runtime_rank/i))
+    expect(selects).not_to include(match(/\bas\s+["`]?row_number["`]?\b/i))
   end
 end
