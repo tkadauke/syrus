@@ -1107,7 +1107,7 @@ class GithubClient
     installation_auth? ? "i#{@installation.id}" : "u#{@user.id}"
   end
 
-  RATE_LIMIT_PERSIST_COALESCE = 2.minutes
+  RATE_LIMIT_PERSIST_COALESCE = 10.minutes
 
   def persist_rate_limit_headers!(headers)
     return unless headers && @user
