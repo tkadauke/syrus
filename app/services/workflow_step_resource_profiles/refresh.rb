@@ -5,6 +5,30 @@ module WorkflowStepResourceProfiles
     MAX_INPUT_SUMMARIES = 1_000
     SPAN_SAMPLE_MERGE_GAP = 2.minutes
     MAX_SPAN_SAMPLE_RANGES_PER_HOST = 100
+    INPUT_SUMMARY_COLUMNS = %i[
+      id
+      agent_provider
+      created_at
+      duration_seconds
+      finished_at
+      grader_name
+      host_pressure_max_cpu_some_percent
+      host_pressure_max_io_some_percent
+      host_sample_count
+      host_usage_max_memory_used_percent
+      job_id
+      process_cpu_time_seconds
+      process_max_rss_bytes
+      process_read_io_bytes
+      process_sample_count
+      process_wall_time_seconds
+      process_write_io_bytes
+      repository_id
+      run_id
+      step_id
+      step_kind
+      trigger_kind
+    ].freeze
 
     def initialize(now: Time.current)
       @now = now
@@ -28,6 +52,7 @@ module WorkflowStepResourceProfiles
 
     def input_summaries
       base = RunResourceSummary
+        .select(*INPUT_SUMMARY_COLUMNS)
         .where.not(repository_id: nil)
         .where.not(step_kind: nil)
         .where(retention_limited: false)
