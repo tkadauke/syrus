@@ -108,7 +108,7 @@ RSpec.describe TestIdentity do
       expect(identities.first.last_passed_at).to be_present
     end
 
-    it "selects latest test cases without reserved window-function aliases" do
+    it "selects latest test cases without reserved window-function alias collisions" do
       first_identity = create_identity!("first case")
       second_identity = create_identity!("second case")
       create_test_case!(first_identity, status: "failed", created_at: 2.minutes.ago)
@@ -132,9 +132,9 @@ RSpec.describe TestIdentity do
         second_identity.id => latest_second
       })
       sql = sql_statements.join("\n").downcase
-      expect(sql).not_to include("row_number() over")
       expect(sql).not_to match(/\bas\s+`?row_number`?\b/)
       expect(sql).not_to match(/\bwhere\s+`?row_number`?\s*=/)
+      expect(sql).to include("syrus_latest_case_rank")
     end
 
     it "updates identity summaries in bulk" do

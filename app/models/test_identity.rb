@@ -109,12 +109,17 @@ class TestIdentity < ApplicationRecord
     ids = Array(ids).filter_map { |id| Integer(id, exception: false) }.uniq
     return [] if ids.empty?
 
-    latest_ids = ids.each_slice(REFRESH_BATCH_SIZE).flat_map do |slice|
-      TestCase.where(test_identity_id: slice).group(:test_identity_id).maximum(:id).values
-    end
-    return [] if latest_ids.empty?
+    ids.each_slice(REFRESH_BATCH_SIZE).flat_map do |slice|
+      ranked_cases = TestCase.where(test_identity_id: slice)
+        .select(
+          "test_cases.*",
+          "ROW_NUMBER() OVER (PARTITION BY test_cases.test_identity_id ORDER BY test_cases.created_at DESC, test_cases.id DESC) AS syrus_latest_case_rank"
+        )
 
-    TestCase.where(id: latest_ids)
+      TestCase.from(ranked_cases, :test_cases)
+        .where("syrus_latest_case_rank = 1")
+        .to_a
+    end
   end
 
   def self.latest_status_times_for(ids)
