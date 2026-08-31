@@ -65,7 +65,7 @@ module Steps
         run: run,
         workflow: workflow,
         on_output_chunk: ->(chunk) {
-          append_output_tail(tail, chunk)
+          append_output_tail(tail, chunk, max_bytes: OUTPUT_TAIL_BYTES)
           log(chunk, kind: "system")
         }
       ).run
@@ -73,12 +73,6 @@ module Steps
       return if result.success? && !result.timed_out
 
       record_command_failure!(cmd, result, tail)
-    end
-
-    def append_output_tail(tail, chunk)
-      tail << chunk.to_s
-      overflow = tail.bytesize - OUTPUT_TAIL_BYTES
-      tail.replace(tail.safe_byteslice(-OUTPUT_TAIL_BYTES, OUTPUT_TAIL_BYTES)) if overflow.positive?
     end
 
     # Non-fatal by construction: appends to a details/artifact array (rather
@@ -100,10 +94,6 @@ module Steps
       step.update!(details: (step.details || {}).merge(key => failures))
       workflow.set_artifact!(key, failures)
       log("[#{step.kind}] WARNING (non-fatal): command failed (exit #{failure['exit_status'] || 'unknown'}): #{cmd}")
-    end
-
-    def compact_output_tail(tail)
-      tail.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "?").strip
     end
 
     def env
