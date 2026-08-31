@@ -10,6 +10,18 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    callback = ->(_name, _started, _finished, _id, payload) do
+      next if payload[:name] == "SCHEMA"
+
+      queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   def create_design_doc(**attrs)
     doc = DesignDoc.create!({
       owner_user: owner,
@@ -342,6 +354,31 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "proposed_markdown" => "delta",
       "change_type" => "replace"
     )
+  end
+
+  it "serializes preloaded thread comments without re-querying each thread" do
+    doc = create_design_doc(markdown: "Alpha beta gamma delta")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    3.times do |index|
+      ::DesignDocs::CreateComment.call(
+        design_doc: doc.reload,
+        user: collaborator,
+        attributes: {
+          body: "Comment #{index}",
+          start_offset: index,
+          end_offset: index + 1,
+          selected_markdown: doc.markdown[index]
+        }
+      )
+    end
+    sign_in_as(owner)
+
+    queries = capture_sql { get "/api/v1/app/design_docs/#{doc.id}" }
+
+    expect(response).to have_http_status(:ok)
+    comment_loads = queries.grep(/FROM "?design_doc_comments"?/i)
+    expect(comment_loads.size).to eq(1)
+    expect(parse_body.dig("design_doc", "threads").flat_map { |thread| thread.fetch("comments") }.size).to eq(3)
   end
 
   it "accepts owner-reviewed suggestions server-side when the anchored original text still matches" do

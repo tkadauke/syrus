@@ -73,7 +73,7 @@ module DesignDocs
           opened_by: user_json(thread.opened_by_user),
           resolved_by: user_json(thread.resolved_by_user),
           resolved_at: thread.resolved_at&.iso8601,
-          comments: thread.comments.order(:created_at, :id).map { |comment| comment_json(comment) },
+          comments: ordered_comments(thread).map { |comment| comment_json(comment) },
           created_at: thread.created_at.iso8601,
           updated_at: thread.updated_at.iso8601
         }
@@ -129,6 +129,11 @@ module DesignDocs
           created_at: comment.created_at.iso8601,
           updated_at: comment.updated_at.iso8601
         }
+      end
+
+      def ordered_comments(thread)
+        comments = thread.association(:comments).loaded? ? thread.comments.to_a : thread.comments
+        comments.sort_by { |comment| [ comment.created_at || Time.zone.at(0), comment.id || 0 ] }
       end
     end
   end
