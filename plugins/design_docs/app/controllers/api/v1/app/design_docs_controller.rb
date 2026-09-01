@@ -68,7 +68,7 @@ module Api
             design_doc: serializer.detail(result.design_doc),
             thread: serializer.thread(result.thread),
             comment: serializer.comment(result.comment),
-            version: serializer.version(result.version),
+            version: result.version ? serializer.version(result.version) : nil,
             message: "Comment created."
           }, status: :created
         rescue ActiveRecord::RecordInvalid => e
@@ -231,7 +231,7 @@ module Api
         end
 
         def comment_params
-          params.require(:comment).permit(:body, :start_offset, :end_offset, :selected_markdown, :selected_text, :anchor_kind)
+          params.require(:comment).permit(:body, :start_offset, :end_offset, :selected_markdown, :selected_text, :anchor_kind, :thread_id)
         end
 
         def suggestion_params

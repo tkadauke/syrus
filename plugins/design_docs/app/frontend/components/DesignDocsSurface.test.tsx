@@ -202,6 +202,19 @@ function mockFetch() {
       return jsonResponse({ design_doc: secondDocDetail })
     }
     if (url.pathname === "/api/v1/app/design_docs/1/comments") {
+      const payload = JSON.parse(String(init?.body ?? "{}"))
+      if (payload.comment?.thread_id === 7) {
+        return jsonResponse({
+          design_doc: {
+            ...docDetail,
+            threads: [{
+              ...docDetail.threads[0],
+              comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+            }]
+          },
+          message: "Comment created."
+        }, 201)
+      }
       return jsonResponse({ design_doc: { ...docDetail, open_threads_count: 2 }, message: "Comment created." }, 201)
     }
     if (url.pathname === "/api/v1/app/design_docs/1/threads/7/resolve") {
@@ -302,9 +315,73 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Clarify this", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    })
     fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
+  })
+
+  it("creates comments from a WYSIWYG selection", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(markdownEditor, { target: { value: "Alpha **beta** gamma" } })
+    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
+    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    const textNode = editor.querySelector("strong")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 4)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(editor)
+    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
+    })
+  })
+
+  it("synchronizes focus between inline highlights and the comment rail", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    const editor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    expect(container.querySelector("mark[data-anchor-status='active']")).not.toBeNull()
+    fireEvent.click(screen.getByText("Needs evidence"))
+
+    expect(editor.selectionStart).toBe(6)
+    expect(editor.selectionEnd).toBe(10)
+
+    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
+    const wysiwygHighlight = await waitFor(() => container.querySelector("mark[data-thread-id='7']"))
+    fireEvent.click(wysiwygHighlight!)
+
+    expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
+  })
+
+  it("groups replies beneath their parent comment thread", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Needs evidence")
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
+    expect(JSON.parse(String(replyRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Follow up", thread_id: 7 }
+    })
+    expect(await screen.findByText("Follow up")).toBeInTheDocument()
   })
 
   it("resets draft editor state when switching between design docs", async () => {
