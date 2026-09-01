@@ -73,6 +73,60 @@ module AgentProviders
     def self.refresh_usage!(user:, force: false)
     end
 
+    def self.mcp_tool_name(tool_name, server_name:)
+    end
+
+    def self.evidence_reset_at(evidence)
+    end
+
+    def self.false_positive_evidence?(evidence)
+      false
+    end
+
+    def self.suppress_usage_limit_run?(_run, model:, observed_at:)
+      false
+    end
+
+    def self.ignore_model_for_positive_evidence?(model)
+      false
+    end
+
+    def self.usage_signal_account_id(_user)
+    end
+
+    def self.usage_snapshot(user:, evidence:)
+      evidence&.details&.dig("snapshot") || {}
+    end
+
+    def self.usage_status(user:, evidence:)
+      evidence&.status
+    end
+
+    def self.usage_observed_at(user:, evidence:)
+      evidence&.observed_at&.iso8601
+    end
+
+    def self.availability_evidence_observed_at(user:, latest_evidence:)
+      latest_evidence&.observed_at
+    end
+
+    def self.usage_windows(snapshot, observed_at:, now:)
+      [ snapshot["primary"], snapshot["secondary"] ].compact.each_with_object({}) do |window, memo|
+        label = window["label"].to_s
+        key = case label
+        when "5h" then "five_hour"
+        when "weekly" then "weekly"
+        else next
+        end
+        memo[key] = {
+          label: label,
+          remaining_percent: window["remaining_percent"],
+          used_percent: window["used_percent"],
+          reset_at: window["reset_at"]
+        }.compact
+      end
+    end
+
     def provider
       self.class.provider
     end

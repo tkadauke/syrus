@@ -17,5 +17,13 @@ RSpec.describe ChatSessionRehydrator do
     it "accepts symbol-coercible values" do
       expect(described_class.for("claude")).to eq(ChatSessionRehydrator::Claude)
     end
+
+    it "uses providers registered at runtime" do
+      rehydrator = Class.new
+
+      described_class.register("oracle", rehydrator)
+
+      expect(described_class.for("oracle")).to eq(rehydrator)
+    end
   end
 end

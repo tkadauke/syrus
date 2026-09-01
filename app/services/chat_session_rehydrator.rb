@@ -1,10 +1,15 @@
 module ChatSessionRehydrator
-  REGISTRY = {
-    "claude" => "ChatSessionRehydrator::Claude",
-    "codex"  => "ChatSessionRehydrator::Codex"
-  }.freeze
+  @registry = {}
+  @mutex = Mutex.new
+
+  def self.register(provider, klass)
+    key = provider.to_s
+    return if key.blank?
+
+    @mutex.synchronize { @registry[key] = klass }
+  end
 
   def self.for(provider)
-    REGISTRY[provider.to_s]&.constantize
+    @mutex.synchronize { @registry[provider.to_s] }
   end
 end

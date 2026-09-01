@@ -9,12 +9,6 @@ class ProviderCircuitBreaker
   MIN_FAILURES = 5
   MIN_UNRELATED_JOBS = 3
   REPEAT_SIGNATURE_THRESHOLD = 3
-  # Providers with a proactive usage probe (CodexUsageProbe, ClaudeUsageProbe)
-  # that can record "exhausted" evidence before any Run actually fails - lets
-  # that evidence open the circuit ahead of the reactive text-classification
-  # path. Other providers have no probe, so there's nothing proactive to look
-  # up.
-  PROBED_PROVIDERS = %w[codex claude].freeze
   USAGE_LIMIT_SQL_PATTERNS = [
     "%usage%limit%",
     "%insufficient%quota%",
@@ -232,13 +226,7 @@ class ProviderCircuitBreaker
       retry_after = ProviderQuotaReset.retry_after_for_run(run, now: now)
       next if retry_after && retry_after <= now
       model = ProviderUsageLimit.extract_model(text)
-      next if provider == "codex" && ProviderAvailabilityEvidence.suppressed_by_positive_after?(
-        user: run.user,
-        provider: provider,
-        account_id: CodexAccountScope.for_user(run.user),
-        model: model,
-        observed_at: run.finished_at || run.updated_at || now
-      )
+      next if agent_provider_class&.suppress_usage_limit_run?(run, model: model, observed_at: run.finished_at || run.updated_at || now)
 
       UsageLimitSignal.new(
         run: run,
@@ -250,8 +238,6 @@ class ProviderCircuitBreaker
   end
 
   def current_usage_limit_evidence
-    return unless PROBED_PROVIDERS.include?(provider)
-
     ProviderAvailabilityEvidence
       .where(provider: provider, status: "exhausted")
       .unrepaired_for_circuit
@@ -259,7 +245,7 @@ class ProviderCircuitBreaker
       .recent
       .limit(USAGE_LIMIT_EVIDENCE_SCAN_LIMIT)
       .detect do |evidence|
-        next false if false_positive_codex_evidence?(evidence)
+        next false if false_positive_evidence?(evidence)
 
         !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
           user: evidence.user,
@@ -271,11 +257,8 @@ class ProviderCircuitBreaker
       end
   end
 
-  def false_positive_codex_evidence?(evidence)
-    ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
-      evidence.details&.dig("message"),
-      model: evidence.model
-    )
+  def false_positive_evidence?(evidence)
+    agent_provider_class&.false_positive_evidence?(evidence) || false
   end
 
   def usage_limit_failed_runs
@@ -386,8 +369,6 @@ class ProviderCircuitBreaker
   end
 
   def latest_provider_evidence_payload
-    return unless PROBED_PROVIDERS.include?(provider)
-
     ProviderAvailabilityEvidence.latest_positive_negative_for_provider(provider)
   end
 
@@ -400,11 +381,17 @@ class ProviderCircuitBreaker
       source: "failed_run",
       observed_at: (signal.run.finished_at || signal.run.updated_at)&.iso8601,
       provider: provider,
-      account_id: CodexAccountScope.for_user(signal.run.user),
+      account_id: agent_provider_class&.usage_signal_account_id(signal.run.user),
       model: signal.model,
       run_id: signal.run.id
     }.tap do |payload|
       payload[:repair] = signal.run.run_failure_classification&.repair_summary
     end.compact
+  end
+
+  def agent_provider_class
+    @agent_provider_class ||= AgentProviders.for(provider)
+  rescue AgentProviders::ConfigurationError
+    nil
   end
 end

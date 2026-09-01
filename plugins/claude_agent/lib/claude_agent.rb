@@ -24,6 +24,7 @@ module SyrusClaudeAgent
 
     CredentialProbe.register_probe("claude_oauth_token", ClaudeCredentialProbe)
     CredentialProbe.register_secret_extractor(ClaudeCredentialProbe::SECRET_EXTRACTOR)
+    ChatSessionRehydrator.register("claude", ChatSessionRehydrator::Claude)
     Filters.register_chips(
       subject: :admin_user,
       chips: { "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken" }

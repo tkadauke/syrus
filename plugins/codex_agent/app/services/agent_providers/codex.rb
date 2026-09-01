@@ -8,6 +8,67 @@ module AgentProviders
 
     def self.provider = "codex"
 
+    def self.mcp_tool_name(tool_name, server_name:)
+      "#{server_name}.#{tool_name}"
+    end
+
+    def self.evidence_reset_at(evidence)
+      snapshot = evidence&.details&.dig("snapshot") || {}
+      windows = [
+        snapshot["primary"],
+        snapshot["secondary"],
+        snapshot.dig("spend_control", "individual_limit"),
+        *Array(snapshot["additional_rate_limits"]).flat_map { |entry| [ entry["primary"], entry["secondary"] ] }
+      ].compact
+      reset_values = windows.filter_map { |window| window["reset_at"].presence }
+      return if reset_values.blank?
+
+      Time.zone.parse(reset_values.min) + ProviderQuotaReset::RETRY_BUFFER
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def self.false_positive_evidence?(evidence)
+      ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
+        evidence.details&.dig("message"),
+        model: evidence.model
+      )
+    end
+
+    def self.suppress_usage_limit_run?(run, model:, observed_at:)
+      ProviderAvailabilityEvidence.suppressed_by_positive_after?(
+        user: run.user,
+        provider: provider_key,
+        account_id: CodexAccountScope.for_user(run.user),
+        model: model,
+        observed_at: observed_at
+      )
+    end
+
+    def self.ignore_model_for_positive_evidence?(model)
+      ProviderUsageLimit.suspicious_model?(model)
+    end
+
+    def self.usage_signal_account_id(user)
+      CodexAccountScope.for_user(user)
+    end
+
+    def self.usage_snapshot(user:, evidence:)
+      user.codex_usage_snapshot || {}
+    end
+
+    def self.usage_status(user:, evidence:)
+      user.codex_usage_status.presence || evidence&.status
+    end
+
+    def self.usage_observed_at(user:, evidence:)
+      user.codex_usage_observed_at&.iso8601 || evidence&.observed_at&.iso8601
+    end
+
+    def self.availability_evidence_observed_at(user:, latest_evidence:)
+      latest_evidence&.observed_at || user.codex_usage_observed_at
+    end
+
     def self.refresh_stale_usage!(user:, now: Time.current)
       return unless user.codex_auth_mode == "chatgpt_login"
       return unless CodexUsageProbe.stale?(user, now: now)
