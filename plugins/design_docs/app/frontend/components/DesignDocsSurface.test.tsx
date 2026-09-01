@@ -565,7 +565,7 @@ describe("DesignDocsSurface", () => {
       value: {
         addEventListener: vi.fn(),
         height: 929,
-        offsetLeft: 0,
+        offsetLeft: 828,
         offsetTop: 0,
         removeEventListener: vi.fn(),
         scale: 1,
@@ -620,6 +620,71 @@ describe("DesignDocsSurface", () => {
     const popover = await waitFor(() => container.querySelector("[data-design-doc-share-popover]"))
     expect(popover).toHaveClass("left-0")
     expect(popover).not.toHaveClass("right-0")
+  })
+
+  it("opens the share popover to the left when the visual viewport would clip the right side", async () => {
+    mockFetch()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1728 })
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: {
+        addEventListener: vi.fn(),
+        height: 929,
+        offsetLeft: 0,
+        offsetTop: 0,
+        removeEventListener: vi.fn(),
+        scale: 1,
+        width: 900
+      }
+    })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("aria-label") === "Design doc title bar") {
+        return {
+          bottom: 360,
+          height: 126,
+          left: 400,
+          right: 900,
+          top: 234,
+          width: 500,
+          x: 400,
+          y: 234,
+          toJSON: () => ({})
+        } as DOMRect
+      }
+      if (this.textContent === "Share") {
+        return {
+          bottom: 350,
+          height: 32,
+          left: 620,
+          right: 670,
+          top: 318,
+          width: 50,
+          x: 620,
+          y: 318,
+          toJSON: () => ({})
+        } as DOMRect
+      }
+
+      return {
+        bottom: 0,
+        height: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        width: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    const { container } = renderSurface("/chats/237")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
+
+    const popover = await waitFor(() => container.querySelector("[data-design-doc-share-popover]"))
+    expect(popover).toHaveClass("right-0")
+    expect(popover).not.toHaveClass("left-0")
   })
 
   it("opens the share popover to the left when the trigger is near the viewport edge", async () => {

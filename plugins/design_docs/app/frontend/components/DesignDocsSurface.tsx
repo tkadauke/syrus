@@ -897,11 +897,9 @@ function smartFolderIdFromSearch(search: string) {
 
 function popoverAlignmentForTrigger(triggerRect: DOMRect, popoverWidth: number, containerRect: DOMRect | null = null): PopoverAlignment {
   const clippingRect = containerRect && containerRect.width > 0 ? containerRect : null
-  const viewportLeft = window.visualViewport?.offsetLeft ?? 0
-  const viewportRight = Math.max(
-    window.innerWidth,
-    viewportLeft + (window.visualViewport?.width ?? window.innerWidth)
-  )
+  const viewport = window.visualViewport && window.visualViewport.width > 0 ? window.visualViewport : null
+  const viewportLeft = viewport?.offsetLeft ?? 0
+  const viewportRight = viewport ? viewportLeft + viewport.width : window.innerWidth
   const boundaryLeft = Math.max(POPOVER_VIEWPORT_MARGIN, clippingRect?.left ?? POPOVER_VIEWPORT_MARGIN, viewportLeft + POPOVER_VIEWPORT_MARGIN)
   const boundaryRight = Math.min(viewportRight - POPOVER_VIEWPORT_MARGIN, clippingRect?.right ?? viewportRight - POPOVER_VIEWPORT_MARGIN)
   const startOverflow = Math.max(0, triggerRect.left + popoverWidth - boundaryRight)
