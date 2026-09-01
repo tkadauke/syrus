@@ -19,7 +19,7 @@ module Api
         end
 
         def show
-          render json: { design_doc: serializer.detail(find_design_doc, user: Current.user) }
+          render json: { design_doc: serializer.detail(ensure_suggestion_threads(find_design_doc), user: Current.user) }
         end
 
         def create
@@ -194,6 +194,10 @@ module Api
 
         def serializer
           ::DesignDocs::Serializer
+        end
+
+        def ensure_suggestion_threads(design_doc)
+          ::DesignDocs::EnsureSuggestionThreads.call(design_doc: design_doc)
         end
 
         def update_message(result)
