@@ -85,4 +85,86 @@ RSpec.describe "design doc discussions", type: :model do
     expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{second.marker_id}\" -->gamma<!-- syrus:range-end id=\"#{second.marker_id}\" -->")
     expect(second).to have_attributes(start_offset: 11, end_offset: 16, selected_text: "gamma")
   end
+
+  it "reanchors a mismatched submitted range when selected text is unique" do
+    doc.update!(markdown: "# Backlog\n\n- Risks drift before the target.\n\n## Open Questions\n\n- Should backlogged Jobs be owned, claimed, both, or neither by default?")
+    doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+    selected = "Should backlogged Jobs be owned, claimed, both, or neither by default?"
+
+    result = DesignDocs::CreateAnchor.call(
+      design_doc: doc,
+      user: owner,
+      attributes: {
+        start_offset: doc.markdown.index("Risks"),
+        end_offset: doc.markdown.index("Risks") + selected.length,
+        selected_text: selected
+      }
+    )
+
+    anchor = result.anchor
+    expect(anchor.selected_text).to eq(selected)
+    expect(DesignDocs::AnchorMarkers.locate(markdown: doc.reload.markdown, marker_id: anchor.marker_id, anchor_kind: "range").selected_markdown).to eq(selected)
+  end
+
+  it "accepts a WYSIWYG source range whose markdown and rendered selected text differ" do
+    doc.update!(markdown: "Alpha **beta** gamma")
+    doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+    selected_markdown = "beta** gamma"
+    start_offset = doc.markdown.index("beta")
+    end_offset = start_offset + selected_markdown.length
+
+    anchor = DesignDocs::CreateAnchor.call(
+      design_doc: doc,
+      user: owner,
+      attributes: {
+        start_offset: start_offset,
+        end_offset: end_offset,
+        selected_markdown: selected_markdown,
+        selected_text: "beta gamma"
+      }
+    ).anchor
+
+    expect(anchor).to have_attributes(
+      start_offset: start_offset,
+      end_offset: end_offset,
+      selected_markdown: selected_markdown,
+      selected_text: "beta gamma"
+    )
+    expect(DesignDocs::AnchorMarkers.locate(markdown: doc.reload.markdown, marker_id: anchor.marker_id, anchor_kind: "range").selected_markdown).to eq(selected_markdown)
+  end
+
+  it "rejects ambiguous mismatched selected text without inserting markers" do
+    doc.update!(markdown: "Alpha beta\n\nBeta elsewhere\n\nAlpha beta")
+    doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+    original_markdown = doc.markdown
+
+    expect {
+      DesignDocs::CreateAnchor.call(
+        design_doc: doc,
+        user: owner,
+        attributes: { start_offset: 0, end_offset: 5, selected_text: "Alpha beta" }
+      )
+    }.to raise_error(ActiveRecord::RecordInvalid, /appears multiple times/)
+
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
+  it "validates submitted offsets against marker-stripped markdown" do
+    doc.update!(markdown: "Alpha beta gamma")
+    doc.versions.create!(markdown: doc.markdown, version_number: 1, actor_kind: "user", actor_user: owner)
+    first = DesignDocs::CreateAnchor.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: 6, end_offset: 10, selected_text: "beta" }
+    ).anchor
+
+    second = DesignDocs::CreateAnchor.call(
+      design_doc: doc.reload,
+      user: owner,
+      attributes: { start_offset: 11, end_offset: 16, selected_text: "gamma" }
+    ).anchor
+
+    expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{first.marker_id}\" -->beta<!-- syrus:range-end id=\"#{first.marker_id}\" -->")
+    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{second.marker_id}\" -->gamma<!-- syrus:range-end id=\"#{second.marker_id}\" -->")
+  end
 end
