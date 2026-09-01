@@ -448,8 +448,8 @@ describe("DesignDocsSurface", () => {
 
     const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(markdownEditor, { target: { value: markdown } })
-    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
-    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const selected = "Should backlogged Jobs be owned, claimed, both, or neither by default?"
     const textNode = Array.from(editor.querySelectorAll("[data-source-start]"))
       .find((node) => node.textContent === selected)!

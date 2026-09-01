@@ -69,12 +69,12 @@ an `Edit` / `Suggest` selector in the editor toolbar. `Edit` is selected by
 default for owners and continuously persists canonical Markdown working state;
 clicking `Save` reveals an optional change summary field and the next `Save`
 creates an append-only checkpoint/version with actor metadata. Switching to
-`Suggest` persists the draft as an owner-authored pending suggestion for later review.
-Owners also see metadata, sharing, repository, resolve, and suggestion review
-controls. Non-owners with access are forced into `Suggest` mode: the toolbar
-does not offer `Edit`, their in-flight edits autosave as pending suggestions,
-the save action is labeled as suggestion creation, and accept/reject controls
-render as pending owner review.
+`Suggest` persists the draft as an owner-authored pending suggestion for later
+review. Owners also see metadata, sharing, repository, resolve, and suggestion
+review controls. Non-owners with access are forced into `Suggest` mode: the
+toolbar does not offer `Edit`, their in-flight edits autosave as pending
+suggestions, the save action is labeled as suggestion creation, and
+accept/reject controls render as pending owner review.
 
 ## Chat Workspace Tabs
 
