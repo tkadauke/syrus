@@ -46,11 +46,14 @@ surface. The title bar contains the editable title, canonical `DOC-<id>`
 identity, visibility and state indicators, repository associations with a `+`
 picker, a `Share` popover for visibility and explicit collaborators, and a
 far-right version dropdown. The body editor uses `Rich Text` and `Markdown`
-tabs over the same unsaved canonical Markdown draft instead of an adjacent
+tabs over the same canonical Markdown working state instead of an adjacent
 edit/preview split. `Rich Text` is selected by default; `Markdown` remains
-available as the alternate source-editing mode. Selecting a version from the
-title-bar dropdown loads that version's Markdown into the current draft; it is
-not persisted until the user saves.
+available as the alternate source-editing mode. Owner edits autosave into the
+`design_docs.markdown` working copy so reloads and navigation preserve
+in-flight edits before an explicit checkpoint. Selecting a version from the
+title-bar dropdown loads that version's Markdown into the current working copy;
+it is autosaved like any other edit, while `Save` creates a new auditable
+version/checkpoint from the current persisted working copy.
 
 Pending suggestions appear inline at their anchored range in both editor modes
 where practical: the original Markdown range is struck through in the active
@@ -63,12 +66,15 @@ Markdown is not changed until the owner accepts a suggestion.
 The document detail API includes editor permission flags:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
 an `Edit` / `Suggest` selector in the editor toolbar. `Edit` is selected by
-default for owners and writes canonical Markdown on save; switching to
-`Suggest` submits the draft as an owner-authored suggestion for later review.
+default for owners and continuously persists canonical Markdown working state;
+clicking `Save` reveals an optional change summary field and the next `Save`
+creates an append-only checkpoint/version with actor metadata. Switching to
+`Suggest` persists the draft as an owner-authored pending suggestion for later review.
 Owners also see metadata, sharing, repository, resolve, and suggestion review
 controls. Non-owners with access are forced into `Suggest` mode: the toolbar
-does not offer `Edit`, the save action is labeled as suggestion creation, and
-accept/reject controls render as pending owner review.
+does not offer `Edit`, their in-flight edits autosave as pending suggestions,
+the save action is labeled as suggestion creation, and accept/reject controls
+render as pending owner review.
 
 ## Chat Workspace Tabs
 

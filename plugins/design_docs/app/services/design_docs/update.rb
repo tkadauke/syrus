@@ -61,10 +61,7 @@ module DesignDocs
       permitted = attributes.slice(:title, :visibility, :state)
       if attributes.key?(:markdown)
         next_markdown = canonical_markdown_value
-        markdown_changed = next_markdown != design_doc.markdown
         permitted[:markdown] = next_markdown
-      else
-        markdown_changed = false
       end
 
       design_doc.assign_attributes(permitted)
@@ -73,7 +70,7 @@ module DesignDocs
       design_doc.save!
 
       version = nil
-      if markdown_changed
+      if checkpoint?
         version = design_doc.versions.create!(
           markdown: design_doc.markdown,
           version_number: next_version_number,
@@ -118,6 +115,10 @@ module DesignDocs
       return design_doc.markdown if candidate == AnchorMarkers.strip(design_doc.markdown)
 
       candidate
+    end
+
+    def checkpoint?
+      ActiveModel::Type::Boolean.new.cast(attributes[:checkpoint])
     end
 
     def anchor_start_offset
