@@ -347,7 +347,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("summary")).toBeInTheDocument()
     expect(screen.queryByText("very large hidden body")).not.toBeInTheDocument()
 
-    const details = screen.getByText("read_live_state").closest("details")
+    const details = screen.getByText("Read live state").closest("details")
     expect(details).not.toBeNull()
     if (!details) return
 
@@ -355,6 +355,101 @@ describe("tool result rendering", () => {
     fireEvent(details, new Event("toggle"))
 
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
+  })
+
+  it("uses group summary labels and keeps raw payloads behind a details control", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read",
+      summary_label: "Inspected 2 sources",
+      outcome_label: "2 done",
+      default_open: false,
+      tone: "neutral",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Read",
+          raw_name: "Read",
+          detail: "app/models/job.rb",
+          display_label: "Read",
+          progress_label: "Reading",
+          raw_payload: { file_path: "app/models/job.rb" },
+          read_only: true,
+          status: "succeeded",
+          visibility: "compact",
+          result_body: "class Job",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        },
+        {
+          message_id: 2,
+          tool_name: "Grep",
+          raw_name: "Grep",
+          detail: "Workflow",
+          display_label: "Grep",
+          progress_label: "Reading",
+          raw_payload: { pattern: "Workflow" },
+          read_only: true,
+          status: "succeeded",
+          visibility: "compact",
+          result_body: "app/models/workflow.rb:1",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Inspected 2 sources")).toBeInTheDocument()
+    expect(screen.getByText("2 done")).toBeInTheDocument()
+    expect(screen.queryByText("class Job")).not.toBeInTheDocument()
+    expect(screen.queryByText(/file_path/)).not.toBeInTheDocument()
+
+    const details = screen.getByText("Inspected 2 sources").closest("details")
+    expect(details).not.toBeNull()
+    if (!details) return
+
+    details.open = true
+    fireEvent(details, new Event("toggle"))
+    expect(screen.getByText("class Job")).toBeInTheDocument()
+    expect(screen.queryByText(/file_path/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByText("Raw details")[0])
+    expect(screen.getByText(/file_path/)).toBeInTheDocument()
+  })
+
+  it("opens prominent failed groups by default", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read",
+      summary_label: "Read",
+      outcome_label: "1 failed",
+      default_open: true,
+      tone: "error",
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Read",
+          raw_name: "Read",
+          detail: "missing.rb",
+          display_label: "Read",
+          progress_label: "Reading",
+          raw_payload: { file_path: "missing.rb" },
+          result_body: "No such file",
+          result_error: true,
+          result_kind: "error",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("1 failed")).toBeInTheDocument()
+    expect(screen.getByText("No such file")).toBeInTheDocument()
   })
 
   it("does not syntax-highlight pathological single-line tool results when expanded", () => {

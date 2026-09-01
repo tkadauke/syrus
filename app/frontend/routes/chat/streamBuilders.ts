@@ -25,17 +25,25 @@ type OpenCall = {
   container: ChatRenderItem[]
 }
 
+type LastGroup = {
+  key: string
+  group: ChatToolGroupItem
+}
+
 export function renderChatMessages(messages: ChatMessageItem[], options: { simpleMode?: boolean } = {}): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
   const containerByParentKey = new Map<string, ChatRenderItem[]>([ [ ROOT_KEY, items ] ])
-  const lastGroupByParentKey = new Map<string, ChatToolGroupItem | null>([ [ ROOT_KEY, null ] ])
+  const lastGroupByParentKey = new Map<string, LastGroup | null>([ [ ROOT_KEY, null ] ])
   const openCallsByToolUseId = new Map<string, OpenCall>()
+  const collapsibleGroups = new Set<ChatToolGroupItem>()
 
   for (const message of messages) {
     if (groupableToolUse(message)) {
       const toolName = message.tool_name || ""
       const presentation = toolPresentation(toolName, contentInput(message.content))
       const tool = presentation.display_label
+      const readOnly = readOnlyToolName(presentation.name)
+      const groupKey = readOnly ? "read_only_sources" : `tool:${tool}`
       const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
       const container = containerByParentKey.get(parentKey) as ChatRenderItem[]
       const call: ChatToolGroupCall = {
@@ -46,6 +54,9 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         display_label: presentation.display_label,
         progress_label: simpleToolProgressLabel(toolName),
         raw_payload: presentation.raw_payload,
+        read_only: readOnly,
+        visibility: readOnly ? "compact" : "prominent",
+        status: "pending",
         result_body: "",
         result_error: false,
         result_kind: "unknown",
@@ -55,14 +66,15 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 
       const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
       let group: ChatToolGroupItem
-      if (lastGroup !== null && lastGroup.tool === tool) {
-        lastGroup.calls.push(call)
-        group = lastGroup
+      if (lastGroup !== null && lastGroup.key === groupKey) {
+        lastGroup.group.calls.push(call)
+        group = lastGroup.group
       } else {
         group = { type: "tool_group", tool, calls: [ call ] }
         container.push(group)
-        lastGroupByParentKey.set(parentKey, group)
+        lastGroupByParentKey.set(parentKey, { key: groupKey, group })
       }
+      refreshToolGroupState(group)
 
       const toolUseId = toolUseIdFor(message)
       if (toolUseId) {
@@ -80,8 +92,8 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         // same level.
         const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
         const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
-        const lastCall = lastGroup?.calls.at(-1)
-        if (lastGroup && lastCall) open = { call: lastCall, group: lastGroup, container: containerByParentKey.get(parentKey)! }
+        const lastCall = lastGroup?.group.calls.at(-1)
+        if (lastGroup && lastCall) open = { call: lastCall, group: lastGroup.group, container: containerByParentKey.get(parentKey)! }
       }
 
       if (open && open.call.result_body === "") {
@@ -92,6 +104,9 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
+        open.call.status = open.call.result_error ? "failed" : "succeeded"
+        refreshToolGroupState(open.group)
+        if (completedReadOnlyGroup(open.group)) collapsibleGroups.add(open.group)
         if (options.simpleMode && !open.call.result_error) {
           open.group.calls = open.group.calls.filter((call) => call !== open.call)
           if (open.group.calls.length === 0) {
@@ -107,6 +122,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
     } else {
       resetLastGroup(message, lastGroupByParentKey)
       const item = renderMessage(message, options)
+      if (item?.type === "message" && item.role === "assistant") collapseCompletedReadOnlyGroups(collapsibleGroups)
       if (item) items.push(item)
     }
   }
@@ -114,9 +130,58 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
   return items
 }
 
-function resetLastGroup(message: ChatMessageItem, lastGroupByParentKey: Map<string, ChatToolGroupItem | null>) {
+function resetLastGroup(message: ChatMessageItem, lastGroupByParentKey: Map<string, LastGroup | null>) {
   const parentKey = message.parent_tool_use_id && lastGroupByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
   lastGroupByParentKey.set(parentKey, null)
+}
+
+function collapseCompletedReadOnlyGroups(groups: Set<ChatToolGroupItem>) {
+  for (const group of groups) {
+    if (completedReadOnlyGroup(group)) group.default_open = false
+  }
+}
+
+function completedReadOnlyGroup(group: ChatToolGroupItem) {
+  return group.calls.every((call) => call.read_only === true && call.status === "succeeded")
+}
+
+function refreshToolGroupState(group: ChatToolGroupItem) {
+  const failures = group.calls.filter((call) => call.status === "failed").length
+  const pending = group.calls.filter((call) => call.status === "pending").length
+  const allReadOnly = group.calls.every((call) => call.read_only === true)
+  const completed = pending === 0
+
+  group.summary_label = groupSummaryLabel(group, allReadOnly)
+  group.outcome_label = groupOutcomeLabel(group, failures, pending)
+  group.tone = failures > 0 ? "error" : pending > 0 ? "pending" : "neutral"
+  group.default_open = failures > 0 || !allReadOnly || !completed || group.default_open !== false
+}
+
+function groupSummaryLabel(group: ChatToolGroupItem, allReadOnly: boolean) {
+  if (allReadOnly && group.calls.length > 1) return `Inspected ${group.calls.length} sources`
+  return group.calls[0]?.display_label || group.tool
+}
+
+function groupOutcomeLabel(group: ChatToolGroupItem, failures: number, pending: number) {
+  if (failures > 0) return failures === 1 ? "1 failed" : `${failures} failed`
+  if (pending > 0) return pending === 1 ? "Pending" : `${pending} pending`
+
+  const summarized = group.calls
+    .map((call) => call.result_summary)
+    .filter(Boolean)
+  if (summarized.length === 1) return summarized[0]
+  if (summarized.length > 1) return summarized.join(", ")
+
+  return group.calls.length === 1 ? "Done" : `${group.calls.length} done`
+}
+
+function readOnlyToolName(name: string) {
+  const normalized = name.replace(/[^a-z0-9]/gi, "_").replace(/_+/g, "_").replace(/^_|_$/g, "").toLowerCase()
+  if (["read", "grep", "glob", "ls", "webfetch", "websearch", "toolsearch"].includes(normalized)) return true
+  if (/^(read|get|list|search|find|fetch|resolve|inspect|query)_/.test(normalized)) return true
+  if (/_(read|get|list|search|find|fetch|resolve|inspect|query)$/.test(normalized)) return true
+
+  return false
 }
 
 function toolUseIdFor(message: ChatMessageItem) {

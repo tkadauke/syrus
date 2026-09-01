@@ -351,6 +351,9 @@ export type ChatToolGroupCall = {
   display_label: string
   progress_label: string
   raw_payload: unknown
+  read_only?: boolean
+  visibility?: "compact" | "prominent"
+  status?: "pending" | "succeeded" | "failed"
   result_body: string
   result_error: boolean
   result_kind: ChatToolResultKind
@@ -364,6 +367,10 @@ export type ChatToolGroupCall = {
 export type ChatToolGroupItem = {
   type: "tool_group"
   tool: string
+  summary_label?: string
+  outcome_label?: string
+  default_open?: boolean
+  tone?: "neutral" | "pending" | "error"
   calls: ChatToolGroupCall[]
 }
 

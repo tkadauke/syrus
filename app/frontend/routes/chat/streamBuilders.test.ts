@@ -29,6 +29,17 @@ function toolResult(id: number, overrides: Partial<ChatMessageItem> & { toolUseI
   }
 }
 
+function assistantMessage(id: number, text = "Done."): ChatMessageItem {
+  return {
+    type: "message",
+    id,
+    role: "assistant",
+    content: text,
+    text,
+    bookmarkable: true
+  }
+}
+
 function group(item: ChatRenderItem | undefined): ChatToolGroupItem {
   if (!item || item.type !== "tool_group") throw new Error("expected a tool_group render item")
   return item
@@ -95,6 +106,72 @@ describe("renderChatMessages tool grouping", () => {
     expect(toolGroup.calls).toHaveLength(2)
     expect(toolGroup.calls[0].result_body).toBe("class A")
     expect(toolGroup.calls[1].result_body).toBe("class B")
+  })
+
+  it("groups consecutive read-only calls under an aggregate source summary", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_2", toolName: "Grep", input: { pattern: "Job", path: "app" } }),
+      toolResult(4, { toolUseId: "tu_2", content: "app/models/job.rb:1" }),
+      toolUse(5, { toolUseId: "tu_3", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
+      toolResult(6, { toolUseId: "tu_3", content: JSON.stringify({ chat_media: [] }) }),
+      toolUse(7, { toolUseId: "tu_4", toolName: "mcp__syrus-chat-sidecar__read_job", input: { id: 4047 } }),
+      toolResult(8, { toolUseId: "tu_4", content: JSON.stringify({ id: 4047 }) })
+    ])
+
+    expect(items).toHaveLength(1)
+    const toolGroup = group(items[0])
+    expect(toolGroup.summary_label).toBe("Inspected 4 sources")
+    expect(toolGroup.outcome_label).toBe("0 media items, 1 Job")
+    expect(toolGroup.default_open).toBe(true)
+    expect(toolGroup.calls.map((call) => call.display_label)).toEqual(["Read", "Grep", "List chat media", "Read job"])
+  })
+
+  it("collapses completed read-only groups after a subsequent assistant message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_1", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_2", toolName: "Grep", input: { pattern: "Job" } }),
+      toolResult(4, { toolUseId: "tu_2", content: "app/models/job.rb:1" }),
+      assistantMessage(5)
+    ])
+
+    const toolGroup = group(items[0])
+    expect(toolGroup.summary_label).toBe("Inspected 2 sources")
+    expect(toolGroup.default_open).toBe(false)
+    expect(items[1]).toMatchObject({ type: "message", role: "assistant" })
+  })
+
+  it("keeps failures and pending side effects prominent after assistant messages", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_read", content: "missing", isError: true }),
+      toolUse(3, { toolUseId: "tu_write", toolName: "Write", input: { file_path: "a.rb" } }),
+      assistantMessage(4)
+    ])
+
+    expect(items).toHaveLength(3)
+    const failedGroup = group(items[0])
+    expect(failedGroup.tone).toBe("error")
+    expect(failedGroup.default_open).toBe(true)
+    expect(failedGroup.outcome_label).toBe("1 failed")
+
+    const pendingSideEffect = group(items[1])
+    expect(pendingSideEffect.summary_label).toBe("Write")
+    expect(pendingSideEffect.tone).toBe("pending")
+    expect(pendingSideEffect.default_open).toBe(true)
+  })
+
+  it("does not group proposal tool messages with low-level tool chatter", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_read", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_propose", toolName: "propose_job", input: { title: "Add logs" }, proposal: { id: 88, state: "proposed" } as ChatMessageItem["proposal"] }),
+      toolResult(4, { toolUseId: "tu_propose", content: "created", proposal: { id: 88, state: "proposed" } as ChatMessageItem["proposal"] })
+    ])
+
+    expect(items.map((item) => item.type)).toEqual(["tool_group", "message", "message"])
   })
 
   it("nests a subagent's tool_use/tool_result pair that interleaves inside a still-open parent Agent call", () => {

@@ -18,7 +18,7 @@ import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
-import { TOOL_RESULT_PREVIEW_LINE_CHARS } from "./toolRendering"
+import { fullResultBody, TOOL_RESULT_PREVIEW_LINE_CHARS } from "./toolRendering"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -106,7 +106,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
     )
   }
 
-  return <StructuredTool tool={item.tool} fallback={item.text} />
+  return <StructuredTool item={item} />
 })
 
 function MessageImageAttachments({ attachments, align = "start" }: { attachments?: ChatMessageItem["attachments"]; align?: "start" | "end" }) {
@@ -386,7 +386,7 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 }
 
 export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(item.default_open ?? false)
 
   if (simpleMode) {
     return (
@@ -401,21 +401,30 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const label = item.summary_label || item.calls[0]?.display_label || item.tool
+  const outcome = item.outcome_label || toolGroupOutcome(item)
+  const toneClass = item.tone === "error"
+    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+    : item.tone === "pending"
+      ? "border-info/30 bg-info/10 text-gray-800 dark:border-info/40 dark:bg-info/15 dark:text-gray-100"
+      : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" - ")).filter(Boolean).join(", ")
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
-        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{item.tool}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
-        {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
+    <details className="group/tool" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className={`flex min-w-0 cursor-pointer items-center gap-2 rounded border px-3 py-1.5 text-sm hover:border-gray-300 dark:hover:border-gray-600 ${toneClass}`}>
+        <span className={`shrink-0 text-gray-400 dark:text-gray-500 ${open ? "rotate-90" : ""}`}>▸</span>
+        <span className="min-w-0 truncate font-medium">{label}</span>
+        {outcome ? <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{outcome}</span> : null}
+        {details ? <span className="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400">{details}</span> : <span className="min-w-0 flex-1" />}
+        {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
-            {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
+            <div className="break-words font-medium text-gray-700 dark:text-gray-300">{call.display_label}{call.detail ? `: ${call.detail}` : ""}</div>
+            {call.result_error ? <div className="mt-1 font-medium text-red-600 dark:text-red-300">Failed</div> : call.result_summary ? <div className="mt-1 text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
             {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
+            {open ? <RawToolDetails payload={call.raw_payload} result={call.result_body} /> : null}
             {open && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {call.nested.map((nestedGroup) => (
@@ -430,6 +439,20 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
   )
 })
 
+function toolGroupOutcome(item: ChatToolGroupItem) {
+  const failures = item.calls.filter((call) => call.result_error).length
+  if (failures > 0) return failures === 1 ? "1 failed" : `${failures} failed`
+  const pending = item.calls.filter((call) => toolCallStatus(call) === "pending").length
+  if (pending > 0) return pending === 1 ? "Pending" : `${pending} pending`
+  return item.calls.length === 1 ? "Done" : `${item.calls.length} done`
+}
+
+function toolCallStatus(call: ChatToolGroupItem["calls"][number]) {
+  if (call.status) return call.status
+  if (call.result_error) return "failed"
+  return call.result_body ? "succeeded" : "pending"
+}
+
 function HighlightedToolResult({ code, detail, error, tool }: { code: string; detail: string; error: boolean; tool: string }) {
   const language = inferToolResultLanguage(detail, tool)
   const className = `mt-1 whitespace-pre-wrap break-words font-mono text-gray-600 dark:text-gray-400 ${error ? "text-red-600 dark:text-red-300" : ""}`
@@ -443,19 +466,47 @@ function hasLongLine(value: string) {
   return value.split(/\r?\n/).some((line) => line.length >= TOOL_RESULT_PREVIEW_LINE_CHARS)
 }
 
-function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
-  const name = tool?.display_label || tool?.name || "tool"
+function StructuredTool({ item }: { item: Extract<ChatRenderItem, { type: "message" }> }) {
+  const tool = item.tool
+  const name = tool?.display_label || tool?.name || item.tool_name || "Tool"
+  const resultBody = item.role === "tool_result" ? fullResultBody(toolResultContent(tool?.payload) ?? item.content ?? item.text) : ""
+  const outcome = tool?.proposal_id ? `Proposal #${tool.proposal_id}${tool.proposal_state_label ? ` ${tool.proposal_state_label}` : ""}` : tool?.result_summary || (item.role === "tool_result" ? "Done" : "")
   const [open, setOpen] = useState(false)
   return (
-    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100">
-        <span className="text-gray-400 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
-        {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
+    <details className="text-xs" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="flex min-w-0 cursor-pointer items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-600">
+        <span className={`shrink-0 text-gray-400 dark:text-gray-500 ${open ? "rotate-90" : ""}`}>▸</span>
+        <span className="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100">{name}</span>
+        {outcome ? <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{outcome}</span> : null}
+        {tool?.argument_summary ? <span className="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400">{tool.argument_summary}</span> : null}
       </summary>
-      {open ? <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre> : null}
+      {open ? (
+        <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 dark:border-gray-700">
+          {resultBody ? <HighlightedToolResult code={resultBody} detail={tool?.argument_summary || ""} error={tool?.result_kind === "error"} tool={tool?.name || name} /> : null}
+          <RawToolDetails payload={tool?.payload || { content: item.content ?? item.text }} result={resultBody} />
+        </div>
+      ) : null}
     </details>
   )
+}
+
+function RawToolDetails({ payload, result }: { payload: unknown; result?: string }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="mt-1">
+      <button className="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" onClick={() => setOpen((value) => !value)} type="button">
+        {open ? "Hide raw details" : "Raw details"}
+      </button>
+      {open ? <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded border border-gray-200 bg-white p-2 font-mono text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">{JSON.stringify({ payload, result: result || undefined }, null, 2)}</pre> : null}
+    </div>
+  )
+}
+
+function toolResultContent(payload: unknown) {
+  if (!payload || typeof payload !== "object") return undefined
+  const record = payload as Record<string, unknown>
+  return record.content ?? record.result
 }
 
 function SystemMessage({ item, prefix, retryText, retrying = false, onRetry }: { item: ChatSystemMessage; prefix: string; retryText?: string | null; retrying?: boolean; onRetry?: (text: string) => void }) {
