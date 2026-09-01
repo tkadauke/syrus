@@ -265,6 +265,44 @@ describe("BugReportButton", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Bug report queued.")
   })
 
+  it("disables editable fields and controls while the report is submitting", async () => {
+    let resolveReport: (payload: BugReportPayload) => void = () => {}
+    mockCreateBugReport.mockReturnValue(new Promise((resolve) => { resolveReport = resolve }))
+    const ref = renderButton({
+      pageAttachments: [{
+        id: "diagnostics",
+        label: "Diagnostics",
+        preview: "diagnostic preview",
+        defaultChecked: true,
+        buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+      }]
+    })
+    await openDialog(ref)
+
+    fireEvent.change(screen.getByLabelText(/add files/i), {
+      target: { files: [new File(["evidence"], "evidence.txt", { type: "text/plain" })] }
+    })
+    fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+    await waitFor(() => expect(mockCreateBugReport).toHaveBeenCalledOnce())
+
+    expect(screen.getByLabelText("Title")).toBeDisabled()
+    expect(screen.getByLabelText("Description")).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "Viewport" })).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "Full page" })).toBeDisabled()
+    expect(screen.getByRole("radio", { name: "No screenshot" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeDisabled()
+    expect(screen.getByLabelText(/add files/i)).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Remove evidence.txt" })).toBeDisabled()
+    expect(screen.getByRole("checkbox", { name: /diagnostics/i })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Creating..." })).toBeDisabled()
+
+    resolveReport({ message: "Bug report queued." })
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
   describe("when opened without messages", () => {
     it("does not show the transcript section", async () => {
       const ref = renderButton()
