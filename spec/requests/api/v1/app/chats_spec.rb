@@ -3634,7 +3634,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         include("id" => snapshot.id, "name" => "Arch diagram", "snapshot_kind" => "manual", "element_count" => 1)
       )
       expect(body["chat_images"]).to contain_exactly(
-        include("id" => doc.id, "filename" => "diagram.png", "content_type" => "image/png")
+        include(
+          "id" => doc.id,
+          "filename" => "diagram.png",
+          "content_type" => "image/png",
+          "url" => a_string_matching(%r{/rails/active_storage/blobs/redirect/})
+        )
       )
     end
 
@@ -3660,7 +3665,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       doc = chat.reload.attached_repository_documents.sole
       expect(parse_body["chat_images"]).to contain_exactly(
-        include("id" => doc.id, "filename" => "bug-report-viewport.png", "content_type" => "image/png")
+        include(
+          "id" => doc.id,
+          "filename" => "bug-report-viewport.png",
+          "content_type" => "image/png",
+          "url" => a_string_matching(%r{/rails/active_storage/blobs/redirect/})
+        )
       )
     end
 

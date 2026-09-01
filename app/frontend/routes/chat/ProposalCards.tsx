@@ -12,6 +12,7 @@ import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
 import { CopyableSlug } from "../../components/CopyableSlug"
+import { Modal } from "../../components/Modal"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
@@ -478,18 +479,23 @@ type ProposalMediaItem = {
   kind: ProposalMediaKind
   label: string
   detail: string
+  imageUrl?: string | null
 }
 
 function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMediaPayload; mediaIds: string[]; previewPanels: ChatPreviewPanel[] }) {
   const items = proposalMediaItems(mediaIds, media, previewPanels)
+  const [previewItem, setPreviewItem] = useState<ProposalMediaItem | null>(null)
   if (items.length === 0) return null
 
   return (
-    <div className="mt-4 flex flex-wrap gap-2" data-testid="proposal-media-tiles">
-      {items.map((item) => (
-        <ProposalMediaTile item={item} key={item.ref} />
-      ))}
-    </div>
+    <>
+      <div className="mt-4 flex flex-wrap gap-2" data-testid="proposal-media-tiles">
+        {items.map((item) => (
+          <ProposalMediaTile item={item} key={item.ref} onPreview={item.imageUrl ? setPreviewItem : undefined} />
+        ))}
+      </div>
+      {previewItem ? <ProposalMediaPreview item={previewItem} onClose={() => setPreviewItem(null)} /> : null}
+    </>
   )
 }
 
@@ -503,6 +509,8 @@ function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelecte
   const selectedSet = new Set(selectedRefs)
   const selectableItems = availableItems.filter((item) => !selectedSet.has(item.ref))
 
+  const [previewItem, setPreviewItem] = useState<ProposalMediaItem | null>(null)
+
   return (
     <div>
       <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Attached media</div>
@@ -510,7 +518,7 @@ function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelecte
         <div className="mt-2 flex flex-wrap gap-2">
           {selectedItems.map((item) => (
             <div className="relative" key={item.ref}>
-              <ProposalMediaTile item={item} />
+              <ProposalMediaTile item={item} onPreview={item.imageUrl ? setPreviewItem : undefined} />
               <button
                 aria-label={`Remove ${item.label}`}
                 className="absolute -right-1.5 -top-1.5 rounded-full border border-gray-200 bg-white p-0.5 text-gray-500 shadow-sm hover:border-red-200 hover:text-red-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-red-800 dark:hover:text-red-300"
@@ -545,14 +553,33 @@ function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelecte
       ) : loading ? (
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Loading media...</p>
       ) : null}
+      {previewItem ? <ProposalMediaPreview item={previewItem} onClose={() => setPreviewItem(null)} /> : null}
     </div>
   )
 }
 
-function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaItem; interactive?: boolean }) {
+function ProposalMediaTile({ item, interactive = false, onPreview }: { item: ProposalMediaItem; interactive?: boolean; onPreview?: (item: ProposalMediaItem) => void }) {
   const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
+  const classes = `h-16 w-32 min-w-0 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${border}`
+  if (item.imageUrl) {
+    const image = <img alt={item.label} className="h-full w-full object-cover" src={item.imageUrl} />
+    if (onPreview) {
+      return (
+        <button aria-label={`Open ${item.label}`} className={`${classes} block p-0 focus:outline-none focus:ring-2 focus:ring-brand`} onClick={() => onPreview(item)} title={item.label} type="button">
+          {image}
+        </button>
+      )
+    }
+
+    return (
+      <div className={classes} title={item.label}>
+        {image}
+      </div>
+    )
+  }
+
   return (
-    <div className={`flex h-16 w-32 min-w-0 items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
+    <div className={`flex ${classes} items-center gap-2 px-2 py-1.5`} title={item.label}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white text-xs font-semibold text-gray-500 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true">
         {mediaKindShortLabel(item.kind)}
       </div>
@@ -561,6 +588,30 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
         <div className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">{item.detail}</div>
       </div>
     </div>
+  )
+}
+
+function ProposalMediaPreview({ item, onClose }: { item: ProposalMediaItem; onClose: () => void }) {
+  if (!item.imageUrl) return null
+
+  return (
+    <Modal
+      backdropClassName="fixed inset-0 z-[60] flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-gray-950/60 p-0 sm:items-center sm:p-4"
+      className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-white shadow-2xl sm:h-[min(86dvh,54rem)] sm:w-[min(92dvw,72rem)] sm:rounded-lg dark:bg-gray-950"
+      label={`Preview ${item.label}`}
+      onClose={onClose}
+      open
+    >
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</h2>
+        <button aria-label="Close preview" className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </header>
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-gray-50 p-4 dark:bg-gray-900">
+        <img alt={item.label} className="max-h-full max-w-full rounded bg-white object-contain shadow dark:bg-gray-950" src={item.imageUrl} />
+      </div>
+    </Modal>
   )
 }
 
@@ -595,7 +646,8 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       ref,
       kind,
       label: image?.title || image?.filename || ref,
-      detail: image?.content_type || "Chat image"
+      detail: image?.content_type || "Chat image",
+      imageUrl: image?.url || null
     }
   }
 

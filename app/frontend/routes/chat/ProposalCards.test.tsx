@@ -132,7 +132,7 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
 
 const mediaPayload: ChatMediaPayload = {
   snapshots: [{ id: 42, name: "Annotated layout", snapshot_kind: "manual", element_count: 3, created_at: "2026-08-30T00:00:00Z" }],
-  chat_images: [{ id: 77, title: "Safari capture", filename: "capture.png", content_type: "image/png" }],
+  chat_images: [{ id: 77, title: "Safari capture", filename: "capture.png", content_type: "image/png", url: "/rails/active_storage/blobs/redirect/image-key/capture.png" }],
   typed_artifacts: [],
   whiteboard_has_unsaved_content: false
 }
@@ -188,6 +188,21 @@ describe("ProposalCard media", () => {
     const actions = screen.getByTestId("proposal-action-footer")
     expect(within(tiles).getByText("Annotated layout")).toBeInTheDocument()
     expect(tiles.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("renders picture media as a thumbnail and opens a preview modal", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mediaPayload))
+
+    renderProposalCard(proposal({ media_ids: ["chat_image:77"] }))
+
+    const thumbnail = await screen.findByRole("img", { name: "Safari capture" })
+    expect(thumbnail).toHaveAttribute("src", "/rails/active_storage/blobs/redirect/image-key/capture.png")
+    expect(screen.queryByText("image/png")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Safari capture" }))
+
+    const dialog = await screen.findByRole("dialog", { name: "Preview Safari capture" })
+    expect(within(dialog).getByRole("img", { name: "Safari capture" })).toHaveAttribute("src", "/rails/active_storage/blobs/redirect/image-key/capture.png")
   })
 
   it("lets proposal edits add and remove media refs", async () => {
