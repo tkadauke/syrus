@@ -416,6 +416,20 @@ RSpec.describe PerformanceLogging do
     expect(cache_store).not_to have_received(:write)
   end
 
+  it "clears persisted performance events from the readable store" do
+    PerformanceLogEvent.create!(
+      occurred_at: Time.current,
+      event_name: described_class::SLOW_REQUEST_EVENT,
+      app_revision: "sha-current",
+      path: "/api/v1/app/jobs",
+      payload: {}
+    )
+
+    described_class::Store.clear!
+
+    expect(described_class::Store.recent).to be_empty
+  end
+
   # Production pollers died with Regexp::TimeoutError raised out of
   # instrumentation (PollInputSourceJob, PollExternalOpenPrsJob): safe_string
   # collapsed whitespace across the *whole* value before truncating, so one
