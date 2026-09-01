@@ -63,6 +63,12 @@ warning and green for success. This inline diff is display-only. Rich Text
 conversion keeps the original anchored text in the draft, and canonical
 Markdown is not changed until the owner accepts a suggestion.
 
+Selecting text in either editor mode shows a compact icon-only comment
+affordance near the selected range. The popup does not contain comment fields,
+suggested replacement fields, or large inline actions. Activating the icon opens
+and focuses the new-thread composer in the right Threads column, preserving the
+selected Markdown offsets and rendered selected text for the comment anchor.
+
 The document detail API includes editor permission flags:
 `can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
 an `Edit` / `Suggest` selector in the editor toolbar. `Edit` is selected by

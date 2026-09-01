@@ -481,6 +481,11 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     if (match?.threadId) focusThread(match.threadId)
   }
 
+  function openCommentComposer() {
+    setCommentComposerOpen(true)
+    commentComposerRef.current?.focus()
+  }
+
   return (
     <div className="min-w-0 space-y-4">
       <DesignDocTitleBar
@@ -596,7 +601,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
           <FloatingCommentAffordance
             disabled={selection.end <= selection.start}
             selection={selection}
-            onOpen={() => setCommentComposerOpen(true)}
+            onOpen={openCommentComposer}
           />
           </div>
         </div>

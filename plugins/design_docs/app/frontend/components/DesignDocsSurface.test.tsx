@@ -413,6 +413,28 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
   })
 
+  it("refocuses the Threads composer when selecting another range while it is already open", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    editor.setSelectionRange(6, 10)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Add comment to selection" }))
+    const composer = screen.getByRole("textbox", { name: "New thread comment" })
+    expect(composer).toHaveFocus()
+
+    editor.focus()
+    editor.setSelectionRange(11, 16)
+    fireEvent.mouseUp(editor)
+    expect(composer).not.toHaveFocus()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add comment to selection" }))
+    expect(composer).toHaveFocus()
+    expect(within(composer.closest("div")!.parentElement!).getByText("gamma")).toBeInTheDocument()
+  })
+
   it("creates comments from a Rich Text selection", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")

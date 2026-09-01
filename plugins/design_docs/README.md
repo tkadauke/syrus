@@ -89,6 +89,13 @@ beside it with the active theme's success token. The rendered suggestion text is
 display-only: hidden anchor comments and proposed replacement previews are not
 written into canonical Markdown until the owner accepts the suggestion.
 
+Selecting text in either editor mode displays only a compact comment icon near
+the selection. The comment form itself lives in the right Threads column: using
+the icon opens and focuses that composer while preserving the selected Markdown
+range and rendered selected text for the new thread anchor. Replacement text is
+not entered through the selection popup; normal typing and replacement edits use
+the current `Edit` / `Suggest` mode.
+
 ## Agent Tools
 
 Chat agents receive deferred Design Docs tools:
