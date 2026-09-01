@@ -164,10 +164,35 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     expect(parse_body["options"].map { |row| row["value"] }).to contain_exactly(owned_epic.id, other_epic.id)
   end
 
+  it "scopes user_id typeahead to the current user for non-admins" do
+    other_user = Factories.user(email_address: "other@example.com")
+    user = Factories.user(email_address: "operator@example.com")
+    sign_in_as(user)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "user_id", q: "example" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["options"]).to contain_exactly(
+      { "value" => user.id, "label" => user.display_name }
+    )
+    expect(parse_body["options"].map { |row| row["value"] }).not_to include(other_user.id)
+  end
+
+  it "widens user_id typeahead to every user in the instance for admins" do
+    admin = Factories.user(admin: true, email_address: "admin@example.com")
+    other_user = Factories.user(email_address: "other@example.com")
+    sign_in_as(admin)
+
+    get "/api/v1/app/filters/fk_options", params: { field: "user_id", q: "example" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["options"].map { |row| row["value"] }).to include(admin.id, other_user.id)
+  end
+
   it "returns a structured error for unknown fields" do
     sign_in_as(Factories.user)
 
-    get "/api/v1/app/filters/fk_options", params: { field: "user_id" }
+    get "/api/v1/app/filters/fk_options", params: { field: "made_up_id" }
 
     expect(response).to have_http_status(:bad_request)
     expect(parse_body.dig("error", "code")).to eq("unknown_field")

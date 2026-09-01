@@ -21,6 +21,7 @@
   "check_mergeability": "Coniungibilitatem inspice",
   "retry_pr_ingestion": "Susceptionem PR itera",
   "run_visual_review": "Recognitionem visualem fac",
+  "run_visual_diff": "Compara ante/post",
   "send_upstream": "Mitte ad fontem",
   "retry": "Itera",
   "retry_with_feedback": "Cum responso itera",

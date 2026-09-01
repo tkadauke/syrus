@@ -191,6 +191,30 @@ RSpec.describe PreviewWorkspace do
       FileUtils.rm_rf(source_path) if source_path
     end
 
+    it "checks out the stacked merge-base for visual_diff workflow workspaces" do
+      source_path = init_source_repo
+      branch_from(source_path, "parent-branch", from: "main")
+      parent_sha = write_commit(source_path, "parent.txt", "parent work")
+      branch_from(source_path, "child-branch", from: "parent-branch")
+      write_commit(source_path, "child.txt", "child work")
+
+      repository = Factories.repository(default_branch: "main")
+      parent_job = Factories.job_record(
+        repository: repository, branch_name: "parent-branch", pr_number: 10, state: "implemented"
+      )
+      child_job = Factories.job_record(
+        repository: repository, branch_name: "child-branch", parent_job: parent_job, state: "implemented"
+      )
+      workflow = Workflow.create!(job: child_job, trigger_kind: "visual_diff")
+      stub_repository!(repository, source_path)
+
+      WorkflowWorkspace.new(workflow, git: GitRunner.new).setup
+
+      expect(head_sha(WorkflowWorkspace.path_for(workflow))).to eq(parent_sha)
+    ensure
+      FileUtils.rm_rf(source_path) if source_path
+    end
+
     it "checks out the Job's merged commit sha when revision: :commit_sha is given (post-land preview)" do
       source_path = init_source_repo
       branch_from(source_path, "feature", from: "main")

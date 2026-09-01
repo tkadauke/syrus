@@ -759,6 +759,7 @@ module App
         can_start_preview: preview_provider_configured? && @job.previewable?,
         can_deploy: deploy_configured? && @job.deployable?,
         can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
+        can_run_visual_diff: visual_review_configured? && @job.visual_diff_runnable? && visual_diff_available?,
         can_request_changes: AppSetting.simple? && request_changes_eligible? && !simple_epic_child?,
         can_send_job_upstream: send_job_upstream_action&.fetch(:available) || false,
         send_job_upstream_blocked_reason: send_job_upstream_action&.fetch(:blocked_reason),
@@ -821,6 +822,7 @@ module App
         app_preview_logs_path: "/api/v1/app/jobs/#{@job.id}/preview/logs",
         app_deploy_path: "/api/v1/app/jobs/#{@job.id}/deploy",
         app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
+        app_visual_diff_path: "/api/v1/app/jobs/#{@job.id}/visual_diff",
         app_request_changes_path: "/api/v1/app/jobs/#{@job.id}/request_changes",
         app_ref_movement_actions_path: "/api/v1/app/jobs/#{@job.id}/ref_movement_actions",
         admin_resource_admission_path: admin_resource_admission_path
@@ -1036,6 +1038,16 @@ module App
 
       enabled = syrus_yml_visual_review_config&.enabled
       @visual_review_configured = enabled.nil? ? Feature.visual_review_enabled? : enabled
+    end
+
+    def visual_diff_available?
+      @job.workflows
+        .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
+        .any? do |workflow|
+          Array(workflow.artifact("visual_review_iterations")).any? do |iteration|
+            Array(iteration["artifacts"]).any? { |artifact| artifact.is_a?(Hash) && artifact["image_url"].present? }
+          end
+        end
     end
 
     def syrus_yml_visual_review_config

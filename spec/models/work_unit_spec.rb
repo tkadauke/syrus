@@ -39,6 +39,7 @@ RSpec.describe WorkUnit do
       ci_repair_safety
       active_work_lock
       auto_retry_backoff
+      visual_diff_obsolete
       preempted
     ]
 
