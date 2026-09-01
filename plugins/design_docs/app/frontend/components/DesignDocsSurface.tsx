@@ -563,6 +563,24 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [shareMenuAlignment, setShareMenuAlignment] = useState<"left" | "right">("left")
+
+  function toggleShareMenu() {
+    const nextOpen = !shareOpen
+    if (nextOpen) {
+      const rect = shareButtonRef.current?.getBoundingClientRect()
+      if (rect) {
+        const menuWidth = 320
+        const edgePadding = 16
+        const spaceToRight = window.innerWidth - rect.left
+        const spaceToLeft = rect.right
+        setShareMenuAlignment(spaceToRight >= menuWidth + edgePadding || spaceToRight >= spaceToLeft ? "left" : "right")
+      }
+    }
+    setShareOpen(nextOpen)
+  }
+
   return (
     <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center gap-3">
@@ -610,9 +628,12 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div
+              className={`absolute z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 ${shareMenuAlignment === "left" ? "left-0" : "right-0"}`}
+              data-testid="design-doc-share-menu"
+            >
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>

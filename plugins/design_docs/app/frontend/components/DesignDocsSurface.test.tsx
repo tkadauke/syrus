@@ -511,6 +511,31 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
   })
 
+  it("opens the share popup toward available space when the button wraps near the left edge", async () => {
+    mockFetch()
+    renderSurface("/chats/237")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    const shareButton = within(titleBar).getByRole("button", { name: "Share" })
+    vi.spyOn(shareButton, "getBoundingClientRect").mockReturnValue({
+      bottom: 350,
+      height: 32,
+      left: 24,
+      right: 80,
+      top: 318,
+      width: 56,
+      x: 24,
+      y: 318,
+      toJSON: () => ({})
+    } as DOMRect)
+
+    fireEvent.click(shareButton)
+
+    const shareMenu = screen.getByTestId("design-doc-share-menu")
+    expect(shareMenu).toHaveClass("left-0")
+    expect(shareMenu).not.toHaveClass("right-0")
+  })
+
   it("reviews suggestions and exposes version history from the title bar", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
