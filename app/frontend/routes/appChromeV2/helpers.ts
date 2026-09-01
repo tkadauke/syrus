@@ -184,7 +184,7 @@ export function clampSidebarWidth(width: number) {
 }
 
 export function sidebarLinkClass(active: boolean) {
-  return `inline-flex min-h-[44px] w-full items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
+  return `inline-flex min-h-[44px] w-full items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-brand sm:bg-brand/10 dark:text-brand-emphasis dark:sm:bg-brand/10" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
 }
 
 export function recentChatLinkClass(active: boolean) {

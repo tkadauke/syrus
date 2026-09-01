@@ -8080,7 +8080,7 @@ describe("App", () => {
       )
 
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
-      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveClass("sm:bg-blue-50", "text-blue-700")
+      expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveClass("sm:bg-brand/10", "text-brand")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).not.toHaveClass("bg-blue-50")
       expect(await screen.findByRole("main", { name: "Repository scheduled tasks" })).toHaveClass("max-w-[96rem]")
       const scheduledTabs = await screen.findByRole("navigation", { name: "Repository tabs" })
