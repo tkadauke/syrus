@@ -12036,7 +12036,7 @@ describe("App", () => {
       expect(mobileTabs.parentElement).not.toHaveClass("rounded")
       expect(mobileTabs.parentElement).not.toHaveClass("border")
       expect(mobileTabs.parentElement?.lastElementChild).not.toHaveClass("p-3")
-      expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-blue-600")
+      expect(within(mobileTabs).getByRole("button", { name: "Chat" })).toHaveClass("border-brand")
       expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
       expect(within(mobileTabs).getByRole("button", { name: "Context" })).toBeInTheDocument()
       expect(within(mobileTabs).queryByRole("button", { name: "Chats" })).not.toBeInTheDocument()
@@ -12054,13 +12054,13 @@ describe("App", () => {
       expect(screen.getByText("Discuss aqueducts.").parentElement?.parentElement).toHaveClass("px-0", "sm:rounded")
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Whiteboard" }))
-      expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-blue-600")
+      expect(within(mobileTabs).getByRole("button", { name: "Whiteboard" })).toHaveClass("border-brand")
       expect(screen.queryByTestId("chat-message-stream")).not.toBeInTheDocument()
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.queryByText(/^Version \d+$/)).not.toBeInTheDocument()
 
       fireEvent.click(within(mobileTabs).getByRole("button", { name: "Context" }))
-      expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-blue-600")
+      expect(within(mobileTabs).getByRole("button", { name: "Context" })).toHaveClass("border-brand")
       expect(screen.getByRole("complementary", { name: "Chat workspace" })).toHaveClass("h-full", "min-h-0", "w-full", "flex-1")
       expect(screen.getByText("Launch notes")).toBeInTheDocument()
 

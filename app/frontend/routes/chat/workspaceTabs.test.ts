@@ -124,6 +124,15 @@ describe("workspaceTabClass", () => {
     expect(workspaceTabClass(true)).toContain("truncate")
     expect(workspaceTabClass(true)).toContain("shrink-0")
   })
+
+  it("uses semantic brand tokens for the active underline tab", () => {
+    const className = workspaceTabClass(true)
+
+    expect(className).toContain("border-brand")
+    expect(className).toContain("text-brand")
+    expect(className).not.toContain("border-blue-600")
+    expect(className).not.toContain("text-blue-700")
+  })
 })
 
 describe("availableWorkspaceTabs", () => {
