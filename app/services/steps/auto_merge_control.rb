@@ -47,7 +47,7 @@ module Steps
       RETRYABLE_MERGE_RACE_ERROR.match?(error.message.to_s)
     end
 
-    def defer_if_base_moved_since_validation!(client, pr, context:)
+    def defer_if_base_moved_since_validation!(client, pr, context:, branch_name: nil)
       validated_base_sha = job.mergeability_base_sha.to_s.presence
       base_ref = MergeabilityRecorder.base_ref(pr).presence || job.mergeability_base_ref.presence || repository.default_branch
       return false if validated_base_sha.blank? || base_ref.blank?
@@ -71,6 +71,11 @@ module Steps
           "detected_at" => Time.current.iso8601
         }
       )
+
+      rebase_outcome = rebase_and_continue_after_base_move!(client, pr, context: context, base_ref: base_ref, current_base_sha: current_base_sha, branch_name: branch_name)
+      return false if rebase_outcome == :continue
+      return true if rebase_outcome == :deferred
+
       defer_landing_for_retry!(
         context: context,
         reason: "#{MERGE_BASE_MOVED_MESSAGE} (#{base_ref} #{validated_base_sha.first(12)} -> #{current_base_sha.first(12)})"
@@ -113,6 +118,86 @@ module Steps
 
     def deferred_mergeable_state(gate)
       MergeabilityRecorder.github_state(gate.pr) || "nil"
+    end
+
+    def rebase_and_continue_after_base_move!(client, pr, context:, base_ref:, current_base_sha:, branch_name:)
+      unless repository.trust_clean_rebase_grade?
+        log("#{context}: base moved after validation; #{repository.slug} does not trust clean rebases, deferring for revalidation", kind: "system")
+        return nil
+      end
+
+      branch = branch_name.presence || job.branch_name.presence || pr&.head&.ref.to_s.presence
+      unless branch
+        log("#{context}: base moved after validation but no rebased branch is available; deferring for revalidation", kind: "system")
+        return nil
+      end
+
+      result = ::AutoRebase.new(job, base_branch: base_ref, branch_name: branch).call
+      workflow.set_artifact!("landing_base_moved_rebase", result.to_h)
+
+      unless result.succeeded?
+        rebase_gate = AutoMergeGate::Result.new(
+          outcome: :needs_rebase,
+          approved: true,
+          reason: "#{context} base moved after landing validation and clean rebase failed: #{result}",
+          pr: pr
+        )
+        handle_needs_rebase!(
+          rebase_gate,
+          defer_reason: "#{rebase_gate.reason}; rebase_result=#{result.reason}",
+          client: client
+        )
+        return :deferred
+      end
+
+      post_sha = result.post_sha.presence || MergeabilityRecorder.head_sha(pr)
+      base_sha = result.base_sha.presence || current_base_sha
+      MergeabilityRecorder.record_local!(
+        job: job,
+        result: LocalMergeabilityCheck::Result.new(
+          state: "clean",
+          mergeable: true,
+          message: result.note.presence || "final clean rebase passed",
+          head_sha: post_sha,
+          base_sha: base_sha,
+          base_ref: base_ref
+        )
+      )
+      job.update!(
+        mergeability_head_sha: post_sha,
+        mergeability_base_sha: base_sha,
+        mergeability_base_ref: base_ref,
+        mergeability_checked_at: Time.current
+      )
+      workflow.set_artifact!("external_pr_head_sha", post_sha) if context == "external_pr_merge" && post_sha.present?
+      carry_forward_current_landing_validation_after_base_move!(post_sha: post_sha, base_sha: base_sha, base_ref: base_ref)
+      log("#{context}: base moved after validation; clean rebase #{result.note}, continuing landing on #{base_ref} #{base_sha.first(12)}", kind: "system")
+      :continue
+    end
+
+    def carry_forward_current_landing_validation_after_base_move!(post_sha:, base_sha:, base_ref:)
+      validation = workflow.artifact(LandingValidationCache::ARTIFACT_KEY)
+      return unless validation.is_a?(Hash) && validation["required_graders_passed"] == true
+      return if post_sha.blank? || base_sha.blank?
+
+      LandingValidationCache.record!(
+        workflow: workflow,
+        head_sha: post_sha,
+        tree_sha: commit_tree_sha_for_current_landing_validation(post_sha),
+        base_sha: base_sha,
+        base_ref: base_ref,
+        grader_fingerprint: validation["grader_fingerprint"],
+        changed_files_fingerprint: validation["changed_files_fingerprint"],
+        validation_source: "final_clean_rebase"
+      )
+    rescue StandardError => e
+      log("auto_merge: could not carry landing validation across final clean rebase: #{e.class}: #{e.message}", kind: "system")
+    end
+
+    def commit_tree_sha_for_current_landing_validation(head_sha)
+      GithubClient.for(repository: repository, user: job.user).commit_tree_sha(repository.slug, head_sha).to_s.presence
+    rescue StandardError
+      nil
     end
   end
 end

@@ -22,7 +22,12 @@ module Steps
         return
       end
 
-      return if defer_if_base_moved_since_validation!(client, pr, context: "external_pr_merge")
+      return if defer_if_base_moved_since_validation!(
+        client,
+        pr,
+        context: "external_pr_merge",
+        branch_name: workflow.artifact("external_pr_head_ref").presence || pr.head&.ref
+      )
 
       pushed_head_sha = push_same_repository_repairs!
       merge_result = merge_pull_request(client, expected_head_sha(pushed_head_sha))

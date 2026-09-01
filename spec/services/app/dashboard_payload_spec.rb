@@ -494,6 +494,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:landing_queue_blocked_reason]).to be_nil
       expect(item[:landing_queue_wait_reason]).to eq({ "key" => "waiting_epic_merge_train" })
       expect(child.reload.landing_queue_blocked_reason).to eq({ "key" => "waiting_epic_merge_train" })
+      expect(result.dig(:landing_queue, :status, :title)).to eq("Landing queue is waiting for an Epic merge-train.")
+      expect(result.dig(:landing_queue, :status, :summary)).to include("is approved, but its Epic is not ready to land yet")
+      expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
     end
 
     it "reports ordinary epicless job-bundle participation as neutral queue status" do
@@ -510,6 +513,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:landing_queue_blocked_reason]).to be_nil
       expect(item[:landing_queue_wait_reason]).to eq({ "key" => "waiting_epicless_bundle" })
       expect(second.reload.landing_queue_blocked_reason).to eq({ "key" => "waiting_epicless_bundle" })
+      expect(result.dig(:landing_queue, :status, :title)).to eq("Landing queue is waiting for a Job bundle.")
+      expect(result.dig(:landing_queue, :status, :summary)).to include("is approved, but its Job bundle is not ready to land yet")
+      expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
     end
 
     it "sorts eligible landing queue rows before blocked Epic merge-train rows when Queue is ascending" do

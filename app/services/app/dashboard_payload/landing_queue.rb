@@ -168,6 +168,9 @@ module App
 
         return nil if active_landing_work_for_visible_queue?
 
+        normal_wait = landing_queue_normal_wait_status(front_jobs)
+        return normal_wait if normal_wait
+
         drift_job = front_jobs.find { |job| landing_state_drift_reason_for(job).present? }
         return landing_queue_drift_status(drift_job) if drift_job
 
@@ -392,6 +395,40 @@ module App
           title: "Landing queue state drift detected.",
           summary: "#{job.slug} is marked landing, but no active landing workflow owns it. The reconciler should return it to the queue; retry landing if it remains stuck.",
           links: landing_queue_status_links([ job ])
+        }
+      end
+
+      def landing_queue_normal_wait_status(jobs)
+        reason = jobs.map { |job| job.landing_queue_blocked_reason.presence }.find { |candidate| normal_landing_queue_wait_reason?(candidate) }
+        return unless reason
+
+        key = (reason.to_h["key"] || reason.to_h[:key]).to_s
+        blocker_count = jobs.flat_map { |job| Array(job.landing_queue_blocker_job_ids) }.uniq.size
+        title =
+          case key
+          when "waiting_epic_merge_train"
+            "Landing queue is waiting for an Epic merge-train."
+          when "waiting_epicless_bundle"
+            "Landing queue is waiting for a Job bundle."
+          else
+            "Landing queue is waiting."
+          end
+        summary =
+          case key
+          when "waiting_epic_merge_train"
+            "#{landing_queue_unit_label(jobs)} is approved, but its Epic is not ready to land yet."
+          when "waiting_epicless_bundle"
+            "#{landing_queue_unit_label(jobs)} is approved, but its Job bundle is not ready to land yet."
+          else
+            "#{landing_queue_unit_label(jobs)} is approved, but this landing unit is not ready to land yet."
+          end
+        summary += " #{blocker_count} #{'blocker'.pluralize(blocker_count)} remain." if blocker_count.positive?
+
+        {
+          tone: "warning",
+          title: title,
+          summary: summary,
+          links: landing_queue_status_links(jobs)
         }
       end
 

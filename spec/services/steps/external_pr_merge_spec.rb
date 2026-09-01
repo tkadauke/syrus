@@ -23,13 +23,13 @@ RSpec.describe Steps::ExternalPrMerge do
   let(:run) { Run.create!(job: job, step: step, trigger_kind: "external_pr_merge") }
   let(:client) { instance_double(GithubClient) }
 
-  def pr(state: "open", mergeable_state: "clean", merged: false, head_sha: "abc123", base_sha: "base")
+  def pr(state: "open", mergeable_state: "clean", merged: false, head_sha: "abc123", base_sha: "base", head_ref: "contributor-branch", head_repo: "acme/widgets")
     OpenStruct.new(
       state: state,
       mergeable_state: mergeable_state,
       merged: merged,
       labels: [],
-      head: OpenStruct.new(sha: head_sha),
+      head: OpenStruct.new(sha: head_sha, ref: head_ref, repo: OpenStruct.new(full_name: head_repo)),
       base: OpenStruct.new(ref: "main", sha: base_sha)
     )
   end
@@ -128,6 +128,53 @@ RSpec.describe Steps::ExternalPrMerge do
       "validated_base_sha" => "validated-base",
       "current_base_sha" => "current-base",
       "base_ref" => "main"
+    )
+  end
+
+  it "rebases and keeps merging a same-repository external PR when the base moved and clean rebases are trusted" do
+    repository.update!(trust_clean_rebase_grade: true)
+    job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
+    workflow.set_artifact!(
+      LandingValidationCache::ARTIFACT_KEY,
+      {
+        "required_graders_passed" => true,
+        "head_sha" => "abc123",
+        "base_sha" => "validated-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "grader-fp",
+        "changed_files_fingerprint" => "files-fp",
+        "checked_at" => Time.current.iso8601
+      }
+    )
+    rebase_result = AutoRebase::Result.new(
+      true,
+      "rebased",
+      "advanced abc1234 → def5678",
+      changed: true,
+      pre_sha: "abc123",
+      post_sha: "def5678",
+      base_sha: "current-base"
+    )
+    allow(AutoRebase).to receive(:new).and_return(instance_double(AutoRebase, call: rebase_result))
+    allow(client).to receive(:pull_request).and_return(pr(head_sha: "abc123", base_sha: "current-base"))
+    allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base")
+    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "def5678").and_return("tree5678")
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+
+    expect {
+      described_class.new(run).call
+    }.not_to have_enqueued_job(LandingQueueProcessorJob)
+
+    expect(AutoRebase).to have_received(:new).with(job, base_branch: "main", branch_name: "contributor-branch")
+    expect(client).to have_received(:merge_pull_request)
+      .with("acme/widgets", 99, hash_including(merge_method: "rebase", sha: "def5678"))
+    expect(job.reload).to be_closed
+    expect(workflow.artifact("external_pr_head_sha")).to eq("def5678")
+    expect(workflow.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
+      "head_sha" => "def5678",
+      "base_sha" => "current-base",
+      "validation_source" => "final_clean_rebase"
     )
   end
 

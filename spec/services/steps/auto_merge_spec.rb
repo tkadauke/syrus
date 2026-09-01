@@ -448,6 +448,56 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     )
   end
 
+  it "rebases and keeps merging when the base branch moved and clean rebases are trusted" do
+    repository.update!(trust_clean_rebase_grade: true)
+    job.approve!(via: "github_review")
+    job.update!(mergeability_base_ref: "main", mergeability_base_sha: "validated-base")
+    job.start_landing!
+    job.save!
+    workflow.set_artifact!(
+      LandingValidationCache::ARTIFACT_KEY,
+      {
+        "required_graders_passed" => true,
+        "head_sha" => "old-head",
+        "base_sha" => "validated-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "grader-fp",
+        "changed_files_fingerprint" => "files-fp",
+        "checked_at" => Time.current.iso8601
+      }
+    )
+    rebase_result = AutoRebase::Result.new(
+      true,
+      "rebased",
+      "advanced abc1234 → def5678",
+      changed: true,
+      pre_sha: "old-head",
+      post_sha: "new-head",
+      base_sha: "current-base"
+    )
+    allow(AutoRebase).to receive(:new).and_return(instance_double(AutoRebase, call: rebase_result))
+    allow(client).to receive(:branch_head_sha).with("acme/widgets", "main").and_return("current-base", "current-base")
+    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "new-head").and_return("new-tree")
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+    described_class.new(run).call
+
+    expect(AutoRebase).to have_received(:new).with(job, base_branch: "main", branch_name: "syrus/issue-42-1")
+    expect(client).to have_received(:merge_pull_request)
+    expect(job.reload).to be_closed
+    expect(workflow.reload).to be_running
+    expect(workflow.artifact("landing_base_moved_rebase")).to include(
+      "succeeded" => true,
+      "post_sha" => "new-head",
+      "base_sha" => "current-base"
+    )
+    expect(workflow.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
+      "head_sha" => "new-head",
+      "base_sha" => "current-base",
+      "validation_source" => "final_clean_rebase"
+    )
+  end
+
   [
     [ Octokit::MethodNotAllowed, 405, "Base branch was modified. Review and try the merge." ],
     [ Octokit::UnprocessableEntity, 422, "Head branch was modified. Review and try the merge again." ],
