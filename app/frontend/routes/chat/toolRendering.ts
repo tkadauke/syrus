@@ -49,6 +49,7 @@ export type ChatMediaImage = {
   kind: "chat_image"
   filename: string
   content_type: string
+  file_path: string
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -406,7 +407,8 @@ function chatMediaImage(value: unknown): ChatMediaImage | null {
     id: stringValue(value.id),
     kind: "chat_image",
     filename: stringValue(value.filename) || stringValue(value.name) || stringValue(value.id),
-    content_type: stringValue(value.content_type) || stringValue(value.mime_type) || "image"
+    content_type: stringValue(value.content_type) || stringValue(value.mime_type) || "image",
+    file_path: stringValue(value.file_path) || stringValue(value.image_url) || stringValue(value.url)
   }
 }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -453,7 +453,7 @@ describe("tool result rendering", () => {
           raw_payload: {},
           result_body: JSON.stringify({
             snapshots: [{ id: "snapshot:9", kind: "snapshot", name: "Checkout flow", element_count: 4, created_at: "2026-09-01T12:00:00Z" }],
-            chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png" }],
+            chat_images: [{ id: "chat_image:3", kind: "chat_image", filename: "desktop.png", content_type: "image/png", file_path: "/api/v1/app/chats/12/media/chat_images/3/file" }],
             whiteboard_element_count: 7
           }),
           result_error: false,
@@ -468,12 +468,21 @@ describe("tool result rendering", () => {
 
     expect(screen.getAllByText("2 media items")).toHaveLength(2)
     expect(screen.getByText("7 whiteboard elements")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /desktop.png/ })).toHaveClass("dark:bg-gray-950")
+    const imageTile = screen.getByRole("button", { name: "Open desktop.png" })
+    expect(imageTile).toHaveClass("dark:bg-gray-950")
+    const tooltip = imageTile.getAttribute("title")
+    expect(tooltip).toContain("desktop.png")
+    expect(tooltip).toContain("chat_image:3")
+    expect(tooltip).toContain("image/png")
+    expect(within(imageTile).getByRole("img", { name: "desktop.png" })).toHaveAttribute("src", "/api/v1/app/chats/12/media/chat_images/3/file")
+    expect(within(imageTile).queryByText("desktop.png")).not.toBeInTheDocument()
+    expect(within(imageTile).queryByText("chat_image:3")).not.toBeInTheDocument()
+    expect(within(imageTile).queryByText("image/png")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: /Checkout flow/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: /desktop.png/ }))
+    fireEvent.click(imageTile)
     expect(screen.getByRole("dialog", { name: "desktop.png" })).toBeInTheDocument()
-    expect(screen.getAllByText("chat_image:3")).toHaveLength(2)
+    expect(screen.getAllByRole("img", { name: "desktop.png" })).toHaveLength(2)
 
     const rawDetails = screen.getByText("Raw details").closest("details")
     expect(rawDetails).not.toBeNull()
