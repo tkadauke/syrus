@@ -321,6 +321,77 @@ describe("chat workspace source links", () => {
 })
 
 describe("tool result rendering", () => {
+  it("prioritizes the group display label and hides raw payloads behind a control", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Read",
+      summary_label: "Inspected 4 sources",
+      outcome_label: "4 calls",
+      collapsed_by_default: true,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Read",
+          raw_name: "Read",
+          detail: "app/models/job.rb",
+          display_label: "Read",
+          progress_label: "Reading",
+          raw_payload: { file_path: "app/models/job.rb" },
+          result_body: "class Job",
+          result_error: false,
+          result_kind: "text",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Inspected 4 sources")).toBeInTheDocument()
+    expect(screen.getByText("4 calls")).toBeInTheDocument()
+    expect(screen.queryByText("app/models/job.rb")).not.toBeInTheDocument()
+    expect(screen.queryByText("class Job")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Inspected 4 sources"))
+    expect(screen.getByText("app/models/job.rb")).toBeInTheDocument()
+    expect(screen.getByText("class Job")).toBeInTheDocument()
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+    expect(screen.queryByText(/file_path/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Raw details"))
+    expect(screen.getByText(/file_path/)).toBeInTheDocument()
+  })
+
+  it("opens prominent failed tool groups by default", () => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool: "Bash",
+      outcome_label: "Needs attention",
+      prominent: true,
+      collapsed_by_default: false,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: "Bash",
+          raw_name: "Bash",
+          detail: "bin/rspec",
+          display_label: "Bash",
+          progress_label: "Making changes",
+          raw_payload: { command: "bin/rspec" },
+          result_body: "1 failure",
+          result_error: true,
+          result_kind: "error",
+          result_summary: ""
+        }
+      ]
+    }
+
+    render(<ToolGroup item={item} />)
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(screen.getByText("1 failure")).toBeInTheDocument()
+  })
+
   it("defers large tool result bodies until the operator expands the group", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
@@ -388,6 +459,37 @@ describe("tool result rendering", () => {
 
     expect(screen.queryByTestId("highlighted-code")).not.toBeInTheDocument()
     expect(screen.getByText("a".repeat(2_000))).toBeInTheDocument()
+  })
+
+  it("renders ungrouped structured tools with the display model and raw details disclosure", () => {
+    renderChatMessageItem({
+      type: "message",
+      id: 10,
+      role: "tool_result",
+      text: "",
+      bookmarkable: false,
+      tool: {
+        name: "list_chat_media",
+        raw_name: "syrus-chat-sidecar.list_chat_media",
+        display_label: "List chat media",
+        argument_summary: "No arguments",
+        raw_payload: {},
+        result_kind: "list",
+        result_summary: "2 media items",
+        payload: { content: { chat_media: [{ id: "img_1" }, { id: "img_2" }] } },
+        proposal_id: null,
+        proposal_state_label: null
+      }
+    })
+
+    expect(screen.getByText("List chat media")).toBeInTheDocument()
+    expect(screen.getByText("2 media items")).toBeInTheDocument()
+    expect(screen.queryByText(/chat_media/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("List chat media"))
+    expect(screen.getByText("Raw details")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Raw details"))
+    expect(screen.getByText(/chat_media/)).toBeInTheDocument()
   })
 })
 

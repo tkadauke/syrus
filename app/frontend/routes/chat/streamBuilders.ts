@@ -18,6 +18,9 @@ import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolPre
 // alone (the pre-EPIC-240 behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
+const INSPECTION_GROUP_KEY = "\0inspection"
+
+type ToolVisibility = "inspection" | "normal" | "prominent"
 
 type OpenCall = {
   call: ChatToolGroupCall
@@ -36,6 +39,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
       const toolName = message.tool_name || ""
       const presentation = toolPresentation(toolName, contentInput(message.content))
       const tool = presentation.display_label
+      const visibility = toolVisibility(presentation.name)
       const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
       const container = containerByParentKey.get(parentKey) as ChatRenderItem[]
       const call: ChatToolGroupCall = {
@@ -54,12 +58,15 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
       }
 
       const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
+      const groupKey = visibility === "inspection" ? INSPECTION_GROUP_KEY : tool
       let group: ChatToolGroupItem
-      if (lastGroup !== null && lastGroup.tool === tool) {
+      if (lastGroup !== null && groupIdentity(lastGroup) === groupKey) {
         lastGroup.calls.push(call)
         group = lastGroup
       } else {
         group = { type: "tool_group", tool, calls: [ call ] }
+        if (visibility === "inspection") group.group_key = INSPECTION_GROUP_KEY
+        if (visibility === "prominent") group.prominent = true
         container.push(group)
         lastGroupByParentKey.set(parentKey, group)
       }
@@ -92,6 +99,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
+        updateToolGroupPresentation(open.group)
         if (options.simpleMode && !open.call.result_error) {
           open.group.calls = open.group.calls.filter((call) => call !== open.call)
           if (open.group.calls.length === 0) {
@@ -105,6 +113,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         if (item) items.push(item)
       }
     } else {
+      if (message.role === "assistant" && message.text.trim().length > 0) collapsePrecedingToolGroups(items)
       resetLastGroup(message, lastGroupByParentKey)
       const item = renderMessage(message, options)
       if (item) items.push(item)
@@ -112,6 +121,73 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
   }
 
   return items
+}
+
+function groupIdentity(group: ChatToolGroupItem) {
+  return group.group_key || group.tool
+}
+
+function collapsePrecedingToolGroups(items: ChatRenderItem[]) {
+  for (const item of items) {
+    if (item.type !== "tool_group") continue
+
+    markCollapsedAfterAssistant(item)
+  }
+}
+
+function markCollapsedAfterAssistant(group: ChatToolGroupItem) {
+  updateToolGroupPresentation(group)
+  group.collapsed_by_default = !group.prominent
+  for (const call of group.calls) {
+    for (const nested of call.nested || []) {
+      markCollapsedAfterAssistant(nested)
+    }
+  }
+}
+
+function updateToolGroupPresentation(group: ChatToolGroupItem) {
+  const failed = group.calls.some((call) => call.result_error)
+  const pending = group.calls.some((call) => call.result_kind === "unknown" && !call.result_body)
+  const sideEffecting = group.calls.some((call) => toolVisibility(call.tool_name) === "prominent")
+  group.prominent = failed || pending || sideEffecting
+  group.outcome_label = groupOutcomeLabel(group, { failed, pending })
+  group.summary_label = group.group_key === INSPECTION_GROUP_KEY ? inspectionSummaryLabel(group) : group.tool
+}
+
+function groupOutcomeLabel(group: ChatToolGroupItem, state: { failed: boolean; pending: boolean }) {
+  if (state.failed) return "Needs attention"
+  if (state.pending) return "Running"
+
+  const aggregate = aggregateResultMetadata(group)
+  if (aggregate) return aggregate
+  if (group.calls.length > 1) return `${group.calls.length} calls`
+
+  return group.calls[0]?.result_summary || "Completed"
+}
+
+function aggregateResultMetadata(group: ChatToolGroupItem) {
+  const nouns = new Map<string, number>()
+  for (const call of group.calls) {
+    const count = call.summary_metadata?.count
+    const noun = call.summary_metadata?.noun
+    if (typeof count === "number" && typeof noun === "string") nouns.set(noun, (nouns.get(noun) || 0) + count)
+  }
+
+  if (nouns.size !== 1) return null
+
+  const [noun, count] = Array.from(nouns.entries())[0]
+  return `${count} ${pluralizedNoun(noun, count)}`
+}
+
+function pluralizedNoun(noun: string, count: number) {
+  if (count === 1 || noun.endsWith("s")) return noun
+  if (noun.endsWith("ch")) return `${noun}es`
+
+  return `${noun}s`
+}
+
+function inspectionSummaryLabel(group: ChatToolGroupItem) {
+  return `Inspected ${group.calls.length} source${group.calls.length === 1 ? "" : "s"}`
 }
 
 function resetLastGroup(message: ChatMessageItem, lastGroupByParentKey: Map<string, ChatToolGroupItem | null>) {
@@ -268,4 +344,45 @@ export function groupableToolUse(message: ChatMessageItem) {
 
 export function groupableToolResult(message: ChatMessageItem) {
   return message.role === "tool_result" && !message.proposal
+}
+
+function toolVisibility(name: string): ToolVisibility {
+  if (readOnlyTool(name)) return "inspection"
+  if (sideEffectingTool(name)) return "prominent"
+
+  return "normal"
+}
+
+function readOnlyTool(name: string) {
+  const normalized = name.toLowerCase()
+
+  return [
+    "read",
+    "glob",
+    "grep",
+    "ls",
+    "webfetch",
+    "websearch",
+    "toolsearch",
+    "read_live_state",
+    "read_memory",
+    "search_memories",
+    "list_memories",
+    "list_chat_media",
+    "read_design_doc",
+    "list_design_docs"
+  ].includes(normalized) || /^(read|get|list|search|find|fetch|inspect|resolve)_/.test(normalized)
+}
+
+function sideEffectingTool(name: string) {
+  const normalized = name.toLowerCase()
+
+  return [
+    "bash",
+    "edit",
+    "multiedit",
+    "write",
+    "notebookedit",
+    "todowrite"
+  ].includes(normalized) || /^(write|create|update|delete|submit|propose|confirm|reject|cancel|archive|start|move|add|remove|edit)_/.test(normalized)
 }

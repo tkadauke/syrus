@@ -97,6 +97,63 @@ describe("renderChatMessages tool grouping", () => {
     expect(toolGroup.calls[1].result_body).toBe("class B")
   })
 
+  it("groups consecutive read-only inspection calls across tool names", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_read", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_grep", toolName: "Grep", input: { pattern: "class", path: "app" } }),
+      toolResult(4, { toolUseId: "tu_grep", content: "app/models/a.rb:1\napp/models/b.rb:1\napp/models/c.rb:1\napp/models/d.rb:1\napp/models/e.rb:1\napp/models/f.rb:1\napp/models/g.rb:1\napp/models/h.rb:1\napp/models/i.rb:1" })
+    ])
+
+    expect(items).toHaveLength(1)
+    const toolGroup = group(items[0])
+    expect(toolGroup.summary_label).toBe("Inspected 2 sources")
+    expect(toolGroup.outcome_label).toBe("9 matches")
+    expect(toolGroup.calls.map((call) => call.display_label)).toEqual(["Read", "Grep"])
+  })
+
+  it("stops grouping read-only calls across side-effecting tools", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_read", content: "class A" }),
+      toolUse(3, { toolUseId: "tu_write", toolName: "Write", input: { file_path: "b.rb" } }),
+      toolResult(4, { toolUseId: "tu_write", content: "ok" }),
+      toolUse(5, { toolUseId: "tu_grep", toolName: "Grep", input: { pattern: "class" } }),
+      toolResult(6, { toolUseId: "tu_grep", content: "app/models/a.rb:1" })
+    ])
+
+    expect(items).toHaveLength(3)
+    expect(group(items[0]).summary_label).toBe("Inspected 1 source")
+    expect(group(items[1]).tool).toBe("Write")
+    expect(group(items[1]).prominent).toBe(true)
+    expect(group(items[2]).summary_label).toBe("Inspected 1 source")
+  })
+
+  it("collapses prior non-prominent tool groups after an assistant message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_read", toolName: "Read", input: { file_path: "a.rb" } }),
+      toolResult(2, { toolUseId: "tu_read", content: "class A" }),
+      { type: "message", id: 3, role: "assistant", text: "Done.", bookmarkable: false }
+    ])
+
+    expect(group(items[0]).collapsed_by_default).toBe(true)
+    expect(group(items[0]).prominent).toBe(false)
+  })
+
+  it("keeps failures and pending side effects prominent after an assistant message", () => {
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_bash", toolName: "Bash", input: { command: "bin/rspec" } }),
+      toolResult(2, { toolUseId: "tu_bash", content: "failed", isError: true }),
+      toolUse(3, { toolUseId: "tu_write", toolName: "Write", input: { file_path: "app.rb" } }),
+      { type: "message", id: 4, role: "assistant", text: "I hit a failure.", bookmarkable: false }
+    ])
+
+    const failed = group(items[0])
+    const pending = group(items[1])
+    expect(failed).toMatchObject({ prominent: true, collapsed_by_default: false, outcome_label: "Needs attention" })
+    expect(pending).toMatchObject({ prominent: true, collapsed_by_default: false, outcome_label: "Running" })
+  })
+
   it("nests a subagent's tool_use/tool_result pair that interleaves inside a still-open parent Agent call", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_agent", toolName: "Task", input: { prompt: "investigate" } }),
