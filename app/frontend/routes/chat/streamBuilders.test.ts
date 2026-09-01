@@ -64,7 +64,13 @@ describe("renderChatMessages tool grouping", () => {
   it("renders prefixed MCP tool calls with human labels and retained raw payloads", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_media", toolName: "syrus-chat-sidecar.list_chat_media", input: {} }),
-      toolResult(2, { toolUseId: "tu_media", content: JSON.stringify({ chat_media: [{ id: "img_1" }] }) })
+      toolResult(2, {
+        toolUseId: "tu_media",
+        content: JSON.stringify({
+          snapshots: [{ id: "snapshot:1" }],
+          chat_images: [{ id: "chat_image:1" }]
+        })
+      })
     ])
 
     const toolGroup = group(items[0])
@@ -76,8 +82,8 @@ describe("renderChatMessages tool grouping", () => {
       detail: "No arguments",
       raw_payload: {},
       result_kind: "list",
-      result_summary: "1 media item",
-      summary_metadata: { count: 1, noun: "media item" }
+      result_summary: "2 media items",
+      summary_metadata: { count: 2, noun: "media item" }
     })
   })
 

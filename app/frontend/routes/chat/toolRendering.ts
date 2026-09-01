@@ -362,6 +362,9 @@ function resultCount(value: unknown): number | null {
   if (Array.isArray(value)) return value.length
   if (!isPlainObject(value)) return null
 
+  const chatMediaCount = chatMediaResultCount(value)
+  if (chatMediaCount != null) return chatMediaCount
+
   for (const key of ["items", "results", "records", "proposals", "bookmarks", "media", "chat_media", "jobs", "epics", "children"]) {
     const candidate = value[key]
     if (Array.isArray(candidate)) return candidate.length
@@ -373,6 +376,14 @@ function resultCount(value: unknown): number | null {
   }
 
   return null
+}
+
+function chatMediaResultCount(value: Record<string, unknown>) {
+  const hasSnapshots = Array.isArray(value.snapshots)
+  const hasChatImages = Array.isArray(value.chat_images)
+  if (!hasSnapshots && !hasChatImages) return null
+
+  return (hasSnapshots ? value.snapshots.length : 0) + (hasChatImages ? value.chat_images.length : 0)
 }
 
 function countSummary(count: number, noun: string) {
