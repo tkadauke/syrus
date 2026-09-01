@@ -186,7 +186,7 @@ export function ChatRoute() {
   return (
     <main
       aria-label={t("aria_chat")}
-      className="relative flex h-full w-full flex-col gap-2 overflow-hidden p-1 sm:gap-2 sm:p-2 lg:[height:100%]"
+      className="relative flex h-full w-full flex-col gap-2 overflow-hidden pb-0 pl-1 pr-0 pt-0 sm:gap-2 sm:pb-0 sm:pl-2 sm:pr-0 sm:pt-0 lg:[height:100%]"
       style={viewportStyle}
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
@@ -358,42 +358,10 @@ type BookmarkTarget = {
 function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey }) {
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("chat")
-
-  const title = chatDisplayTitle(payload.chat)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {!isDesktop ? null : (
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className={`flex min-w-0 items-center gap-2 break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
-              <span className="min-w-0 break-words">{title}</span>
-              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} className="mt-1" />
-            </h1>
-            {payload.local_mode_enabled && payload.chat.mode === "local" && payload.chat.local_daemon_state === "connected" ? (
-              <div className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
-                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>{t("local_daemon_connected", { repo: payload.chat.local_daemon_repo ?? "", branch: payload.chat.local_daemon_branch ?? "" })}</span>
-              </div>
-            ) : null}
-            {payload.chat.conversation_kind === "group" ? (
-              <GroupChatParticipants payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-            ) : null}
-          </div>
-          <button
-            aria-label={t("chat_settings")}
-            className="rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-            onClick={() => setSettingsOpen(true)}
-            title={t("chat_settings")}
-            type="button"
-          >
-            <GearIcon className="h-5 w-5" />
-          </button>
-        </header>
-      )}
-
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
 
       {!payload.chat_available ? (
@@ -858,7 +826,7 @@ function ChatWorkspace({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"
+      className="relative flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:gap-0"
       style={{
         gridTemplateColumns: panelCollapsed
           ? "minmax(0,1fr) 0 2.5rem"
@@ -876,10 +844,10 @@ function ChatWorkspace({
         />
       )}
       {panelCollapsed ? (
-        <div className="hidden lg:flex lg:flex-col lg:items-start lg:pt-3">
+        <div className="pointer-events-none absolute right-0 top-3 hidden w-10 lg:flex lg:justify-start">
           <button
             aria-label={t("open_workspace")}
-            className="rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            className="pointer-events-auto rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
             onClick={() => setPanelCollapsed(false)}
             title={t("open_panel")}
             type="button"
@@ -1042,8 +1010,12 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   // track the composer's actual rendered height instead of a static guess.
   const [composerHeight, setComposerHeight] = useState<number | null>(null)
   const { t } = useT("chat")
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const activeGoal = currentChatGoal(payload)
   const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage && !activeGoal
+  const title = chatDisplayTitle(payload.chat)
+  const showsLocalConnection = payload.local_mode_enabled && payload.chat.mode === "local" && payload.chat.local_daemon_state === "connected"
+  const alignPlainPlanningHeader = payload.chat.mode === "planning" && !activeGoal && !showsLocalConnection
 
   useEffect(() => {
     setHasSentFirstMessage(false)
@@ -1065,10 +1037,38 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
 
   return (
     <section
-      className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-1 sm:gap-2"}`}
+      className={`relative flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : alignPlainPlanningHeader ? "gap-1 sm:gap-4" : "gap-1 sm:gap-2"}`}
       style={composerHeight != null ? { "--chat-composer-height": `${composerHeight}px` } as CSSProperties : undefined}
     >
       <ChatTour />
+      {!landing && isDesktop ? (
+        <header className="flex shrink-0 items-center gap-2 pl-1">
+          <button
+            aria-label={t("chat_settings")}
+            className="shrink-0 rounded p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            onClick={commandHandlers.openSettings}
+            title={t("chat_settings")}
+            type="button"
+          >
+            <GearIcon className="h-5 w-5" />
+          </button>
+          <div className="min-w-0">
+            <h1 className={`flex min-w-0 items-center gap-2 break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
+              <span className="min-w-0 break-words">{title}</span>
+              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} className="mt-1" />
+            </h1>
+            {showsLocalConnection ? (
+              <div className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span>{t("local_daemon_connected", { repo: payload.chat.local_daemon_repo ?? "", branch: payload.chat.local_daemon_branch ?? "" })}</span>
+              </div>
+            ) : null}
+            {payload.chat.conversation_kind === "group" ? (
+              <GroupChatParticipants payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+            ) : null}
+          </div>
+        </header>
+      ) : null}
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}
@@ -1078,7 +1078,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       ) : null}
       {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
       {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-      <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
+      <div className={`relative min-h-0 overflow-hidden rounded-t border border-b-0 border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
