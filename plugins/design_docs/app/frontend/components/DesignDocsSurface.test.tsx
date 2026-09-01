@@ -382,7 +382,7 @@ describe("DesignDocsSurface", () => {
     fireEvent.change(markdownEditor, { target: { value: "Alpha **beta** gamma" } })
     fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
     const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
-    const textNode = editor.querySelector("strong")!.firstChild!
+    const textNode = editor.querySelector("strong [data-source-start]")!.firstChild!
     const range = document.createRange()
     range.setStart(textNode, 0)
     range.setEnd(textNode, 4)
@@ -397,6 +397,51 @@ describe("DesignDocsSurface", () => {
     const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
     expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
       comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
+    })
+  })
+
+  it("creates WYSIWYG comments from source offsets in long formatted list docs", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+    const markdown = [
+      "# Backlog",
+      "",
+      "- First item with `code` and [link](https://example.test).",
+      "- Second item after enough syntax to drift rendered offsets.",
+      "",
+      "## Open Questions",
+      "",
+      "- Should backlogged Jobs be owned, claimed, both, or neither by default?"
+    ].join("\n")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(markdownEditor, { target: { value: markdown } })
+    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
+    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    const selected = "Should backlogged Jobs be owned, claimed, both, or neither by default?"
+    const textNode = Array.from(editor.querySelectorAll("[data-source-start]"))
+      .find((node) => node.textContent === selected)!
+      .firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, selected.length)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(editor)
+    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify question" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: {
+        body: "Clarify question",
+        start_offset: markdown.indexOf(selected),
+        end_offset: markdown.indexOf(selected) + selected.length,
+        selected_markdown: selected,
+        selected_text: selected
+      }
     })
   })
 
