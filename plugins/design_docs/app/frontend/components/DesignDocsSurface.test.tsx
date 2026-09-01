@@ -56,6 +56,30 @@ const docDetail = {
     comments: [{ id: 8, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Needs evidence", created_at: "2026-08-29T12:01:00Z", updated_at: "2026-08-29T12:01:00Z" }],
     created_at: "2026-08-29T12:01:00Z",
     updated_at: "2026-08-29T12:01:00Z"
+  }, {
+    id: 17,
+    state: "open",
+    anchor: {
+      id: 21,
+      anchor_key: "b",
+      marker_id: "m2",
+      anchor_kind: "range",
+      status: "active",
+      start_offset: 11,
+      end_offset: 16,
+      last_known_start_offset: 11,
+      last_known_end_offset: 16,
+      selected_markdown: "gamma",
+      selected_text: "gamma",
+      prefix_context: null,
+      suffix_context: null
+    },
+    opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+    resolved_by: null,
+    resolved_at: null,
+    comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+    created_at: "2026-08-29T12:02:00Z",
+    updated_at: "2026-08-29T12:02:30Z"
   }],
   suggestions: [{
     id: 9,
@@ -84,6 +108,31 @@ const docDetail = {
       selected_text: "gamma",
       prefix_context: null,
       suffix_context: null
+    },
+    thread: {
+      id: 17,
+      state: "open",
+      anchor: {
+        id: 21,
+        anchor_key: "b",
+        marker_id: "m2",
+        anchor_kind: "range",
+        status: "active",
+        start_offset: 11,
+        end_offset: 16,
+        last_known_start_offset: 11,
+        last_known_end_offset: 16,
+        selected_markdown: "gamma",
+        selected_text: "gamma",
+        prefix_context: null,
+        suffix_context: null
+      },
+      opened_by: { id: 2, name: "Editor", email_address: "editor@example.com" },
+      resolved_by: null,
+      resolved_at: null,
+      comments: [{ id: 18, author_kind: "user", author: { id: 2, name: "Editor", email_address: "editor@example.com" }, body: "Why this wording?", created_at: "2026-08-29T12:02:30Z", updated_at: "2026-08-29T12:02:30Z" }],
+      created_at: "2026-08-29T12:02:00Z",
+      updated_at: "2026-08-29T12:02:30Z"
     },
     reviewed_by: null,
     reviewed_at: null,
@@ -240,13 +289,29 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/1/comments") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
       if (payload.comment?.thread_id === 7) {
+        const commentThread = {
+          ...docDetail.threads[0],
+          comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+        }
         return jsonResponse({
           design_doc: {
             ...docDetail,
-            threads: [{
-              ...docDetail.threads[0],
-              comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
-            }]
+            threads: [commentThread, docDetail.threads[1]]
+          },
+          message: "Comment created."
+        }, 201)
+      }
+      if (payload.comment?.thread_id === 17) {
+        const suggestionThread = {
+          ...docDetail.threads[1],
+          comments: [...docDetail.threads[1].comments, { id: 19, author_kind: "user", author: docDetail.owner, body: "Agreed", created_at: "2026-08-29T12:04:00Z", updated_at: "2026-08-29T12:04:00Z" }]
+        }
+        const suggestion = { ...docDetail.suggestions[0], thread: suggestionThread }
+        return jsonResponse({
+          design_doc: {
+            ...docDetail,
+            threads: [docDetail.threads[0], suggestionThread],
+            suggestions: [suggestion]
           },
           message: "Comment created."
         }, 201)
@@ -316,7 +381,8 @@ describe("DesignDocsSurface", () => {
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     expect(screen.getByText("Threads")).toBeInTheDocument()
-    expect(screen.getByText("Suggestions")).toBeInTheDocument()
+    expect(screen.getByText("Use newer name")).toBeInTheDocument()
+    expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
     expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
   })
@@ -494,7 +560,7 @@ describe("DesignDocsSurface", () => {
 
     await screen.findByText("Needs evidence")
     fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
-    fireEvent.click(screen.getByRole("button", { name: "Reply" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply" })[0])
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
     const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
@@ -502,6 +568,44 @@ describe("DesignDocsSurface", () => {
       comment: { body: "Follow up", thread_id: 7 }
     })
     expect(await screen.findByText("Follow up")).toBeInTheDocument()
+  })
+
+  it("supports replies on pending suggestion threads", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Use newer name")
+    expect(screen.getByText("Why this wording?")).toBeInTheDocument()
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply to suggestion 9" }), { target: { value: "Agreed" } })
+    fireEvent.click(screen.getAllByRole("button", { name: "Reply" }).at(-1)!)
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
+    expect(JSON.parse(String(replyRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Agreed", thread_id: 17 }
+    })
+    expect(await screen.findByText("Agreed")).toBeInTheDocument()
+  })
+
+  it("removes reviewed suggestions from active threads after accept or reject", async () => {
+    const fetchSpy = mockFetch()
+    const acceptedRender = renderSurface("/design_docs/1")
+
+    await screen.findByText("Use newer name")
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
+    expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
+
+    acceptedRender.unmount()
+    renderSurface("/design_docs/1")
+    await screen.findByText("Use newer name")
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/reject", expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(screen.queryByText("Use newer name")).not.toBeInTheDocument())
+    expect(screen.queryByText("Why this wording?")).not.toBeInTheDocument()
   })
 
   it("resets draft editor state when opening a different focused design doc route", async () => {

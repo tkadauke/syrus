@@ -79,6 +79,7 @@ export type DesignDocSuggestion = {
   provenance: Record<string, unknown>
   conflict_reason: string | null
   anchor: DesignDocAnchor
+  thread: DesignDocThread | null
   reviewed_by: DesignDocUser | null
   reviewed_at: string | null
   created_at: string
