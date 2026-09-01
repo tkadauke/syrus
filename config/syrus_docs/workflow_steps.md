@@ -515,10 +515,11 @@ Preflight graders use the same command-span instrumentation as normal graders.
 
 ### preflight_grader_collect
 
-Non-agentic. Aggregates preflight grader results. Two outcomes:
+Non-agentic. Aggregates preflight grader results. Three outcomes:
 
 - **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
-- **Any required grader failed:** Logs the failure and returns normally so the chain continues to `prepare → implement`.
+- **Required grader failures are timeout-like only:** Sets the `preflight_inconclusive` workflow artifact, records the failed grader names, cancels downstream repair steps, and returns. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's grader signal inconclusive instead of asking an agent to repair code from timeout-only output. Repositories with `treat_grader_timeouts_as_failures` enabled keep the stricter behavior below.
+- **Any required grader failed for a non-timeout reason:** Logs the failure and returns normally so the chain continues to `prepare → implement`.
 
 Unlike `grader_collect`, this step never raises `StepFailed` — a grader failure here means "proceed to implement", not "fail the workflow."
 

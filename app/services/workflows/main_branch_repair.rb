@@ -47,6 +47,7 @@ module Workflows
     # so landing can resume, and close the anchor job.
     def self.after_success(workflow)
       artifacts = workflow.class.where(id: workflow.id).pick(:artifacts) || workflow.artifacts || {}
+      return handle_preflight_inconclusive!(workflow, artifacts) if artifacts["preflight_inconclusive"]
       return unless artifacts["preflight_passed"]
 
       repository = workflow.job.repository
@@ -74,10 +75,32 @@ module Workflows
       close_anchor_job!(workflow)
     end
 
-    private_class_method def self.close_anchor_job!(workflow)
+    private_class_method def self.handle_preflight_inconclusive!(workflow, artifacts)
+      repository = workflow.job.repository
+      previous_health = repository.main_health
+      failed_names = Array(artifacts["preflight_inconclusive_failed_names"]).presence
+      sha = repository.last_health_checked_sha.to_s.presence
+
+      updates = { grader_health: "inconclusive" }
+      updates[:last_graded_sha] = sha if sha
+      repository.update!(updates)
+      MainBranchHealthCheck.record_grader_workflow(
+        repository: repository,
+        workflow: workflow,
+        sha: sha || "unknown",
+        grader_health: "inconclusive",
+        grader_failed_names: failed_names
+      )
+      repository.reload
+
+      MainHealthChangedService.on_health_change!(repository) if repository.main_health != previous_health
+      close_anchor_job!(workflow, reason: "preflight_inconclusive")
+    end
+
+    private_class_method def self.close_anchor_job!(workflow, reason: "preflight_passed")
       StateTransition.with_source("system") do
         job = workflow.job.reload
-        job.close_with_reason!("preflight_passed") if job.may_close?
+        job.close_with_reason!(reason) if job.may_close?
       end
     end
   end

@@ -188,6 +188,55 @@ RSpec.describe Workflows::MainBranchRepair do
         described_class.after_success(workflow)
       end
     end
+
+    context "when preflight_inconclusive artifact is set" do
+      before do
+        workflow.set_artifact!("preflight_inconclusive", true)
+        workflow.set_artifact!("preflight_inconclusive_failed_names", [ "rspec-ci" ])
+      end
+
+      it "updates grader_health to inconclusive" do
+        described_class.after_success(workflow)
+
+        expect(repository.reload.grader_health).to eq("inconclusive")
+      end
+
+      it "does not mark ci_health healthy" do
+        repository.update!(ci_health: "healthy")
+
+        described_class.after_success(workflow)
+
+        expect(repository.reload.ci_health).to eq("healthy")
+      end
+
+      it "records last_graded_sha for the inconclusive main SHA" do
+        described_class.after_success(workflow)
+
+        expect(repository.reload.last_graded_sha).to eq("abc123def456")
+      end
+
+      it "records an inconclusive grader health check linked to the workflow" do
+        described_class.after_success(workflow)
+
+        check = MainBranchHealthCheck.last
+        expect(check.workflow).to eq(workflow)
+        expect(check.grader_health).to eq("inconclusive")
+        expect(check.grader_failed_names).to eq([ "rspec-ci" ])
+      end
+
+      it "closes the anchor job with a preflight_inconclusive reason" do
+        described_class.after_success(workflow)
+
+        expect(job.reload.state).to eq("closed")
+        expect(job.closure_reason).to eq("preflight_inconclusive")
+      end
+
+      it "calls MainHealthChangedService when main health changes" do
+        expect(MainHealthChangedService).to receive(:on_health_change!).with(kind_of(Repository))
+
+        described_class.after_success(workflow)
+      end
+    end
   end
 
   describe "Job#create_initial_run routing" do

@@ -256,7 +256,9 @@ showing the `stuck_main_branch_repair_job` evidence.
 
 The workflow runs a preflight grader check before invoking the agent. Preflight resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_repair` is a `LandingGraderPlan::CI_TRIGGER_KINDS` entry) — the same phase `ci_failure`/`main_grader` use, and the phase that actually mirrors `ci_health` (e.g. a `phases: [ci]` grader like `rspec-ci`, not a `phases: [landing]`-only grader like plain `rspec`). If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates both `grader_health` and `ci_health` to healthy (a preflight pass under the `:ci` phase is conclusive evidence for both signals), calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
 
-If any required preflight grader fails, the chain continues normally to the implement step. The agent fixes the broken code, graders validate the fix, and a PR is opened. `PollPullRequestJob` calls `MainHealthChangedService.repair_landed!` when the PR merges.
+If required preflight grader failures are timeout-like only, the workflow records `preflight_inconclusive`, cancels the implementation chain, marks the grader signal inconclusive, and closes the repair Job for operator review instead of asking an agent to repair code from timeout-only output. Repositories with `treat_grader_timeouts_as_failures` enabled keep treating timeout-only preflight failures as actionable.
+
+If any required preflight grader fails for a non-timeout reason, the chain continues normally to the implement step. The agent fixes the broken code, graders validate the fix, and a PR is opened. `PollPullRequestJob` calls `MainHealthChangedService.repair_landed!` when the PR merges.
 
 **Recovery sweep:** `MainHealthChangedService#recovered!` runs whenever main
 health returns to healthy (either via `repair_landed!` above or an independent

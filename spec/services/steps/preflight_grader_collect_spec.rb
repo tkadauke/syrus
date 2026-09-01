@@ -29,14 +29,14 @@ RSpec.describe Steps::PreflightGraderCollect do
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
 
-  def create_preflight_grader(name:, required:, state:)
+  def create_preflight_grader(name:, required:, state:, details: {})
     Step.create!(
       workflow: workflow,
       kind: "preflight_grader",
       position: 101,
       iteration: 1,
       state: state,
-      details: { "name" => name, "required" => required }
+      details: { "name" => name, "required" => required }.merge(details)
     )
   end
 
@@ -118,6 +118,63 @@ RSpec.describe Steps::PreflightGraderCollect do
 
       log_text = run.reload.job_logs.pluck(:chunk).join
       expect(log_text).to include("rspec")
+      expect(log_text).to include("proceeding to implement")
+    end
+  end
+
+  context "when required preflight grader failures are timeout-only" do
+    before do
+      create_preflight_grader(
+        name: "rspec-ci",
+        required: true,
+        state: "failed",
+        details: { "timed_out" => true, "exit_code" => Steps::Grader::TIMEOUT_EXIT_CODE }
+      )
+      create_downstream_steps
+    end
+
+    it "sets the preflight_inconclusive workflow artifact" do
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_inconclusive")).to be true
+      expect(workflow.artifact("preflight_inconclusive_failed_names")).to eq([ "rspec-ci" ])
+    end
+
+    it "skips downstream repair steps" do
+      downstream = create_downstream_steps
+
+      handler.call
+
+      expect(downstream.map { |s| s.reload.state }).to all(eq("skipped"))
+    end
+
+    it "logs the timeout-only outcome" do
+      handler.call
+
+      log_text = run.reload.job_logs.pluck(:chunk).join
+      expect(log_text).to include("preflight graders timed out: rspec-ci")
+      expect(log_text).to include("marking main health inconclusive")
+    end
+  end
+
+  context "when the repository treats grader timeouts as failures" do
+    before do
+      workflow.job.repository.update!(treat_grader_timeouts_as_failures: true)
+      create_preflight_grader(
+        name: "rspec-ci",
+        required: true,
+        state: "failed",
+        details: { "timed_out" => true, "exit_code" => Steps::Grader::TIMEOUT_EXIT_CODE }
+      )
+      create_downstream_steps
+    end
+
+    it "proceeds to implement" do
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_inconclusive")).to be_nil
+      log_text = run.reload.job_logs.pluck(:chunk).join
+      expect(log_text).to include("preflight graders failed: rspec-ci")
       expect(log_text).to include("proceeding to implement")
     end
   end
