@@ -12,6 +12,47 @@ module AgentProviders
 
     def self.provider = "claude"
 
+    def self.mcp_tool_name(tool_name, server_name:)
+      "mcp__#{server_name}__#{tool_name}"
+    end
+
+    def self.evidence_reset_at(evidence)
+      snapshot = evidence&.details&.dig("snapshot") || {}
+      minutes = [
+        snapshot["session_reset_minutes"],
+        snapshot["weekly_reset_minutes"]
+      ].compact.min
+      return if minutes.blank?
+
+      evidence.observed_at + Float(minutes).minutes + ProviderQuotaReset::RETRY_BUFFER
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    def self.usage_windows(snapshot, observed_at:, now:)
+      [
+        [ "five_hour", "5h", snapshot["session_pct"], snapshot["session_reset_minutes"] ],
+        [ "weekly", "weekly", snapshot["weekly_pct"], snapshot["weekly_reset_minutes"] ]
+      ].each_with_object({}) do |(key, label, used_percent, reset_minutes), memo|
+        next if used_percent.blank?
+
+        memo[key] = {
+          label: label,
+          remaining_percent: (100.0 - used_percent.to_f).clamp(0.0, 100.0).round(1),
+          used_percent: used_percent,
+          reset_at: reset_time_from_minutes(reset_minutes, observed_at: observed_at, now: now)
+        }.compact
+      end
+    end
+
+    def self.reset_time_from_minutes(minutes, observed_at:, now:)
+      return if minutes.blank?
+
+      ((observed_at || now) + Float(minutes).minutes).iso8601
+    rescue ArgumentError, TypeError
+      nil
+    end
+
     def self.refresh_stale_usage!(user:, now: Time.current)
       return unless user.claude_oauth_token.present?
       return unless ClaudeUsageProbe.stale?(user, now: now)

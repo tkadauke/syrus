@@ -14,6 +14,7 @@ RSpec.describe SyrusCodexAgent::Engine do
     # bundled_plugins.rb ensures the registry is populated before this runs
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to include(AgentProviders::Codex)
     expect(Syrus::PluginRegistry.providers_for(:chat_provider)).to include(ChatProviders::Codex)
+    expect(ChatSessionRehydrator.for("codex")).to eq(ChatSessionRehydrator::Codex)
   end
 
   it "registers Codex-owned CredentialProbe and admin user filter extensions" do

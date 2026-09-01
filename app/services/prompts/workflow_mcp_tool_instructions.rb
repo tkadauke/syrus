@@ -11,12 +11,9 @@ module Prompts
     end
 
     def self.tool_name_for(provider, tool_name)
-      case provider.to_s
-      when "claude", "claude_agent"
-        claude_tool_name(tool_name)
-      when "codex", "codex_agent"
-        codex_tool_name(tool_name)
-      end
+      AgentProviders.for(provider).mcp_tool_name(tool_name, server_name: SERVER_NAME)
+    rescue AgentProviders::ConfigurationError
+      nil
     end
   end
 end

@@ -9,6 +9,11 @@ module Syrus
     #   .display_name   → String  – shown in the settings UI
     #   .available?     → bool    – true when the provider is configured
     #   #invoke(job:, step:, workspace:, &block) – streams agent output
+    #
+    # Optional provider-specific hooks live on AgentProviders::Base:
+    # MCP tool-name formatting, usage-evidence reset times, usage snapshot
+    # shaping, and false-positive/suppression heuristics for availability
+    # evidence.
     module AgentProvider
     end
   end

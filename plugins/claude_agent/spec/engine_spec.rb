@@ -14,6 +14,7 @@ RSpec.describe SyrusClaudeAgent::Engine do
     # bundled_plugins.rb ensures the registry is populated before this runs
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to include(AgentProviders::Claude)
     expect(Syrus::PluginRegistry.providers_for(:chat_provider)).to include(ChatProviders::Claude)
+    expect(ChatSessionRehydrator.for("claude")).to eq(ChatSessionRehydrator::Claude)
   end
 
   it "registers a manifest named 'claude_agent'" do
