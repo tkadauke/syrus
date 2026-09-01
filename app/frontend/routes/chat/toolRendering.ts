@@ -30,6 +30,27 @@ export type ToolResultPresentation = {
   metadata?: ChatToolSummaryMetadata
 }
 
+export type TypedToolResult =
+  | { type: "chat_media_gallery"; snapshots: ChatMediaSnapshot[]; images: ChatMediaImage[]; whiteboard_element_count: number | null }
+  | { type: "success_row"; label: string }
+  | { type: "proposal_outcome"; label: string; title: string; detail: string }
+  | { type: "state_summary"; label: string; rows: Array<{ label: string; value: string }> }
+
+export type ChatMediaSnapshot = {
+  id: string
+  kind: "snapshot"
+  name: string
+  element_count: number | null
+  created_at: string
+}
+
+export type ChatMediaImage = {
+  id: string
+  kind: "chat_image"
+  filename: string
+  content_type: string
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === "[object Object]"
 }
@@ -254,6 +275,32 @@ export function toolResultSummary(name: string, body: string) {
   return toolResultPresentation(name, body).summary
 }
 
+export function typedToolResult(name: string, body: string, error = false): TypedToolResult | null {
+  if (error) return null
+
+  const normalizedName = normalizedToolName(name)
+  const parsed = parseJsonText(body)
+
+  switch (normalizedName) {
+    case "list_chat_media":
+      return chatMediaGalleryResult(parsed)
+    case "set_bookmark":
+      return bookmarkResult(parsed)
+    case "propose_job":
+    case "propose_epic":
+    case "propose_epic_with_jobs":
+      return proposalOutcomeResult(normalizedName, parsed)
+    case "read_job":
+      return jobStateSummaryResult(parsed)
+    case "read_epic":
+      return epicStateSummaryResult(parsed)
+    case "check_job_mergeability":
+      return mergeabilityStateSummaryResult(parsed)
+    default:
+      return null
+  }
+}
+
 export function toolResultPresentation(name: string, body: string, error = false): ToolResultPresentation {
   if (error) return { kind: "error", summary: "" }
 
@@ -329,6 +376,134 @@ function resultCount(value: unknown): number | null {
 
 function countSummary(count: number, noun: string) {
   return `${count} ${noun}${count === 1 || noun.endsWith("s") ? "" : "s"}`
+}
+
+function chatMediaGalleryResult(parsed: unknown): TypedToolResult | null {
+  if (!isPlainObject(parsed)) return null
+
+  const snapshots = typedArray(parsed.snapshots, chatMediaSnapshot)
+  const images = typedArray(parsed.chat_images ?? parsed.media, chatMediaImage)
+  if (snapshots.length === 0 && images.length === 0) return null
+
+  const elementCount = typeof parsed.whiteboard_element_count === "number" && Number.isFinite(parsed.whiteboard_element_count) ? parsed.whiteboard_element_count : null
+  return { type: "chat_media_gallery", snapshots, images, whiteboard_element_count: elementCount }
+}
+
+function chatMediaSnapshot(value: unknown): ChatMediaSnapshot | null {
+  if (!isPlainObject(value) || stringValue(value.id) === "") return null
+  return {
+    id: stringValue(value.id),
+    kind: "snapshot",
+    name: stringValue(value.name) || stringValue(value.id),
+    element_count: typeof value.element_count === "number" && Number.isFinite(value.element_count) ? value.element_count : null,
+    created_at: stringValue(value.created_at)
+  }
+}
+
+function chatMediaImage(value: unknown): ChatMediaImage | null {
+  if (!isPlainObject(value) || stringValue(value.id) === "") return null
+  return {
+    id: stringValue(value.id),
+    kind: "chat_image",
+    filename: stringValue(value.filename) || stringValue(value.name) || stringValue(value.id),
+    content_type: stringValue(value.content_type) || stringValue(value.mime_type) || "image"
+  }
+}
+
+function bookmarkResult(parsed: unknown): TypedToolResult | null {
+  if (!isPlainObject(parsed)) return null
+  const label = stringValue(parsed.label).trim()
+  if (!label) return null
+
+  return { type: "success_row", label: `Bookmark added: ${label}` }
+}
+
+function proposalOutcomeResult(name: string, parsed: unknown): TypedToolResult | null {
+  if (!isPlainObject(parsed)) return null
+
+  const title = stringValue(parsed.title).trim()
+  const slug = stringValue(parsed.slug).trim()
+  const kind = stringValue(parsed.kind).trim() || (name.includes("epic") ? "epic" : "job")
+  if (!title && !slug) return null
+
+  const state = stringValue(parsed.state).trim()
+  const repository = stringValue(parsed.repository).trim()
+  const targetEpic = isPlainObject(parsed.target_epic) ? stringValue(parsed.target_epic.label).trim() : ""
+  const details = [
+    slug,
+    state,
+    repository,
+    targetEpic ? `target ${targetEpic}` : ""
+  ].filter(Boolean)
+
+  return {
+    type: "proposal_outcome",
+    label: `${humanizeToolName(kind)} proposal ready`,
+    title: title || slug,
+    detail: details.join(" · ")
+  }
+}
+
+function jobStateSummaryResult(parsed: unknown): TypedToolResult | null {
+  if (!isPlainObject(parsed) || !isPlainObject(parsed.job)) return null
+  const job = parsed.job
+  const label = stringValue(job.issue_title).trim() || stringValue(job.title).trim() || stringValue(job.slug).trim() || "Job"
+  const rows = compactRows([
+    ["State", job.state],
+    ["Repository", job.repository],
+    ["PR", job.pr_number],
+    ["Branch", job.branch_name],
+    ["Latest workflow", isPlainObject(parsed.latest_workflow) ? parsed.latest_workflow.state : null]
+  ])
+  if (rows.length === 0) return null
+
+  return { type: "state_summary", label, rows }
+}
+
+function epicStateSummaryResult(parsed: unknown): TypedToolResult | null {
+  if (!isPlainObject(parsed) || !isPlainObject(parsed.epic)) return null
+  const epic = parsed.epic
+  const childCount = Array.isArray(parsed.child_jobs) ? parsed.child_jobs.length : null
+  const label = stringValue(epic.title).trim() || stringValue(epic.display_number).trim() || "Epic"
+  const rows = compactRows([
+    ["State", epic.state],
+    ["Repository", epic.repository],
+    ["Children", childCount],
+    ["Depends on", Array.isArray(epic.depends_on_epics) ? epic.depends_on_epics.length : null]
+  ])
+  if (rows.length === 0) return null
+
+  return { type: "state_summary", label, rows }
+}
+
+function mergeabilityStateSummaryResult(parsed: unknown): TypedToolResult | null {
+  if (!isPlainObject(parsed)) return null
+
+  const message = stringValue(parsed.message).trim()
+  const label = message || "Mergeability check requested"
+  const rows = compactRows([
+    ["Pending action", parsed.pending_action_id],
+    ["State", parsed.state],
+    ["Job", isPlainObject(parsed.payload) ? parsed.payload.job_id : parsed.job_id]
+  ])
+  if (!message && rows.length === 0) return null
+
+  return { type: "state_summary", label, rows }
+}
+
+function compactRows(rows: Array<[string, unknown]>) {
+  return rows.flatMap(([label, value]) => {
+    const text = value == null ? "" : String(value).trim()
+    return text ? [{ label, value: text }] : []
+  })
+}
+
+function typedArray<T>(value: unknown, mapper: (item: unknown) => T | null) {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const mapped = mapper(item)
+    return mapped ? [mapped] : []
+  })
 }
 
 function parseJsonText(value: string): unknown {
