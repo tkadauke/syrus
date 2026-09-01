@@ -35,6 +35,7 @@ type SurfaceMode = "index" | "repository" | "chat"
 type EditorMode = "markdown" | "wysiwyg"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number }
+type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "link"; text: string; sourceStart: number; href?: string }
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -343,13 +344,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     const selectedRange = range.getRangeAt(0)
     if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) return
 
-    const preRange = selectedRange.cloneRange()
-    preRange.selectNodeContents(wysiwygRef.current)
-    preRange.setEnd(selectedRange.startContainer, selectedRange.startOffset)
-    const renderedStart = preRange.toString().length
     const selectedText = selectedRange.toString()
-    const start = markdownOffsetForRenderedOffset(draft, renderedStart, "start")
-    const end = markdownOffsetForRenderedOffset(draft, renderedStart + selectedText.length, "end")
+    const sourceStart = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.startContainer, selectedRange.startOffset, "start")
+    const sourceEnd = sourceOffsetForSelectionBoundary(wysiwygRef.current, selectedRange.endContainer, selectedRange.endOffset, "end")
+    if (sourceStart == null || sourceEnd == null) return
+
+    const start = Math.max(0, Math.min(draft.length, sourceStart))
+    const end = Math.max(start, Math.min(draft.length, sourceEnd))
     setSelection({
       start,
       end,
@@ -940,11 +941,17 @@ function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] =
 }
 
 function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null) {
-  return renderHighlightedHtml(markdown, highlights, baseOffset, focusedThreadId)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+  return inlineTokens(markdown, baseOffset)
+    .map((token) => {
+      const content = renderHighlightedHtml(token.text, highlights, token.sourceStart, focusedThreadId)
+      if (token.kind === "code") return `<code>${content}</code>`
+      if (token.kind === "strong") return `<strong>${content}</strong>`
+      if (token.kind === "emphasis") return `<em>${content}</em>`
+      if (token.kind === "link") return `<a href="${escapeHtml(token.href || "")}">${content}</a>`
+
+      return content
+    })
+    .join("")
 }
 
 function wysiwygHtmlToMarkdown(element: HTMLElement | null) {
@@ -1025,20 +1032,115 @@ function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
 }
 
 function highlightTextSegments(text: string, highlights: AnchorHighlight[]) {
-  const segments: Array<{ text: string; highlight: AnchorHighlight | null }> = []
+  const segments: Array<{ text: string; start: number; end: number; highlight: AnchorHighlight | null }> = []
   let cursor = 0
 
   for (const highlight of highlights) {
     const start = Math.max(0, Math.min(text.length, highlight.start))
     const end = Math.max(start, Math.min(text.length, highlight.end))
     if (end <= cursor) continue
-    if (start > cursor) segments.push({ text: text.slice(cursor, start), highlight: null })
-    segments.push({ text: text.slice(Math.max(start, cursor), end), highlight })
+    if (start > cursor) segments.push({ text: text.slice(cursor, start), start: cursor, end: start, highlight: null })
+    segments.push({ text: text.slice(Math.max(start, cursor), end), start: Math.max(start, cursor), end, highlight })
     cursor = end
   }
 
-  if (cursor < text.length) segments.push({ text: text.slice(cursor), highlight: null })
+  if (cursor < text.length) segments.push({ text: text.slice(cursor), start: cursor, end: text.length, highlight: null })
   return segments
+}
+
+function inlineTokens(markdown: string, baseOffset: number): InlineToken[] {
+  const tokens: InlineToken[] = []
+  let index = 0
+
+  while (index < markdown.length) {
+    const strong = markdown.slice(index).match(/^\*\*([^*]+)\*\*/)
+    if (strong) {
+      tokens.push({ kind: "strong", text: strong[1], sourceStart: baseOffset + index + 2 })
+      index += strong[0].length
+      continue
+    }
+
+    const emphasis = markdown.slice(index).match(/^\*([^*]+)\*/)
+    if (emphasis) {
+      tokens.push({ kind: "emphasis", text: emphasis[1], sourceStart: baseOffset + index + 1 })
+      index += emphasis[0].length
+      continue
+    }
+
+    const code = markdown.slice(index).match(/^`([^`]+)`/)
+    if (code) {
+      tokens.push({ kind: "code", text: code[1], sourceStart: baseOffset + index + 1 })
+      index += code[0].length
+      continue
+    }
+
+    const link = markdown.slice(index).match(/^\[([^\]]+)\]\(([^)]+)\)/)
+    if (link) {
+      tokens.push({ kind: "link", text: link[1], href: link[2], sourceStart: baseOffset + index + 1 })
+      index += link[0].length
+      continue
+    }
+
+    const nextSpecial = markdown.slice(index + 1).search(/(?:\*\*|\*|`|\[)/)
+    const end = nextSpecial === -1 ? markdown.length : index + 1 + nextSpecial
+    tokens.push({ kind: "text", text: markdown.slice(index, end), sourceStart: baseOffset + index })
+    index = end
+  }
+
+  return tokens
+}
+
+function sourceSpan(text: string, sourceStart: number) {
+  return `<span data-source-start="${sourceStart}" data-source-end="${sourceStart + text.length}">${escapeHtml(text)}</span>`
+}
+
+function sourceOffsetForSelectionBoundary(root: HTMLElement, container: Node, offset: number, affinity: "start" | "end") {
+  if (container.nodeType === Node.TEXT_NODE) {
+    const sourceElement = sourceElementFor(container)
+    if (!sourceElement) return null
+
+    const sourceStart = Number(sourceElement.dataset.sourceStart)
+    const sourceEnd = Number(sourceElement.dataset.sourceEnd)
+    if (!Number.isFinite(sourceStart) || !Number.isFinite(sourceEnd)) return null
+
+    return Math.max(sourceStart, Math.min(sourceEnd, sourceStart + offset))
+  }
+
+  if (!(container instanceof HTMLElement)) return null
+
+  const children = Array.from(container.childNodes)
+  if (affinity === "start") {
+    const next = children.slice(offset).map((child) => sourceBoundsForNode(child)?.start).find((value) => value != null)
+    if (next != null) return next
+
+    const previous = children.slice(0, offset).reverse().map((child) => sourceBoundsForNode(child)?.end).find((value) => value != null)
+    return previous ?? sourceBoundsForNode(root)?.start ?? null
+  }
+
+  const previous = children.slice(0, offset).reverse().map((child) => sourceBoundsForNode(child)?.end).find((value) => value != null)
+  if (previous != null) return previous
+
+  const next = children.slice(offset).map((child) => sourceBoundsForNode(child)?.start).find((value) => value != null)
+  return next ?? sourceBoundsForNode(root)?.end ?? null
+}
+
+function sourceElementFor(node: Node) {
+  const parent = node.parentElement
+  return parent?.closest("[data-source-start][data-source-end]") as HTMLElement | null
+}
+
+function sourceBoundsForNode(node: Node): { start: number; end: number } | null {
+  const element = node.nodeType === Node.TEXT_NODE ? sourceElementFor(node) : node instanceof HTMLElement ? node : null
+  if (!element) return null
+
+  const sourceElements = element.matches("[data-source-start][data-source-end]")
+    ? [element]
+    : Array.from(element.querySelectorAll("[data-source-start][data-source-end]")) as HTMLElement[]
+  const starts = sourceElements.map((sourceElement) => Number(sourceElement.dataset.sourceStart)).filter(Number.isFinite)
+  const ends = sourceElements.map((sourceElement) => Number(sourceElement.dataset.sourceEnd)).filter(Number.isFinite)
+  if (starts.length === 0 || ends.length === 0) return null
+
+  return { start: Math.min(...starts), end: Math.max(...ends) }
 }
 
 function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], baseOffset: number, focusedThreadId: number | null) {
@@ -1048,13 +1150,14 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
     end: highlight.end - baseOffset
   })).filter((highlight) => highlight.end > 0 && highlight.start < text.length))
     .map((segment) => {
-      if (!segment.highlight) return escapeHtml(segment.text)
+      const sourceText = sourceSpan(segment.text, baseOffset + segment.start)
+      if (!segment.highlight) return sourceText
 
       const focused = segment.highlight.threadId === focusedThreadId
       if (segment.highlight.kind === "suggestion") {
         return [
           `<mark class="rounded-sm bg-surface-raised px-0.5" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}" data-inline-suggestion-state="${escapeHtml(segment.highlight.suggestionState || "")}">`,
-          `<del class="text-warning decoration-warning decoration-2">${escapeHtml(segment.text)}</del>`,
+          `<del class="text-warning decoration-warning decoration-2">${sourceText}</del>`,
           `<ins class="ml-1 text-success no-underline">${escapeHtml(segment.highlight.proposedMarkdown || "")}</ins>`,
           "</mark>"
         ].join("")
@@ -1064,121 +1167,9 @@ function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], base
         ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
         : "rounded-sm bg-yellow-200/80 px-0.5 dark:bg-yellow-500/30"
       const threadAttrs = segment.highlight.threadId ? ` data-thread-id="${segment.highlight.threadId}"` : ""
-      return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}"${threadAttrs}>${escapeHtml(segment.text)}</mark>`
+      return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}"${threadAttrs}>${sourceText}</mark>`
     })
     .join("")
-}
-
-function markdownOffsetForRenderedOffset(markdown: string, renderedOffset: number, affinity: "start" | "end") {
-  const mapping = renderedToMarkdownMap(markdown)
-  if (renderedOffset <= 0) return 0
-  if (affinity === "end") {
-    const previous = mapping[Math.min(renderedOffset - 1, mapping.length - 1)]
-    return previous == null ? markdown.length : previous + 1
-  }
-
-  return mapping[renderedOffset] ?? markdown.length
-}
-
-function renderedToMarkdownMap(markdown: string) {
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
-  const mapping: number[] = []
-  let sourceOffset = 0
-  let lineIndex = 0
-
-  while (lineIndex < lines.length) {
-    const line = lines[lineIndex]
-    if (line.trim() === "") {
-      sourceOffset += line.length + 1
-      lineIndex += 1
-      continue
-    }
-
-    const heading = line.match(/^(#{1,3})\s+(.+)$/)
-    if (heading) {
-      appendInlineRenderedMap(heading[2], sourceOffset + heading[1].length + 1, mapping)
-      sourceOffset += line.length + 1
-      lineIndex += 1
-      continue
-    }
-
-    if (/^\s*[-*+]\s+/.test(line)) {
-      while (lineIndex < lines.length) {
-        const itemLine = lines[lineIndex]
-        const item = itemLine.match(/^(\s*[-*+]\s+)(.+)$/)
-        if (!item) break
-        appendInlineRenderedMap(item[2], sourceOffset + item[1].length, mapping)
-        sourceOffset += itemLine.length + 1
-        lineIndex += 1
-      }
-      continue
-    }
-
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      while (lineIndex < lines.length) {
-        const itemLine = lines[lineIndex]
-        const item = itemLine.match(/^(\s*\d+[.)]\s+)(.+)$/)
-        if (!item) break
-        appendInlineRenderedMap(item[2], sourceOffset + item[1].length, mapping)
-        sourceOffset += itemLine.length + 1
-        lineIndex += 1
-      }
-      continue
-    }
-
-    while (lineIndex < lines.length && lines[lineIndex].trim() !== "" && !/^(#{1,3})\s+/.test(lines[lineIndex]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[lineIndex])) {
-      const paragraphLine = lines[lineIndex]
-      const leading = paragraphLine.length - paragraphLine.trimStart().length
-      appendInlineRenderedMap(paragraphLine.trim(), sourceOffset + leading, mapping)
-      sourceOffset += paragraphLine.length + 1
-      lineIndex += 1
-    }
-  }
-
-  return mapping
-}
-
-function appendInlineRenderedMap(markdown: string, baseOffset: number, mapping: number[]) {
-  let index = 0
-
-  while (index < markdown.length) {
-    const strong = markdown.slice(index).match(/^\*\*([^*]+)\*\*/)
-    if (strong) {
-      appendRangeMap(baseOffset + index + 2, strong[1].length, mapping)
-      index += strong[0].length
-      continue
-    }
-
-    const emphasis = markdown.slice(index).match(/^\*([^*]+)\*/)
-    if (emphasis) {
-      appendRangeMap(baseOffset + index + 1, emphasis[1].length, mapping)
-      index += emphasis[0].length
-      continue
-    }
-
-    const code = markdown.slice(index).match(/^`([^`]+)`/)
-    if (code) {
-      appendRangeMap(baseOffset + index + 1, code[1].length, mapping)
-      index += code[0].length
-      continue
-    }
-
-    const link = markdown.slice(index).match(/^\[([^\]]+)\]\([^)]+\)/)
-    if (link) {
-      appendRangeMap(baseOffset + index + 1, link[1].length, mapping)
-      index += link[0].length
-      continue
-    }
-
-    mapping.push(baseOffset + index)
-    index += 1
-  }
-}
-
-function appendRangeMap(startOffset: number, length: number, mapping: number[]) {
-  for (let index = 0; index < length; index += 1) {
-    mapping.push(startOffset + index)
-  }
 }
 
 function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end: number): SelectionRect {
