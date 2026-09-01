@@ -26,6 +26,12 @@ for replacing remaining workflow-first diagnostics. Treat the flag-based rollout
 sections below as historical migration notes unless they are explicitly marked
 current.
 
+As of 2026-09-01, `docs/plans/workflow-engine-v3.md` picks up where this plan
+stops. It keeps WorkIntent/WorkUnit as the ownership and scheduling layer and
+addresses the layers this document did not: the shared failure vocabulary across
+the chain, classification, and reconciliation planes, and the remediation policy
+that unifies them.
+
 ## Problem
 
 `Job#state` currently carries several different meanings:

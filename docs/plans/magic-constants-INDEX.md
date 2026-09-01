@@ -13,6 +13,16 @@ exist. The inventory below is still the source for constants that should move
 to settings later; this registry pass intentionally does not migrate those
 remaining constants._
 
+_Status check 2026-09-01: `docs/plans/workflow-engine-v3.md` ("Policy And Risk
+Profiles") reframes the remaining work. The open problem is not only which
+constants become settings, but that the settings which already exist have no
+shared resolution rule — three sibling `Repo*Plan` resolvers disagree about what
+happens when a repository does not specify a value, and repo-file resolution
+fails open during a GitHub outage. That plan proposes one registry, one
+precedence chain generalized from `AutoApprovalRule`, and named risk profiles as
+the reviewable unit. The inventory below remains the source list for constants
+that should move._
+
 The codebase has accumulated a layer of `CONSTANT = value` declarations
 that act as policy decisions in disguise. Some of them are operational
 tuning (fine to stay constant), but many are knobs that an operator
