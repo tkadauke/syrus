@@ -46,20 +46,29 @@ type AnchorHighlight = {
   end: number
 }
 
-export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode, repositoryId }: { chatId?: number; compact?: boolean; designDocIds?: number[]; mode: SurfaceMode; repositoryId?: string | number }) {
+export function DesignDocsSurface({ chatId, compact = false, designDocIds, initialDesignDocId, initialDesignDocs = [], mode, repositoryId }: {
+  chatId?: number
+  compact?: boolean
+  designDocIds?: number[]
+  initialDesignDocId?: number
+  initialDesignDocs?: DesignDocSummary[]
+  mode: SurfaceMode
+  repositoryId?: string | number
+}) {
   const params = useParams()
   const { t } = useT("nav")
   const location = useLocation()
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
-  const id = params.id
+  const id = mode === "chat" ? null : params.id
   const search = location.search
-  const [selectedId, setSelectedId] = useState<string | number | null>(id || null)
+  const [selectedId, setSelectedId] = useState<string | number | null>(id || initialDesignDocId || null)
   const effectiveId = id || selectedId
   const queryClient = useQueryClient()
   const indexQuery = useQuery({
     queryKey: mode === "repository" ? ["design_docs", "repository", String(repositoryId), search] : ["design_docs", search],
-    queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search)
+    queryFn: () => mode === "repository" && repositoryId ? fetchRepositoryDesignDocs(repositoryId, search) : fetchDesignDocs(search),
+    enabled: mode !== "chat"
   })
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
@@ -72,13 +81,18 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
     staleTime: 60_000
   })
   const [notice, setNotice] = useState<string | null>(null)
-  const docs = useMemo(() => scopeDocs(indexQuery.data?.design_docs ?? [], chatId, designDocIds), [chatId, designDocIds, indexQuery.data])
+  const docs = useMemo(
+    () => mode === "chat" ? scopeDocs(initialDesignDocs, chatId, designDocIds) : scopeDocs(indexQuery.data?.design_docs ?? [], chatId, designDocIds),
+    [chatId, designDocIds, indexQuery.data, initialDesignDocs, mode]
+  )
+  const docsLoading = mode === "chat" ? false : indexQuery.isPending
   const selectedDoc = detailQuery.data?.design_doc ?? null
   const repositoryOptions = repositoriesQuery.data?.active_repositories ?? []
   const currentFilter = indexQuery.data?.filter ?? { and: [] }
   const activeSmartFolderId = smartFolderIdFromSearch(search) ?? indexQuery.data?.active_smart_folder_id ?? null
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const showIndexControls = mode !== "chat"
+  const showDocList = mode !== "chat"
   const sidebarOwnsDesktopFolders = mode === "index" && isDesktop
   const showDesktopInlineFolders = showIndexControls && isDesktop && !sidebarOwnsDesktopFolders
   const filterBar = showIndexControls ? (
@@ -110,6 +124,12 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
       subjectType="design_doc"
     />
   ) : null
+
+  useEffect(() => {
+    if (mode !== "chat") return
+
+    setSelectedId(initialDesignDocId || null)
+  }, [initialDesignDocId, mode])
 
   const createMutation = useMutation({
     mutationFn: () => createDesignDoc({
@@ -157,17 +177,17 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
           </details>
         </div>
       ) : null}
-      <div className={`grid min-h-0 gap-4 ${compact ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : showDesktopInlineFolders ? "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]" : "lg:grid-cols-[20rem_minmax(0,1fr)]"}`}>
+      <div className={`grid min-h-0 gap-4 ${compact && showDocList ? "xl:grid-cols-[18rem_minmax(0,1fr)]" : showDesktopInlineFolders ? "lg:grid-cols-[16rem_20rem_minmax(0,1fr)]" : showDocList ? "lg:grid-cols-[20rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
         {showDesktopInlineFolders ? smartFolders : null}
-        <DesignDocList
+        {showDocList ? <DesignDocList
           docs={docs}
-          loading={indexQuery.isPending}
+          loading={docsLoading}
           selectedId={effectiveId}
-          onSelect={(docId) => mode === "chat" ? setSelectedId(docId) : navigate(`${prefix}/design_docs/${docId}`)}
-        />
+          onSelect={(docId) => navigate(`${prefix}/design_docs/${docId}`)}
+        /> : null}
         <section className="min-w-0">
           {detailQuery.isError ? <Panel tone="error">{errorMessage(detailQuery.error, "Unable to load design doc.")}</Panel> : null}
-          {!effectiveId && !detailQuery.isError ? <Panel>Select a design doc to review or edit.</Panel> : null}
+          {!effectiveId && !detailQuery.isError ? <Panel>{mode === "chat" ? "No design docs are attached to this chat." : "Select a design doc to review or edit."}</Panel> : null}
           {detailQuery.isPending && effectiveId ? <Panel>Loading design doc...</Panel> : null}
           {selectedDoc ? (
             <DesignDocEditor
