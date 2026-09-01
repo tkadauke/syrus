@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_31_133000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_01_100500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1608,6 +1608,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_133000) do
     t.string "app_revision"
     t.json "context", null: false
     t.datetime "created_at", null: false
+    t.string "event_uid", limit: 64
     t.string "hostname", null: false
     t.integer "job_id"
     t.string "level", null: false
@@ -1620,6 +1621,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_31_133000) do
     t.string "source", null: false
     t.datetime "updated_at", null: false
     t.integer "workflow_id"
+    t.index ["event_uid"], name: "idx_operational_log_events_event_uid", unique: true
     t.index ["hostname"], name: "index_operational_log_events_on_hostname"
     t.index ["job_id"], name: "index_operational_log_events_on_job_id"
     t.index ["level"], name: "index_operational_log_events_on_level"
