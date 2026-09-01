@@ -12,6 +12,7 @@ import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
 import { CopyableSlug } from "../../components/CopyableSlug"
+import { DocumentPreviewModal } from "../../components/DocumentPreviewModal"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
@@ -478,6 +479,8 @@ type ProposalMediaItem = {
   kind: ProposalMediaKind
   label: string
   detail: string
+  imageUrl?: string | null
+  contentType?: string | null
 }
 
 function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMediaPayload; mediaIds: string[]; previewPanels: ChatPreviewPanel[] }) {
@@ -550,8 +553,14 @@ function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelecte
 }
 
 function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaItem; interactive?: boolean }) {
+  const [previewOpen, setPreviewOpen] = useState(false)
   const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
-  return (
+  const thumbnailUrl = item.kind === "chat_image" ? item.imageUrl || null : null
+  const tile = thumbnailUrl ? (
+    <div className={`flex h-16 w-32 min-w-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
+      <img alt={item.label} className="h-full w-full object-cover" src={thumbnailUrl} />
+    </div>
+  ) : (
     <div className={`flex h-16 w-32 min-w-0 items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white text-xs font-semibold text-gray-500 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true">
         {mediaKindShortLabel(item.kind)}
@@ -561,6 +570,22 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
         <div className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">{item.detail}</div>
       </div>
     </div>
+  )
+
+  if (!thumbnailUrl || interactive) return tile
+
+  return (
+    <>
+      <button aria-label={`Preview ${item.label}`} className="text-left" onClick={() => setPreviewOpen(true)} type="button">
+        {tile}
+      </button>
+      {previewOpen ? (
+        <DocumentPreviewModal
+          file={{ title: item.label, rawUrl: thumbnailUrl, contentType: item.contentType || null }}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -595,7 +620,9 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       ref,
       kind,
       label: image?.title || image?.filename || ref,
-      detail: image?.content_type || "Chat image"
+      detail: image?.content_type || "Chat image",
+      imageUrl: image?.image_url,
+      contentType: image?.content_type
     }
   }
 

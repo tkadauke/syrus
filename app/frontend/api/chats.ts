@@ -245,6 +245,7 @@ export type ChatMediaImage = {
   filename: string | null
   content_type: string
   file_path?: string | null
+  image_url?: string | null
 }
 
 export type ChatMediaPayload = {
