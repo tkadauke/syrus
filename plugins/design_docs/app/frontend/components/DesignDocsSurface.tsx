@@ -564,8 +564,33 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const titleBarRef = useRef<HTMLElement | null>(null)
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [shareMenuAlignment, setShareMenuAlignment] = useState<"left" | "right">("left")
+
+  function toggleShareMenu() {
+    const nextOpen = !shareOpen
+    if (nextOpen) {
+      const rect = shareButtonRef.current?.getBoundingClientRect()
+      if (rect) {
+        const menuWidth = 320
+        const edgePadding = 16
+        const boundary = titleBarRef.current?.getBoundingClientRect()
+        const boundaryLeft = boundary?.left ?? 0
+        const boundaryRight = boundary?.right ?? window.innerWidth
+        const fitsLeftAligned = rect.left + menuWidth <= boundaryRight - edgePadding
+        const fitsRightAligned = rect.right - menuWidth >= boundaryLeft + edgePadding
+        const spaceToRight = boundaryRight - rect.left
+        const spaceToLeft = rect.right - boundaryLeft
+
+        setShareMenuAlignment(fitsLeftAligned || (!fitsRightAligned && spaceToRight >= spaceToLeft) ? "left" : "right")
+      }
+    }
+    setShareOpen(nextOpen)
+  }
+
   return (
-    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+    <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900" ref={titleBarRef}>
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-[14rem] flex-1">
           <Input aria-label="Design doc title" disabled={!canManageMetadata} value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -611,9 +636,12 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={toggleShareMenu} ref={shareButtonRef} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div
+              className={`absolute z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950 ${shareMenuAlignment === "left" ? "left-0" : "right-0"}`}
+              data-testid="design-doc-share-menu"
+            >
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
