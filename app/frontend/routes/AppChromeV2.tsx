@@ -1063,11 +1063,13 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
 function SidebarPluginSmartFolderNav({ expanded, item, prefix }: { expanded: boolean; item: SidebarNavItem; prefix: string }) {
   const location = useLocation()
   const queryClient = useQueryClient()
+  const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
+  const smartFoldersActive = item.active && normalizedPath === item.rawTo
   const search = location.search
   const payload = useQuery({
     queryKey: ["sidebar", "smart_folders", item.id, search],
     queryFn: () => fetchSmartFolderNavigation(item.smartFolderApiPath!, search),
-    enabled: item.active,
+    enabled: smartFoldersActive,
     placeholderData: (previousData) => previousData
   })
   const inertAttributes = expanded ? {} : { inert: "" }
