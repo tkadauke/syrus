@@ -4,7 +4,7 @@ import { CloseIcon } from "./CloseIcon"
 import { useT } from "../hooks/useT"
 import { GeminiSetupSheet } from "./GeminiSetupSheet"
 import { Modal } from "./Modal"
-import { ClaudeConnect, StatusBox } from "./credentials/ClaudeConnect"
+import { ClaudeConnect, StatusBox } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
 
 type AgentTab = "claude" | "gemini"
 

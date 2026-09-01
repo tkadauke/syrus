@@ -1,10 +1,10 @@
-import { jsonResponse } from "../../testSupport"
+import { jsonResponse } from "@app/testSupport"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { resetBackendUpdateStoreForTests, useBackendOutage } from "../../hooks/useBackendUpdate"
+import { resetBackendUpdateStoreForTests, useBackendOutage } from "@app/hooks/useBackendUpdate"
 import { ClaudeConnect } from "./ClaudeConnect"
-import type { CredentialTestResult } from "../../api/credentials"
+import type { CredentialTestResult } from "@app/api/credentials"
 
 function renderConnect(props: { onConnected?: (result: CredentialTestResult) => void; onPreflight?: (ready: boolean) => void; secondaryAction?: React.ReactNode } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

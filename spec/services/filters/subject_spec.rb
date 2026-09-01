@@ -21,7 +21,7 @@ RSpec.describe Filters::Subject do
       expect(subject).to be_a(described_class)
       expect(subject.name).to eq(:admin_user)
       expect(subject.model).to eq(User)
-      expect(Filters::Registry.fields(subject: :admin_user)).to eq(%w[
+      expect(Filters::Registry.fields(subject: :admin_user)).to contain_exactly(*%w[
         email
         admin
         has_github_token

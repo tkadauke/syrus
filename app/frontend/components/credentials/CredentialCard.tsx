@@ -19,7 +19,7 @@ import { useSetupStatus } from "../OnboardingEmptyState"
 import { GithubAppPanel } from "../GithubAppPanel"
 import { GeminiSetupSheet } from "../GeminiSetupSheet"
 import { GithubTokenStep, CheckIcon, WarnIcon } from "./GithubTokenStep"
-import { ClaudeConnect } from "./ClaudeConnect"
+import { ClaudeConnect } from "@plugins/claude_agent/app/frontend/components/credentials/ClaudeConnect"
 import { errorMessage } from "../../lib/errorMessage"
 
 // Per-provider credential cards for the /credentials page, rebuilt around
