@@ -269,6 +269,7 @@ Rails.application.routes.draw do
         post "chats/:id/attachments", to: "chats#add_attachment", constraints: { id: /\d+/ }
         delete "chats/:id/attachments/:attachment_id", to: "chats#destroy_attachment", constraints: { id: /\d+/, attachment_id: /\d+/ }
         get "chats/:id/media", to: "chats#media", constraints: { id: /\d+/ }
+        get "chats/:id/media/:document_id/file", to: "chats#media_file", constraints: { id: /\d+/, document_id: /\d+/ }
         delete "chats/:id/preview_panels/:panel_id", to: "chats#close_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }
         patch "chats/:id/preview_panels/:panel_id", to: "chats#update_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }
         get "chats/:id/preview_panels/:panel_id/export", to: "chats#export_preview_panel", constraints: { id: /\d+/, panel_id: /\d+/ }

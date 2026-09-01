@@ -478,6 +478,7 @@ type ProposalMediaItem = {
   kind: ProposalMediaKind
   label: string
   detail: string
+  thumbnailUrl?: string | null
 }
 
 function ProposalMediaTiles({ media, mediaIds, previewPanels }: { media?: ChatMediaPayload; mediaIds: string[]; previewPanels: ChatPreviewPanel[] }) {
@@ -551,6 +552,33 @@ function ProposalMediaPicker({ availableItems, loading, selectedRefs, setSelecte
 
 function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaItem; interactive?: boolean }) {
   const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const imageLabel = item.label || "Image attachment"
+
+  if (item.kind === "chat_image" && item.thumbnailUrl) {
+    const thumbnail = (
+      <div className={`h-20 w-32 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={imageLabel}>
+        <img alt="" className="h-full w-full object-cover" src={item.thumbnailUrl} />
+      </div>
+    )
+
+    if (interactive) return thumbnail
+
+    return (
+      <>
+        <button
+          aria-label={`Open ${imageLabel}`}
+          className="rounded focus:outline-none focus:ring-2 focus:ring-brand"
+          onClick={() => setPreviewOpen(true)}
+          type="button"
+        >
+          {thumbnail}
+        </button>
+        {previewOpen ? <ProposalImagePreviewModal label={imageLabel} src={item.thumbnailUrl} onClose={() => setPreviewOpen(false)} /> : null}
+      </>
+    )
+  }
+
   return (
     <div className={`flex h-16 w-32 min-w-0 items-center gap-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 dark:border-gray-700 dark:bg-gray-900 ${border}`} title={item.label}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-white text-xs font-semibold text-gray-500 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true">
@@ -561,6 +589,36 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
         <div className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">{item.detail}</div>
       </div>
     </div>
+  )
+}
+
+function ProposalImagePreviewModal({ label, src, onClose }: { label: string; src: string; onClose: () => void }) {
+  const { t } = useT("chat")
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/35 p-4" onClick={onClose} role="presentation">
+      <section aria-label={label} aria-modal="true" className="relative max-h-full max-w-full" onClick={(event) => event.stopPropagation()} role="dialog">
+        <button
+          aria-label={t("aria_close_image")}
+          className="absolute right-2 top-2 rounded bg-white/90 p-1.5 text-gray-600 shadow hover:bg-white hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
+          onClick={onClose}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+        <img alt={label} className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] rounded bg-white object-contain shadow-lg dark:bg-gray-900" src={src} />
+      </section>
+    </div>,
+    document.body
   )
 }
 
@@ -595,7 +653,8 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       ref,
       kind,
       label: image?.title || image?.filename || ref,
-      detail: image?.content_type || "Chat image"
+      detail: image?.content_type || "Chat image",
+      thumbnailUrl: image?.file_path || null
     }
   }
 

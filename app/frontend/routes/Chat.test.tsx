@@ -2006,6 +2006,57 @@ describe("chat proposal cards", () => {
     expect(await screen.findByText("Survey north aqueduct")).toBeInTheDocument()
   })
 
+  it("renders proposal picture media as thumbnails with modal previews on the card and edit form", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/media") {
+        return Promise.resolve(jsonResponse({
+          snapshots: [],
+          chat_images: [
+            {
+              id: 31,
+              title: "Screenshot 2026-08-30 at 11.57.27 AM.png",
+              filename: "Screenshot 2026-08-30 at 11.57.27 AM.png",
+              content_type: "image/png",
+              file_path: "/api/v1/app/chats/8/media/31/file"
+            }
+          ],
+          typed_artifacts: [],
+          whiteboard_has_unsaved_content: false
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal({ media_ids: ["chat_image:31"] }))]
+      })))
+    })
+
+    renderRoute()
+
+    const cardThumbnail = await screen.findByRole("button", { name: "Open Screenshot 2026-08-30 at 11.57.27 AM.png" })
+    const mediaTiles = screen.getByTestId("proposal-media-tiles")
+    expect(within(mediaTiles).queryByText("image/png")).not.toBeInTheDocument()
+    expect(cardThumbnail.querySelector("img")).toHaveAttribute("src", "/api/v1/app/chats/8/media/31/file")
+
+    fireEvent.click(cardThumbnail)
+    expect(screen.getByRole("dialog", { name: "Screenshot 2026-08-30 at 11.57.27 AM.png" })).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "Escape" })
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Screenshot 2026-08-30 at 11.57.27 AM.png" })).not.toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit proposal" })
+    const editThumbnail = within(dialog).getByRole("button", { name: "Open Screenshot 2026-08-30 at 11.57.27 AM.png" })
+    expect(editThumbnail.querySelector("img")).toHaveAttribute("src", "/api/v1/app/chats/8/media/31/file")
+
+    fireEvent.click(editThumbnail)
+    expect(screen.getByRole("dialog", { name: "Screenshot 2026-08-30 at 11.57.27 AM.png" })).toBeInTheDocument()
+  })
+
   it("removes the target epic from a job proposal in the edit modal", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

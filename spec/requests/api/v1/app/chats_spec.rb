@@ -3634,8 +3634,28 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         include("id" => snapshot.id, "name" => "Arch diagram", "snapshot_kind" => "manual", "element_count" => 1)
       )
       expect(body["chat_images"]).to contain_exactly(
-        include("id" => doc.id, "filename" => "diagram.png", "content_type" => "image/png")
+        include(
+          "id" => doc.id,
+          "filename" => "diagram.png",
+          "content_type" => "image/png",
+          "file_path" => "/api/v1/app/chats/#{chat.id}/media/#{doc.id}/file"
+        )
       )
+    end
+
+    it "serves chat image media files through the chat-scoped media path" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new("pixels"), filename: "diagram.png", content_type: "image/png")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media/#{doc.id}/file"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body).to eq("pixels")
     end
 
     it "includes inline chat image attachments in chat_images" do
@@ -3660,7 +3680,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       doc = chat.reload.attached_repository_documents.sole
       expect(parse_body["chat_images"]).to contain_exactly(
-        include("id" => doc.id, "filename" => "bug-report-viewport.png", "content_type" => "image/png")
+        include(
+          "id" => doc.id,
+          "filename" => "bug-report-viewport.png",
+          "content_type" => "image/png",
+          "file_path" => "/api/v1/app/chats/#{chat.id}/media/#{doc.id}/file"
+        )
       )
     end
 
