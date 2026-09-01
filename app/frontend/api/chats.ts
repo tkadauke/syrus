@@ -365,6 +365,10 @@ export type ChatToolGroupItem = {
   type: "tool_group"
   tool: string
   calls: ChatToolGroupCall[]
+  summary_label?: string
+  outcome_label?: string
+  prominent?: boolean
+  collapsed_by_default?: boolean
 }
 
 export type ChatRenderItem = ChatRenderMessageItem | ChatToolGroupItem

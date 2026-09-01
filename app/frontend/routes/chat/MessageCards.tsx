@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { memo, useState } from "react"
+import { memo, useRef, useState } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect } from "react"
 import { Link } from "react-router-dom"
@@ -386,7 +386,21 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 }
 
 export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const defaultOpen = item.prominent === true || item.collapsed_by_default === false
+  const [open, setOpen] = useState(defaultOpen)
+  const previousAutoState = useRef({ prominent: item.prominent === true, collapsed: item.collapsed_by_default === true })
+
+  useEffect(() => {
+    const next = { prominent: item.prominent === true, collapsed: item.collapsed_by_default === true }
+    if (next.prominent && !previousAutoState.current.prominent) {
+      setOpen(true)
+    } else if (next.collapsed && !previousAutoState.current.collapsed && !next.prominent) {
+      setOpen(false)
+    } else if (!next.collapsed && previousAutoState.current.collapsed) {
+      setOpen(true)
+    }
+    previousAutoState.current = next
+  }, [item.collapsed_by_default, item.prominent])
 
   if (simpleMode) {
     return (
@@ -402,21 +416,26 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
   }
 
   const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const summary = item.summary_label || item.tool
+  const outcome = item.outcome_label || (item.calls.some((call) => call.result_error) ? "Needs attention" : item.calls.some((call) => call.result_body === "") ? "Running" : "Done")
+  const expanded = open
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
+    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
+      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{item.tool}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${outcome === "Needs attention" ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : outcome === "Running" ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"}`}>{outcome}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
         {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
       </summary>
       <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
+            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}{call.detail ? `(${call.detail})` : ""}</div>
             {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
-            {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
-            {open && call.nested && call.nested.length > 0 ? (
+            {expanded && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={call.display_label || item.tool} /> : null}
+            {expanded ? <RawToolDetails payload={{ name: call.raw_name, input: call.raw_payload }} /> : null}
+            {expanded && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {call.nested.map((nestedGroup) => (
                   <ToolGroup item={nestedGroup} key={`${call.message_id}-${nestedGroup.calls[0]?.message_id ?? nestedGroup.tool}`} />
@@ -429,6 +448,16 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     </details>
   )
 })
+
+function RawToolDetails({ payload }: { payload: unknown }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details className="mt-1" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">Raw details</summary>
+      {open ? <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-gray-50 p-2 font-mono text-gray-600 dark:bg-gray-900 dark:text-gray-400">{JSON.stringify(payload, null, 2)}</pre> : null}
+    </details>
+  )
+}
 
 function HighlightedToolResult({ code, detail, error, tool }: { code: string; detail: string; error: boolean; tool: string }) {
   const language = inferToolResultLanguage(detail, tool)
