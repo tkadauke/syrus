@@ -905,6 +905,34 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(job.reload).to be_approved
   end
 
+  it "does not treat auxiliary visual diff workflows as superseding primary job work" do
+    primary = workflow
+    primary_step = step
+    primary_run = run
+    visual_diff = Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: "visual_diff",
+      agent_provider: job.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago
+    )
+    Step.create!(workflow: visual_diff, kind: "visual_diff", position: 0, state: "queued")
+    job.update_columns(state: "running")
+    primary.update_columns(state: "running", started_at: 20.minutes.ago, created_at: 20.minutes.ago)
+    primary_step.update_columns(state: "running", started_at: 20.minutes.ago)
+    primary_run.update_columns(state: "running", started_at: 20.minutes.ago, last_heartbeat_at: 1.minute.ago)
+    attach_work_unit(primary, state: "running")
+    attach_work_unit(visual_diff, kind: "visual_diff", state: "queued")
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :superseded_active_runtime_work)).to be_nil
+    expect(plan(result, :cancel_superseded_active_workflow)).to be_nil
+    expect(primary.reload).to be_running
+    expect(visual_diff.reload).to be_queued
+  end
+
   it "cancels active workflows that conflict with an Epic-wide workflow" do
     epic = Factories.epic(user: job.user, repository: job.repository)
     keeper_job = Factories.job_record(user: job.user, repository: job.repository, epic: epic, issue_number: 201)

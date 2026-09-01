@@ -67,6 +67,7 @@ module WorkDefinitions
 
     def validate_child_definition(definition)
       return [] unless definition.child?
+      return [] unless definition.landing_validation_child?
 
       errors = []
       if definition.parent_kind.blank?

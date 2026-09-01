@@ -32,10 +32,10 @@ RSpec.describe WorkDefinitions do
     expect(definition).to be_first_class
   end
 
-  it "requires child workflow definitions to declare their parent kind" do
-    child_definitions = described_class.registry.values.select { |definition_class| definition_class.runtime_role == "child" }
+  it "requires landing-validation child workflow definitions to declare their parent kind" do
+    child_definitions = described_class.registry.values.select { |definition_class| definition_class.new.landing_validation_child? }
 
-    expect(child_definitions).to all(have_attributes(parent_kind: be_present))
+    expect(child_definitions.map(&:new)).to all(have_attributes(parent_kind: be_present))
   end
 
   it "requires every work definition to declare scheduler policy hooks" do
@@ -300,8 +300,7 @@ RSpec.describe WorkDefinitions do
       "landing_validation",
       "merge_train_validation",
       "promotion",
-      "hotfix_sync",
-      "visual_diff"
+      "hotfix_sync"
     )
   end
 
@@ -448,8 +447,7 @@ RSpec.describe WorkDefinitions do
       "merge_train_validation",
       "job_bundle_validation",
       "promotion",
-      "hotfix_sync",
-      "visual_diff"
+      "hotfix_sync"
     )
   end
 end

@@ -906,7 +906,7 @@ class Job < ApplicationRecord
     WorkUnits::TerminalWorkflowSync.for_job(self)
 
     Workflow
-      .where(id: WorkUnits::Ownership.active_workflow_ids([ id ]).to_a)
+      .where(id: WorkUnits::Ownership.active_workflow_ids([ id ], kinds: WorkDefinitions.first_class_work_unit_kinds).to_a)
       .order(:created_at, :id)
       .to_a
   end

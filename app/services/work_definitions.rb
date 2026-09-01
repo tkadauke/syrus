@@ -53,6 +53,10 @@ module WorkDefinitions
       .freeze
   end
 
+  def first_class_work_unit_kinds
+    @first_class_work_unit_kinds ||= kinds_matching(&:first_class?)
+  end
+
   def landing_work_unit_kinds
     @landing_work_unit_kinds ||= kinds_matching { |definition| definition.landing_lock? && definition.first_class? }
   end
@@ -145,6 +149,7 @@ module WorkDefinitions
     %i[
       @registry
       @landing_lock_kinds
+      @first_class_work_unit_kinds
       @landing_workflow_kinds
       @landing_work_unit_kinds
       @epic_wide_kinds

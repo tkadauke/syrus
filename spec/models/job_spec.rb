@@ -1001,6 +1001,23 @@ RSpec.describe Job, :ci_only do
       expect(job.active_runtime_workflows).to be_empty
     end
 
+    it "ignores auxiliary visual diff workflows when reporting active primary runtime work" do
+      job = Factories.job_record(state: "running")
+      visual_diff = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "running")
+      intent = WorkIntent.create!(kind: "visual_diff", state: "requested", scope_type: "job", scope_id: job.id)
+      unit = WorkUnit.create!(
+        work_intent: intent,
+        kind: "visual_diff",
+        state: "running",
+        scope_type: "job",
+        scope_id: job.id,
+        workflow: visual_diff
+      )
+      unit.work_unit_members.create!(job: job, role: "primary")
+
+      expect(job.active_runtime_workflows).to be_empty
+    end
+
     it "approves an implemented job with approval metadata" do
       job = Factories.job
       job.update!(state: "implemented")
