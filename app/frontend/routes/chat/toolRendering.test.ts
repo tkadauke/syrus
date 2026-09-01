@@ -64,13 +64,26 @@ describe("toolResultPresentation", () => {
   it("summarizes escaped JSON-in-text MCP list results", () => {
     const result = toolResultPresentation(
       "list_chat_media",
-      JSON.stringify(JSON.stringify({ chat_media: [{ id: "img_1" }, { id: "img_2" }] }))
+      JSON.stringify(JSON.stringify({
+        snapshots: [{ id: "snapshot:1" }],
+        chat_images: [{ id: "chat_image:1" }]
+      }))
     )
 
     expect(result).toMatchObject({
       kind: "list",
       summary: "2 media items",
       metadata: { count: 2, noun: "media item" }
+    })
+  })
+
+  it("summarizes empty chat media payloads as empty lists", () => {
+    const result = toolResultPresentation("list_chat_media", JSON.stringify({ snapshots: [], chat_images: [] }))
+
+    expect(result).toMatchObject({
+      kind: "list",
+      summary: "0 media items",
+      metadata: { count: 0, noun: "media item" }
     })
   })
 })
