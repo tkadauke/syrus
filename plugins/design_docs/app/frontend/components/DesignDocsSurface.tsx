@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { Button } from "@app/components/Button"
 import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
@@ -563,6 +563,28 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [sharePopoverStyle, setSharePopoverStyle] = useState<CSSProperties>({})
+
+  const positionSharePopover = useCallback(() => {
+    const button = shareButtonRef.current
+    if (!button) return
+
+    setSharePopoverStyle(anchoredPopoverStyle(button.getBoundingClientRect()))
+  }, [])
+
+  useEffect(() => {
+    if (!shareOpen) return
+
+    positionSharePopover()
+    window.addEventListener("resize", positionSharePopover)
+    window.addEventListener("scroll", positionSharePopover, true)
+    return () => {
+      window.removeEventListener("resize", positionSharePopover)
+      window.removeEventListener("scroll", positionSharePopover, true)
+    }
+  }, [positionSharePopover, shareOpen])
+
   return (
     <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center gap-3">
@@ -610,9 +632,23 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? (
+            <Button
+              aria-expanded={shareOpen}
+              aria-haspopup="dialog"
+              onClick={() => {
+                if (!shareOpen) positionSharePopover()
+                setShareOpen(!shareOpen)
+              }}
+              ref={shareButtonRef}
+              size="sm"
+              variant="secondary"
+            >
+              Share
+            </Button>
+          ) : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div aria-label="Share design doc" className="fixed z-50 max-h-[calc(100vh-1rem)] w-80 overflow-auto rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950" data-testid="design-doc-share-popover" role="dialog" style={sharePopoverStyle}>
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
@@ -650,6 +686,21 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
       </div>
     </section>
   )
+}
+
+function anchoredPopoverStyle(rect: DOMRect, width = 320, margin = 8): CSSProperties {
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth
+  const effectiveWidth = Math.min(width, Math.max(0, viewportWidth - margin * 2))
+  const maxLeft = Math.max(margin, viewportWidth - effectiveWidth - margin)
+  const preferredLeft = rect.left
+  const fallbackLeft = rect.right - effectiveWidth
+  const left = preferredLeft + effectiveWidth + margin <= viewportWidth ? preferredLeft : Math.max(margin, Math.min(fallbackLeft, maxLeft))
+
+  return {
+    left: `${left}px`,
+    top: `${Math.max(rect.bottom + margin, margin)}px`,
+    width: `${effectiveWidth}px`
+  }
 }
 
 function MarkdownHighlightMirror({ draft, focusedThreadId, highlights, scrollTop }: { draft: string; focusedThreadId: number | null; highlights: AnchorHighlight[]; scrollTop: number }) {

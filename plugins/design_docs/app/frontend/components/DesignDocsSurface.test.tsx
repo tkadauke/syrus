@@ -7,6 +7,7 @@ import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+const originalInnerWidth = window.innerWidth
 
 const docDetail = {
   id: 1,
@@ -283,6 +284,7 @@ describe("DesignDocsSurface", () => {
     } else {
       Reflect.deleteProperty(window, "matchMedia")
     }
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth })
   })
 
   it("shows the shared filter bar without duplicating desktop smart folders, and navigates into the detail editor", async () => {
@@ -509,6 +511,32 @@ describe("DesignDocsSurface", () => {
     fireEvent.change(versionSelect, { target: { value: "1" } })
 
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
+  })
+
+  it("opens the compact chat share popup to the right when the button is near the panel edge", async () => {
+    mockFetch()
+    renderSurface("/chats/237")
+
+    await screen.findByRole("textbox", { name: "Markdown editor" })
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 480 })
+    const shareButton = screen.getByRole("button", { name: "Share" })
+    vi.spyOn(shareButton, "getBoundingClientRect").mockReturnValue({
+      bottom: 130,
+      height: 32,
+      left: 12,
+      right: 68,
+      top: 98,
+      width: 56,
+      x: 12,
+      y: 98,
+      toJSON: () => ({})
+    } as DOMRect)
+
+    fireEvent.click(shareButton)
+
+    const popover = screen.getByRole("dialog", { name: "Share design doc" })
+    expect(popover).toHaveClass("fixed")
+    expect(popover).toHaveStyle({ left: "12px", top: "138px" })
   })
 
   it("reviews suggestions and exposes version history from the title bar", async () => {
