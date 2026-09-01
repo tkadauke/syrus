@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { SidebarPluginPage } from "../../api/sidebarPages"
+import { sidebarLinkClass } from "./helpers"
 import { CORE_NAV_ITEMS, applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./sidebarNav"
 
 const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
@@ -152,5 +153,15 @@ describe("sidebarNavItemActive", () => {
   it("treats any other item as active when the path starts with its target", () => {
     expect(sidebarNavItemActive({ id: "repositories", to: "/repositories" }, "/repositories/42")).toBe(true)
     expect(sidebarNavItemActive({ id: "repositories", to: "/repositories" }, "/schedules")).toBe(false)
+  })
+})
+
+describe("sidebarLinkClass", () => {
+  it("uses semantic brand tokens for the active sidebar link", () => {
+    const className = sidebarLinkClass(true)
+
+    expect(className).toContain("text-brand")
+    expect(className).toContain("sm:bg-brand/10")
+    expect(className).not.toContain("blue-")
   })
 })

@@ -285,7 +285,7 @@ export function disabledPaginationClass() {
 }
 
 export function adminEventLinkClass() {
-  return "text-blue-600 underline hover:no-underline dark:text-blue-300"
+  return "text-brand underline hover:no-underline"
 }
 
 export function severityPillClass(severity: string) {
