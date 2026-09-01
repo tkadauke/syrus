@@ -4,12 +4,53 @@ set -euo pipefail
 export RAILS_ENV="${RAILS_ENV:-test}"
 export COVERAGE="${COVERAGE:-false}"
 export RSPEC_JSON_DIR="${RSPEC_JSON_DIR:-.syrus/rspec-json}"
+export RSPEC_JUNIT_DIR="${RSPEC_JUNIT_DIR:-.syrus/rspec-junit}"
+export RSPEC_JUNIT_OUTPUT="${RSPEC_JUNIT_OUTPUT:-.syrus/grade-output/rspec-junit.xml}"
 
 bin/rails db:test:prepare
 bin/rspec-fast "$@"
+mkdir -p "$RSPEC_JSON_DIR" "$RSPEC_JUNIT_DIR" "$(dirname "$RSPEC_JUNIT_OUTPUT")"
+
+set +e
 RUN_CI_ONLY_SPECS=true bin/rspec \
   --tag ci_only \
+  --require rspec_junit_formatter \
   --format progress \
   --format json \
   --out "$RSPEC_JSON_DIR/rspec-ci-only.json" \
+  --format RspecJunitFormatter \
+  --out "$RSPEC_JUNIT_DIR/rspec-junit-ci-only.xml" \
   "$@"
+status="$?"
+set -e
+
+ruby -rrexml/document -e '
+  dir, out = ARGV
+  files = Dir[File.join(dir, "rspec-junit-*.xml")].sort
+  exit if files.empty?
+
+  merged = REXML::Document.new("<testsuites/>")
+  totals = Hash.new(0)
+  files.each do |path|
+    doc = begin
+      REXML::Document.new(File.read(path))
+    rescue StandardError
+      next
+    end
+    next unless doc.root
+
+    suites = doc.root.name == "testsuites" ? doc.root.elements.to_a("testsuite") : [ doc.root ]
+    suites.each do |suite|
+      %w[tests failures errors skipped].each { |k| totals[k] += suite.attributes[k].to_i }
+      totals["time"] += suite.attributes["time"].to_f
+      merged.root.add_element(suite.deep_clone)
+    end
+  end
+  exit if merged.root.elements.empty?
+
+  %w[tests failures errors skipped].each { |k| merged.root.add_attribute(k, totals[k].to_s) }
+  merged.root.add_attribute("time", format("%.6f", totals["time"]))
+  File.write(out, merged.to_s)
+' "$RSPEC_JUNIT_DIR" "$RSPEC_JUNIT_OUTPUT"
+
+exit "$status"
