@@ -74,17 +74,30 @@ class CredentialProbe
 
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github,
-    "claude_oauth_token" => :probe_claude,
     "codex_api_key"      => :probe_codex,
     "codex_auth_json"    => :probe_codex,
     "gemini_api_key"     => :probe_gemini
   }.freeze
+  @registered_probe_handlers = {}
+  @registered_secret_extractors = []
+
+  def self.register_probe(credential, handler)
+    @registered_probe_handlers[credential.to_s] = handler
+  end
+
+  def self.register_secret_extractor(extractor)
+    @registered_secret_extractors << extractor unless @registered_secret_extractors.include?(extractor)
+  end
+
+  def self.probe_handler_for(credential)
+    CREDENTIAL_PROBE_METHODS[credential.to_s] || @registered_probe_handlers[credential.to_s]
+  end
 
   def call
-    probe_method = CREDENTIAL_PROBE_METHODS[credential]
-    raise ArgumentError, "Unknown credential: #{credential}" unless probe_method
+    probe_handler = self.class.probe_handler_for(credential)
+    raise ArgumentError, "Unknown credential: #{credential}" unless probe_handler
 
-    send(probe_method)
+    probe_handler.is_a?(Symbol) ? send(probe_handler) : probe_handler.call(self)
   end
 
   # Validate a pasted-but-unsaved Gemini API key (the setup sheet's
@@ -183,47 +196,13 @@ class CredentialProbe
     failure("GitHub probe failed: #{safe_error(e)}")
   end
 
-  # Probe whether `claude --print` already works on this machine using the
-  # CLI's own stored login (no Syrus token injected). Lets the setup wizard
-  # detect a working bare-metal subscription before asking for a token.
   def self.claude_cli_ready(user: nil)
-    new(user: user, credential: "claude_oauth_token").send(:probe_claude, ambient: true)
-  end
+    probe = new(user: user, credential: "claude_oauth_token")
+    handler = probe_handler_for("claude_oauth_token")
+    raise ArgumentError, "Unknown credential: claude_oauth_token" unless handler
+    raise ArgumentError, "Credential probe does not support ambient CLI readiness: claude_oauth_token" unless handler.respond_to?(:cli_ready)
 
-  def probe_claude(ambient: false)
-    return missing("Claude OAuth token is not configured.") if !ambient && user&.claude_oauth_token.blank?
-
-    token = ambient ? nil : user.claude_oauth_token
-    Dir.mktmpdir("syrus-claude-probe-") do |workspace|
-      output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(
-          AgentInvocation::ENV_FORWARD,
-          extra: token ? { "CLAUDE_CODE_OAUTH_TOKEN" => token } : {}
-        ),
-        command: [
-          "claude", "--print",
-          "--output-format", "stream-json",
-          "--verbose",
-          "--max-turns", "1",
-          "Reply with OK."
-        ],
-        chdir: workspace,
-        timeout: TIMEOUT_SECONDS,
-        silent_timeout: 15,
-        kind: "agent",
-        on_output_chunk: ->(chunk) { append_output(output, chunk) }
-      ).run
-
-      if result.success?
-        return success(credential, ambient ? "Claude already works on this machine — no token needed." : "Claude OAuth token is valid.")
-      end
-
-      message = ambient ? "Claude is not authenticated on this machine yet." : "Claude probe failed: #{probe_failure_reason(result, output)}"
-      failure(message)
-    end
-  rescue Errno::ENOENT
-    failure("Claude CLI is not installed or not on PATH.")
+    handler.cli_ready(probe)
   end
 
   CODEX_CREDENTIAL_SPECS = {
@@ -330,9 +309,8 @@ class CredentialProbe
     text = value.to_s
     [
       user.github_token,
-      user.claude_oauth_token,
       user.codex_api_key
-    ].compact_blank.each do |secret|
+    ].concat(registered_secrets).compact_blank.each do |secret|
       text = text.gsub(secret, REDACTED)
     end
 
@@ -363,5 +341,9 @@ class CredentialProbe
       'approval_policy = "never"',
       "model = #{JSON.generate(CodexInvocation::DEFAULT_MODEL)}"
     ].join("\n") + "\n"
+  end
+
+  def registered_secrets
+    self.class.instance_variable_get(:@registered_secret_extractors).filter_map { |extractor| extractor.call(user) }
   end
 end

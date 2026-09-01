@@ -197,7 +197,6 @@ module Filters
         "email"            => "Filters::Chips::AdminUsers::Email",
         "admin"            => "Filters::Chips::AdminUsers::Admin",
         "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",
-        "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken",
         "has_codex_token"  => "Filters::Chips::AdminUsers::HasCodexToken",
         "gh_rate"          => "Filters::Chips::AdminUsers::GhRate"
       }
@@ -282,6 +281,16 @@ module Filters
 
   def self.register_subject(name:, model:, chips:)
     @registered_subjects[name.to_sym] = Subject.new(name: name, model: model, chips: chips)
+  end
+
+  def self.register_chips(subject:, chips:)
+    subject_name = subject.to_sym
+    existing = @registered_subjects[subject_name] || SUBJECTS.fetch(subject_name)
+    @registered_subjects[subject_name] = Subject.new(
+      name: existing.name,
+      model: existing.model,
+      chips: existing.chips.merge(chips)
+    )
   end
 
   def self.subjects
