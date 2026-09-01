@@ -261,7 +261,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [summaryVisible, setSummaryVisible] = useState(false)
   const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
   const [commentBody, setCommentBody] = useState("")
-  const [suggestionMarkdown, setSuggestionMarkdown] = useState("")
+  const [commentComposerOpen, setCommentComposerOpen] = useState(false)
   const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
   const [replyBodies, setReplyBodies] = useState<Record<number, string>>({})
   const [collaborators, setCollaborators] = useState(doc.collaborator_ids.join(", "))
@@ -272,13 +272,13 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
   const canWriteCanonical = doc.permissions.can_write_canonical
-  const canSuggest = doc.permissions.can_suggest
   const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
   const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
   const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
   const editorShellRef = useRef<HTMLDivElement | null>(null)
+  const commentComposerRef = useRef<HTMLInputElement | null>(null)
   const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const persistedDraftRef = useRef(`${doc.id}:${canWriteCanonical ? "edit" : "suggest"}:${doc.title}:${doc.rendered_markdown || doc.markdown}`)
   const versions = useQuery({
@@ -342,6 +342,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
       setCommentBody("")
+      setCommentComposerOpen(false)
       setSelection({ start: 0, end: 0, text: "", selectedText: "", rect: null })
       onDocChange(payload.design_doc, "Comment added.")
     }
@@ -351,13 +352,6 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     onSuccess: (payload, variables) => {
       setReplyBodies((current) => ({ ...current, [variables.threadId]: "" }))
       onDocChange(payload.design_doc, "Reply added.")
-    }
-  })
-  const suggestionMutation = useMutation({
-    mutationFn: () => createDesignDocSuggestion(doc.id, { original_markdown: selection.text, proposed_markdown: suggestionMarkdown, change_summary: summary, ...anchorPayload(selection) }),
-    onSuccess: (payload) => {
-      setSuggestionMarkdown("")
-      onDocChange(payload.design_doc, "Suggestion created.")
     }
   })
   const reviewMutation = useMutation({
@@ -437,6 +431,12 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
 
     threadRefs.current[focusedThreadId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
   }, [focusedThreadId])
+
+  useEffect(() => {
+    if (!commentComposerOpen) return
+
+    commentComposerRef.current?.focus()
+  }, [commentComposerOpen])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
@@ -593,26 +593,26 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
               tabIndex={0}
             />
           )}
-          <FloatingComposer
-            commentBody={commentBody}
+          <SelectionCommentAffordance
             disabled={selection.end <= selection.start}
             selection={selection}
-            setCommentBody={setCommentBody}
-            setSuggestionMarkdown={setSuggestionMarkdown}
-            suggestionMarkdown={suggestionMarkdown}
-            canSuggest={canSuggest}
-            onComment={() => commentMutation.mutate()}
-            onSuggestion={() => suggestionMutation.mutate()}
+            onOpenCommentComposer={() => setCommentComposerOpen(true)}
           />
           </div>
         </div>
       </section>
       <aside className="space-y-4">
         <ThreadPanel
+          commentBody={commentBody}
+          commentComposerOpen={commentComposerOpen}
+          commentComposerRef={commentComposerRef}
           doc={doc}
           focusedThreadId={focusedThreadId}
           replyBodies={replyBodies}
+          selection={selection}
           threadRefs={threadRefs}
+          onComment={() => commentMutation.mutate()}
+          onCommentChange={setCommentBody}
           onFocus={focusThread}
           onReply={(threadId) => {
             const body = replyBodies[threadId]?.trim()
@@ -778,58 +778,70 @@ function MarkdownHighlightMirror({ draft, focusedThreadId, highlights, scrollTop
   )
 }
 
-function FloatingComposer({ commentBody, disabled, selection, setCommentBody, setSuggestionMarkdown, suggestionMarkdown, canSuggest, onComment, onSuggestion }: {
-  commentBody: string
+function SelectionCommentAffordance({ disabled, selection, onOpenCommentComposer }: {
   disabled: boolean
   selection: SelectionRange
-  setCommentBody: (value: string) => void
-  setSuggestionMarkdown: (value: string) => void
-  suggestionMarkdown: string
-  canSuggest: boolean
-  onComment: () => void
-  onSuggestion: () => void
+  onOpenCommentComposer: () => void
 }) {
   if (disabled) return null
 
   return (
-    <div
-      className="absolute z-30 w-[min(28rem,calc(100%-2rem))] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+    <Button
+      aria-label="Comment on selection"
+      className="absolute z-30 h-8 w-8 rounded-full shadow-lg"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onOpenCommentComposer}
+      size="icon"
       style={{
         left: selection.rect ? `${Math.min(Math.max(selection.rect.left, 8), 360)}px` : "1rem",
         top: selection.rect ? `${Math.max(selection.rect.top - 8, 8)}px` : "1rem"
       }}
+      variant="secondary"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400">Selected {selection.selectedText.length} characters</p>
-      </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <div className="space-y-2">
-          <Input aria-label="Inline comment" disabled={disabled} placeholder="Comment on selection" value={commentBody} onChange={(event) => setCommentBody(event.target.value)} />
-          <Button disabled={disabled || commentBody.trim().length === 0} onClick={onComment} size="sm" variant="secondary">Comment</Button>
-        </div>
-        {canSuggest ? <div className="space-y-2">
-          <Input aria-label="Suggested replacement" disabled={disabled} placeholder="Suggested replacement" value={suggestionMarkdown} onChange={(event) => setSuggestionMarkdown(event.target.value)} />
-          <Button disabled={disabled || suggestionMarkdown.trim().length === 0} onClick={onSuggestion} size="sm" variant="secondary">Suggest</Button>
-        </div> : null}
-      </div>
-    </div>
+      <CommentBubbleIcon />
+    </Button>
   )
 }
 
-function ThreadPanel({ doc, focusedThreadId, replyBodies, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
+function ThreadPanel({ commentBody, commentComposerOpen, commentComposerRef, doc, focusedThreadId, replyBodies, selection, threadRefs, onComment, onCommentChange, onFocus, onReply, onReplyChange, onResolve }: {
+  commentBody: string
+  commentComposerOpen: boolean
+  commentComposerRef: React.MutableRefObject<HTMLInputElement | null>
   doc: DesignDocDetail
   focusedThreadId: number | null
   replyBodies: Record<number, string>
+  selection: SelectionRange
   threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
+  onComment: () => void
+  onCommentChange: (body: string) => void
   onFocus: (threadId: number) => void
   onReply: (threadId: number) => void
   onReplyChange: (threadId: number, body: string) => void
   onResolve: (threadId: number) => void
 }) {
+  const hasSelection = selection.end > selection.start
+
   return (
     <Panel className="relative min-h-[36rem]">
       <SectionHeading as="h3">Threads</SectionHeading>
       <div className="relative mt-3 space-y-3">
+        {commentComposerOpen && hasSelection ? (
+          <div className="rounded border border-brand/40 bg-brand/5 p-3">
+            <p aria-label="Selected text for new thread" className="rounded bg-white/70 p-2 text-xs text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">{selection.selectedText || selection.text}</p>
+            <div className="mt-3 flex gap-2">
+              <Input
+                aria-label="Thread comment"
+                onChange={(event) => onCommentChange(event.target.value)}
+                placeholder="Comment"
+                ref={commentComposerRef}
+                value={commentBody}
+              />
+              <Button disabled={commentBody.trim().length === 0} onClick={onComment} size="sm" variant="secondary">
+                Comment
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {doc.threads.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No inline comments.</p> : null}
         {doc.threads.map((thread) => (
           <div
@@ -893,6 +905,14 @@ function ThreadPanel({ doc, focusedThreadId, replyBodies, threadRefs, onFocus, o
         ))}
       </div>
     </Panel>
+  )
+}
+
+function CommentBubbleIcon() {
+  return (
+    <span aria-hidden="true" className="relative block h-4 w-4 rounded-[0.2rem] border-2 border-current">
+      <span className="absolute -bottom-1 left-1 h-1.5 w-1.5 border-b-2 border-l-2 border-current bg-surface" />
+    </span>
   )
 }
 

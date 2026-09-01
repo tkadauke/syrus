@@ -384,7 +384,7 @@ describe("DesignDocsSurface", () => {
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
 
-  it("creates and resolves comments from an editor selection", async () => {
+  it("opens the Threads composer from the compact selection comment affordance", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
     fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
@@ -392,7 +392,17 @@ describe("DesignDocsSurface", () => {
 
     editor.setSelectionRange(6, 10)
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify this" } })
+    const commentAffordance = screen.getByRole("button", { name: "Comment on selection" })
+    expect(screen.queryByRole("textbox", { name: "Thread comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+
+    fireEvent.click(commentAffordance)
+
+    const composer = screen.getByRole("textbox", { name: "Thread comment" })
+    expect(composer).toHaveFocus()
+    expect(screen.getByLabelText("Selected text for new thread")).toHaveTextContent("beta")
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+    fireEvent.change(composer, { target: { value: "Clarify this" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -422,7 +432,8 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Thread comment" }), { target: { value: "Clarify intro" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
