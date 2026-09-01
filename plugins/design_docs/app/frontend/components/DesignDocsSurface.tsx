@@ -35,6 +35,7 @@ type SurfaceMode = "index" | "repository" | "chat"
 type EditorMode = "markdown" | "wysiwyg"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number }
+type PopoverAlignment = "start" | "end"
 type AnchorHighlight = {
   id: string
   kind: "thread" | "suggestion"
@@ -45,6 +46,9 @@ type AnchorHighlight = {
   start: number
   end: number
 }
+
+const SHARE_POPOVER_WIDTH = 320
+const POPOVER_VIEWPORT_MARGIN = 16
 
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, initialDesignDocId, initialDesignDocs = [], mode, repositoryId }: {
   chatId?: number
@@ -563,6 +567,27 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   onVersionsOpen: () => void
   onVisibilityChange: (visibility: "private" | "public") => void
 }) {
+  const shareButtonRef = useRef<HTMLButtonElement | null>(null)
+  const [sharePopoverAlignment, setSharePopoverAlignment] = useState<PopoverAlignment>("start")
+
+  useEffect(() => {
+    if (!shareOpen) return
+
+    function updateSharePopoverAlignment() {
+      if (!shareButtonRef.current) return
+
+      setSharePopoverAlignment(popoverAlignmentForTrigger(shareButtonRef.current.getBoundingClientRect(), SHARE_POPOVER_WIDTH))
+    }
+
+    updateSharePopoverAlignment()
+    window.addEventListener("resize", updateSharePopoverAlignment)
+    window.visualViewport?.addEventListener("resize", updateSharePopoverAlignment)
+    return () => {
+      window.removeEventListener("resize", updateSharePopoverAlignment)
+      window.visualViewport?.removeEventListener("resize", updateSharePopoverAlignment)
+    }
+  }, [shareOpen])
+
   return (
     <section aria-label="Design doc title bar" className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center gap-3">
@@ -610,9 +635,12 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
           ) : null}
         </div>
         <div className="relative">
-          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
+          {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} ref={shareButtonRef} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div
+              className={`absolute ${sharePopoverAlignment === "start" ? "left-0" : "right-0"} z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950`}
+              data-design-doc-share-popover
+            >
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>
@@ -860,6 +888,14 @@ function smartFolderIdFromSearch(search: string) {
 
   const id = Number(raw)
   return Number.isInteger(id) ? id : null
+}
+
+function popoverAlignmentForTrigger(triggerRect: DOMRect, popoverWidth: number): PopoverAlignment {
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth
+  const spaceRight = viewportWidth - triggerRect.left - POPOVER_VIEWPORT_MARGIN
+  const spaceLeft = triggerRect.right - POPOVER_VIEWPORT_MARGIN
+
+  return spaceRight >= popoverWidth || spaceRight >= spaceLeft ? "start" : "end"
 }
 
 function anchorPayload(selection: SelectionRange) {

@@ -511,6 +511,86 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
   })
 
+  it("opens the share popover to the right when the chat workspace leaves room there", async () => {
+    mockFetch()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1728 })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.textContent === "Share") {
+        return {
+          bottom: 350,
+          height: 32,
+          left: 1180,
+          right: 1230,
+          top: 318,
+          width: 50,
+          x: 1180,
+          y: 318,
+          toJSON: () => ({})
+        } as DOMRect
+      }
+
+      return {
+        bottom: 0,
+        height: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        width: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    const { container } = renderSurface("/chats/237")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
+
+    const popover = await waitFor(() => container.querySelector("[data-design-doc-share-popover]"))
+    expect(popover).toHaveClass("left-0")
+    expect(popover).not.toHaveClass("right-0")
+  })
+
+  it("opens the share popover to the left when the trigger is near the viewport edge", async () => {
+    mockFetch()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1728 })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.textContent === "Share") {
+        return {
+          bottom: 350,
+          height: 32,
+          left: 1640,
+          right: 1690,
+          top: 318,
+          width: 50,
+          x: 1640,
+          y: 318,
+          toJSON: () => ({})
+        } as DOMRect
+      }
+
+      return {
+        bottom: 0,
+        height: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        width: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    const { container } = renderSurface("/chats/237")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
+
+    const popover = await waitFor(() => container.querySelector("[data-design-doc-share-popover]"))
+    expect(popover).toHaveClass("right-0")
+    expect(popover).not.toHaveClass("left-0")
+  })
+
   it("reviews suggestions and exposes version history from the title bar", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
