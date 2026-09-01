@@ -59,14 +59,14 @@ export function MysqlConnections() {
 
   if (browsing) {
     return (
-      <main aria-label={t("aria_page")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+      <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
         <SchemaBrowser connectionId={browsing.connectionId} label={browsing.label} onBack={() => setBrowsing(null)} />
       </main>
     )
   }
 
   return (
-    <main aria-label={t("aria_page")} className="mx-auto max-w-[96rem] space-y-6 p-6">
+    <main aria-label={t("aria_page")} className="mx-auto flex h-full max-w-[96rem] flex-col gap-6 overflow-hidden p-3 sm:p-6">
       <header>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("heading")}</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p>
@@ -659,8 +659,8 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section className="flex h-full min-h-0 flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("browse_heading", { label })}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("browse_description")}</p>
@@ -674,7 +674,7 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
         </button>
       </div>
 
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
+      <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800" role="tablist">
         <TabButton active={browserTab === "browse"} onClick={() => setBrowserTab("browse")}>{t("tab_browse")}</TabButton>
         <TabButton active={browserTab === "query"} onClick={() => setBrowserTab("query")}>{t("tab_query")}</TabButton>
         <TabButton active={browserTab === "live"} onClick={() => setBrowserTab("live")}>{t("tab_live")}</TabButton>
@@ -686,10 +686,10 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
           {databases.isError ? <Panel tone="error">{errorMessage(databases.error, t("error_loading_databases"))}</Panel> : null}
 
           {databases.isSuccess ? (
-            <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_1fr]">
               <nav
                 aria-label={t("aria_schema_tree")}
-                className="max-h-[70vh] overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950"
+                className="h-full min-h-0 overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950"
               >
                 <ul className="divide-y divide-gray-100 dark:divide-gray-900 text-sm">
                   {databases.data.databases.map((database) => (
@@ -706,21 +706,23 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
                 </ul>
               </nav>
 
-              <div className="min-h-[200px] min-w-0 rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+              <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
                 {selected ? (
-                  <div>
-                    <div className="flex gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
+                  <div className="flex h-full min-h-0 flex-col">
+                    <div className="flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-800 px-2" role="tablist">
                       <TabButton active={tableTab === "content"} onClick={() => setTableTab("content")}>{t("tab_content")}</TabButton>
                       <TabButton active={tableTab === "structure"} onClick={() => setTableTab("structure")}>{t("tab_structure")}</TabButton>
                       <TabButton active={tableTab === "builder"} onClick={() => setTableTab("builder")}>{t("tab_builder")}</TabButton>
                     </div>
-                    {tableTab === "content" ? (
-                      <MysqlContentTab connectionId={connectionId} database={selected.database} table={selected.table} />
-                    ) : tableTab === "structure" ? (
-                      <TableDetail connectionId={connectionId} database={selected.database} table={selected.table} />
-                    ) : (
-                      <MysqlQueryBuilderTab connectionId={connectionId} database={selected.database} table={selected.table} />
-                    )}
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      {tableTab === "content" ? (
+                        <MysqlContentTab connectionId={connectionId} database={selected.database} table={selected.table} />
+                      ) : tableTab === "structure" ? (
+                        <TableDetail connectionId={connectionId} database={selected.database} table={selected.table} />
+                      ) : (
+                        <MysqlQueryBuilderTab connectionId={connectionId} database={selected.database} table={selected.table} />
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="p-4 text-sm text-gray-500 dark:text-gray-400">{t("select_table_hint")}</p>
@@ -732,13 +734,13 @@ function SchemaBrowser({ connectionId, label, onBack }: { connectionId: number; 
       ) : null}
 
       {browserTab === "query" ? (
-        <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
+        <div className="flex h-full min-h-0 flex-col overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
           <MysqlQueryTab connectionId={connectionId} />
         </div>
       ) : null}
 
       {browserTab === "live" ? (
-        <div className="rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
+        <div className="flex h-full min-h-0 flex-col overflow-y-auto rounded border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4">
           <MysqlLiveTab connectionId={connectionId} />
         </div>
       ) : null}
