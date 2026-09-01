@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { SchemaErdPayload } from "../../api/artifacts"
+import type { SchemaErdPayload } from "@app/api/artifacts"
 import { ErdDiagramRenderer } from "./ErdDiagramRenderer"
 
 const usersTable: SchemaErdPayload["tables"][0] = {

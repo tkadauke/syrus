@@ -35,8 +35,7 @@ import { PreviewPanel, PreviewStopModal } from "../components/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
-import { MigrationDiffRenderer } from "../components/artifacts/MigrationDiffRenderer"
-import type { MigrationDiffPayload } from "../api/artifacts"
+import { pluginArtifactBodyFor } from "../pluginArtifactRenderers"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { useBugReportTrigger } from "../lib/bugReportContext"
@@ -1520,11 +1519,10 @@ export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
 }
 
 function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
+  const pluginBody = pluginArtifactBodyFor(artifact)
+  if (pluginBody) return pluginBody
+
   switch (artifact.renderer_type) {
-    case "erd_diagram":
-      return <ErdDiagramRenderer payload={artifact.payload} />
-    case "migration_diff":
-      return <MigrationDiffRenderer payload={artifact.payload as MigrationDiffPayload} />
     case "data_table":
       return <DataTableRenderer payload={artifact.payload} />
     case "before_after_diff":
@@ -1536,51 +1534,6 @@ function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
     default:
       return <RawArtifactRenderer payload={artifact.payload} />
   }
-}
-
-function ErdDiagramRenderer({ payload }: { payload: Record<string, unknown> }) {
-  const { t } = useT("jobs")
-  const tables = Array.isArray(payload.tables) ? payload.tables as Array<{ name: string; columns: Array<{ name: string; type: string; primary_key?: boolean; nullable?: boolean }> }> : []
-  const foreignKeys = Array.isArray(payload.foreign_keys) ? payload.foreign_keys as Array<{ from_table: string; from_column: string; to_table: string; to_column: string }> : []
-
-  if (tables.length === 0) {
-    return <RawArtifactRenderer payload={payload} />
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        {tables.map((table) => (
-          <div className="min-w-48 rounded border border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800" key={table.name}>
-            <div className="rounded-t border-b border-gray-300 bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
-              {table.name}
-            </div>
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {(table.columns ?? []).map((col) => (
-                <li className="flex items-center gap-2 px-3 py-1 text-xs" key={col.name}>
-                  {col.primary_key ? <span className="shrink-0 font-bold text-brand">{t("artifact_erd_primary_key")}</span> : null}
-                  <span className="font-mono text-gray-900 dark:text-gray-100">{col.name}</span>
-                  <span className="ml-auto shrink-0 text-gray-400 dark:text-gray-500">{col.type}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-      {foreignKeys.length > 0 ? (
-        <div>
-          <p className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">{t("artifact_erd_foreign_keys")}</p>
-          <ul className="space-y-1">
-            {foreignKeys.map((fk, i) => (
-              <li className="font-mono text-xs text-gray-700 dark:text-gray-300" key={i}>
-                {fk.from_table}.{fk.from_column} → {fk.to_table}.{fk.to_column}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  )
 }
 
 function DataTableRenderer({ payload }: { payload: Record<string, unknown> }) {

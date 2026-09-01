@@ -1,4 +1,4 @@
-import type { ErdTable, SchemaErdPayload } from "../../api/artifacts"
+import type { ErdTable, SchemaErdPayload } from "@app/api/artifacts"
 
 // Renders a Rails schema ERD as a set of table boxes with column lists
 // and a textual foreign-key summary below each table. One box per table,
