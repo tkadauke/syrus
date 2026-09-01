@@ -10,7 +10,7 @@ import type { ChatMessageItem, ChatPendingAction, ChatPendingActionInline, ChatR
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolDetail, toolLabel, toolResultSummary } from "./toolRendering"
+import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./toolRendering"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -23,6 +23,7 @@ type OpenCall = {
   call: ChatToolGroupCall
   group: ChatToolGroupItem
   container: ChatRenderItem[]
+  rawToolName: string
 }
 
 export function renderChatMessages(messages: ChatMessageItem[], options: { simpleMode?: boolean } = {}): ChatRenderItem[] {
@@ -34,13 +35,16 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
   for (const message of messages) {
     if (groupableToolUse(message)) {
       const toolName = message.tool_name || ""
-      const tool = toolLabel(toolName)
+      const presentation = toolPresentation(toolName, contentInput(message.content))
+      const tool = presentation.display_label
       const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
       const container = containerByParentKey.get(parentKey) as ChatRenderItem[]
       const call: ChatToolGroupCall = {
         message_id: message.id,
-        detail: toolDetail(toolName, contentInput(message.content)),
+        detail: presentation.argument_summary === "No arguments" ? "" : presentation.argument_summary,
         progress_label: simpleToolProgressLabel(toolName),
+        raw_payload: presentation.raw_payload,
+        presentation,
         result_body: "",
         result_error: false,
         result_summary: "",
@@ -60,7 +64,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 
       const toolUseId = toolUseIdFor(message)
       if (toolUseId) {
-        openCallsByToolUseId.set(toolUseId, { call, group, container })
+        openCallsByToolUseId.set(toolUseId, { call, group, container, rawToolName: toolName })
         containerByParentKey.set(toolUseId, call.nested!)
         lastGroupByParentKey.set(toolUseId, null)
       }
@@ -75,14 +79,16 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         const parentKey = message.parent_tool_use_id && containerByParentKey.has(message.parent_tool_use_id) ? message.parent_tool_use_id : ROOT_KEY
         const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
         const lastCall = lastGroup?.calls.at(-1)
-        if (lastGroup && lastCall) open = { call: lastCall, group: lastGroup, container: containerByParentKey.get(parentKey)! }
+        if (lastGroup && lastCall) open = { call: lastCall, group: lastGroup, container: containerByParentKey.get(parentKey)!, rawToolName: lastGroup.tool }
       }
 
       if (open && open.call.result_body === "") {
         const content = contentRecord(message.content)
-        open.call.result_body = shortenWorkspacePaths(content ? fullResultBody(content.content ?? content.result) : String(message.content ?? message.text))
+        const rawResult = content ? content.content ?? content.result : message.content ?? message.text
+        open.call.result_body = shortenWorkspacePaths(content ? fullResultBody(rawResult) : String(rawResult))
         open.call.result_error = content?.is_error === true
-        open.call.result_summary = toolResultSummary(open.group.tool, open.call.result_body)
+        open.call.result_presentation = toolResultPresentation(open.rawToolName, open.call.result_body, rawResult, open.call.result_error)
+        open.call.result_summary = open.call.result_presentation.summary
         if (options.simpleMode && !open.call.result_error) {
           open.group.calls = open.group.calls.filter((call) => call !== open.call)
           if (open.group.calls.length === 0) {

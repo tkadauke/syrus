@@ -287,6 +287,22 @@ export type ChatStructuredTool = {
   payload: unknown
   proposal_id: number | null
   proposal_state_label: string | null
+  presentation?: ChatToolPresentation
+}
+
+export type ChatToolResultKind = "empty" | "text" | "json" | "count" | "error"
+
+export type ChatToolPresentation = {
+  display_label: string
+  argument_summary: string
+  raw_payload: unknown
+}
+
+export type ChatToolResultPresentation = {
+  kind: ChatToolResultKind
+  summary: string
+  raw_payload: unknown
+  metadata?: Record<string, unknown>
 }
 
 export type ChatMessageItem = {
@@ -336,9 +352,12 @@ export type ChatToolGroupCall = {
   message_id: number
   detail: string
   progress_label: string
+  raw_payload?: unknown
+  presentation?: ChatToolPresentation
   result_body: string
   result_error: boolean
   result_summary: string
+  result_presentation?: ChatToolResultPresentation
   // Nested subagent tool-call groups spawned by this call (e.g. an Agent/Task
   // invocation whose own Read/Bash/Grep calls interleave with its result).
   nested?: ChatToolGroupItem[]

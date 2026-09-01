@@ -7,6 +7,7 @@
 // Chat.tsx; renderMessage imports structuredTool/systemMessage back.
 import type { ChatMcpHealth, ChatMessageItem, ChatStructuredTool, ChatSystemMessage } from "../../api/chats"
 import { contentRecord, formatCurrency, humanize, stringArray, stringValue } from "./utils"
+import { toolPresentation } from "./toolRendering"
 
 export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
   const content = contentRecord(message.content)
@@ -17,7 +18,8 @@ export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
     name,
     payload: content || { content: message.content ?? message.text },
     proposal_id: proposal?.id || null,
-    proposal_state_label: proposal?.state === "proposed" ? "pending" : proposal?.state || null
+    proposal_state_label: proposal?.state === "proposed" ? "pending" : proposal?.state || null,
+    presentation: toolPresentation(name, contentRecord(content?.input) || {})
   }
 }
 

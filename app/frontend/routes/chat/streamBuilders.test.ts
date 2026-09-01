@@ -61,6 +61,35 @@ describe("pendingActionCardData", () => {
 })
 
 describe("renderChatMessages tool grouping", () => {
+  it("renders prefixed MCP tool calls with human labels, concise empty inputs, summaries, and raw payloads", () => {
+    const resultPayload = {
+      snapshots: [],
+      chat_images: [{ id: "chat_image:9", filename: "wireframe.png" }],
+      whiteboard_element_count: 0
+    }
+    const items = renderChatMessages([
+      toolUse(1, { toolUseId: "tu_media", toolName: "mcp__syrus-chat-sidecar__list_chat_media", input: {} }),
+      toolResult(2, { toolUseId: "tu_media", content: JSON.stringify(resultPayload) })
+    ])
+
+    expect(items).toHaveLength(1)
+    const toolGroup = group(items[0])
+    expect(toolGroup.tool).toBe("List chat media")
+    expect(toolGroup.calls[0].detail).toBe("")
+    expect(toolGroup.calls[0].presentation).toEqual({
+      display_label: "List chat media",
+      argument_summary: "No arguments",
+      raw_payload: {}
+    })
+    expect(toolGroup.calls[0].raw_payload).toEqual({})
+    expect(toolGroup.calls[0].result_summary).toBe("1 image")
+    expect(toolGroup.calls[0].result_presentation).toMatchObject({
+      kind: "count",
+      summary: "1 image",
+      metadata: { snapshots: 0, images: 1, whiteboard_element_count: 0 }
+    })
+  })
+
   it("groups consecutive same-tool calls into one tool_group and pairs each result by adjacency", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "Read", input: { file_path: "a.rb" } }),

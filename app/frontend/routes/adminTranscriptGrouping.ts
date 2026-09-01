@@ -5,7 +5,7 @@
 // re-rendering every tool_use/tool_result as its own unrelated flat card.
 import type { ChatToolGroupItem } from "../api/chats"
 import type { TranscriptEvent } from "../api/adminTranscript"
-import { fullResultBody, simpleToolProgressLabel, toolDetail, toolLabel, toolResultSummary } from "./chat/toolRendering"
+import { fullResultBody, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
 import { stringValue } from "./chat/utils"
 
 export type AdminTranscriptToolGroupItem = ChatToolGroupItem & { key: string }
@@ -39,18 +39,21 @@ function preview(value: unknown) {
 export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscriptRenderItem[] {
   const items: AdminTranscriptRenderItem[] = []
   let currentGroup: AdminTranscriptToolGroupItem | null = null
-  const openCalls = new Map<string, { tool: string; call: AdminTranscriptToolGroupItem["calls"][number] }>()
+  const openCalls = new Map<string, { tool: string; rawToolName: string; call: AdminTranscriptToolGroupItem["calls"][number] }>()
 
   events.forEach((event, index) => {
     const data = event.data || {}
 
     if (event.kind === "tool_use") {
       const name = stringValue(data.name)
-      const tool = toolLabel(name)
+      const presentation = toolPresentation(name, isRecord(data.input) ? data.input : {})
+      const tool = presentation.display_label
       const call = {
         message_id: index,
-        detail: toolDetail(name, isRecord(data.input) ? data.input : {}),
+        detail: presentation.argument_summary === "No arguments" ? "" : presentation.argument_summary,
         progress_label: simpleToolProgressLabel(name),
+        raw_payload: presentation.raw_payload,
+        presentation,
         result_body: "",
         result_error: false,
         result_summary: ""
@@ -64,7 +67,7 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
       }
 
       const id = data.id
-      if (id != null) openCalls.set(String(id), { tool, call })
+      if (id != null) openCalls.set(String(id), { tool, rawToolName: name, call })
       return
     }
 
@@ -76,7 +79,8 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         const body = fullResultBody(data.content)
         open.call.result_body = body
         open.call.result_error = data.error === true
-        open.call.result_summary = toolResultSummary(open.tool, body)
+        open.call.result_presentation = toolResultPresentation(open.rawToolName, body, data.content, open.call.result_error)
+        open.call.result_summary = open.call.result_presentation.summary
         return
       }
 
