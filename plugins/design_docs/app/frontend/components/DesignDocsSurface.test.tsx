@@ -412,6 +412,31 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
   })
 
+  it("keeps the compact selection affordance near right-side Markdown selections", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    editor.getBoundingClientRect = vi.fn(() => ({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 900,
+      top: 0,
+      width: 900,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    }))
+
+    fireEvent.change(editor, { target: { value: "Alpha beta gamma ".repeat(8) } })
+    editor.setSelectionRange(80, 84)
+    fireEvent.mouseUp(editor)
+
+    const affordance = screen.getByRole("button", { name: "Comment on selection" }).parentElement
+    expect(affordance).toHaveStyle({ left: "688px" })
+  })
+
   it("opens the Threads composer from a compact Rich Text selection affordance", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")

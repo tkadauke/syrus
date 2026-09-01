@@ -35,7 +35,7 @@ type SurfaceMode = "index" | "repository" | "show" | "chat"
 type EditorMode = "rich_text" | "markdown"
 type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
-type SelectionRect = { top: number; left: number }
+type SelectionRect = { top: number; left: number; containerWidth: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "link"; text: string; sourceStart: number; href?: string }
 type AnchorHighlight = {
   id: string
@@ -813,7 +813,7 @@ function SelectionCommentAffordance({ disabled, selection, onOpenComposer }: {
     <div
       className="absolute z-30"
       style={{
-        left: selection.rect ? `${Math.min(Math.max(selection.rect.left, 8), 420)}px` : "1rem",
+        left: selection.rect ? `${clampAffordanceLeft(selection.rect)}px` : "1rem",
         top: selection.rect ? `${Math.max(selection.rect.top - 44, 8)}px` : "1rem"
       }}
     >
@@ -951,6 +951,13 @@ function CommentIcon() {
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
     </svg>
   )
+}
+
+function clampAffordanceLeft(rect: SelectionRect) {
+  const iconWidth = 36
+  const inset = 8
+  const maxLeft = Math.max(inset, rect.containerWidth - iconWidth - inset)
+  return Math.min(Math.max(rect.left, inset), maxLeft)
 }
 
 function SuggestionPanel({ doc, onReview }: { doc: DesignDocDetail; onReview: (id: number, decision: "accept" | "reject") => void }) {
@@ -1327,7 +1334,8 @@ function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end
   const charWidth = 8
   return {
     left: Math.min(rect.width - 32, 16 + lines.at(-1)!.length * charWidth),
-    top: Math.min(rect.height - 80, 16 + (lines.length - 1) * lineHeight - textarea.scrollTop)
+    top: Math.min(rect.height - 80, 16 + (lines.length - 1) * lineHeight - textarea.scrollTop),
+    containerWidth: rect.width
   }
 }
 
@@ -1341,7 +1349,8 @@ function rangeSelectionRect(range: Range, container: HTMLElement | null): Select
 
   return {
     left: rangeRect.left - containerRect.left,
-    top: rangeRect.bottom - containerRect.top
+    top: rangeRect.bottom - containerRect.top,
+    containerWidth: containerRect.width
   }
 }
 
