@@ -384,7 +384,7 @@ describe("DesignDocsSurface", () => {
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
   })
 
-  it("creates and resolves comments from an editor selection", async () => {
+  it("opens the Threads composer from a compact Markdown selection affordance", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
     fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
@@ -392,7 +392,14 @@ describe("DesignDocsSurface", () => {
 
     editor.setSelectionRange(6, 10)
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify this" } })
+    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+    expect(screen.getByRole("textbox", { name: "New thread comment" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify this" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -405,7 +412,7 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
   })
 
-  it("creates comments from a Rich Text selection", async () => {
+  it("opens the Threads composer from a compact Rich Text selection affordance", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
@@ -422,7 +429,12 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New thread comment" })).toHaveFocus())
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
