@@ -26,13 +26,23 @@ import {
   resolveDesignDocThread,
   updateDesignDoc,
   type DesignDocDetail,
+  type DesignDocThread,
   type DesignDocSummary,
   type DesignDocVersion
 } from "../api/designDocs"
 
 type SurfaceMode = "index" | "repository" | "chat"
 type EditorMode = "markdown" | "wysiwyg"
-type SelectionRange = { start: number; end: number; text: string }
+type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
+type SelectionRect = { top: number; left: number }
+type AnchorHighlight = {
+  id: string
+  kind: "thread" | "suggestion"
+  threadId?: number
+  status: string
+  start: number
+  end: number
+}
 
 export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode, repositoryId }: { chatId?: number; compact?: boolean; designDocIds?: number[]; mode: SurfaceMode; repositoryId?: string | number }) {
   const params = useParams()
@@ -165,7 +175,9 @@ export function DesignDocsSurface({ chatId, compact = false, designDocIds, mode,
               repositories={repositoryOptions.map((repository) => ({ id: repository.id, slug: repository.slug }))}
               onDocChange={(nextDoc, message) => {
                 queryClient.setQueryData(["design_docs", "detail", String(nextDoc.id)], { design_doc: nextDoc })
-                void queryClient.invalidateQueries({ queryKey: ["design_docs"] })
+                void queryClient.invalidateQueries({
+                  predicate: (query) => query.queryKey[0] === "design_docs" && query.queryKey[1] !== "detail" && query.queryKey[1] !== "versions"
+                })
                 setNotice(message)
               }}
             />
@@ -211,13 +223,15 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
 }
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message: string) => void }) {
-  const [draft, setDraft] = useState(doc.markdown)
+  const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("markdown")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
-  const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "" })
+  const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
   const [commentBody, setCommentBody] = useState("")
   const [suggestionMarkdown, setSuggestionMarkdown] = useState("")
+  const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
+  const [replyBodies, setReplyBodies] = useState<Record<number, string>>({})
   const [collaborators, setCollaborators] = useState(doc.collaborator_ids.join(", "))
   const [repoIds, setRepoIds] = useState(doc.repository_ids.map(String))
   const [repositoryPickerOpen, setRepositoryPickerOpen] = useState(false)
@@ -226,6 +240,8 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [selectedVersionId, setSelectedVersionId] = useState("current")
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
+  const editorShellRef = useRef<HTMLDivElement | null>(null)
+  const threadRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const versions = useQuery({
     queryKey: ["design_docs", "versions", String(doc.id)],
     queryFn: () => fetchDesignDocVersions(doc.id),
@@ -251,7 +267,15 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     mutationFn: () => createDesignDocComment(doc.id, { body: commentBody, ...anchorPayload(selection) }),
     onSuccess: (payload) => {
       setCommentBody("")
+      setSelection({ start: 0, end: 0, text: "", selectedText: "", rect: null })
       onDocChange(payload.design_doc, "Comment added.")
+    }
+  })
+  const replyMutation = useMutation({
+    mutationFn: ({ threadId, body }: { threadId: number; body: string }) => createDesignDocComment(doc.id, { thread_id: threadId, body }),
+    onSuccess: (payload, variables) => {
+      setReplyBodies((current) => ({ ...current, [variables.threadId]: "" }))
+      onDocChange(payload.design_doc, "Reply added.")
     }
   })
   const suggestionMutation = useMutation({
@@ -269,28 +293,64 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
     onSuccess: () => onDocChange({ ...doc, threads: doc.threads.map((thread) => thread.state === "open" ? { ...thread, state: "resolved" } : thread) }, "Thread resolved.")
   })
+  const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
+  const activeHighlights = useMemo(
+    () => draft === (doc.rendered_markdown || doc.markdown) ? highlights : [],
+    [doc.markdown, doc.rendered_markdown, draft, highlights]
+  )
 
   function updateSelection(event?: ChangeEvent<HTMLTextAreaElement>) {
     const target = event?.target ?? textareaRef.current
     if (!target) return
     const start = target.selectionStart
     const end = target.selectionEnd
-    setSelection({ start, end, text: target.value.slice(start, end) })
+    const text = target.value.slice(start, end)
+    setSelection({ start, end, text, selectedText: text, rect: textareaSelectionRect(target, start, end) })
+  }
+
+  function updateWysiwygSelection() {
+    if (!wysiwygRef.current) return
+
+    const range = document.getSelection()
+    if (!range || range.rangeCount === 0 || range.isCollapsed) return
+    const selectedRange = range.getRangeAt(0)
+    if (!wysiwygRef.current.contains(selectedRange.commonAncestorContainer)) return
+
+    const preRange = selectedRange.cloneRange()
+    preRange.selectNodeContents(wysiwygRef.current)
+    preRange.setEnd(selectedRange.startContainer, selectedRange.startOffset)
+    const renderedStart = preRange.toString().length
+    const selectedText = selectedRange.toString()
+    const start = markdownOffsetForRenderedOffset(draft, renderedStart, "start")
+    const end = markdownOffsetForRenderedOffset(draft, renderedStart + selectedText.length, "end")
+    setSelection({
+      start,
+      end,
+      text: draft.slice(start, end),
+      selectedText,
+      rect: rangeSelectionRect(selectedRange, editorShellRef.current)
+    })
   }
 
   useEffect(() => {
     if (editorMode !== "wysiwyg" || !wysiwygRef.current) return
     if (document.activeElement === wysiwygRef.current) return
 
-    const nextHtml = markdownToWysiwygHtml(draft)
+    const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
-  }, [draft, editorMode])
+  }, [draft, editorMode, focusedThreadId, activeHighlights])
+
+  useEffect(() => {
+    if (!focusedThreadId) return
+
+    threadRefs.current[focusedThreadId]?.scrollIntoView?.({ block: "nearest", behavior: "smooth" })
+  }, [focusedThreadId])
 
   function selectVersion(versionId: string) {
     setVersionsOpen(true)
     setSelectedVersionId(versionId)
     if (versionId === "current") {
-      setDraft(doc.markdown)
+      setDraft(doc.rendered_markdown || doc.markdown)
       return
     }
 
@@ -302,6 +362,30 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }
 
   const selectedRepositories = repositories.filter((repository) => repoIds.includes(String(repository.id)))
+
+  function focusThread(threadId: number) {
+    setFocusedThreadId(threadId)
+    const thread = doc.threads.find((candidate) => candidate.id === threadId)
+    const anchor = thread?.anchor
+    const start = anchor?.last_known_start_offset ?? anchor?.start_offset
+    const end = anchor?.last_known_end_offset ?? anchor?.end_offset
+    if (start == null || end == null) return
+
+    if (editorMode === "markdown" && textareaRef.current) {
+      textareaRef.current.focus()
+      textareaRef.current.setSelectionRange(start, end)
+      textareaRef.current.scrollTop = Math.max(0, Math.floor(start / 80) * 24 - 80)
+      return
+    }
+
+    const marker = wysiwygRef.current?.querySelector(`[data-thread-id="${threadId}"]`) as HTMLElement | null
+    marker?.scrollIntoView?.({ block: "center", behavior: "smooth" })
+  }
+
+  function focusThreadAtOffset(offset: number) {
+    const match = activeHighlights.find((highlight) => highlight.kind === "thread" && offset >= highlight.start && offset <= highlight.end)
+    if (match?.threadId) focusThread(match.threadId)
+  }
 
   return (
     <div className="min-w-0 space-y-4">
@@ -349,13 +433,16 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             </div>
             <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Change summary" value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
+          <div className="relative" ref={editorShellRef}>
           {editorMode === "markdown" ? (
-            <label className="flex min-h-[36rem] flex-col">
+            <label className="relative flex min-h-[36rem] flex-col overflow-hidden">
               <span className="sr-only">Markdown editor</span>
+              <MarkdownHighlightMirror draft={draft} focusedThreadId={focusedThreadId} highlights={activeHighlights} />
               <textarea
                 aria-label="Markdown editor"
-                className="min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-gray-900 outline-none dark:text-gray-100"
+                className="relative z-10 min-h-[36rem] flex-1 resize-y bg-transparent p-4 font-mono text-sm leading-6 text-gray-900 outline-none dark:text-gray-100"
                 onBlur={() => updateSelection()}
+                onClick={(event) => focusThreadAtOffset(event.currentTarget.selectionStart)}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyUp={() => updateSelection()}
                 onMouseUp={() => updateSelection()}
@@ -369,27 +456,47 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
               contentEditable
               onBlur={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
+              onClick={(event) => {
+                const target = event.target as HTMLElement
+                const marker = target.closest("[data-thread-id]") as HTMLElement | null
+                if (marker?.dataset.threadId) focusThread(Number(marker.dataset.threadId))
+              }}
               onInput={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
+              onKeyUp={updateWysiwygSelection}
+              onMouseUp={updateWysiwygSelection}
               ref={wysiwygRef}
               role="textbox"
               suppressContentEditableWarning
               tabIndex={0}
             />
           )}
+          <FloatingComposer
+            commentBody={commentBody}
+            disabled={selection.end <= selection.start}
+            selection={selection}
+            setCommentBody={setCommentBody}
+            setSuggestionMarkdown={setSuggestionMarkdown}
+            suggestionMarkdown={suggestionMarkdown}
+            onComment={() => commentMutation.mutate()}
+            onSuggestion={() => suggestionMutation.mutate()}
+          />
+          </div>
         </div>
-        <FloatingComposer
-          commentBody={commentBody}
-          disabled={selection.end <= selection.start}
-          selection={selection}
-          setCommentBody={setCommentBody}
-          setSuggestionMarkdown={setSuggestionMarkdown}
-          suggestionMarkdown={suggestionMarkdown}
-          onComment={() => commentMutation.mutate()}
-          onSuggestion={() => suggestionMutation.mutate()}
-        />
       </section>
       <aside className="space-y-4">
-        <ThreadPanel doc={doc} onResolve={(threadId) => resolveMutation.mutate(threadId)} />
+        <ThreadPanel
+          doc={doc}
+          focusedThreadId={focusedThreadId}
+          replyBodies={replyBodies}
+          threadRefs={threadRefs}
+          onFocus={focusThread}
+          onReply={(threadId) => {
+            const body = replyBodies[threadId]?.trim()
+            if (body) replyMutation.mutate({ threadId, body })
+          }}
+          onReplyChange={(threadId, body) => setReplyBodies((current) => ({ ...current, [threadId]: body }))}
+          onResolve={(threadId) => resolveMutation.mutate(threadId)}
+        />
         <SuggestionPanel doc={doc} onReview={(id, decision) => reviewMutation.mutate({ id, decision })} />
       </aside>
       </div>
@@ -508,6 +615,30 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
   )
 }
 
+function MarkdownHighlightMirror({ draft, focusedThreadId, highlights }: { draft: string; focusedThreadId: number | null; highlights: AnchorHighlight[] }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 z-0 min-h-[36rem] whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 text-transparent"
+    >
+      {highlightTextSegments(draft, highlights).map((segment, index) => {
+        if (!segment.highlight) return <span key={index}>{segment.text}</span>
+
+        const focused = segment.highlight.threadId === focusedThreadId
+        return (
+          <mark
+            className={`rounded-sm px-0.5 text-transparent ${focused ? "bg-amber-300/70 ring-1 ring-amber-500 dark:bg-amber-500/50" : "bg-yellow-200/70 dark:bg-yellow-500/30"}`}
+            data-anchor-status={segment.highlight.status}
+            key={index}
+          >
+            {segment.text}
+          </mark>
+        )
+      })}
+    </div>
+  )
+}
+
 function FloatingComposer({ commentBody, disabled, selection, setCommentBody, setSuggestionMarkdown, suggestionMarkdown, onComment, onSuggestion }: {
   commentBody: string
   disabled: boolean
@@ -518,10 +649,18 @@ function FloatingComposer({ commentBody, disabled, selection, setCommentBody, se
   onComment: () => void
   onSuggestion: () => void
 }) {
+  if (disabled) return null
+
   return (
-    <div className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+    <div
+      className="absolute z-30 w-[min(28rem,calc(100%-2rem))] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+      style={{
+        left: selection.rect ? `${Math.min(Math.max(selection.rect.left, 8), 360)}px` : "1rem",
+        top: selection.rect ? `${Math.max(selection.rect.top - 8, 8)}px` : "1rem"
+      }}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400">{disabled ? "Select text in the editor to comment or suggest a replacement." : `Selected ${selection.end - selection.start} characters`}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Selected {selection.selectedText.length} characters</p>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <div className="space-y-2">
@@ -537,20 +676,79 @@ function FloatingComposer({ commentBody, disabled, selection, setCommentBody, se
   )
 }
 
-function ThreadPanel({ doc, onResolve }: { doc: DesignDocDetail; onResolve: (threadId: number) => void }) {
+function ThreadPanel({ doc, focusedThreadId, replyBodies, threadRefs, onFocus, onReply, onReplyChange, onResolve }: {
+  doc: DesignDocDetail
+  focusedThreadId: number | null
+  replyBodies: Record<number, string>
+  threadRefs: React.MutableRefObject<Record<number, HTMLDivElement | null>>
+  onFocus: (threadId: number) => void
+  onReply: (threadId: number) => void
+  onReplyChange: (threadId: number, body: string) => void
+  onResolve: (threadId: number) => void
+}) {
   return (
-    <Panel>
+    <Panel className="relative min-h-[36rem]">
       <SectionHeading as="h3">Threads</SectionHeading>
-      <div className="mt-3 space-y-3">
+      <div className="relative mt-3 space-y-3">
         {doc.threads.length === 0 ? <p className="text-sm text-gray-500 dark:text-gray-400">No inline comments.</p> : null}
         {doc.threads.map((thread) => (
-          <div className="rounded border border-gray-200 p-3 dark:border-gray-700" key={thread.id}>
+          <div
+            className={`rounded border p-3 transition ${focusedThreadId === thread.id ? "border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/30" : "border-gray-200 dark:border-gray-700"}`}
+            data-anchor-offset={thread.anchor.last_known_start_offset ?? thread.anchor.start_offset}
+            key={thread.id}
+            onClick={() => onFocus(thread.id)}
+            ref={(element) => { threadRefs.current[thread.id] = element }}
+            style={{ marginTop: railOffset(thread) }}
+          >
             <div className="flex items-center justify-between gap-2">
-              <StatusLabel value={thread.state} />
-              {thread.state === "open" ? <Button onClick={() => onResolve(thread.id)} size="sm" variant="secondary">Resolve</Button> : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusLabel value={thread.state} />
+                {thread.anchor.status !== "active" ? <StatusLabel value={thread.anchor.status} /> : null}
+              </div>
+              {thread.state === "open" ? (
+                <Button
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onResolve(thread.id)
+                  }}
+                  size="sm"
+                  variant="secondary"
+                >
+                  Resolve
+                </Button>
+              ) : null}
             </div>
             <p className="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{thread.anchor.selected_text || thread.anchor.selected_markdown || "Selection"}</p>
-            {thread.comments.map((comment) => <p className="mt-2 text-sm text-gray-800 dark:text-gray-200" key={comment.id}>{comment.body}</p>)}
+            <div className="mt-2 space-y-2 border-l-2 border-gray-200 pl-3 dark:border-gray-700">
+              {thread.comments.map((comment) => (
+                <div className="text-sm text-gray-800 dark:text-gray-200" key={comment.id}>
+                  <p>{comment.body}</p>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{comment.author?.name || comment.author_kind}</p>
+                </div>
+              ))}
+            </div>
+            {thread.state === "open" ? (
+              <div className="mt-3 flex gap-2">
+                <Input
+                  aria-label={`Reply to thread ${thread.id}`}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => onReplyChange(thread.id, event.target.value)}
+                  placeholder="Reply"
+                  value={replyBodies[thread.id] ?? ""}
+                />
+                <Button
+                  disabled={(replyBodies[thread.id] ?? "").trim().length === 0}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onReply(thread.id)
+                  }}
+                  size="sm"
+                  variant="secondary"
+                >
+                  Reply
+                </Button>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -589,9 +787,9 @@ function SuggestionPanel({ doc, onReview }: { doc: DesignDocDetail; onReview: (i
   )
 }
 
-function Panel({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "error" }) {
+function Panel({ children, className = "", tone = "default" }: { children: React.ReactNode; className?: string; tone?: "default" | "error" }) {
   const colors = tone === "error" ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-  return <div className={`rounded border p-4 ${colors}`}>{children}</div>
+  return <div className={`rounded border p-4 ${colors} ${className}`}>{children}</div>
 }
 
 function StatusLabel({ value }: { value: string }) {
@@ -619,18 +817,20 @@ function anchorPayload(selection: SelectionRange) {
     start_offset: selection.start,
     end_offset: selection.end,
     selected_markdown: selection.text,
-    selected_text: selection.text
+    selected_text: selection.selectedText
   }
 }
 
-function markdownToWysiwygHtml(markdown: string) {
+function markdownToWysiwygHtml(markdown: string, highlights: AnchorHighlight[] = [], focusedThreadId: number | null = null) {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
   const blocks: string[] = []
   let index = 0
+  let offset = 0
 
   while (index < lines.length) {
     const line = lines[index]
     if (line.trim() === "") {
+      offset += line.length + 1
       index += 1
       continue
     }
@@ -638,7 +838,9 @@ function markdownToWysiwygHtml(markdown: string) {
     const heading = line.match(/^(#{1,3})\s+(.+)$/)
     if (heading) {
       const level = heading[1].length
-      blocks.push(`<h${level}>${renderWysiwygInline(heading[2])}</h${level}>`)
+      const headingOffset = offset + heading[1].length + 1
+      blocks.push(`<h${level}>${renderWysiwygInline(heading[2], highlights, headingOffset, focusedThreadId)}</h${level}>`)
+      offset += line.length + 1
       index += 1
       continue
     }
@@ -647,9 +849,11 @@ function markdownToWysiwygHtml(markdown: string) {
     if (unordered) {
       const items: string[] = []
       while (index < lines.length) {
-        const item = lines[index].match(/^\s*[-*+]\s+(.+)$/)
+        const itemLine = lines[index]
+        const item = itemLine.match(/^(\s*[-*+]\s+)(.+)$/)
         if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[1])}</li>`)
+        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId)}</li>`)
+        offset += itemLine.length + 1
         index += 1
       }
       blocks.push(`<ul>${items.join("")}</ul>`)
@@ -660,9 +864,11 @@ function markdownToWysiwygHtml(markdown: string) {
     if (ordered) {
       const items: string[] = []
       while (index < lines.length) {
-        const item = lines[index].match(/^\s*\d+[.)]\s+(.+)$/)
+        const itemLine = lines[index]
+        const item = itemLine.match(/^(\s*\d+[.)]\s+)(.+)$/)
         if (!item) break
-        items.push(`<li>${renderWysiwygInline(item[1])}</li>`)
+        items.push(`<li>${renderWysiwygInline(item[2], highlights, offset + item[1].length, focusedThreadId)}</li>`)
+        offset += itemLine.length + 1
         index += 1
       }
       blocks.push(`<ol>${items.join("")}</ol>`)
@@ -671,17 +877,20 @@ function markdownToWysiwygHtml(markdown: string) {
 
     const paragraph: string[] = []
     while (index < lines.length && lines[index].trim() !== "" && !/^(#{1,3})\s+/.test(lines[index]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[index])) {
-      paragraph.push(lines[index].trim())
+      const paragraphLine = lines[index]
+      const leading = paragraphLine.length - paragraphLine.trimStart().length
+      paragraph.push(renderWysiwygInline(paragraphLine.trim(), highlights, offset + leading, focusedThreadId))
+      offset += paragraphLine.length + 1
       index += 1
     }
-    blocks.push(`<p>${renderWysiwygInline(paragraph.join(" "))}</p>`)
+    blocks.push(`<p>${paragraph.join("<br>")}</p>`)
   }
 
   return blocks.join("")
 }
 
-function renderWysiwygInline(markdown: string) {
-  return escapeHtml(markdown)
+function renderWysiwygInline(markdown: string, highlights: AnchorHighlight[] = [], baseOffset = 0, focusedThreadId: number | null = null) {
+  return renderHighlightedHtml(markdown, highlights, baseOffset, focusedThreadId)
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
@@ -715,4 +924,220 @@ function nodeToMarkdown(node: ChildNode): string {
 
 function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+function buildAnchorHighlights(doc: DesignDocDetail): AnchorHighlight[] {
+  const threadHighlights = doc.threads
+    .filter((thread) => thread.anchor.anchor_kind === "range")
+    .map((thread) => {
+      const start = thread.anchor.last_known_start_offset ?? thread.anchor.start_offset
+      const end = thread.anchor.last_known_end_offset ?? thread.anchor.end_offset
+      return {
+        id: `thread-${thread.id}`,
+        kind: "thread" as const,
+        threadId: thread.id,
+        status: thread.anchor.status,
+        start: start ?? 0,
+        end: end ?? start ?? 0
+      }
+    })
+
+  const suggestionHighlights = doc.suggestions
+    .filter((suggestion) => suggestion.state === "pending" && suggestion.anchor.anchor_kind === "range")
+    .map((suggestion) => {
+      const start = suggestion.anchor.last_known_start_offset ?? suggestion.anchor.start_offset
+      const end = suggestion.anchor.last_known_end_offset ?? suggestion.anchor.end_offset
+      return {
+        id: `suggestion-${suggestion.id}`,
+        kind: "suggestion" as const,
+        status: suggestion.anchor.status,
+        start: start ?? 0,
+        end: end ?? start ?? 0
+      }
+    })
+
+  return [...threadHighlights, ...suggestionHighlights]
+    .filter((highlight) => highlight.status === "active" && highlight.end > highlight.start)
+    .sort((a, b) => a.start - b.start || b.end - a.end)
+}
+
+function highlightTextSegments(text: string, highlights: AnchorHighlight[]) {
+  const segments: Array<{ text: string; highlight: AnchorHighlight | null }> = []
+  let cursor = 0
+
+  for (const highlight of highlights) {
+    const start = Math.max(0, Math.min(text.length, highlight.start))
+    const end = Math.max(start, Math.min(text.length, highlight.end))
+    if (end <= cursor) continue
+    if (start > cursor) segments.push({ text: text.slice(cursor, start), highlight: null })
+    segments.push({ text: text.slice(Math.max(start, cursor), end), highlight })
+    cursor = end
+  }
+
+  if (cursor < text.length) segments.push({ text: text.slice(cursor), highlight: null })
+  return segments
+}
+
+function renderHighlightedHtml(text: string, highlights: AnchorHighlight[], baseOffset: number, focusedThreadId: number | null) {
+  return highlightTextSegments(text, highlights.map((highlight) => ({
+    ...highlight,
+    start: highlight.start - baseOffset,
+    end: highlight.end - baseOffset
+  })).filter((highlight) => highlight.end > 0 && highlight.start < text.length))
+    .map((segment) => {
+      if (!segment.highlight) return escapeHtml(segment.text)
+
+      const focused = segment.highlight.threadId === focusedThreadId
+      const className = focused
+        ? "rounded-sm bg-amber-300/70 px-0.5 ring-1 ring-amber-500 dark:bg-amber-500/50"
+        : segment.highlight.kind === "suggestion"
+          ? "rounded-sm bg-emerald-100 px-0.5 dark:bg-emerald-900/50"
+          : "rounded-sm bg-yellow-200/80 px-0.5 dark:bg-yellow-500/30"
+      const threadAttrs = segment.highlight.threadId ? ` data-thread-id="${segment.highlight.threadId}"` : ""
+      return `<mark class="${className}" data-anchor-highlight="${segment.highlight.id}" data-anchor-status="${escapeHtml(segment.highlight.status)}"${threadAttrs}>${escapeHtml(segment.text)}</mark>`
+    })
+    .join("")
+}
+
+function markdownOffsetForRenderedOffset(markdown: string, renderedOffset: number, affinity: "start" | "end") {
+  const mapping = renderedToMarkdownMap(markdown)
+  if (renderedOffset <= 0) return 0
+  if (affinity === "end") {
+    const previous = mapping[Math.min(renderedOffset - 1, mapping.length - 1)]
+    return previous == null ? markdown.length : previous + 1
+  }
+
+  return mapping[renderedOffset] ?? markdown.length
+}
+
+function renderedToMarkdownMap(markdown: string) {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
+  const mapping: number[] = []
+  let sourceOffset = 0
+  let lineIndex = 0
+
+  while (lineIndex < lines.length) {
+    const line = lines[lineIndex]
+    if (line.trim() === "") {
+      sourceOffset += line.length + 1
+      lineIndex += 1
+      continue
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    if (heading) {
+      appendInlineRenderedMap(heading[2], sourceOffset + heading[1].length + 1, mapping)
+      sourceOffset += line.length + 1
+      lineIndex += 1
+      continue
+    }
+
+    if (/^\s*[-*+]\s+/.test(line)) {
+      while (lineIndex < lines.length) {
+        const itemLine = lines[lineIndex]
+        const item = itemLine.match(/^(\s*[-*+]\s+)(.+)$/)
+        if (!item) break
+        appendInlineRenderedMap(item[2], sourceOffset + item[1].length, mapping)
+        sourceOffset += itemLine.length + 1
+        lineIndex += 1
+      }
+      continue
+    }
+
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      while (lineIndex < lines.length) {
+        const itemLine = lines[lineIndex]
+        const item = itemLine.match(/^(\s*\d+[.)]\s+)(.+)$/)
+        if (!item) break
+        appendInlineRenderedMap(item[2], sourceOffset + item[1].length, mapping)
+        sourceOffset += itemLine.length + 1
+        lineIndex += 1
+      }
+      continue
+    }
+
+    while (lineIndex < lines.length && lines[lineIndex].trim() !== "" && !/^(#{1,3})\s+/.test(lines[lineIndex]) && !/^\s*(?:[-*+]|\d+[.)])\s+/.test(lines[lineIndex])) {
+      const paragraphLine = lines[lineIndex]
+      const leading = paragraphLine.length - paragraphLine.trimStart().length
+      appendInlineRenderedMap(paragraphLine.trim(), sourceOffset + leading, mapping)
+      sourceOffset += paragraphLine.length + 1
+      lineIndex += 1
+    }
+  }
+
+  return mapping
+}
+
+function appendInlineRenderedMap(markdown: string, baseOffset: number, mapping: number[]) {
+  let index = 0
+
+  while (index < markdown.length) {
+    const strong = markdown.slice(index).match(/^\*\*([^*]+)\*\*/)
+    if (strong) {
+      appendRangeMap(baseOffset + index + 2, strong[1].length, mapping)
+      index += strong[0].length
+      continue
+    }
+
+    const emphasis = markdown.slice(index).match(/^\*([^*]+)\*/)
+    if (emphasis) {
+      appendRangeMap(baseOffset + index + 1, emphasis[1].length, mapping)
+      index += emphasis[0].length
+      continue
+    }
+
+    const code = markdown.slice(index).match(/^`([^`]+)`/)
+    if (code) {
+      appendRangeMap(baseOffset + index + 1, code[1].length, mapping)
+      index += code[0].length
+      continue
+    }
+
+    const link = markdown.slice(index).match(/^\[([^\]]+)\]\([^)]+\)/)
+    if (link) {
+      appendRangeMap(baseOffset + index + 1, link[1].length, mapping)
+      index += link[0].length
+      continue
+    }
+
+    mapping.push(baseOffset + index)
+    index += 1
+  }
+}
+
+function appendRangeMap(startOffset: number, length: number, mapping: number[]) {
+  for (let index = 0; index < length; index += 1) {
+    mapping.push(startOffset + index)
+  }
+}
+
+function textareaSelectionRect(textarea: HTMLTextAreaElement, start: number, end: number): SelectionRect {
+  const rect = textarea.getBoundingClientRect()
+  const textBefore = textarea.value.slice(0, Math.max(start, end))
+  const lines = textBefore.split("\n")
+  const lineHeight = 24
+  const charWidth = 8
+  return {
+    left: Math.min(rect.width - 32, 16 + lines.at(-1)!.length * charWidth),
+    top: Math.min(rect.height - 80, 16 + (lines.length - 1) * lineHeight - textarea.scrollTop)
+  }
+}
+
+function rangeSelectionRect(range: Range, container: HTMLElement | null): SelectionRect | null {
+  if (!container) return null
+  if (!("getBoundingClientRect" in range) || typeof range.getBoundingClientRect !== "function") return null
+
+  const rangeRect = range.getBoundingClientRect()
+  const containerRect = container.getBoundingClientRect()
+  if (rangeRect.width === 0 && rangeRect.height === 0) return null
+
+  return {
+    left: rangeRect.left - containerRect.left,
+    top: rangeRect.bottom - containerRect.top
+  }
+}
+
+function railOffset(thread: DesignDocThread) {
+  const offset = thread.anchor.last_known_start_offset ?? thread.anchor.start_offset ?? 0
+  return `${Math.min(Math.max(Math.floor(offset / 8), 0), 96)}px`
 }
