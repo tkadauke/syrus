@@ -612,7 +612,7 @@ function DesignDocTitleBar({ collaborators, doc, repoIds, repositories, reposito
         <div className="relative">
           {canManageMetadata ? <Button aria-expanded={shareOpen} onClick={() => setShareOpen(!shareOpen)} size="sm" variant="secondary">Share</Button> : <StatusLabel value="review only" />}
           {shareOpen && canManageMetadata ? (
-            <div className="absolute right-0 z-20 mt-2 w-80 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
+            <div className="absolute left-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-950">
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
                 Visibility
                 <Select aria-label="Share visibility" className="mt-1" value={doc.visibility} onChange={(event) => onVisibilityChange(event.target.value as "private" | "public")}>

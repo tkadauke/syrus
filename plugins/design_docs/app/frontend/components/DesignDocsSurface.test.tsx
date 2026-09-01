@@ -501,6 +501,9 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
     expect(within(titleBar).getByRole("combobox", { name: "Share visibility" })).toBeInTheDocument()
     expect(within(titleBar).getByRole("textbox", { name: "Collaborator user IDs" })).toHaveValue("2")
+    const sharePopover = within(titleBar).getByRole("combobox", { name: "Share visibility" }).closest(".absolute")
+    expect(sharePopover).toHaveClass("left-0")
+    expect(sharePopover).not.toHaveClass("right-0")
 
     const versionSelect = within(titleBar).getByRole("combobox", { name: "Version selection" })
     fireEvent.focus(versionSelect)
