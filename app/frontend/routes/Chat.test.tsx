@@ -1410,7 +1410,7 @@ describe("proposal outcome system events", () => {
 
     const notice = await screen.findByText((_, element) => element?.textContent === 'Proposal confirmed. JOB-88 "Map auth" was created.')
     expect(notice).toBeInTheDocument()
-    expect(notice.closest(".bg-blue-600")).toBeNull()
+    expect(notice.closest("[class*='bg-brand']")).toBeNull()
     expect(notice.closest(".flex.justify-center")).toBeInTheDocument()
     const slug = screen.getByRole("button", { name: "Copy JOB-88 to clipboard" })
     fireEvent.click(slug)

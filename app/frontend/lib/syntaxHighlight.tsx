@@ -130,7 +130,7 @@ function highlightLexedLine(line: string, options: { keyPrefix: string; commentM
     if (word) {
       const value = word[0]
       if (options.keywords.has(value)) {
-        push(value, "font-semibold text-blue-700 dark:text-blue-300")
+        push(value, "font-semibold text-brand dark:text-brand-emphasis")
       } else if (/^[A-Z]/.test(value)) {
         push(value, "text-cyan-700 dark:text-cyan-300")
       } else {
@@ -153,7 +153,7 @@ function highlightHtmlLine(line: string, keyPrefix: string) {
 
   line.split(/(<\/?[A-Za-z][^>]*>)/g).forEach((segment) => {
     if (!segment) return
-    nodes.push(segment.startsWith("<") ? <span className="text-blue-700 dark:text-blue-300" key={`${keyPrefix}-${part++}`}>{segment}</span> : segment)
+    nodes.push(segment.startsWith("<") ? <span className="text-brand dark:text-brand-emphasis" key={`${keyPrefix}-${part++}`}>{segment}</span> : segment)
   })
 
   return nodes

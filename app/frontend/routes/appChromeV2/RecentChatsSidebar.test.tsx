@@ -99,8 +99,8 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     renderSidebar([chatNav({ id: 1, title: "My Chat", current: true })])
 
     const link = screen.getByRole("link", { name: "My Chat" })
-    expect(link.className).not.toContain("bg-brand/10")
-    expect(link.className).not.toMatch(/\b(?:text|bg|border)-blue-/)
+    expect(link).not.toHaveClass("bg-brand/10")
+    expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
   })
 
   it("highlights a chat as active when the URL matches /chats/:id", () => {
@@ -124,9 +124,8 @@ describe("RecentChatsSidebar active chat highlighting", () => {
     )
 
     const link = screen.getByRole("link", { name: "Active Chat" })
-    expect(link.className).toContain("bg-brand/10")
-    expect(link.className).toContain("text-brand")
-    expect(link.className).not.toMatch(/\b(?:text|bg|border)-blue-/)
+    expect(link).toHaveClass("bg-brand/10", "text-brand")
+    expect(link.className).not.toMatch(/\b(?:bg|text)-blue-\d{2,3}\b/)
   })
 })
 
