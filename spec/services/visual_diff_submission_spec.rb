@@ -13,10 +13,10 @@ RSpec.describe VisualDiffSubmission do
     )
   end
 
-  def after_workflow_for(job, artifacts: [ after_artifact ])
+  def after_workflow_for(job, artifacts: [ after_artifact ], trigger_kind: "manual_visual_review")
     Workflow.create!(
       job: job,
-      trigger_kind: "manual_visual_review",
+      trigger_kind: trigger_kind,
       state: "succeeded",
       artifacts: {
         "visual_review_iterations" => [
@@ -61,8 +61,8 @@ RSpec.describe VisualDiffSubmission do
   end
 
   it "creates an idempotent deferred workflow for an approved visual review iteration" do
-    job = Factories.job_record(user: user, repository: repository, state: "running")
-    workflow = after_workflow_for(job)
+    job = Factories.job_record(user: user, repository: repository, state: "implemented")
+    workflow = after_workflow_for(job, trigger_kind: "initial")
 
     expect {
       described_class.enqueue_deferred_for_visual_review(workflow)
@@ -71,6 +71,27 @@ RSpec.describe VisualDiffSubmission do
 
     deferred = job.workflows.where(trigger_kind: "visual_diff").last
     expect(deferred).to have_attributes(priority: "low")
+    expect(deferred.artifact("visual_diff_source")).to eq("visual_review")
+  end
+
+  it "does not create deferred work before the job is implemented" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    workflow = after_workflow_for(job, trigger_kind: "initial")
+
+    expect {
+      described_class.enqueue_deferred_for_visual_review(workflow)
+    }.not_to change { job.workflows.where(trigger_kind: "visual_diff").count }
+  end
+
+  it "creates deferred visual diff work when the job becomes implemented" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    after_workflow_for(job, trigger_kind: "initial")
+
+    expect {
+      job.update!(state: "implemented")
+    }.to change { job.workflows.where(trigger_kind: "visual_diff").count }.by(1)
+
+    deferred = job.workflows.where(trigger_kind: "visual_diff").last
     expect(deferred.artifact("visual_diff_source")).to eq("visual_review")
   end
 

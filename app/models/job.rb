@@ -654,6 +654,7 @@ class Job < ApplicationRecord
 
   after_update_commit :rebase_stack_children_after_successful_parent_close, if: :saved_change_to_stack_parent_resolved_terminal?
   after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
+  after_update_commit :enqueue_deferred_visual_diff_work_after_implementation, if: :saved_change_to_implemented?
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
@@ -1104,6 +1105,10 @@ class Job < ApplicationRecord
 
         intent.cancel!
       end
+  end
+
+  def enqueue_deferred_visual_diff_work_after_implementation
+    VisualDiffSubmission.enqueue_deferred_for_job(self)
   end
 
   def cancel_deferred_visual_diff_work_after_approval

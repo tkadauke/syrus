@@ -12,10 +12,8 @@ class VisualDiffSubmission
   end
 
   def self.enqueue_deferred_for_visual_review(workflow)
-    iteration = Array(workflow.artifact("visual_review_iterations")).last
-    return unless iteration.is_a?(Hash)
-    return unless iteration["verdict"] == "approved"
-    return if Array(iteration["artifacts"]).empty?
+    iteration = latest_approved_iteration_with_artifacts(workflow)
+    return unless iteration
 
     call(
       job: workflow.job,
@@ -26,6 +24,24 @@ class VisualDiffSubmission
   rescue StandardError => e
     Rails.logger.warn("[VisualDiffSubmission] deferred enqueue failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     nil
+  end
+
+  def self.enqueue_deferred_for_job(job)
+    job.workflows
+      .where(trigger_kind: %w[initial retry pr_comment chat_feedback manual_visual_review])
+      .order(created_at: :desc, id: :desc)
+      .each do |workflow|
+        result = enqueue_deferred_for_visual_review(workflow)
+        return result if result&.success?
+      end
+  end
+
+  def self.latest_approved_iteration_with_artifacts(workflow)
+    Array(workflow.artifact("visual_review_iterations")).reverse.find do |iteration|
+      iteration.is_a?(Hash) &&
+        iteration["verdict"] == "approved" &&
+        Array(iteration["artifacts"]).any?
+    end
   end
 
   attr_reader :job, :source, :after_workflow, :after_iteration
@@ -61,7 +77,7 @@ class VisualDiffSubmission
   end
 
   def runnable?
-    source == AUTOMATIC_SOURCE || job.visual_diff_runnable?
+    job.visual_diff_runnable?
   end
 
   def idempotency_key
