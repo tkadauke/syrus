@@ -8,7 +8,7 @@ import type { BootstrapPayload } from "../api/bootstrap"
 import * as chatsApi from "../api/chats"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import { AppChromeV2 } from "./AppChromeV2"
-import { chatSectionsFromPayload } from "./appChromeV2/helpers"
+import { chatSectionsFromPayload, sidebarLinkClass } from "./appChromeV2/helpers"
 import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
 const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
@@ -26,6 +26,14 @@ describe("AppChromeV2", () => {
     window.localStorage.clear()
     delete window.syrusShell
     vi.restoreAllMocks()
+  })
+
+  it("uses semantic brand tokens for active primary sidebar links", () => {
+    const className = sidebarLinkClass(true)
+
+    expect(className).toContain("text-brand")
+    expect(className).toContain("bg-brand/10")
+    expect(className).not.toMatch(/\b(?:text|bg|border)-blue-/)
   })
 
   it("renders the desktop sidebar without data-html2canvas-ignore on desktop viewports so bug report screenshots include it", () => {
