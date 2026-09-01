@@ -379,11 +379,11 @@ function resultCount(value: unknown): number | null {
 }
 
 function chatMediaResultCount(value: Record<string, unknown>) {
-  const hasSnapshots = Array.isArray(value.snapshots)
-  const hasChatImages = Array.isArray(value.chat_images)
-  if (!hasSnapshots && !hasChatImages) return null
+  const snapshots = Array.isArray(value.snapshots) ? value.snapshots : null
+  const chatImages = Array.isArray(value.chat_images) ? value.chat_images : null
+  if (!snapshots && !chatImages) return null
 
-  return (hasSnapshots ? value.snapshots.length : 0) + (hasChatImages ? value.chat_images.length : 0)
+  return (snapshots?.length ?? 0) + (chatImages?.length ?? 0)
 }
 
 function countSummary(count: number, noun: string) {
