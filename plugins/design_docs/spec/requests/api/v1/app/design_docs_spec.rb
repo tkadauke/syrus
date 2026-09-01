@@ -492,6 +492,26 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "proposed_markdown" => "delta",
       "change_type" => "replace"
     )
+    expect(body.fetch("permissions")).to include(
+      "can_write_canonical" => true,
+      "can_suggest" => true,
+      "can_review_suggestions" => true
+    )
+  end
+
+  it "serializes non-owner design doc permissions for suggestion-only review flows" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/design_docs/#{doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => false,
+      "can_suggest" => true,
+      "can_review_suggestions" => false
+    )
   end
 
   it "serializes preloaded thread comments without re-querying each thread" do

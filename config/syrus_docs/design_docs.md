@@ -51,6 +51,21 @@ edit/preview split. Selecting a version from the title-bar dropdown loads that
 version's Markdown into the current draft; it is not persisted until the user
 saves.
 
+Pending suggestions appear inline at their anchored range in both editor modes
+where practical: the original Markdown range is struck through in the active
+theme warning color and the proposed replacement appears next to it in the
+active theme success color. The default Terracotta theme uses terracotta for
+warning and green for success. This inline diff is display-only. WYSIWYG
+conversion keeps the original anchored text in the draft, and canonical
+Markdown is not changed until the owner accepts a suggestion.
+
+The document detail API includes editor permission flags:
+`can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
+canonical save, metadata, sharing, repository, resolve, and suggestion review
+controls. Non-owners with access can comment and propose edits, but direct-save
+actions are labeled as suggestion creation and accept/reject controls render as
+pending owner review.
+
 The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
 app adds bundled plugin migration paths at boot, and the shared Rails schema
 dump remains in `db/schema.rb`.
