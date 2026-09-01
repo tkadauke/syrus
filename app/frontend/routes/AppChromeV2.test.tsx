@@ -477,6 +477,47 @@ describe("AppChromeV2", () => {
     expect(fetchSpy).toHaveBeenCalled()
   })
 
+  it("does not render plugin smart folders on plugin detail subroutes", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/sidebar_pages") {
+        return Promise.resolve(jsonResponse({
+          pages: [{
+            id: "design_docs",
+            label: "Design Docs",
+            label_key: null,
+            path: "/design_docs",
+            paths: ["/design_docs"],
+            order: 25,
+            component: "DesignDocs",
+            icon: "document",
+            smart_folder_api_path: "/api/v1/app/design_docs",
+            smart_folder_subject: "design_doc"
+          }]
+        }))
+      }
+
+      if (url.pathname === "/api/v1/app/design_docs") {
+        return Promise.reject(new Error("Detail routes should not fetch plugin smart folders."))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Design doc detail</div>, {
+      initialEntries: ["/design_docs/1"]
+    })
+
+    expect(await screen.findByRole("link", { name: "Design Docs" })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/api/v1/app/design_docs"))).toBe(false)
+  })
+
   it("does not render plugin smart folders in the mobile sidebar drawer", async () => {
     const restoreMatchMedia = mockNarrowViewport()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
