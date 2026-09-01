@@ -219,6 +219,9 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/1" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: docDetail })
     }
+    if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+      return jsonResponse({ design_doc: docDetail, mode: "canonical", message: "Design doc updated." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
     }
@@ -227,6 +230,12 @@ function mockFetch() {
     }
     if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
       return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/3/suggestions") {
+      return jsonResponse({ design_doc: reviewerDocDetail, suggestion: { ...docDetail.suggestions[0], id: 11 }, message: "Suggestion created." }, 201)
+    }
+    if (url.pathname === "/api/v1/app/design_docs/1/suggestions") {
+      return jsonResponse({ design_doc: docDetail, suggestion: { ...docDetail.suggestions[0], id: 12 }, message: "Suggestion created." }, 201)
     }
     if (url.pathname === "/api/v1/app/design_docs/1/comments") {
       const payload = JSON.parse(String(init?.body ?? "{}"))
@@ -300,7 +309,7 @@ describe("DesignDocsSurface", () => {
     expect(screen.queryByRole("link", { name: "Accepted docs 1" })).not.toBeInTheDocument()
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
@@ -316,7 +325,7 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Checkout design/ })).not.toBeInTheDocument()
@@ -356,7 +365,7 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/chats/237")
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Alpha beta gamma")
     expect(screen.queryByRole("heading", { name: "Design Docs" })).not.toBeInTheDocument()
     expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
@@ -378,7 +387,8 @@ describe("DesignDocsSurface", () => {
   it("creates and resolves comments from an editor selection", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
-    const editor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
 
     editor.setSelectionRange(6, 10)
     fireEvent.mouseUp(editor)
@@ -395,14 +405,15 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
   })
 
-  it("creates comments from a WYSIWYG selection", async () => {
+  it("creates comments from a Rich Text selection", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(markdownEditor, { target: { value: "Alpha **beta** gamma" } })
-    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
-    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Rich Text" }))
+    const editor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const textNode = editor.querySelector("strong [data-source-start]")!.firstChild!
     const range = document.createRange()
     range.setStart(textNode, 0)
@@ -469,7 +480,8 @@ describe("DesignDocsSurface", () => {
   it("synchronizes focus between inline highlights and the comment rail", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
-    const editor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
 
     expect(container.querySelector("mark[data-anchor-status='active']")).not.toBeNull()
     fireEvent.click(screen.getByText("Needs evidence"))
@@ -477,7 +489,7 @@ describe("DesignDocsSurface", () => {
     expect(editor.selectionStart).toBe(6)
     expect(editor.selectionEnd).toBe(10)
 
-    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
     const wysiwygHighlight = await waitFor(() => container.querySelector("mark[data-thread-id='7']"))
     fireEvent.click(wysiwygHighlight!)
 
@@ -504,13 +516,14 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     const first = renderSurface("/design_docs/1")
 
-    const firstEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const firstEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(firstEditor, { target: { value: "Unsaved first doc edits" } })
     first.unmount()
 
     renderSurface("/design_docs/2")
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
+    expect(await screen.findByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Second document body")
     expect(screen.getByRole("textbox", { name: "Design doc title" })).toHaveValue("Billing design")
   })
 
@@ -520,7 +533,8 @@ describe("DesignDocsSurface", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
 
-    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/2?q=eyJhbmQiOltdfQ%3D%3D")
   })
 
@@ -528,24 +542,57 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     renderSurface("/design_docs/1")
 
-    const markdownTab = await screen.findByRole("tab", { name: "Markdown" })
-    const wysiwygTab = screen.getByRole("tab", { name: "WYSIWYG" })
+    const richTextTab = await screen.findByRole("tab", { name: "Rich Text" })
+    const markdownTab = screen.getByRole("tab", { name: "Markdown" })
+
+    expect(richTextTab).toHaveAttribute("aria-selected", "true")
+    fireEvent.click(markdownTab)
     const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
-
-    expect(markdownTab).toHaveAttribute("aria-selected", "true")
     fireEvent.change(markdownEditor, { target: { value: "Unsaved **local** edits" } })
-    fireEvent.click(wysiwygTab)
+    fireEvent.click(richTextTab)
 
-    expect(wysiwygTab).toHaveAttribute("aria-selected", "true")
-    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
-    expect(wysiwygEditor).toHaveTextContent("Unsaved local edits")
-    expect(wysiwygEditor).not.toHaveTextContent("**local**")
+    expect(richTextTab).toHaveAttribute("aria-selected", "true")
+    const richTextEditor = screen.getByRole("textbox", { name: "Rich Text editor" })
+    expect(richTextEditor).toHaveTextContent("Unsaved local edits")
+    expect(richTextEditor).not.toHaveTextContent("**local**")
 
-    wysiwygEditor.textContent = "Edited from WYSIWYG"
-    fireEvent.input(wysiwygEditor)
+    richTextEditor.textContent = "Edited from Rich Text"
+    fireEvent.input(richTextEditor)
     fireEvent.click(markdownTab)
 
-    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from WYSIWYG")
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from Rich Text")
+  })
+
+  it("lets owners switch between Edit and Suggest change modes", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    const changeMode = screen.getByRole("group", { name: "Change mode" })
+    const editButton = within(changeMode).getByRole("button", { name: "Edit" })
+    const suggestButton = within(changeMode).getByRole("button", { name: "Suggest" })
+
+    expect(editButton).toHaveAttribute("aria-pressed", "true")
+    expect(suggestButton).toHaveAttribute("aria-pressed", "false")
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Owner direct edit" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ method: "PATCH" })))
+
+    fireEvent.click(suggestButton)
+    expect(suggestButton).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Suggest changes" })).toBeInTheDocument()
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Owner suggested edit" } })
+    fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions", expect.objectContaining({ method: "POST" })))
+    const suggestionRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/suggestions")
+    expect(JSON.parse(String(suggestionRequest?.[1]?.body))).toMatchObject({
+      suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Owner suggested edit" }
+    })
   })
 
   it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
@@ -575,7 +622,7 @@ describe("DesignDocsSurface", () => {
     await within(titleBar).findByRole("option", { name: "v1 - Initial" })
     fireEvent.change(versionSelect, { target: { value: "1" } })
 
-    await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Rich Text editor" })).toHaveTextContent("Historical body"))
   })
 
   it("opens the share popup toward available space inside the wrapped title bar", async () => {
@@ -627,11 +674,12 @@ describe("DesignDocsSurface", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
   })
 
-  it("renders pending suggestions inline in Markdown and WYSIWYG without changing canonical markdown", async () => {
+  it("renders pending suggestions inline in Markdown and Rich Text without changing canonical markdown", async () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
     expect(markdownEditor).toHaveValue("Alpha beta gamma")
     const markdownSuggestion = container.querySelector("[data-inline-suggestion-state='pending']")
     expect(markdownSuggestion?.querySelector("del")).toHaveTextContent("gamma")
@@ -639,8 +687,8 @@ describe("DesignDocsSurface", () => {
     expect(markdownSuggestion?.querySelector("del")).toHaveClass("text-warning")
     expect(markdownSuggestion?.querySelector("ins")).toHaveClass("text-success")
 
-    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
-    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    fireEvent.click(screen.getByRole("tab", { name: "Rich Text" }))
+    const wysiwygEditor = screen.getByRole("textbox", { name: "Rich Text editor" })
     const wysiwygSuggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
     expect(wysiwygSuggestion?.querySelector("del")).toHaveTextContent("gamma")
     expect(wysiwygSuggestion?.querySelector("ins")).toHaveTextContent("delta")
@@ -654,7 +702,8 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
 
-    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
     const mirror = container.querySelector("[data-testid='markdown-highlight-mirror']")
     expect(mirror).not.toBeNull()
 
@@ -668,20 +717,23 @@ describe("DesignDocsSurface", () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/3")
 
-    expect(await screen.findByRole("button", { name: "Propose changes" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Suggest changes" })).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Change mode" })).toHaveTextContent("Suggest")
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
     expect(screen.getByText("Pending owner review.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Add repository" })).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
     fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Alpha beta delta" } })
-    fireEvent.click(screen.getByRole("button", { name: "Propose changes" }))
+    fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3", expect.objectContaining({ method: "PATCH" })))
-    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3" && call[1]?.method === "PATCH")
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3/suggestions", expect.objectContaining({ method: "POST" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3/suggestions" && call[1]?.method === "POST")
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
-      design_doc: { markdown: "Alpha beta delta" }
+      suggestion: { original_markdown: "Alpha beta gamma", proposed_markdown: "Alpha beta delta" }
     })
   })
 
@@ -689,7 +741,7 @@ describe("DesignDocsSurface", () => {
     mockFetch()
     const { container } = renderSurface("/design_docs/1")
 
-    await screen.findByRole("textbox", { name: "Markdown editor" })
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
     expect(container.querySelector(".min-h-\\[36rem\\]")).not.toBeNull()
     expect(container.querySelector(".xl\\:grid-cols-\\[minmax\\(0\\,1fr\\)_22rem\\]")).not.toBeNull()
     expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull()

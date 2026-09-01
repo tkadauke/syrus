@@ -32,7 +32,8 @@ import {
 } from "../api/designDocs"
 
 type SurfaceMode = "index" | "repository" | "show" | "chat"
-type EditorMode = "markdown" | "wysiwyg"
+type EditorMode = "rich_text" | "markdown"
+type ChangeMode = "edit" | "suggest"
 type SelectionRange = { start: number; end: number; text: string; selectedText: string; rect: SelectionRect | null }
 type SelectionRect = { top: number; left: number }
 type InlineToken = { kind: "text" | "code" | "strong" | "emphasis" | "link"; text: string; sourceStart: number; href?: string }
@@ -251,7 +252,7 @@ function DesignDocList({ docs, loading, selectedId, onSelect }: {
 
 function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: DesignDocDetail; mode: SurfaceMode; repositories: Array<{ id: number; slug: string }>; onDocChange: (doc: DesignDocDetail, message: string) => void }) {
   const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
-  const [editorMode, setEditorMode] = useState<EditorMode>("markdown")
+  const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
   const [selection, setSelection] = useState<SelectionRange>({ start: 0, end: 0, text: "", selectedText: "", rect: null })
@@ -268,7 +269,9 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   const [markdownScrollTop, setMarkdownScrollTop] = useState(0)
   const canWriteCanonical = doc.permissions.can_write_canonical
   const canSuggest = doc.permissions.can_suggest
-  const saveLabel = canWriteCanonical ? "Save" : "Propose changes"
+  const [changeMode, setChangeMode] = useState<ChangeMode>(canWriteCanonical ? "edit" : "suggest")
+  const effectiveChangeMode: ChangeMode = canWriteCanonical ? changeMode : "suggest"
+  const saveLabel = effectiveChangeMode === "edit" ? "Save" : "Suggest changes"
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const wysiwygRef = useRef<HTMLDivElement | null>(null)
   const editorShellRef = useRef<HTMLDivElement | null>(null)
@@ -279,16 +282,24 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
     enabled: versionsOpen
   })
   const saveMutation = useMutation({
-    mutationFn: () => updateDesignDoc(doc.id, {
-      title,
-      markdown: draft,
-      change_summary: summary,
-      visibility: doc.visibility,
-      state: doc.state,
-      repository_ids: repoIds.map(Number),
-      collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
-    }),
-    onSuccess: (payload) => onDocChange(payload.design_doc, payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
+    mutationFn: () => effectiveChangeMode === "edit"
+      ? updateDesignDoc(doc.id, {
+        title,
+        markdown: draft,
+        change_summary: summary,
+        visibility: doc.visibility,
+        state: doc.state,
+        repository_ids: repoIds.map(Number),
+        collaborator_user_ids: collaborators.split(",").map((part) => part.trim()).filter(Boolean).map(Number)
+      })
+      : createDesignDocSuggestion(doc.id, {
+        start_offset: 0,
+        end_offset: doc.rendered_markdown.length,
+        original_markdown: doc.rendered_markdown,
+        proposed_markdown: draft,
+        change_summary: summary
+      }),
+    onSuccess: (payload) => onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? "Saved as a suggestion for owner review." : "Design doc saved.")
   })
   const metadataMutation = useMutation({
     mutationFn: (input: { visibility?: "private" | "public"; state?: "draft" | "accepted" | "archived"; repository_ids?: number[]; collaborator_user_ids?: number[] }) => updateDesignDoc(doc.id, input),
@@ -364,12 +375,16 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
   }
 
   useEffect(() => {
-    if (editorMode !== "wysiwyg" || !wysiwygRef.current) return
+    if (editorMode !== "rich_text" || !wysiwygRef.current) return
     if (document.activeElement === wysiwygRef.current) return
 
     const nextHtml = markdownToWysiwygHtml(draft, activeHighlights, focusedThreadId)
     if (wysiwygRef.current.innerHTML !== nextHtml) wysiwygRef.current.innerHTML = nextHtml
   }, [draft, editorMode, focusedThreadId, activeHighlights])
+
+  useEffect(() => {
+    if (!canWriteCanonical) setChangeMode("suggest")
+  }, [canWriteCanonical, doc.id])
 
   useEffect(() => {
     if (!focusedThreadId) return
@@ -452,19 +467,38 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
       <section className="min-w-0 space-y-4">
         <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            <div aria-label="Editor mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
-              {(["markdown", "wysiwyg"] as EditorMode[]).map((candidate) => (
-                <button
-                  aria-selected={editorMode === candidate}
-                  className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
-                  key={candidate}
-                  onClick={() => setEditorMode(candidate)}
-                  role="tab"
-                  type="button"
-                >
-                  {candidate === "markdown" ? "Markdown" : "WYSIWYG"}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <div aria-label="Editor mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="tablist">
+                {(["rich_text", "markdown"] as EditorMode[]).map((candidate) => (
+                  <button
+                    aria-selected={editorMode === candidate}
+                    className={`px-3 py-1.5 font-medium capitalize ${editorMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+                    key={candidate}
+                    onClick={() => setEditorMode(candidate)}
+                    role="tab"
+                    type="button"
+                  >
+                    {candidate === "markdown" ? "Markdown" : "Rich Text"}
+                  </button>
+                ))}
+              </div>
+              <div aria-label="Change mode" className="inline-flex overflow-hidden rounded border border-border bg-surface text-sm" role="group">
+                {canWriteCanonical ? (
+                  (["edit", "suggest"] as ChangeMode[]).map((candidate) => (
+                    <button
+                      aria-pressed={effectiveChangeMode === candidate}
+                      className={`px-3 py-1.5 font-medium capitalize ${effectiveChangeMode === candidate ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface-raised"}`}
+                      key={candidate}
+                      onClick={() => setChangeMode(candidate)}
+                      type="button"
+                    >
+                      {candidate === "edit" ? "Edit" : "Suggest"}
+                    </button>
+                  ))
+                ) : (
+                  <span className="px-3 py-1.5 text-sm font-medium text-text-secondary">Suggest</span>
+                )}
+              </div>
             </div>
             <Input aria-label="Change summary" className="min-w-[12rem] flex-1" placeholder="Change summary" value={summary} onChange={(event) => setSummary(event.target.value)} />
           </div>
@@ -488,7 +522,7 @@ function DesignDocEditor({ doc, mode, repositories, onDocChange }: { doc: Design
             </label>
           ) : (
             <div
-              aria-label="WYSIWYG editor"
+              aria-label="Rich Text editor"
               className="chat-prose min-h-[36rem] max-w-none p-4 text-sm leading-6 text-gray-900 outline-none focus:ring-2 focus:ring-brand dark:text-gray-100"
               contentEditable
               onBlur={() => setDraft(wysiwygHtmlToMarkdown(wysiwygRef.current))}
