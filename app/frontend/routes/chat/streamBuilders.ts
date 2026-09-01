@@ -18,6 +18,8 @@ import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolPre
 // alone (the pre-EPIC-240 behavior) orphaned the outer group. ROOT_KEY is
 // the bucket for calls with no parent (message.parent_tool_use_id unset).
 const ROOT_KEY = "\0root"
+const READ_ONLY_TOOLS = new Set(["Read", "Glob", "Grep", "WebFetch", "WebSearch", "list_chat_media", "read_live_state", "read_memory", "search_memories", "list_memories", "list_design_docs", "read_design_doc"])
+const SIDE_EFFECTING_TOOLS = new Set(["Bash", "Edit", "MultiEdit", "Write", "NotebookEdit", "TodoWrite", "create_site", "save_site_version", "deploy_site", "propose_job", "propose_epic", "propose_epic_with_jobs", "show_preview", "write_preview_file", "edit_preview_file"])
 
 type OpenCall = {
   call: ChatToolGroupCall
@@ -55,7 +57,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
 
       const lastGroup = lastGroupByParentKey.get(parentKey) ?? null
       let group: ChatToolGroupItem
-      if (lastGroup !== null && lastGroup.tool === tool) {
+      if (lastGroup !== null && canJoinToolGroup(lastGroup, presentation.name, tool)) {
         lastGroup.calls.push(call)
         group = lastGroup
       } else {
@@ -63,6 +65,7 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         container.push(group)
         lastGroupByParentKey.set(parentKey, group)
       }
+      updateToolGroupState(group)
 
       const toolUseId = toolUseIdFor(message)
       if (toolUseId) {
@@ -92,8 +95,10 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
         open.call.result_kind = resultPresentation.kind
         open.call.result_summary = resultPresentation.summary
         open.call.summary_metadata = resultPresentation.metadata
+        updateToolGroupState(open.group)
         if (options.simpleMode && !open.call.result_error) {
           open.group.calls = open.group.calls.filter((call) => call !== open.call)
+          updateToolGroupState(open.group)
           if (open.group.calls.length === 0) {
             const index = open.container.indexOf(open.group)
             if (index !== -1) open.container.splice(index, 1)
@@ -107,11 +112,71 @@ export function renderChatMessages(messages: ChatMessageItem[], options: { simpl
     } else {
       resetLastGroup(message, lastGroupByParentKey)
       const item = renderMessage(message, options)
+      if (item?.type === "message" && item.role === "assistant") collapseSettledToolGroups(items)
       if (item) items.push(item)
     }
   }
 
   return items
+}
+
+function updateToolGroupState(group: ChatToolGroupItem) {
+  const calls = group.calls
+  const failed = calls.some((call) => call.result_error)
+  const pendingSideEffect = calls.some((call) => call.result_body === "" && !readOnlyTool(call.tool_name))
+  const sideEffecting = calls.some((call) => sideEffectingTool(call.tool_name))
+  group.prominent = failed || pendingSideEffect || sideEffecting
+  group.collapsed_by_default = false
+  group.outcome_label = failed ? "Needs attention" : calls.some((call) => call.result_body === "") ? "Running" : "Done"
+
+  if (calls.length > 1 && calls.every((call) => readOnlyTool(call.tool_name))) {
+    group.tool = "Inspection"
+    group.summary_label = inspectionSummary(calls)
+  } else if (calls.length > 1) {
+    group.summary_label = `${calls[0]?.display_label || group.tool} (${calls.length})`
+  } else {
+    group.summary_label = calls[0]?.display_label || group.tool
+  }
+}
+
+function canJoinToolGroup(group: ChatToolGroupItem, nextToolName: string, nextToolLabel: string) {
+  if (group.tool === nextToolLabel) return true
+  return readOnlyTool(nextToolName) && group.calls.every((call) => readOnlyTool(call.tool_name))
+}
+
+function collapseSettledToolGroups(items: ChatRenderItem[]) {
+  for (const item of items) {
+    if (item.type !== "tool_group") continue
+    collapseSettledToolGroup(item)
+  }
+}
+
+function collapseSettledToolGroup(group: ChatToolGroupItem) {
+  updateToolGroupState(group)
+  if (!group.prominent) group.collapsed_by_default = true
+
+  for (const call of group.calls) {
+    for (const nested of call.nested || []) collapseSettledToolGroup(nested)
+  }
+}
+
+function readOnlyTool(name: string) {
+  return READ_ONLY_TOOLS.has(name) || /^(list|read|search|get)_/.test(name)
+}
+
+function sideEffectingTool(name: string) {
+  return SIDE_EFFECTING_TOOLS.has(name) || !readOnlyTool(name)
+}
+
+function inspectionSummary(calls: ChatToolGroupCall[]) {
+  const count = calls.length
+  const sourceText = count === 1 ? "source" : "sources"
+  return count === 1 ? `Inspected ${sourceLabel(calls[0])}` : `Inspected ${count} ${sourceText}`
+}
+
+function sourceLabel(call: ChatToolGroupCall | undefined) {
+  if (!call) return "source"
+  return call.detail && call.detail !== "No arguments" ? call.detail : "source"
 }
 
 function resetLastGroup(message: ChatMessageItem, lastGroupByParentKey: Map<string, ChatToolGroupItem | null>) {

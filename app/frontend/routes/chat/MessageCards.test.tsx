@@ -357,6 +357,54 @@ describe("tool result rendering", () => {
     expect(screen.getByText("very large hidden body")).toBeInTheDocument()
   })
 
+  it("opens a reused collapsed group when a streamed result turns it into a failure", () => {
+    const baseCall = {
+      message_id: 1,
+      tool_name: "Read",
+      raw_name: "Read",
+      detail: "missing.rb",
+      display_label: "Read",
+      progress_label: "Reading",
+      raw_payload: {},
+      result_body: "",
+      result_error: false,
+      result_kind: "unknown" as const,
+      result_summary: ""
+    }
+    const { rerender } = render(
+      <ToolGroup
+        item={{
+          type: "tool_group",
+          tool: "Inspection",
+          calls: [baseCall],
+          summary_label: "Inspected missing.rb",
+          outcome_label: "Running",
+          collapsed_by_default: true,
+          prominent: false
+        }}
+      />
+    )
+
+    expect(screen.queryByText("No such file")).not.toBeInTheDocument()
+
+    rerender(
+      <ToolGroup
+        item={{
+          type: "tool_group",
+          tool: "Inspection",
+          calls: [{ ...baseCall, result_body: "No such file", result_error: true, result_kind: "error" as const }],
+          summary_label: "Inspected missing.rb",
+          outcome_label: "Needs attention",
+          collapsed_by_default: false,
+          prominent: true
+        }}
+      />
+    )
+
+    expect(screen.getByText("Needs attention")).toBeInTheDocument()
+    expect(screen.getByText("No such file")).toBeInTheDocument()
+  })
+
   it("does not syntax-highlight pathological single-line tool results when expanded", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
