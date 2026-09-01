@@ -86,6 +86,60 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.run.step).to eq(respond)
   end
 
+  it "retries the first cancelled publication step after a recovered workflow lost its publication tail" do
+    job = Factories.job_record(state: "failed", pr_number: nil, branch_name: "syrus/direct-4034")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(
+      state: "failed",
+      failure_reason: "pr_publication_missing_after_success",
+      artifacts: { "failure_reason" => "pr_publication_missing_after_success" },
+      started_at: 30.minutes.ago,
+      finished_at: 1.minute.ago
+    )
+    prepare = Step.create!(workflow: workflow, kind: "prepare", position: 1)
+    summarize = Step.create!(workflow: workflow, kind: "summarize", position: 2)
+    test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 3)
+    pr_open = Step.create!(workflow: workflow, kind: "pr_open", position: 4)
+    review_plan = Step.create!(workflow: workflow, kind: "review_plan", position: 5)
+    prepare.update!(next_step_id: summarize.id)
+    summarize.update!(next_step_id: test_plan.id)
+    test_plan.update!(next_step_id: pr_open.id)
+    pr_open.update!(next_step_id: review_plan.id)
+    prepare.update_columns(state: "succeeded", started_at: 29.minutes.ago, finished_at: 28.minutes.ago)
+    summarize.update_columns(state: "succeeded", started_at: 3.minutes.ago, finished_at: 2.minutes.ago)
+    test_plan.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago, cancellation_reason: "stale failure cascade")
+    pr_open.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago)
+    review_plan.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_success
+    expect(result.step).to eq(test_plan)
+    expect(workflow.reload).to be_running
+    expect(test_plan.reload).to be_queued
+    expect(test_plan.cancellation_reason).to be_nil
+    expect(pr_open.reload).to be_queued
+    expect(review_plan.reload).to be_queued
+    expect(result.run.step).to eq(test_plan)
+  end
+
+  it "does not treat cancelled publication steps with historical runs as retryable" do
+    job = Factories.job_record(state: "failed", pr_number: nil, branch_name: "syrus/direct-4034")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow.update_columns(
+      state: "failed",
+      failure_reason: "pr_publication_missing_after_success",
+      artifacts: { "failure_reason" => "pr_publication_missing_after_success" },
+      started_at: 30.minutes.ago,
+      finished_at: 1.minute.ago
+    )
+    test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 3)
+    test_plan.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago)
+    test_plan.runs.create!(job: job, trigger_kind: "initial")
+
+    expect(described_class.failed_step_for(workflow)).to be_nil
+  end
+
   it "resumes a failed merge_train_reconcile step in place instead of rebuilding the whole train" do
     job = Factories.job_record(state: "implemented", landing_failure_reason: "merge_train workflow failed")
     workflow = Workflow.create!(job: job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => 999 })

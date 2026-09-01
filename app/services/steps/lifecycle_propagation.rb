@@ -24,6 +24,8 @@ module Steps
     # When a Step fails, the linear chain cannot advance. Mark the Workflow
     # failed, which fires Workflow cleanup and lifecycle hooks.
     def failed!
+      return unless step.reload.failed?
+
       StepDispatcher.fail_from(step)
     end
 
@@ -32,6 +34,7 @@ module Steps
     # queued Steps, then cancel the Workflow if no active descendants remain.
     def cancelled!
       return if Thread.current[:syrus_step_suppress_cancel_cascade]
+      return unless step.reload.cancelled?
 
       Step.suppress_cancel_cascade { cancel_downstream_queued_steps! }
       cancel_workflow_if_idle!

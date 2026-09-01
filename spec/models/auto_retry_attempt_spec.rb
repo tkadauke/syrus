@@ -97,6 +97,20 @@ RSpec.describe AutoRetryAttempt, type: :model do
 
       expect(scope).to be_empty
     end
+
+    it "counts retry launch rejections against retry budget accounting" do
+      attempt = described_class.create!(
+        valid_attrs(skipped_reason: "The initial workflow has not run yet - start or wait for it before retrying.")
+      )
+
+      scope = described_class.budget_scope_for(
+        job: job,
+        agent_provider: "claude",
+        failure_classification: "worker_died"
+      )
+
+      expect(scope).to include(attempt)
+    end
   end
 
   describe ".prune_stale_pending!" do

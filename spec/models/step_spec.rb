@@ -188,6 +188,26 @@ describe "details JSON bag" do
       expect(step_c.reload.state).to eq("succeeded")
     end
 
+    it "ignores stale failed-step propagation after retry recovery has reopened the step" do
+      step_a.update_columns(state: "queued", started_at: nil, finished_at: nil)
+
+      Steps::LifecyclePropagation.failed!(step_a)
+
+      expect(step_b.reload.state).to eq("queued")
+      expect(step_c.reload.state).to eq("queued")
+      expect(workflow.reload.state).to eq("running")
+    end
+
+    it "ignores stale cancelled-step propagation after retry recovery has reopened the step" do
+      step_a.update_columns(state: "queued", started_at: nil, finished_at: nil)
+
+      Steps::LifecyclePropagation.cancelled!(step_a)
+
+      expect(step_b.reload.state).to eq("queued")
+      expect(step_c.reload.state).to eq("queued")
+      expect(workflow.reload.state).to eq("running")
+    end
+
     it "still fires when Workflow#cancel cascades but doesn't reactivate the cascade chain" do
       expect { workflow.cancel!; workflow.save! }.not_to raise_error
       expect(step_a.reload.state).to eq("cancelled")

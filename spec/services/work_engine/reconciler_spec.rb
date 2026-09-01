@@ -5063,6 +5063,41 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(repair_plan.preconditions["retry_budget_available"]).to eq(false)
   end
 
+  it "treats retry-launch rejections as consumed retry budget" do
+    step.update_columns(kind: "implement", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", agent_outcome: "agent_gave_up_waiting", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "agent_gave_up_waiting",
+      retryable: true,
+      confidence: 0.9,
+      reason: "agent gave up waiting",
+      classified_at: Time.current
+    )
+    AutoRetryAttempt::MAX_ATTEMPTS.times do |index|
+      AutoRetryAttempt.create!(
+        job: job,
+        workflow: workflow,
+        run: run,
+        agent_provider: run.agent_provider,
+        failure_classification: "agent_gave_up_waiting",
+        retry_kind: "resume_failed_step",
+        attempt_number: index + 1,
+        scheduled_at: Time.current,
+        skipped_reason: "The initial workflow has not run yet - start or wait for it before retrying."
+      )
+    end
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :operator_review_retry_budget_exhausted)
+
+    expect(repair_plan).to be_present
+    expect(repair_plan.preconditions["retry_budget_available"]).to eq(false)
+  end
+
   it "classifies nonretryable semantic and git failures" do
     run.update_columns(state: "failed", finished_at: Time.current)
     RunFailureClassification.create!(

@@ -11,7 +11,30 @@ class RetryFailedStepEnqueuer
 
   def self.call(...) = new(...).call
   def self.failed_step_for(workflow)
-    workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first
+    workflow.steps.where(state: "failed").reorder(position: :desc, id: :desc).first ||
+      cancelled_publication_step_for(workflow)
+  end
+
+  def self.cancelled_publication_step_for(workflow)
+    return unless workflow&.failed?
+    return unless workflow.failure_reason == "pr_publication_missing_after_success" ||
+      workflow.artifact("failure_reason") == "pr_publication_missing_after_success"
+
+    publication_kinds = workflow.work_definition.review_publication_step_kinds
+    return if publication_kinds.empty?
+
+    publication_step = workflow.steps
+      .where(kind: publication_kinds)
+      .reorder(:position, :id)
+      .first
+    return unless publication_step&.cancelled? && publication_step.runs.none?
+
+    workflow.steps
+      .where(state: "cancelled")
+      .where("position <= ?", publication_step.position)
+      .where.missing(:runs)
+      .reorder(:position, :id)
+      .first
   end
 
   def initialize(workflow:, parent_session_id: nil, prompt: nil, agent_provider: nil, disable_session_resume: false)
@@ -36,8 +59,7 @@ class RetryFailedStepEnqueuer
 
     workflow.reopen!
     workflow.save!
-    failed_step.reopen!
-    failed_step.save!
+    reopen_step!(failed_step)
     revive_cancelled_downstream_steps!(failed_step)
 
     if workflow.landing_workflow?
@@ -82,6 +104,23 @@ class RetryFailedStepEnqueuer
     end
 
     nil
+  end
+
+  def reopen_step!(step)
+    if step.failed?
+      step.reopen!
+      step.save!
+    elsif step.cancelled? && step.runs.none?
+      step.update_columns(
+        state: "queued",
+        started_at: nil,
+        finished_at: nil,
+        cancellation_reason: nil,
+        updated_at: Time.current
+      )
+    else
+      raise AASM::InvalidTransition, "Step #{step.id} cannot be reopened from #{step.state}"
+    end
   end
 
   def lock_keys_for_retry

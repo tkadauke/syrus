@@ -5,6 +5,15 @@ class AutoRetryAttempt < ApplicationRecord
   MAX_ATTEMPTS = 3
   MAX_WORKER_DIED_ATTEMPTS = 20
   BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze
+  BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES = [
+    "That agent is not available",
+    "Claude appears degraded",
+    "Codex appears degraded",
+    "job is terminal",
+    "source workflow was already superseded",
+    "failure classification changed",
+    "default provider changed"
+  ].freeze
 
   belongs_to :job
   belongs_to :workflow
@@ -17,11 +26,15 @@ class AutoRetryAttempt < ApplicationRecord
   validates :scheduled_at, presence: true
 
   scope :budget_scope_for, ->(job:, agent_provider:, failure_classification:) {
-    where(
+    scope = where(
       job: job,
       agent_provider: agent_provider,
       failure_classification: failure_classification
-    ).where(skipped_reason: nil)
+    )
+    exempt_clauses = BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES.map { "skipped_reason NOT LIKE ?" }.join(" AND ")
+    exempt_values = BUDGET_EXEMPT_SKIPPED_REASON_PREFIXES.map { |prefix| "#{sanitize_sql_like(prefix)}%" }
+
+    scope.where(skipped_reason: nil).or(scope.where(exempt_clauses, *exempt_values))
   }
 
   # Not yet performed and not skipped — a retry that is still going to happen.
