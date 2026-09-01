@@ -87,6 +87,11 @@ export type DesignDocSuggestion = {
 export type DesignDocDetail = DesignDocSummary & {
   markdown: string
   rendered_markdown: string
+  permissions: {
+    can_write_canonical: boolean
+    can_suggest: boolean
+    can_review_suggestions: boolean
+  }
   collaborator_ids: number[]
   collaborators: DesignDocUser[]
   pending_suggestions_count: number
@@ -168,7 +173,7 @@ export function updateDesignDoc(id: string | number, input: DesignDocInput) {
   return patchJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}`, { design_doc: input })
 }
 
-export function createDesignDocComment(id: string | number, input: { body: string; start_offset: number; end_offset: number; selected_markdown: string; selected_text?: string }) {
+export function createDesignDocComment(id: string | number, input: { body: string; start_offset?: number; end_offset?: number; selected_markdown?: string; selected_text?: string; thread_id?: number }) {
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/comments`, { comment: input })
 }
 

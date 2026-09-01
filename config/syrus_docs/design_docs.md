@@ -39,6 +39,56 @@ owners can see their docs, explicit collaborators can see private docs, and
 public docs are visible to users who can access at least one associated
 repository.
 
+## Editor UI
+
+The plugin-owned editor uses a full-width document title bar above the document
+surface. The title bar contains the editable title, canonical `DOC-<id>`
+identity, visibility and state indicators, repository associations with a `+`
+picker, a `Share` popover for visibility and explicit collaborators, and a
+far-right version dropdown. The body editor uses `Markdown` and `WYSIWYG` tabs
+over the same unsaved canonical Markdown draft instead of an adjacent
+edit/preview split. Selecting a version from the title-bar dropdown loads that
+version's Markdown into the current draft; it is not persisted until the user
+saves.
+
+Pending suggestions appear inline at their anchored range in both editor modes
+where practical: the original Markdown range is struck through in the active
+theme warning color and the proposed replacement appears next to it in the
+active theme success color. The default Terracotta theme uses terracotta for
+warning and green for success. This inline diff is display-only. WYSIWYG
+conversion keeps the original anchored text in the draft, and canonical
+Markdown is not changed until the owner accepts a suggestion.
+
+The document detail API includes editor permission flags:
+`can_write_canonical`, `can_suggest`, and `can_review_suggestions`. Owners see
+canonical save, metadata, sharing, repository, resolve, and suggestion review
+controls. Non-owners with access can comment and propose edits, but direct-save
+actions are labeled as suggestion creation and accept/reject controls render as
+pending owner review.
+
+## Chat Workspace Tabs
+
+The Design Docs chat workspace surface is document-focused, not the top-level
+index. In chat mode it must not infer a design doc id from the chat route's
+`:id` param, because that value is the `ChatSession` id. It resolves the
+selected document only from plugin tab payload data produced by
+`DesignDocs::WorkspaceTabs`.
+
+When a chat has one visible originated or referenced design doc, the plugin
+declares the legacy `design_docs.chat` tab with `design_doc_ids` and
+`design_docs` summary data. The frontend selects the first explicit
+`design_doc_ids` entry and loads `/api/v1/app/design_docs/:id` for that doc.
+When a chat has multiple visible docs, the plugin declares one tab per document
+(`design_docs.chat.<doc_id>`) and includes `design_doc_id` in each tab's data,
+so tab identity and document identity stay aligned. Chat mode hides index chrome:
+no FilterBar, smart-folder navigation, repository/owner/state filters, or
+document list. It keeps the document title bar, editor/review UI, comments,
+suggestions, sharing metadata, repository metadata, and version controls.
+
+If a chat Design Docs tab is rendered without an explicit document id, the
+surface shows an empty state instead of guessing `DOC-<chat_session_id>` or any
+other derived id.
+
 The plugin owns its migration under `plugins/design_docs/db/migrate`. The host
 app adds bundled plugin migration paths at boot, and the shared Rails schema
 dump remains in `db/schema.rb`.

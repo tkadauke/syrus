@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
+import type { DesignDocSummary } from "../api/designDocs"
 
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
@@ -22,6 +23,11 @@ const docDetail = {
   created_at: "2026-08-29T11:00:00Z",
   markdown: "Alpha beta gamma",
   rendered_markdown: "Alpha beta gamma",
+  permissions: {
+    can_write_canonical: true,
+    can_suggest: true,
+    can_review_suggestions: true
+  },
   collaborator_ids: [2],
   collaborators: [{ id: 2, name: "Editor", email_address: "editor@example.com" }],
   pending_suggestions_count: 1,
@@ -102,6 +108,17 @@ const secondDocDetail = {
   suggestions: []
 }
 
+const reviewerDocDetail = {
+  ...docDetail,
+  id: 3,
+  display_id: "DOC-3",
+  permissions: {
+    can_write_canonical: false,
+    can_suggest: true,
+    can_review_suggestions: false
+  }
+}
+
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
@@ -111,6 +128,8 @@ function renderSurface(path = "/design_docs") {
           <Route path="/design_docs" element={<DesignDocsTestRoute />} />
           <Route path="/design_docs/:id" element={<DesignDocsTestRoute />} />
           <Route path="/repositories/:repositoryId/design_docs" element={<RepositoryDesignDocsTestRoute />} />
+          <Route path="/chats/:id" element={<DesignDocsSurface chatId={237} compact designDocIds={[1]} initialDesignDocId={1} initialDesignDocs={[docDetail as DesignDocSummary]} mode="chat" repositoryId={10} />} />
+          <Route path="/chats/:id/empty" element={<DesignDocsSurface chatId={237} compact designDocIds={[]} initialDesignDocs={[]} mode="chat" repositoryId={10} />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -201,7 +220,26 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/2" && (!init || init.method === undefined)) {
       return jsonResponse({ design_doc: secondDocDetail })
     }
+    if (url.pathname === "/api/v1/app/design_docs/3" && (!init || init.method === undefined)) {
+      return jsonResponse({ design_doc: reviewerDocDetail })
+    }
+    if (url.pathname === "/api/v1/app/design_docs/3" && init?.method === "PATCH") {
+      return jsonResponse({ design_doc: reviewerDocDetail, mode: "suggestion", message: "Suggestion created." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/1/comments") {
+      const payload = JSON.parse(String(init?.body ?? "{}"))
+      if (payload.comment?.thread_id === 7) {
+        return jsonResponse({
+          design_doc: {
+            ...docDetail,
+            threads: [{
+              ...docDetail.threads[0],
+              comments: [...docDetail.threads[0].comments, { id: 10, author_kind: "user", author: docDetail.owner, body: "Follow up", created_at: "2026-08-29T12:03:00Z", updated_at: "2026-08-29T12:03:00Z" }]
+            }]
+          },
+          message: "Comment created."
+        }, 201)
+      }
       return jsonResponse({ design_doc: { ...docDetail, open_threads_count: 2 }, message: "Comment created." }, 201)
     }
     if (url.pathname === "/api/v1/app/design_docs/1/threads/7/resolve") {
@@ -210,8 +248,11 @@ function mockFetch() {
     if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/accept") {
       return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "accepted" }] }, suggestion: { ...docDetail.suggestions[0], state: "accepted" }, message: "Suggestion accepted." })
     }
+    if (url.pathname === "/api/v1/app/design_docs/1/suggestions/9/reject") {
+      return jsonResponse({ design_doc: { ...docDetail, suggestions: [{ ...docDetail.suggestions[0], state: "rejected" }] }, suggestion: { ...docDetail.suggestions[0], state: "rejected" }, message: "Suggestion rejected." })
+    }
     if (url.pathname === "/api/v1/app/design_docs/1/versions") {
-      return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Alpha beta gamma", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
+      return jsonResponse({ design_doc: docDetail, versions: [{ id: 1, version_number: 1, markdown: "Historical body", actor_kind: "user", actor: docDetail.owner, change_summary: "Initial", metadata: {}, created_at: "2026-08-29T12:00:00Z" }] })
     }
     return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
   })
@@ -260,8 +301,8 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
     expect(screen.getByText("Threads")).toBeInTheDocument()
     expect(screen.getByText("Suggestions")).toBeInTheDocument()
-    expect(screen.getByText("Controls")).toBeInTheDocument()
-    expect(screen.getByText("Versions")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
+    expect(screen.getByRole("combobox", { name: "Version selection" })).toBeInTheDocument()
   })
 
   it("shows smart folders and filters in a mobile disclosure", async () => {
@@ -291,6 +332,28 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByTestId("design-docs-filter-bar")).toBeInTheDocument()
   })
 
+  it("uses the explicit chat design doc instead of treating the chat route id as a doc id", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/chats/237")
+
+    expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ credentials: "same-origin" }))
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs/237")).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
+  })
+
+  it("shows a chat empty state instead of guessing a design doc from the chat id", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/chats/237/empty")
+
+    expect(await screen.findByText("No design docs are attached to this chat.")).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/api/v1/app/design_docs/237"))).toBe(false)
+    expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
+  })
+
   it("creates and resolves comments from an editor selection", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
@@ -302,9 +365,73 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Clarify this", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    })
     fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/threads/7/resolve", expect.objectContaining({ method: "POST" })))
+  })
+
+  it("creates comments from a WYSIWYG selection", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    fireEvent.change(markdownEditor, { target: { value: "Alpha **beta** gamma" } })
+    fireEvent.click(await screen.findByRole("tab", { name: "WYSIWYG" }))
+    const editor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    const textNode = editor.querySelector("strong")!.firstChild!
+    const range = document.createRange()
+    range.setStart(textNode, 0)
+    range.setEnd(textNode, 4)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+
+    fireEvent.mouseUp(editor)
+    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const commentRequest = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments")
+    expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
+    })
+  })
+
+  it("synchronizes focus between inline highlights and the comment rail", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+    const editor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    expect(container.querySelector("mark[data-anchor-status='active']")).not.toBeNull()
+    fireEvent.click(screen.getByText("Needs evidence"))
+
+    expect(editor.selectionStart).toBe(6)
+    expect(editor.selectionEnd).toBe(10)
+
+    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
+    const wysiwygHighlight = await waitFor(() => container.querySelector("mark[data-thread-id='7']"))
+    fireEvent.click(wysiwygHighlight!)
+
+    expect(screen.getByText("Needs evidence").closest("[data-anchor-offset]")).toHaveClass("border-amber-400")
+  })
+
+  it("groups replies beneath their parent comment thread", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    await screen.findByText("Needs evidence")
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply to thread 7" }), { target: { value: "Follow up" } })
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
+    const replyRequest = fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1/comments").at(-1)
+    expect(JSON.parse(String(replyRequest?.[1]?.body))).toMatchObject({
+      comment: { body: "Follow up", thread_id: 7 }
+    })
+    expect(await screen.findByText("Follow up")).toBeInTheDocument()
   })
 
   it("resets draft editor state when switching between design docs", async () => {
@@ -330,7 +457,61 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/2?q=eyJhbmQiOltdfQ%3D%3D")
   })
 
-  it("reviews suggestions and opens version history", async () => {
+  it("switches editor tabs without losing unsaved local edits", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+
+    const markdownTab = await screen.findByRole("tab", { name: "Markdown" })
+    const wysiwygTab = screen.getByRole("tab", { name: "WYSIWYG" })
+    const markdownEditor = screen.getByRole("textbox", { name: "Markdown editor" })
+
+    expect(markdownTab).toHaveAttribute("aria-selected", "true")
+    fireEvent.change(markdownEditor, { target: { value: "Unsaved **local** edits" } })
+    fireEvent.click(wysiwygTab)
+
+    expect(wysiwygTab).toHaveAttribute("aria-selected", "true")
+    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    expect(wysiwygEditor).toHaveTextContent("Unsaved local edits")
+    expect(wysiwygEditor).not.toHaveTextContent("**local**")
+
+    wysiwygEditor.textContent = "Edited from WYSIWYG"
+    fireEvent.input(wysiwygEditor)
+    fireEvent.click(markdownTab)
+
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Edited from WYSIWYG")
+  })
+
+  it("renders title-bar controls for repositories, sharing, and far-right versions", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/1")
+
+    const titleBar = await screen.findByRole("region", { name: "Design doc title bar" })
+    expect(within(titleBar).getByRole("textbox", { name: "Design doc title" })).toHaveValue("Checkout design")
+    expect(within(titleBar).getByText("DOC-1")).toBeInTheDocument()
+    expect(within(titleBar).getByText("private")).toBeInTheDocument()
+    expect(within(titleBar).getByText("draft")).toBeInTheDocument()
+    expect(within(titleBar).getByText("acme/widgets")).toBeInTheDocument()
+    expect(within(titleBar).getByRole("button", { name: "Add repository" })).toBeInTheDocument()
+    expect(within(titleBar).getByRole("button", { name: "Share" })).toBeInTheDocument()
+    expect(within(titleBar).getByRole("combobox", { name: "Version selection" })).toHaveClass("ml-auto")
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Add repository" }))
+    expect(within(titleBar).getByRole("listbox", { name: "Repository associations" })).toBeInTheDocument()
+
+    fireEvent.click(within(titleBar).getByRole("button", { name: "Share" }))
+    expect(within(titleBar).getByRole("combobox", { name: "Share visibility" })).toBeInTheDocument()
+    expect(within(titleBar).getByRole("textbox", { name: "Collaborator user IDs" })).toHaveValue("2")
+
+    const versionSelect = within(titleBar).getByRole("combobox", { name: "Version selection" })
+    fireEvent.focus(versionSelect)
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
+    await within(titleBar).findByRole("option", { name: "v1 - Initial" })
+    fireEvent.change(versionSelect, { target: { value: "1" } })
+
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Historical body"))
+  })
+
+  it("reviews suggestions and exposes version history from the title bar", async () => {
     const fetchSpy = mockFetch()
     renderSurface("/design_docs/1")
 
@@ -338,9 +519,67 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/suggestions/9/accept", expect.objectContaining({ method: "POST" })))
-    fireEvent.click(within(screen.getByText("Versions").closest("div")!).getByRole("button", { name: "Show" }))
+    fireEvent.focus(screen.getByRole("combobox", { name: "Version selection" }))
 
-    expect(await screen.findByText("Version 1")).toBeInTheDocument()
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/versions", expect.objectContaining({ credentials: "same-origin" })))
+  })
+
+  it("renders pending suggestions inline in Markdown and WYSIWYG without changing canonical markdown", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
+    expect(markdownEditor).toHaveValue("Alpha beta gamma")
+    const markdownSuggestion = container.querySelector("[data-inline-suggestion-state='pending']")
+    expect(markdownSuggestion?.querySelector("del")).toHaveTextContent("gamma")
+    expect(markdownSuggestion?.querySelector("ins")).toHaveTextContent("delta")
+    expect(markdownSuggestion?.querySelector("del")).toHaveClass("text-warning")
+    expect(markdownSuggestion?.querySelector("ins")).toHaveClass("text-success")
+
+    fireEvent.click(screen.getByRole("tab", { name: "WYSIWYG" }))
+    const wysiwygEditor = screen.getByRole("textbox", { name: "WYSIWYG editor" })
+    const wysiwygSuggestion = wysiwygEditor.querySelector("[data-inline-suggestion-state='pending']")
+    expect(wysiwygSuggestion?.querySelector("del")).toHaveTextContent("gamma")
+    expect(wysiwygSuggestion?.querySelector("ins")).toHaveTextContent("delta")
+
+    fireEvent.input(wysiwygEditor)
+    fireEvent.click(screen.getByRole("tab", { name: "Markdown" }))
+    expect(screen.getByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+  })
+
+  it("keeps Markdown inline rendering synchronized with textarea scrolling", async () => {
+    mockFetch()
+    const { container } = renderSurface("/design_docs/1")
+
+    const markdownEditor = await screen.findByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+    const mirror = container.querySelector("[data-testid='markdown-highlight-mirror']")
+    expect(mirror).not.toBeNull()
+
+    markdownEditor.scrollTop = 144
+    fireEvent.scroll(markdownEditor)
+
+    expect(mirror).toHaveStyle({ transform: "translateY(-144px)" })
+  })
+
+  it("shows review-only suggestion state for non-owners without direct-commit affordances", async () => {
+    const fetchSpy = mockFetch()
+    renderSurface("/design_docs/3")
+
+    expect(await screen.findByRole("button", { name: "Propose changes" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
+    expect(screen.getByText("Pending owner review.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Share" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Add repository" })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown editor" }), { target: { value: "Alpha beta delta" } })
+    fireEvent.click(screen.getByRole("button", { name: "Propose changes" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/3", expect.objectContaining({ method: "PATCH" })))
+    const request = fetchSpy.mock.calls.find((call) => String(call[0]) === "/api/v1/app/design_docs/3" && call[1]?.method === "PATCH")
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      design_doc: { markdown: "Alpha beta delta" }
+    })
   })
 
   it("keeps the editor layout responsive with fixed grid constraints", async () => {
@@ -350,5 +589,6 @@ describe("DesignDocsSurface", () => {
     await screen.findByRole("textbox", { name: "Markdown editor" })
     expect(container.querySelector(".min-h-\\[36rem\\]")).not.toBeNull()
     expect(container.querySelector(".xl\\:grid-cols-\\[minmax\\(0\\,1fr\\)_22rem\\]")).not.toBeNull()
+    expect(container.querySelector(".lg\\:grid-cols-2")).toBeNull()
   })
 })

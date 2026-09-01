@@ -51,7 +51,10 @@ module PerformanceLogging
     end
 
     def clear!
-      PerformanceLogging.suppress { Observability::EventSink.clear!(kind: :performance) }
+      PerformanceLogging.suppress do
+        Observability::EventSink.clear!(kind: :performance)
+        PerformanceLogEvent.delete_all
+      end
     rescue StandardError
       nil
     end

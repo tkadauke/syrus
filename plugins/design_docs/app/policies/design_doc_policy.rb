@@ -4,15 +4,15 @@ class DesignDocPolicy < ApplicationPolicy
   end
 
   def canonical_write?
-    admin? || owner?
+    owner?
   end
 
   def suggest?
-    admin? || owner? || collaborator?
+    admin? || visible?
   end
 
   def review?
-    admin? || owner?
+    owner?
   end
 
   class Scope < ApplicationPolicy::Scope
@@ -33,7 +33,4 @@ class DesignDocPolicy < ApplicationPolicy
     record.owner_user_id == user&.id
   end
 
-  def collaborator?
-    record.collaborators.exists?(user_id: user&.id)
-  end
 end

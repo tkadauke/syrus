@@ -4,6 +4,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
   let(:owner) { Factories.user(email_address: "owner@example.com") }
   let(:collaborator) { Factories.user(email_address: "collaborator@example.com") }
   let(:outsider) { Factories.user(email_address: "outsider@example.com") }
+  let(:admin) { Factories.user(email_address: "admin@example.com", admin: true) }
   let(:repository) { Factories.repository(user: owner, owner: "acme", name: "widgets") }
 
   def parse_body
@@ -215,6 +216,32 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.versions.order(:version_number).pluck(:markdown)).to eq(%w[v1 v2])
   end
 
+  it "preserves hidden anchor markers when owners save the unchanged rendered markdown" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    comment_result = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    )
+    marked_markdown = doc.reload.markdown
+    sign_in_as(owner)
+
+    expect {
+      patch "/api/v1/app/design_docs/#{doc.id}", params: {
+        design_doc: {
+          markdown: "Alpha beta gamma",
+          change_summary: "No visible changes"
+        }
+      }
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("mode")).to eq("canonical")
+    expect(doc.reload.markdown).to eq(marked_markdown)
+    expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{comment_result.anchor.marker_id}\" -->")
+    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Alpha beta gamma")
+  end
+
   it "turns collaborator markdown edits into suggestions without mutating canonical markdown" do
     doc = create_design_doc(markdown: "Hello world")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
@@ -255,6 +282,86 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
     expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Hello world")
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Hello world")
+  end
+
+  it "turns public repository member markdown edits into suggestions without mutating canonical markdown" do
+    doc = create_design_doc(markdown: "Hello world", visibility: "public")
+    doc.repositories << repository
+    repository.repository_memberships.create!(user: collaborator, role: "read")
+    sign_in_as(collaborator)
+
+    expect {
+      patch "/api/v1/app/design_docs/#{doc.id}", params: {
+        design_doc: {
+          markdown: "Hello Syrus",
+          start_offset: 6,
+          end_offset: 11,
+          selected_markdown: "world",
+          change_summary: "Use product name"
+        }
+      }
+    }.to change(DesignDocSuggestion, :count).by(1)
+      .and change(DesignDocVersion, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    suggestion = DesignDocSuggestion.last
+    expect(parse_body.fetch("mode")).to eq("suggestion")
+    expect(suggestion).to have_attributes(
+      suggested_by_kind: "user",
+      suggested_by_user: collaborator,
+      original_markdown: "world",
+      proposed_markdown: "Syrus"
+    )
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
+  end
+
+  it "turns admin non-owner markdown edits into suggestions instead of canonical versions" do
+    doc = create_design_doc(markdown: "Hello world")
+    sign_in_as(admin)
+
+    expect {
+      patch "/api/v1/app/design_docs/#{doc.id}", params: {
+        design_doc: {
+          markdown: "Hello admin",
+          start_offset: 6,
+          end_offset: 11,
+          selected_markdown: "world",
+          change_summary: "Admin proposal"
+        }
+      }
+    }.to change(DesignDocSuggestion, :count).by(1)
+      .and change(DesignDocVersion, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("mode")).to eq("suggestion")
+    expect(DesignDocSuggestion.last).to have_attributes(suggested_by_kind: "user", suggested_by_user: admin)
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
+  end
+
+  it "prevents a direct service call from creating a canonical non-owner markdown edit" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+
+    expect {
+      result = DesignDocs::Update.call(
+        design_doc: doc,
+        user: collaborator,
+        actor_kind: "user",
+        attributes: {
+          markdown: "Hello Syrus",
+          start_offset: 6,
+          end_offset: 11,
+          selected_markdown: "world",
+          change_summary: "Service bypass attempt"
+        }
+      )
+
+      expect(result.mode).to eq("suggestion")
+      expect(result.suggestion).to have_attributes(suggested_by_kind: "user", suggested_by_user: collaborator)
+    }.to change(DesignDocSuggestion, :count).by(1)
+      .and change(DesignDocVersion, :count).by(1)
+
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
   end
 
   it "enforces agent write restrictions from server-side auth context even when params claim a user actor" do
@@ -320,6 +427,37 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(thread.reload).to have_attributes(state: "resolved", resolved_by_user: owner)
   end
 
+  it "adds replies to an existing comment thread without creating a new anchor marker" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    result = ::DesignDocs::CreateComment.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { body: "Needs evidence", start_offset: 6, end_offset: 10, selected_markdown: "beta" }
+    )
+    marked_markdown = doc.reload.markdown
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+        comment: {
+          body: "Added context",
+          thread_id: result.thread.id
+        }
+      }
+    }.to change(DesignDocComment, :count).by(1)
+      .and change(DesignDocThread, :count).by(0)
+      .and change(DesignDocAnchor, :count).by(0)
+      .and change(DesignDocVersion, :count).by(0)
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("thread", "id")).to eq(result.thread.id)
+    expect(parse_body.dig("comment", "body")).to eq("Added context")
+    expect(parse_body.fetch("version")).to be_nil
+    expect(doc.reload.markdown).to eq(marked_markdown)
+    expect(result.thread.comments.order(:created_at, :id).pluck(:body)).to eq([ "Needs evidence", "Added context" ])
+  end
+
   it "returns anchored threads and suggestions from the document detail API" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
@@ -353,6 +491,26 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "state" => "pending",
       "proposed_markdown" => "delta",
       "change_type" => "replace"
+    )
+    expect(body.fetch("permissions")).to include(
+      "can_write_canonical" => true,
+      "can_suggest" => true,
+      "can_review_suggestions" => true
+    )
+  end
+
+  it "serializes non-owner design doc permissions for suggestion-only review flows" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    get "/api/v1/app/design_docs/#{doc.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("design_doc", "permissions")).to include(
+      "can_write_canonical" => false,
+      "can_suggest" => true,
+      "can_review_suggestions" => false
     )
   end
 
@@ -411,6 +569,25 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.dig("version", "version_number")).to eq(3)
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello Syrus")
     expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
+  end
+
+  it "prevents admin non-owners from accepting suggestions into canonical markdown" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    ).suggestion
+    sign_in_as(admin)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+    }.not_to change(DesignDocVersion, :count)
+
+    expect(response).to have_http_status(:forbidden)
+    expect(suggestion.reload.state).to eq("pending")
+    expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello world")
   end
 
   it "rejects suggestions without mutating canonical markdown" do

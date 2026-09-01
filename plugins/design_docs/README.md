@@ -35,6 +35,7 @@ the existing `JOB-<id>` and `EPIC-<id>` behavior.
 
 The chat workspace tab provider exposes optional tab `data` containing:
 
+- `design_doc_id` for a specific document tab when multiple docs are visible
 - `design_doc_ids`
 - `originated_design_doc_ids`
 - `attached_design_doc_ids`
@@ -42,7 +43,10 @@ The chat workspace tab provider exposes optional tab `data` containing:
 
 Originated docs are those created from that chat. Attached docs are visible docs
 referenced in chat history with `DOC-<id>`; they are surfaced in the same
-workspace tab without adding a direct Design Doc to Job/Epic generation path.
+workspace surface without adding a direct Design Doc to Job/Epic generation
+path. With one visible doc the provider keeps the legacy `design_docs.chat` tab.
+With multiple visible docs it declares one explicit `design_docs.chat.<doc_id>`
+tab per doc so the frontend never derives a document id from the chat id.
 
 ## Permissions
 
@@ -57,6 +61,11 @@ pending suggestions. Agent edits are always suggestion-only, enforced by the
 backend from authenticated server context rather than trusting request params.
 Only owners can resolve threads and accept/reject suggestions.
 
+The detail API serializes explicit permission booleans for the editor:
+`can_write_canonical`, `can_suggest`, and `can_review_suggestions`. The UI uses
+those values to keep owner-only metadata and accept/reject controls out of
+review-only flows.
+
 ## APIs And UI
 
 Plugin-owned backend files live under `plugins/design_docs/app/`, including the
@@ -68,9 +77,17 @@ The plugin registers:
 
 - top-level sidebar page: `/design_docs`
 - repository tab: `/repositories/:id/plugin/design_docs`
-- chat workspace tab: `design_docs.chat`
+- chat workspace tab: `design_docs.chat` for one doc, or
+  `design_docs.chat.<doc_id>` per doc when multiple docs are visible
 - JSON API routes under `/api/v1/app/design_docs`
 - repository-scoped API route under `/api/v1/app/repositories/:id/design_docs`
+
+Pending suggestions render inline in the document body at their anchored range
+in both Markdown and WYSIWYG editor tabs. The original range is struck through
+with the active theme's warning token, and the proposed replacement is shown
+beside it with the active theme's success token. The rendered suggestion text is
+display-only: hidden anchor comments and proposed replacement previews are not
+written into canonical Markdown until the owner accepts the suggestion.
 
 ## Agent Tools
 
