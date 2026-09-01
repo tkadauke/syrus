@@ -98,6 +98,41 @@ RSpec.describe OperationalLogging do
     expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventsJob)
   end
 
+  it "deduplicates identical durable operational events before indexing" do
+    prepare_search_tables
+    occurred_at = Time.zone.parse("2026-09-01T09:30:24.245458Z")
+    payload = {
+      "occurred_at" => occurred_at.iso8601(6),
+      "level" => "error",
+      "role" => "worker",
+      "hostname" => "syrus-worker-compute-7vmc5",
+      "app_revision" => "9d7a60270",
+      "pid" => 36,
+      "source" => "active_job",
+      "request_id" => "",
+      "message" => "RunJob 1194966.5ms",
+      "context" => {
+        "active_job_id" => "51f3f39a-a254-4c15-b025-dc7bc105de46",
+        "exception" => "Steps::Base::StepFailed",
+        "exception_message" => "required graders failed: migration-baselines, rspec-ci",
+        "job_class" => "RunJob",
+        "queue_name" => "runs"
+      }
+    }
+    rows = 2.times.map { OperationalLogEvent.from_event_hash(payload) }
+
+    expect(rows.map { |row| row[:event_uid] }.uniq.size).to eq(1)
+
+    expect {
+      OperationalLogEvent.persist_observability_events!(rows, batch_size: 10)
+    }.to change(OperationalLogEvent, :count).by(1)
+
+    perform_enqueued_jobs(only: IndexOperationalLogEventsJob)
+
+    expect(OperationalLogEvent.where(message: "RunJob 1194966.5ms").count).to eq(1)
+    expect(indexed_event_ids).to eq([ OperationalLogEvent.sole.id ])
+  end
+
   it "ingests request and active job notification payloads with structured identifiers" do
     run = Factories.job(repository: repository, user: user).initial_run
     Thread.current[:syrus_current_run] = run
