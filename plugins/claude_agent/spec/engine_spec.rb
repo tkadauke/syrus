@@ -16,6 +16,14 @@ RSpec.describe SyrusClaudeAgent::Engine do
     expect(Syrus::PluginRegistry.providers_for(:chat_provider)).to include(ChatProviders::Claude)
   end
 
+  it "registers the Claude admin user filter chip" do
+    expect(Filters.subject(:admin_user).chip_class("has_claude_token")).to eq(Filters::Chips::AdminUsers::HasClaudeToken)
+  end
+
+  it "registers the Claude credential probe" do
+    expect(CredentialProbe::CREDENTIAL_PROBE_METHODS["claude_oauth_token"]).to eq(ClaudeCredentialProbe)
+  end
+
   it "registers a manifest named 'claude_agent'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "claude_agent" }
     expect(manifest).not_to be_nil

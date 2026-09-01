@@ -197,7 +197,6 @@ module Filters
         "email"            => "Filters::Chips::AdminUsers::Email",
         "admin"            => "Filters::Chips::AdminUsers::Admin",
         "has_github_token" => "Filters::Chips::AdminUsers::HasGithubToken",
-        "has_claude_token" => "Filters::Chips::AdminUsers::HasClaudeToken",
         "has_codex_token"  => "Filters::Chips::AdminUsers::HasCodexToken",
         "gh_rate"          => "Filters::Chips::AdminUsers::GhRate"
       }
@@ -282,6 +281,24 @@ module Filters
 
   def self.register_subject(name:, model:, chips:)
     @registered_subjects[name.to_sym] = Subject.new(name: name, model: model, chips: chips)
+  end
+
+  def self.register_chip(subject:, field:, class_name:, after: nil)
+    existing = subject(subject)
+    chips = if after.present? && existing.chips.key?(after.to_s)
+      existing.chips.each_with_object({}) do |(chip_field, chip_class_name), merged|
+        merged[chip_field] = chip_class_name
+        merged[field.to_s] = class_name.to_s if chip_field == after.to_s
+      end
+    else
+      existing.chips.merge(field.to_s => class_name.to_s)
+    end
+
+    register_subject(
+      name: existing.name,
+      model: existing.model,
+      chips: chips
+    )
   end
 
   def self.subjects

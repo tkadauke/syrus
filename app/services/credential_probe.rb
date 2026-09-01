@@ -74,17 +74,22 @@ class CredentialProbe
 
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github,
-    "claude_oauth_token" => :probe_claude,
     "codex_api_key"      => :probe_codex,
     "codex_auth_json"    => :probe_codex,
     "gemini_api_key"     => :probe_gemini
-  }.freeze
+  }
+
+  def self.register_probe(credential, handler)
+    CREDENTIAL_PROBE_METHODS[credential.to_s] = handler
+  end
 
   def call
     probe_method = CREDENTIAL_PROBE_METHODS[credential]
     raise ArgumentError, "Unknown credential: #{credential}" unless probe_method
 
-    send(probe_method)
+    return send(probe_method) if probe_method.is_a?(Symbol)
+
+    probe_method.call(user: user, credential: credential)
   end
 
   # Validate a pasted-but-unsaved Gemini API key (the setup sheet's
@@ -183,47 +188,8 @@ class CredentialProbe
     failure("GitHub probe failed: #{safe_error(e)}")
   end
 
-  # Probe whether `claude --print` already works on this machine using the
-  # CLI's own stored login (no Syrus token injected). Lets the setup wizard
-  # detect a working bare-metal subscription before asking for a token.
   def self.claude_cli_ready(user: nil)
-    new(user: user, credential: "claude_oauth_token").send(:probe_claude, ambient: true)
-  end
-
-  def probe_claude(ambient: false)
-    return missing("Claude OAuth token is not configured.") if !ambient && user&.claude_oauth_token.blank?
-
-    token = ambient ? nil : user.claude_oauth_token
-    Dir.mktmpdir("syrus-claude-probe-") do |workspace|
-      output = +""
-      result = ProcessRunner.new(
-        env: ProcessRunner.forwarded_env(
-          AgentInvocation::ENV_FORWARD,
-          extra: token ? { "CLAUDE_CODE_OAUTH_TOKEN" => token } : {}
-        ),
-        command: [
-          "claude", "--print",
-          "--output-format", "stream-json",
-          "--verbose",
-          "--max-turns", "1",
-          "Reply with OK."
-        ],
-        chdir: workspace,
-        timeout: TIMEOUT_SECONDS,
-        silent_timeout: 15,
-        kind: "agent",
-        on_output_chunk: ->(chunk) { append_output(output, chunk) }
-      ).run
-
-      if result.success?
-        return success(credential, ambient ? "Claude already works on this machine — no token needed." : "Claude OAuth token is valid.")
-      end
-
-      message = ambient ? "Claude is not authenticated on this machine yet." : "Claude probe failed: #{probe_failure_reason(result, output)}"
-      failure(message)
-    end
-  rescue Errno::ENOENT
-    failure("Claude CLI is not installed or not on PATH.")
+    ClaudeCredentialProbe.claude_cli_ready(user: user)
   end
 
   CODEX_CREDENTIAL_SPECS = {

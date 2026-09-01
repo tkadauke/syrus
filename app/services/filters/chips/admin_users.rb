@@ -1,9 +1,10 @@
 module Filters
   module Chips
     # Namespace anchor for admin-users chips. The actual chip classes
-    # (Email, Admin, HasGithubToken, HasClaudeToken, HasCodexToken,
-    # GhRate) live in the per-file siblings under admin_users/. This
-    # file just defines the module — having the chip definitions ALSO
+    # (Email, Admin, HasGithubToken, HasCodexToken, GhRate) live in the
+    # per-file siblings under admin_users/. Provider plugins can register
+    # additional admin-user chips. This file just defines the module —
+    # having the chip definitions ALSO
     # inline here caused a superclass-mismatch eager-load crash in
     # production (both files defined `Email` with different
     # superclasses; Zeitwerk's lazy autoload in dev hid it,

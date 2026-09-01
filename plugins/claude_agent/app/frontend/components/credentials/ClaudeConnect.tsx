@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
-import { exchangeClaudeOauth, startClaudeOauth, testClaudeCli, type CredentialTestResult } from "../../api/credentials"
-import { openInNewTab } from "../../lib/desktopShell"
-import { useT } from "../../hooks/useT"
-import { useBackendOutage } from "../../hooks/useBackendUpdate"
-import { Button } from "../Button"
-import { Input } from "../Input"
+import { exchangeClaudeOauth, startClaudeOauth, testClaudeCli, type CredentialTestResult } from "@app/api/credentials"
+import { openInNewTab } from "@app/lib/desktopShell"
+import { useT } from "@app/hooks/useT"
+import { useBackendOutage } from "@app/hooks/useBackendUpdate"
+import { Button } from "@app/components/Button"
+import { Input } from "@app/components/Input"
 
 type Preflight =
   | { status: "checking" }
