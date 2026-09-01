@@ -1038,7 +1038,8 @@ module Api
               id: doc.id,
               title: doc.title,
               filename: doc.filename,
-              content_type: doc.content_type
+              content_type: doc.content_type,
+              url: url_for(doc.file)
             }
           end
 
