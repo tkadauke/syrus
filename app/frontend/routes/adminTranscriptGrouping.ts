@@ -5,7 +5,7 @@
 // re-rendering every tool_use/tool_result as its own unrelated flat card.
 import type { ChatToolGroupItem } from "../api/chats"
 import type { TranscriptEvent } from "../api/adminTranscript"
-import { fullResultBody, simpleToolProgressLabel, toolDetail, toolLabel, toolResultSummary } from "./chat/toolRendering"
+import { fullResultBody, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
 import { stringValue } from "./chat/utils"
 
 export type AdminTranscriptToolGroupItem = ChatToolGroupItem & { key: string }
@@ -46,13 +46,19 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
 
     if (event.kind === "tool_use") {
       const name = stringValue(data.name)
-      const tool = toolLabel(name)
+      const presentation = toolPresentation(name, isRecord(data.input) ? data.input : {})
+      const tool = presentation.display_label
       const call = {
         message_id: index,
-        detail: toolDetail(name, isRecord(data.input) ? data.input : {}),
+        tool_name: presentation.name,
+        raw_name: presentation.raw_name,
+        detail: presentation.argument_summary,
+        display_label: presentation.display_label,
         progress_label: simpleToolProgressLabel(name),
+        raw_payload: presentation.raw_payload,
         result_body: "",
         result_error: false,
+        result_kind: "unknown" as const,
         result_summary: ""
       }
 
@@ -76,7 +82,10 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         const body = fullResultBody(data.content)
         open.call.result_body = body
         open.call.result_error = data.error === true
-        open.call.result_summary = toolResultSummary(open.tool, body)
+        const resultPresentation = toolResultPresentation(open.call.tool_name, body, open.call.result_error)
+        open.call.result_kind = resultPresentation.kind
+        open.call.result_summary = resultPresentation.summary
+        open.call.summary_metadata = resultPresentation.metadata
         return
       }
 

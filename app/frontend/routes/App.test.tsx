@@ -13740,7 +13740,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("tool_result")).toBeInTheDocument()
+    expect(await screen.findByText("Tool result")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Queue setup" })).not.toBeInTheDocument()
   })
 
@@ -13769,7 +13769,7 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("repo_info")).toBeInTheDocument()
+    expect(await screen.findByText("Repo info")).toBeInTheDocument()
     expect(screen.queryByText("tool_use")).not.toBeInTheDocument()
   })
 
