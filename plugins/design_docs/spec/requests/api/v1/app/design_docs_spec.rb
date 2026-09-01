@@ -427,6 +427,80 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(thread.reload).to have_attributes(state: "resolved", resolved_by_user: owner)
   end
 
+  it "reanchors comment offsets when selected text uniquely identifies the intended range" do
+    doc = create_design_doc(markdown: "# Backlog\n\n- triaging queued work before the target.\n\n## Open Questions\n\n- Should backlogged Jobs be owned, claimed, both, or neither by default?")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+    selected = "Should backlogged Jobs be owned, claimed, both, or neither by default?"
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: {
+        body: "Clarify this",
+        start_offset: doc.markdown.index("triaging"),
+        end_offset: doc.markdown.index("triaging") + selected.length,
+        selected_text: selected
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    anchor = DesignDocThread.last.anchor
+    expect(parse_body.dig("thread", "anchor")).to include(
+      "start_offset" => doc.markdown.index(selected),
+      "end_offset" => doc.markdown.index(selected) + selected.length,
+      "selected_text" => selected
+    )
+    expect(DesignDocs::AnchorMarkers.locate(markdown: doc.reload.markdown, marker_id: anchor.marker_id, anchor_kind: "range").selected_markdown).to eq(selected)
+  end
+
+  it "accepts WYSIWYG comment anchors whose markdown slice differs from rendered selected text" do
+    doc = create_design_doc(markdown: "Alpha **beta** gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+    selected_markdown = "beta** gamma"
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: {
+        body: "Clarify this",
+        start_offset: doc.markdown.index("beta"),
+        end_offset: doc.markdown.index("beta") + selected_markdown.length,
+        selected_markdown: selected_markdown,
+        selected_text: "beta gamma"
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    anchor = DesignDocThread.last.anchor
+    expect(parse_body.dig("thread", "anchor")).to include(
+      "start_offset" => doc.markdown.index("beta"),
+      "end_offset" => doc.markdown.index("beta") + selected_markdown.length,
+      "selected_markdown" => selected_markdown,
+      "selected_text" => "beta gamma"
+    )
+    expect(DesignDocs::AnchorMarkers.locate(markdown: doc.reload.markdown, marker_id: anchor.marker_id, anchor_kind: "range").selected_markdown).to eq(selected_markdown)
+  end
+
+  it "rejects ambiguous mismatched comment anchors without mutating canonical markdown" do
+    doc = create_design_doc(markdown: "Repeat target\n\nEarlier text\n\nRepeat target")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    original_markdown = doc.markdown
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+        comment: {
+          body: "Clarify this",
+          start_offset: doc.markdown.index("Earlier"),
+          end_offset: doc.markdown.index("Earlier") + "Repeat target".length,
+          selected_text: "Repeat target"
+        }
+      }
+    }.not_to change(DesignDocThread, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("appears multiple times")
+    expect(doc.reload.markdown).to eq(original_markdown)
+  end
+
   it "adds replies to an existing comment thread without creating a new anchor marker" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
@@ -525,7 +599,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
           body: "Comment #{index}",
           start_offset: index,
           end_offset: index + 1,
-          selected_markdown: doc.markdown[index]
+          selected_markdown: DesignDocs::AnchorMarkers.strip(doc.markdown)[index]
         }
       )
     end

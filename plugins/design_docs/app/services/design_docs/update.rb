@@ -48,6 +48,8 @@ module DesignDocs
         user: user,
         actor_kind: actor_kind,
         attributes: attributes.merge(
+          start_offset: anchor_start_offset,
+          end_offset: anchor_end_offset,
           proposed_markdown: proposed_markdown,
           original_markdown: selected_markdown,
           anchor_kind: "range"
