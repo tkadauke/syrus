@@ -614,7 +614,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(result.thread.comments.order(:created_at, :id).pluck(:body)).to eq([ "Needs evidence", "Added context" ])
   end
 
-  it "returns anchored threads and suggestions from the document detail API" do
+  it "returns anchored active comment and suggestion threads from the document detail API" do
     doc = create_design_doc(markdown: "Alpha beta gamma")
     doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
     comment_result = ::DesignDocs::CreateComment.call(
@@ -627,6 +627,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       user: collaborator,
       attributes: { start_offset: 11, end_offset: 16, original_markdown: "gamma", proposed_markdown: "delta" }
     )
+    suggestion_thread = suggestion_result.suggestion.thread
+    suggestion_thread.comments.create!(author_kind: "user", author_user: owner, body: "Why this wording?")
     sign_in_as(owner)
 
     get "/api/v1/app/design_docs/#{doc.id}"
@@ -648,11 +650,119 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "proposed_markdown" => "delta",
       "change_type" => "replace"
     )
+    expect(body.dig("suggestions", 0, "thread")).to include(
+      "id" => suggestion_thread.id,
+      "state" => "open"
+    )
+    expect(body.dig("suggestions", 0, "thread", "comments", 0)).to include(
+      "body" => "Why this wording?"
+    )
     expect(body.fetch("permissions")).to include(
       "can_write_canonical" => true,
       "can_suggest" => true,
       "can_review_suggestions" => true
     )
+  end
+
+  it "creates suggestion threads that accept replies and leave active suggestions after replies" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    sign_in_as(collaborator)
+
+    expect {
+      post "/api/v1/app/design_docs/#{doc.id}/suggestions", params: {
+        suggestion: {
+          start_offset: 11,
+          end_offset: 16,
+          original_markdown: "gamma",
+          proposed_markdown: "delta",
+          change_summary: "Use newer name"
+        }
+      }
+    }.to change(DesignDocSuggestion, :count).by(1)
+      .and change(DesignDocThread, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    suggestion = DesignDocSuggestion.last
+    expect(parse_body.dig("suggestion", "thread", "id")).to eq(suggestion.thread.id)
+    expect(parse_body.dig("design_doc", "suggestions", 0, "thread", "id")).to eq(suggestion.thread.id)
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: {
+        body: "Agreed",
+        thread_id: suggestion.thread.id
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("thread", "id")).to eq(suggestion.thread.id)
+    expect(parse_body.dig("comment", "body")).to eq("Agreed")
+    expect(parse_body.dig("design_doc", "suggestions", 0, "state")).to eq("pending")
+    expect(parse_body.dig("design_doc", "suggestions", 0, "thread", "comments", 0, "body")).to eq("Agreed")
+  end
+
+  it "repairs legacy pending suggestions without threads before detail serialization" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    anchor = doc.anchors.create!(
+      marker_id: SecureRandom.uuid,
+      anchor_key: SecureRandom.uuid,
+      anchor_kind: "range",
+      design_doc_version: doc.current_version,
+      start_offset: 11,
+      end_offset: 16,
+      last_known_start_offset: 11,
+      last_known_end_offset: 16,
+      selected_markdown: "gamma",
+      selected_text: "gamma",
+      status: "active"
+    )
+    suggestion = doc.suggestions.create!(
+      anchor: anchor,
+      base_version: doc.current_version,
+      suggested_by_kind: "user",
+      suggested_by_user: owner,
+      original_markdown: "gamma",
+      suggested_markdown: "delta",
+      proposed_markdown: "delta",
+      change_type: "replace"
+    )
+    sign_in_as(owner)
+
+    expect {
+      get "/api/v1/app/design_docs/#{doc.id}"
+    }.to change(DesignDocThread, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    thread_id = parse_body.dig("design_doc", "suggestions", 0, "thread", "id")
+    expect(thread_id).to eq(suggestion.reload.thread.id)
+
+    post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
+      comment: {
+        body: "Reply after repair",
+        thread_id: thread_id
+      }
+    }
+
+    expect(response).to have_http_status(:created)
+    expect(parse_body.dig("thread", "id")).to eq(thread_id)
+    expect(parse_body.dig("comment", "body")).to eq("Reply after repair")
+  end
+
+  it "removes suggestions from the pending detail set after owner review" do
+    doc = create_design_doc(markdown: "Alpha beta gamma")
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: owner,
+      attributes: { start_offset: 11, end_offset: 16, original_markdown: "gamma", proposed_markdown: "delta" }
+    ).suggestion
+    sign_in_as(owner)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/reject"
+
+    expect(response).to have_http_status(:ok)
+    states = parse_body.dig("design_doc", "suggestions").map { |payload| payload.fetch("state") }
+    expect(states).not_to include("pending")
+    expect(parse_body.dig("suggestion", "state")).to eq("rejected")
   end
 
   it "serializes non-owner design doc permissions for suggestion-only review flows" do
