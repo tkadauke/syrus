@@ -13,7 +13,8 @@ type EllipseShape = { id: string; kind: "ellipse";   x: number; y: number; w: nu
 type LineShape    = { id: string; kind: "line";       x1: number; y1: number; x2: number; y2: number; color: string }
 type ArrowShape   = { id: string; kind: "arrow";      x1: number; y1: number; x2: number; y2: number; color: string }
 type FreehandShape = { id: string; kind: "freehand";  points: Array<{ x: number; y: number }>; color: string }
-type TextShape    = { id: string; kind: "text";       x: number; y: number; value: string; color: string }
+type TextSize = "small" | "medium" | "large"
+type TextShape    = { id: string; kind: "text";       x: number; y: number; value: string; color: string; size?: TextSize }
 export type Shape = RectShape | EllipseShape | LineShape | ArrowShape | FreehandShape | TextShape
 
 type Tool     = "select" | "rectangle" | "ellipse" | "line" | "arrow" | "freehand" | "text"
@@ -62,9 +63,12 @@ const TOOL_SHORTCUTS: Record<string, Tool> = {
 }
 
 const STROKE_WIDTH    = 3
-const TEXT_FONT       = "bold 20px sans-serif"
-const TEXT_HEIGHT     = 24
-const TEXT_CHAR_WIDTH = 12
+const TEXT_SIZES: Record<TextSize, { px: number; lineHeight: number; charWidth: number }> = {
+  small:  { px: 16, lineHeight: 20, charWidth: 9.5 },
+  medium: { px: 20, lineHeight: 24, charWidth: 12 },
+  large:  { px: 28, lineHeight: 34, charWidth: 16.5 }
+}
+const TEXT_SIZE_OPTIONS: TextSize[] = ["small", "medium", "large"]
 const MAX_UNDO_STEPS  = 50
 const HANDLE_SIZE     = 8
 const HANDLE_HIT_RAD  = 7
@@ -80,6 +84,28 @@ let nextShapeId = 0
 function makeId() { return `s${++nextShapeId}` }
 
 function clampZoom(z: number) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)) }
+
+function normalizeTextSize(size?: TextSize): TextSize {
+  return size ?? "medium"
+}
+
+function textFont(size?: TextSize): string {
+  return `bold ${TEXT_SIZES[normalizeTextSize(size)].px}px sans-serif`
+}
+
+function textBounds(shape: TextShape, context?: CanvasRenderingContext2D): BoundingBox {
+  const size = TEXT_SIZES[normalizeTextSize(shape.size)]
+  const previousFont = context?.font
+  if (context) context.font = textFont(shape.size)
+  const measuredWidth = context?.measureText(shape.value).width
+  if (context && previousFont !== undefined) context.font = previousFont
+  return {
+    x: shape.x,
+    y: shape.y - size.lineHeight,
+    w: measuredWidth ?? shape.value.length * size.charWidth,
+    h: size.lineHeight
+  }
+}
 
 // --- Geometry helpers ---
 
@@ -113,7 +139,7 @@ function shapeBounds(shape: Shape): BoundingBox {
       return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
     }
     case "text":
-      return { x: shape.x, y: shape.y - TEXT_HEIGHT, w: shape.value.length * TEXT_CHAR_WIDTH, h: TEXT_HEIGHT }
+      return textBounds(shape)
   }
 }
 
@@ -199,7 +225,7 @@ function configureStroke(context: CanvasRenderingContext2D, color: string) {
   context.lineWidth   = STROKE_WIDTH
   context.lineCap     = "round"
   context.lineJoin    = "round"
-  context.font        = TEXT_FONT
+  context.font        = textFont()
 }
 
 function renderArrowHead(context: CanvasRenderingContext2D, start: Point, end: Point) {
@@ -249,13 +275,14 @@ function renderShape(shape: Shape, context: CanvasRenderingContext2D) {
       context.stroke()
       break
     case "text":
+      context.font = textFont(shape.size)
       context.fillText(shape.value, shape.x, shape.y)
       break
   }
 }
 
 function renderSelectionOverlay(shape: Shape, context: CanvasRenderingContext2D) {
-  const b = shapeBounds(shape)
+  const b = shape.kind === "text" ? textBounds(shape, context) : shapeBounds(shape)
   const bx = b.x - SELECTION_PAD
   const by = b.y - SELECTION_PAD
   const bw = b.w + SELECTION_PAD * 2
@@ -325,6 +352,7 @@ export function ImageAnnotationModal({
   const futureRef        = useRef<Shape[][]>([])
   const interactionRef   = useRef<Interaction | null>(null)
   const shapesRef        = useRef<Shape[]>([])
+  const textInputRef     = useRef<HTMLInputElement | null>(null)
   // Captured at mount; stable ref avoids adding initialShapes to the image-load effect deps
   const initialShapesRef = useRef<Shape[]>(initialShapes ?? [])
 
@@ -341,6 +369,7 @@ export function ImageAnnotationModal({
 
   const [tool,              setTool]              = useState<Tool>("rectangle")
   const [color,             setColor]             = useState(COLORS[0].value)
+  const [textSize,          setTextSize]          = useState<TextSize>("medium")
   const [imageSize,         setImageSize]         = useState<{ width: number; height: number } | null>(null)
   const [undoCount,         setUndoCount]         = useState(0)
   const [redoCount,         setRedoCount]         = useState(0)
@@ -359,6 +388,11 @@ export function ImageAnnotationModal({
   // Keep zoom/pan refs in sync with state
   useEffect(() => { zoomRef.current = zoom }, [zoom])
   useEffect(() => { panRef.current = pan },   [pan])
+
+  useEffect(() => {
+    if (!textPlacement) return
+    textInputRef.current?.focus()
+  }, [textPlacement?.x, textPlacement?.y])
 
   const requestClose = useCallback(() => {
     if (shapesRef.current.length > 0) {
@@ -588,6 +622,7 @@ export function ImageAnnotationModal({
     const point = canvasPoint(event)
 
     if (tool === "text") {
+      setSelectedShapeId(null)
       setTextPlacement({ ...point, value: "" })
       return
     }
@@ -620,6 +655,7 @@ export function ImageAnnotationModal({
         const shape = currentShapes[i]
         if (hitTest(shape, point)) {
           setSelectedShapeId(shape.id)
+          if (shape.kind === "text") setTextSize(normalizeTextSize(shape.size))
           event.currentTarget.setPointerCapture?.(event.pointerId)
           interactionRef.current = {
             mode: "move", pointerId: event.pointerId,
@@ -782,11 +818,21 @@ export function ImageAnnotationModal({
     const value = textPlacement.value.trim()
     if (!value) { setTextPlacement(null); return }
 
-    const newShape: TextShape = { id: makeId(), kind: "text", x: textPlacement.x, y: textPlacement.y, value, color }
+    const newShape: TextShape = { id: makeId(), kind: "text", x: textPlacement.x, y: textPlacement.y, value, color, size: textSize }
     const prev = shapesRef.current
     pushUndo(prev)
     setShapes([...prev, newShape])
     setTextPlacement(null)
+  }
+
+  function changeTextSize(size: TextSize) {
+    setTextSize(size)
+    const selectedText = shapesRef.current.find((shape): shape is TextShape => shape.id === selectedShapeId && shape.kind === "text")
+    if (!selectedText || normalizeTextSize(selectedText.size) === size) return
+
+    const prev = shapesRef.current
+    pushUndo(prev)
+    setShapes(prev.map(shape => shape.id === selectedText.id ? { ...selectedText, size } : shape))
   }
 
   function handleTextKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -822,10 +868,17 @@ export function ImageAnnotationModal({
   const canvasStyle    = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
   const wrapperTransform = `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`
   const overlayCursor  = isPanDragging ? "grabbing" : isPanning ? "grab" : undefined
+  const selectedTextShape = selectedShapeId
+    ? shapes.find((shape): shape is TextShape => shape.id === selectedShapeId && shape.kind === "text")
+    : null
+  const activeTextSize = selectedTextShape ? normalizeTextSize(selectedTextShape.size) : textSize
+  const showTextSizeControl = tool === "text" || Boolean(selectedTextShape)
   const inputStyle     = textPlacement && imageSize ? {
     left: `${(textPlacement.x / imageSize.width)  * 100}%`,
     top:  `${(textPlacement.y / imageSize.height) * 100}%`,
-    color
+    color,
+    fontSize: `${TEXT_SIZES[textSize].px}px`,
+    lineHeight: `${TEXT_SIZES[textSize].lineHeight}px`
   } : undefined
 
   return (
@@ -875,6 +928,24 @@ export function ImageAnnotationModal({
             />
           ))}
         </div>
+        {showTextSizeControl ? (
+          <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.text_size")}>
+            {TEXT_SIZE_OPTIONS.map((size) => (
+              <button
+                aria-label={t(`image_annotation.text_size_${size}`)}
+                aria-checked={activeTextSize === size}
+                className={secondaryButton() + (activeTextSize === size ? " border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-950 dark:text-blue-200" : "")}
+                key={size}
+                onClick={() => changeTextSize(size)}
+                role="radio"
+                style={{ fontSize: `${TEXT_SIZES[size].px}px`, lineHeight: `${TEXT_SIZES[size].lineHeight}px` }}
+                type="button"
+              >
+                A
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="flex items-center gap-2">
           <Button variant="secondary" disabled={undoCount === 0} onClick={undo}>{t("image_annotation.undo")}</Button>
           <Button variant="secondary" disabled={redoCount === 0} onClick={redo}>{t("image_annotation.redo")}</Button>
@@ -908,10 +979,12 @@ export function ImageAnnotationModal({
                 <Input
                   aria-label={t("image_annotation.text_input")}
                   autoFocus
-                  className="absolute min-w-32 -translate-y-1/2 text-xl font-bold shadow"
+                  className="absolute min-w-32 -translate-y-1/2 font-bold shadow"
+                  fullWidth={false}
                   onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
                   onKeyDown={handleTextKeyDown}
                   placeholder={t("image_annotation.text_placeholder")}
+                  ref={textInputRef}
                   style={inputStyle}
                   value={textPlacement.value}
                 />

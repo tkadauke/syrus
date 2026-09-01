@@ -5,7 +5,7 @@ import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 const sourceDataUrl = "data:image/jpeg;base64,c291cmNl"
 
 type MockContext = CanvasRenderingContext2D & {
-  _fillTexts: Array<{ text: string; x: number; y: number }>
+  _fillTexts: Array<{ text: string; x: number; y: number; font: string }>
 }
 
 describe("ImageAnnotationModal", () => {
@@ -134,6 +134,75 @@ describe("ImageAnnotationModal", () => {
     await waitFor(() => {
       expect(contexts[1].fillText).toHaveBeenCalledWith("Review this", 30, 32)
     })
+  })
+
+  it("focuses the text input after placing text", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Type, then press Enter")).toHaveFocus()
+    })
+  })
+
+  it("commits text with the selected non-default text size", async () => {
+    const onDone = vi.fn()
+    renderModal({ onDone })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.click(screen.getByRole("radio", { name: "Large" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+    const input = screen.getByPlaceholderText("Type, then press Enter")
+    expect(input).toHaveStyle({ fontSize: "28px", lineHeight: "34px" })
+    fireEvent.change(input, { target: { value: "Large note" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+
+    await waitFor(() => {
+      expect(contexts[1]._fillTexts).toContainEqual({ text: "Large note", x: 30, y: 32, font: "bold 28px sans-serif" })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }))
+
+    expect(onDone).toHaveBeenCalledWith(
+      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.arrayContaining([expect.objectContaining({ kind: "text", value: "Large note", size: "large" })])
+    )
+  })
+
+  it("updates a selected text annotation size and keeps the change undoable", async () => {
+    const onDone = vi.fn()
+    const initialShapes: Shape[] = [
+      { id: "s1", kind: "text", x: 20, y: 40, value: "Resize me", color: "#ef4444" }
+    ]
+    renderModal({ initialShapes, onDone })
+    await waitForLoaded()
+
+    await waitFor(() => {
+      expect(contexts[1]._fillTexts).toContainEqual({ text: "Resize me", x: 20, y: 40, font: "bold 20px sans-serif" })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Select" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 25, clientY: 30, pointerId: 1 })
+    fireEvent.pointerUp(screen.getByLabelText("Annotation canvas"), { clientX: 25, clientY: 30, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("radio", { name: "Small" }))
+
+    await waitFor(() => {
+      expect(contexts[1]._fillTexts).toContainEqual({ text: "Resize me", x: 20, y: 40, font: "bold 16px sans-serif" })
+    })
+    expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }))
+
+    expect(onDone).toHaveBeenCalledWith(
+      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.arrayContaining([expect.objectContaining({ id: "s1", kind: "text", size: "small" })])
+    )
   })
 
   it("switches tool via keyboard shortcut", async () => {
@@ -978,10 +1047,11 @@ describe("ImageAnnotationModal", () => {
       clearRect: vi.fn(),
       drawImage: vi.fn(),
       ellipse: vi.fn(),
-      fillText: vi.fn((text: string, x: number, y: number) => { context._fillTexts.push({ text, x, y }) }),
+      fillText: vi.fn((text: string, x: number, y: number) => { context._fillTexts.push({ text, x, y, font: context.font }) }),
       getImageData: vi.fn(() => ({ data: new Uint8ClampedArray([0]), height: 80, width: 100 }) as ImageData),
       lineTo: vi.fn(),
       moveTo: vi.fn(),
+      measureText: vi.fn((text: string) => ({ width: text.length * 12 }) as TextMetrics),
       putImageData: vi.fn(),
       rect: vi.fn(),
       save: vi.fn(),
