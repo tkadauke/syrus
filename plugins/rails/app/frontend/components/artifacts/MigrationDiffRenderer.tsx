@@ -1,4 +1,4 @@
-import type { MigrationDiffChange, MigrationDiffPayload } from "../../api/artifacts"
+import type { MigrationDiffChange, MigrationDiffPayload } from "@app/api/artifacts"
 
 // Renders a Rails migration diff as a two-column before/after table.
 // Added columns are highlighted green, removed columns red, modified amber.

@@ -1755,19 +1755,21 @@ describe("ArtifactsTab", () => {
       renderer_type: "erd_diagram",
       payload: {
         tables: [
-          { name: "users", columns: [{ name: "id", type: "bigint", primary_key: true }, { name: "email", type: "string" }] },
-          { name: "posts", columns: [{ name: "id", type: "bigint", primary_key: true }, { name: "user_id", type: "bigint" }] }
-        ],
-        foreign_keys: [{ from_table: "posts", from_column: "user_id", to_table: "users", to_column: "id" }]
+          { name: "users", columns: [{ name: "id", type: "bigint" }, { name: "email", type: "string" }] },
+          {
+            name: "posts",
+            columns: [{ name: "id", type: "bigint" }, { name: "user_id", type: "bigint" }],
+            foreign_keys: [{ from_column: "user_id", to_table: "users", to_column: "id" }]
+          }
+        ]
       }
     }])
 
     expect(screen.getByText("users")).toBeInTheDocument()
     expect(screen.getByText("posts")).toBeInTheDocument()
     expect(screen.getByText("email")).toBeInTheDocument()
-    expect(screen.getByText("Foreign keys")).toBeInTheDocument()
-    expect(screen.getByText("posts.user_id → users.id")).toBeInTheDocument()
-    expect(screen.getAllByText("PK")).toHaveLength(2)
+    expect(screen.getByText(/users\.id/)).toBeInTheDocument()
+    expect(screen.getAllByTitle("foreign key")).toHaveLength(1)
   })
 
   it("renders migration_diff: before and after column lists", () => {

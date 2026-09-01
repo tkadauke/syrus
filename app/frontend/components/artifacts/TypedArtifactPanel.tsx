@@ -1,6 +1,5 @@
-import type { TypedArtifact, SchemaErdPayload, MigrationDiffPayload, ImageDiffPayload, BeforeAfterVisualDiffPayload, BeforeAfterVisualImage } from "../../api/artifacts"
-import { ErdDiagramRenderer } from "./ErdDiagramRenderer"
-import { MigrationDiffRenderer } from "./MigrationDiffRenderer"
+import type { TypedArtifact, ImageDiffPayload, BeforeAfterVisualDiffPayload, BeforeAfterVisualImage } from "../../api/artifacts"
+import { pluginArtifactBodyFor } from "../../pluginArtifactRenderers"
 
 // Renders all typed artifacts stored on a workflow. Dispatches to the
 // appropriate renderer component based on renderer_type. Unknown renderer
@@ -32,12 +31,9 @@ function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
 }
 
 function ArtifactBody({ artifact }: { artifact: TypedArtifact }) {
-  if (artifact.renderer_type === "erd_diagram") {
-    return <ErdDiagramRenderer payload={artifact.payload as SchemaErdPayload} />
-  }
-  if (artifact.renderer_type === "migration_diff") {
-    return <MigrationDiffRenderer payload={artifact.payload as MigrationDiffPayload} />
-  }
+  const pluginBody = pluginArtifactBodyFor(artifact)
+  if (pluginBody) return pluginBody
+
   if (artifact.renderer_type === "image_diff") {
     return <ImageDiffBody payload={artifact.payload as ImageDiffPayload} title={artifact.title} />
   }
