@@ -16,24 +16,7 @@ RSpec.configure do |config|
     registered_names = Syrus::PluginRegistry.registered_names
 
     SyrusClaudeAgent.register!
-
-    unless registered_names.include?("codex_agent")
-      Syrus::PluginRegistry.register(
-        name:            "codex_agent",
-        display_name:    "Codex Agent",
-        version:         SyrusCodexAgent::VERSION,
-        description:     "Runs workflow and chat turns through Codex.",
-        homepage:        "https://github.com/tkadauke/syrus",
-        author:          "Thomas Kadauke",
-        default_enabled: true,
-        disableable:     true,
-        category:        "agent",
-        provides: {
-          agent_provider: AgentProviders::Codex,
-          chat_provider:  ChatProviders::Codex
-        }
-      )
-    end
+    SyrusCodexAgent.register!
 
     unless registered_names.include?("github_source")
       Syrus::PluginRegistry.register(

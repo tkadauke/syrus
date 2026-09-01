@@ -1,7 +1,3 @@
-require "fileutils"
-require "json"
-require "tmpdir"
-
 class CredentialProbe
   Result = Data.define(:credential, :ok, :message, :details) do
     def as_json(*)
@@ -74,8 +70,6 @@ class CredentialProbe
 
   CREDENTIAL_PROBE_METHODS = {
     "github_token"       => :probe_github,
-    "codex_api_key"      => :probe_codex,
-    "codex_auth_json"    => :probe_codex,
     "gemini_api_key"     => :probe_gemini
   }.freeze
   @registered_probe_handlers = {}
@@ -205,76 +199,6 @@ class CredentialProbe
     handler.cli_ready(probe)
   end
 
-  CODEX_CREDENTIAL_SPECS = {
-    "codex_api_key" => {
-      credential_attr: :codex_api_key,
-      missing_message: "Codex API key is not configured.",
-      required_mode: "api_key",
-      wrong_mode_message: "Codex is set to ChatGPT auth.json mode."
-    },
-    "codex_auth_json" => {
-      credential_attr: :codex_auth_json,
-      missing_message: "Codex ChatGPT auth.json is not configured.",
-      required_mode: "chatgpt_login",
-      wrong_mode_message: "Codex is set to API key mode."
-    }
-  }.freeze
-
-  def probe_codex
-    spec = CODEX_CREDENTIAL_SPECS.fetch(credential)
-    return missing(spec[:missing_message]) if user.send(spec[:credential_attr]).blank?
-    return wrong_mode(spec[:wrong_mode_message]) unless user.codex_auth_mode == spec[:required_mode]
-
-    Dir.mktmpdir("syrus-codex-probe-") do |workspace|
-      codex_home = File.join(workspace, ".codex")
-      FileUtils.mkdir_p(codex_home)
-      CodexAuth.with_refresh_lock(user: user) do
-        codex_auth = CodexAuth.new(user: user, codex_home: codex_home)
-        auth = codex_auth.prepare!
-        File.write(File.join(codex_home, "config.toml"), codex_config)
-
-        output = +""
-        result = ProcessRunner.new(
-          env: ProcessRunner.forwarded_env(
-            AgentInvocation::ENV_FORWARD,
-            extra: {
-              "CODEX_HOME" => codex_home,
-              "CODEX_API_KEY" => auth.api_key.presence
-            }
-          ),
-          command: [
-            "codex", "exec",
-            "--cd", workspace,
-            "--dangerously-bypass-approvals-and-sandbox",
-            "--json",
-            "Reply with OK."
-          ],
-          chdir: workspace,
-          timeout: TIMEOUT_SECONDS,
-          silent_timeout: 15,
-          kind: "agent",
-          on_output_chunk: ->(chunk) { append_output(output, chunk) }
-        ).run
-
-        if result.success?
-          codex_auth.persist_updated_auth_json
-          details = {}
-          if user.codex_auth_mode == "chatgpt_login"
-            usage = CodexUsageProbe.refresh_for(user: user, force: true)
-            details[:codex_usage] = usage.snapshot if usage.snapshot.present?
-          end
-          return Result.new(credential: credential, ok: true, message: "Codex credentials are valid.", details: details)
-        end
-
-        failure("Codex probe failed: #{probe_failure_reason(result, output)}")
-      end
-    end
-  rescue CodexAuth::Error => e
-    failure(e.message)
-  rescue Errno::ENOENT
-    failure("Codex CLI is not installed or not on PATH.")
-  end
-
   def success(credential, message)
     Result.new(credential: credential, ok: true, message: message, details: {})
   end
@@ -308,20 +232,9 @@ class CredentialProbe
   def sanitize(value)
     text = value.to_s
     [
-      user.github_token,
-      user.codex_api_key
+      user.github_token
     ].concat(registered_secrets).compact_blank.each do |secret|
       text = text.gsub(secret, REDACTED)
-    end
-
-    if user.codex_auth_json.present?
-      begin
-        JSON.parse(user.codex_auth_json).dig("tokens").to_h.values.compact_blank.each do |secret|
-          text = text.gsub(secret, REDACTED)
-        end
-      rescue JSON::ParserError
-        nil
-      end
     end
 
     text.lines.map(&:strip).reject(&:blank?).last(3).join(" ").truncate(500)
@@ -335,15 +248,7 @@ class CredentialProbe
     headers.fetch(key, "").to_s.split(",").map(&:strip).compact_blank
   end
 
-  def codex_config
-    [
-      'cli_auth_credentials_store = "file"',
-      'approval_policy = "never"',
-      "model = #{JSON.generate(CodexInvocation::DEFAULT_MODEL)}"
-    ].join("\n") + "\n"
-  end
-
   def registered_secrets
-    self.class.instance_variable_get(:@registered_secret_extractors).filter_map { |extractor| extractor.call(user) }
+    self.class.instance_variable_get(:@registered_secret_extractors).flat_map { |extractor| Array(extractor.call(user)) }
   end
 end
