@@ -392,7 +392,15 @@ describe("DesignDocsSurface", () => {
 
     editor.setSelectionRange(6, 10)
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify this" } })
+    expect(screen.getByRole("button", { name: "Add comment to selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add comment to selection" }))
+    const composer = screen.getByRole("textbox", { name: "New thread comment" })
+    expect(composer).toHaveFocus()
+    expect(within(composer.closest("div")!.parentElement!).getByText("beta")).toBeInTheDocument()
+    fireEvent.change(composer, { target: { value: "Clarify this" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -422,7 +430,12 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    expect(screen.getByRole("button", { name: "Add comment to selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add comment to selection" }))
+    fireEvent.change(screen.getByRole("textbox", { name: "New thread comment" }), { target: { value: "Clarify intro" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
