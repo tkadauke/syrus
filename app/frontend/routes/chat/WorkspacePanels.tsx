@@ -94,7 +94,7 @@ export function ChatWorkspacePanel({
   }, [activeTab, onSelectTab, payload, simpleMode, tabs])
 
   return (
-    <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <aside aria-label={t("aria_chat_workspace")} className="flex h-full w-full min-h-0 min-w-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       {!showTabs ? null : (
         <nav aria-label={t("aria_workspace_tabs")} className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
           {tabs.map((tab) => {
