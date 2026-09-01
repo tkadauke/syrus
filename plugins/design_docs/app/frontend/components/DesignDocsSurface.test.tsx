@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom"
 import { jsonResponse } from "@app/testSupport"
 import { DesignDocsSurface } from "./DesignDocsSurface"
 import type { DesignDocSummary } from "../api/designDocs"
@@ -136,11 +136,39 @@ function renderSurface(path = "/design_docs") {
   )
 }
 
+function renderFocusedSurface(path = "/design_docs/1") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/design_docs/:id" element={<FocusedDesignDocsTestRoute />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 function DesignDocsTestRoute() {
+  const params = useParams()
+
   return (
     <>
-      <DesignDocsSurface mode="index" />
+      <DesignDocsSurface mode={params.id ? "show" : "index"} />
       <LocationProbe />
+    </>
+  )
+}
+
+function FocusedDesignDocsTestRoute() {
+  const params = useParams()
+  const navigate = useNavigate()
+
+  return (
+    <>
+      <button onClick={() => navigate("/design_docs/1")} type="button">Open DOC-1</button>
+      <button onClick={() => navigate("/design_docs/2")} type="button">Open DOC-2</button>
+      <DesignDocsSurface mode={params.id ? "show" : "index"} />
     </>
   )
 }
@@ -285,7 +313,7 @@ describe("DesignDocsSurface", () => {
     }
   })
 
-  it("shows the shared filter bar without duplicating desktop smart folders, and navigates into the detail editor", async () => {
+  it("keeps the index chrome on the list page and navigates into a focused detail editor", async () => {
     mockFetch()
     renderSurface()
 
@@ -299,6 +327,9 @@ describe("DesignDocsSurface", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Alpha beta gamma")
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Billing design/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
     expect(screen.getByText("Threads")).toBeInTheDocument()
     expect(screen.getByText("Suggestions")).toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Design doc title bar" })).toBeInTheDocument()
@@ -340,6 +371,7 @@ describe("DesignDocsSurface", () => {
     expect(screen.getAllByText("DOC-1").length).toBeGreaterThan(0)
     expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
     expect(screen.queryByRole("navigation", { name: "Design Docs smart folders" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "New doc" })).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1", expect.objectContaining({ credentials: "same-origin" }))
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs/237")).toBe(false)
     expect(fetchSpy.mock.calls.some(([input]) => String(input) === "/api/v1/app/design_docs")).toBe(false)
@@ -436,12 +468,11 @@ describe("DesignDocsSurface", () => {
 
   it("resets draft editor state when switching between design docs", async () => {
     mockFetch()
-    renderSurface()
+    renderFocusedSurface()
 
-    fireEvent.click(await screen.findByRole("button", { name: /Checkout design/ }))
     const firstEditor = await screen.findByRole("textbox", { name: "Markdown editor" })
     fireEvent.change(firstEditor, { target: { value: "Unsaved first doc edits" } })
-    fireEvent.click(await screen.findByRole("button", { name: /Billing design/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Open DOC-2" }))
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
     expect(screen.getByRole("textbox", { name: "Design doc title" })).toHaveValue("Billing design")
@@ -455,6 +486,7 @@ describe("DesignDocsSurface", () => {
 
     expect(await screen.findByRole("textbox", { name: "Markdown editor" })).toHaveValue("Second document body")
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/2?q=eyJhbmQiOltdfQ%3D%3D")
+    expect(screen.queryByTestId("design-docs-filter-bar")).not.toBeInTheDocument()
   })
 
   it("switches editor tabs without losing unsaved local edits", async () => {
