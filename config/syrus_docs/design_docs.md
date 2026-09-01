@@ -76,6 +76,13 @@ does not offer `Edit`, their in-flight edits autosave as pending suggestions,
 the save action is labeled as suggestion creation, and accept/reject controls
 render as pending owner review.
 
+Selecting text in either editor mode shows only a compact comment icon near the
+selection. Clicking that icon focuses the new-comment composer in the right
+Threads column and keeps the selected Markdown range attached to the submitted
+comment. Inline document edits continue to follow the current `Edit` /
+`Suggest` mode; the selection affordance does not expose a separate suggested
+replacement field.
+
 ## Chat Workspace Tabs
 
 The Design Docs chat workspace surface is document-focused, not the top-level

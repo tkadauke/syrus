@@ -392,7 +392,14 @@ describe("DesignDocsSurface", () => {
 
     editor.setSelectionRange(6, 10)
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify this" } })
+    expect(screen.getByRole("button", { name: "Comment on selection" })).toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Inline comment" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("textbox", { name: "Suggested replacement" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    const composer = screen.getByRole("textbox", { name: "Thread comment" })
+    await waitFor(() => expect(composer).toHaveFocus())
+    fireEvent.change(composer, { target: { value: "Clarify this" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -422,7 +429,10 @@ describe("DesignDocsSurface", () => {
     window.getSelection()?.addRange(range)
 
     fireEvent.mouseUp(editor)
-    fireEvent.change(screen.getByRole("textbox", { name: "Inline comment" }), { target: { value: "Clarify intro" } })
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    const composer = screen.getByRole("textbox", { name: "Thread comment" })
+    await waitFor(() => expect(composer).toHaveFocus())
+    fireEvent.change(composer, { target: { value: "Clarify intro" } })
     fireEvent.click(screen.getByRole("button", { name: "Comment" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/design_docs/1/comments", expect.objectContaining({ method: "POST" })))
@@ -430,6 +440,28 @@ describe("DesignDocsSurface", () => {
     expect(JSON.parse(String(commentRequest?.[1]?.body))).toMatchObject({
       comment: { body: "Clarify intro", start_offset: 8, end_offset: 12, selected_markdown: "beta", selected_text: "beta" }
     })
+  })
+
+  it("refocuses the Threads composer when the selection icon is clicked again", async () => {
+    mockFetch()
+    renderSurface("/design_docs/1")
+    fireEvent.click(await screen.findByRole("tab", { name: "Markdown" }))
+    const editor = screen.getByRole("textbox", { name: "Markdown editor" }) as HTMLTextAreaElement
+
+    editor.setSelectionRange(0, 5)
+    fireEvent.mouseUp(editor)
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+    const composer = screen.getByRole("textbox", { name: "Thread comment" })
+    await waitFor(() => expect(composer).toHaveFocus())
+
+    editor.setSelectionRange(11, 16)
+    fireEvent.mouseUp(editor)
+    editor.focus()
+    expect(composer).not.toHaveFocus()
+    fireEvent.click(screen.getByRole("button", { name: "Comment on selection" }))
+
+    await waitFor(() => expect(composer).toHaveFocus())
+    expect(within(screen.getByText("New comment").closest("div")!).getByText("gamma")).toBeInTheDocument()
   })
 
   it("synchronizes focus between inline highlights and the comment rail", async () => {
