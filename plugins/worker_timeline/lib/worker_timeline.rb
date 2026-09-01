@@ -2,6 +2,15 @@ require "worker_timeline/version"
 require "worker_timeline/engine"
 
 module WorkerTimeline
+  FILTER_CHIPS = {
+    "repository_id" => "Filters::Chips::WorkerTimeline::RepositoryId",
+    "epic_id"       => "Filters::Chips::WorkerTimeline::EpicId",
+    "hostname"      => "Filters::Chips::WorkerTimeline::Hostname",
+    "job_type"      => "Filters::Chips::WorkerTimeline::JobType",
+    "status"        => "Filters::Chips::WorkerTimeline::Status",
+    "window"        => "Filters::Chips::WorkerTimeline::Window"
+  }.freeze
+
   def self.register!
     Syrus::PluginRegistry.register(
       name:            "worker_timeline",
@@ -37,6 +46,11 @@ module WorkerTimeline
         sidebar_page: WorkerTimeline::SidebarPages
       }
     )
+    register_filter_subject!
+  end
+
+  def self.register_filter_subject!
+    Filters.register_subject(name: :worker_timeline, model: Workflow, chips: FILTER_CHIPS)
   end
 
   def self.enabled?
