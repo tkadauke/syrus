@@ -386,7 +386,12 @@ function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice
 }
 
 export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
-  const [open, setOpen] = useState(false)
+  const shouldAutoOpen = item.prominent === true && item.collapsed_by_default !== true
+  const [open, setOpen] = useState(shouldAutoOpen)
+
+  useEffect(() => {
+    if (shouldAutoOpen) setOpen(true)
+  }, [shouldAutoOpen])
 
   if (simpleMode) {
     return (
@@ -401,21 +406,29 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
     )
   }
 
-  const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
+  const summary = item.summary_label || item.tool
+  const outcome = item.outcome_label || toolGroupOutcome(item)
+  const toneClass = item.calls.some((call) => call.result_error)
+    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+    : item.prominent
+      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+      : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   return (
-    <details className="group/tool" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex min-w-0 cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">
-        <span className="text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{item.tool}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400">{details}</span>
+    <details className="group/tool" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className={`flex min-w-0 cursor-pointer items-center gap-2 rounded border px-3 py-1.5 text-sm hover:bg-white dark:hover:bg-gray-800 ${toneClass}`} onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
+        <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
+        <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{summary}</span>
+        <span className="min-w-0 truncate text-xs text-gray-600 dark:text-gray-400">{outcome}</span>
         {item.calls.length > 1 ? <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">{item.calls.length}</span> : null}
       </summary>
-      <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
+      {open ? <div className="ml-5 mt-1 space-y-2 border-l border-gray-200 pl-3 text-xs dark:border-gray-700">
         {item.calls.map((call) => (
           <div key={call.message_id}>
-            <div className="break-words font-mono text-gray-700 dark:text-gray-300">{item.tool}{call.detail ? `(${call.detail})` : ""}</div>
-            {call.result_summary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
+            <div className="break-words font-medium text-gray-700 dark:text-gray-300">{call.display_label}</div>
+            {call.detail ? <div className="mt-0.5 break-words font-mono text-gray-500 dark:text-gray-400">{call.detail}</div> : null}
+            {call.result_error ? <div className="mt-1 font-medium text-red-700 dark:text-red-300">Failed</div> : call.result_summary ? <div className="mt-1 text-gray-500 dark:text-gray-400">{call.result_summary}</div> : null}
             {open && call.result_body ? <HighlightedToolResult code={call.result_body} detail={call.detail} error={call.result_error} tool={item.tool} /> : null}
+            {open ? <RawToolDetails payload={call.raw_payload} result={call.result_body} /> : null}
             {open && call.nested && call.nested.length > 0 ? (
               <div className="mt-2 space-y-1">
                 {call.nested.map((nestedGroup) => (
@@ -425,10 +438,18 @@ export const ToolGroup = memo(function ToolGroup({ item, simpleMode = false }: {
             ) : null}
           </div>
         ))}
-      </div>
+      </div> : null}
     </details>
   )
 })
+
+function toolGroupOutcome(item: ChatToolGroupItem) {
+  if (item.calls.some((call) => call.result_error)) return "Needs attention"
+  if (item.calls.some((call) => call.result_kind === "unknown" && !call.result_body)) return "Running"
+  if (item.calls.length > 1) return `${item.calls.length} calls`
+
+  return item.calls[0]?.result_summary || "Completed"
+}
 
 function HighlightedToolResult({ code, detail, error, tool }: { code: string; detail: string; error: boolean; tool: string }) {
   const language = inferToolResultLanguage(detail, tool)
@@ -445,15 +466,45 @@ function hasLongLine(value: string) {
 
 function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallback: string }) {
   const name = tool?.display_label || tool?.name || "tool"
+  const outcome = structuredToolOutcome(tool)
   const [open, setOpen] = useState(false)
   return (
-    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="flex cursor-pointer items-baseline gap-2 py-0.5 text-sm text-gray-700 hover:text-gray-900 group-open/tool:px-3 group-open/tool:py-2 dark:text-gray-300 dark:hover:text-gray-100">
+    <details className="text-xs open:rounded open:border open:border-gray-200 open:bg-gray-50 dark:open:border-gray-700 dark:open:bg-gray-900" open={open}>
+      <summary className="flex cursor-pointer items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:bg-white dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>
         <span className="text-gray-400 dark:text-gray-500">▸</span>
-        <span className="font-mono font-medium text-gray-900 dark:text-gray-100">{name}</span>
-        {tool?.proposal_id ? <span className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</span> : null}
+        <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{name}</span>
+        <span className="min-w-0 truncate text-xs text-gray-600 dark:text-gray-400">{outcome}</span>
       </summary>
-      {open ? <pre className="overflow-x-auto px-3 pb-3 font-mono text-gray-700 whitespace-pre-wrap break-words dark:text-gray-300">{JSON.stringify(tool?.payload || fallback, null, 2)}</pre> : null}
+      {open ? (
+        <div className="space-y-2 px-3 pb-3 pt-2">
+          {tool?.proposal_id ? <div className="text-gray-600 dark:text-gray-400">Proposal #{tool.proposal_id} {tool.proposal_state_label ? `created (${tool.proposal_state_label})` : ""}</div> : null}
+          {tool?.argument_summary ? <div className="break-words font-mono text-gray-500 dark:text-gray-400">{tool.argument_summary}</div> : null}
+          {tool?.result_summary ? <div className="text-gray-600 dark:text-gray-400">{tool.result_summary}</div> : null}
+          <RawToolDetails payload={tool?.payload || fallback} />
+        </div>
+      ) : null}
+    </details>
+  )
+}
+
+function structuredToolOutcome(tool?: ChatStructuredTool) {
+  if (!tool) return "Details available"
+  if (tool.result_kind === "error") return "Needs attention"
+  if (tool.result_summary) return tool.result_summary
+  if (tool.proposal_id) return tool.proposal_state_label ? `Proposal ${tool.proposal_state_label}` : "Proposal"
+  if (tool.argument_summary) return tool.argument_summary
+
+  return "Details available"
+}
+
+function RawToolDetails({ payload, result }: { payload: unknown; result?: string }) {
+  const [open, setOpen] = useState(false)
+  const raw = result ? { arguments: payload, result } : payload
+
+  return (
+    <details className="mt-1" open={open}>
+      <summary className="inline-flex cursor-pointer text-xs font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline dark:text-gray-400 dark:hover:text-gray-200" onClick={(event) => { event.preventDefault(); setOpen((value) => !value) }}>Raw details</summary>
+      {open ? <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded border border-gray-200 bg-white p-2 font-mono text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300">{JSON.stringify(raw, null, 2)}</pre> : null}
     </details>
   )
 }
