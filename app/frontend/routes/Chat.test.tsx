@@ -1726,7 +1726,7 @@ describe("pinned messages bar", () => {
     fireEvent.click(await screen.findByRole("button", { name: "+2 more" }))
 
     const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
-    expect(within(workspace).getByRole("button", { name: "Pinned" })).toHaveClass("border-blue-600")
+    expect(within(workspace).getByRole("button", { name: "Pinned" })).toHaveClass("border-brand")
     expect(within(workspace).getAllByRole("listitem")).toHaveLength(5)
     expect(within(workspace).getByText("First pinned note.")).toBeInTheDocument()
   })
